@@ -67,110 +67,78 @@ class CodeSyncClient:
         self.skipped_count = 0   # Files skipped (already up-to-date)
 
         # Sync logs (recent activity)
-        self.sync_logs: List[Dict] = []  # Recent sync operations
-        self.max_logs = 100  # Keep last 100 log entries in memory
-        self.max_logs_per_file = 20000  # Keep max 20k logs per JSON file
+        self.sync_logs: List[Dict] = []  # Recent logs for UI display
+        self.max_logs = 50  # Keep last 50 logs in memory for UI
+        self.max_logs_per_file = 20000  # Max 20000 logs per file
 
         # Failed files queue (for retry)
-        self.failed_files: List[Dict] = []  # Files that failed to download/write
-        self.max_failed_files = 1000  # Keep max 1000 failed files
+        self.failed_files: List[Dict] = []
+        self.max_failed_files = 1000
 
         # Log file path
         self.logs_dir = get_app_data_dir() / 'code_sync_logs'
         self.logs_dir.mkdir(parents=True, exist_ok=True)
-        self.current_log_file = self.logs_dir / 'sync_logs.json'
+
+        # Backup directory (in external app data dir)
+        self.backup_dir = get_app_data_dir() / 'code_sync_backups'
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+
+        # Current log file tracking
+        self.current_log_file = None
+        self.current_log_line_count = 0
+        self._init_log_file()
+
         self.failed_files_file = self.logs_dir / 'failed_files.json'
 
-        # Load existing logs and failed files
-        self._load_logs()
+        # Load existing failed files
         self._load_failed_files()
 
         ColorPrint.green(f"[CodeSync Client] Initialized with target: {self.target_dir}")
         ColorPrint.blue(f"[CodeSync Client] Client ID: {self.client_id}")
         ColorPrint.blue(f"[CodeSync Client] Backup enabled: {self.enable_backup}")
+        ColorPrint.blue(f"[CodeSync Client] Backup dir: {self.backup_dir}")
         ColorPrint.blue(f"[CodeSync Client] Logs dir: {self.logs_dir}")
 
         if self.failed_files:
             ColorPrint.yellow(f"[CodeSync Client] {len(self.failed_files)} files pending retry")
 
-    def _load_logs(self):
-        """Load logs from JSON file"""
-        try:
-            if self.current_log_file.exists():
-                with open(self.current_log_file, 'r', encoding='utf-8') as f:
-                    all_logs = json.load(f)
+    def _init_log_file(self):
+        """Initialize current log file"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.current_log_file = self.logs_dir / f'sync_logs_{timestamp}.log'
+        self.current_log_line_count = 0
+        ColorPrint.blue(f"[CodeSync Client] Log file: {self.current_log_file.name}")
 
-                # Keep only last max_logs in memory
-                self.sync_logs = all_logs[-self.max_logs:]
-                ColorPrint.blue(f"[CodeSync Client] Loaded {len(all_logs)} logs from file")
-            else:
-                self.sync_logs = []
+    def _write_log_line(self, log_line: str):
+        """Write a log line to file"""
+        # Check if need to rotate
+        if self.current_log_line_count >= self.max_logs_per_file:
+            self._init_log_file()
 
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Error loading logs: {e}")
-            self.sync_logs = []
+        # Append to log file
+        with open(self.current_log_file, 'a', encoding='utf-8') as f:
+            f.write(log_line + '\n')
 
-    def _save_logs(self):
-        """Save logs to JSON file"""
-        try:
-            # Load all existing logs
-            all_logs = []
-            if self.current_log_file.exists():
-                with open(self.current_log_file, 'r', encoding='utf-8') as f:
-                    all_logs = json.load(f)
-
-            # Append new logs
-            all_logs.extend(self.sync_logs)
-
-            # Check if need to rotate file
-            if len(all_logs) > self.max_logs_per_file:
-                # Backup current file
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                backup_file = self.logs_dir / f'sync_logs_backup_{timestamp}.json'
-
-                # Save to backup
-                with open(backup_file, 'w', encoding='utf-8') as f:
-                    json.dump(all_logs, f, ensure_ascii=False, indent=2)
-
-                ColorPrint.blue(f"[CodeSync Client] Backed up {len(all_logs)} logs to {backup_file.name}")
-
-                # Keep only recent logs in new file
-                all_logs = all_logs[-self.max_logs_per_file:]
-
-            # Save to current file
-            with open(self.current_log_file, 'w', encoding='utf-8') as f:
-                json.dump(all_logs, f, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Error saving logs: {e}")
+        self.current_log_line_count += 1
 
     def _load_failed_files(self):
         """Load failed files queue from JSON file"""
-        try:
-            if self.failed_files_file.exists():
-                with open(self.failed_files_file, 'r', encoding='utf-8') as f:
-                    self.failed_files = json.load(f)
-                ColorPrint.blue(f"[CodeSync Client] Loaded {len(self.failed_files)} failed files")
-            else:
-                self.failed_files = []
-
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Error loading failed files: {e}")
+        if not self.failed_files_file.exists():
             self.failed_files = []
+            return
+
+        with open(self.failed_files_file, 'r', encoding='utf-8') as f:
+            self.failed_files = json.load(f)
+        ColorPrint.blue(f"[CodeSync Client] Loaded {len(self.failed_files)} failed files")
 
     def _save_failed_files(self):
         """Save failed files queue to JSON file"""
-        try:
-            # Keep only max_failed_files
-            if len(self.failed_files) > self.max_failed_files:
-                self.failed_files = self.failed_files[-self.max_failed_files:]
+        # Keep only max_failed_files
+        if len(self.failed_files) > self.max_failed_files:
+            self.failed_files = self.failed_files[-self.max_failed_files:]
 
-            # Save to file
-            with open(self.failed_files_file, 'w', encoding='utf-8') as f:
-                json.dump(self.failed_files, f, ensure_ascii=False, indent=2)
-
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Error saving failed files: {e}")
+        with open(self.failed_files_file, 'w', encoding='utf-8') as f:
+            json.dump(self.failed_files, f, ensure_ascii=False, indent=2)
 
     def _add_to_failed_queue(self, file_info: Dict, reason: str):
         """
@@ -217,25 +185,30 @@ class CodeSyncClient:
             reason: Reason for the action
             details: Additional details
         """
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Create log entry for memory (UI display)
         log_entry = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp,
             'action': action,
             'file': file_path,
             'reason': reason,
             'details': details
         }
 
+        # Add to memory (keep last N for UI)
         self.sync_logs.append(log_entry)
-
-        # Keep only last max_logs entries in memory
         if len(self.sync_logs) > self.max_logs:
-            # Save to file before trimming
-            self._save_logs()
             self.sync_logs = self.sync_logs[-self.max_logs:]
 
+        # Write to log file (simple text format)
+        log_line = f"[{timestamp}] {action.upper()}: {file_path} - {reason}"
+        if details:
+            log_line += f" | {details}"
+        self._write_log_line(log_line)
+
         # Print to console
-        timestamp_str = datetime.now().strftime('%H:%M:%S')
-        ColorPrint.blue(f"[{timestamp_str}] {action.upper()}: {file_path} - {reason}")
+        ColorPrint.blue(f"[{timestamp.split()[1]}] {action.upper()}: {file_path} - {reason}")
         if details:
             ColorPrint.blue(f"  Details: {details}")
 
@@ -576,7 +549,7 @@ class CodeSyncClient:
 
     def _download_file_content(self, rel_path: str) -> Optional[bytes]:
         """
-        Download file content from server
+        Download file content from server with retry logic
 
         Args:
             rel_path: Relative file path
@@ -584,23 +557,34 @@ class CodeSyncClient:
         Returns:
             File content bytes or None
         """
-        try:
-            url = f"http://{self.server_host}:{self.server_port}/code-sync/download"
-            response = requests.post(
-                url,
-                json={'client_id': self.client_id, 'file_path': rel_path},
-                timeout=30
-            )
+        max_retries = 3
+        retry_delay = 1.0  # Initial delay in seconds
 
-            if response.status_code == 200:
-                return response.content
-            else:
+        for attempt in range(max_retries):
+            try:
+                url = f"http://{self.server_host}:{self.server_port}/code-sync/download"
+                response = requests.post(
+                    url,
+                    json={'client_id': self.client_id, 'file_path': rel_path},
+                    timeout=30
+                )
+
+                if response.status_code == 200:
+                    return response.content
+
                 ColorPrint.red(f"[CodeSync Client] Download failed: {response.status_code}")
                 return None
 
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Error downloading file: {e}")
-            return None
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    ColorPrint.yellow(f"[CodeSync Client] Download error (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    ColorPrint.red(f"[CodeSync Client] Download failed after {max_retries} attempts: {e}")
+                    return None
+
+        return None
 
     def _backup_file(self, file_path: Path) -> bool:
         """
@@ -613,30 +597,30 @@ class CodeSyncClient:
             True if backup succeeded
         """
         if not self.enable_backup:
-            return True  # Skip backup
-
-        try:
-            # Create backup path: original_path + timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_path = file_path.parent / f"{file_path.name}.backup_{timestamp}"
-
-            # Copy file to backup location
-            shutil.copy2(file_path, backup_path)
-
-            rel_path = str(file_path.relative_to(self.target_dir))
-            self._add_log(
-                'backup',
-                rel_path,
-                f'Backed up to {backup_path.name}',
-                f'Original size: {file_path.stat().st_size} bytes'
-            )
-
-            ColorPrint.green(f"[CodeSync Client] Backed up: {rel_path} -> {backup_path.name}")
             return True
 
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Backup failed: {e}")
-            return False
+        # Get relative path to maintain directory structure
+        rel_path = file_path.relative_to(self.target_dir)
+
+        # Create backup path in dedicated backup directory
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_path = self.backup_dir / f"{rel_path}.backup_{timestamp}"
+
+        # Create parent directories
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Copy file to backup location
+        shutil.copy2(file_path, backup_path)
+
+        self._add_log(
+            'backup',
+            str(rel_path),
+            f'Backed up to backup dir',
+            f'Size: {file_path.stat().st_size} bytes, Backup: {backup_path.name}'
+        )
+
+        ColorPrint.green(f"[CodeSync Client] Backed up: {rel_path} -> {backup_path}")
+        return True
 
     def _write_file(self, file_path: Path, content: bytes, mtime: float) -> bool:
         """
@@ -650,23 +634,13 @@ class CodeSyncClient:
         Returns:
             True if write succeeded
         """
-        try:
-            # Create parent directories
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Write content
-            with open(file_path, 'wb') as f:
-                f.write(content)
+        with open(file_path, 'wb') as f:
+            f.write(content)
 
-            # Set modification time
-            import os
-            os.utime(file_path, (mtime, mtime))
-
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[CodeSync Client] Write failed: {e}")
-            return False
+        os.utime(file_path, (mtime, mtime))
+        return True
 
     def _process_file(self, file_info: Dict, is_initial: bool = False) -> str:
         """

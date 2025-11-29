@@ -26,6 +26,7 @@ import 'controller_app_qy/settings_controller_app_qy.dart';
 import 'controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'controller_app_qy/learning_controller_app_qy.dart';
 import 'controller_app_qy/auth_controller_app_qy.dart';
+import 'controller_app_qy/endpoint_discovery_controller_app_qy.dart';
 import 'features_app_qy/course/controllers/course_controller_app_qy.dart';
 import 'features_app_qy/course/domain/service/course_service.dart';
 import 'features_app_qy/word/controllers/word_controller_app_qy.dart';
@@ -39,6 +40,7 @@ import 'services_app_qy/auth_service_app_qy.dart';
 import 'models_app_qy/user_model_app_qy.dart';
 import 'config_app_qy/api_config_app_qy.dart';
 import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
+import 'widgets_app_qy/network_status_notification_app_qy.dart';
 
 /// QY App specific widget
 /// This can be customized for QY app specific needs
@@ -47,17 +49,46 @@ import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 /// - Maintained integration with common app structure
 /// - Ready for app-specific customizations when needed
 /// Other AIs: This follows the common app pattern correctly
-class QyApp extends StatelessWidget {
+class QyApp extends StatefulWidget {
   final GoRouter routerConfig;
 
   const QyApp({super.key, required this.routerConfig});
 
   @override
+  State<QyApp> createState() => _QyAppState();
+}
+
+class _QyAppState extends State<QyApp> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // For now, use the common app structure
-    // Later this can be customized for QY app specific needs
-    return FlutterBloomMainApp(
-      routerConfig: routerConfig,
+    // Set context for endpoint discovery controller in build method
+    // This ensures context is always up-to-date
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final controller = context.read<EndpointDiscoveryControllerAppQy>();
+          controller.setContext(context);
+        } catch (e) {
+          debugPrint('⚠️ Could not set context for endpoint discovery: $e');
+        }
+      }
+    });
+
+    // Wrap with Stack to show network status notification at the top
+    // Explicitly set textDirection to avoid Directionality widget requirement
+    return Stack(
+      textDirection: TextDirection.ltr,
+      children: [
+        FlutterBloomMainApp(
+          routerConfig: widget.routerConfig,
+        ),
+        const NetworkStatusNotificationAppQy(),
+      ],
     );
   }
 }
@@ -69,14 +100,16 @@ Future<void> main() async {
   // Initialize multi-endpoint discovery before creating services
   final discovery = MultiEndpointDiscovery();
   discovery.configureEndpoints(ApiConfigAppQy.endpointConfigs);
-  
+
   // Quick scan for available endpoints (fast, non-blocking)
   // Discovery runs in background and updates service when complete
-  discovery.discoverAvailableEndpoint(
-    healthCheckPath: 'api_info',
+  discovery
+      .discoverAvailableEndpoint(
+    healthCheckPath: '',
     timeout: const Duration(seconds: 2),
     parallelScan: true,
-  ).then((selectedEndpoint) {
+  )
+      .then((selectedEndpoint) {
     if (selectedEndpoint != null) {
       // Base URL should be just /api, endpoints already include full path
       final baseUrl = selectedEndpoint.buildFullUrl(path: 'api');
@@ -155,6 +188,10 @@ Future<void> main() async {
       ),
       ChangeNotifierProvider<WordControllerAppQy>(
         create: (_) => WordControllerAppQy(wordService: wordService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<EndpointDiscoveryControllerAppQy>(
+        create: (_) => EndpointDiscoveryControllerAppQy(),
         lazy: false,
       ),
     ],

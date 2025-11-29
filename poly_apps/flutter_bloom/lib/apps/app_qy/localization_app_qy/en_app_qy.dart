@@ -101,12 +101,14 @@ class EnAppQy {
     QyAppLocalizationKeys.qyRegisterSuccess: 'Registration successful',
     QyAppLocalizationKeys.qyRegisterFailed: 'Registration failed',
     QyAppLocalizationKeys.qyPasswordsDoNotMatch: 'Passwords do not match',
-    QyAppLocalizationKeys.qyInvalidRegistrationData: 'Invalid registration data',
+    QyAppLocalizationKeys.qyInvalidRegistrationData:
+        'Invalid registration data',
     QyAppLocalizationKeys.qySwitchToRegister: 'Switch to Register',
     QyAppLocalizationKeys.qySwitchToLogin: 'Switch to Login',
     QyAppLocalizationKeys.qyRegisterToContinue: 'Register to continue learning',
     QyAppLocalizationKeys.qyPleaseEnterEmail: 'Please enter email',
-    QyAppLocalizationKeys.qyPleaseEnterConfirmPassword: 'Please enter confirm password',
+    QyAppLocalizationKeys.qyPleaseEnterConfirmPassword:
+        'Please enter confirm password',
     QyAppLocalizationKeys.qyForgotPassword: 'Forgot Password',
     QyAppLocalizationKeys.qyResetPassword: 'Reset Password',
     QyAppLocalizationKeys.qyChangePassword: 'Change Password',
@@ -171,6 +173,11 @@ class EnAppQy {
     QyAppLocalizationKeys.qyAboutUs: 'About Us',
     QyAppLocalizationKeys.qyCheckForUpdate: 'Check for Updates',
     QyAppLocalizationKeys.qyNetworkDiagnostics: 'Network Diagnostics',
+    QyAppLocalizationKeys.qyNetworkStable: 'Network Stable',
+    QyAppLocalizationKeys.qyNetworkUnavailable: 'Network Unavailable',
+    QyAppLocalizationKeys.qyNetworkUnavailableMessage:
+        'Please wait, retrying...',
+    QyAppLocalizationKeys.qyNetworkRetrying: 'Retrying...',
     QyAppLocalizationKeys.qyBiometricAuth: 'Biometric Authentication',
     QyAppLocalizationKeys.qyDarkMode: 'Dark Mode',
     QyAppLocalizationKeys.qyLightMode: 'Light Mode',
@@ -407,7 +414,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qyExportData: 'Export Data',
     QyAppLocalizationKeys.qyBackupLearningData: 'Backup your learning data',
     QyAppLocalizationKeys.qyRestoreDefaultSettings: 'Restore default settings',
-    QyAppLocalizationKeys.qyAreYouSureReset: 'Are you sure you want to reset all settings to defaults?',
+    QyAppLocalizationKeys.qyAreYouSureReset:
+        'Are you sure you want to reset all settings to defaults?',
     QyAppLocalizationKeys.qySettingsResetDefaults: 'Settings reset to defaults',
     QyAppLocalizationKeys.qyLoginToUnlock: 'Login to Unlock More Features',
     QyAppLocalizationKeys.qyFaqsSupport: 'FAQs and support',
@@ -1069,10 +1077,14 @@ class EnAppQy {
     QyAppLocalizationKeys.qyLoginToContinue: 'Login to continue learning',
     QyAppLocalizationKeys.qyLoginWithUsername: 'Login with Username',
     QyAppLocalizationKeys.qyLoginWithPhone: 'Login with Phone',
-    QyAppLocalizationKeys.qyAgreeToTermsAndPrivacy: 'I agree to the Terms and Privacy Policy',
-    QyAppLocalizationKeys.qyPleaseAgreeToTerms: 'Please agree to the terms and privacy policy',
-    QyAppLocalizationKeys.qyPleaseEnterPhoneAndCode: 'Please enter phone number and verification code',
-    QyAppLocalizationKeys.qyPleaseEnterUsernameAndPassword: 'Please enter username and password',
+    QyAppLocalizationKeys.qyAgreeToTermsAndPrivacy:
+        'I agree to the Terms and Privacy Policy',
+    QyAppLocalizationKeys.qyPleaseAgreeToTerms:
+        'Please agree to the terms and privacy policy',
+    QyAppLocalizationKeys.qyPleaseEnterPhoneAndCode:
+        'Please enter phone number and verification code',
+    QyAppLocalizationKeys.qyPleaseEnterUsernameAndPassword:
+        'Please enter username and password',
     QyAppLocalizationKeys.qyFailedToSendCode: 'Failed to send code',
     QyAppLocalizationKeys.qyWechat: 'WeChat',
     QyAppLocalizationKeys.qyQyAccount: 'QY Account',
@@ -1093,8 +1105,10 @@ class EnAppQy {
     // Course Details
     QyAppLocalizationKeys.qyTodayFeatured: 'Today\'s Featured',
     QyAppLocalizationKeys.qyUpdatedDaily: 'Updated Daily',
-    QyAppLocalizationKeys.qyCourseFeaturedTitle1: 'The World\'s Most Dangerous Pizza',
-    QyAppLocalizationKeys.qyCourseFeaturedTitle2: 'Taizhou stuns Nantong to win...',
+    QyAppLocalizationKeys.qyCourseFeaturedTitle1:
+        'The World\'s Most Dangerous Pizza',
+    QyAppLocalizationKeys.qyCourseFeaturedTitle2:
+        'Taizhou stuns Nantong to win...',
     QyAppLocalizationKeys.qyCourseListening: 'Listening',
     QyAppLocalizationKeys.qyCourseLevelIntermediate: 'Intermediate',
     QyAppLocalizationKeys.qyCourseFood: 'Food',
