@@ -99,6 +99,7 @@ class CodeSyncServer:
         '.idea',
         '.vscode',
         'coverage',
+        '.runtime_cache',
     }
 
     # File extensions to exclude
