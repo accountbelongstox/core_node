@@ -1,28 +1,33 @@
-/* MCP Manager Styles */
+/* MCP Manager Styles - Light/Glass Theme */
 
 .mcp-container {
     display: flex;
     height: 100%;
-    background: #1e1e1e;
-    color: #d4d4d4;
+    background: transparent;
+    /* Let card background show through */
+    color: #333;
+    min-height: 600px;
+    /* Ensure height */
 }
 
 /* Menu Styles */
 .mcp-menu {
     width: 220px;
-    background: #252526;
-    border-right: 1px solid #3c3c3c;
+    background: rgba(248, 249, 250, 0.5);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    flex-shrink: 0;
 }
 
 .mcp-menu-header {
     padding: 16px;
-    border-bottom: 1px solid #3c3c3c;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     font-weight: 600;
     font-size: 14px;
-    color: #cccccc;
+    color: #2c3e50;
+    background: rgba(0, 0, 0, 0.02);
 }
 
 .mcp-menu-item {
@@ -31,18 +36,22 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: background 0.2s;
+    transition: all 0.2s;
     font-size: 13px;
     border-left: 3px solid transparent;
+    color: #555;
 }
 
 .mcp-menu-item:hover {
-    background: #2a2d2e;
+    background: rgba(103, 126, 234, 0.1);
+    color: #667eea;
 }
 
 .mcp-menu-item.active {
-    background: #37373d;
-    border-left-color: #0e639c;
+    background: rgba(103, 126, 234, 0.15);
+    border-left-color: #667eea;
+    color: #667eea;
+    font-weight: 500;
 }
 
 .mcp-menu-icon {
@@ -60,6 +69,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .mcp-module-container {
@@ -71,18 +81,18 @@
 
 .mcp-module-header {
     padding: 20px;
-    border-bottom: 1px solid #3c3c3c;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #252526;
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .mcp-module-header h2 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: #cccccc;
+    color: #2c3e50;
 }
 
 .mcp-module-actions {
@@ -99,46 +109,52 @@
 .mcp-btn {
     padding: 8px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     transition: all 0.2s;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .mcp-btn-primary {
-    background: #0e639c;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: #ffffff;
 }
 
 .mcp-btn-primary:hover {
-    background: #1177bb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(103, 126, 234, 0.3);
 }
 
 .mcp-btn-secondary {
-    background: #3c3c3c;
-    color: #cccccc;
+    background: #fff;
+    color: #555;
+    border: 1px solid #e9ecef;
 }
 
 .mcp-btn-secondary:hover {
-    background: #4c4c4c;
+    background: #f8f9fa;
+    border-color: #dce0e4;
+    transform: translateY(-1px);
 }
 
 .mcp-btn-danger {
-    background: #c72e2e;
+    background: #dc3545;
     color: #ffffff;
 }
 
 .mcp-btn-danger:hover {
-    background: #e03e3e;
+    background: #c82333;
+    transform: translateY(-1px);
 }
 
 .mcp-btn-sm {
-    padding: 6px 12px;
-    font-size: 11px;
+    padding: 4px 10px;
+    font-size: 12px;
 }
 
 /* Screenshot Module Styles */
@@ -149,24 +165,24 @@
 
 .mcp-ss-list-panel {
     width: 350px;
-    border-right: 1px solid #3c3c3c;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    background: #1e1e1e;
+    background: rgba(248, 249, 250, 0.3);
 }
 
 .mcp-ss-stats {
     padding: 12px 16px;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     font-size: 12px;
-    color: #888;
+    color: #666;
 }
 
 .mcp-ss-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 10px;
 }
 
 .mcp-ss-list-empty {
@@ -175,39 +191,37 @@
     color: #888;
 }
 
-.mcp-ss-list-empty p {
-    margin-bottom: 20px;
-}
-
 .mcp-ss-list-item {
-    padding: 12px;
-    margin-bottom: 8px;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3c3c3c;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
     cursor: pointer;
     transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .mcp-ss-list-item:hover {
-    background: #2a2d2e;
-    border-color: #4c4c4c;
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(103, 126, 234, 0.1);
 }
 
 .mcp-ss-list-item.active {
-    background: #37373d;
-    border-color: #0e639c;
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.05);
 }
 
 .mcp-ss-list-item-header {
     display: flex;
     justify-content: space-between;
     margin-bottom: 6px;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .mcp-ss-list-item-id {
-    color: #4ec9b0;
+    color: #667eea;
     font-weight: 600;
 }
 
@@ -216,9 +230,10 @@
 }
 
 .mcp-ss-list-item-desc {
-    font-size: 12px;
-    color: #ccc;
+    font-size: 13px;
+    color: #444;
     margin-bottom: 6px;
+    font-weight: 500;
 }
 
 .mcp-ss-list-item-keywords {
@@ -230,7 +245,7 @@
 .mcp-ss-detail-panel {
     flex: 1;
     overflow-y: auto;
-    background: #1e1e1e;
+    background: transparent;
 }
 
 .mcp-ss-detail-empty {
@@ -243,7 +258,7 @@
 }
 
 .mcp-ss-detail-content {
-    padding: 20px;
+    padding: 25px;
 }
 
 .mcp-ss-detail-header {
@@ -251,54 +266,59 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #3c3c3c;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .mcp-ss-detail-header h3 {
     margin: 0;
-    font-size: 16px;
-    color: #4ec9b0;
+    font-size: 18px;
+    color: #2c3e50;
 }
 
 .mcp-ss-detail-image {
-    margin-bottom: 20px;
+    margin-bottom: 25px;
     text-align: center;
-    background: #252526;
+    background: white;
     padding: 20px;
-    border-radius: 4px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e9ecef;
 }
 
 .mcp-ss-detail-image img {
     max-width: 100%;
     max-height: 500px;
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .mcp-ss-detail-info {
-    background: #252526;
-    padding: 16px;
-    border-radius: 4px;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e9ecef;
 }
 
 .mcp-info-row {
-    margin-bottom: 12px;
+    margin-bottom: 15px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .mcp-info-row label {
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .mcp-info-row span {
-    font-size: 13px;
-    color: #ccc;
+    font-size: 14px;
+    color: #333;
 }
 
 .mcp-url-box {
@@ -308,13 +328,13 @@
 
 .mcp-url-box input {
     flex: 1;
-    background: #1e1e1e;
-    border: 1px solid #3c3c3c;
-    color: #ccc;
-    padding: 6px 10px;
-    border-radius: 3px;
-    font-size: 12px;
-    font-family: 'Consolas', monospace;
+    background: #f8f9fa;
+    border: 1px solid #ced4da;
+    color: #495057;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Monaco', monospace;
 }
 
 /* Modal Styles */
@@ -327,7 +347,8 @@
     bottom: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    background: rgba(0, 0, 0, 0.85) !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(4px);
     z-index: 999999 !important;
     align-items: center;
     justify-content: center;
@@ -336,37 +357,40 @@
 }
 
 .mcp-modal-content {
-    background: #252526;
-    border-radius: 8px;
+    background: #ffffff;
+    border-radius: 12px;
     width: 600px;
     max-width: 90vw;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
     position: relative;
     z-index: 1000000 !important;
     margin: auto;
 }
 
 .mcp-modal-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #3c3c3c;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e9ecef;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #f8f9fa;
+    border-radius: 12px 12px 0 0;
 }
 
 .mcp-modal-header h3 {
     margin: 0;
-    font-size: 16px;
-    color: #cccccc;
+    font-size: 18px;
+    color: #2c3e50;
+    font-weight: 600;
 }
 
 .mcp-modal-close {
     background: none;
     border: none;
-    color: #ccc;
+    color: #888;
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -375,38 +399,41 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
-    transition: background 0.2s;
+    border-radius: 50%;
+    transition: all 0.2s;
 }
 
 .mcp-modal-close:hover {
-    background: #3c3c3c;
+    background: #e9ecef;
+    color: #333;
 }
 
 .mcp-modal-body {
-    padding: 20px;
+    padding: 25px;
     overflow-y: auto;
     flex: 1;
 }
 
 .mcp-modal-footer {
-    padding: 16px 20px;
-    border-top: 1px solid #3c3c3c;
+    padding: 20px 25px;
+    border-top: 1px solid #e9ecef;
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 12px;
+    background: #f8f9fa;
+    border-radius: 0 0 12px 12px;
 }
 
 /* Form Styles */
 .mcp-form-group {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .mcp-form-group label {
     display: block;
-    margin-bottom: 6px;
-    font-size: 12px;
-    color: #ccc;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #555;
     font-weight: 500;
 }
 
@@ -414,50 +441,57 @@
 .mcp-form-group input[type="file"],
 .mcp-form-group textarea {
     width: 100%;
-    background: #1e1e1e;
-    border: 1px solid #3c3c3c;
-    color: #d4d4d4;
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 13px;
+    background: #fff;
+    border: 2px solid #e9ecef;
+    color: #333;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 14px;
     font-family: inherit;
     box-sizing: border-box;
+    transition: all 0.3s;
 }
 
 .mcp-form-group input[type="text"]:focus,
 .mcp-form-group textarea:focus {
     outline: none;
-    border-color: #0e639c;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(103, 126, 234, 0.1);
 }
 
 .mcp-form-group textarea {
     resize: vertical;
+    min-height: 100px;
 }
 
 /* Scrollbar Styles */
 .mcp-ss-list::-webkit-scrollbar,
 .mcp-ss-detail-panel::-webkit-scrollbar,
-.mcp-modal-body::-webkit-scrollbar {
+.mcp-modal-body::-webkit-scrollbar,
+.mcp-menu::-webkit-scrollbar {
     width: 8px;
 }
 
 .mcp-ss-list::-webkit-scrollbar-track,
 .mcp-ss-detail-panel::-webkit-scrollbar-track,
-.mcp-modal-body::-webkit-scrollbar-track {
-    background: #1e1e1e;
+.mcp-modal-body::-webkit-scrollbar-track,
+.mcp-menu::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .mcp-ss-list::-webkit-scrollbar-thumb,
 .mcp-ss-detail-panel::-webkit-scrollbar-thumb,
-.mcp-modal-body::-webkit-scrollbar-thumb {
-    background: #3c3c3c;
+.mcp-modal-body::-webkit-scrollbar-thumb,
+.mcp-menu::-webkit-scrollbar-thumb {
+    background: rgba(103, 126, 234, 0.3);
     border-radius: 4px;
 }
 
 .mcp-ss-list::-webkit-scrollbar-thumb:hover,
 .mcp-ss-detail-panel::-webkit-scrollbar-thumb:hover,
-.mcp-modal-body::-webkit-scrollbar-thumb:hover {
-    background: #4c4c4c;
+.mcp-modal-body::-webkit-scrollbar-thumb:hover,
+.mcp-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(103, 126, 234, 0.5);
 }
 
 /* Success Button */
@@ -467,7 +501,8 @@
 }
 
 .mcp-btn-success:hover {
-    background: #34c759;
+    background: #218838;
+    transform: translateY(-1px);
 }
 
 /* Large Modal */
@@ -479,20 +514,21 @@
 .mcp-batch-items {
     max-height: 400px;
     overflow-y: auto;
-    border: 1px solid #3c3c3c;
-    border-radius: 4px;
-    padding: 8px;
-    background: #1e1e1e;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 10px;
+    background: #f8f9fa;
 }
 
 .mcp-batch-item {
     display: flex;
-    gap: 12px;
-    padding: 10px;
-    background: #252526;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    border: 1px solid #3c3c3c;
+    gap: 15px;
+    padding: 15px;
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .mcp-batch-item:last-child {
@@ -503,12 +539,13 @@
     width: 100px;
     height: 80px;
     flex-shrink: 0;
-    background: #1e1e1e;
-    border-radius: 4px;
+    background: #f8f9fa;
+    border-radius: 6px;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
+    border: 1px solid #e9ecef;
 }
 
 .mcp-batch-item-preview img {
@@ -521,33 +558,34 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .mcp-batch-item-name {
-    font-size: 12px;
-    color: #4ec9b0;
+    font-size: 13px;
+    color: #2c3e50;
     font-weight: 600;
 }
 
 .mcp-batch-desc-input {
     width: 100%;
-    background: #1e1e1e;
-    border: 1px solid #3c3c3c;
-    color: #d4d4d4;
+    background: #fff;
+    border: 1px solid #ced4da;
+    color: #333;
     padding: 8px 12px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 13px;
     box-sizing: border-box;
 }
 
 .mcp-batch-desc-input:focus {
     outline: none;
-    border-color: #0e639c;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(103, 126, 234, 0.1);
 }
 
 .mcp-batch-desc-input::placeholder {
-    color: #666;
+    color: #999;
 }
 
 /* Checkbox Styles */
@@ -565,40 +603,42 @@
 
 /* Screenshot URL Section */
 .mcp-ss-url-section {
-    margin-top: 20px;
-    padding: 16px;
-    background: #1e1e1e;
-    border-radius: 4px;
-    border: 1px solid #3c3c3c;
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
 }
 
 .mcp-ss-url-section h4 {
-    margin: 0 0 8px 0;
-    color: #4ec9b0;
-    font-size: 14px;
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 15px;
+    font-weight: 600;
 }
 
 .mcp-hint {
-    font-size: 12px;
-    color: #888;
+    font-size: 13px;
+    color: #666;
     margin: 0 0 16px 0;
 }
 
 .mcp-url-group {
-    margin-bottom: 12px;
+    margin-bottom: 15px;
 }
 
 .mcp-url-group label {
     display: block;
-    font-size: 11px;
-    color: #888;
-    margin-bottom: 4px;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
     text-transform: uppercase;
+    font-weight: 600;
 }
 
 .mcp-ss-detail-actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
 }
 
 /* Task Dispatch Module */
@@ -609,70 +649,70 @@
 
 .mcp-td-categories-panel {
     width: 280px;
-    border-right: 1px solid #3c3c3c;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    background: #1e1e1e;
+    background: rgba(248, 249, 250, 0.3);
 }
 
 .mcp-td-panel-header {
     padding: 12px 16px;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     font-weight: 600;
     font-size: 12px;
-    color: #888;
+    color: #666;
     text-transform: uppercase;
 }
 
 .mcp-td-categories {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 10px;
 }
 
 .mcp-td-category-item {
-    padding: 12px;
+    padding: 15px;
     margin-bottom: 8px;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3c3c3c;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .mcp-td-category-item:hover {
-    background: #2a2d2e;
-    border-color: #4c4c4c;
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.05);
 }
 
 .mcp-td-category-item.active {
-    background: #37373d;
-    border-color: #0e639c;
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.1);
 }
 
 .mcp-td-cat-name {
     font-weight: 600;
-    color: #ccc;
+    color: #2c3e50;
     margin-bottom: 4px;
 }
 
 .mcp-td-cat-id {
     font-size: 11px;
-    color: #4ec9b0;
-    font-family: 'Consolas', monospace;
+    color: #667eea;
+    font-family: 'Monaco', monospace;
 }
 
 .mcp-td-tasks-panel {
     flex: 1;
     overflow-y: auto;
-    background: #1e1e1e;
+    background: transparent;
 }
 
 .mcp-td-tasks-header {
-    padding: 16px 20px;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -680,73 +720,76 @@
 
 .mcp-td-tasks-header h3 {
     margin: 0;
-    font-size: 16px;
-    color: #ccc;
+    font-size: 18px;
+    color: #2c3e50;
 }
 
 .mcp-td-stats {
     display: flex;
     gap: 16px;
-    font-size: 12px;
-    color: #888;
+    font-size: 13px;
+    color: #666;
 }
 
 .mcp-td-stats span {
-    padding: 4px 8px;
-    background: #1e1e1e;
-    border-radius: 4px;
+    padding: 4px 10px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
 }
 
 .mcp-td-tasks-list {
-    padding: 16px;
+    padding: 20px;
 }
 
 .mcp-td-task-item {
-    padding: 12px;
-    margin-bottom: 8px;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3c3c3c;
+    padding: 15px;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .mcp-td-task-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .mcp-td-task-file {
-    color: #ccc;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
+    color: #2c3e50;
+    font-family: 'Monaco', monospace;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .mcp-td-task-status {
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
 }
 
 .mcp-td-task-status.pending {
-    background: #664d03;
-    color: #ffca28;
+    background: #fff3cd;
+    color: #856404;
 }
 
 .mcp-td-task-status.in-progress {
-    background: #0d47a1;
-    color: #64b5f6;
+    background: #cce5ff;
+    color: #004085;
 }
 
 .mcp-td-task-status.completed {
-    background: #1b5e20;
-    color: #81c784;
+    background: #d4edda;
+    color: #155724;
 }
 
 .mcp-td-task-meta {
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
 }
 
@@ -775,594 +818,121 @@
 
 .mcp-pm-list-panel {
     width: 250px;
-    border-right: 1px solid #3c3c3c;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    background: #1e1e1e;
+    background: rgba(248, 249, 250, 0.3);
 }
 
 .mcp-pm-panel-header {
     padding: 12px 16px;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     font-weight: 600;
     font-size: 12px;
-    color: #888;
+    color: #666;
     text-transform: uppercase;
 }
 
 .mcp-pm-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 10px;
 }
 
 .mcp-pm-item {
     padding: 12px;
     margin-bottom: 8px;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3c3c3c;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .mcp-pm-item:hover {
-    background: #2a2d2e;
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.05);
 }
 
 .mcp-pm-item.active {
-    background: #37373d;
-    border-color: #0e639c;
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.1);
 }
 
-.mcp-pm-item-name {
-    color: #4ec9b0;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-    margin-bottom: 4px;
-}
-
-.mcp-pm-item-info {
-    font-size: 10px;
-    color: #888;
-}
-
-.mcp-pm-editor-panel {
-    flex: 1;
-    overflow-y: auto;
-    background: #1e1e1e;
-}
-
-.mcp-pm-editor {
-    padding: 20px;
-}
-
-.mcp-pm-editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #3c3c3c;
-}
-
-.mcp-pm-editor-header h3 {
-    margin: 0;
-    font-size: 16px;
-    color: #4ec9b0;
-}
-
-.mcp-pm-editor-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.mcp-pm-preview {
-    margin-top: 20px;
-    padding: 16px;
-    background: #252526;
-    border-radius: 4px;
-}
-
-.mcp-pm-preview h4 {
-    margin: 0 0 12px 0;
-    font-size: 12px;
-    color: #888;
-    text-transform: uppercase;
-}
-
-.mcp-pm-preview-content {
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-}
-
-.mcp-pm-preview-prefix {
-    color: #4ec9b0;
-    padding: 4px 0;
-    white-space: pre-wrap;
-}
-
-.mcp-pm-preview-body {
-    color: #888;
-    padding: 8px 0;
-    border-top: 1px dashed #3c3c3c;
-    border-bottom: 1px dashed #3c3c3c;
-    margin: 4px 0;
-}
-
-.mcp-pm-preview-suffix {
-    color: #dcdcaa;
-    padding: 4px 0;
-    white-space: pre-wrap;
-}
-
-/* Settings Module */
-.mcp-settings-section {
-    margin-bottom: 30px;
-    padding: 20px;
-    background: #252526;
-    border-radius: 8px;
-}
-
-.mcp-settings-section h3 {
-    margin: 0 0 16px 0;
-    font-size: 16px;
-    color: #ccc;
-}
-
-.mcp-settings-info {
-    color: #888;
-}
-
-.mcp-settings-stat {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #3c3c3c;
-}
-
-.mcp-settings-stat:last-child {
-    border-bottom: none;
-}
-
-.mcp-settings-stat label {
-    color: #888;
-}
-
-.mcp-settings-stat span {
-    color: #4ec9b0;
-    font-weight: 600;
-}
-
-.mcp-settings-stat code {
-    color: #ce9178;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-    word-break: break-all;
-}
-
-.mcp-settings-endpoints {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.mcp-endpoint-item {
-    display: flex;
-    gap: 12px;
-    padding: 8px 12px;
-    background: #1e1e1e;
-    border-radius: 4px;
-}
-
-.mcp-endpoint-item label {
-    color: #888;
-    min-width: 150px;
-    font-size: 12px;
-}
-
-.mcp-endpoint-item code {
-    color: #4ec9b0;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-}
-
-/* Error state */
-.mcp-error {
-    padding: 20px;
-    text-align: center;
-    color: #f44336;
-}
-
-/* ========================================
-   Mobile Responsive Styles
-   ======================================== */
-
-/* Tablet and below (max-width: 1024px) */
-@media screen and (max-width: 1024px) {
-    .mcp-ss-list-panel {
-        width: 280px;
-    }
-    
-    .mcp-td-categories-panel {
-        width: 220px;
-    }
-    
-    .mcp-pm-list-panel {
-        width: 200px;
-    }
-}
-
-/* Mobile (max-width: 768px) */
-@media screen and (max-width: 768px) {
-    /* Main container - stack vertically */
+/* Responsive Design for Mobile */
+@media (max-width: 768px) {
     .mcp-container {
         flex-direction: column;
         height: auto;
-        min-height: 100%;
-        overflow: visible;
+        min-height: auto;
     }
-    
-    /* Menu - horizontal scrollable tabs */
+
     .mcp-menu {
         width: 100%;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: visible;
+        height: auto;
+        max-height: 150px;
         border-right: none;
-        border-bottom: 1px solid #3c3c3c;
-        min-height: 50px;
-        flex-shrink: 0;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     }
-    
-    .mcp-menu::-webkit-scrollbar {
-        display: none;
-    }
-    
-    .mcp-menu-header {
-        display: none;
-    }
-    
-    #mcp-menu-container {
-        display: flex;
-        flex-direction: row;
-        width: max-content;
-        min-width: 100%;
-    }
-    
-    .mcp-menu-item {
-        flex-shrink: 0;
-        padding: 12px 16px;
-        border-left: none;
-        border-bottom: 3px solid transparent;
-        white-space: nowrap;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    .mcp-menu-item.active {
-        border-left-color: transparent;
-        border-bottom-color: #0e639c;
-        background: #37373d;
-    }
-    
-    .mcp-menu-icon {
-        font-size: 16px;
-    }
-    
-    .mcp-menu-text {
-        font-size: 12px;
-    }
-    
-    /* Content area */
+
     .mcp-content {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
+        height: 600px;
+        /* Fixed height for scrollable content on mobile */
     }
-    
-    /* Module header */
-    .mcp-module-header {
-        flex-direction: column;
-        gap: 12px;
-        padding: 12px;
-        align-items: flex-start;
-    }
-    
-    .mcp-module-header h2 {
-        font-size: 16px;
-    }
-    
-    .mcp-module-actions {
-        width: 100%;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    
-    .mcp-module-actions .mcp-btn {
-        flex: 1;
-        min-width: calc(50% - 4px);
-        justify-content: center;
-        padding: 10px 12px;
-    }
-    
-    /* Screenshot module - stack panels */
-    .mcp-ss-split-view {
-        flex-direction: column;
-        height: auto;
-    }
-    
-    .mcp-ss-list-panel {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #3c3c3c;
-        max-height: 250px;
-    }
-    
-    .mcp-ss-list {
-        padding: 8px;
-    }
-    
-    .mcp-ss-list-item {
-        padding: 10px;
-    }
-    
-    .mcp-ss-detail-panel {
-        min-height: 400px;
-    }
-    
-    .mcp-ss-detail-content {
-        padding: 12px;
-    }
-    
-    .mcp-ss-detail-header {
-        flex-direction: column;
-        gap: 12px;
-        align-items: flex-start;
-    }
-    
-    .mcp-ss-detail-actions {
-        width: 100%;
-    }
-    
-    .mcp-ss-detail-actions .mcp-btn {
-        flex: 1;
-    }
-    
-    .mcp-ss-detail-image {
-        padding: 10px;
-    }
-    
-    .mcp-ss-detail-image img {
-        max-height: 300px;
-    }
-    
-    /* URL section */
-    .mcp-ss-url-section {
-        padding: 12px;
-    }
-    
-    .mcp-url-box {
-        flex-direction: column;
-        gap: 6px;
-    }
-    
-    .mcp-url-box input {
-        font-size: 11px;
-        padding: 8px;
-    }
-    
-    .mcp-url-box .mcp-btn {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    /* Task dispatch module */
-    .mcp-td-split-view {
-        flex-direction: column;
-        height: auto;
-    }
-    
-    .mcp-td-categories-panel {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #3c3c3c;
-        max-height: 200px;
-    }
-    
-    .mcp-td-tasks-panel {
-        min-height: 300px;
-    }
-    
-    .mcp-td-tasks-header {
-        flex-direction: column;
-        gap: 10px;
-        padding: 12px;
-    }
-    
-    .mcp-td-stats {
-        width: 100%;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    
-    .mcp-td-stats span {
-        flex: 1;
-        text-align: center;
-        min-width: calc(33% - 6px);
-    }
-    
-    /* Prompt mappings module */
+
+    .mcp-ss-split-view,
+    .mcp-td-split-view,
     .mcp-pm-split-view {
         flex-direction: column;
-        height: auto;
     }
-    
-    .mcp-pm-list-panel {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #3c3c3c;
-        max-height: 200px;
-    }
-    
-    .mcp-pm-editor-panel {
-        min-height: 400px;
-    }
-    
-    .mcp-pm-editor {
-        padding: 12px;
-    }
-    
-    .mcp-pm-editor-header {
-        flex-direction: column;
-        gap: 10px;
-        align-items: flex-start;
-    }
-    
-    .mcp-pm-editor-actions {
-        width: 100%;
-    }
-    
-    .mcp-pm-editor-actions .mcp-btn {
-        flex: 1;
-    }
-    
-    /* Modal */
-    .mcp-modal-content {
-        width: 95vw;
-        max-width: 95vw;
-        max-height: 90vh;
-        margin: 16px;
-        border-radius: 8px;
-    }
-    
-    .mcp-modal-lg {
-        width: 95vw;
-    }
-    
-    .mcp-modal-header {
-        padding: 12px 16px;
-    }
-    
-    .mcp-modal-header h3 {
-        font-size: 14px;
-    }
-    
-    .mcp-modal-body {
-        padding: 16px;
-    }
-    
-    .mcp-modal-footer {
-        padding: 12px 16px;
-        flex-direction: column;
-    }
-    
-    .mcp-modal-footer .mcp-btn {
-        width: 100%;
-    }
-    
-    /* Batch upload */
-    .mcp-batch-item {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .mcp-batch-item-preview {
-        width: 100%;
-        height: 120px;
-    }
-    
-    /* Settings */
-    .mcp-settings-section {
-        padding: 12px;
-        margin-bottom: 16px;
-    }
-    
-    .mcp-endpoint-item {
-        flex-direction: column;
-        gap: 4px;
-    }
-    
-    .mcp-endpoint-item label {
-        min-width: auto;
-    }
-    
-    .mcp-endpoint-item code {
-        word-break: break-all;
-        font-size: 11px;
-    }
-    
-    /* Form elements */
-    .mcp-form-group input[type="text"],
-    .mcp-form-group input[type="file"],
-    .mcp-form-group textarea {
-        font-size: 16px; /* Prevent zoom on iOS */
-        padding: 12px;
-    }
-    
-    .mcp-btn {
-        padding: 10px 14px;
-        font-size: 13px;
-    }
-    
-    .mcp-btn-sm {
-        padding: 8px 12px;
-        font-size: 12px;
-    }
-}
 
-/* Small mobile (max-width: 480px) */
-@media screen and (max-width: 480px) {
-    .mcp-menu-item {
-        padding: 8px 10px;
-    }
-    
-    .mcp-menu-icon {
-        font-size: 16px;
-    }
-    
-    .mcp-menu-text {
-        font-size: 11px;
-    }
-    
-    .mcp-module-header h2 {
-        font-size: 14px;
-    }
-    
-    .mcp-module-actions .mcp-btn {
-        min-width: 100%;
-        font-size: 12px;
-    }
-    
-    .mcp-ss-list-panel {
-        max-height: 200px;
-    }
-    
-    .mcp-ss-list-item-header {
-        flex-direction: column;
-        gap: 2px;
-    }
-    
-    .mcp-ss-detail-image img {
-        max-height: 200px;
-    }
-    
-    .mcp-info-row span {
-        font-size: 12px;
-        word-break: break-all;
-    }
-    
+    .mcp-ss-list-panel,
     .mcp-td-categories-panel,
     .mcp-pm-list-panel {
-        max-height: 150px;
+        width: 100%;
+        height: 200px;
+        /* Fixed height for list part */
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     }
-    
-    .mcp-settings-stat {
+
+    .mcp-ss-detail-panel,
+    .mcp-td-tasks-panel {
+        flex: 1;
+    }
+
+    .mcp-module-header {
         flex-direction: column;
-        gap: 4px;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 15px;
+    }
+
+    .mcp-module-actions {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 5px;
+    }
+
+    .mcp-ss-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .mcp-ss-detail-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .mcp-btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .mcp-modal-content {
+        width: 95vw;
+        max-height: 90vh;
     }
 }
