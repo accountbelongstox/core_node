@@ -45,6 +45,10 @@
                     <span class="nav-icon">🔄</span>
                     <span class="nav-label">Code Sync</span>
                 </button>
+                <button class="nav-item" data-tool="task-queue">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Task Queue</span>
+                </button>
             </nav>
         </aside>
 
@@ -464,6 +468,130 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Queue Module -->
+            <div class="module" id="module-task-queue" style="display: none;">
+                <div class="module-header">
+                    <h2>Task Queue</h2>
+                    <div class="module-actions">
+                        <label class="control-label">
+                            <input type="checkbox" id="taskAutoRefresh" checked>
+                            Auto Refresh
+                        </label>
+                        <button class="action-btn" id="refreshTasksBtn">🔄 Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Task Statistics -->
+                <div class="task-stats-panel">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="tasksPending">0</div>
+                            <div class="stat-label">⏳ Pending</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="tasksProcessing">0</div>
+                            <div class="stat-label">⚙️ Processing</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="tasksCompleted">0</div>
+                            <div class="stat-label">✅ Completed</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="tasksFailed">0</div>
+                            <div class="stat-label">❌ Failed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Filters -->
+                <div class="task-filters">
+                    <select id="taskTypeFilter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="text">📝 Text</option>
+                        <option value="image">🖼️ Image</option>
+                        <option value="voice">🎵 Voice</option>
+                    </select>
+                    <select id="taskStatusFilter" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="pending">⏳ Pending</option>
+                        <option value="processing">⚙️ Processing</option>
+                        <option value="completed">✅ Completed</option>
+                        <option value="failed">❌ Failed</option>
+                    </select>
+                    <button class="filter-btn" id="clearFiltersBtn">Clear Filters</button>
+                </div>
+
+                <!-- Task List -->
+                <div class="task-list-container">
+                    <table class="queue-table task-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">Type</th>
+                                <th style="width: 200px;">Task ID</th>
+                                <th>Input</th>
+                                <th style="width: 100px;">Status</th>
+                                <th style="width: 150px;">Progress</th>
+                                <th style="width: 120px;">Created</th>
+                                <th style="width: 80px;">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taskTableBody">
+                            <tr>
+                                <td colspan="7" class="empty-state">No tasks yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Task Detail Panel (Hidden by default) -->
+                <div id="taskDetailPanel" class="task-detail-panel" style="display: none;">
+                    <h3 class="collapsible-header" data-target="taskDetail">
+                        <span>Task Details</span>
+                        <button class="close-btn" id="closeTaskDetailBtn">✕</button>
+                    </h3>
+                    <div id="taskDetail" class="collapsible-content">
+                        <div class="task-detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Task ID:</span>
+                                <span class="detail-value" id="detailTaskId">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Type:</span>
+                                <span class="detail-value" id="detailTaskType">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value" id="detailTaskStatus">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Progress:</span>
+                                <span class="detail-value" id="detailTaskProgress">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Created:</span>
+                                <span class="detail-value" id="detailTaskCreated">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Updated:</span>
+                                <span class="detail-value" id="detailTaskUpdated">-</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <span class="detail-label">Input Data:</span>
+                                <pre class="detail-value" id="detailTaskInput">-</pre>
+                            </div>
+                            <div class="detail-item full-width">
+                                <span class="detail-label">Result:</span>
+                                <pre class="detail-value" id="detailTaskResult">-</pre>
+                            </div>
+                            <div class="detail-item full-width" id="detailTaskErrorContainer" style="display: none;">
+                                <span class="detail-label">Error:</span>
+                                <pre class="detail-value error" id="detailTaskError">-</pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
