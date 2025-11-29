@@ -24,6 +24,8 @@ class AppQyV1VocabularyCoverModel extends Model
         'height',
         'last_requested_at',
         'last_generated_at',
+        'started_at',
+        'finished_at',
     ];
 
     protected $casts = [
@@ -32,6 +34,8 @@ class AppQyV1VocabularyCoverModel extends Model
         'height' => 'integer',
         'last_requested_at' => 'datetime',
         'last_generated_at' => 'datetime',
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

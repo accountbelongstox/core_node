@@ -56,7 +56,11 @@ class OctaneTimerServiceProvider extends ServiceProvider
     {
         // Only run on Octane-Swoole, NOT on FPM
         if (!$this->isOctaneSwooleRunning()) {
-            Log::debug('OctaneTimerServiceProvider: Not running on Octane-Swoole, skipping timer tasks');
+            Log::info('OctaneTimerServiceProvider: Octane runtime not detected or not using Swoole, skipping timer tasks', [
+                'server' => $this->getServerType(),
+                'octane_server_config' => config('octane.server'),
+                'laravel_octane_env' => env('LARAVEL_OCTANE'),
+            ]);
             return;
         }
 
@@ -217,21 +221,27 @@ class OctaneTimerServiceProvider extends ServiceProvider
             return false;
         }
 
-        // Check if LARAVEL_OCTANE environment variable is set
-        if (env('LARAVEL_OCTANE') !== '1') {
+        // Octane server config should be Swoole
+        $configuredServer = config('octane.server');
+        if ($configuredServer && strtolower($configuredServer) !== 'swoole') {
             return false;
         }
 
-        // Check server type - must be Swoole
-        $serverType = $this->getServerType();
-        if ($serverType !== 'swoole') {
-            Log::info('OctaneTimerServiceProvider: Octane detected but not Swoole', [
-                'server_type' => $serverType
-            ]);
-            return false;
+        // Detect Swoole extension or server runtime
+        if ($this->getServerType() === 'swoole') {
+            return true;
         }
 
-        return true;
+        if (extension_loaded('swoole') && function_exists('swoole_get_version')) {
+            return true;
+        }
+
+        // Octane marks the environment via env or server state file
+        if (env('LARAVEL_OCTANE') === '1') {
+            return true;
+        }
+
+        return false;
     }
 
     /**

@@ -142,6 +142,8 @@ class AppQyV1VocabularyService
                 $table->integer('height')->default(720);
                 $table->timestamp('last_requested_at')->nullable();
                 $table->timestamp('last_generated_at')->nullable();
+                $table->timestamp('started_at')->nullable();
+                $table->timestamp('finished_at')->nullable();
                 $table->timestamps();
 
                 $table->foreign('library_id')
@@ -155,6 +157,14 @@ class AppQyV1VocabularyService
             $results[$coversTable] = 'created';
         } else {
             $results[$coversTable] = 'exists';
+
+            self::ensureColumn($schema, $coversTable, 'started_at', function (Blueprint $table) {
+                $table->timestamp('started_at')->nullable()->after('last_generated_at');
+            });
+
+            self::ensureColumn($schema, $coversTable, 'finished_at', function (Blueprint $table) {
+                $table->timestamp('finished_at')->nullable()->after('started_at');
+            });
         }
 
         return $results;

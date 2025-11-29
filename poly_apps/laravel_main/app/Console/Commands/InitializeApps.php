@@ -8,6 +8,7 @@ use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
+use App\Services\PassiveQueue\PassiveQueueTableService;
 
 class InitializeApps extends Command
 {
@@ -215,6 +216,14 @@ class InitializeApps extends Command
         $this->info('Creating AppQyV1 user initialization tables...');
         $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
         foreach ($userInitResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
+        $this->info('Ensuring passive queue tables...');
+        $queueResults = PassiveQueueTableService::ensureTableExists();
+        foreach ($queueResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
         }

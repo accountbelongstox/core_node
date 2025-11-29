@@ -4,6 +4,9 @@ namespace App\Apps\AppQyV1\Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCoverModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\PassiveQueue\Jobs\AppQyV1GenerateCoverJob;
+use App\PassiveQueue\PassiveQueue;
+use App\PassiveQueue\PassiveQueueJob;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -12,7 +15,7 @@ class AppQyV1VocabularyCoverService
 {
     private string $coversDir;
     private string $coversUrlPrefix;
-    private string $defaultFilename = 'default_cover.png';
+    private string $defaultFilename;
 
     public function __construct()
     {
@@ -20,11 +23,7 @@ class AppQyV1VocabularyCoverService
         PathMapper::ensureDirectoryExists($this->coversDir);
 
         $this->coversUrlPrefix = url('/static/app_qy_v1/covers');
-
-        $placeholderPath = $this->coversDir . '/placeholder.png';
-        if (!File::exists($placeholderPath)) {
-            $this->createPlaceholderImage($placeholderPath);
-        }
+        $this->defaultFilename = $this->buildFilenameFromParts(0, 'appqyv1-default-cover');
     }
 
     public function getCoverData(AppQyV1VocabularyLibraryModel $library): array
@@ -56,6 +55,9 @@ class AppQyV1VocabularyCoverService
         $record->last_requested_at = now();
         $record->save();
 
+        $url = $this->buildCoverUrl($record->cover_filename);
+        $logEntry = $this->getLatestLog($record->id);
+
         if ($this->hasCoverFile($record->cover_filename)) {
             if ($record->status !== 'ready') {
                 $record->status = 'ready';
@@ -64,43 +66,41 @@ class AppQyV1VocabularyCoverService
             }
 
             return [
-                'url' => $this->buildCoverUrl($record->cover_filename),
+                'url' => $url,
                 'status' => 'ready',
+                'error' => null,
+                'log' => $logEntry,
             ];
         }
 
         $this->queueGeneration($record);
 
         return [
-            'url' => $this->getDefaultCoverUrl(),
+            'url' => $url,
             'status' => $record->status,
+            'error' => $record->error_message,
+            'log' => $logEntry,
         ];
     }
 
     public function getDefaultCoverUrl(): string
     {
-        $defaultPath = $this->getCoverPath($this->defaultFilename);
+        $record = AppQyV1VocabularyCoverModel::query()->firstOrCreate(
+            ['library_id' => 0],
+            [
+                'cover_filename' => $this->defaultFilename,
+                'prompt' => $this->buildDefaultPrompt(),
+                'description' => 'Default vocabulary library cover art',
+                'status' => 'pending',
+                'priority' => 10,
+            ]
+        );
 
-        if (!File::exists($defaultPath)) {
-            $record = AppQyV1VocabularyCoverModel::query()->firstOrCreate(
-                ['library_id' => 0],
-                [
-                    'cover_filename' => $this->defaultFilename,
-                    'prompt' => $this->buildDefaultPrompt(),
-                    'description' => 'Default vocabulary library cover art',
-                    'status' => 'pending',
-                    'priority' => 10,
-                ]
-            );
-
+        if (!$this->hasCoverFile($record->cover_filename)) {
             $this->queueGeneration($record);
-
-            // Use placeholder while waiting for Gemini cover
-            $placeholder = $this->coversDir . '/placeholder.png';
-            File::copy($placeholder, $defaultPath);
         }
 
-        return $this->buildCoverUrl($this->defaultFilename);
+        return $this->buildCoverUrl($record->cover_filename);
     }
 
     public function getCoverPath(string $filename): string
@@ -120,8 +120,14 @@ class AppQyV1VocabularyCoverService
 
     public function buildFilename(AppQyV1VocabularyLibraryModel $library): string
     {
-        $slug = Str::lower(trim($library->name ?? 'library'));
-        $hash = md5($library->id . '|' . $slug);
+        $name = $library->name ?? 'library';
+        return $this->buildFilenameFromParts((int) $library->id, $name);
+    }
+
+    private function buildFilenameFromParts(int $libraryId, string $name): string
+    {
+        $slug = Str::of($name)->lower()->squish()->toString();
+        $hash = md5($libraryId . '|' . $slug);
         return "{$hash}.png";
     }
 
@@ -133,6 +139,10 @@ class AppQyV1VocabularyCoverService
         $record->priority = $record->priority ?? 1;
         $record->error_message = null;
         $record->save();
+
+        PassiveQueue::dispatch(AppQyV1GenerateCoverJob::class, [
+            'cover_id' => $record->id,
+        ]);
     }
 
     private function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
@@ -166,40 +176,24 @@ class AppQyV1VocabularyCoverService
         return 'Create a minimalistic 16:9 cover art for a vocabulary learning library platform. Use soft gradients, abstract bookshelves, light textures, and inspirational tones. No text.';
     }
 
-    private function createPlaceholderImage(string $path): void
+    private function getLatestLog(int $coverId): ?array
     {
-        if (function_exists('imagecreatetruecolor')) {
-            $width = 1280;
-            $height = 720;
-            $image = imagecreatetruecolor($width, $height);
-            $background = imagecolorallocate($image, 15, 23, 42);
-            $accent = imagecolorallocate($image, 59, 130, 246);
+        $job = PassiveQueueJob::query()
+            ->where('job_class', AppQyV1GenerateCoverJob::class)
+            ->whereRaw("json_extract(payload, '$.cover_id') = ?", [$coverId])
+            ->orderByDesc('id')
+            ->first();
 
-            imagefill($image, 0, 0, $background);
-
-            for ($i = 0; $i < 5; $i++) {
-                $alpha = imagecolorallocatealpha($image, 79, 70, 229, 60 + ($i * 10));
-                imagefilledellipse(
-                    $image,
-                    ($i * 200) + 150,
-                    ($i * 100) + 120,
-                    320 - ($i * 20),
-                    240 - ($i * 10),
-                    $alpha
-                );
-            }
-
-            imagefilledrectangle($image, 200, 260, 420, 560, $accent);
-            imagefilledrectangle($image, 450, 220, 660, 560, $accent);
-            imagefilledrectangle($image, 700, 300, 900, 560, $accent);
-
-            imagepng($image, $path);
-            imagedestroy($image);
-
-            return;
+        if (!$job) {
+            return null;
         }
 
-        $base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAucB9pNXvFAAAAAASUVORK5CYII=';
-        file_put_contents($path, base64_decode($base64));
+        return [
+            'job_id' => $job->id,
+            'status' => $job->status,
+            'attempts' => $job->attempts,
+            'error_message' => $job->error_message,
+            'updated_at' => optional($job->updated_at)->toDateTimeString(),
+        ];
     }
 }
