@@ -91,11 +91,8 @@ body {
 }
 
 .tab-content {
-    display: none;
-    padding: 24px 16px;
-}
-.tab-content.active {
     display: block;
+    padding: 24px 16px;
 }
 
 .panel {
