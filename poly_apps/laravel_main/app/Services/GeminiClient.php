@@ -16,6 +16,7 @@ class GeminiClient
         'gemini-1.5-flash' => 'gemini-1.5-flash',
         'gemini-1.5-pro' => 'gemini-1.5-pro',
     ];
+    const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
     
     private $apiKey;
     
@@ -38,6 +39,11 @@ class GeminiClient
         $this->apiKey = $apiKey;
     }
     
+    public function hasApiKey(): bool
+    {
+        return !empty($this->apiKey);
+    }
+
     private function buildHeaders(): array
     {
         return [
@@ -103,7 +109,7 @@ class GeminiClient
         }
     }
     
-    private function extractTextFromResponse(array $response): string
+    public function extractTextFromResponse(array $response): string
     {
         if (isset($response['candidates'][0]['content']['parts'])) {
             $parts = $response['candidates'][0]['content']['parts'];
@@ -192,5 +198,135 @@ class GeminiClient
                 'context_length' => 2000000,
             ],
         ];
+    }
+
+    public function analyzeImage(
+        string $imagePath,
+        string $prompt,
+        ?string $model = null,
+        int $timeout = 120
+    ): array {
+        if (!$this->apiKey) {
+            return [
+                'success' => false,
+                'error' => 'No Gemini API key configured',
+            ];
+        }
+
+        if (!file_exists($imagePath)) {
+            return [
+                'success' => false,
+                'error' => 'Image file not found: ' . $imagePath,
+            ];
+        }
+
+        $mimeType = mime_content_type($imagePath) ?: 'image/png';
+        $imageData = base64_encode(file_get_contents($imagePath));
+
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $prompt],
+                    [
+                        'inline_data' => [
+                            'mime_type' => $mimeType,
+                            'data' => $imageData,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->generateContent($contents, $model, [], $timeout);
+
+        if (isset($response['error'])) {
+            return [
+                'success' => false,
+                'error' => $response['error'],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'text' => $this->extractTextFromResponse($response),
+            'raw' => $response,
+        ];
+    }
+
+    public function generateAudio(
+        array $parts,
+        array $speechConfig = [],
+        ?string $model = null,
+        int $timeout = 120
+    ): array {
+        if (!$this->apiKey) {
+            return [
+                'success' => false,
+                'error' => 'No Gemini API key configured',
+            ];
+        }
+
+        $model = $model ?? self::TTS_MODEL;
+
+        $payload = [
+            'contents' => [
+                [
+                    'parts' => $parts,
+                ],
+            ],
+            'generationConfig' => [
+                'responseModalities' => ['AUDIO'],
+            ],
+        ];
+
+        if (!empty($speechConfig)) {
+            $payload['generationConfig']['speechConfig'] = $speechConfig;
+        }
+
+        try {
+            $response = Http::withHeaders($this->buildHeaders())
+                ->timeout($timeout)
+                ->post(self::BASE_URL . "/models/{$model}:generateContent", $payload);
+
+            if (!$response->successful()) {
+                $body = $response->json();
+                $error = $body['error']['message'] ?? $response->body();
+                Log::error('[GeminiClient] Audio request failed', [
+                    'status' => $response->status(),
+                    'error' => $error,
+                    'body' => $body,
+                ]);
+                return ['success' => false, 'error' => $error];
+            }
+
+            $data = $response->json();
+            $audioBase64 = $data['candidates'][0]['content']['parts'][0]['inlineData']['data'] ?? null;
+
+            if (!$audioBase64) {
+                return [
+                    'success' => false,
+                    'error' => 'Audio data not found in Gemini response',
+                ];
+            }
+
+            $binary = base64_decode($audioBase64, true);
+
+            return [
+                'success' => true,
+                'audio_base64' => $audioBase64,
+                'audio_binary' => $binary,
+                'raw' => $data,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('[GeminiClient] Audio generation exception: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 }
