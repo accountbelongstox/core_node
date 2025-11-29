@@ -6,7 +6,8 @@ Provides HTTP endpoints for code sync server/client communication.
 Mounted at /code-sync/*
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 
@@ -37,6 +38,8 @@ class InitialSyncResponse(BaseModel):
 
 class ChangesRequest(BaseModel):
     client_id: str
+    received_count: Optional[int] = 0  # Number of files client received
+    skipped_count: Optional[int] = 0   # Number of files client skipped
 
 
 class ChangesResponse(BaseModel):
@@ -51,6 +54,11 @@ class StatusResponse(BaseModel):
     client: Optional[Dict] = None
 
 
+class DownloadRequest(BaseModel):
+    client_id: str
+    file_path: str  # Relative file path
+
+
 # Endpoints
 
 @router.get("/ping")
@@ -60,7 +68,7 @@ async def ping():
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def register_client(request: RegisterRequest):
+async def register_client(request: RegisterRequest, http_request: Request):
     """
     Register a client connection
 
@@ -79,8 +87,7 @@ async def register_client(request: RegisterRequest):
             raise HTTPException(status_code=503, detail="Server not available")
 
         # Extract client IP from request
-        # Note: In production, use request.client.host
-        client_ip = "unknown"
+        client_ip = http_request.client.host if http_request.client else "unknown"
 
         needs_initial_sync = server.register_client(request.client_id, client_ip)
 
@@ -140,6 +147,14 @@ async def get_changes(request: ChangesRequest):
         server = manager.get_server()
         if not server:
             raise HTTPException(status_code=503, detail="Server not available")
+
+        # Update client statistics if provided
+        if request.received_count > 0 or request.skipped_count > 0:
+            server.update_client_stats(
+                request.client_id,
+                received_count=request.received_count,
+                skipped_count=request.skipped_count
+            )
 
         files = server.get_changed_files(request.client_id)
 
@@ -228,4 +243,70 @@ async def stop_sync():
 
     except Exception as e:
         ColorPrint.red(f"[CodeSync Router] Error stopping: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/download")
+async def download_file(request: DownloadRequest):
+    """Download file content from server"""
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+        from pathlib import Path
+
+        manager = get_code_sync_manager()
+
+        if not manager.is_server_mode():
+            raise HTTPException(status_code=503, detail="Not in server mode")
+
+        server = manager.get_server()
+        if not server:
+            raise HTTPException(status_code=503, detail="Server not available")
+
+        # Get file path
+        file_path = server.root_dir / request.file_path
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Read file content
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        # Return file content
+        return Response(content=content, media_type='application/octet-stream')
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        ColorPrint.red(f"[CodeSync Router] Error downloading file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/toggle-backup")
+async def toggle_backup(request: Dict):
+    """Toggle backup setting for client"""
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+        manager = get_code_sync_manager()
+
+        if not manager.is_client_mode():
+            raise HTTPException(status_code=503, detail="Not in client mode")
+
+        client = manager.get_client()
+        if not client:
+            raise HTTPException(status_code=503, detail="Client not available")
+
+        # Toggle backup setting
+        enabled = request.get('enabled', True)
+        client.enable_backup = enabled
+
+        ColorPrint.blue(f"[CodeSync] Backup {('enabled' if enabled else 'disabled')}")
+
+        return {"success": True, "enabled": enabled}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        ColorPrint.red(f"[CodeSync Router] Error toggling backup: {e}")
         raise HTTPException(status_code=500, detail=str(e))

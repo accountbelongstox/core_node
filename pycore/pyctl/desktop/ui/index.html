@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Subtitle Manager</title>
-    <link rel="stylesheet" href="/voice-subtitle/framework.css">
+    <title>Desktop Manager</title>
+    <link rel="stylesheet" href="/desktop/framework.css">
 </head>
 <body>
     <!-- Top Menu Bar -->
     <header class="top-menu">
-        <div class="logo">Voice Subtitle Manager</div>
+        <div class="logo">Desktop Manager</div>
         <div class="top-menu-actions">
             <button class="top-btn" id="subtitleModeBtn" title="Toggle Subtitle Mode (Ctrl+M)">
                 <span id="subtitleModeIcon">📺</span> Subtitle Mode
@@ -299,6 +299,20 @@
                             <span class="status-label">Mode:</span>
                             <span class="status-value" id="syncModeDisplay">-</span>
                         </div>
+                        <div class="status-item">
+                            <span class="status-label">Running:</span>
+                            <span class="status-value" id="syncRunning">No</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Timezone:</span>
+                            <span class="status-value" id="syncTimezone">-</span>
+                        </div>
+                    </div>
+                    <div class="status-row">
+                        <div class="status-item" style="flex: 1;">
+                            <span class="status-label">Root Directory:</span>
+                            <span class="status-value" id="syncRootDir" style="font-size: 11px;">-</span>
+                        </div>
                     </div>
                 </div>
 
@@ -338,14 +352,16 @@
                                 <tr>
                                     <th>Client ID</th>
                                     <th>IP Address</th>
-                                    <th>Connected At</th>
+                                    <th>Push Count</th>
+                                    <th>Total Files</th>
+                                    <th>Received</th>
+                                    <th>Skipped</th>
                                     <th>Last Seen</th>
-                                    <th>Synced Files</th>
                                 </tr>
                             </thead>
                             <tbody id="clientsTableBody">
                                 <tr>
-                                    <td colspan="5" class="empty-state">No connected clients</td>
+                                    <td colspan="7" class="empty-state">No connected clients</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -360,16 +376,37 @@
                     </h3>
                     <div id="clientStats" class="collapsible-content stats-grid">
                         <div class="stat-item">
-                            <div class="stat-value" id="clientScanCount">0</div>
-                            <div class="stat-label">Scan Count</div>
+                            <div class="stat-value" id="clientReceivedCount">0</div>
+                            <div class="stat-label">Received</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="clientSkippedCount">0</div>
+                            <div class="stat-label">Skipped</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="clientReceivedFiles">0</div>
-                            <div class="stat-label">Received Files</div>
+                            <div class="stat-label">Total Files</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="clientConnected">No</div>
                             <div class="stat-label">Connected</div>
+                        </div>
+                    </div>
+
+                    <!-- Client Settings -->
+                    <h3 class="collapsible-header" data-target="clientSettings">
+                        <span>Client Settings</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="clientSettings" class="collapsible-content">
+                        <div class="setting-item">
+                            <label class="feature-toggle">
+                                <input type="checkbox" id="enableBackup" checked>
+                                <span>Enable File Backup</span>
+                            </label>
+                            <p class="feature-desc" style="font-size: 12px; opacity: 0.7; margin-top: 5px;">
+                                Backup files before overwriting (saved with timestamp)
+                            </p>
                         </div>
                     </div>
 
@@ -392,6 +429,18 @@
                                 <span class="info-label">Client ID:</span>
                                 <span class="info-value" id="clientId">-</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Sync Logs -->
+                    <h3 class="collapsible-header" data-target="syncLogs">
+                        <span>Sync Logs</span>
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div id="syncLogs" class="collapsible-content">
+                        <div id="syncLogsContainer" style="max-height: 400px; overflow-y: auto; font-size: 12px; font-family: monospace;">
+                            <!-- Populated by JS -->
+                            <div class="empty-state">No sync activity yet</div>
                         </div>
                     </div>
 
@@ -448,9 +497,9 @@
 
     <!-- Scripts -->
     <script src="/js/rpc/ws_rpc_client.js"></script>
-    <script src="/voice-subtitle/dialog.js"></script>
-    <script src="/voice-subtitle/config.js"></script>
-    <script src="/voice-subtitle/api.js"></script>
-    <script src="/voice-subtitle/framework.js"></script>
+    <script src="/desktop/dialog.js"></script>
+    <script src="/desktop/config.js"></script>
+    <script src="/desktop/api.js"></script>
+    <script src="/desktop/framework.js"></script>
 </body>
 </html>

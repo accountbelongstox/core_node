@@ -98,9 +98,23 @@ class BacktestEngine:
         Args:
             initial_balance: Initial USDT balance
         """
+        import sys
+        print("[BacktestEngine] Step 1: Starting initialization...")
+        sys.stdout.flush()
+
         self.initial_balance = initial_balance or strategy_config.INITIAL_BALANCE_USDT
+        print(f"[BacktestEngine] Step 2: Initial balance set to {self.initial_balance}")
+        sys.stdout.flush()
+
         self.balance = self.initial_balance
+        print(f"[BacktestEngine] Step 3: Current balance set")
+        sys.stdout.flush()
+
+        print(f"[BacktestEngine] Step 4: Getting Redis manager...")
+        sys.stdout.flush()
         self.redis_manager = get_redis_manager()
+        print(f"[BacktestEngine] Step 5: Redis manager obtained")
+        sys.stdout.flush()
 
         # Active positions
         self.positions: Dict[str, Position] = {}
@@ -120,6 +134,7 @@ class BacktestEngine:
 
         print(f"[BacktestEngine] Initialized")
         print(f"[BacktestEngine] Initial balance: {self.initial_balance} USDT")
+        sys.stdout.flush()
 
     def can_open_position(self) -> bool:
         """

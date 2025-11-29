@@ -27,6 +27,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localization/flutter_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/localization/language_change_notifier.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,11 +67,11 @@ void _safeSetPathUrlStrategy() {
 /// Common main entry point for all apps
 /// This is a universal method that can be used by any app (achat, wuy, example, main, etc.)
 /// It provides shared initialization logic and handles common app setup
-/// 
+///
 /// IMPORTANT: This method is designed to be generic and reusable across different apps.
 /// It is NOT specific to any single app like achat - it serves as a common foundation
 /// for all apps in the Flutter Bloom project.
-/// 
+///
 /// The method handles:
 /// - Flutter binding initialization
 /// - SharedPreferences setup (either from parameter or internal initialization)
@@ -90,7 +91,8 @@ Future<void> runCommonApp({
   // App-specific SharedPreferences class - can be provided or null for internal initialization
   AppPrefsBase? appPrefs, // App-specific SharedPreferences class (optional)
   // Custom UserProvider - if provided, will be used instead of default EnhancedUserProvider
-  BaseUserProvider? customUserProvider, // Optional: App-specific user provider (e.g., ExampleUserProvider, WuUserProvider)
+  BaseUserProvider?
+      customUserProvider, // Optional: App-specific user provider (e.g., ExampleUserProvider, WuUserProvider)
   // Route configuration - provided by app
   GoRouter? routerConfig, // App-specific router configuration
   String? initialRoute,
@@ -100,7 +102,8 @@ Future<void> runCommonApp({
   List<SingleChildWidget> Function(SettingsController commonSettingsController)?
       scopedProvidersBuilder,
   // Storage configuration - control whether to initialize UnifiedStorage
-  bool initializeUnifiedStorage = true, // Default to true for backward compatibility
+  bool initializeUnifiedStorage =
+      true, // Default to true for backward compatibility
   ThemeData? lightTheme,
   ThemeData? darkTheme,
   List<ThemeExtension<dynamic>>? lightThemeExtensions,
@@ -113,7 +116,7 @@ Future<void> runCommonApp({
   }
 
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Safely preserve native splash
   try {
     NativeSplashHelper.preserve(widgetsBinding: widgetsBinding);
@@ -146,7 +149,8 @@ Future<void> runCommonApp({
     // Check and perform data migration if needed
     if (await StorageMigrationTool.isMigrationNeeded()) {
       try {
-        final migrationResult = await StorageMigrationTool.performCommonMigration();
+        final migrationResult =
+            await StorageMigrationTool.performCommonMigration();
         if (migrationResult.success) {
           log('Storage migration completed successfully: ${migrationResult.migratedItems} items migrated');
         } else {
@@ -166,11 +170,16 @@ Future<void> runCommonApp({
     zhTranslations: zhAppLocales,
   );
 
+  // Initialize language cache from FlutterLocalization
+  final initialLanguage =
+      FlutterLocalization.instance.currentLocale?.languageCode ?? 'en';
+  AppLocale.updateCurrentLanguage(initialLanguage);
+
   // Handle SharedPreferences initialization
   // If appPrefs is provided, let it initialize SharedPreferences automatically
   // This allows apps to handle their own SharedPreferences initialization
   SharedPreferences prefs;
-  
+
   if (appPrefs != null) {
     // Initialize the app-specific SharedPreferences class and get the prefs instance
     prefs = await appPrefs.initSharedPreferences();
@@ -214,11 +223,14 @@ Future<void> runCommonApp({
   // Mark app as initialized
   _appInitialized = true;
 
+  final languageChangeNotifier = LanguageChangeNotifier();
+
   final List<SingleChildWidget> providerList = [
     ChangeNotifierProvider.value(value: userProvider),
     Provider.value(value: prefs),
     ChangeNotifierProvider.value(value: settingsController),
     ChangeNotifierProvider.value(value: screenSizeProvider),
+    ChangeNotifierProvider.value(value: languageChangeNotifier),
   ];
 
   if (appPrefs != null) {
@@ -308,6 +320,13 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
   }
 
   void _onTranslatedLanguage(Locale? locale) {
+    // Update AppLocale cache when language changes
+    if (locale != null) {
+      AppLocale.updateCurrentLanguage(locale.languageCode);
+    }
+    // Notify global language change notifier
+    LanguageChangeNotifier().forceNotify();
+    // Rebuild MaterialApp to update locale
     setState(() {});
   }
 
@@ -315,6 +334,9 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
   Widget build(BuildContext context) {
     final settingsController = context.watch<SettingsController>();
     final screenSizeProvider = context.watch<ScreenSizeProvider>();
+    // Listen to language changes to rebuild MaterialApp when locale changes
+    // This ensures MaterialApp rebuilds when LanguageChangeNotifier notifies
+    context.watch<LanguageChangeNotifier>();
     final appName = "app_name".tr(context);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -323,20 +345,29 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
 
     final ThemeData resolvedLightTheme = _mergeThemeExtensions(
       widget.lightTheme ?? getAppLightTheme(),
-      widget.lightThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientLight()],
+      widget.lightThemeExtensions ??
+          const <ThemeExtension<dynamic>>[GradientLight()],
     );
 
     final ThemeData resolvedDarkTheme = _mergeThemeExtensions(
       widget.darkTheme ?? getAppDarkTheme(),
-      widget.darkThemeExtensions ?? const <ThemeExtension<dynamic>>[GradientDark()],
+      widget.darkThemeExtensions ??
+          const <ThemeExtension<dynamic>>[GradientDark()],
     );
 
+    // Use languageNotifier to ensure MaterialApp rebuilds when language changes
+    // The locale parameter will trigger Localizations widget to update,
+    // which will cause all widgets using .tr(context) to rebuild
+    // Using languageNotifier in the build method ensures MaterialApp rebuilds
+    // when language changes, and Localizations.of(context) in .tr() ensures
+    // all widgets using translations rebuild automatically
     return MaterialApp.router(
       title: appName,
       debugShowCheckedModeBanner: false,
       theme: resolvedLightTheme,
       darkTheme: resolvedDarkTheme,
       themeMode: settingsController.themeMode,
+      locale: _localization.currentLocale,
       supportedLocales: _localization.supportedLocales,
       localizationsDelegates: _localization.localizationsDelegates,
       routerConfig: widget.routerConfig,
@@ -367,17 +398,17 @@ class FlutterBloomHttpOverrides extends HttpOverrides {
 /// Notify app-specific SharedPreferences classes about the initialized instance
 /// This ensures they can use the SharedPreferences instance initialized after Flutter binding
 /// This function handles the communication between the common app system and app-specific SharedPreferences classes
-/// 
+///
 /// DESIGN: This is a generic approach that works with any app-specific SharedPreferences class
 /// It dynamically checks for setInstance methods and calls them appropriately
-/// 
+///
 /// NOTE: This function is now simplified since appPrefs.setInstance() is called directly
 /// in the main flow when appPrefs is provided
 void _notifyAppSpecificPrefs(SharedPreferences prefs) {
   try {
     // Log the SharedPreferences initialization for debugging purposes
     debugPrint('SharedPreferences initialized successfully and ready for use');
-    
+
     // Future: Add additional notification logic if needed for other systems
     // This function can be extended to notify other components that need SharedPreferences
   } catch (e) {

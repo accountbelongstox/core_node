@@ -31,9 +31,9 @@ class TaskPriority(Enum):
     NORMAL = 3      # Normal priority (default)
     LOW = 4         # Low priority tasks
 
-
+ 
 @dataclass
-class Task:
+class Task:  
     """
     Global task model
 

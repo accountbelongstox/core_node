@@ -15,6 +15,7 @@ from pycore import ColorPrint
 from pycore.pyctl.desktop import get_voice_subtitle_queue
 from pycore.pyctl.desktop.processor import process_text_input, process_image_input
 from pycore.pyctl.desktop.background_services import get_background_services
+from pycore.pyctl.desktop.task_manager import get_task_manager
 
 
 # ============================================================
@@ -81,53 +82,97 @@ router = APIRouter(prefix="/voice-subtitle", tags=["voice-subtitle"])
 @router.post("/add-text")
 async def add_text(request: AddTextRequest):
     """
-    Add text to voice subtitle queue
+    Add text to voice subtitle queue (Async)
 
     Process:
-    1. Translate to all target languages
-    2. Generate TTS for each language
-    3. Add to queue with specified category
-    """
-    result = await process_text_input(request.text, request.langs, request.category)
+    1. Create async task
+    2. Translate to all target languages (background)
+    3. Generate TTS for each language (background)
+    4. Add to queue with specified category (background)
 
-    if result['success']:
-        return {
-            "success": True,
-            "message": "Text added to queue",
-            "items_added": result['items_added']
-        }
-    else:
-        raise HTTPException(status_code=500, detail=result['error'])
+    Returns task_id for status tracking
+    """
+    task_manager = get_task_manager()
+
+    # Create task
+    task_id = task_manager.create_task(
+        task_type="text",
+        input_data={
+            "text": request.text,
+            "langs": request.langs,
+            "category": request.category
+        },
+        estimated_time=5
+    )
+
+    # Execute in background
+    async def executor(task):
+        result = await process_text_input(request.text, request.langs, request.category)
+        if not result['success']:
+            raise Exception(result.get('error', 'Unknown error'))
+        return result
+
+    task_manager.execute_task(task_id, executor)
+
+    return {
+        "success": True,
+        "task_id": task_id,
+        "message": "Text processing started",
+        "estimated_time": 5
+    }
 
 
 @router.post("/add-image")
 async def add_image(request: AddImageRequest):
     """
-    Add image to voice subtitle queue
+    Add image to voice subtitle queue (Async)
 
     Process:
-    1. OCR image to extract text
-    2. Summarize with Gemini
-    3. Translate to all target languages
-    4. Generate TTS for each language
-    5. Add to queue with specified category
+    1. Create async task
+    2. OCR image to extract text (background)
+    3. Summarize with Gemini (background)
+    4. Translate to all target languages (background)
+    5. Generate TTS for each language (background)
+    6. Add to queue with specified category (background)
+
+    Returns task_id for status tracking
     """
-    result = await process_image_input(
-        image_path=request.image_path,
-        image_url=request.image_url,
-        image_base64=request.image_base64,
-        langs=request.langs,
-        category=request.category
+    task_manager = get_task_manager()
+
+    # Create task
+    task_id = task_manager.create_task(
+        task_type="image",
+        input_data={
+            "image_path": request.image_path,
+            "image_url": request.image_url,
+            "image_base64": request.image_base64,
+            "langs": request.langs,
+            "category": request.category
+        },
+        estimated_time=10
     )
 
-    if result['success']:
-        return {
-            "success": True,
-            "message": "Image processed and added to queue",
-            "items_added": result['items_added']
-        }
-    else:
-        raise HTTPException(status_code=500, detail=result['error'])
+    # Execute in background
+    async def executor(task):
+        result = await process_image_input(
+            image_path=request.image_path,
+            image_url=request.image_url,
+            image_base64=request.image_base64,
+            langs=request.langs,
+            category=request.category
+        )
+        if not result['success']:
+            raise Exception(result.get('error', 'Unknown error'))
+        return result
+
+    task_manager.execute_task(task_id, executor)
+
+    return {
+        "success": True,
+        "task_id": task_id,
+        "message": "Image processing started",
+        "estimated_time": 10
+    }
 
 
 @router.post("/add-voice")
@@ -476,4 +521,39 @@ async def get_screenshot_monitor_status():
     }
 
 
+# ============================================================
+# Task Management
+# ============================================================
+
+@router.get("/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Get task status by ID
+
+    Returns task progress, status, and result
+    """
+    task_manager = get_task_manager()
+    task = task_manager.get_task(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+    return task.to_dict()
+
+
+@router.get("/tasks")
+async def get_all_tasks(limit: int = Query(50, description="Maximum number of tasks to return")):
+    """
+    Get recent tasks
+
+    Returns task history with progress and status
+    """
+    task_manager = get_task_manager()
+    tasks = task_manager.get_recent_tasks(limit)
+
+    return {
+        "success": True,
+        "tasks": tasks,
+        "count": len(tasks)
+    }
 

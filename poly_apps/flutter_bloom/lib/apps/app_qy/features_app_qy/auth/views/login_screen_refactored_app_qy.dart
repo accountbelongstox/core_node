@@ -8,28 +8,34 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 
 class LoginScreenRefactoredAppQy extends StatefulWidget {
   const LoginScreenRefactoredAppQy({super.key});
 
   @override
-  State<LoginScreenRefactoredAppQy> createState() => _LoginScreenRefactoredAppQyState();
+  State<LoginScreenRefactoredAppQy> createState() =>
+      _LoginScreenRefactoredAppQyState();
 }
 
 class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     with TickerProviderStateMixin {
-
   late final AnimationController _shimmerController;
   late final AnimationController _fadeController;
 
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
 
+  bool _isRegisterMode = false;
   bool _isPhoneLogin = false;
   bool _agreedToTerms = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   int _countdown = 0;
 
   @override
@@ -51,7 +57,9 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     _shimmerController.dispose();
     _fadeController.dispose();
     _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -75,8 +83,10 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
         verificationCode: _codeController.text.trim(),
       );
     } else {
-      if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-        _showError(QyAppLocalizationKeys.qyPleaseEnterUsernameAndPassword.tr(context));
+      if (_usernameController.text.isEmpty ||
+          _passwordController.text.isEmpty) {
+        _showError(
+            QyAppLocalizationKeys.qyPleaseEnterUsernameAndPassword.tr(context));
         return;
       }
 
@@ -89,7 +99,60 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     if (success && mounted) {
       context.go('/language-selection');
     } else if (mounted) {
-      _showError(authService.error ?? QyAppLocalizationKeys.qyLoginFailed.tr(context));
+      _showError(
+          authService.error ?? QyAppLocalizationKeys.qyLoginFailed.tr(context));
+    }
+  }
+
+  Future<void> _handleRegister(AuthServiceAppQy authService) async {
+    if (!_agreedToTerms) {
+      _showError(QyAppLocalizationKeys.qyPleaseAgreeToTerms.tr(context));
+      return;
+    }
+
+    bool success;
+    if (_isPhoneLogin) {
+      if (_phoneController.text.isEmpty || _codeController.text.isEmpty) {
+        _showError(QyAppLocalizationKeys.qyPleaseEnterPhoneAndCode.tr(context));
+        return;
+      }
+
+      success = await authService.register(
+        phoneNumber: _phoneController.text.trim(),
+        verificationCode: _codeController.text.trim(),
+      );
+    } else {
+      if (_usernameController.text.isEmpty ||
+          _emailController.text.isEmpty ||
+          _passwordController.text.isEmpty ||
+          _confirmPasswordController.text.isEmpty) {
+        _showError(QyAppLocalizationKeys.qyPleaseCompleteForm.tr(context));
+        return;
+      }
+
+      if (_passwordController.text != _confirmPasswordController.text) {
+        _showError(QyAppLocalizationKeys.qyPasswordsDoNotMatch.tr(context));
+        return;
+      }
+
+      success = await authService.register(
+        username: _usernameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        confirmPassword: _confirmPasswordController.text.trim(),
+      );
+    }
+
+    if (success && mounted) {
+      _showSuccess(QyAppLocalizationKeys.qyRegisterSuccess.tr(context));
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          context.go('/language-selection');
+        }
+      });
+    } else if (mounted) {
+      _showError(authService.error ??
+          QyAppLocalizationKeys.qyRegisterFailed.tr(context));
     }
   }
 
@@ -103,7 +166,11 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       return;
     }
 
-    final success = await authService.sendVerificationCode(_phoneController.text.trim());
+    final purpose = _isRegisterMode ? 'register' : 'login';
+    final success = await authService.sendVerificationCode(
+      _phoneController.text.trim(),
+      purpose: purpose,
+    );
 
     if (success) {
       setState(() {
@@ -111,7 +178,8 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       });
       _startCountdown();
     } else {
-      _showError(authService.error ?? QyAppLocalizationKeys.qyFailedToSendCode.tr(context));
+      _showError(authService.error ??
+          QyAppLocalizationKeys.qyFailedToSendCode.tr(context));
     }
   }
 
@@ -142,6 +210,20 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     );
   }
 
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthServiceAppQy>();
@@ -151,25 +233,32 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
         children: [
           _buildBackgroundGradient(),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(ThemeDimensions.spacing24),
-                child: FadeTransition(
-                  opacity: _fadeController,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLogo(),
-                      const SizedBox(height: ThemeDimensions.spacing48),
-                      _buildLoginCard(authService),
-                      const SizedBox(height: ThemeDimensions.spacing24),
-                      _buildTermsCheckbox(),
-                      const SizedBox(height: ThemeDimensions.spacing16),
-                      _buildLoginModeSwitch(),
-                    ],
+            child: Column(
+              children: [
+                _buildBackButton(),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+                      child: FadeTransition(
+                        opacity: _fadeController,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildLogo(),
+                            const SizedBox(height: ThemeDimensions.spacing48),
+                            _buildAuthCard(authService),
+                            const SizedBox(height: ThemeDimensions.spacing24),
+                            _buildTermsCheckbox(),
+                            const SizedBox(height: ThemeDimensions.spacing16),
+                            _buildModeSwitch(),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
           if (authService.isLoading)
@@ -177,11 +266,47 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
               color: Colors.black26,
               child: const Center(
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return Padding(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              context.go(QyAppRoutesProvider.routeHome);
+            },
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: ColorsAppQy.qyTextPrimary,
+                size: 24,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -192,7 +317,8 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
-            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
           ),
         );
       },
@@ -222,7 +348,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     );
   }
 
-  Widget _buildLoginCard(AuthServiceAppQy authService) {
+  Widget _buildAuthCard(AuthServiceAppQy authService) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 400),
       child: ClipRRect(
@@ -259,7 +385,9 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 ),
                 const SizedBox(height: ThemeDimensions.spacing8),
                 Text(
-                  QyAppLocalizationKeys.qyLoginToContinue.tr(context),
+                  _isRegisterMode
+                      ? QyAppLocalizationKeys.qyRegisterToContinue.tr(context)
+                      : QyAppLocalizationKeys.qyLoginToContinue.tr(context),
                   style: ThemeTextStyles.caption.copyWith(
                     color: ColorsAppQy.qyTextSecondary,
                   ),
@@ -267,11 +395,11 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 ),
                 const SizedBox(height: ThemeDimensions.spacing32),
                 if (_isPhoneLogin)
-                  _buildPhoneLoginForm(authService)
+                  _buildPhoneForm(authService)
                 else
-                  _buildUsernameLoginForm(),
+                  _buildUsernameForm(),
                 const SizedBox(height: ThemeDimensions.spacing24),
-                _buildLoginButton(authService),
+                _buildActionButton(authService),
               ],
             ),
           ),
@@ -280,7 +408,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     );
   }
 
-  Widget _buildUsernameLoginForm() {
+  Widget _buildUsernameForm() {
     return Column(
       children: [
         _buildInputField(
@@ -289,6 +417,15 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
           icon: Icons.person_outline_rounded,
           keyboardType: TextInputType.text,
         ),
+        if (_isRegisterMode) ...[
+          const SizedBox(height: ThemeDimensions.spacing16),
+          _buildInputField(
+            controller: _emailController,
+            label: QyAppLocalizationKeys.qyEmail.tr(context),
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+          ),
+        ],
         const SizedBox(height: ThemeDimensions.spacing16),
         _buildInputField(
           controller: _passwordController,
@@ -308,11 +445,34 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
             },
           ),
         ),
+        if (_isRegisterMode) ...[
+          const SizedBox(height: ThemeDimensions.spacing16),
+          _buildInputField(
+            controller: _confirmPasswordController,
+            label: QyAppLocalizationKeys.qyConfirmPassword.tr(context),
+            icon: Icons.lock_outline_rounded,
+            obscureText: _obscureConfirmPassword,
+            keyboardType: TextInputType.visiblePassword,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
+                color: ColorsAppQy.qyTextSecondary,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildPhoneLoginForm(AuthServiceAppQy authService) {
+  Widget _buildPhoneForm(AuthServiceAppQy authService) {
     return Column(
       children: [
         _buildInputField(
@@ -409,8 +569,8 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 : null,
           ),
           child: Text(
-            _countdown > 0 
-                ? '${_countdown}s' 
+            _countdown > 0
+                ? '${_countdown}s'
                 : QyAppLocalizationKeys.qySendCode.tr(context),
             style: ThemeTextStyles.button.copyWith(
               color: Colors.white,
@@ -422,16 +582,19 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     );
   }
 
-  Widget _buildLoginButton(AuthServiceAppQy authService) {
+  Widget _buildActionButton(AuthServiceAppQy authService) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: !authService.isLoading && _agreedToTerms
-            ? () => _handleLogin(authService)
+            ? () => _isRegisterMode
+                ? _handleRegister(authService)
+                : _handleLogin(authService)
             : null,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
+          padding:
+              const EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
           decoration: BoxDecoration(
             gradient: _agreedToTerms && !authService.isLoading
                 ? ColorsAppQy.qyPrimaryGradient
@@ -450,7 +613,9 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 : null,
           ),
           child: Text(
-            QyAppLocalizationKeys.qyLogin.tr(context),
+            _isRegisterMode
+                ? QyAppLocalizationKeys.qyRegister.tr(context)
+                : QyAppLocalizationKeys.qyLogin.tr(context),
             style: ThemeTextStyles.button.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -495,22 +660,49 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     );
   }
 
-  Widget _buildLoginModeSwitch() {
-    return TextButton(
-      onPressed: () {
-        setState(() {
-          _isPhoneLogin = !_isPhoneLogin;
-        });
-      },
-      child: Text(
-        _isPhoneLogin
-            ? QyAppLocalizationKeys.qyLoginWithUsername.tr(context)
-            : QyAppLocalizationKeys.qyLoginWithPhone.tr(context),
-        style: ThemeTextStyles.body.copyWith(
-          color: ColorsAppQy.qyPrimary,
-          fontWeight: FontWeight.w600,
+  Widget _buildModeSwitch() {
+    return Column(
+      children: [
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _isPhoneLogin = !_isPhoneLogin;
+            });
+          },
+          child: Text(
+            _isPhoneLogin
+                ? QyAppLocalizationKeys.qyLoginWithUsername.tr(context)
+                : QyAppLocalizationKeys.qyLoginWithPhone.tr(context),
+            style: ThemeTextStyles.body.copyWith(
+              color: ColorsAppQy.qyPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: ThemeDimensions.spacing8),
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _isRegisterMode = !_isRegisterMode;
+              _usernameController.clear();
+              _emailController.clear();
+              _passwordController.clear();
+              _confirmPasswordController.clear();
+              _phoneController.clear();
+              _codeController.clear();
+            });
+          },
+          child: Text(
+            _isRegisterMode
+                ? QyAppLocalizationKeys.qyHaveAccount.tr(context)
+                : QyAppLocalizationKeys.qyNoAccount.tr(context),
+            style: ThemeTextStyles.body.copyWith(
+              color: ColorsAppQy.qyPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

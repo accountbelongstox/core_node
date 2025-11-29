@@ -8,6 +8,18 @@ const CONFIG = {
         BASE_URL: 'http://localhost:59000'
     },
 
+    // Remote API configuration
+    REMOTE_API: {
+        ENABLED: false,
+        AUTO_DISCOVER: true,
+        CUSTOM_URL: '',
+        DISCOVERED_SERVERS: [],
+        SCAN_PORT: 9000,
+        SCAN_INTERVAL: 5000,  // 5 seconds
+        SCAN_TIMEOUT: 200,     // 200ms
+        API_PREFIX: '/api/mcp/v1'
+    },
+
     // API endpoints
     API: {
         // Queue management
@@ -32,6 +44,10 @@ const CONFIG = {
         // Audio serving
         AUDIO: '/voice-subtitle/audio',
 
+        // Task management
+        TASKS: '/voice-subtitle/tasks',
+        TASK_STATUS: '/voice-subtitle/tasks/{task_id}',
+
         // Background services
         CLIPBOARD_START: '/voice-subtitle/clipboard-monitor/start',
         CLIPBOARD_STOP: '/voice-subtitle/clipboard-monitor/stop',
@@ -47,7 +63,11 @@ const CONFIG = {
         CODE_SYNC_STATUS: '/code-sync/status',
         CODE_SYNC_START_SERVER: '/code-sync/set-server',
         CODE_SYNC_START_CLIENT: '/code-sync/set-client',
-        CODE_SYNC_STOP: '/code-sync/stop'
+        CODE_SYNC_STOP: '/code-sync/stop',
+        CODE_SYNC_TOGGLE_BACKUP: '/code-sync/toggle-backup',
+
+        // Service discovery
+        PING: '/ping'
     },
 
     // WebSocket configuration
@@ -73,15 +93,27 @@ const CONFIG = {
 
     // UI settings
     UI: {
-        MODULES: ['voice-player', 'queue-manager', 'window-automation', 'code-sync'],
+        MODULES: ['voice-player', 'queue-manager', 'window-automation', 'code-sync', 'api-config'],
         DEFAULT_MODULE: 'voice-player'
     }
 };
 
+// Helper functions
+CONFIG.getBaseUrl = function() {
+    if (CONFIG.REMOTE_API.ENABLED) {
+        return CONFIG.REMOTE_API.CUSTOM_URL || CONFIG.SERVER.BASE_URL;
+    }
+    return CONFIG.SERVER.BASE_URL;
+};
+
+CONFIG.getApiPrefix = function() {
+    return CONFIG.REMOTE_API.ENABLED ? CONFIG.REMOTE_API.API_PREFIX : '';
+};
+
 // Freeze configuration to prevent modifications
-Object.freeze(CONFIG);
 Object.freeze(CONFIG.SERVER);
 Object.freeze(CONFIG.API);
 Object.freeze(CONFIG.WEBSOCKET);
 Object.freeze(CONFIG.DEFAULTS);
 Object.freeze(CONFIG.UI);
+

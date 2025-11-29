@@ -70,17 +70,17 @@ class RedisManager:
             print(f"[RedisManager] Testing Redis connection (timeout: 5s)...")
             sys.stdout.flush()
             self.client.ping()
-            print(f"[RedisManager] ✓ Connected to Redis at {self.host}:{self.port} (DB {self.db})")
+            print(f"[RedisManager] [OK] Connected to Redis at {self.host}:{self.port} (DB {self.db})")
             sys.stdout.flush()
         except redis.ConnectionError as e:
-            print(f"[RedisManager] ✗ Failed to connect to Redis: {e}")
+            print(f"[RedisManager] [FAIL] Failed to connect to Redis: {e}")
             print(f"[RedisManager] Please start Redis server:")
             print(f"[RedisManager]   Windows: redis-server.exe")
             print(f"[RedisManager]   Linux/Mac: redis-server")
             sys.stdout.flush()
             raise
         except Exception as e:
-            print(f"[RedisManager] ✗ Unexpected error: {e}")
+            print(f"[RedisManager] [ERROR] Unexpected error: {e}")
             sys.stdout.flush()
             raise
 

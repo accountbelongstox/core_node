@@ -59,6 +59,10 @@ import '../features_app_qy/ai_study/views/ai_study_screen_app_qy.dart';
 import '../features_app_qy/discover/views/discover_screen_app_qy.dart';
 // Other
 import '../features_app_qy/other/views/image_001_screen_app_qy.dart';
+import '../features_app_qy/donation/views/donation_screen.dart';
+import '../features_app_qy/donation/views/donation_all_screen.dart';
+import '../features_app_qy/home/views/urgent_fundraising.dart';
+import '../features_app_qy/profile_two/views/profile_two_screen.dart';
 
 // [DEPRECATED - MS] Old screens - Not used in refactored routes
 // import '../features_app_qy/splash/views/splash_screen.dart';
@@ -141,6 +145,16 @@ class QyAppRoutesProvider {
   // Other routes
   static const String routeImage001 = '/qy/other/image-001';
 
+  // Profile & Chat main routes
+  static const String routeProfile = '/qy/profile';
+  // Alias chat route to message center for bottom navigation consistency
+  static const String routeChat = routeMessageCenter;
+
+  // Donation & fundraising routes
+  static const String routeDonation = '/qy/donation';
+  static const String routeAlldonation = '/qy/all-donation';
+  static const String routeFundraising = '/qy/fundraising';
+
   // [DEPRECATED - MS] Old routes - Not used in refactored app
   // static const String routeSplash = '/qy/splash';
   // static const String routeInitial = '/qy/initial';
@@ -150,9 +164,6 @@ class QyAppRoutesProvider {
   // static const String routeVerify = '/qy/verify';
   // static const String routeReset = '/qy/reset';
   // static const String routeCongratulations = '/qy/congratulations';
-  // static const String routeProfile = '/qy/profile';
-  // static const String routeEditProfile = '/qy/edit-profile';
-  // static const String routeChat = '/qy/chat';
   // static const String routeHelp = '/qy/help';
   // static const String routeNotifications = '/qy/notifications';
   // static const String routeSecurity = '/qy/security';
@@ -163,9 +174,6 @@ class QyAppRoutesProvider {
   // static const String routeComingEnd = '/qy/coming-end';
   // static const String routeWatchImpact = '/qy/watch-impact';
   // static const String routePrayer = '/qy/prayer';
-  // static const String routeDonation = '/qy/donation';
-  // static const String routeAlldonation = '/qy/all-donation';
-  // static const String routeFundraising = '/qy/fundraising';
 
   /// Create GoRouter configuration for QY app
   static GoRouter createRouter({String? initialLocation}) {
@@ -215,6 +223,11 @@ class QyAppRoutesProvider {
   static String getAiStudyRoute() => routeAiStudy;
   static String getDiscoverRoute() => routeDiscover;
   static String getImage001Route() => routeImage001;
+  static String getProfileRoute() => routeProfile;
+  static String getChatRoute() => routeChat;
+  static String getDonationRoute() => routeDonation;
+  static String getDonationAllRoute() => routeAlldonation;
+  static String getFundraisingRoute() => routeFundraising;
 
   /// Get default route for the QY app
   static String getDefaultRoute() => routeHome;
@@ -375,6 +388,11 @@ class QyAppRoutesProvider {
         builder: (context, state) =>
             const ProfileAchievementsScreenRefactoredAppQy(),
       ),
+      GoRoute(
+        path: routeProfile,
+        name: 'qy_profile_main',
+        builder: (context, state) => const ProfileTwoScreen(),
+      ),
 
       // Settings routes
       GoRoute(
@@ -422,6 +440,23 @@ class QyAppRoutesProvider {
         path: routeMessageCenter,
         name: 'qy_message_center',
         builder: (context, state) => const MessageCenterScreenRefactoredAppQy(),
+      ),
+
+      // Donation & fundraising routes
+      GoRoute(
+        path: routeDonation,
+        name: 'qy_donation',
+        builder: (context, state) => const DonationScreenView(),
+      ),
+      GoRoute(
+        path: routeAlldonation,
+        name: 'qy_donation_all',
+        builder: (context, state) => const MyDonationAllScreen(),
+      ),
+      GoRoute(
+        path: routeFundraising,
+        name: 'qy_fundraising',
+        builder: (context, state) => const UrgentFundraisingScreenView(),
       ),
 
       // AI Study routes

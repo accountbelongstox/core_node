@@ -14,22 +14,34 @@ from pycore import ColorPrint
 
 router = APIRouter(prefix="/web", tags=["web"])
 
-# Mount static directory for subtitle UI assets (CSS, JS)
-SUBTITLE_UI_DIR = Path(__file__).parent.parent.parent / "pyctl" / "voice_subtitle" / "ui"
-if SUBTITLE_UI_DIR.exists():
+# Mount static directory for desktop UI assets (CSS, JS)
+DESKTOP_UI_DIR = Path(__file__).parent.parent.parent / "pyctl" / "desktop" / "ui"
+if DESKTOP_UI_DIR.exists():
     # This will be mounted by the server setup
     pass
+
+
+@router.get("/")
+async def get_desktop_ui():
+    """
+    Redirect to desktop manager
+
+    Returns:
+        RedirectResponse: Redirect to /desktop/index.html
+    """
+    ColorPrint.green(f"[WebRouter] Redirecting to desktop manager at /desktop/index.html")
+    return RedirectResponse(url="/desktop/index.html", status_code=302)
 
 
 @router.get("/subtitle")
 async def get_subtitle_ui():
     """
-    Redirect to new voice subtitle framework
+    Redirect to desktop manager (backward compatibility)
 
     Returns:
-        RedirectResponse: Redirect to /voice-subtitle/index.html
+        RedirectResponse: Redirect to /desktop/index.html
     """
-    ColorPrint.green(f"[WebRouter] Redirecting to new framework at /voice-subtitle/index.html")
-    return RedirectResponse(url="/voice-subtitle/index.html", status_code=302)
+    ColorPrint.green(f"[WebRouter] Redirecting to desktop manager at /desktop/index.html")
+    return RedirectResponse(url="/desktop/index.html", status_code=302)
 
 

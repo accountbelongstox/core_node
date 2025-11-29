@@ -218,34 +218,66 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 150,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.image, size: 48),
+                      color: ColorsAppQy.qyCardBackground,
+                      child: Icon(
+                        Icons.image,
+                        size: 48,
+                        color: ColorsAppQy.qyTextSecondary,
+                      ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: ThemeDimensions.spacing16),
               Text(
                 dictionary.description,
-                style: const TextStyle(fontSize: 14),
+                style: ThemeTextStyles.body2.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: ThemeDimensions.spacing16),
               _buildDetailRow(
-                  Icons.book_outlined, 'Words', '${dictionary.wordCount}'),
+                Icons.book_outlined,
+                QyAppLocalizationKeys.qyDictionaryWords.tr(context),
+                '${dictionary.wordCount}',
+              ),
               _buildDetailRow(
-                  Icons.favorite, 'Likes', '${dictionary.likeCount}'),
-              _buildDetailRow(Icons.category, 'Category', dictionary.category),
-              _buildDetailRow(Icons.star, 'Difficulty', dictionary.difficulty),
-              _buildDetailRow(Icons.person, 'Author', dictionary.author),
+                Icons.favorite,
+                QyAppLocalizationKeys.qyDictionaryLikes.tr(context),
+                '${dictionary.likeCount}',
+              ),
+              _buildDetailRow(
+                Icons.category,
+                QyAppLocalizationKeys.qyCategory.tr(context),
+                dictionary.category.tr(context),
+              ),
+              _buildDetailRow(
+                Icons.star,
+                QyAppLocalizationKeys.qyDictionaryDifficulty.tr(context),
+                dictionary.difficulty.tr(context),
+              ),
+              _buildDetailRow(
+                Icons.person,
+                QyAppLocalizationKeys.qyAuthor.tr(context),
+                dictionary.author,
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: dictionary.tags.map((tag) {
                   return Chip(
-                    label: Text('#$tag', style: const TextStyle(fontSize: 12)),
-                    backgroundColor: Colors.blue[50],
-                    side: BorderSide(color: Colors.blue[200]!),
+                    label: Text(
+                      '#${tag.tr(context)}',
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: ColorsAppQy.qyPrimary,
+                      ),
+                    ),
+                    backgroundColor:
+                        ColorsAppQy.qyPrimaryLight.withOpacity(0.2),
+                    side: BorderSide(
+                      color: ColorsAppQy.qyPrimary.withOpacity(0.3),
+                    ),
                   );
                 }).toList(),
               ),
@@ -255,14 +287,18 @@ class _DictionaryRecommendScreenRefactoredAppQyState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(QyAppLocalizationKeys.qyClose.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _handleToggleAdd(dictionary);
             },
-            child: Text(dictionary.isAdded ? 'Remove' : 'Add to Library'),
+            child: Text(
+              dictionary.isAdded
+                  ? QyAppLocalizationKeys.qyDictionaryRemove.tr(context)
+                  : QyAppLocalizationKeys.qyDictionaryAddToLibrary.tr(context),
+            ),
           ),
         ],
       ),
@@ -274,16 +310,25 @@ class _DictionaryRecommendScreenRefactoredAppQyState
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.blue[700]),
-          const SizedBox(width: 8),
+          Icon(
+            icon,
+            size: 18,
+            color: ColorsAppQy.qyPrimary,
+          ),
+          const SizedBox(width: ThemeDimensions.spacing8),
           Text(
             '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: ThemeTextStyles.body2.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13),
+              style: ThemeTextStyles.body2.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
+              ),
             ),
           ),
         ],
@@ -449,15 +494,20 @@ class _DictionaryRecommendScreenRefactoredAppQyState
               QyAppLocalizationKeys.qyCategory.tr(context),
               _selectedCategory == null
                   ? QyAppLocalizationKeys.qyAll.tr(context)
-                  : _selectedCategory!,
+                  : _selectedCategory!.tr(context),
               [
                 QyAppLocalizationKeys.qyAll.tr(context),
-                ...DictionaryData.getAllCategories(),
+                ...DictionaryData.getAllCategories()
+                    .map((key) => key.tr(context)),
               ],
               (value) {
                 setState(() {
                   final allKey = QyAppLocalizationKeys.qyAll.tr(context);
-                  _selectedCategory = value == allKey ? null : value;
+                  _selectedCategory = value == allKey
+                      ? null
+                      : DictionaryData.getAllCategories().firstWhere(
+                          (key) => key.tr(context) == value,
+                        );
                   _applyFilters();
                 });
               },
@@ -469,15 +519,20 @@ class _DictionaryRecommendScreenRefactoredAppQyState
               QyAppLocalizationKeys.qyLevel.tr(context),
               _selectedDifficulty == null
                   ? QyAppLocalizationKeys.qyAll.tr(context)
-                  : _selectedDifficulty!,
+                  : _selectedDifficulty!.tr(context),
               [
                 QyAppLocalizationKeys.qyAll.tr(context),
-                ...DictionaryData.getAllDifficulties(),
+                ...DictionaryData.getAllDifficulties()
+                    .map((key) => key.tr(context)),
               ],
               (value) {
                 setState(() {
                   final allKey = QyAppLocalizationKeys.qyAll.tr(context);
-                  _selectedDifficulty = value == allKey ? null : value;
+                  _selectedDifficulty = value == allKey
+                      ? null
+                      : DictionaryData.getAllDifficulties().firstWhere(
+                          (key) => key.tr(context) == value,
+                        );
                   _applyFilters();
                 });
               },

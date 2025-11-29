@@ -109,10 +109,15 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(QyAppLocalizationKeys.qyFeaturePreview.tr(context)),
-        content: Text('${featureName.tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
+        content: Text(
+            '${featureName.tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              }
+            },
             child: Text(QyAppLocalizationKeys.qyClose.tr(context)),
           ),
         ],
@@ -132,13 +137,15 @@ class _HomeScreenState extends State<HomeScreen> {
             avatar: CircleAvatar(
               backgroundColor: Theme.of(context).primaryColor,
               child: Text(
-                userProvider.isAuthenticated 
-                    ? userProvider.user?.name?.substring(0, 1).toUpperCase() ?? 'U'
+                userProvider.isAuthenticated
+                    ? userProvider.user?.name?.substring(0, 1).toUpperCase() ??
+                        'U'
                     : 'G',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-            subtitle: userProvider.isAuthenticated 
+            subtitle: userProvider.isAuthenticated
                 ? QyAppLocalizationKeys.qyWelcomeBack
                 : QyAppLocalizationKeys.qyGuestMode,
             showDropdown: _isMenuVisible,
@@ -148,7 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
               TopMenuAction(
                 tooltip: QyAppLocalizationKeys.qyNotifications,
                 icon: Icons.notifications_outlined,
-                onPressed: () => context.push(QyAppRoutesProvider.routeNotifications),
+                onPressed: () =>
+                    context.push(QyAppRoutesProvider.routeNotifications),
               ),
               TopMenuAction(
                 tooltip: QyAppLocalizationKeys.qySearch,
@@ -160,56 +168,62 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Stack(
               children: [
-          CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(ThemeDimensions.paddingSizeDefault),
-                  child: Column(
-                    children: [
-                      const BannerWidget(),
-                      if (userProvider.isAuthenticated) ...[
-                        const LoginedFuncWidget(),
-                        const LoginedWordGroupWidget(),
-                      ],
-                      CustomHomeTitle(
-                        title: 'home_screen.urgent_fundraising'.tr(context),
-                        onTap: () {
-                          context.push(QyAppRoutesProvider.routeUrgentFundraising);
-                        },
+                CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(
+                            ThemeDimensions.paddingSizeDefault),
+                        child: Column(
+                          children: [
+                            const BannerWidget(),
+                            if (userProvider.isAuthenticated) ...[
+                              const LoginedFuncWidget(),
+                              const LoginedWordGroupWidget(),
+                            ],
+                            CustomHomeTitle(
+                              title:
+                                  'home_screen.urgent_fundraising'.tr(context),
+                              onTap: () {
+                                context.push(
+                                    QyAppRoutesProvider.routeUrgentFundraising);
+                              },
+                            ),
+                            const UrgentFundRisingWidget(),
+                            const FundRisingListView(),
+                            CustomHomeTitle(
+                              title: 'home_screen.coming_to_end'.tr(context),
+                              onTap: () {
+                                context
+                                    .push(QyAppRoutesProvider.routeComingEnd);
+                              },
+                            ),
+                            const ComingListView(),
+                            CustomHomeTitle(
+                              title: 'home_screen.watch_impact'.tr(context),
+                              onTap: () {
+                                context
+                                    .push(QyAppRoutesProvider.routeWatchImpact);
+                              },
+                            ),
+                            const WatchImpactList(),
+                            CustomHomeTitle(
+                              title: QyAppLocalizationKeys.qyHomeTopMenuPrayer
+                                  .tr(context),
+                              onTap: () {
+                                context.push(QyAppRoutesProvider.routePrayer);
+                              },
+                            ),
+                            const PrayerListView(),
+                            const SizedBox(
+                              height: 70,
+                            )
+                          ],
+                        ),
                       ),
-                      const UrgentFundRisingWidget(),
-                      const FundRisingListView(),
-                      CustomHomeTitle(
-                        title: 'home_screen.coming_to_end'.tr(context),
-                        onTap: () {
-                          context.push(QyAppRoutesProvider.routeComingEnd);
-                        },
-                      ),
-                      const ComingListView(),
-                      CustomHomeTitle(
-                        title: 'home_screen.watch_impact'.tr(context),
-                        onTap: () {
-                          context.push(QyAppRoutesProvider.routeWatchImpact);
-                        },
-                      ),
-                      const WatchImpactList(),
-                      CustomHomeTitle(
-                        title: QyAppLocalizationKeys.qyHomeTopMenuPrayer.tr(context),
-                        onTap: () {
-                          context.push(QyAppRoutesProvider.routePrayer);
-                        },
-                      ),
-                      const PrayerListView(),
-                      const SizedBox(
-                        height: 70,
-                      )
-                    ],
-                  ),
+                    )
+                  ],
                 ),
-              )
-            ],
-          ),
               ],
             ),
           ),
