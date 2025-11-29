@@ -9,6 +9,7 @@ use App\PassiveQueue\PassiveQueue;
 use App\PassiveQueue\PassiveQueueJob;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AppQyV1VocabularyCoverService
@@ -133,6 +134,13 @@ class AppQyV1VocabularyCoverService
 
     private function queueGeneration(AppQyV1VocabularyCoverModel $record): void
     {
+        if (!$this->shouldQueueJob($record->id)) {
+            Log::debug('[VocabularyCover] Skipping duplicate cover job dispatch', [
+                'cover_id' => $record->id,
+            ]);
+            return;
+        }
+
         if ($record->status !== 'processing') {
             $record->status = 'pending';
         }
@@ -140,9 +148,19 @@ class AppQyV1VocabularyCoverService
         $record->error_message = null;
         $record->save();
 
-        PassiveQueue::dispatch(AppQyV1GenerateCoverJob::class, [
-            'cover_id' => $record->id,
-        ]);
+        PassiveQueue::dispatch(AppQyV1GenerateCoverJob::class, ['cover_id' => $record->id]);
+    }
+
+    private function shouldQueueJob(int $coverId): bool
+    {
+        return !PassiveQueueJob::query()
+            ->where('job_class', AppQyV1GenerateCoverJob::class)
+            ->where(function ($query) {
+                $query->where('status', 'pending')
+                    ->orWhere('status', 'processing');
+            })
+            ->whereRaw("json_extract(payload, '$.cover_id') = ?", [$coverId])
+            ->exists();
     }
 
     private function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
