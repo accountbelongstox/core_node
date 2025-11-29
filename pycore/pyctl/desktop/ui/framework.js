@@ -37,7 +37,8 @@ const modules = {
     'voice-player': document.getElementById('module-voice-player'),
     'queue-manager': document.getElementById('module-queue-manager'),
     'window-automation': document.getElementById('module-window-automation'),
-    'code-sync': document.getElementById('module-code-sync')
+    'code-sync': document.getElementById('module-code-sync'),
+    'task-queue': document.getElementById('module-task-queue')
 };
 
 // ========== Initialization ==========
@@ -95,6 +96,8 @@ function switchModule(moduleName) {
         fetchQueueList();
     } else if (moduleName === 'code-sync') {
         refreshCodeSyncStatus();
+    } else if (moduleName === 'task-queue') {
+        fetchTasks();
     }
 }
 
@@ -536,6 +539,30 @@ function setupEventListeners() {
 
     // Backup toggle
     document.getElementById('enableBackup')?.addEventListener('change', toggleBackup);
+
+    // Task Queue controls
+    document.getElementById('refreshTasksBtn')?.addEventListener('click', fetchTasks);
+    document.getElementById('taskAutoRefresh')?.addEventListener('change', (e) => {
+        taskAutoRefresh = e.target.checked;
+        if (taskAutoRefresh) {
+            pollActiveTasks();
+        } else if (taskRefreshInterval) {
+            clearInterval(taskRefreshInterval);
+            taskRefreshInterval = null;
+        }
+    });
+    document.getElementById('taskTypeFilter')?.addEventListener('change', () => {
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('taskStatusFilter')?.addEventListener('change', () => {
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('clearFiltersBtn')?.addEventListener('click', () => {
+        document.getElementById('taskTypeFilter').value = '';
+        document.getElementById('taskStatusFilter').value = '';
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('closeTaskDetailBtn')?.addEventListener('click', closeTaskDetail);
 }
 
 // ========== Quick Add Functions ==========
@@ -863,6 +890,217 @@ function toggleSubtitleMode() {
     } else {
         enterSubtitleMode();
     }
+}
+
+// ========== Task Queue Functions ==========
+
+// Task queue state
+let taskRefreshInterval = null;
+let taskAutoRefresh = true;
+let currentTasks = [];
+
+async function fetchTasks() {
+    try {
+        const data = await api.getAllTasks(50);
+
+        if (data && data.success && data.tasks) {
+            currentTasks = data.tasks;
+            updateTaskList(data.tasks);
+            updateTaskStatistics(data.tasks);
+
+            // Start polling active tasks
+            if (taskAutoRefresh) {
+                pollActiveTasks();
+            }
+        }
+    } catch (error) {
+        console.error('[Task Queue] Fetch error:', error);
+    }
+}
+
+function updateTaskList(tasks) {
+    const tbody = document.getElementById('taskTableBody');
+
+    // Apply filters
+    const typeFilter = document.getElementById('taskTypeFilter')?.value || '';
+    const statusFilter = document.getElementById('taskStatusFilter')?.value || '';
+
+    let filteredTasks = tasks;
+    if (typeFilter) {
+        filteredTasks = filteredTasks.filter(t => t.task_type === typeFilter);
+    }
+    if (statusFilter) {
+        filteredTasks = filteredTasks.filter(t => t.status === statusFilter);
+    }
+
+    if (!filteredTasks || filteredTasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No tasks found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    filteredTasks.forEach(task => {
+        const tr = document.createElement('tr');
+        tr.classList.add('task-row');
+        if (task.status === 'processing') {
+            tr.classList.add('processing');
+        } else if (task.status === 'failed') {
+            tr.classList.add('failed');
+        }
+
+        // Type icon
+        const typeIcon = getTaskTypeIcon(task.task_type);
+
+        // Status badge
+        const statusBadge = getTaskStatusBadge(task.status);
+
+        // Progress bar
+        const progress = task.progress || 0;
+        const progressBar = `
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: ${progress}%"></div>
+                <span class="progress-text">${progress}%</span>
+            </div>
+        `;
+
+        // Format dates
+        const created = new Date(task.created_at).toLocaleString();
+
+        // Calculate time elapsed
+        const createdTime = new Date(task.created_at);
+        const now = new Date();
+        const elapsed = Math.floor((now - createdTime) / 1000);
+        const timeStr = formatElapsedTime(elapsed);
+
+        // Input preview
+        const inputPreview = getTaskInputPreview(task);
+
+        tr.innerHTML = `
+            <td style="text-align: center; font-size: 20px;">${typeIcon}</td>
+            <td style="font-size: 11px; font-family: monospace;" title="${task.task_id}">${task.task_id.substring(0, 25)}...</td>
+            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inputPreview}">${inputPreview}</td>
+            <td>${statusBadge}</td>
+            <td>${progressBar}</td>
+            <td style="font-size: 12px;">${created}</td>
+            <td style="font-size: 12px;">${timeStr}</td>
+        `;
+
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => showTaskDetail(task));
+
+        tbody.appendChild(tr);
+    });
+}
+
+function getTaskTypeIcon(type) {
+    const icons = {
+        'text': '📝',
+        'image': '🖼️',
+        'voice': '🎵'
+    };
+    return icons[type] || '📄';
+}
+
+function getTaskStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="status-badge status-pending">⏳ Pending</span>',
+        'processing': '<span class="status-badge status-processing">⚙️ Processing</span>',
+        'completed': '<span class="status-badge status-completed">✅ Completed</span>',
+        'failed': '<span class="status-badge status-failed">❌ Failed</span>'
+    };
+    return badges[status] || `<span class="status-badge">${status}</span>`;
+}
+
+function getTaskInputPreview(task) {
+    if (!task.input_data) return '-';
+
+    if (task.input_data.text) {
+        return task.input_data.text.substring(0, 50) + (task.input_data.text.length > 50 ? '...' : '');
+    }
+
+    if (task.input_data.image_path) {
+        return `Image: ${task.input_data.image_path.split('/').pop()}`;
+    }
+
+    return JSON.stringify(task.input_data).substring(0, 50) + '...';
+}
+
+function formatElapsedTime(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    return `${Math.floor(seconds / 3600)}h`;
+}
+
+function updateTaskStatistics(tasks) {
+    const stats = {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        failed: 0
+    };
+
+    tasks.forEach(task => {
+        if (stats.hasOwnProperty(task.status)) {
+            stats[task.status]++;
+        }
+    });
+
+    document.getElementById('tasksPending').textContent = stats.pending;
+    document.getElementById('tasksProcessing').textContent = stats.processing;
+    document.getElementById('tasksCompleted').textContent = stats.completed;
+    document.getElementById('tasksFailed').textContent = stats.failed;
+}
+
+async function pollActiveTasks() {
+    // Clear existing interval
+    if (taskRefreshInterval) {
+        clearInterval(taskRefreshInterval);
+    }
+
+    // Check if we have any active tasks
+    const hasActiveTasks = currentTasks.some(t =>
+        t.status === 'pending' || t.status === 'processing'
+    );
+
+    if (hasActiveTasks && taskAutoRefresh) {
+        // Poll every 2 seconds when there are active tasks
+        taskRefreshInterval = setInterval(fetchTasks, 2000);
+    } else if (taskAutoRefresh) {
+        // Poll every 10 seconds when idle
+        taskRefreshInterval = setInterval(fetchTasks, 10000);
+    }
+}
+
+function showTaskDetail(task) {
+    const panel = document.getElementById('taskDetailPanel');
+
+    document.getElementById('detailTaskId').textContent = task.task_id;
+    document.getElementById('detailTaskType').textContent = `${getTaskTypeIcon(task.task_type)} ${task.task_type}`;
+    document.getElementById('detailTaskStatus').innerHTML = getTaskStatusBadge(task.status);
+    document.getElementById('detailTaskProgress').textContent = `${task.progress || 0}%`;
+    document.getElementById('detailTaskCreated').textContent = new Date(task.created_at).toLocaleString();
+    document.getElementById('detailTaskUpdated').textContent = new Date(task.updated_at).toLocaleString();
+    document.getElementById('detailTaskInput').textContent = JSON.stringify(task.input_data, null, 2);
+
+    if (task.result) {
+        document.getElementById('detailTaskResult').textContent = JSON.stringify(task.result, null, 2);
+    } else {
+        document.getElementById('detailTaskResult').textContent = 'No result yet';
+    }
+
+    const errorContainer = document.getElementById('detailTaskErrorContainer');
+    if (task.error) {
+        document.getElementById('detailTaskError').textContent = task.error;
+        errorContainer.style.display = 'block';
+    } else {
+        errorContainer.style.display = 'none';
+    }
+
+    panel.style.display = 'block';
+}
+
+function closeTaskDetail() {
+    document.getElementById('taskDetailPanel').style.display = 'none';
 }
 
 // ========== Code Sync Functions ==========
