@@ -335,7 +335,8 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
     final settingsController = context.watch<SettingsController>();
     final screenSizeProvider = context.watch<ScreenSizeProvider>();
     // Listen to language changes to rebuild MaterialApp when locale changes
-    final languageNotifier = context.watch<LanguageChangeNotifier>();
+    // This ensures MaterialApp rebuilds when LanguageChangeNotifier notifies
+    context.watch<LanguageChangeNotifier>();
     final appName = "app_name".tr(context);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
