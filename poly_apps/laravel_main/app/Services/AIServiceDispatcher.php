@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use App\CallPycoreUtils\PycoreHttpClient;
 use App\Helpers\GlobalSecretReader;
 
 class AIServiceDispatcher
@@ -15,11 +14,13 @@ class AIServiceDispatcher
 
     private $defaultProvider;
     private $openRouterClient;
+    private $geminiClient;
 
     public function __construct(?string $defaultProvider = null)
     {
         $this->defaultProvider = $defaultProvider ?? self::PROVIDER_AUTO;
         $this->openRouterClient = new OpenRouterClient();
+        $this->geminiClient = new GeminiClient();
     }
 
     public function chat(
@@ -78,38 +79,42 @@ class AIServiceDispatcher
         ?string $systemPrompt,
         int $timeout
     ): array {
-        $params = [
-            'prompt' => $prompt,
-        ];
-
-        if ($model) {
-            $params['model'] = $model;
-        }
+        $contents = [];
 
         if ($systemPrompt) {
-            $params['system_instruction'] = $systemPrompt;
+            $contents[] = [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => "System instruction: {$systemPrompt}\n\nUser: {$prompt}"],
+                ],
+            ];
+        } else {
+            $contents[] = [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $prompt],
+                ],
+            ];
         }
 
-        $result = PycoreHttpClient::callDirect(
-            '/api/gemini/generate',
-            $params,
-            $timeout
-        );
+        $response = $this->geminiClient->generateContent($contents, $model, [], $timeout);
 
-        if (isset($result['error'])) {
+        if (isset($response['error'])) {
             return [
                 'success' => false,
-                'error' => $result['error'],
+                'error' => $response['error'],
                 'provider' => self::PROVIDER_GEMINI,
             ];
         }
 
+        $content = $this->geminiClient->extractTextFromResponse($response);
+
         return [
             'success' => true,
-            'content' => $result['text'] ?? $result['result'] ?? '',
+            'content' => $content,
             'provider' => self::PROVIDER_GEMINI,
-            'model' => $result['model'] ?? $model,
-            'raw_response' => $result,
+            'model' => $model ?? GeminiClient::MODELS['gemini-2.5-flash'],
+            'raw_response' => $response,
         ];
     }
 
@@ -275,20 +280,9 @@ class AIServiceDispatcher
             ];
         }
 
-        $imageData = base64_encode(file_get_contents($imagePath));
-        $mimeType = mime_content_type($imagePath);
+        $result = $this->geminiClient->analyzeImage($imagePath, $prompt, null, 120);
 
-        $result = PycoreHttpClient::callDirect(
-            '/api/gemini/vision',
-            [
-                'prompt' => $prompt,
-                'image_base64' => $imageData,
-                'mime_type' => $mimeType,
-            ],
-            120
-        );
-
-        if (isset($result['error'])) {
+        if (!$result['success']) {
             return [
                 'success' => false,
                 'error' => $result['error'],
@@ -298,9 +292,47 @@ class AIServiceDispatcher
 
         return [
             'success' => true,
-            'content' => $result['text'] ?? $result['result'] ?? '',
+            'content' => $result['text'] ?? '',
             'provider' => self::PROVIDER_GEMINI,
-            'raw_response' => $result,
+            'raw_response' => $result['raw'] ?? null,
+        ];
+    }
+
+    public function synthesizeSpeech(
+        string $script,
+        array $speechConfig = [],
+        ?string $model = null,
+        int $timeout = 120
+    ): array {
+        if (!$this->geminiClient->hasApiKey()) {
+            return [
+                'success' => false,
+                'error' => 'No Gemini API key configured',
+            ];
+        }
+
+        $parts = [
+            [
+                'text' => $script,
+            ],
+        ];
+
+        $result = $this->geminiClient->generateAudio($parts, $speechConfig, $model, $timeout);
+
+        if (!$result['success']) {
+            return [
+                'success' => false,
+                'error' => $result['error'] ?? 'Gemini audio generation failed',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'audio_base64' => $result['audio_base64'],
+            'audio_binary' => $result['audio_binary'],
+            'provider' => self::PROVIDER_GEMINI,
+            'model' => $model ?? GeminiClient::TTS_MODEL,
+            'raw_response' => $result['raw'],
         ];
     }
 
@@ -348,8 +380,7 @@ class AIServiceDispatcher
 
     private function checkGeminiAvailable(): bool
     {
-        $result = PycoreHttpClient::callDirect('/health', [], 5);
-        return !isset($result['error']);
+        return $this->geminiClient->hasApiKey();
     }
 
     private function checkOpenRouterAvailable(): bool
