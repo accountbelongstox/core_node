@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\Services;
 
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -13,137 +14,158 @@ class AppQyV1VocabularyService
     {
         $results = [];
         $connection = 'appqyv1';
+        $schema = Schema::connection($connection);
+
         $librariesTable = 'app_qy_v1_vocabulary_libraries';
 
-        DB::connection($connection)->statement("
-            CREATE TABLE IF NOT EXISTS {$librariesTable} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                language VARCHAR(50) NOT NULL DEFAULT 'english',
-                total_words INTEGER DEFAULT 0,
-                is_public INTEGER DEFAULT 1,
-                owner_user_id INTEGER,
-                source VARCHAR(100),
-                difficulty_level VARCHAR(50),
-                category VARCHAR(100) DEFAULT 'general',
-                image_url TEXT,
-                is_recommended INTEGER DEFAULT 0,
-                tags TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
+        if (!$schema->hasTable($librariesTable)) {
+            $schema->create($librariesTable, function (Blueprint $table) {
+                $table->increments('id');
+                $table->string('name', 255);
+                $table->text('description')->nullable();
+                $table->string('language', 50)->default('english');
+                $table->integer('total_words')->default(0);
+                $table->boolean('is_public')->default(true);
+                $table->unsignedInteger('owner_user_id')->nullable();
+                $table->string('source', 100)->nullable();
+                $table->string('difficulty_level', 50)->nullable();
+                $table->string('category', 100)->default('general');
+                $table->text('image_url')->nullable();
+                $table->boolean('is_recommended')->default(false);
+                $table->text('tags')->nullable();
+                $table->timestamps();
 
-        self::ensureLibraryColumn($connection, $librariesTable, 'category', "ALTER TABLE {$librariesTable} ADD COLUMN category VARCHAR(100) DEFAULT 'general'");
-        self::ensureLibraryColumn($connection, $librariesTable, 'image_url', "ALTER TABLE {$librariesTable} ADD COLUMN image_url TEXT");
-        self::ensureLibraryColumn($connection, $librariesTable, 'is_recommended', "ALTER TABLE {$librariesTable} ADD COLUMN is_recommended INTEGER DEFAULT 0");
-        self::ensureLibraryColumn($connection, $librariesTable, 'source', "ALTER TABLE {$librariesTable} ADD COLUMN source VARCHAR(100)");
+                $table->unique('source', 'uniq_vocab_lib_source');
+                $table->index('language', 'idx_vocab_lib_language');
+                $table->index('is_public', 'idx_vocab_lib_public');
+                $table->index('owner_user_id', 'idx_vocab_lib_owner');
+                $table->index('category', 'idx_vocab_lib_category');
+                $table->index('is_recommended', 'idx_vocab_lib_recommended');
+            });
+            $results[$librariesTable] = 'created';
+        } else {
+            $results[$librariesTable] = 'exists';
 
-        DB::connection($connection)->statement("
-            CREATE UNIQUE INDEX IF NOT EXISTS uniq_vocab_lib_source ON {$librariesTable}(source)
-        ");
+            self::ensureColumn($schema, $librariesTable, 'category', function (Blueprint $table) {
+                $table->string('category', 100)->default('general')->after('difficulty_level');
+            });
 
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_vocab_lib_language ON {$librariesTable}(language)
-        ");
+            self::ensureColumn($schema, $librariesTable, 'image_url', function (Blueprint $table) {
+                $table->text('image_url')->nullable()->after('category');
+            });
 
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_vocab_lib_public ON {$librariesTable}(is_public)
-        ");
+            self::ensureColumn($schema, $librariesTable, 'is_recommended', function (Blueprint $table) {
+                $table->boolean('is_recommended')->default(false)->after('image_url');
+            });
 
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_vocab_lib_owner ON {$librariesTable}(owner_user_id)
-        ");
+            self::ensureColumn($schema, $librariesTable, 'source', function (Blueprint $table) {
+                $table->string('source', 100)->nullable()->after('owner_user_id');
+            });
+        }
 
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_vocab_lib_category ON {$librariesTable}(category)
-        ");
+        $wordsTable = 'app_qy_v1_vocabulary_words';
+        if (!$schema->hasTable($wordsTable)) {
+            $schema->create($wordsTable, function (Blueprint $table) use ($librariesTable) {
+                $table->increments('id');
+                $table->unsignedInteger('library_id');
+                $table->integer('word_index');
+                $table->text('word');
+                $table->timestamp('created_at')->useCurrent();
 
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_vocab_lib_recommended ON {$librariesTable}(is_recommended)
-        ");
+                $table->foreign('library_id')
+                    ->references('id')
+                    ->on($librariesTable)
+                    ->onDelete('cascade');
 
-        $results[$librariesTable] = 'created';
+                $table->index('library_id', 'idx_vocab_words_library');
+                $table->index('word', 'idx_vocab_words_word');
+                $table->index(['library_id', 'word_index'], 'idx_vocab_words_lib_index');
+            });
+            $results[$wordsTable] = 'created';
+        } else {
+            $results[$wordsTable] = 'exists';
+        }
 
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS app_qy_v1_vocabulary_words (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                library_id INTEGER NOT NULL,
-                word_index INTEGER NOT NULL,
-                word TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
-            )
-        ');
+        $userLanguagesTable = 'app_qy_v1_user_languages';
+        if (!$schema->hasTable($userLanguagesTable)) {
+            $schema->create($userLanguagesTable, function (Blueprint $table) {
+                $table->increments('id');
+                $table->unsignedInteger('user_id');
+                $table->string('language', 50);
+                $table->string('native_language', 50)->nullable();
+                $table->boolean('is_learning')->default(true);
+                $table->string('proficiency_level', 50)->nullable();
+                $table->timestamps();
+                $table->unique(['user_id', 'language'], 'uniq_user_language');
+                $table->index('user_id', 'idx_user_lang_user');
+                $table->index('is_learning', 'idx_user_lang_learning');
+            });
+            $results[$userLanguagesTable] = 'created';
+        } else {
+            $results[$userLanguagesTable] = 'exists';
+        }
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_vocab_words_library ON app_qy_v1_vocabulary_words(library_id)
-        ');
+        $selectionsTable = 'app_qy_v1_user_vocabulary_selections';
+        if (!$schema->hasTable($selectionsTable)) {
+            $schema->create($selectionsTable, function (Blueprint $table) use ($librariesTable) {
+                $table->increments('id');
+                $table->unsignedInteger('user_id');
+                $table->unsignedInteger('library_id');
+                $table->timestamp('selected_at')->useCurrent();
+                $table->boolean('is_active')->default(true);
+                $table->unique(['user_id', 'library_id'], 'uniq_user_library_selection');
+                $table->foreign('library_id')
+                    ->references('id')
+                    ->on($librariesTable)
+                    ->onDelete('cascade');
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_vocab_words_word ON app_qy_v1_vocabulary_words(word)
-        ');
+                $table->index('user_id', 'idx_user_vocab_sel_user');
+                $table->index('is_active', 'idx_user_vocab_sel_active');
+            });
+            $results[$selectionsTable] = 'created';
+        } else {
+            $results[$selectionsTable] = 'exists';
+        }
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_vocab_words_lib_index ON app_qy_v1_vocabulary_words(library_id, word_index)
-        ');
+        $coversTable = 'app_qy_v1_vocabulary_covers';
+        if (!$schema->hasTable($coversTable)) {
+            $schema->create($coversTable, function (Blueprint $table) use ($librariesTable) {
+                $table->increments('id');
+                $table->unsignedInteger('library_id')->unique();
+                $table->string('cover_filename', 255);
+                $table->string('status', 50)->default('pending');
+                $table->text('prompt')->nullable();
+                $table->text('description')->nullable();
+                $table->integer('priority')->default(0);
+                $table->text('error_message')->nullable();
+                $table->integer('width')->default(1280);
+                $table->integer('height')->default(720);
+                $table->timestamp('last_requested_at')->nullable();
+                $table->timestamp('last_generated_at')->nullable();
+                $table->timestamps();
 
-        $results['app_qy_v1_vocabulary_words'] = 'created';
+                $table->foreign('library_id')
+                    ->references('id')
+                    ->on($librariesTable)
+                    ->onDelete('cascade');
 
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS app_qy_v1_user_languages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                language VARCHAR(50) NOT NULL,
-                native_language VARCHAR(50),
-                is_learning INTEGER DEFAULT 1,
-                proficiency_level VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, language)
-            )
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_user_lang_user ON app_qy_v1_user_languages(user_id)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_user_lang_learning ON app_qy_v1_user_languages(is_learning)
-        ');
-
-        $results['app_qy_v1_user_languages'] = 'created';
-
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS app_qy_v1_user_vocabulary_selections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                library_id INTEGER NOT NULL,
-                selected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active INTEGER DEFAULT 1,
-                UNIQUE(user_id, library_id),
-                FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
-            )
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_user ON app_qy_v1_user_vocabulary_selections(user_id)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_active ON app_qy_v1_user_vocabulary_selections(is_active)
-        ');
-
-        $results['app_qy_v1_user_vocabulary_selections'] = 'created';
+                $table->index('status', 'idx_vocab_covers_status');
+                $table->index('priority', 'idx_vocab_covers_priority');
+            });
+            $results[$coversTable] = 'created';
+        } else {
+            $results[$coversTable] = 'exists';
+        }
 
         return $results;
     }
 
-    private static function ensureLibraryColumn(string $connection, string $table, string $column, string $statement): void
+    private static function ensureColumn($schema, string $table, string $column, callable $definition): void
     {
-        if (!Schema::connection($connection)->hasColumn($table, $column)) {
-            DB::connection($connection)->statement($statement);
+        if (!$schema->hasColumn($table, $column)) {
+            $schema->table($table, function (Blueprint $table) use ($definition) {
+                $definition($table);
+            });
         }
     }
     

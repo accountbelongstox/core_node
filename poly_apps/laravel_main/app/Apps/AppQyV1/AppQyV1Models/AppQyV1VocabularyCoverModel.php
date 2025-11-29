@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class AppQyV1VocabularyCoverModel extends Model
+{
+    use HasFactory;
+
+    protected $connection = 'AppQyV1';
+    protected $table = 'app_qy_v1_vocabulary_covers';
+
+    protected $fillable = [
+        'library_id',
+        'cover_filename',
+        'status',
+        'prompt',
+        'description',
+        'priority',
+        'error_message',
+        'width',
+        'height',
+        'last_requested_at',
+        'last_generated_at',
+    ];
+
+    protected $casts = [
+        'priority' => 'integer',
+        'width' => 'integer',
+        'height' => 'integer',
+        'last_requested_at' => 'datetime',
+        'last_generated_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+}
