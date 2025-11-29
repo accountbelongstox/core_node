@@ -2,6 +2,8 @@
 
 from .activity import ActivityEvent, ActivityType, GlobalInputMonitor
 from .idle import IdleState, IdleStateMonitor
+from .processes import TerminalDiscovery, TerminalInstance, TerminalRegistry
+from .scheduler import DiscoveryScheduler
 
 __all__ = [
     "ActivityEvent",
@@ -9,4 +11,8 @@ __all__ = [
     "GlobalInputMonitor",
     "IdleState",
     "IdleStateMonitor",
+    "TerminalDiscovery",
+    "TerminalInstance",
+    "TerminalRegistry",
+    "DiscoveryScheduler",
 ]
