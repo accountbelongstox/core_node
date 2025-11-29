@@ -78,7 +78,8 @@ Future<void> main() async {
     parallelScan: true,
   ).then((selectedEndpoint) {
     if (selectedEndpoint != null) {
-      final baseUrl = selectedEndpoint.buildFullUrl(path: 'api/app_qy_v1');
+      // Base URL should be just /api, endpoints already include full path
+      final baseUrl = selectedEndpoint.buildFullUrl(path: 'api');
       ApiServiceAppQy().updateBaseUrl(baseUrl);
       debugPrint('✅ API endpoint updated to: $baseUrl');
     } else {
