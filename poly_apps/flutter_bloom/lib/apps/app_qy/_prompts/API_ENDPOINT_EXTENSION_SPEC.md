@@ -86,7 +86,8 @@ This document specifies the backend API endpoints required to support the QY voc
       "language": "en",
       "difficulty": "intermediate",
       "category": "academic",
-      "image_url": "https://example.com/image.jpg",
+      "image_url": "https://domain.com/static/app_qy_v1/covers/library_00010.png",
+      "cover_status": "ready",
       "is_recommended": true
     }
   ]
@@ -118,11 +119,12 @@ This document specifies the backend API endpoints required to support the QY voc
         "id": 1,
         "name": "TOEFL Core Vocabulary",
         "description": "Essential words for TOEFL preparation",
-        "word_count": 5000,
-        "language": "en",
-        "difficulty": "intermediate",
-        "category": "academic",
-        "image_url": "https://example.com/image.jpg"
+      "word_count": 5000,
+      "language": "en",
+      "difficulty": "intermediate",
+      "category": "academic",
+      "image_url": "https://domain.com/static/app_qy_v1/covers/library_00010.png",
+      "cover_status": "ready"
       }
     ],
     "pagination": {
