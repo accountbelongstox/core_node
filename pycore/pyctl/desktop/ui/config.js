@@ -44,6 +44,10 @@ const CONFIG = {
         // Audio serving
         AUDIO: '/voice-subtitle/audio',
 
+        // Task management
+        TASKS: '/voice-subtitle/tasks',
+        TASK_STATUS: '/voice-subtitle/tasks/{task_id}',
+
         // Background services
         CLIPBOARD_START: '/voice-subtitle/clipboard-monitor/start',
         CLIPBOARD_STOP: '/voice-subtitle/clipboard-monitor/stop',
