@@ -104,8 +104,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'category' => $library->category ?? 'general',
             'image_url' => $cover['url'],
             'cover_status' => $cover['status'],
+            'cover_error' => $cover['error'],
             'is_recommended' => (bool) $library->is_recommended,
             'tags' => $library->tags ?? [],
+            'cover_log' => $cover['log'],
         ];
     }
 }

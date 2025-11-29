@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\GlobalSecretReader;
+use App\Services\GeminiRateLimiter;
 
 class GeminiClient
 {
@@ -19,8 +20,10 @@ class GeminiClient
     const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
     
     private $apiKey;
+    private ?GeminiRateLimiter $rateLimiter = null;
+    private int $defaultImageTokens = 200;
     
-    public function __construct(?string $apiKey = null)
+    public function __construct(?string $apiKey = null, ?GeminiRateLimiter $rateLimiter = null)
     {
         if ($apiKey === null) {
             $apiKey = GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_1');
@@ -37,6 +40,7 @@ class GeminiClient
         }
         
         $this->apiKey = $apiKey;
+        $this->rateLimiter = $rateLimiter ?? new GeminiRateLimiter();
     }
     
     public function hasApiKey(): bool
@@ -56,7 +60,8 @@ class GeminiClient
         array $contents,
         ?string $model = null,
         array $generationConfig = [],
-        int $timeout = 300
+        int $timeout = 300,
+        array $payloadOverrides = []
     ): array {
         if (!$this->apiKey) {
             return ['error' => 'No API key configured'];
@@ -76,6 +81,10 @@ class GeminiClient
         
         if (!empty($generationConfig)) {
             $payload['generationConfig'] = $generationConfig;
+        }
+
+        if (!empty($payloadOverrides)) {
+            $payload = array_merge($payload, $payloadOverrides);
         }
         
         Log::info('[GeminiClient] Request', [
@@ -172,6 +181,37 @@ class GeminiClient
     
     public function generateImage(string $prompt, array $options = []): array
     {
+        return $this->generateImageFromPrompt($prompt, $options);
+    }
+
+    public function generateImageFromPrompt(string $prompt, array $options = []): array
+    {
+        if ($limit = $this->throttle($options['token_estimate'] ?? $this->defaultImageTokens)) {
+            return $limit;
+        }
+
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $prompt],
+                ],
+            ],
+        ];
+
+        $generationConfig = $this->buildImageGenerationConfig($options);
+
+        return $this->sendImageRequest(
+            $contents,
+            $generationConfig,
+            $options['model'] ?? 'gemini-2.5-flash-image',
+            $options['timeout'] ?? 180,
+            $options['size'] ?? '1024x1024'
+        );
+    }
+
+    public function generateImageWithReference(string $prompt, string $imagePath, array $options = []): array
+    {
         if (!$this->apiKey) {
             return [
                 'success' => false,
@@ -179,68 +219,93 @@ class GeminiClient
             ];
         }
 
-        $model = $options['model'] ?? 'gemini-2.0-flash-exp';
-        $size = $options['size'] ?? '1024x1024';
-        $timeout = $options['timeout'] ?? 180;
-
-        $payload = [
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
-            ],
-            'generationConfig' => [
-                'responseMimeType' => 'image/png',
-                'imageGenerationConfig' => [
-                    'size' => $size,
-                ],
-            ]
-        ];
-
-        try {
-            $response = Http::withHeaders($this->buildHeaders())
-                ->timeout($timeout)
-                ->post(self::BASE_URL . "/models/{$model}:generateContent", $payload);
-
-            if (!$response->successful()) {
-                $body = $response->json();
-                $error = $body['error']['message'] ?? $response->body();
-                Log::error('[GeminiClient] Image request failed', [
-                    'status' => $response->status(),
-                    'error' => $error,
-                    'body' => $body,
-                ]);
-                return ['success' => false, 'error' => $error];
-            }
-
-            $data = $response->json();
-            $inlineData = $data['candidates'][0]['content']['parts'][0]['inlineData'] ?? null;
-
-            if (!$inlineData || empty($inlineData['data'])) {
-                return [
-                    'success' => false,
-                    'error' => 'Image data not found in Gemini response',
-                ];
-            }
-
-            return [
-                'success' => true,
-                'binary' => base64_decode($inlineData['data'], true),
-                'mime_type' => $inlineData['mimeType'] ?? 'image/png',
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('[GeminiClient] Image generation exception: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-            ]);
+        if (!file_exists($imagePath)) {
             return [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => 'Reference image not found: ' . $imagePath,
             ];
         }
+
+        if ($limit = $this->throttle($options['token_estimate'] ?? $this->defaultImageTokens)) {
+            return $limit;
+        }
+
+        $mimeType = $options['mime_type'] ?? mime_content_type($imagePath) ?: 'image/png';
+        $imageData = base64_encode(file_get_contents($imagePath));
+
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $prompt],
+                    [
+                        'inline_data' => [
+                            'mime_type' => $mimeType,
+                            'data' => $imageData,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $generationConfig = $this->buildImageGenerationConfig($options);
+
+        return $this->sendImageRequest(
+            $contents,
+            $generationConfig,
+            $options['model'] ?? 'gemini-2.5-flash-image',
+            $options['timeout'] ?? 180,
+            $options['size'] ?? '1024x1024'
+        );
+    }
+
+    public function generateMultimodalContent(
+        array $history,
+        string $prompt,
+        array $options = []
+    ): array {
+        $contents = array_values($history);
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [
+                ['text' => $prompt],
+            ],
+        ];
+
+        $generationConfig = $options['generation_config'] ?? [];
+        if (!isset($generationConfig['responseModalities'])) {
+            $generationConfig['responseModalities'] = ['TEXT', 'IMAGE'];
+        }
+        if (isset($options['image_config'])) {
+            $generationConfig['imageConfig'] = $options['image_config'];
+        }
+
+        $payloadOverrides = [];
+        if (!empty($options['tools'])) {
+            $payloadOverrides['tools'] = $options['tools'];
+        }
+
+        $response = $this->generateContent(
+            $contents,
+            $options['model'] ?? 'gemini-3-pro-image-preview',
+            $generationConfig,
+            $options['timeout'] ?? 300,
+            $payloadOverrides
+        );
+
+        if (isset($response['error'])) {
+            return [
+                'success' => false,
+                'error' => $response['error'],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'text' => $this->extractTextFromResponse($response),
+            'images' => $this->extractInlineImages($response),
+            'raw' => $response,
+        ];
     }
     
     public function getModels(): array
@@ -401,5 +466,114 @@ class GeminiClient
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    private function buildImageGenerationConfig(array $options): array
+    {
+        $config = [];
+
+        if (!empty($options['image_config'])) {
+            $config['imageConfig'] = $options['image_config'];
+        }
+
+        if (!empty($options['response_modalities'])) {
+            $config['responseModalities'] = (array) $options['response_modalities'];
+        }
+
+        return $config;
+    }
+
+    private function sendImageRequest(
+        array $contents,
+        array $generationConfig,
+        ?string $model,
+        int $timeout,
+        string $sizeConfig = '1024x1024'
+    ): array {
+        $response = $this->generateContent(
+            $contents,
+            $model ?? 'gemini-2.5-flash-image',
+            $generationConfig,
+            $timeout
+        );
+
+        if (isset($response['error'])) {
+            return [
+                'success' => false,
+                'error' => $response['error'],
+            ];
+        }
+
+        $images = $this->extractInlineImages($response);
+        if (empty($images)) {
+            return [
+                'success' => false,
+                'error' => 'Image data not found in Gemini response',
+            ];
+        }
+
+        [$width, $height] = $this->parseImageSize($sizeConfig);
+
+        return [
+            'success' => true,
+            'binary' => base64_decode($images[0]['data'], true),
+            'mime_type' => $images[0]['mime_type'],
+            'width' => $width,
+            'height' => $height,
+            'raw' => $response,
+        ];
+    }
+
+    private function parseImageSize(string $size): array
+    {
+        if (str_contains($size, 'x')) {
+            [$width, $height] = explode('x', $size, 2);
+            return [(int) $width, (int) $height];
+        }
+
+        return [1024, 1024];
+    }
+
+    private function extractInlineImages(array $response): array
+    {
+        $images = [];
+
+        if (!isset($response['candidates'])) {
+            return $images;
+        }
+
+        foreach ($response['candidates'] as $candidate) {
+            $parts = $candidate['content']['parts'] ?? [];
+            foreach ($parts as $part) {
+                if (isset($part['inlineData']['data'])) {
+                    $images[] = [
+                        'mime_type' => $part['inlineData']['mimeType'] ?? 'image/png',
+                        'data' => $part['inlineData']['data'],
+                    ];
+                }
+            }
+        }
+
+        return $images;
+    }
+
+    private function throttle(int $tokensEstimate, int $requests = 1): ?array
+    {
+        if (!$this->rateLimiter) {
+            return null;
+        }
+
+        $result = $this->rateLimiter->reserve($tokensEstimate, $requests);
+        if (!($result['allowed'] ?? false)) {
+            $retry = $result['retry_after'] ?? 60;
+            return [
+                'success' => false,
+                'error' => 'Gemini rate limit (' . ($result['reason'] ?? 'unknown') . ') reached. Retry after ' . $retry . ' seconds.',
+                'retry_after' => $retry,
+                'rate_limited' => true,
+            ];
+        }
+
+        return null;
     }
 }
