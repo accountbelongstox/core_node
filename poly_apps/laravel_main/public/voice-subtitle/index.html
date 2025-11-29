@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Subtitle Player</title>
+    <link rel="stylesheet" href="/voice-subtitle/assets/main.css">
+</head>
+<body>
+    <div class="user-info">
+        <span class="user-info-logged-in">● Logged in as: </span>
+        <span class="user-identifier" id="userIdentifier">Loading...</span>
+    </div>
+
+    <div class="tab-nav">
+        <button class="tab-button active" onclick="switchTab('player')">Player</button>
+        <button class="tab-button" onclick="switchTab('add')">Add to Queue</button>
+        <button class="tab-button" onclick="switchTab('queue')">Queue</button>
+        <button class="tab-button" onclick="switchTab('settings')">Settings</button>
+    </div>
+
+    <!-- Player Tab -->
+    <div id="playerTab" class="tab-content active">
+        <button class="fullscreen-toggle" onclick="toggleFullscreen()">🖥️ Fullscreen Subtitle</button>
+
+        <div class="player-container">
+            <div class="subtitle-display">
+                <div class="subtitle-text" id="subtitleText">Ready to play...</div>
+            </div>
+            <div class="subtitle-meta" id="subtitleMeta"></div>
+
+            <div class="play-options">
+                <div class="play-option-group">
+                    <label>Play Mode:</label>
+                    <select id="playMode" onchange="updatePlayOptions()">
+                        <option value="all">All Items</option>
+                        <option value="latest">Latest 300</option>
+                        <option value="today">Today Only</option>
+                        <option value="group">By Group</option>
+                        <option value="language">By Language</option>
+                    </select>
+                </div>
+                <div class="play-option-group" id="groupSelectWrapper" style="display: none;">
+                    <label>Group:</label>
+                    <select id="playGroupSelect"></select>
+                </div>
+                <div class="play-option-group" id="languageSelectWrapper" style="display: none;">
+                    <label>Language:</label>
+                    <select id="playLanguageSelect"></select>
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="autoPlayCheckbox" onchange="updateAutoPlay()">
+                    <span>Auto Play</span>
+                </label>
+            </div>
+
+            <div class="player-controls">
+                <button class="btn-previous" onclick="previousSubtitle()">⏮️ Previous</button>
+                <button class="btn-play" id="playBtn" onclick="playPause()">▶️ Play</button>
+                <button class="btn-next" onclick="nextSubtitle()">⏭️ Next</button>
+
+                <div class="playback-rate-control">
+                    <span>Rate:</span>
+                    <input type="range" id="playbackRateSlider" min="0.5" max="2" step="0.1" value="1.0" onchange="updatePlaybackRate(this.value)">
+                    <span class="playback-rate-value" id="playbackRateValue">1.0x</span>
+                </div>
+            </div>
+        </div>
+
+        <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <!-- Add Tab -->
+    <div id="addTab" class="tab-content">
+        <div class="add-container">
+            <div class="form-card">
+                <h2>Add to Queue</h2>
+                <div id="addMessage"></div>
+
+                <div class="target-lang-display">
+                    <strong>Target Languages:</strong>
+                    <div id="targetLangBadges">Loading...</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Input Type</label>
+                    <select id="inputType" onchange="toggleInputMethod()">
+                        <option value="text">Text</option>
+                        <option value="image_url">Image URL</option>
+                        <option value="image_file">Image Upload</option>
+                        <option value="url">Webpage URL</option>
+                        <option value="file_url">File URL</option>
+                        <option value="file_upload">File Upload</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="contentGroup">
+                    <label>Content</label>
+                    <textarea id="inputContent" placeholder="Enter text or URL..."></textarea>
+                </div>
+
+                <div class="form-group" id="fileGroup" style="display: none;">
+                    <label>Upload File</label>
+                    <input type="file" id="inputFile">
+                </div>
+
+                <div class="form-group">
+                    <label>Group (optional)</label>
+                    <input type="text" id="inputGroup" placeholder="default" list="groupSuggestions">
+                    <datalist id="groupSuggestions"></datalist>
+                    <div class="setting-description">
+                        Group name for organizing queue items. Will be auto-created if it doesn't exist.
+                    </div>
+                </div>
+
+                <button class="btn-add" onclick="addToQueue()">Add to Queue</button>
+            </div>
+
+            <div class="form-card">
+                <h2>API Usage Examples</h2>
+                <div class="api-example">
+                    <h4>1. Add Text (with current target languages)</h4>
+                    <pre id="apiExampleText">Loading...</pre>
+                </div>
+                <div class="api-example">
+                    <h4>2. Add Image Upload</h4>
+                    <pre id="apiExampleImage">Loading...</pre>
+                </div>
+                <div class="api-example">
+                    <h4>3. Add URL</h4>
+                    <pre id="apiExampleUrl">Loading...</pre>
+                </div>
+            </div>
+
+            <div class="task-monitor">
+                <div class="task-monitor-header">
+                    <h3>Processing Tasks</h3>
+                    <span class="task-last-updated" id="taskLastUpdated"></span>
+                </div>
+                <div id="taskList">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Queue Tab -->
+    <div id="queueTab" class="tab-content">
+        <div class="queue-container">
+            <div class="queue-header-section">
+                <h2>Queue</h2>
+                <div class="queue-stats">
+                    <span id="queueTotalCount">0</span> items total
+                </div>
+            </div>
+
+            <div class="group-filter">
+                <label>Filter by Group:</label>
+                <select id="groupFilter" onchange="filterByGroup()">
+                    <option value="">All Groups</option>
+                </select>
+            </div>
+
+            <div class="queue-list" id="queueList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <div class="empty-state-text">Queue is empty</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="settingsTab" class="tab-content">
+        <div class="settings-container">
+            <div class="settings-section">
+                <h3>⚙️ User Settings</h3>
+                <div id="settingsMessage"></div>
+
+                <div class="setting-item">
+                    <label class="setting-label">Target Languages (Check all that apply)</label>
+                    <div class="language-checkboxes" id="languageCheckboxes">
+                        <div>Loading...</div>
+                    </div>
+                    <div class="setting-description">
+                        All input will be AI-rewritten to these languages, then TTS generated. You can select multiple target languages.
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label class="setting-label">Default Voice</label>
+                    <select id="defaultVoice">
+                        <option value="en-US-AriaNeural">English (US) - Aria</option>
+                        <option value="en-GB-SoniaNeural">English (UK) - Sonia</option>
+                        <option value="ja-JP-NanamiNeural">Japanese - Nanami</option>
+                        <option value="ko-KR-SunHiNeural">Korean - SunHi</option>
+                        <option value="es-ES-ElviraNeural">Spanish - Elvira</option>
+                        <option value="fr-FR-DeniseNeural">French - Denise</option>
+                        <option value="de-DE-KatjaNeural">German - Katja</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label class="setting-label">Default Playback Rate: <span id="defaultPlaybackRateValue">1.0x</span></label>
+                    <input type="range" id="defaultPlaybackRate" min="0.5" max="2" step="0.1" value="1.0" oninput="document.getElementById('defaultPlaybackRateValue').textContent = this.value + 'x'">
+                    <div class="setting-description">
+                        Set default playback rate (0.5x - 2.0x)
+                    </div>
+                </div>
+
+                <button class="btn-save" onclick="saveSettings()">Save Settings</button>
+            </div>
+
+            <div class="settings-section">
+                <h3>📊 Statistics</h3>
+                <div id="statsInfo">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/voice-subtitle/assets/main.js"></script>
+</body>
+</html>

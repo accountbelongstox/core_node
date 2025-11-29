@@ -4,6 +4,7 @@ namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\UploadedFile;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleProcessor;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\SubtitleQueueManager;
@@ -12,6 +13,8 @@ use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleTaskManager
 
 class VoiceSubtitleV1MainController
 {
+    private const REQUEST_CACHED_FILES_KEY = '_voice_subtitle_cached_files';
+
     private $processor;
     private $queueManager;
     private $settingsManager;
@@ -38,7 +41,7 @@ class VoiceSubtitleV1MainController
         $content = $request->input('content');
         $language = $request->input('language', 'en');
         $voice = $request->input('voice', 'en-US-AriaNeural');
-        $group = $request->input('group', 'default');
+        $group = $request->input('group', $request->input('category', 'default'));
 
         if (!$type) {
             return response()->json([
@@ -47,7 +50,8 @@ class VoiceSubtitleV1MainController
             ], 400);
         }
 
-        $cachedFiles = [];
+        $cachedFiles = $request->attributes->get(self::REQUEST_CACHED_FILES_KEY, []);
+        $request->attributes->set(self::REQUEST_CACHED_FILES_KEY, []);
         $payloadReference = null;
 
         if ($type === 'file' && $request->hasFile('file')) {
@@ -81,6 +85,14 @@ class VoiceSubtitleV1MainController
         $userSettings = $this->settingsManager->getUserSettings($userIdentifier);
         $targetLanguage = $userSettings['target_language'];
 
+        $overrideLanguages = $request->input('target_language')
+            ?? $request->input('target_languages')
+            ?? $request->input('langs');
+
+        if ($overrideLanguages) {
+            $targetLanguage = $this->resolveTargetLanguage($overrideLanguages, $targetLanguage);
+        }
+
         $task = $this->taskManager->createTask([
             'type' => $type,
             'language' => $language,
@@ -104,6 +116,127 @@ class VoiceSubtitleV1MainController
             'queue_length' => $this->queueManager->getQueueLength(),
             'message' => 'Task accepted and scheduled for background processing',
         ]);
+    }
+
+    public function addText(Request $request)
+    {
+        $text = $request->input('text');
+        if (!$text) {
+            return response()->json([
+                'success' => false,
+                'error' => 'text is required',
+            ], 400);
+        }
+
+        $request->merge([
+            'type' => 'text',
+            'content' => $text,
+            'language' => $request->input('language', 'en'),
+            'voice' => $request->input('voice', 'en-US-AriaNeural'),
+            'group' => $request->input('category', 'default'),
+        ]);
+
+        return $this->addToQueue($request);
+    }
+
+    public function addImage(Request $request)
+    {
+        $language = $request->input('language', 'en');
+        $voice = $request->input('voice', 'en-US-AriaNeural');
+        $group = $request->input('category', 'default');
+
+        $localPath = null;
+
+        $cleanup = false;
+
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $localPath = $this->cacheUploadedFile($file, 'image_upload');
+            $cleanup = true;
+        } elseif ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $localPath = $this->cacheUploadedFile($file, 'image_upload');
+            $cleanup = true;
+        } elseif ($imagePath = $request->input('image_path')) {
+            $localPath = $this->resolveLocalPath($imagePath);
+        } elseif ($imageUrl = $request->input('image_url')) {
+            $localPath = $this->downloadRemoteFile($imageUrl, 'image_url');
+            $cleanup = true;
+        } elseif ($imageBase64 = $request->input('image_base64')) {
+            $localPath = $this->cacheBase64Payload($imageBase64, 'image_base64');
+            $cleanup = true;
+        }
+
+        if (!$localPath || !file_exists($localPath)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Valid image source is required',
+            ], 400);
+        }
+
+        if ($cleanup) {
+            $this->registerCachedFile($request, $localPath);
+        }
+
+        $request->merge([
+            'type' => 'image',
+            'content' => $localPath,
+            'language' => $language,
+            'voice' => $voice,
+            'group' => $group,
+        ]);
+
+        return $this->addToQueue($request);
+    }
+
+    public function addVoice(Request $request)
+    {
+        $language = $request->input('language', 'en');
+        $voice = $request->input('voice', 'en-US-AriaNeural');
+        $group = $request->input('category', 'default');
+
+        $localPath = null;
+
+        $cleanup = false;
+
+        if ($request->hasFile('voice')) {
+            $file = $request->file('voice');
+            $localPath = $this->cacheUploadedFile($file, 'voice_upload');
+            $cleanup = true;
+        } elseif ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $localPath = $this->cacheUploadedFile($file, 'voice_upload');
+            $cleanup = true;
+        } elseif ($audioPath = $request->input('audio_path')) {
+            $localPath = $this->resolveLocalPath($audioPath);
+        } elseif ($audioUrl = $request->input('audio_url')) {
+            $localPath = $this->downloadRemoteFile($audioUrl, 'audio_url');
+            $cleanup = true;
+        } elseif ($audioBase64 = $request->input('audio_base64')) {
+            $localPath = $this->cacheBase64Payload($audioBase64, 'audio_base64');
+            $cleanup = true;
+        }
+
+        if (!$localPath || !file_exists($localPath)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Valid audio source is required',
+            ], 400);
+        }
+
+        if ($cleanup) {
+            $this->registerCachedFile($request, $localPath);
+        }
+
+        $request->merge([
+            'type' => 'voice',
+            'content' => $localPath,
+            'language' => $language,
+            'voice' => $voice,
+            'group' => $group,
+        ]);
+
+        return $this->addToQueue($request);
     }
 
     private function summarizeContent(string $type, ?string $content): ?string
@@ -189,6 +322,63 @@ class VoiceSubtitleV1MainController
             'queue_length' => count($filteredQueue),
             'total_length' => count($allQueue),
             'play_mode' => $userSettings['play_mode'],
+            'items' => $this->formatQueueItemsForRemote($sanitizedFiltered),
+        ]);
+    }
+
+    public function getQueueLatest(Request $request)
+    {
+        $limit = (int) $request->query('limit', 300);
+        $limit = max(1, min(1000, $limit));
+
+        $queue = $this->sanitizeQueueItems($this->queueManager->getQueue());
+        $items = array_slice($queue, -$limit);
+
+        return response()->json([
+            'success' => true,
+            'items' => $this->formatQueueItemsForRemote($items),
+            'count' => count($items),
+            'limit' => $limit,
+        ]);
+    }
+
+    public function getQueueToday(Request $request)
+    {
+        $today = date('Y-m-d');
+        $queue = $this->sanitizeQueueItems($this->queueManager->getQueue());
+
+        $items = array_filter($queue, function ($item) use ($today) {
+            $created = $item['created_at'] ?? $item['added_at'] ?? '';
+            return strpos($created, $today) === 0;
+        });
+
+        $items = array_values($items);
+
+        return response()->json([
+            'success' => true,
+            'items' => $this->formatQueueItemsForRemote($items),
+            'count' => count($items),
+        ]);
+    }
+
+    public function getQueueByCategoryFilter(Request $request)
+    {
+        $category = $request->query('category');
+
+        if ($category === null || $category === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'category is required',
+            ], 400);
+        }
+
+        $queue = $this->sanitizeQueueItems($this->queueManager->getQueueByGroup($category));
+
+        return response()->json([
+            'success' => true,
+            'category' => $category,
+            'items' => $this->formatQueueItemsForRemote($queue),
+            'count' => count($queue),
         ]);
     }
 
@@ -321,6 +511,29 @@ class VoiceSubtitleV1MainController
         }
     }
 
+    public function incrementPlayCount(Request $request)
+    {
+        $index = $request->input('index');
+        if ($index === null) {
+            $index = $this->queueManager->getCurrentIndex();
+        }
+
+        $updated = $this->queueManager->incrementPlayCount((int) $index);
+
+        if (!$updated) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid index',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'current_index' => (int) $index,
+            'item' => $this->formatQueueItemForRemote($this->sanitizeQueueItem($updated)),
+        ]);
+    }
+
     public function removeItem(Request $request)
     {
         try {
@@ -346,6 +559,30 @@ class VoiceSubtitleV1MainController
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function removeItems(Request $request)
+    {
+        $indices = $request->input('indices');
+
+        if (empty($indices)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'indices is required',
+            ], 400);
+        }
+
+        if (!is_array($indices)) {
+            $indices = array_map('trim', explode(',', (string) $indices));
+        }
+
+        $removed = $this->queueManager->removeItems($indices);
+
+        return response()->json([
+            'success' => true,
+            'removed_count' => $removed,
+            'queue_length' => $this->queueManager->getQueueLength(),
+        ]);
     }
 
     public function clearQueue(Request $request)
@@ -385,6 +622,25 @@ class VoiceSubtitleV1MainController
     }
 
     public function serveAudio(string $filename)
+    {
+        return $this->streamAudioFile($filename);
+    }
+
+    public function serveAudioByQuery(Request $request)
+    {
+        $path = $request->query('path');
+
+        if (!$path) {
+            return response()->json([
+                'success' => false,
+                'error' => 'path is required',
+            ], 400);
+        }
+
+        return $this->streamAudioFile(basename($path));
+    }
+
+    private function streamAudioFile(string $filename)
     {
         $cacheDir = \App\Providers\PathMapper::getLaravelCacheDir() . '/tts';
         $filePath = $cacheDir . '/' . $filename;
@@ -546,6 +802,16 @@ class VoiceSubtitleV1MainController
         ]);
     }
 
+    public function getCategories(Request $request)
+    {
+        $groups = $this->queueManager->getAllGroups();
+
+        return response()->json([
+            'success' => true,
+            'categories' => $groups,
+        ]);
+    }
+
     public function getQueueByGroup(Request $request, ?string $group = null)
     {
         $queue = $this->queueManager->getQueueByGroup($group);
@@ -636,6 +902,209 @@ class VoiceSubtitleV1MainController
         }
 
         return $task;
+    }
+
+    private function formatQueueItemsForRemote(array $queue): array
+    {
+        return array_map(function ($item) {
+            return $this->formatQueueItemForRemote($item);
+        }, array_values($queue));
+    }
+
+    private function formatQueueItemForRemote(?array $item): ?array
+    {
+        if (!$item) {
+            return null;
+        }
+
+        $audioPath = null;
+        if (!empty($item['tts_files']) && isset($item['tts_files'][0]['file_path'])) {
+            $audioPath = $item['tts_files'][0]['file_path'];
+        }
+
+        $created = $item['created_at'] ?? $item['added_at'] ?? date('Y-m-d H:i:s');
+
+        return [
+            'text' => $item['translated_text'] ?? $item['original_text'] ?? '',
+            'audio_path' => $audioPath,
+            'audio_url' => $this->buildAudioUrl($audioPath),
+            'category' => $item['group'] ?? 'default',
+            'play_count' => $item['play_count'] ?? 0,
+            'created_at' => $this->formatIso8601($created),
+            'langs' => $this->normalizeLangs($item),
+            'language' => $item['language'] ?? null,
+            'voice' => $item['voice'] ?? null,
+        ];
+    }
+
+    private function normalizeLangs(array $item): array
+    {
+        $langs = [];
+
+        if (!empty($item['target_language'])) {
+            $langs[] = $item['target_language'];
+        }
+
+        if (!empty($item['language'])) {
+            $langs[] = $item['language'];
+        }
+
+        $langs = array_values(array_filter(array_unique($langs)));
+
+        return $langs ?: ['en'];
+    }
+
+    private function buildAudioUrl(?string $filePath): ?string
+    {
+        if (!$filePath) {
+            return null;
+        }
+
+        $filename = basename($filePath);
+
+        try {
+            return route('mcp.v1.voice-subtitle.audio', ['filename' => $filename], true);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    private function resolveTargetLanguage($override, string $fallback): string
+    {
+        if (is_array($override)) {
+            foreach ($override as $value) {
+                if (is_string($value) && trim($value) !== '') {
+                    return trim($value);
+                }
+            }
+            return $fallback;
+        }
+
+        if (is_string($override)) {
+            if (strpos($override, ',') !== false) {
+                $parts = array_filter(array_map('trim', explode(',', $override)));
+                if (!empty($parts)) {
+                    return $parts[0];
+                }
+            }
+
+            $clean = trim($override);
+            return $clean !== '' ? $clean : $fallback;
+        }
+
+        return $fallback;
+    }
+
+    private function registerCachedFile(Request $request, string $path): void
+    {
+        $files = $request->attributes->get(self::REQUEST_CACHED_FILES_KEY, []);
+        $files[] = $path;
+        $request->attributes->set(self::REQUEST_CACHED_FILES_KEY, $files);
+    }
+
+    private function resolveLocalPath(string $path): ?string
+    {
+        if (file_exists($path)) {
+            return $path;
+        }
+
+        $dbPath = $this->databaseDir . '/' . ltrim($path, '/');
+        if (file_exists($dbPath)) {
+            return $dbPath;
+        }
+
+        return null;
+    }
+
+    private function downloadRemoteFile(string $url, string $prefix): ?string
+    {
+        try {
+            $response = Http::timeout(20)->get($url);
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $contentType = $response->header('Content-Type');
+            $extension = $this->guessExtensionFromMime($contentType) ?? pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
+
+            return $this->cacheBinaryContent($response->body(), $prefix, $extension);
+        } catch (\Throwable $e) {
+            Log::warning('[VoiceSubtitleV1] Failed to download remote file', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    private function cacheBase64Payload(string $payload, string $prefix): ?string
+    {
+        $data = $payload;
+        $extension = null;
+
+        if (str_contains($payload, ',')) {
+            [$header, $data] = explode(',', $payload, 2);
+            if (preg_match('/data:(.*?);base64/', $header, $matches)) {
+                $extension = $this->guessExtensionFromMime($matches[1]);
+            }
+        }
+
+        $binary = base64_decode($data, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        return $this->cacheBinaryContent($binary, $prefix, $extension);
+    }
+
+    private function cacheBinaryContent(string $binary, string $prefix, ?string $extension = null): ?string
+    {
+        $cacheDir = $this->getUploadCacheDir();
+        $this->cleanupExpiredCacheFiles($cacheDir);
+
+        $filename = $prefix . '_' . time() . '_' . uniqid('', true);
+        if ($extension) {
+            $extension = ltrim($extension, '.');
+            $filename .= '.' . $extension;
+        }
+
+        $path = $cacheDir . '/' . $filename;
+        $bytes = @file_put_contents($path, $binary);
+
+        if ($bytes === false) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    private function guessExtensionFromMime(?string $mime): ?string
+    {
+        if (!$mime) {
+            return null;
+        }
+
+        return match ($mime) {
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'audio/mpeg', 'audio/mp3' => 'mp3',
+            'audio/wav' => 'wav',
+            'audio/x-wav' => 'wav',
+            'audio/ogg' => 'ogg',
+            'audio/mp4', 'audio/m4a' => 'm4a',
+            default => null,
+        };
+    }
+
+    private function formatIso8601(string $datetime): string
+    {
+        $timestamp = strtotime($datetime);
+        if ($timestamp === false) {
+            $timestamp = time();
+        }
+        return date('c', $timestamp);
     }
 
     private function cacheUploadedFile(UploadedFile $file, string $prefix): string
