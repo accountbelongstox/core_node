@@ -283,7 +283,7 @@ class TTSCacheManager
     {
         $paragraphs = preg_split('/\n+/', trim($text));
 
-        return array_filter(array_map('trim', $paragraphs));
+        return array_values(array_filter(array_map('trim', $paragraphs)));
     }
 
     public function batchGenerateCache(
