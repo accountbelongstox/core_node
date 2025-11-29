@@ -9,6 +9,7 @@ import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refa
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class SettingsScreenV2RefactoredAppQy extends StatefulWidget {
   const SettingsScreenV2RefactoredAppQy({super.key});

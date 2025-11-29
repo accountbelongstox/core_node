@@ -1,4 +1,4 @@
- 继续修复打开的错误文件， 发现你没有设置中心化model,在代码中还有数组的硬编码，以及代码中还有zh、请解决这些问题，使用多语言系统 。同时注意主题中心化，使用全息白、毛玻璃、模糊背景、动态浅变效果，同时使用便当合布局，并同时调用common区的components组件扩展，以及主题中心化、主题定义在一个目录，数据中心化（不要多处重复定义数据），设置、状态中心化，使用规范中的多语言效果和定义多语言KEY，使用全局的sotrage效果。当代码中有不遵守以上规范时你都要修正， 参考 文件构架  poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt  
+ 继续修复打开的错误文件， 发现你没有设置中心化model,在代码中还有数组的硬编码，以及代码中还有zh、请使用多语言系统 。同时注意主题中心化，使用全息白、毛玻璃、模糊背景、动态浅变效果，同时使用便当合布局，并同时调用common区的components组件扩展，以及主题中心化、主题定义在一个目录，数据中心化（不要多处重复定义数据），设置、状态中心化，使用规范中的多语言效果和定义多语言KEY，使用全局的sotrage效果。当代码中有不遵守以上规范时你都要修正， 参考 文件构架  poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt  
 
 poly_apps\flutter_bloom\lib 对整个构架进行扫描 ，现在对全局的statu与provider联动，解决现在设置语音/dark/light模多没有立即刷新UI的问题。http://127.0.0.1:10005/#/qy/home
 
@@ -8,3 +8,93 @@ poly_apps\flutter_bloom\lib 对整个构架进行扫描 ，现在对全局的sta
 
 请不要重复定义多个语音端点。
 
+
+http://192.168.50.2:9000/api/dict/v1/login   {
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": null,
+            "nickname": "Administrator",
+            "username": "adminroot",
+            "avatar": "avatars\/1.png",
+            "about": null,
+            "flollwers": null,
+            "website": null,
+            "github": null,
+            "wechat": null,
+            "weibo": null,
+            "qq": null,
+            "age": null,
+            "gender": null,
+            "birthday": null,
+            "city": null,
+            "education": null,
+            "occupation": null,
+            "language": null,
+            "religion": null,
+            "rolelevel": 1,
+            "rolename": "admin",
+            "email": "accountbelongstox@163.com",
+            "email_verified_at": "2025-11-29T07:02:20.000000Z",
+            "user_token": "nm2Y9EAMA5cp9myKfa5hKfptT2DMtR2XuB0ShEks94P1ocUu9QtSDcLYyfYplBSA",
+            "created_at": "2025-11-29T07:02:20.000000Z",
+            "updated_at": "2025-11-29T07:22:44.000000Z",
+            "learning_languages": [
+                "en"
+            ],
+            "native_language": "zh",
+            "bio": null,
+            "location": null,
+            "last_login_at": null,
+            "phone_verified_at": null,
+            "password_reset_token": null,
+            "password_reset_expires_at": null,
+            "status": "active",
+            "is_online": 0,
+            "last_seen_at": null,
+            "phone": null,
+            "avatar_url": null,
+            "member_type": "guest",
+            "vip_points": 0,
+            "member_since": null,
+            "member_expiry": null,
+            "is_active": 1,
+            "preferences": null,
+            "learning_stats": {
+                "total_words": 0,
+                "new_words": 0,
+                "learning_words": 0,
+                "mastered_words": 0,
+                "needs_review": 0
+            }
+        },
+        "login_token": "2|nYhMBsrQ6HnS8ZL9fGYtxHEpxfQlK6EKzhwWCNYjad40ff8a",
+        "user_token": "Si8NDhwoScNgqT3FO4sOWz1DY62AV93uTxmLxC5kvcqliwTvfmwgqmdpXup6DJH0",
+        "user_token_expires_at": "2025-12-06T11:35:23.302427Z",
+        "token_type": "Bearer",
+        "login_by": "username-password",
+        "expiration": null,
+        "multi_device_enabled": false
+    },
+    "token": "2|nYhMBsrQ6HnS8ZL9fGYtxHEpxfQlK6EKzhwWCNYjad40ff8a",
+    "login_by": "username-password"
+} 扩展本地model。登陆成功后立即存入storage，并更新全局状态 。同时查找是否有页面，初始化页，初始公是根据 账号返回的信息，判断账户是否是新账号，1：是否设置了要学习的语言，是否设置了职业、学生，每天可背的词，是否设置了每天可用的时间来学习。是否设置了偏号。当然 ，现在后端不一定能满足，所以你扩展model，并写出一个后端扩展的规范，交给后端扩展数据库。在现在的规范下实现寝始化页，注意，如果账号设置过以上信息，就跳过初始化页了。初始段页就是一个next step的页，设置以上信息，最后上传给后端。所以你要先写出端点扩展规范 ，再开发对应功能 。  GoException: no routes for location: /language-selection
+Home
+
+D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\_prompts\api_info.json 这是目前后端提供的端点，根据 其继续更新 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\_prompts\API_ENDPOINT_EXTENSION_SPEC.md 
+（注意是更改冲突，而不是单纯的追加内容） 
+1：APP启动时需要向后端请求支持的语言，初始化页时，将提供选择（当然本地要硬编码几种语言，API请求到数据后覆盖本地的）
+2：需要向后端请求默认推荐词库、默认推荐今日阅读、默认推荐图书阅读清单。同时有全量词库清单，全量推荐阅读，瀑布流page请求。
+3：需要连接后端的，单词查找功能、默认en。
+4：需要连接后端ai功能，未登陆用户每天只能使用10次，在页面的AI功能里。
+
+以下为需要 登陆的端点
+1：用户初始化
+2：查询用户多语言的记忆库，返回[{词，阅读次数，复习次数，下次复习时间，熟练度，id}]
+3：添加/删除一个词库到记忆库，上传文件到记忆库，上传text到记忆库。以上功能分别在数据库内联添加到词库，以及对文件提取单词添加到记忆库（同时扩充主词库），text一样。
+4：设置记忆库的状态，设置词在记忆库状态。
+5：请求语音、翻译接口，（注意，这个不和记忆库一起返回，因为记忆库有几万个单词，所以并不会直接返回语音和翻译、而是改为稍候请求）
+
+以上功能先更新端点库，随后你先现实 初始化页。
