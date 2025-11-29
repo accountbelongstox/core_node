@@ -623,11 +623,175 @@
     <!-- Floating Exit Button for Subtitle Mode (initially hidden) -->
     <button id="subtitleModeExitBtn" style="display: none;" title="Exit Subtitle Mode (Esc)">✕</button>
 
+    <!-- Settings Dialog -->
+    <div id="settingsDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-container">
+            <div class="dialog-header">
+                <h2>⚙️ Settings</h2>
+                <button class="dialog-close-btn" id="closeSettingsBtn">✕</button>
+            </div>
+
+            <!-- Settings Tabs -->
+            <div class="settings-tabs">
+                <button class="tab-btn active" data-tab="api-config">🌐 API Config</button>
+                <button class="tab-btn" data-tab="general">⚙️ General</button>
+                <button class="tab-btn" data-tab="appearance">🎨 Appearance</button>
+            </div>
+
+            <div class="dialog-content">
+                <!-- API Config Tab -->
+                <div id="tab-api-config" class="tab-content active">
+                    <div class="settings-section">
+                        <button class="action-btn" id="testConnectionBtn">🔌 Test Connection</button>
+                    </div>
+
+                    <!-- API Mode Selection -->
+                    <div class="settings-section">
+                        <h3>API Mode</h3>
+                        <div class="api-mode-selection">
+                            <label class="api-mode-option">
+                                <input type="radio" name="apiMode" value="local" checked>
+                                <div class="mode-card">
+                                    <div class="mode-icon">💻</div>
+                                    <div class="mode-title">Local Mode</div>
+                                    <div class="mode-desc">Use localhost:59000</div>
+                                </div>
+                            </label>
+                            <label class="api-mode-option">
+                                <input type="radio" name="apiMode" value="remote">
+                                <div class="mode-card">
+                                    <div class="mode-icon">🌐</div>
+                                    <div class="mode-title">Remote Mode</div>
+                                    <div class="mode-desc">Use remote server API</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Remote API Configuration -->
+                    <div id="remoteApiConfig" class="settings-section" style="display: none;">
+                        <h3>Remote API Settings</h3>
+                        <div class="api-config-grid">
+                            <div class="config-item full-width">
+                                <label class="config-label">Custom API URL</label>
+                                <div class="input-group">
+                                    <input type="text" id="customApiUrl" placeholder="http://192.168.50.2:9000" class="config-input">
+                                    <button class="input-btn" id="applyCustomUrlBtn">Apply</button>
+                                </div>
+                                <p class="config-hint">Enter full URL without /api/mcp/v1 prefix</p>
+                            </div>
+
+                            <div class="config-item">
+                                <label class="config-label">
+                                    <input type="checkbox" id="enableAutoDiscovery" checked>
+                                    Enable Auto-Discovery
+                                </label>
+                                <p class="config-hint">Scan LAN for voice-subtitle servers</p>
+                            </div>
+
+                            <div class="config-item">
+                                <label class="config-label">API Prefix</label>
+                                <input type="text" id="apiPrefix" value="/api/mcp/v1" class="config-input" readonly>
+                                <p class="config-hint">Remote API prefix (read-only)</p>
+                            </div>
+
+                            <div class="config-item">
+                                <label class="config-label">Scan Port</label>
+                                <input type="number" id="scanPort" value="9000" class="config-input" readonly>
+                                <p class="config-hint">Port for LAN scanning (read-only)</p>
+                            </div>
+
+                            <div class="config-item">
+                                <label class="config-label">Scan Interval (seconds)</label>
+                                <input type="number" id="scanInterval" value="5" min="1" max="60" class="config-input">
+                            </div>
+
+                            <div class="config-item">
+                                <label class="config-label">Scan Timeout (ms)</label>
+                                <input type="number" id="scanTimeout" value="200" min="50" max="1000" class="config-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discovered Servers -->
+                    <div id="discoveredServers" class="settings-section" style="display: none;">
+                        <h3>Discovered Servers <button class="action-btn-small" id="scanNowBtn">🔍 Scan Now</button></h3>
+                        <div id="scanStatus" class="scan-status">
+                            <span class="status-indicator">⏸️</span>
+                            <span class="status-text">Not scanning</span>
+                            <span class="subnet-info" id="subnetInfo"></span>
+                        </div>
+                        <div class="servers-list">
+                            <table class="servers-table">
+                                <thead>
+                                    <tr>
+                                        <th>Select</th>
+                                        <th>IP Address</th>
+                                        <th>Port</th>
+                                        <th>URL</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="serversTableBody">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">No servers discovered yet. Click "Scan Now" to start.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Current Connection Status -->
+                    <div class="settings-section">
+                        <h3>Connection Status</h3>
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <span class="status-label">Mode:</span>
+                                <span class="status-value" id="currentMode">Local</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Base URL:</span>
+                                <span class="status-value" id="currentBaseUrl">http://localhost:59000</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">API Prefix:</span>
+                                <span class="status-value" id="currentApiPrefix">None</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Connection:</span>
+                                <span class="status-value" id="connectionState">
+                                    <span class="connection-indicator">🔴</span> Not tested
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Tab -->
+                <div id="tab-general" class="tab-content">
+                    <div class="settings-section">
+                        <h3>General Settings</h3>
+                        <p style="color: var(--text-secondary); font-style: italic;">Coming soon...</p>
+                    </div>
+                </div>
+
+                <!-- Appearance Tab -->
+                <div id="tab-appearance" class="tab-content">
+                    <div class="settings-section">
+                        <h3>Appearance Settings</h3>
+                        <p style="color: var(--text-secondary); font-style: italic;">Coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="/js/rpc/ws_rpc_client.js"></script>
     <script src="/desktop/dialog.js"></script>
     <script src="/desktop/config.js"></script>
     <script src="/desktop/api.js"></script>
+    <script src="/desktop/lan_scanner.js"></script>
     <script src="/desktop/framework.js"></script>
 </body>
 </html>

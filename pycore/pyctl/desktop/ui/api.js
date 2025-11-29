@@ -26,25 +26,48 @@ class VoiceSubtitleAPI {
         const url = new URL(this.getFullUrl(endpoint, forceLocal));
         Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
-        const response = await fetch(url);
-        return await response.json();
+        try {
+            const response = await fetch(url);
+            return await response.json();
+        } catch (error) {
+            console.error('[API Client] GET request failed:', error);
+            console.error('[API Client] Failed URL:', url.toString());
+            throw error;
+        }
     }
 
     async post(endpoint, body = {}, forceLocal = false) {
-        const response = await fetch(this.getFullUrl(endpoint, forceLocal), {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
-        });
-        return await response.json();
+        const url = this.getFullUrl(endpoint, forceLocal);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('[API Client] POST request failed:', error);
+            console.error('[API Client] Failed URL:', url);
+            console.error('[API Client] Request body:', body);
+            throw error;
+        }
     }
 
     async postFormData(endpoint, formData, forceLocal = false) {
-        const response = await fetch(this.getFullUrl(endpoint, forceLocal), {
-            method: 'POST',
-            body: formData
-        });
-        return await response.json();
+        const url = this.getFullUrl(endpoint, forceLocal);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('[API Client] POST FormData request failed:', error);
+            console.error('[API Client] Failed URL:', url);
+            throw error;
+        }
     }
 
     // ========== Service Discovery ==========

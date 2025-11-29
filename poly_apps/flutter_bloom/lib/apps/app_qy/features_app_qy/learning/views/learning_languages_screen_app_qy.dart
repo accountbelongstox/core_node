@@ -8,6 +8,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/api_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/vocabulary_models_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class LearningLanguagesScreenAppQy extends StatefulWidget {
   const LearningLanguagesScreenAppQy({super.key});
@@ -21,7 +22,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
   late final AnimationController _shimmerController;
 
   final Set<String> _selectedLanguages = {};
-  String _nativeLanguage = 'zh';
+  String _nativeLanguage = DefaultLanguageConfigAppQy.defaultNativeLanguage;
   List<SupportedLanguageModel> _languages = [];
   bool _isLoading = true;
   String? _error;
@@ -56,7 +57,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
 
       _selectedLanguages.clear();
       _selectedLanguages.addAll(user?.learningLanguages ?? ['en']);
-      _nativeLanguage = user?.nativeLanguage ?? 'zh';
+      _nativeLanguage = user?.nativeLanguage ?? DefaultLanguageConfigAppQy.defaultNativeLanguage;
 
       final apiService = ApiServiceAppQy();
       final response = await apiService.getSupportedLanguages();
