@@ -953,9 +953,11 @@ function updateCodeSyncUI(statusData) {
     if (mode === 'server' && statusData.server) {
         const server = statusData.server;
 
-        // Display running status and root_dir
+        // Display running status, root_dir, and timezone
         document.getElementById('syncRunning').textContent = server.running ? 'Yes' : 'No';
         document.getElementById('syncRootDir').textContent = server.root_dir || '-';
+        const serverTz = server.timezone_offset ? `${server.timezone} (${server.timezone_offset})` : (server.timezone || '-');
+        document.getElementById('syncTimezone').textContent = serverTz;
 
         // Calculate total push count across all clients
         const totalPushCount = (server.clients || []).reduce((sum, client) => sum + (client.push_count || 0), 0);
@@ -973,9 +975,11 @@ function updateCodeSyncUI(statusData) {
     if (mode === 'client' && statusData.client) {
         const client = statusData.client;
 
-        // Display running status and root_dir
+        // Display running status, root_dir, and timezone
         document.getElementById('syncRunning').textContent = client.running ? 'Yes' : 'No';
         document.getElementById('syncRootDir').textContent = client.root_dir || '-';
+        const clientTz = client.timezone_offset ? `${client.timezone} (${client.timezone_offset})` : (client.timezone || '-');
+        document.getElementById('syncTimezone').textContent = clientTz;
 
         document.getElementById('clientReceivedCount').textContent = client.received_count || 0;
         document.getElementById('clientSkippedCount').textContent = client.skipped_count || 0;

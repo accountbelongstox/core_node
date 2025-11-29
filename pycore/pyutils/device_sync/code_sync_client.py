@@ -11,7 +11,7 @@ import socket
 import threading
 import requests
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
 
 from pycore import ColorPrint
@@ -379,7 +379,7 @@ class CodeSyncClient:
             local_stat = target_path.stat()
             local_mtime = local_stat.st_mtime
 
-            # Compare modification times
+            # Compare modification times - skip if server is older
             if server_mtime > local_mtime:
                 # Server version is newer
                 server_time = datetime.fromtimestamp(server_mtime).strftime('%Y-%m-%d %H:%M:%S')
@@ -392,12 +392,18 @@ class CodeSyncClient:
                 # In production, would download and overwrite here
                 result = 'received'
             else:
-                # Local version is newer or same - ignore
-                ColorPrint.blue(f"[CodeSync Client] IGNORE (local newer): {rel_path}")
+                # Local version is newer or same - skip
+                server_time = datetime.fromtimestamp(server_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                local_time = datetime.fromtimestamp(local_mtime).strftime('%Y-%m-%d %H:%M:%S')
+
+                ColorPrint.blue(f"[CodeSync Client] SKIP (local newer/same): {rel_path}")
+                ColorPrint.blue(f"  Server: {server_time} | Local: {local_time}")
                 result = 'skipped'
         else:
             # File doesn't exist locally
+            server_time = datetime.fromtimestamp(server_mtime).strftime('%Y-%m-%d %H:%M:%S')
             ColorPrint.green(f"[CodeSync Client] NEW FILE: {rel_path}")
+            ColorPrint.green(f"  Server: {server_time}")
 
             # TEST MODE: Don't actually create
             # In production, would download and create here
@@ -410,11 +416,17 @@ class CodeSyncClient:
 
     def get_status(self) -> Dict:
         """Get client status"""
+        # Get timezone information
+        tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+        tz_name = time.tzname[time.daylight]
+
         return {
             'running': self.running,
             'client_id': self.client_id,
             'root_dir': str(self.target_dir),
             'target_dir': str(self.target_dir),
+            'timezone': tz_name,
+            'timezone_offset': tz_offset,
             'connected': self.connected,
             'server_host': self.server_host,
             'server_port': self.server_port,
