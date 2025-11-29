@@ -10,6 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,8 @@ import 'services_app_qy/api_service_app_qy.dart';
 import 'services_app_qy/vocabulary_service_app_qy.dart';
 import 'services_app_qy/auth_service_app_qy.dart';
 import 'models_app_qy/user_model_app_qy.dart';
+import 'config_app_qy/api_config_app_qy.dart';
+import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 
 /// QY App specific widget
 /// This can be customized for QY app specific needs
@@ -63,6 +66,28 @@ class QyApp extends StatelessWidget {
 /// This entry point can be used to launch only the QY app
 /// with specific configurations and customizations
 Future<void> main() async {
+  // Initialize multi-endpoint discovery before creating services
+  final discovery = MultiEndpointDiscovery();
+  discovery.configureEndpoints(ApiConfigAppQy.endpointConfigs);
+  
+  // Quick scan for available endpoints (fast, non-blocking)
+  // Discovery runs in background and updates service when complete
+  discovery.discoverAvailableEndpoint(
+    healthCheckPath: 'api_info',
+    timeout: const Duration(seconds: 2),
+    parallelScan: true,
+  ).then((selectedEndpoint) {
+    if (selectedEndpoint != null) {
+      final baseUrl = selectedEndpoint.buildFullUrl(path: 'api/app_qy_v1');
+      ApiServiceAppQy().updateBaseUrl(baseUrl);
+      debugPrint('✅ API endpoint updated to: $baseUrl');
+    } else {
+      debugPrint('⚠️ No available endpoints found, using default');
+    }
+  }).catchError((error) {
+    debugPrint('⚠️ Endpoint discovery failed: $error');
+  });
+
   final QyUserProvider qyUserProvider = QyUserProvider();
   final GoRouter routerConfig = QyAppRoutesProvider.createRouter();
 
