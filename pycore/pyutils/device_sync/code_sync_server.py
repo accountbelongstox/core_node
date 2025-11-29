@@ -11,7 +11,7 @@ import time
 import hashlib
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Optional, Tuple
 
 from pycore import ColorPrint
@@ -457,12 +457,19 @@ class CodeSyncServer:
 
     def get_status(self) -> Dict:
         """Get server status"""
+        # Get timezone information
+        local_tz = datetime.now(timezone.utc).astimezone().tzinfo
+        tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+        tz_name = time.tzname[time.daylight]
+
         with self.clients_lock:
             with self.file_cache_lock:
                 return {
                     'running': self.running,
                     'root_dir': str(self.root_dir),
                     'scan_interval': self.scan_interval,
+                    'timezone': tz_name,
+                    'timezone_offset': tz_offset,
                     'clients_count': len(self.clients),
                     'clients': [
                         {
