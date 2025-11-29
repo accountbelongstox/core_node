@@ -193,31 +193,42 @@ class VoiceSubtitleAPI {
     // ========== Task Management (Async Operations) ==========
 
     async getTaskStatus(taskId) {
-        return await this.get(`/tasks/${taskId}`);
+        const endpoint = this.endpoints.TASK_STATUS.replace('{task_id}', taskId);
+        return await this.get(endpoint);
+    }
+
+    async getAllTasks(limit = 50) {
+        return await this.get(this.endpoints.TASKS, { limit });
     }
 
     async pollTask(taskId, onProgress, interval = 1000) {
         return new Promise((resolve, reject) => {
             const poll = setInterval(async () => {
                 try {
-                    const status = await this.getTaskStatus(taskId);
+                    const task = await this.getTaskStatus(taskId);
 
                     if (onProgress) {
-                        onProgress(status);
+                        onProgress(task);
                     }
 
-                    if (status.status === 'completed') {
+                    if (task.status === 'completed') {
                         clearInterval(poll);
-                        resolve(status.result);
-                    } else if (status.status === 'failed') {
+                        resolve(task.result);
+                    } else if (task.status === 'failed') {
                         clearInterval(poll);
-                        reject(new Error(status.error || 'Task failed'));
+                        reject(new Error(task.error || 'Task failed'));
                     }
                 } catch (e) {
                     clearInterval(poll);
                     reject(e);
                 }
             }, interval);
+
+            // Timeout after 60 seconds
+            setTimeout(() => {
+                clearInterval(poll);
+                reject(new Error('Task polling timeout'));
+            }, 60000);
         });
     }
 }
