@@ -16,12 +16,15 @@
 
 ```json
 {
-  "text": "string",           // 必填: 字幕文本
-  "audio_path": "string",    // 必填: 音频文件路径或URL
-  "category": "string",      // 必填: 分类 (normal/image/file等)
-  "play_count": 0,           // 必填: 播放次数
-  "created_at": "string",    // 必填: 创建时间 (ISO 8601格式)
-  "langs": ["string"]        // 可选: 语言列表 (默认: ["en"])
+  "text": "string",              // 必填: 字幕文本（已翻译后版本）
+  "audio_path": "string",        // 必填: 音频文件标识（文件名）
+  "audio_url": "string",         // 必填: 可直接拉取的音频URL
+  "category": "string",          // 必填: 分类 (默认: default)
+  "play_count": 0,               // 必填: 播放次数
+  "created_at": "2025-11-29T12:34:56Z", // 必填: 创建时间 (ISO 8601)
+  "langs": ["string"],           // 必填: 目标语言列表
+  "language": "string",          // 可选: 源语言
+  "voice": "string"              // 可选: 使用的TTS voice
 }
 ```
 
@@ -57,11 +60,12 @@
 
 **请求**: 无参数
 
-**响应**: QueueResponse
+**响应**: QueueResponse（`queue` 为完整原始数据，`items` 为标准化精简结构）
 ```json
 {
   "success": true,
   "queue": [...],
+  "items": [QueueItem],     // 追加: 适配远程前端的标准化队列
   "current_index": 0,
   "enabled": true
 }
@@ -144,7 +148,14 @@
 }
 ```
 
-**响应**: OperationResponse
+**响应**:
+```json
+{
+  "success": true,
+  "current_index": 5,
+  "item": QueueItem
+}
+```
 
 #### POST /api/mcp/v1/voice-subtitle/remove-items
 删除多个队列项
@@ -160,8 +171,8 @@
 ```json
 {
   "success": true,
-  "message": "Removed 4 items",
-  "removed_count": 4
+  "removed_count": 4,
+  "queue_length": 120
 }
 ```
 
@@ -175,9 +186,11 @@
 **请求体**:
 ```json
 {
-  "text": "Hello world",     // 必填: 文本内容
-  "langs": ["en"],           // 必填: 语言列表
-  "category": "normal"       // 必填: 分类
+  "text": "Hello world",          // 必填: 文本内容
+  "language": "en",               // 可选: 源语言
+  "voice": "en-US-AriaNeural",    // 可选: TTS voice
+  "langs": ["en"],                // 可选: 目标语言列表 (首个元素生效)
+  "category": "normal"            // 可选: 分类 (默认: default)
 }
 ```
 
@@ -193,12 +206,14 @@
 #### POST /api/mcp/v1/voice-subtitle/add-image
 添加图片到队列 (OCR + TTS)
 
-**请求体** (三选一):
+**请求体** (至少提供一种图片来源):
 ```json
 {
   "image_path": "/path/to/image.jpg",  // 本地路径
   "image_url": "https://...",          // 远程URL
   "image_base64": "data:image/png;base64,...",  // Base64编码
+  "language": "en",
+  "voice": "en-US-AriaNeural",
   "langs": ["en"],
   "category": "image"
 }
@@ -219,8 +234,11 @@
 **请求体**:
 ```json
 {
-  "audio_path": "/path/to/audio.mp3",  // 必填: 音频路径或URL
-  "text": "Audio subtitle",             // 可选: 字幕文本
+  "audio_path": "/path/to/audio.mp3",  // 音频文件路径 (可选)
+  "audio_url": "https://...",          // 远程URL (可选)
+  "audio_base64": "data:audio/mpeg;base64,...", // Base64 (可选)
+  "language": "en",
+  "voice": "en-US-AriaNeural",
   "langs": ["en"],
   "category": "normal"
 }
@@ -236,7 +254,7 @@
 获取音频文件
 
 **请求参数**:
-- `path` (query, string): 音频文件路径
+- `path` (query, string): 音频文件名或相对路径。与 `GET /api/mcp/v1/voice-subtitle/audio/{filename}` 等效。
 
 **响应**:
 - Content-Type: `audio/mpeg` 或对应的音频格式
@@ -249,6 +267,8 @@
 - `.m4a` → `audio/mp4`
 - `.aac` → `audio/aac`
 - `.flac` → `audio/flac`
+
+> 兼容性：旧版 `GET /api/mcp/v1/voice-subtitle/audio/{filename}` 仍然可用，推荐使用带 `path` 查询参数的统一端点。
 
 ---
 
@@ -420,6 +440,11 @@ QueueItem 必须包含:
 - 本地路径: 使用绝对路径
 - 远程API: 返回完整URL (`http://host:port/api/mcp/v1/voice-subtitle/audio?path=...`)
 
+### 6.3 语言覆盖规则
+
+- `langs` / `target_language` / `target_languages` 均可用于指定目标语言数组，服务端取首个非空值。
+- 若未提供，则使用用户设置中的 `target_language`。
+
 ### 6.3 时间格式
 
 所有时间字段使用 ISO 8601 格式: `2025-11-29T12:34:56.789Z`
@@ -522,4 +547,3 @@ async function scanLAN() {
 当前版本: **v1**
 
 API路径包含版本号 `/api/mcp/v1/`，便于未来升级。
-

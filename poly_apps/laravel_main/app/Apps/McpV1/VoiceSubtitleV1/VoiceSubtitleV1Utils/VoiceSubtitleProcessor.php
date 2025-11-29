@@ -9,6 +9,7 @@ use App\CallPycoreUtils\PycoreGoogleTranslateUtil;
 use App\CallPycoreUtils\PycoreEdgeTTSUtil;
 use App\Services\AIServiceDispatcher;
 use App\Services\TTSCacheManager;
+use App\Services\Translation\TranslationConstants;
 
 class VoiceSubtitleProcessor
 {
@@ -89,19 +90,38 @@ class VoiceSubtitleProcessor
         }
     }
 
-    private function processText(string $text, string $language, string $voice, string $targetLanguage): array
+    private function processText(
+        string $text,
+        string $language,
+        string $voice,
+        string $targetLanguage,
+        bool $skipRewrite = false,
+        bool $skipTranslation = false
+    ): array
     {
         $cleanedText = $this->cleanText($text);
 
-        $this->reportProgress('ai_rewrite', 'running', 'Rewriting input for target language');
-        $rewrittenText = $this->rewriteToTargetLanguage($cleanedText, $targetLanguage);
-        $this->reportProgress('ai_rewrite', 'completed');
+        $rewrittenText = $cleanedText;
 
-        $this->reportProgress('translation', 'running', 'Translating rewritten text');
-        $translatedText = $this->translateText($rewrittenText, $targetLanguage);
-        $this->reportProgress('translation', 'completed');
+        if ($skipRewrite) {
+            $this->reportProgress('ai_rewrite', 'completed', 'Rewrite skipped (already in target language)');
+        } else {
+            $this->reportProgress('ai_rewrite', 'running', 'Rewriting input for target language');
+            $rewrittenText = $this->rewriteToTargetLanguage($cleanedText, $targetLanguage);
+            $this->reportProgress('ai_rewrite', 'completed');
+        }
 
-        $paragraphs = $this->ttsCache->splitTextToParagraphs($translatedText);
+        if ($skipTranslation) {
+            $this->reportProgress('translation', 'completed', 'Translation skipped (already localized text)');
+            $translatedText = $rewrittenText;
+        } else {
+            $this->reportProgress('translation', 'running', 'Translating rewritten text');
+            $translatedText = $this->translateText($rewrittenText, $targetLanguage);
+            $this->reportProgress('translation', 'completed');
+        }
+
+        $speechReadyText = $this->removeAsterisks($translatedText);
+        $paragraphs = $this->ttsCache->splitTextToParagraphs($speechReadyText);
 
         $this->reportProgress('tts_generation', 'running', 'Generating speech segments', [
             'paragraphs' => count($paragraphs),
@@ -114,9 +134,10 @@ class VoiceSubtitleProcessor
         return [
             'type' => 'text',
             'original_text' => $text,
-            'translated_text' => $translatedText,
+            'translated_text' => $speechReadyText,
             'language' => $language,
             'voice' => $voice,
+            'target_language' => $targetLanguage,
             'paragraphs' => $paragraphs,
             'tts_files' => $ttsFiles,
             'created_at' => date('Y-m-d H:i:s'),
@@ -125,16 +146,25 @@ class VoiceSubtitleProcessor
 
     private function processImage(string $imagePath, string $language, string $voice, string $targetLanguage): ?array
     {
-        $imageAnalysis = $this->aiDispatcher->analyzeImage(
-            $imagePath,
-            "Extract and describe all text content from this image."
-        );
-
+        $prompt = $this->buildGeminiImagePrompt($targetLanguage);
         $this->reportProgress('image_recognition', 'running', 'Analyzing visual content');
+        $imageAnalysis = $this->aiDispatcher->analyzeImage($imagePath, $prompt);
+
         if ($imageAnalysis['success']) {
-            $extractedText = $imageAnalysis['content'];
+            $extractedText = trim($imageAnalysis['content'] ?? '');
             $this->reportProgress('image_recognition', 'completed', 'Gemini vision analysis finished');
-            return $this->processText($extractedText, $language, $voice, $targetLanguage);
+            if (empty($extractedText)) {
+                Log::warning('[VoiceSubtitleProcessor] Gemini returned empty text, falling back to OCR');
+            } else {
+                return $this->processText(
+                    $extractedText,
+                    $language,
+                    $voice,
+                    $targetLanguage,
+                    true,
+                    true
+                );
+            }
         }
 
         Log::warning('[VoiceSubtitleProcessor] Gemini vision failed, trying OCR', [
@@ -153,12 +183,14 @@ class VoiceSubtitleProcessor
 
         $ocrText = $ocrResult['text'];
         $this->reportProgress('image_recognition', 'completed', 'OCR extraction finished');
-
-        $summarized = $this->aiDispatcher->summarizeText($ocrText, 'auto');
-
-        $finalText = $summarized['success'] ? $summarized['content'] : $ocrText;
-
-        return $this->processText($finalText, $language, $voice, $targetLanguage);
+        return $this->processText(
+            $ocrText,
+            $language,
+            $voice,
+            $targetLanguage,
+            false,
+            true
+        );
     }
 
     private function processUrl(string $url, string $language, string $voice, string $targetLanguage): ?array
@@ -210,7 +242,8 @@ class VoiceSubtitleProcessor
 
     private function rewriteToTargetLanguage(string $text, string $targetLanguage): string
     {
-        $prompt = "Rewrite the following text in {$targetLanguage}. Keep the meaning the same but express it naturally in the target language:\n\n{$text}";
+        $languageName = $this->resolveLanguageName($targetLanguage);
+        $prompt = "Rewrite in {$languageName}:\n{$text}";
 
         $result = $this->aiDispatcher->chat($prompt, 'auto', null, "You are a professional translator and writer. Rewrite the given text in the target language naturally and accurately.");
 
@@ -375,11 +408,28 @@ class VoiceSubtitleProcessor
         return null;
     }
 
+    private function buildGeminiImagePrompt(string $targetLanguage): string
+    {
+        $languageName = $this->resolveLanguageName($targetLanguage);
+        return "Summarize in {$languageName}.";
+    }
+
     public function getStats(): array
     {
         return array_merge(
             ['processor_version' => '1.0.0'],
             $this->ttsCache->getCacheStats()
         );
+    }
+
+    private function removeAsterisks(string $text): string
+    {
+        return str_replace(['*', '＊'], '', $text);
+    }
+
+    private function resolveLanguageName(string $language): string
+    {
+        $code = strtolower(trim($language));
+        return TranslationConstants::LANGUAGES[$code] ?? $language;
     }
 }

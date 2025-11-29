@@ -1406,34 +1406,14 @@ const McpSettingsModule = {
  */
 const McpVoiceSubtitleModule = {
     async init(container) {
-        container.innerHTML = this.getTemplate();
-        this.setupEventListeners();
-        await this.loadQueue();
-        await this.loadStats();
-        this.startAutoRefresh();
-    },
-
-    getTemplate() {
-        return `
+        container.innerHTML = `
             <div class="mcp-module-container" style="height: 100%;">
-                <iframe src="/voice-subtitle.html" style="width: 100%; height: calc(100vh - 250px); border: none; border-radius: 8px; background: #fff;"></iframe>
+                <iframe
+                    src="/voice-subtitle/index.html"
+                    style="width: 100%; height: calc(100vh - 250px); border: none; border-radius: 8px; background: #fff;"
+                    title="Voice Subtitle Console"
+                ></iframe>
             </div>
         `;
-    },
-
-    setupEventListeners() {
-        // Iframe communication if needed
-    },
-
-    async loadQueue() {
-        // Handled by iframe
-    },
-
-    async loadStats() {
-        // Handled by iframe
-    },
-
-    startAutoRefresh() {
-        // Auto refresh handled by iframe
     }
 };
