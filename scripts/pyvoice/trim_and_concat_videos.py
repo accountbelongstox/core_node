@@ -67,53 +67,78 @@ sys.path.insert(0, str(project_root))
 from pycore.pyutils.translator import GoogleTranslator
 
 
-async def translate_filename(filename: str, verbose: bool = True) -> str:
+async def translate_filename(filename: str, verbose: bool = True, retry_count: int = 2) -> str:
     """
     Translate filename to English using GoogleTranslator
 
     Args:
         filename: Original filename (without extension)
         verbose: Print detailed debug info
+        retry_count: Number of retries on failure
 
     Returns:
         Translated filename
     """
-    try:
-        async with GoogleTranslator() as translator:
-            result = await translator.translate_single(
-                text=filename,
-                src='auto',
-                dest='en',
-                use_cache=True
-            )
+    for attempt in range(retry_count + 1):
+        try:
+            if attempt > 0:
+                print(f"    [RETRY] Attempt {attempt + 1}/{retry_count + 1}")
+                # Wait a bit before retry
+                await asyncio.sleep(1)
+
+            async with GoogleTranslator() as translator:
+                if verbose and attempt == 0:
+                    print(f"    [INFO] Translating: '{filename}'")
+                    print(f"    [INFO] Text length: {len(filename)} chars")
+
+                result = await translator.translate_single(
+                    text=filename,
+                    src='auto',
+                    dest='en',
+                    use_cache=True
+                )
+
+                if verbose:
+                    print(f"    [DEBUG] Translation Details:")
+                    print(f"      - Original text: {result.original_text}")
+                    print(f"      - Translated text: {result.translated_text}")
+                    print(f"      - Detected source lang: {result.src_lang}")
+                    print(f"      - Target lang: {result.dest_lang}")
+                    print(f"      - From cache: {result.from_cache}")
+                    if result.pronunciation:
+                        print(f"      - Pronunciation: {result.pronunciation}")
+
+                if result.error:
+                    print(f"    [WARNING] Translation API returned error: {result.error}")
+                    if attempt < retry_count:
+                        continue  # Retry
+                    print(f"    [INFO] Using original name after {retry_count + 1} attempts")
+                    return filename
+
+                # Success
+                if verbose:
+                    print(f"    [SUCCESS] Translation completed")
+                return result.translated_text
+
+        except Exception as e:
+            print(f"    [ERROR] Translation exception (attempt {attempt + 1}/{retry_count + 1}):")
+            print(f"      Type: {type(e).__name__}")
+            print(f"      Message: {e}")
 
             if verbose:
-                print(f"    [DEBUG] Translation Details:")
-                print(f"      - Original text: {result.original_text}")
-                print(f"      - Translated text: {result.translated_text}")
-                print(f"      - Detected source lang: {result.src_lang}")
-                print(f"      - Target lang: {result.dest_lang}")
-                print(f"      - From cache: {result.from_cache}")
-                if result.pronunciation:
-                    print(f"      - Pronunciation: {result.pronunciation}")
-                if result.error:
-                    print(f"      - Error: {result.error}")
+                import traceback
+                print(f"    [DEBUG] Full traceback:")
+                traceback.print_exc()
 
-            if result.error:
-                print(f"    [WARNING] Translation failed: {result.error}")
-                print(f"    [INFO] Using original name")
+            if attempt < retry_count:
+                print(f"    [INFO] Retrying...")
+                continue
+            else:
+                print(f"    [INFO] Using original name after {retry_count + 1} failed attempts")
                 return filename
 
-            return result.translated_text
-
-    except Exception as e:
-        print(f"    [ERROR] Translation exception: {type(e).__name__}: {e}")
-        print(f"    [INFO] Using original name")
-        import traceback
-        if verbose:
-            print(f"    [DEBUG] Traceback:")
-            traceback.print_exc()
-        return filename
+    # Should not reach here, but just in case
+    return filename
 
 
 def sanitize_filename(filename: str) -> str:
@@ -169,7 +194,7 @@ class VideoProcessor:
     # 支持的视频格式
     SUPPORTED_FORMATS = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v'}
 
-    def __init__(self, trim_start: float = 5.0, trim_end: float = 4.0, skip_keywords: list = None):
+    def __init__(self, trim_start: float = 5.0, trim_end: float = 4.0, skip_keywords: list = None, verbose: bool = True):
         """
         初始化视频处理器
 
@@ -177,10 +202,12 @@ class VideoProcessor:
             trim_start: 裁剪开头秒数 (default: 5.0)
             trim_end: 裁剪结尾秒数 (default: 4.0)
             skip_keywords: 跳过包含这些关键字的文件 (default: None)
+            verbose: 是否输出详细调试信息 (default: True)
         """
         self.trim_start = trim_start
         self.trim_end = trim_end
         self.skip_keywords = skip_keywords or []
+        self.verbose = verbose
 
     def check_ffmpeg(self) -> bool:
         """检查 FFmpeg 是否安装"""
