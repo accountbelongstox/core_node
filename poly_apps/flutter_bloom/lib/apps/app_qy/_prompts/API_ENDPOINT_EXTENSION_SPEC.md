@@ -343,7 +343,9 @@ This document specifies the backend API endpoints required to support the QY voc
       "daily_study_time",
       "preferences"
     ],
-    "initialization_completed_at": null
+    "initialization_completed_at": null,
+    "learning_languages": [],
+    "profile": null
   }
 }
 ```
@@ -384,9 +386,11 @@ This document specifies the backend API endpoints required to support the QY voc
   "success": true,
   "message": "Initialization completed successfully",
   "data": {
-    "user": {
-      "id": 1,
-      "learning_languages": ["en", "fr"],
+    "is_initialized": true,
+    "missing_fields": [],
+    "initialization_completed_at": "2025-01-15T10:30:00Z",
+    "learning_languages": ["en", "fr"],
+    "profile": {
       "occupation": "student",
       "daily_words_target": 20,
       "daily_study_time": 30,
@@ -394,13 +398,18 @@ This document specifies the backend API endpoints required to support the QY voc
         "theme": "light",
         "notifications_enabled": true,
         "auto_play_audio": true,
-        "difficulty_level": "intermediate"
-      },
-      "initialization_completed_at": "2025-01-15T10:30:00Z"
+        "difficulty_level": "intermediate",
+        "daily_reminder_time": "08:00"
+      }
     }
   }
 }
 ```
+
+**Backend Storage Notes**:
+- Data persists in `app_qy_v1_user_initializations` (AppQyV1 SQLite connection) with columns for occupation, daily goals, preferences JSON, and completion timestamp.
+- `users.learning_languages` (main connection) stores the selected language array; validation enforces AppQyV1 supported language codes.
+- Preferences accept `theme`, `notifications_enabled`, `auto_play_audio`, `difficulty_level`, and `daily_reminder_time`, defaulting to server presets when missing.
 
 ### 3. Update User Profile (Partial Update)
 **Endpoint**: `PATCH /api/dict/v1/user/profile`
