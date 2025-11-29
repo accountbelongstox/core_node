@@ -8,7 +8,11 @@ const StaticResourceBrowser = {
     folderContents: {},
     CHUNK_SIZE: 5 * 1024 * 1024,
     activeUploads: new Map(),
-    
+    baseRealPath: '',
+    rootDisplayName: 'Static Root',
+    pendingDeletePath: null,
+    pendingDeleteStats: null,
+
     // Video player state
     videoPlayer: null,
     videoPlaylist: [],
@@ -209,7 +213,7 @@ const StaticResourceBrowser = {
                 }
             }
         }
-        this.updatePathDisplay(this.currentPath);
+        this.updatePathDisplay(this.currentPath, this.baseRealPath);
         this.renderFileList();
     },
 
@@ -244,6 +248,23 @@ const StaticResourceBrowser = {
         createDirDialog.addEventListener('click', (e) => {
             if (e.target === createDirDialog) {
                 this.closeCreateDirDialog();
+            }
+        });
+
+        const deleteDialog = document.getElementById('static-delete-dialog');
+        deleteDialog.addEventListener('click', (e) => {
+            if (e.target === deleteDialog) {
+                this.closeDeleteDialog();
+            }
+        });
+
+        const deleteInput = document.getElementById('static-delete-confirm-input');
+        deleteInput.addEventListener('input', () => {
+            this.updateDeleteConfirmState();
+        });
+        deleteInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter' && deleteInput.value.trim() === '确认') {
+                this.executeDelete();
             }
         });
 
@@ -313,7 +334,12 @@ const StaticResourceBrowser = {
         }
     },
 
-    async loadFileList(path = '') {
+    async loadFileList(path = '', options = {}) {
+        const {
+            updateCurrent = true,
+            updatePathDisplay = updateCurrent
+        } = options;
+
         const response = await fetch(`/static-resources/file-tree?path=${encodeURIComponent(path)}`);
         const data = await response.json();
 
@@ -322,17 +348,28 @@ const StaticResourceBrowser = {
             return null;
         }
 
-        this.currentPath = path;
+        if (data.realPath) {
+            this.baseRealPath = data.realPath;
+        }
+        if (path === '' && data.path) {
+            this.rootDisplayName = data.path;
+        }
+
         this.folderContents[path] = data.items;
 
-        this.updatePathDisplay(path, data.realPath);
+        if (updateCurrent) {
+            this.setCurrentPath(path);
+        } else if (updatePathDisplay) {
+            this.updatePathDisplay(this.currentPath, this.baseRealPath);
+        }
         this.renderFileList();
         return data.items;
     },
 
     renderFileList() {
         const container = document.getElementById('static-file-list');
-        const items = this.folderContents[this.currentPath] || [];
+        const rootItems = this.folderContents[''] || [];
+        const items = rootItems.length > 0 ? rootItems : (this.folderContents[this.currentPath] || []);
 
         if (items.length === 0) {
             container.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No files found</div>';
@@ -341,12 +378,13 @@ const StaticResourceBrowser = {
 
         let html = '';
 
-        if (this.currentPath) {
+        if (rootItems.length > 0) {
+            const isRootSelected = !this.currentPath;
             html += `
-                <div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #333; display: flex; align-items: center; color: #888;"
-                     onclick="StaticResourceBrowser.navigateUp()">
-                    <span style="margin-right: 8px;">⬆️</span>
-                    <span>..</span>
+                <div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #333; display: flex; align-items: center; color: #dcdcaa; ${isRootSelected ? 'background: #2a2d2e;' : ''}"
+                     onclick="StaticResourceBrowser.handleRootClick()">
+                    <span style="margin-right: 8px;">🗂️</span>
+                    <span style="font-weight: 500;">${this.rootDisplayName}</span>
                 </div>
             `;
         }
@@ -368,15 +406,19 @@ const StaticResourceBrowser = {
                 const arrow = isExpanded ? '▼' : '▶';
                 const icon = isExpanded ? '📂' : '📁';
 
+                const isSelected = this.currentPath === item.path;
+                const safePath = item.path.replace(/'/g, "\\'");
+
                 html += `
-                    <div style="padding: 8px 12px; padding-left: ${12 + indent}px; cursor: pointer; border-bottom: 1px solid #333; user-select: none;"
-                         ondblclick="StaticResourceBrowser.navigateToFolder('${item.path.replace(/'/g, "\\'")}')"
-                         oncontextmenu="StaticResourceBrowser.showContextMenu(event, '${item.path.replace(/'/g, "\\'")}', 'directory')">
+                    <div style="padding: 8px 12px; padding-left: ${12 + indent}px; cursor: pointer; border-bottom: 1px solid #333; user-select: none; ${isSelected ? 'background: #2a2d2e;' : ''}"
+                         onclick="StaticResourceBrowser.selectFolder('${safePath}')"
+                         ondblclick="StaticResourceBrowser.toggleFolder('${safePath}', false)"
+                         oncontextmenu="StaticResourceBrowser.showContextMenu(event, '${safePath}', 'directory')">
                         <div style="display: flex; align-items: center; color: #dcdcaa;">
                             <span style="margin-right: 4px; font-size: 10px; width: 12px; display: inline-block;"
-                                  onclick="event.stopPropagation(); StaticResourceBrowser.toggleFolder('${item.path.replace(/'/g, "\\'")}', false)">${arrow}</span>
+                                  onclick="event.stopPropagation(); StaticResourceBrowser.toggleFolder('${safePath}', false)">${arrow}</span>
                             <span style="margin-right: 8px;">${icon}</span>
-                            <span style="font-weight: 500;" onclick="StaticResourceBrowser.toggleFolder('${item.path.replace(/'/g, "\\'")}', false)">${item.name}</span>
+                            <span style="font-weight: 500;" onclick="StaticResourceBrowser.handleFolderLabelClick(event, '${safePath}')">${item.name}</span>
                         </div>
                     </div>
                 `;
@@ -404,6 +446,57 @@ const StaticResourceBrowser = {
         });
 
         return html;
+    },
+
+    handleRootClick() {
+        this.setCurrentPath('');
+        this.renderFileList();
+    },
+
+    handleFolderLabelClick(event, path) {
+        if (event) {
+            event.stopPropagation();
+        }
+        this.selectFolder(path);
+        this.toggleFolder(path, false);
+    },
+
+    selectFolder(path) {
+        this.setCurrentPath(path);
+        this.ensurePathExpanded(path);
+        this.renderFileList();
+    },
+
+    setCurrentPath(path) {
+        this.currentPath = path || '';
+        this.updatePathDisplay(this.currentPath, this.baseRealPath);
+    },
+
+    ensurePathExpanded(path) {
+        if (!path) {
+            return;
+        }
+
+        const parts = path.split('/').filter(Boolean);
+        let current = '';
+        let changed = false;
+
+        for (const part of parts) {
+            current = current ? `${current}/${part}` : part;
+            if (!this.expandedFolders.has(current)) {
+                this.expandedFolders.add(current);
+                changed = true;
+            }
+        }
+
+        if (path && !this.expandedFolders.has(path)) {
+            this.expandedFolders.add(path);
+            changed = true;
+        }
+
+        if (changed) {
+            this.saveExpandedState();
+        }
     },
 
     getFileIcon(mimeType, extension) {
@@ -435,8 +528,7 @@ const StaticResourceBrowser = {
 
     async toggleFolder(path, navigate = true) {
         if (navigate) {
-            this.currentPath = path;
-            this.updatePathDisplay(path);
+            this.selectFolder(path);
         }
 
         if (this.expandedFolders.has(path)) {
@@ -484,11 +576,20 @@ const StaticResourceBrowser = {
         const parts = this.currentPath.split('/').filter(p => p);
         parts.pop();
         const parentPath = parts.join('/');
-        this.loadFileList(parentPath);
+        this.selectFolder(parentPath);
     },
 
-    navigateToFolder(path) {
-        this.loadFileList(path);
+    async navigateToFolder(path) {
+        this.selectFolder(path);
+        if (path && !this.expandedFolders.has(path)) {
+            this.expandedFolders.add(path);
+            this.saveExpandedState();
+        }
+        if (path && !this.folderContents[path]) {
+            await this.loadFileList(path, { updateCurrent: false, updatePathDisplay: false });
+        } else {
+            this.renderFileList();
+        }
     },
 
     async expandAllFolders(path) {
@@ -977,6 +1078,135 @@ const StaticResourceBrowser = {
         }
     },
 
+    async promptDeleteSelection() {
+        if (!this.selectedItem) return;
+
+        const menu = document.getElementById('static-context-menu');
+        menu.style.display = 'none';
+
+        this.pendingDeletePath = this.selectedItem;
+        this.pendingDeleteStats = null;
+
+        const dialog = document.getElementById('static-delete-dialog');
+        const summary = document.getElementById('static-delete-summary');
+        const confirmInput = document.getElementById('static-delete-confirm-input');
+        const confirmBtn = document.getElementById('static-delete-confirm-btn');
+
+        summary.textContent = 'Preparing delete summary...';
+        confirmInput.value = '';
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Delete';
+
+        dialog.style.display = 'flex';
+        confirmInput.focus();
+
+        try {
+            const response = await fetch('/static-resources/delete-preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    path: this.pendingDeletePath
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Failed to load delete summary: ' + data.error);
+                this.closeDeleteDialog();
+                return;
+            }
+
+            this.pendingDeleteStats = data.stats || { files: 0, directories: 0, total_items: 0 };
+            const files = this.pendingDeleteStats.files ?? 0;
+            const directories = this.pendingDeleteStats.directories ?? 0;
+            let message = `Deleting <strong>${files}</strong> file(s)`;
+
+            if (directories > 0) {
+                message += ` and <strong>${directories}</strong> folder(s)`;
+            }
+
+            message += ` from <code>${this.escapeHtml(this.pendingDeletePath)}</code>. `;
+            message += `Type <strong>确认</strong> to confirm.`;
+
+            summary.innerHTML = message;
+        } catch (error) {
+            console.error('[StaticResourceBrowser] Delete preview error:', error);
+            alert('Failed to load delete summary');
+            this.closeDeleteDialog();
+        }
+    },
+
+    closeDeleteDialog() {
+        const dialog = document.getElementById('static-delete-dialog');
+        dialog.style.display = 'none';
+        this.pendingDeletePath = null;
+        this.pendingDeleteStats = null;
+
+        const confirmBtn = document.getElementById('static-delete-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Delete';
+
+        const confirmInput = document.getElementById('static-delete-confirm-input');
+        confirmInput.value = '';
+    },
+
+    updateDeleteConfirmState() {
+        const confirmInput = document.getElementById('static-delete-confirm-input');
+        const confirmBtn = document.getElementById('static-delete-confirm-btn');
+
+        confirmBtn.disabled = confirmInput.value.trim() !== '确认';
+    },
+
+    async executeDelete() {
+        if (!this.pendingDeletePath) {
+            return;
+        }
+
+        const confirmInput = document.getElementById('static-delete-confirm-input');
+        if (confirmInput.value.trim() !== '确认') {
+            alert('Please type 确认 to proceed.');
+            return;
+        }
+
+        const confirmBtn = document.getElementById('static-delete-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting...';
+
+        try {
+            const response = await fetch('/static-resources/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    path: this.pendingDeletePath
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                alert('Delete failed: ' + result.error);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Delete';
+                return;
+            }
+
+            await this.refreshList();
+            this.closeDeleteDialog();
+        } catch (error) {
+            console.error('[StaticResourceBrowser] Delete error:', error);
+            alert('Delete failed');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Delete';
+        }
+    },
+
     showUploadDialog() {
         this.uploadFiles = [];
         this.uploadTargetPath = this.currentPath;
@@ -1210,8 +1440,14 @@ const StaticResourceBrowser = {
     },
 
     async refreshList() {
+        const targetPath = this.currentPath || '';
         this.folderContents = {};
-        await this.loadFileList(this.currentPath);
+
+        if (targetPath !== '') {
+            await this.loadFileList('', { updateCurrent: false, updatePathDisplay: false });
+        }
+
+        await this.loadFileList(targetPath, { updateCurrent: true, updatePathDisplay: true });
         await this.loadExpandedFolders();
     },
 

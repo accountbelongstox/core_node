@@ -167,16 +167,11 @@ class UserSyncService
                 continue;
             }
 
-            try {
-                if (!self::tableExists($connectionName, 'users')) {
-                    self::createUserTable($connectionName);
-                    $results[$appName] = 'created';
-                } else {
-                    $results[$appName] = 'exists';
-                }
-            } catch (\Exception $e) {
-                Log::error("[UserSync] Failed to create table for {$appName}: " . $e->getMessage());
-                $results[$appName] = 'error: ' . $e->getMessage();
+            if (!self::tableExists($connectionName, 'users')) {
+                self::createUserTable($connectionName);
+                $results[$appName] = 'created';
+            } else {
+                $results[$appName] = 'exists';
             }
         }
 
@@ -287,47 +282,41 @@ class UserSyncService
     {
         $results = [];
         $connection = 'appqyv1';
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_tts_cache (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    text_hash VARCHAR(32) UNIQUE NOT NULL,
-                    text TEXT NOT NULL,
-                    language VARCHAR(10) NOT NULL,
-                    type VARCHAR(50) NOT NULL,
-                    voice VARCHAR(100),
-                    audio_path TEXT NOT NULL,
-                    audio_size INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    access_count INTEGER DEFAULT 1
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_tts_cache_hash ON app_qy_v1_tts_cache(text_hash)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_tts_cache_language ON app_qy_v1_tts_cache(language)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_tts_cache_type ON app_qy_v1_tts_cache(type)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_tts_cache_last_accessed ON app_qy_v1_tts_cache(last_accessed)
-            ');
-            
-            $results['app_qy_v1_tts_cache'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[UserSync] Failed to create TTS cache table: " . $e->getMessage());
-            $results['app_qy_v1_tts_cache'] = 'error: ' . $e->getMessage();
-        }
-        
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS app_qy_v1_tts_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text_hash VARCHAR(32) UNIQUE NOT NULL,
+                text TEXT NOT NULL,
+                language VARCHAR(10) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                voice VARCHAR(100),
+                audio_path TEXT NOT NULL,
+                audio_size INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                access_count INTEGER DEFAULT 1
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_tts_cache_hash ON app_qy_v1_tts_cache(text_hash)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_tts_cache_language ON app_qy_v1_tts_cache(language)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_tts_cache_type ON app_qy_v1_tts_cache(type)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_tts_cache_last_accessed ON app_qy_v1_tts_cache(last_accessed)
+        ');
+
+        $results['app_qy_v1_tts_cache'] = 'created';
+
         return $results;
     }
 
@@ -335,88 +324,76 @@ class UserSyncService
     {
         $results = [];
         $connection = 'appqyv1';
-        
+
         $languages = [
             'lao' => 'Lao',
-            'japanese' => 'Japanese', 
+            'japanese' => 'Japanese',
             'vietnamese' => 'Vietnamese',
         ];
-        
+
         foreach ($languages as $langKey => $langName) {
             $tableName = "app_qy_v1_words_{$langKey}";
-            
-            try {
-                DB::connection($connection)->statement("
-                    CREATE TABLE IF NOT EXISTS {$tableName} (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        word_id INTEGER NOT NULL,
-                        word TEXT NOT NULL,
-                        pronunciation TEXT,
-                        meaning_en TEXT,
-                        meaning_zh TEXT,
-                        ai_reviewed INTEGER DEFAULT 0,
-                        tts_generated INTEGER DEFAULT 0,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                ");
-                
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_word_id ON {$tableName}(word_id)
-                ");
-                
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_word ON {$tableName}(word)
-                ");
-                
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langKey}_ai_reviewed ON {$tableName}(ai_reviewed)
-                ");
-                
-                $results[$tableName] = 'created';
-                
-            } catch (\Exception $e) {
-                Log::error("[UserSync] Failed to create {$tableName}: " . $e->getMessage());
-                $results[$tableName] = 'error: ' . $e->getMessage();
-            }
-        }
-        
-        try {
+
             DB::connection($connection)->statement("
-                CREATE TABLE IF NOT EXISTS app_qy_v1_words_english (
+                CREATE TABLE IF NOT EXISTS {$tableName} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     word_id INTEGER NOT NULL,
                     word TEXT NOT NULL,
-                    us_phonetic TEXT,
-                    uk_phonetic TEXT,
-                    translation TEXT,
-                    sample_images TEXT,
+                    pronunciation TEXT,
+                    meaning_en TEXT,
+                    meaning_zh TEXT,
                     ai_reviewed INTEGER DEFAULT 0,
                     tts_generated INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ");
-            
+
             DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_english_word_id ON app_qy_v1_words_english(word_id)
+                CREATE INDEX IF NOT EXISTS idx_{$langKey}_word_id ON {$tableName}(word_id)
             ");
-            
+
             DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_english_word ON app_qy_v1_words_english(word)
+                CREATE INDEX IF NOT EXISTS idx_{$langKey}_word ON {$tableName}(word)
             ");
-            
+
             DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_english_ai_reviewed ON app_qy_v1_words_english(ai_reviewed)
+                CREATE INDEX IF NOT EXISTS idx_{$langKey}_ai_reviewed ON {$tableName}(ai_reviewed)
             ");
-            
-            $results['app_qy_v1_words_english'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[UserSync] Failed to create app_qy_v1_words_english: " . $e->getMessage());
-            $results['app_qy_v1_words_english'] = 'error: ' . $e->getMessage();
+
+            $results[$tableName] = 'created';
         }
-        
+
+        DB::connection($connection)->statement("
+            CREATE TABLE IF NOT EXISTS app_qy_v1_words_english (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word_id INTEGER NOT NULL,
+                word TEXT NOT NULL,
+                us_phonetic TEXT,
+                uk_phonetic TEXT,
+                translation TEXT,
+                sample_images TEXT,
+                ai_reviewed INTEGER DEFAULT 0,
+                tts_generated INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        DB::connection($connection)->statement("
+            CREATE INDEX IF NOT EXISTS idx_english_word_id ON app_qy_v1_words_english(word_id)
+        ");
+
+        DB::connection($connection)->statement("
+            CREATE INDEX IF NOT EXISTS idx_english_word ON app_qy_v1_words_english(word)
+        ");
+
+        DB::connection($connection)->statement("
+            CREATE INDEX IF NOT EXISTS idx_english_ai_reviewed ON app_qy_v1_words_english(ai_reviewed)
+        ");
+
+        $results['app_qy_v1_words_english'] = 'created';
+
         return $results;
     }
 
@@ -899,5 +876,36 @@ class UserSyncService
         }
         
         return null;
+    }
+
+    public static function ensureVoiceSubtitleTablesExist(): array
+    {
+        $results = [];
+        $connection = 'mcpv1';
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS voice_subtitle_user_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_identifier VARCHAR(100) UNIQUE NOT NULL,
+                target_language TEXT DEFAULT \'["en"]\' NOT NULL,
+                default_voice VARCHAR(100) DEFAULT "en-US-AriaNeural" NOT NULL,
+                playback_rate DECIMAL(3,2) DEFAULT 1.0 NOT NULL,
+                auto_play INTEGER DEFAULT 0 NOT NULL,
+                play_mode VARCHAR(50) DEFAULT "all" NOT NULL,
+                play_limit INTEGER DEFAULT 300 NOT NULL,
+                play_group VARCHAR(100),
+                play_language VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_voice_subtitle_user_identifier ON voice_subtitle_user_settings(user_identifier)
+        ');
+
+        $results['voice_subtitle_user_settings'] = 'created';
+
+        return $results;
     }
 }
