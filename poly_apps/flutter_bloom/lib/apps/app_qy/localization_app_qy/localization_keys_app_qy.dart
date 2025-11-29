@@ -301,6 +301,10 @@ class QyAppLocalizationKeys {
   static const String qySettingsCenter = 'qy_settings_center';
   static const String qyLatestVersion = 'qy_latest_version';
   static const String qyNetworkStable = 'qy_network_stable';
+  static const String qyNetworkUnavailable = 'qy_network_unavailable';
+  static const String qyNetworkUnavailableMessage =
+      'qy_network_unavailable_message';
+  static const String qyNetworkRetrying = 'qy_network_retrying';
   static const String qyNightModeEnabled = 'qy_night_mode_enabled';
   static const String qyNormalMode = 'qy_normal_mode';
   static const String qyNormalModeProtectEyes = 'qy_normal_mode_protect_eyes';
@@ -2009,14 +2013,22 @@ class QyAppLocalizationKeys {
   static const String qyInboxMessageDatingApp = 'qy_inbox_message_dating_app';
 
   // Dictionary Recommendation
-  static const String qyDictionaryCategoryAcademic = 'qy_dictionary_category_academic';
-  static const String qyDictionaryCategoryGeneral = 'qy_dictionary_category_general';
-  static const String qyDictionaryCategoryBusiness = 'qy_dictionary_category_business';
-  static const String qyDictionaryCategoryMedical = 'qy_dictionary_category_medical';
-  static const String qyDictionaryCategoryTechnical = 'qy_dictionary_category_technical';
-  static const String qyDictionaryDifficultyBeginner = 'qy_dictionary_difficulty_beginner';
-  static const String qyDictionaryDifficultyIntermediate = 'qy_dictionary_difficulty_intermediate';
-  static const String qyDictionaryDifficultyAdvanced = 'qy_dictionary_difficulty_advanced';
+  static const String qyDictionaryCategoryAcademic =
+      'qy_dictionary_category_academic';
+  static const String qyDictionaryCategoryGeneral =
+      'qy_dictionary_category_general';
+  static const String qyDictionaryCategoryBusiness =
+      'qy_dictionary_category_business';
+  static const String qyDictionaryCategoryMedical =
+      'qy_dictionary_category_medical';
+  static const String qyDictionaryCategoryTechnical =
+      'qy_dictionary_category_technical';
+  static const String qyDictionaryDifficultyBeginner =
+      'qy_dictionary_difficulty_beginner';
+  static const String qyDictionaryDifficultyIntermediate =
+      'qy_dictionary_difficulty_intermediate';
+  static const String qyDictionaryDifficultyAdvanced =
+      'qy_dictionary_difficulty_advanced';
   static const String qyDictionaryRemove = 'qy_dictionary_remove';
   static const String qyDictionaryAddToLibrary = 'qy_dictionary_add_to_library';
   static const String qyDictionaryWords = 'qy_dictionary_words';
@@ -2024,13 +2036,15 @@ class QyAppLocalizationKeys {
   static const String qyDictionaryDifficulty = 'qy_dictionary_difficulty';
   static const String qyDictionaryDetails = 'qy_dictionary_details';
   static const String qyDictionaryAdded = 'qy_dictionary_added';
-  static const String qyDictionaryTagVocabulary = 'qy_dictionary_tag_vocabulary';
+  static const String qyDictionaryTagVocabulary =
+      'qy_dictionary_tag_vocabulary';
   static const String qyDictionaryTagAdvanced = 'qy_dictionary_tag_advanced';
   static const String qyDictionaryTagAcademic = 'qy_dictionary_tag_academic';
   static const String qyDictionaryTagGeneral = 'qy_dictionary_tag_general';
   static const String qyDictionaryTagBeginner = 'qy_dictionary_tag_beginner';
   static const String qyDictionaryTagModern = 'qy_dictionary_tag_modern';
-  static const String qyDictionaryTagIntermediate = 'qy_dictionary_tag_intermediate';
+  static const String qyDictionaryTagIntermediate =
+      'qy_dictionary_tag_intermediate';
   static const String qyInboxMessageAmazing = 'qy_inbox_message_amazing';
   static const String qyInboxTime0910 = 'qy_inbox_time_0910';
   static const String qyInboxTime2025 = 'qy_inbox_time_2025';

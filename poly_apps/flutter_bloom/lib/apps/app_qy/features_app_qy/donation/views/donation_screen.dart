@@ -14,11 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/donation/domain/model/doantion_model.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/donation/data/donation_data.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
@@ -71,14 +70,16 @@ class DonationScreenView extends StatelessWidget {
                       style: ThemeTextStyles.textBold.copyWith(fontSize: 18),
                     ),
                     InkWell(
-                        onTap: () {
-                          Get.toNamed(QyAppRoutesProvider.routeAlldonation);
-                        },
-                        child: Text(
-                          QyAppLocalizationKeys.qyViewAll.tr(context),
-                          style: ThemeTextStyles.textMedium.copyWith(
-                              color: Theme.of(context).colorScheme.surfaceTint),
-                        ))
+                      onTap: () {
+                        context.push(QyAppRoutesProvider.routeAlldonation);
+                      },
+                      child: Text(
+                        QyAppLocalizationKeys.qyViewAll.tr(context),
+                        style: ThemeTextStyles.textMedium.copyWith(
+                          color: Theme.of(context).colorScheme.surfaceTint,
+                        ),
+                      ),
+                    )
                   ],
                 ),
               ),
@@ -276,12 +277,14 @@ class DonationScreenView extends StatelessWidget {
                                         children: [
                                           Row(children: [
                                             Text(
-                                              "You have donated ",
+                                              QyAppLocalizationKeys
+                                                  .qyDonationNoDonation
+                                                  .tr(context),
                                               style: ThemeTextStyles
                                                   .donationDescription,
                                             ),
                                             Text(
-                                              "${donationModelList[index].donators}",
+                                              donation.donators ?? '',
                                               style: ThemeTextStyles
                                                   .donationAmount
                                                   .copyWith(fontSize: 16),

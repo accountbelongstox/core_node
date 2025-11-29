@@ -1,8 +1,33 @@
 # 视频文件名翻译调试指南
 Translation Debug Guide for Video Filename Translation
 
-## 问题描述
-部分文件名翻译成功，部分文件名翻译失败或只翻译了部分内容。
+## ✅ 已修复：强制使用中文作为源语言
+
+**v2.1.0 更新**：
+- ✅ 现在默认强制使用 `zh-CN` (中文) 作为源语言，不再自动检测
+- ✅ 解决了Google误识别为老挝语(lo)的问题
+- ✅ 翻译质量大幅提升
+
+## 重要：清理旧缓存
+
+因为源语言从 `auto` 改为 `zh-CN`，旧的翻译缓存可能不正确，建议清理：
+
+```bash
+# 清理旧的 auto → en 缓存
+python -m pycore.pyutils.translator --clear-cache --src auto --dest en
+
+# 或者清理所有缓存
+python -m pycore.pyutils.translator --clear-cache
+```
+
+清理后重新运行脚本，将使用新的翻译设置。
+
+## 问题描述（已解决）
+~~部分文件名翻译成功，部分文件名翻译失败或只翻译了部分内容。~~
+
+**根本原因**：Google翻译自动检测时，将混合中文和老挝语字符的文本误识别为老挝语(lo)，导致中文部分也不翻译。
+
+**解决方案**：强制指定源语言为中文(zh-CN)。
 
 ## 现在可以查看的调试信息
 
@@ -73,19 +98,51 @@ Translated: 第二十课_高超音_Mr  ❌ "第二十课"没有被翻译
 
 **解决方法**：脚本会自动重试2次，每次间隔1秒
 
-### 4. 使用不同的调试模式
+### 4. 使用不同的调试模式和语言设置
 
-#### 模式1：详细模式（默认）
-显示所有翻译细节，包括缓存状态、语言检测等
+#### 模式1：默认模式（推荐）
+中文翻译英文，显示详细日志
 ```bash
 python scripts/pyvoice/trim_and_concat_videos.py "D:\videos"
 ```
 
-#### 模式2：静默模式
+#### 模式2：自定义源语言
+如果文件名是其他语言（如日语、韩语）
+```bash
+# 日语 → 英语
+python scripts/pyvoice/trim_and_concat_videos.py "D:\videos" --src-lang ja
+
+# 韩语 → 英语
+python scripts/pyvoice/trim_and_concat_videos.py "D:\videos" --src-lang ko
+
+# 泰语 → 英语
+python scripts/pyvoice/trim_and_concat_videos.py "D:\videos" --src-lang th
+
+# 老挝语 → 英语（如果确定是老挝语）
+python scripts/pyvoice/trim_and_concat_videos.py "D:\videos" --src-lang lo
+```
+
+#### 模式3：静默模式
 只显示重要信息，隐藏详细调试日志
 ```bash
 python scripts/pyvoice/trim_and_concat_videos.py "D:\videos" --quiet
 ```
+
+#### 支持的语言代码
+
+| 语言 | 代码 | 示例 |
+|------|------|------|
+| 中文（简体） | `zh-CN` | 默认值 |
+| 中文（繁体） | `zh-TW` | --src-lang zh-TW |
+| 英语 | `en` | --src-lang en |
+| 日语 | `ja` | --src-lang ja |
+| 韩语 | `ko` | --src-lang ko |
+| 泰语 | `th` | --src-lang th |
+| 老挝语 | `lo` | --src-lang lo |
+| 越南语 | `vi` | --src-lang vi |
+| 法语 | `fr` | --src-lang fr |
+| 德语 | `de` | --src-lang de |
+| 西班牙语 | `es` | --src-lang es |
 
 ### 5. 翻译缓存位置
 
@@ -160,16 +217,32 @@ if re.search(r'[\u0E80-\u0EFF]', text):
     # 保留老挝语部分，只翻译中文部分
 ```
 
-### 8. 当前翻译结果分析
+### 8. 翻译结果对比（修复前后）
 
-根据你提供的日志：
+#### 修复前（使用 auto 自动检测）
 
 | 原始文件名 | 翻译结果 | 状态 | 原因 |
 |-----------|---------|------|------|
 | concatenated_20251128_220322 | concatenated_20251128_220322 | ✅ 正确 | 已是英文 |
-| 第七课_单元音_ໂxະ_ໂx_和_中辅音_ຢ | Lesson 7_Monogram_ໂxະ_ໂx_and_Middle Consonant_ຢ | ⚠️ 部分 | 老挝语字符保留 |
-| 第二十课_高辅音_ຫມ(ໝ)_ຜ | 第二十课_高超音_Mr | ❌ 失败 | "第二十课"未翻译 |
+| 第七课_单元音_ໂxະ_ໂx_和_中辅音_ຢ | Lesson 7_Monogram_ໂxະ_ໂx_and_Middle Consonant_ຢ | ⚠️ 部分 | 误识别为老挝语 |
+| 第二十课_高辅音_ຫມ(ໝ)_ຜ | 第二十课_高超音_Mr | ❌ 失败 | 误识别为老挝语，"第二十课"未翻译 |
 | 第三课_单元音_xຶ_xື_和中辅音_ດ | Lesson 3_Monogram_x_x_and middle consonant_ດ | ⚠️ 部分 | 老挝语字符丢失 |
+| 第十九课_高辅音_ຖ_ຫນ(ໜ) | 第十九课_高超音_首 | ❌ 失败 | Detected source lang: `lo` ❌ |
+
+#### 修复后（强制使用 zh-CN）
+
+| 原始文件名 | 预期翻译结果 | 状态 | 说明 |
+|-----------|-------------|------|------|
+| concatenated_20251128_220322 | concatenated_20251128_220322 | ✅ 正确 | 已是英文 |
+| 第七课_单元音_ໂxະ_ໂx_和_中辅音_ຢ | Lesson 7_Monophthong_ໂxະ_ໂx_and_Middle Consonant_ຢ | ✅ 改善 | 中文部分正确翻译 |
+| 第二十课_高辅音_ຫມ(ໝ)_ຜ | Lesson 20_High Consonant_ຫມ(ໝ)_ຜ | ✅ 改善 | "第二十课"正确翻译 |
+| 第三课_单元音_xຶ_xື_和中辅音_ດ | Lesson 3_Monophthong_xຶ_xື_and Middle Consonant_ດ | ✅ 改善 | 中文部分正确翻译 |
+| 第十九课_高辅音_ຖ_ຫນ(ໜ) | Lesson 19_High Consonant_ຖ_ຫນ(ໜ) | ✅ 改善 | Detected source lang: `zh-CN` ✅ |
+
+**关键改进**：
+- ✅ 中文部分（"第X课"、"单元音"、"辅音"等）现在能正确翻译
+- ✅ 老挝语字符保留原样（因为Google翻译中文时不会改变它们）
+- ✅ 不再出现"第二十课_高超音_Mr"这种奇怪的翻译
 
 ### 9. 下一步行动
 

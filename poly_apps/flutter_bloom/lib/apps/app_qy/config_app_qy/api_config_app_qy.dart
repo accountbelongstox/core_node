@@ -2,19 +2,30 @@ import 'package:qyflutter/common/network/models/api_config.dart';
 import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 
 class ApiConfigAppQy {
-  // Base URL should be http://192.168.50.2:9000/api (not /api/app_qy_v1)
-  // Endpoints already include full path like /api/dict/v1/login or /api/app_qy_v1/ai_tools/tts
+  // Base URL should be http://192.168.50.2:9000 (host:port only, no /api suffix)
+  // Endpoints already include full path segments like /api/dict/v1/login or /api/app_qy_v1/ai_tools/tts
 
   /// Get default base URL from multi-endpoint discovery
-  /// Throws exception if no endpoint is available
+  /// If no endpoint is available, log a warning and return empty string.
+  /// This avoids breaking the app startup flow on web; subsequent network
+  /// calls can handle the missing base URL gracefully.
   static String get defaultBaseUrl {
     final discovery = MultiEndpointDiscovery();
-    final baseUrl = discovery.getAvailableBaseUrl(path: 'api');
+    // Use host:port only; endpoint paths already contain /api/... prefixes.
+    final baseUrl = discovery.getAvailableBaseUrl();
 
     if (baseUrl == null) {
-      throw StateError(
-        'No available API endpoint found. Please check network connection and endpoint configuration.',
+      // Do not throw here – just log and let callers decide how to handle it.
+      // On web, this prevents a hard crash when the backend is temporarily
+      // unavailable or misconfigured.
+      // NOTE: Returning empty string is intentional per architecture requirement.
+      // UI or higher-level services should surface a non-blocking prompt.
+      // ignore: avoid_print
+      print(
+        '[ApiConfigAppQy] No available API endpoint found. '
+        'Please check network connection and endpoint configuration.',
       );
+      return '';
     }
 
     return baseUrl;

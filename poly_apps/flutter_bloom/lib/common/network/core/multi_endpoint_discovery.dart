@@ -131,7 +131,10 @@ class MultiEndpointDiscovery {
     String? healthCheckPath,
     Duration timeout,
   ) async {
-    final healthCheckUrl = healthCheckPath ?? '/api_info';
+    // Default to hitting the base URL directly when healthCheckPath is null/empty.
+    final healthCheckUrl = (healthCheckPath == null || healthCheckPath.isEmpty)
+        ? ''
+        : healthCheckPath;
     final futures = endpoints.map((endpoint) => _checkEndpointHealth(
           endpoint,
           healthCheckUrl,
@@ -139,6 +142,14 @@ class MultiEndpointDiscovery {
         ));
 
     final results = await Future.wait(futures);
+
+    // Always log a detailed health report for debugging
+    _logHealthReport(
+      contextLabel: 'parallel',
+      healthCheckUrl: healthCheckUrl,
+      results: results,
+    );
+
     final healthyEndpoints = <EndpointHealthResult>[];
 
     for (final result in results) {
@@ -172,18 +183,34 @@ class MultiEndpointDiscovery {
     String? healthCheckPath,
     Duration timeout,
   ) async {
-    final healthCheckUrl = healthCheckPath ?? '/api_info';
+    final healthCheckUrl = (healthCheckPath == null || healthCheckPath.isEmpty)
+        ? ''
+        : healthCheckPath;
+    final results = <EndpointHealthResult>[];
 
     for (final endpoint in endpoints) {
       final result =
           await _checkEndpointHealth(endpoint, healthCheckUrl, timeout);
+      results.add(result);
       if (result.isHealthy) {
         _selectedEndpoint = endpoint;
         debugPrint(
             '✅ MultiEndpointDiscovery: Selected endpoint: ${endpoint.id} (${result.responseTime.inMilliseconds}ms)');
+        _logHealthReport(
+          contextLabel: 'sequential',
+          healthCheckUrl: healthCheckUrl,
+          results: results,
+        );
         return endpoint;
       }
     }
+
+    // Log full report when no endpoint is healthy
+    _logHealthReport(
+      contextLabel: 'sequential',
+      healthCheckUrl: healthCheckUrl,
+      results: results,
+    );
 
     debugPrint('⚠️ MultiEndpointDiscovery: No healthy endpoints found');
     return null;
@@ -211,9 +238,9 @@ class MultiEndpointDiscovery {
           .timeout(timeout);
 
       stopwatch.stop();
-      final isHealthy = response.statusCode != null &&
-          response.statusCode! >= 200 &&
-          response.statusCode! < 400;
+      final statusCode = response.statusCode ?? 0;
+      // Treat any 2xx–4xx response as "reachable"; only 5xx and network errors are considered unhealthy.
+      final isHealthy = statusCode >= 200 && statusCode < 500;
 
       final result = EndpointHealthResult(
         endpoint: endpoint,
@@ -257,6 +284,35 @@ class MultiEndpointDiscovery {
   /// Get the best available endpoint URL
   String? getAvailableBaseUrl({String? path}) {
     return _selectedEndpoint?.buildFullUrl(path: path);
+  }
+
+  /// Log a detailed health report for all tested endpoints
+  void _logHealthReport({
+    required String contextLabel,
+    required String healthCheckUrl,
+    required List<EndpointHealthResult> results,
+  }) {
+    if (results.isEmpty) {
+      debugPrint(
+          '🔍 MultiEndpointDiscovery [$contextLabel]: No endpoints were tested.');
+      return;
+    }
+
+    debugPrint(
+        '🔍 MultiEndpointDiscovery [$contextLabel]: Health check report for "$healthCheckUrl":');
+
+    for (final result in results) {
+      final endpoint = result.endpoint;
+      final fullUrl = endpoint.buildFullUrl(path: healthCheckUrl);
+      final status = result.isHealthy ? 'OK' : 'FAIL';
+      final timeMs = result.responseTime.inMilliseconds;
+      final error = result.error ?? '-';
+
+      debugPrint(
+        '  • id=${endpoint.id}, url=$fullUrl, status=$status, '
+        'time=${timeMs}ms, error=$error',
+      );
+    }
   }
 
   /// Reset discovery state
