@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_localization/flutter_localization.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
@@ -23,7 +22,6 @@ class _SettingsScreenV2RefactoredAppQyState
     extends State<SettingsScreenV2RefactoredAppQy>
     with TickerProviderStateMixin {
   late final AnimationController _shimmerController;
-  final FlutterLocalization _localization = FlutterLocalization.instance;
 
   @override
   void initState() {
@@ -32,13 +30,6 @@ class _SettingsScreenV2RefactoredAppQyState
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
-
-    // Listen to language changes to rebuild UI immediately
-    _localization.onTranslatedLanguage = (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SettingsControllerRefactoredAppQy>().initialize();
@@ -138,7 +129,7 @@ class _SettingsScreenV2RefactoredAppQyState
           ),
           const SizedBox(width: ThemeDimensions.spacing8),
           Text(
-            'Settings',
+            QyAppLocalizationKeys.qySettings.tr(context),
             style: ThemeTextStyles.title1.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -188,7 +179,7 @@ class _SettingsScreenV2RefactoredAppQyState
               ),
               const SizedBox(height: ThemeDimensions.spacing16),
               Text(
-                'Login to Unlock More Features',
+                QyAppLocalizationKeys.qyLoginToUnlock.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -293,7 +284,8 @@ class _SettingsScreenV2RefactoredAppQyState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user?.displayName ?? 'Guest',
+                      user?.displayName ??
+                          QyAppLocalizationKeys.qyGuest.tr(context),
                       style: ThemeTextStyles.title3.copyWith(
                         color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
@@ -301,7 +293,8 @@ class _SettingsScreenV2RefactoredAppQyState
                     ),
                     const SizedBox(height: ThemeDimensions.spacing4),
                     Text(
-                      user?.email ?? 'Not logged in',
+                      user?.email ??
+                          QyAppLocalizationKeys.qyNotLoggedIn.tr(context),
                       style: ThemeTextStyles.caption.copyWith(
                         color: ColorsAppQy.qyTextSecondary,
                       ),
@@ -333,7 +326,7 @@ class _SettingsScreenV2RefactoredAppQyState
               left: ThemeDimensions.spacing8,
               bottom: ThemeDimensions.spacing12),
           child: Text(
-            'General Settings',
+            QyAppLocalizationKeys.qySettingsGeneral.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -350,7 +343,7 @@ class _SettingsScreenV2RefactoredAppQyState
           children: [
             _buildBentoCard(
               icon: Icons.language_rounded,
-              title: 'App Language',
+              title: QyAppLocalizationKeys.qySettingsLanguage.tr(context),
               subtitle:
                   _getLanguageDisplayName(controller.languageVoice.appLanguage),
               gradient: ColorsAppQy.qyPrimaryGradient,
@@ -358,7 +351,7 @@ class _SettingsScreenV2RefactoredAppQyState
             ),
             _buildBentoCard(
               icon: Icons.palette_rounded,
-              title: 'Display',
+              title: QyAppLocalizationKeys.qyDisplay.tr(context),
               subtitle: controller.display.themeMode.capitalize(),
               gradient: LinearGradient(
                 colors: [Colors.orange.shade400, Colors.orange.shade600],
@@ -367,8 +360,8 @@ class _SettingsScreenV2RefactoredAppQyState
             ),
             _buildBentoCard(
               icon: Icons.volume_up_rounded,
-              title: 'Audio & Voice',
-              subtitle: 'TTS Settings',
+              title: QyAppLocalizationKeys.qyAudioVoice.tr(context),
+              subtitle: QyAppLocalizationKeys.qyTtsSettings.tr(context),
               gradient: LinearGradient(
                 colors: [Colors.green.shade400, Colors.green.shade600],
               ),
@@ -376,10 +369,10 @@ class _SettingsScreenV2RefactoredAppQyState
             ),
             _buildBentoCard(
               icon: Icons.notifications_rounded,
-              title: 'Notifications',
+              title: QyAppLocalizationKeys.qySettingsNotifications.tr(context),
               subtitle: controller.notification.dailyStudyReminder
-                  ? 'Enabled'
-                  : 'Disabled',
+                  ? QyAppLocalizationKeys.qyEnabled.tr(context)
+                  : QyAppLocalizationKeys.qyDisabled.tr(context),
               gradient: LinearGradient(
                 colors: [Colors.pink.shade400, Colors.pink.shade600],
               ),
@@ -406,7 +399,7 @@ class _SettingsScreenV2RefactoredAppQyState
               left: ThemeDimensions.spacing8,
               bottom: ThemeDimensions.spacing12),
           child: Text(
-            'My Account',
+            QyAppLocalizationKeys.qyMyAccount.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -432,7 +425,8 @@ class _SettingsScreenV2RefactoredAppQyState
                 children: [
                   _buildAccountActionItem(
                     icon: Icons.school_rounded,
-                    title: 'Learning Languages',
+                    title:
+                        QyAppLocalizationKeys.qyLearningLanguages.tr(context),
                     subtitle: learningLanguages
                         .map((e) => e.toUpperCase())
                         .join(', '),
@@ -443,8 +437,10 @@ class _SettingsScreenV2RefactoredAppQyState
                   ),
                   _buildAccountActionItem(
                     icon: Icons.library_books_rounded,
-                    title: 'Vocabulary Collections',
-                    subtitle: 'Manage your word libraries',
+                    title: QyAppLocalizationKeys.qyVocabularyCollections
+                        .tr(context),
+                    subtitle:
+                        QyAppLocalizationKeys.qyManageWordLibraries.tr(context),
                     onTap: () => context.push('/vocabulary-collections'),
                     gradient: LinearGradient(
                       colors: [Colors.blue.shade400, Colors.blue.shade600],
@@ -452,8 +448,9 @@ class _SettingsScreenV2RefactoredAppQyState
                   ),
                   _buildAccountActionItem(
                     icon: Icons.bar_chart_rounded,
-                    title: 'Learning Stats',
-                    subtitle: '${user?.learnedWords ?? 0} words learned',
+                    title: QyAppLocalizationKeys.qyLearningStats.tr(context),
+                    subtitle:
+                        '${user?.learnedWords ?? 0} ${QyAppLocalizationKeys.qyWordsLearned.tr(context)}',
                     onTap: () {},
                     gradient: LinearGradient(
                       colors: [Colors.teal.shade400, Colors.teal.shade600],
@@ -627,7 +624,7 @@ class _SettingsScreenV2RefactoredAppQyState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Quick Settings',
+                QyAppLocalizationKeys.qyQuickSettings.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -636,19 +633,19 @@ class _SettingsScreenV2RefactoredAppQyState
               const SizedBox(height: ThemeDimensions.spacing16),
               _buildToggleItem(
                 icon: Icons.volume_up_rounded,
-                title: 'Auto Play Audio',
+                title: QyAppLocalizationKeys.qyAutoPlayAudio.tr(context),
                 value: controller.languageVoice.autoPlayOnStudy,
                 onChanged: (value) => controller.updateAutoPlayOnStudy(value),
               ),
               _buildToggleItem(
                 icon: Icons.animation_rounded,
-                title: 'Animations',
+                title: QyAppLocalizationKeys.qyAnimations.tr(context),
                 value: controller.display.enableAnimations,
                 onChanged: (value) => controller.updateEnableAnimations(value),
               ),
               _buildToggleItem(
                 icon: Icons.vibration_rounded,
-                title: 'Haptic Feedback',
+                title: QyAppLocalizationKeys.qyHapticFeedback.tr(context),
                 value: controller.display.hapticFeedback,
                 onChanged: (value) => controller.updateHapticFeedback(value),
               ),
@@ -709,7 +706,7 @@ class _SettingsScreenV2RefactoredAppQyState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Data & Storage',
+                QyAppLocalizationKeys.qyDataStorage.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -719,29 +716,31 @@ class _SettingsScreenV2RefactoredAppQyState
               if (isLoggedIn) ...[
                 _buildActionItem(
                   icon: Icons.cloud_sync_rounded,
-                  title: 'Sync Data',
-                  subtitle: 'Last synced: Just now',
+                  title: QyAppLocalizationKeys.qySyncData.tr(context),
+                  subtitle: QyAppLocalizationKeys.qyLastSynced.tr(context),
                   onTap: () {},
                 ),
               ],
               _buildActionItem(
                 icon: Icons.delete_outline_rounded,
-                title: 'Clear Cache',
+                title: QyAppLocalizationKeys.qyClearCache.tr(context),
                 subtitle: '${controller.dataStorage.maxCacheSize} MB',
                 onTap: () {},
               ),
               if (isLoggedIn) ...[
                 _buildActionItem(
                   icon: Icons.file_download_rounded,
-                  title: 'Export Data',
-                  subtitle: 'Backup your learning data',
+                  title: QyAppLocalizationKeys.qyExportData.tr(context),
+                  subtitle:
+                      QyAppLocalizationKeys.qyBackupLearningData.tr(context),
                   onTap: () {},
                 ),
               ],
               _buildActionItem(
                 icon: Icons.refresh_rounded,
-                title: 'Reset Settings',
-                subtitle: 'Restore default settings',
+                title: QyAppLocalizationKeys.qySettingsReset.tr(context),
+                subtitle:
+                    QyAppLocalizationKeys.qyRestoreDefaultSettings.tr(context),
                 onTap: () => _showResetDialog(controller),
                 isDestructive: true,
               ),
@@ -837,7 +836,7 @@ class _SettingsScreenV2RefactoredAppQyState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'About',
+                QyAppLocalizationKeys.qySettingsAbout.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -846,33 +845,33 @@ class _SettingsScreenV2RefactoredAppQyState
               const SizedBox(height: ThemeDimensions.spacing16),
               _buildActionItem(
                 icon: Icons.help_outline_rounded,
-                title: 'Help Center',
-                subtitle: 'FAQs and support',
+                title: QyAppLocalizationKeys.qyHelpCenter.tr(context),
+                subtitle: QyAppLocalizationKeys.qyFaqsSupport.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
-                subtitle: 'How we protect your data',
+                title: QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
+                subtitle: QyAppLocalizationKeys.qyHowWeProtectData.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.description_outlined,
-                title: 'Terms of Service',
-                subtitle: 'Terms and conditions',
+                title: QyAppLocalizationKeys.qyTerms.tr(context),
+                subtitle: QyAppLocalizationKeys.qyTermsConditions.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.info_outline_rounded,
-                title: 'App Version',
+                title: QyAppLocalizationKeys.qyAppVersion.tr(context),
                 subtitle: '1.0.0 (Build 1)',
                 onTap: () {},
               ),
               if (isLoggedIn)
                 _buildActionItem(
                   icon: Icons.logout_rounded,
-                  title: 'Logout',
-                  subtitle: 'Sign out from your account',
+                  title: QyAppLocalizationKeys.qyLogout.tr(context),
+                  subtitle: QyAppLocalizationKeys.qySignOutAccount.tr(context),
                   onTap: () => _handleLogout(authService),
                   isDestructive: true,
                 ),
@@ -898,7 +897,7 @@ class _SettingsScreenV2RefactoredAppQyState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('App Language'),
+        title: Text(QyAppLocalizationKeys.qySettingsLanguage.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: languages.map((lang) {
@@ -959,13 +958,12 @@ class _SettingsScreenV2RefactoredAppQyState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Settings'),
-        content: const Text(
-            'Are you sure you want to reset all settings to defaults?'),
+        title: Text(QyAppLocalizationKeys.qySettingsReset.tr(context)),
+        content: Text(QyAppLocalizationKeys.qyAreYouSureReset.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           TextButton(
             onPressed: () async {
@@ -973,11 +971,15 @@ class _SettingsScreenV2RefactoredAppQyState
               await controller.resetToDefaults();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Settings reset to defaults')),
+                  SnackBar(
+                      content: Text(QyAppLocalizationKeys
+                          .qySettingsResetDefaults
+                          .tr(context))),
                 );
               }
             },
-            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+            child: Text(QyAppLocalizationKeys.qyReset.tr(context),
+                style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

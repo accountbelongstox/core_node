@@ -952,6 +952,11 @@ function updateCodeSyncUI(statusData) {
     // Update server mode stats
     if (mode === 'server' && statusData.server) {
         const server = statusData.server;
+
+        // Calculate total push count across all clients
+        const totalPushCount = (server.clients || []).reduce((sum, client) => sum + (client.push_count || 0), 0);
+
+        document.getElementById('serverPushCount').textContent = totalPushCount;
         document.getElementById('serverTotalFiles').textContent = server.total_files || 0;
         document.getElementById('serverChangedFiles').textContent = server.changed_files || 0;
         document.getElementById('serverClientCount').textContent = server.clients_count || 0;
@@ -992,22 +997,22 @@ function updateClientsTable(clients) {
     const tbody = document.getElementById('clientsTableBody');
 
     if (!clients || clients.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No connected clients</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No connected clients</td></tr>';
         return;
     }
 
     tbody.innerHTML = '';
     clients.forEach(client => {
-        const connectedAt = new Date(client.connected_at).toLocaleString();
         const lastSeen = new Date(client.last_seen).toLocaleString();
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${client.id}">${client.id.substring(0, 20)}...</td>
             <td>${client.ip}</td>
-            <td style="font-size: 12px;">${connectedAt}</td>
-            <td style="font-size: 12px;">${lastSeen}</td>
+            <td>${client.push_count || 0}</td>
+            <td>${client.total_files_pushed || 0}</td>
             <td>${client.synced_files || 0}</td>
+            <td style="font-size: 12px;">${lastSeen}</td>
         `;
         tbody.appendChild(tr);
     });

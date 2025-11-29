@@ -71,6 +71,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCompleted: '已完成',
     QyAppLocalizationKeys.qyPending: '待处理',
     QyAppLocalizationKeys.qyFailed: '失败',
+    QyAppLocalizationKeys.qyEnabled: '已启用',
+    QyAppLocalizationKeys.qyDisabled: '已禁用',
 
     // General exercise/learning
     QyAppLocalizationKeys.qyCorrect: '正确',
@@ -352,6 +354,37 @@ class ZhAppQy {
     QyAppLocalizationKeys.qySettingsAboutInProgress: '关于页面功能开发中...',
     QyAppLocalizationKeys.qySettingsTermsInProgress: '用户协议功能开发中...',
     QyAppLocalizationKeys.qySettingsPrivacyInProgress: '隐私政策功能开发中...',
+    QyAppLocalizationKeys.qySettingsGeneral: '通用设置',
+    QyAppLocalizationKeys.qySettingsLanguage: '应用语言',
+    QyAppLocalizationKeys.qySettingsNotifications: '通知',
+    QyAppLocalizationKeys.qySettingsAbout: '关于',
+    QyAppLocalizationKeys.qyDisplay: '显示',
+    QyAppLocalizationKeys.qyAudioVoice: '音频与语音',
+    QyAppLocalizationKeys.qyTtsSettings: 'TTS 设置',
+    QyAppLocalizationKeys.qyMyAccount: '我的账户',
+    QyAppLocalizationKeys.qyLearningLanguages: '学习语言',
+    QyAppLocalizationKeys.qyVocabularyCollections: '词汇集合',
+    QyAppLocalizationKeys.qyManageWordLibraries: '管理您的词库',
+    QyAppLocalizationKeys.qyLearningStats: '学习统计',
+    QyAppLocalizationKeys.qyWordsLearned: '个已学单词',
+    QyAppLocalizationKeys.qyQuickSettings: '快捷设置',
+    QyAppLocalizationKeys.qyAutoPlayAudio: '自动播放音频',
+    QyAppLocalizationKeys.qyAnimations: '动画',
+    QyAppLocalizationKeys.qyHapticFeedback: '触觉反馈',
+    QyAppLocalizationKeys.qyDataStorage: '数据与存储',
+    QyAppLocalizationKeys.qySyncData: '同步数据',
+    QyAppLocalizationKeys.qyLastSynced: '最后同步：刚刚',
+    QyAppLocalizationKeys.qyClearCache: '清除缓存',
+    QyAppLocalizationKeys.qyExportData: '导出数据',
+    QyAppLocalizationKeys.qyBackupLearningData: '备份您的学习数据',
+    QyAppLocalizationKeys.qyRestoreDefaultSettings: '恢复默认设置',
+    QyAppLocalizationKeys.qyAreYouSureReset: '确定要将所有设置重置为默认值吗？',
+    QyAppLocalizationKeys.qySettingsResetDefaults: '设置已重置为默认值',
+    QyAppLocalizationKeys.qyLoginToUnlock: '登录以解锁更多功能',
+    QyAppLocalizationKeys.qyFaqsSupport: '常见问题与支持',
+    QyAppLocalizationKeys.qyHowWeProtectData: '我们如何保护您的数据',
+    QyAppLocalizationKeys.qyTermsConditions: '条款与条件',
+    QyAppLocalizationKeys.qySignOutAccount: '退出您的账户',
 
     QyAppLocalizationKeys.qySettingsDailyReminder: '每日提醒',
     QyAppLocalizationKeys.qySettingsEnableDailyReminder: '开启每日提醒',
@@ -582,7 +615,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListeningUnlockAfterCurrentLevel: '完成当前等级后解锁',
     QyAppLocalizationKeys.qyListeningDictationHelp: '听写帮助',
     QyAppLocalizationKeys.qyListeningHelpHowToPractice: '如何练习',
-    QyAppLocalizationKeys.qyListeningHelpPracticeSteps: '1. 听单词发音\n2. 输入听到的单词\n3. 检查答案',
+    QyAppLocalizationKeys.qyListeningHelpPracticeSteps:
+        '1. 听单词发音\n2. 输入听到的单词\n3. 检查答案',
     QyAppLocalizationKeys.qyListeningHelpTipsContent: '• 注意发音细节\n• 每日练习效果更佳',
     QyAppLocalizationKeys.qyListeningDailyChallengeInDev: '每日挑战功能开发中...',
     QyAppLocalizationKeys.qyListeningDailyChallenge: '每日挑战',
@@ -994,7 +1028,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyWordBookWordMeticulousMeaning: '一丝不苟、极其细致。',
     QyAppLocalizationKeys.qyWordBookWordMeticulousExample: '她的笔记非常细致，让项目推进更轻松。',
     QyAppLocalizationKeys.qyWordBookWordSerendipityMeaning: '意外的幸运发现，机缘巧合。',
-    QyAppLocalizationKeys.qyWordBookWordSerendipityExample: '他们的成功完全源于一次美好的机缘巧合。',
+    QyAppLocalizationKeys.qyWordBookWordSerendipityExample:
+        '他们的成功完全源于一次美好的机缘巧合。',
     QyAppLocalizationKeys.qyWordVocabulary: '词汇',
 
     // Word Listening AI Explain
@@ -1061,7 +1096,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyPythonModuleWeb: 'Web开发框架',
     QyAppLocalizationKeys.qyPythonModuleWebDesc: 'Django、Flask、FastAPI',
     QyAppLocalizationKeys.qyPythonModuleDataAnalysis: '数据分析与可视化',
-    QyAppLocalizationKeys.qyPythonModuleDataAnalysisDesc: 'NumPy、Pandas、Matplotlib',
+    QyAppLocalizationKeys.qyPythonModuleDataAnalysisDesc:
+        'NumPy、Pandas、Matplotlib',
     QyAppLocalizationKeys.qyPythonModuleML: '机器学习入门',
     QyAppLocalizationKeys.qyPythonModuleMLDesc: 'Scikit-learn、TensorFlow基础',
     QyAppLocalizationKeys.qyPythonModuleProject: '项目实战',
@@ -1131,12 +1167,12 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListeningWordMeticulousMeaning: '一丝不苟的；小心翼翼的',
     QyAppLocalizationKeys.qyListeningWordMeticulousExample:
         'She is meticulous in her research and documentation.',
-    QyAppLocalizationKeys.qyListeningWordSerendipityMeaning:
-        '意外发现珍奇事物的运气；机缘巧合',
+    QyAppLocalizationKeys.qyListeningWordSerendipityMeaning: '意外发现珍奇事物的运气；机缘巧合',
     QyAppLocalizationKeys.qyListeningWordSerendipityExample:
         'It was pure serendipity that led to their discovery.',
     QyAppLocalizationKeys.qyListeningWordSimpleMeaning: '简单的；朴素的',
-    QyAppLocalizationKeys.qyListeningWordSimpleExample: 'The solution is quite simple.',
+    QyAppLocalizationKeys.qyListeningWordSimpleExample:
+        'The solution is quite simple.',
 
     // Course Plan Data
     QyAppLocalizationKeys.qyCoursePlan7DayReadingTitle: '7天英文原版入门计划',
@@ -1242,7 +1278,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCoursePythonDuration: '16周',
     QyAppLocalizationKeys.qyCourseIeltsMasterTitle: 'IELTS 雅思备考大师',
     QyAppLocalizationKeys.qyCourseIeltsMasterSubtitle: '全方位雅思考试辅导课程',
-    QyAppLocalizationKeys.qyCourseIeltsMasterDescription: '专为雅思考试设计的高强度备考课程，涵盖听说读写全面训练',
+    QyAppLocalizationKeys.qyCourseIeltsMasterDescription:
+        '专为雅思考试设计的高强度备考课程，涵盖听说读写全面训练',
     QyAppLocalizationKeys.qyCourseIeltsFeature1: '听说读写四项专项训练',
     QyAppLocalizationKeys.qyCourseIeltsFeature2: '真题演练和模拟考试',
     QyAppLocalizationKeys.qyCourseIeltsFeature3: '名师一对一辅导',
@@ -1257,7 +1294,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCourseIeltsTopic6: '考试技巧与策略',
     QyAppLocalizationKeys.qyCoursePythonMasterTitle: 'Python 编程大师班',
     QyAppLocalizationKeys.qyCoursePythonMasterSubtitle: '从零基础到专业开发者的完整学习路径',
-    QyAppLocalizationKeys.qyCoursePythonMasterDescription: '系统化Python编程学习，涵盖基础语法、Web开发、数据分析、人工智能等核心领域',
+    QyAppLocalizationKeys.qyCoursePythonMasterDescription:
+        '系统化Python编程学习，涵盖基础语法、Web开发、数据分析、人工智能等核心领域',
     QyAppLocalizationKeys.qyCoursePythonFeature1: '项目驱动式学习',
     QyAppLocalizationKeys.qyCoursePythonFeature2: '代码实战练习',
     QyAppLocalizationKeys.qyCoursePythonFeature3: '导师代码review',
@@ -1280,47 +1318,62 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyCourseDifficultyAdvanced: '高级',
     QyAppLocalizationKeys.qyCourseIeltsModuleListeningTitle: '听力训练',
     QyAppLocalizationKeys.qyCourseIeltsModuleListeningSubtitle: '雅思听力专项技能提升',
-    QyAppLocalizationKeys.qyCourseIeltsModuleListeningDescription: '通过大量真题练习，掌握听力技巧和策略',
+    QyAppLocalizationKeys.qyCourseIeltsModuleListeningDescription:
+        '通过大量真题练习，掌握听力技巧和策略',
     QyAppLocalizationKeys.qyCourseIeltsModuleReadingTitle: '阅读理解',
     QyAppLocalizationKeys.qyCourseIeltsModuleReadingSubtitle: '雅思阅读技巧强化',
-    QyAppLocalizationKeys.qyCourseIeltsModuleReadingDescription: '提高阅读速度和理解能力，掌握题型解题技巧',
+    QyAppLocalizationKeys.qyCourseIeltsModuleReadingDescription:
+        '提高阅读速度和理解能力，掌握题型解题技巧',
     QyAppLocalizationKeys.qyCourseIeltsModuleWritingTitle: '写作技巧',
     QyAppLocalizationKeys.qyCourseIeltsModuleWritingSubtitle: '雅思写作结构训练',
-    QyAppLocalizationKeys.qyCourseIeltsModuleWritingDescription: '学习写作结构和表达技巧，提高写作质量',
+    QyAppLocalizationKeys.qyCourseIeltsModuleWritingDescription:
+        '学习写作结构和表达技巧，提高写作质量',
     QyAppLocalizationKeys.qyCourseIeltsModuleSpeakingTitle: '口语表达',
     QyAppLocalizationKeys.qyCourseIeltsModuleSpeakingSubtitle: '雅思口语能力培养',
-    QyAppLocalizationKeys.qyCourseIeltsModuleSpeakingDescription: '提升口语流利度和表达能力，准备口语考试',
+    QyAppLocalizationKeys.qyCourseIeltsModuleSpeakingDescription:
+        '提升口语流利度和表达能力，准备口语考试',
     QyAppLocalizationKeys.qyCoursePythonModuleBasicsTitle: 'Python基础入门',
     QyAppLocalizationKeys.qyCoursePythonModuleBasicsSubtitle: '变量、数据类型、控制流',
-    QyAppLocalizationKeys.qyCoursePythonModuleBasicsDescription: '学习Python基础语法和编程概念',
+    QyAppLocalizationKeys.qyCoursePythonModuleBasicsDescription:
+        '学习Python基础语法和编程概念',
     QyAppLocalizationKeys.qyCoursePythonModuleOOPTitle: '面向对象编程',
     QyAppLocalizationKeys.qyCoursePythonModuleOOPSubtitle: '类、对象、继承、多态',
     QyAppLocalizationKeys.qyCoursePythonModuleOOPDescription: '深入理解面向对象编程思想',
     QyAppLocalizationKeys.qyCoursePythonModuleWebTitle: 'Web开发框架',
-    QyAppLocalizationKeys.qyCoursePythonModuleWebSubtitle: 'Django、Flask、FastAPI',
-    QyAppLocalizationKeys.qyCoursePythonModuleWebDescription: '学习主流Python Web开发框架',
+    QyAppLocalizationKeys.qyCoursePythonModuleWebSubtitle:
+        'Django、Flask、FastAPI',
+    QyAppLocalizationKeys.qyCoursePythonModuleWebDescription:
+        '学习主流Python Web开发框架',
     QyAppLocalizationKeys.qyCoursePythonModuleDataTitle: '数据分析与可视化',
-    QyAppLocalizationKeys.qyCoursePythonModuleDataSubtitle: 'NumPy、Pandas、Matplotlib',
+    QyAppLocalizationKeys.qyCoursePythonModuleDataSubtitle:
+        'NumPy、Pandas、Matplotlib',
     QyAppLocalizationKeys.qyCoursePythonModuleDataDescription: '掌握数据分析工具和可视化技术',
     QyAppLocalizationKeys.qyCoursePythonModuleMLTitle: '机器学习入门',
-    QyAppLocalizationKeys.qyCoursePythonModuleMLSubtitle: 'Scikit-learn、TensorFlow基础',
+    QyAppLocalizationKeys.qyCoursePythonModuleMLSubtitle:
+        'Scikit-learn、TensorFlow基础',
     QyAppLocalizationKeys.qyCoursePythonModuleMLDescription: '进入人工智能和机器学习领域',
     QyAppLocalizationKeys.qyCoursePythonModuleProjectsTitle: '项目实战',
     QyAppLocalizationKeys.qyCoursePythonModuleProjectsSubtitle: '完整项目开发流程',
-    QyAppLocalizationKeys.qyCoursePythonModuleProjectsDescription: '综合运用所学知识完成实际项目',
+    QyAppLocalizationKeys.qyCoursePythonModuleProjectsDescription:
+        '综合运用所学知识完成实际项目',
     QyAppLocalizationKeys.qyCourseIeltsProjectMockTest1Title: '全真模拟测试 #1',
     QyAppLocalizationKeys.qyCourseIeltsProjectMockTest1Subtitle: '完整雅思考试模拟',
-    QyAppLocalizationKeys.qyCourseIeltsProjectMockTest1Description: '按照真实考试时间和流程进行完整模拟',
+    QyAppLocalizationKeys.qyCourseIeltsProjectMockTest1Description:
+        '按照真实考试时间和流程进行完整模拟',
     QyAppLocalizationKeys.qyCourseIeltsProjectSpeakingPracticeTitle: '口语话题练习',
-    QyAppLocalizationKeys.qyCourseIeltsProjectSpeakingPracticeSubtitle: '常见口语话题准备',
-    QyAppLocalizationKeys.qyCourseIeltsProjectSpeakingPracticeDescription: '针对高频口语话题进行练习和准备',
+    QyAppLocalizationKeys.qyCourseIeltsProjectSpeakingPracticeSubtitle:
+        '常见口语话题准备',
+    QyAppLocalizationKeys.qyCourseIeltsProjectSpeakingPracticeDescription:
+        '针对高频口语话题进行练习和准备',
     QyAppLocalizationKeys.qyCourseMockTest: '模拟测试',
     QyAppLocalizationKeys.qyCourseSpeakingPractice: '口语练习',
     QyAppLocalizationKeys.qyPythonProjectTodoApp: '待办事项应用',
     QyAppLocalizationKeys.qyPythonProjectTodoAppDesc: '使用Flask构建的Web应用',
-    QyAppLocalizationKeys.qyPythonProjectTodoAppDescription: '创建一个功能完整的待办事项管理应用',
+    QyAppLocalizationKeys.qyPythonProjectTodoAppDescription:
+        '创建一个功能完整的待办事项管理应用',
     QyAppLocalizationKeys.qyPythonProjectDataViz: '数据可视化仪表板',
-    QyAppLocalizationKeys.qyPythonProjectDataVizDesc: '使用Pandas和Matplotlib分析销售数据',
+    QyAppLocalizationKeys.qyPythonProjectDataVizDesc:
+        '使用Pandas和Matplotlib分析销售数据',
     QyAppLocalizationKeys.qyPythonProjectDataVizDescription: '构建交互式数据分析仪表板',
     QyAppLocalizationKeys.qyPythonProjectWebScraper: 'Web爬虫工具',
     QyAppLocalizationKeys.qyPythonProjectWebScraperDesc: '爬取电商网站数据并进行分析',

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/settings_model_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/settings_service_app_qy.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsControllerRefactoredAppQy extends ChangeNotifier {
   final SettingsServiceAppQy _service;
@@ -58,16 +59,20 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
       if (success) {
         final previousLanguage = _settings.languageVoice.appLanguage;
         _settings.updateLanguageVoice(newSettings);
-        
+
         // If language changed, update FlutterLocalization and notify
         if (newSettings.appLanguage != previousLanguage) {
           _localization.translate(newSettings.appLanguage);
-          
+
+          // Update AppLocale cache for immediate translation updates
+          AppLocale.updateCurrentLanguage(newSettings.appLanguage);
+
           // Sync with common SettingsController for immediate UI refresh
           if (_commonSettingsController != null) {
-            await _commonSettingsController!.changeLanguage(newSettings.appLanguage);
+            await _commonSettingsController!
+                .changeLanguage(newSettings.appLanguage);
           }
-          
+
           // Notify listeners to rebuild UI immediately
           notifyListeners();
         }
@@ -191,12 +196,15 @@ class SettingsControllerRefactoredAppQy extends ChangeNotifier {
 
     if (success) {
       _localization.translate(language);
-      
+
+      // Update AppLocale cache for immediate translation updates
+      AppLocale.updateCurrentLanguage(language);
+
       // Sync with common SettingsController for immediate UI refresh
       if (_commonSettingsController != null) {
         await _commonSettingsController!.changeLanguage(language);
       }
-      
+
       // Notify listeners to rebuild UI immediately
       // This ensures the settings page and all Consumer widgets rebuild
       notifyListeners();
