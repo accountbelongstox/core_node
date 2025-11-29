@@ -533,6 +533,9 @@ function setupEventListeners() {
         // Update display based on selected mode
         updateCodeSyncPanelVisibility(e.target.value);
     });
+
+    // Backup toggle
+    document.getElementById('enableBackup')?.addEventListener('change', toggleBackup);
 }
 
 // ========== Quick Add Functions ==========
@@ -927,6 +930,27 @@ async function stopCodeSync() {
     }
 }
 
+async function toggleBackup(event) {
+    const enabled = event.target.checked;
+    console.log('[Code Sync] Backup toggle:', enabled ? 'Enabled' : 'Disabled');
+
+    try {
+        const data = await api.toggleBackup(enabled);
+
+        if (data.success) {
+            dialog.success(`Backup ${enabled ? 'enabled' : 'disabled'}`);
+        } else {
+            // Revert checkbox on error
+            event.target.checked = !enabled;
+            dialog.error('Failed to toggle backup setting');
+        }
+    } catch (error) {
+        console.error('[Code Sync] Backup toggle error:', error);
+        event.target.checked = !enabled;
+        dialog.error(`Error toggling backup: ${error.message}`);
+    }
+}
+
 async function refreshCodeSyncStatus() {
     try {
         const data = await api.getCodeSyncStatus();
@@ -952,6 +976,17 @@ function updateCodeSyncUI(statusData) {
     // Update server mode stats
     if (mode === 'server' && statusData.server) {
         const server = statusData.server;
+
+        // Display running status, root_dir, and timezone
+        document.getElementById('syncRunning').textContent = server.running ? 'Yes' : 'No';
+        document.getElementById('syncRootDir').textContent = server.root_dir || '-';
+        const serverTz = server.timezone_offset ? `${server.timezone} (${server.timezone_offset})` : (server.timezone || '-');
+        document.getElementById('syncTimezone').textContent = serverTz;
+
+        // Calculate total push count across all clients
+        const totalPushCount = (server.clients || []).reduce((sum, client) => sum + (client.push_count || 0), 0);
+
+        document.getElementById('serverPushCount').textContent = totalPushCount;
         document.getElementById('serverTotalFiles').textContent = server.total_files || 0;
         document.getElementById('serverChangedFiles').textContent = server.changed_files || 0;
         document.getElementById('serverClientCount').textContent = server.clients_count || 0;
@@ -963,11 +998,29 @@ function updateCodeSyncUI(statusData) {
     // Update client mode stats
     if (mode === 'client' && statusData.client) {
         const client = statusData.client;
+
+        // Display running status, root_dir, and timezone
+        document.getElementById('syncRunning').textContent = client.running ? 'Yes' : 'No';
+        document.getElementById('syncRootDir').textContent = client.root_dir || '-';
+        const clientTz = client.timezone_offset ? `${client.timezone} (${client.timezone_offset})` : (client.timezone || '-');
+        document.getElementById('syncTimezone').textContent = clientTz;
+
+        document.getElementById('clientReceivedCount').textContent = client.received_count || 0;
+        document.getElementById('clientSkippedCount').textContent = client.skipped_count || 0;
         document.getElementById('clientReceivedFiles').textContent = client.received_files_count || 0;
         document.getElementById('clientConnected').textContent = client.connected ? 'Yes' : 'No';
         document.getElementById('serverHost').textContent = client.server_host || '-';
         document.getElementById('serverPort').textContent = client.server_port || '-';
         document.getElementById('clientId').textContent = client.client_id || '-';
+
+        // Update backup checkbox
+        const backupCheckbox = document.getElementById('enableBackup');
+        if (backupCheckbox) {
+            backupCheckbox.checked = client.enable_backup || false;
+        }
+
+        // Update sync logs
+        updateSyncLogs(client.logs || []);
     }
 }
 
@@ -992,25 +1045,68 @@ function updateClientsTable(clients) {
     const tbody = document.getElementById('clientsTableBody');
 
     if (!clients || clients.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No connected clients</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No connected clients</td></tr>';
         return;
     }
 
     tbody.innerHTML = '';
     clients.forEach(client => {
-        const connectedAt = new Date(client.connected_at).toLocaleString();
         const lastSeen = new Date(client.last_seen).toLocaleString();
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${client.id}">${client.id.substring(0, 20)}...</td>
             <td>${client.ip}</td>
-            <td style="font-size: 12px;">${connectedAt}</td>
+            <td>${client.push_count || 0}</td>
+            <td>${client.total_files_pushed || 0}</td>
+            <td>${client.received_count || 0}</td>
+            <td>${client.skipped_count || 0}</td>
             <td style="font-size: 12px;">${lastSeen}</td>
-            <td>${client.synced_files || 0}</td>
         `;
         tbody.appendChild(tr);
     });
+}
+
+function updateSyncLogs(logs) {
+    const container = document.getElementById('syncLogsContainer');
+
+    if (!logs || logs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No sync activity yet</div>';
+        return;
+    }
+
+    // Define color mapping for actions
+    const actionColors = {
+        'received': '#4CAF50',
+        'skipped': '#2196F3',
+        'backup': '#FF9800',
+        'error': '#F44336'
+    };
+
+    // Reverse logs to show newest first
+    const reversedLogs = [...logs].reverse();
+
+    container.innerHTML = reversedLogs.map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleTimeString();
+        const color = actionColors[log.action] || '#666';
+
+        return `
+            <div style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 3px;">
+                    <span style="color: ${color}; font-weight: bold;">[${log.action.toUpperCase()}]</span>
+                    <span style="opacity: 0.7;">${timestamp}</span>
+                </div>
+                <div style="margin-left: 10px; color: #333;">
+                    <div style="font-weight: 500;">${log.file}</div>
+                    <div style="opacity: 0.8; font-size: 11px;">${log.reason}</div>
+                    ${log.details ? `<div style="opacity: 0.6; font-size: 10px; margin-top: 2px;">${log.details}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Auto-scroll to top (newest)
+    container.scrollTop = 0;
 }
 
 // ========== RPC Connection Events ==========

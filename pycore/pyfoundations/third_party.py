@@ -116,7 +116,7 @@ DEPENDENCY_MAP = {
 
     # For document processing
     "pypdf": "pypdf",
-    "pdfplumber": "pdfplumber",
+    "pdfplumber": "pdfplumber", 
     "docx": "python-docx",
     "openpyxl": "openpyxl",
     "pptx": "python-pptx",

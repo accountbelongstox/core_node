@@ -14,10 +14,12 @@ class SettingsScreenV2RefactoredAppQy extends StatefulWidget {
   const SettingsScreenV2RefactoredAppQy({super.key});
 
   @override
-  State<SettingsScreenV2RefactoredAppQy> createState() => _SettingsScreenV2RefactoredAppQyState();
+  State<SettingsScreenV2RefactoredAppQy> createState() =>
+      _SettingsScreenV2RefactoredAppQyState();
 }
 
-class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2RefactoredAppQy>
+class _SettingsScreenV2RefactoredAppQyState
+    extends State<SettingsScreenV2RefactoredAppQy>
     with TickerProviderStateMixin {
   late final AnimationController _shimmerController;
 
@@ -59,13 +61,15 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                       if (controller.isLoading) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                ColorsAppQy.qyPrimary),
                           ),
                         );
                       }
 
                       return ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: ThemeDimensions.spacing16),
                         children: [
                           if (isLoggedIn) ...[
                             _buildUserSection(authService),
@@ -105,7 +109,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
-            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
           ),
         );
       },
@@ -118,12 +123,13 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+            icon:
+                const Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
             onPressed: () => context.pop(),
           ),
           const SizedBox(width: ThemeDimensions.spacing8),
           Text(
-            'Settings',
+            QyAppLocalizationKeys.qySettings.tr(context),
             style: ThemeTextStyles.title1.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -173,7 +179,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               ),
               const SizedBox(height: ThemeDimensions.spacing16),
               Text(
-                'Login to Unlock More Features',
+                QyAppLocalizationKeys.qyLoginToUnlock.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -193,13 +199,16 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => context.go('/login'),
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusFull),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: ThemeDimensions.spacing14),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: ThemeDimensions.spacing14),
                     decoration: BoxDecoration(
                       gradient: ColorsAppQy.qyPrimaryGradient,
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusFull),
                       boxShadow: [
                         BoxShadow(
                           color: ColorsAppQy.qyPrimary.withOpacity(0.4),
@@ -275,7 +284,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user?.displayName ?? 'Guest',
+                      user?.displayName ??
+                          QyAppLocalizationKeys.qyGuest.tr(context),
                       style: ThemeTextStyles.title3.copyWith(
                         color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
@@ -283,7 +293,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                     ),
                     const SizedBox(height: ThemeDimensions.spacing4),
                     Text(
-                      user?.email ?? 'Not logged in',
+                      user?.email ??
+                          QyAppLocalizationKeys.qyNotLoggedIn.tr(context),
                       style: ThemeTextStyles.caption.copyWith(
                         color: ColorsAppQy.qyTextSecondary,
                       ),
@@ -292,7 +303,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_rounded, color: ColorsAppQy.qyPrimary),
+                icon: const Icon(Icons.edit_rounded,
+                    color: ColorsAppQy.qyPrimary),
                 onPressed: () {},
               ),
             ],
@@ -310,9 +322,11 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: ThemeDimensions.spacing8, bottom: ThemeDimensions.spacing12),
+          padding: const EdgeInsets.only(
+              left: ThemeDimensions.spacing8,
+              bottom: ThemeDimensions.spacing12),
           child: Text(
-            'General Settings',
+            QyAppLocalizationKeys.qySettingsGeneral.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -329,24 +343,25 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
           children: [
             _buildBentoCard(
               icon: Icons.language_rounded,
-              title: 'App Language',
-              subtitle: _getLanguageDisplayName(controller.languageVoice.appLanguage),
+              title: QyAppLocalizationKeys.qySettingsLanguage.tr(context),
+              subtitle:
+                  _getLanguageDisplayName(controller.languageVoice.appLanguage),
               gradient: ColorsAppQy.qyPrimaryGradient,
               onTap: () => _showAppLanguageDialog(controller),
             ),
             _buildBentoCard(
               icon: Icons.palette_rounded,
-              title: 'Display',
+              title: QyAppLocalizationKeys.qyDisplay.tr(context),
               subtitle: controller.display.themeMode.capitalize(),
               gradient: LinearGradient(
                 colors: [Colors.orange.shade400, Colors.orange.shade600],
               ),
-              onTap: () {},
+              onTap: () => _showThemeModeDialog(controller),
             ),
             _buildBentoCard(
               icon: Icons.volume_up_rounded,
-              title: 'Audio & Voice',
-              subtitle: 'TTS Settings',
+              title: QyAppLocalizationKeys.qyAudioVoice.tr(context),
+              subtitle: QyAppLocalizationKeys.qyTtsSettings.tr(context),
               gradient: LinearGradient(
                 colors: [Colors.green.shade400, Colors.green.shade600],
               ),
@@ -354,8 +369,10 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             ),
             _buildBentoCard(
               icon: Icons.notifications_rounded,
-              title: 'Notifications',
-              subtitle: controller.notification.dailyStudyReminder ? 'Enabled' : 'Disabled',
+              title: QyAppLocalizationKeys.qySettingsNotifications.tr(context),
+              subtitle: controller.notification.dailyStudyReminder
+                  ? QyAppLocalizationKeys.qyEnabled.tr(context)
+                  : QyAppLocalizationKeys.qyDisabled.tr(context),
               gradient: LinearGradient(
                 colors: [Colors.pink.shade400, Colors.pink.shade600],
               ),
@@ -378,9 +395,11 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: ThemeDimensions.spacing8, bottom: ThemeDimensions.spacing12),
+          padding: const EdgeInsets.only(
+              left: ThemeDimensions.spacing8,
+              bottom: ThemeDimensions.spacing12),
           child: Text(
-            'My Account',
+            QyAppLocalizationKeys.qyMyAccount.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               color: ColorsAppQy.qyTextPrimary,
               fontWeight: FontWeight.bold,
@@ -395,7 +414,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               padding: const EdgeInsets.all(ThemeDimensions.spacing16),
               decoration: BoxDecoration(
                 gradient: ColorsAppQy.qyFrostedGlassGradient,
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.2),
                   width: 1.5,
@@ -405,8 +425,11 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                 children: [
                   _buildAccountActionItem(
                     icon: Icons.school_rounded,
-                    title: 'Learning Languages',
-                    subtitle: learningLanguages.map((e) => e.toUpperCase()).join(', '),
+                    title:
+                        QyAppLocalizationKeys.qyLearningLanguages.tr(context),
+                    subtitle: learningLanguages
+                        .map((e) => e.toUpperCase())
+                        .join(', '),
                     onTap: () => context.push('/learning-languages'),
                     gradient: LinearGradient(
                       colors: [Colors.purple.shade400, Colors.purple.shade600],
@@ -414,8 +437,10 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   ),
                   _buildAccountActionItem(
                     icon: Icons.library_books_rounded,
-                    title: 'Vocabulary Collections',
-                    subtitle: 'Manage your word libraries',
+                    title: QyAppLocalizationKeys.qyVocabularyCollections
+                        .tr(context),
+                    subtitle:
+                        QyAppLocalizationKeys.qyManageWordLibraries.tr(context),
                     onTap: () => context.push('/vocabulary-collections'),
                     gradient: LinearGradient(
                       colors: [Colors.blue.shade400, Colors.blue.shade600],
@@ -423,8 +448,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   ),
                   _buildAccountActionItem(
                     icon: Icons.bar_chart_rounded,
-                    title: 'Learning Stats',
-                    subtitle: '${user?.learnedWords ?? 0} words learned',
+                    title: QyAppLocalizationKeys.qyLearningStats.tr(context),
+                    subtitle:
+                        '${user?.learnedWords ?? 0} ${QyAppLocalizationKeys.qyWordsLearned.tr(context)}',
                     onTap: () {},
                     gradient: LinearGradient(
                       colors: [Colors.teal.shade400, Colors.teal.shade600],
@@ -459,7 +485,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               padding: const EdgeInsets.all(ThemeDimensions.spacing16),
               decoration: BoxDecoration(
                 gradient: ColorsAppQy.qyFrostedGlassGradient,
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.2),
                   width: 1.5,
@@ -473,7 +500,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                     height: 48,
                     decoration: BoxDecoration(
                       gradient: gradient,
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.2),
@@ -537,7 +565,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
                   height: 40,
                   decoration: BoxDecoration(
                     gradient: gradient,
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusSmall),
                   ),
                   child: Icon(icon, color: Colors.white, size: 20),
                 ),
@@ -595,7 +624,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Quick Settings',
+                QyAppLocalizationKeys.qyQuickSettings.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -604,19 +633,19 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               const SizedBox(height: ThemeDimensions.spacing16),
               _buildToggleItem(
                 icon: Icons.volume_up_rounded,
-                title: 'Auto Play Audio',
+                title: QyAppLocalizationKeys.qyAutoPlayAudio.tr(context),
                 value: controller.languageVoice.autoPlayOnStudy,
                 onChanged: (value) => controller.updateAutoPlayOnStudy(value),
               ),
               _buildToggleItem(
                 icon: Icons.animation_rounded,
-                title: 'Animations',
+                title: QyAppLocalizationKeys.qyAnimations.tr(context),
                 value: controller.display.enableAnimations,
                 onChanged: (value) => controller.updateEnableAnimations(value),
               ),
               _buildToggleItem(
                 icon: Icons.vibration_rounded,
-                title: 'Haptic Feedback',
+                title: QyAppLocalizationKeys.qyHapticFeedback.tr(context),
                 value: controller.display.hapticFeedback,
                 onChanged: (value) => controller.updateHapticFeedback(value),
               ),
@@ -657,7 +686,8 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
     );
   }
 
-  Widget _buildDataSection(SettingsControllerRefactoredAppQy controller, bool isLoggedIn) {
+  Widget _buildDataSection(
+      SettingsControllerRefactoredAppQy controller, bool isLoggedIn) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
       child: BackdropFilter(
@@ -676,7 +706,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Data & Storage',
+                QyAppLocalizationKeys.qyDataStorage.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -686,29 +716,31 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               if (isLoggedIn) ...[
                 _buildActionItem(
                   icon: Icons.cloud_sync_rounded,
-                  title: 'Sync Data',
-                  subtitle: 'Last synced: Just now',
+                  title: QyAppLocalizationKeys.qySyncData.tr(context),
+                  subtitle: QyAppLocalizationKeys.qyLastSynced.tr(context),
                   onTap: () {},
                 ),
               ],
               _buildActionItem(
                 icon: Icons.delete_outline_rounded,
-                title: 'Clear Cache',
+                title: QyAppLocalizationKeys.qyClearCache.tr(context),
                 subtitle: '${controller.dataStorage.maxCacheSize} MB',
                 onTap: () {},
               ),
               if (isLoggedIn) ...[
                 _buildActionItem(
                   icon: Icons.file_download_rounded,
-                  title: 'Export Data',
-                  subtitle: 'Backup your learning data',
+                  title: QyAppLocalizationKeys.qyExportData.tr(context),
+                  subtitle:
+                      QyAppLocalizationKeys.qyBackupLearningData.tr(context),
                   onTap: () {},
                 ),
               ],
               _buildActionItem(
                 icon: Icons.refresh_rounded,
-                title: 'Reset Settings',
-                subtitle: 'Restore default settings',
+                title: QyAppLocalizationKeys.qySettingsReset.tr(context),
+                subtitle:
+                    QyAppLocalizationKeys.qyRestoreDefaultSettings.tr(context),
                 onTap: () => _showResetDialog(controller),
                 isDestructive: true,
               ),
@@ -743,7 +775,9 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               children: [
                 Icon(
                   icon,
-                  color: isDestructive ? Colors.red.shade400 : ColorsAppQy.qyPrimary,
+                  color: isDestructive
+                      ? Colors.red.shade400
+                      : ColorsAppQy.qyPrimary,
                   size: 20,
                 ),
                 const SizedBox(width: ThemeDimensions.spacing12),
@@ -802,7 +836,7 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'About',
+                QyAppLocalizationKeys.qySettingsAbout.tr(context),
                 style: ThemeTextStyles.title3.copyWith(
                   color: ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
@@ -811,33 +845,33 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               const SizedBox(height: ThemeDimensions.spacing16),
               _buildActionItem(
                 icon: Icons.help_outline_rounded,
-                title: 'Help Center',
-                subtitle: 'FAQs and support',
+                title: QyAppLocalizationKeys.qyHelpCenter.tr(context),
+                subtitle: QyAppLocalizationKeys.qyFaqsSupport.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
-                subtitle: 'How we protect your data',
+                title: QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
+                subtitle: QyAppLocalizationKeys.qyHowWeProtectData.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.description_outlined,
-                title: 'Terms of Service',
-                subtitle: 'Terms and conditions',
+                title: QyAppLocalizationKeys.qyTerms.tr(context),
+                subtitle: QyAppLocalizationKeys.qyTermsConditions.tr(context),
                 onTap: () {},
               ),
               _buildActionItem(
                 icon: Icons.info_outline_rounded,
-                title: 'App Version',
+                title: QyAppLocalizationKeys.qyAppVersion.tr(context),
                 subtitle: '1.0.0 (Build 1)',
                 onTap: () {},
               ),
               if (isLoggedIn)
                 _buildActionItem(
                   icon: Icons.logout_rounded,
-                  title: 'Logout',
-                  subtitle: 'Sign out from your account',
+                  title: QyAppLocalizationKeys.qyLogout.tr(context),
+                  subtitle: QyAppLocalizationKeys.qySignOutAccount.tr(context),
                   onTap: () => _handleLogout(authService),
                   isDestructive: true,
                 ),
@@ -850,23 +884,65 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
 
   void _showAppLanguageDialog(SettingsControllerRefactoredAppQy controller) {
     final languages = [
-      {'code': QyAppLocalizationKeys.qyLanguageCodeZh, 'nameKey': QyAppLocalizationKeys.qyLanguageChinese},
-      {'code': QyAppLocalizationKeys.qyLanguageCodeEn, 'nameKey': QyAppLocalizationKeys.qyLanguageEnglish},
+      {
+        'code': QyAppLocalizationKeys.qyLanguageCodeZh,
+        'nameKey': QyAppLocalizationKeys.qyLanguageChinese
+      },
+      {
+        'code': QyAppLocalizationKeys.qyLanguageCodeEn,
+        'nameKey': QyAppLocalizationKeys.qyLanguageEnglish
+      },
     ];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('App Language'),
+        title: Text(QyAppLocalizationKeys.qySettingsLanguage.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: languages.map((lang) {
-            final isSelected = controller.languageVoice.appLanguage == lang['code'];
+            final isSelected =
+                controller.languageVoice.appLanguage == lang['code'];
             return ListTile(
               title: Text((lang['nameKey'] as String).tr(context)),
-              trailing: isSelected ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary) : null,
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary)
+                  : null,
               onTap: () async {
                 await controller.updateAppLanguage(lang['code']!);
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showThemeModeDialog(SettingsControllerRefactoredAppQy controller) {
+    final themeModes = [
+      {'value': 'light', 'nameKey': QyAppLocalizationKeys.qyLightMode},
+      {'value': 'dark', 'nameKey': QyAppLocalizationKeys.qyDarkMode},
+      {'value': 'auto', 'nameKey': QyAppLocalizationKeys.qySettingsThemeAuto},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(QyAppLocalizationKeys.qySettingsTheme.tr(context)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: themeModes.map((theme) {
+            final isSelected = controller.display.themeMode == theme['value'];
+            return ListTile(
+              title: Text((theme['nameKey'] as String).tr(context)),
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: ColorsAppQy.qyPrimary)
+                  : null,
+              onTap: () async {
+                await controller.updateThemeMode(theme['value']!);
                 if (mounted) {
                   Navigator.pop(context);
                 }
@@ -882,12 +958,12 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Settings'),
-        content: const Text('Are you sure you want to reset all settings to defaults?'),
+        title: Text(QyAppLocalizationKeys.qySettingsReset.tr(context)),
+        content: Text(QyAppLocalizationKeys.qyAreYouSureReset.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           TextButton(
             onPressed: () async {
@@ -895,11 +971,15 @@ class _SettingsScreenV2RefactoredAppQyState extends State<SettingsScreenV2Refact
               await controller.resetToDefaults();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Settings reset to defaults')),
+                  SnackBar(
+                      content: Text(QyAppLocalizationKeys
+                          .qySettingsResetDefaults
+                          .tr(context))),
                 );
               }
             },
-            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+            child: Text(QyAppLocalizationKeys.qyReset.tr(context),
+                style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

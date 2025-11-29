@@ -3,22 +3,35 @@
 
 class VoiceSubtitleAPI {
     constructor(config) {
-        this.baseUrl = config.SERVER.BASE_URL;
+        this.config = config;
         this.endpoints = config.API;
+        this.localBaseUrl = config.SERVER.BASE_URL;  // Always localhost for local services
+    }
+
+    // ========== Base URL Management ==========
+
+    getBaseUrl() {
+        return this.config.getBaseUrl();
+    }
+
+    getFullUrl(endpoint, forceLocal = false) {
+        const baseUrl = forceLocal ? this.localBaseUrl : this.getBaseUrl();
+        const apiPrefix = forceLocal ? '' : this.config.getApiPrefix();
+        return `${baseUrl}${apiPrefix}${endpoint}`;
     }
 
     // ========== Generic Request Methods ==========
 
-    async get(endpoint, params = {}) {
-        const url = new URL(this.baseUrl + endpoint);
+    async get(endpoint, params = {}, forceLocal = false) {
+        const url = new URL(this.getFullUrl(endpoint, forceLocal));
         Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
         const response = await fetch(url);
         return await response.json();
     }
 
-    async post(endpoint, body = {}) {
-        const response = await fetch(this.baseUrl + endpoint, {
+    async post(endpoint, body = {}, forceLocal = false) {
+        const response = await fetch(this.getFullUrl(endpoint, forceLocal), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
@@ -26,12 +39,22 @@ class VoiceSubtitleAPI {
         return await response.json();
     }
 
-    async postFormData(endpoint, formData) {
-        const response = await fetch(this.baseUrl + endpoint, {
+    async postFormData(endpoint, formData, forceLocal = false) {
+        const response = await fetch(this.getFullUrl(endpoint, forceLocal), {
             method: 'POST',
             body: formData
         });
         return await response.json();
+    }
+
+    // ========== Service Discovery ==========
+
+    async ping() {
+        try {
+            return await this.get(this.endpoints.PING);
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     }
 
     // ========== Queue Management ==========
@@ -111,36 +134,38 @@ class VoiceSubtitleAPI {
         return await this.postFormData(this.endpoints.FILE_UPLOAD, formData);
     }
 
-    // ========== Background Services ==========
+    // ========== Background Services (Always Local) ==========
 
     async startClipboardMonitor() {
-        return await this.post(this.endpoints.CLIPBOARD_START);
+        return await this.post(this.endpoints.CLIPBOARD_START, {}, true);  // Force local
     }
 
     async stopClipboardMonitor() {
-        return await this.post(this.endpoints.CLIPBOARD_STOP);
+        return await this.post(this.endpoints.CLIPBOARD_STOP, {}, true);  // Force local
     }
 
     async getClipboardStatus() {
-        return await this.get(this.endpoints.CLIPBOARD_STATUS);
+        return await this.get(this.endpoints.CLIPBOARD_STATUS, {}, true);  // Force local
     }
 
     async startScreenshotMonitor(interval) {
-        return await this.post(this.endpoints.SCREENSHOT_START, { interval });
+        return await this.post(this.endpoints.SCREENSHOT_START, { interval }, true);  // Force local
     }
 
     async stopScreenshotMonitor() {
-        return await this.post(this.endpoints.SCREENSHOT_STOP);
+        return await this.post(this.endpoints.SCREENSHOT_STOP, {}, true);  // Force local
     }
 
     async getScreenshotStatus() {
-        return await this.get(this.endpoints.SCREENSHOT_STATUS);
+        return await this.get(this.endpoints.SCREENSHOT_STATUS, {}, true);  // Force local
     }
 
     // ========== Audio URL ==========
 
     getAudioUrl(audioPath) {
-        return `${this.baseUrl}${this.endpoints.AUDIO}?path=${encodeURIComponent(audioPath)}`;
+        const baseUrl = this.getBaseUrl();
+        const apiPrefix = this.config.getApiPrefix();
+        return `${baseUrl}${apiPrefix}${this.endpoints.AUDIO}?path=${encodeURIComponent(audioPath)}`;
     }
 
     // ========== Code Sync ==========
@@ -160,4 +185,52 @@ class VoiceSubtitleAPI {
     async stopCodeSync() {
         return await this.post(this.endpoints.CODE_SYNC_STOP);
     }
+
+    async toggleBackup(enabled) {
+        return await this.post(this.endpoints.CODE_SYNC_TOGGLE_BACKUP, { enabled });
+    }
+
+    // ========== Task Management (Async Operations) ==========
+
+    async getTaskStatus(taskId) {
+        const endpoint = this.endpoints.TASK_STATUS.replace('{task_id}', taskId);
+        return await this.get(endpoint);
+    }
+
+    async getAllTasks(limit = 50) {
+        return await this.get(this.endpoints.TASKS, { limit });
+    }
+
+    async pollTask(taskId, onProgress, interval = 1000) {
+        return new Promise((resolve, reject) => {
+            const poll = setInterval(async () => {
+                try {
+                    const task = await this.getTaskStatus(taskId);
+
+                    if (onProgress) {
+                        onProgress(task);
+                    }
+
+                    if (task.status === 'completed') {
+                        clearInterval(poll);
+                        resolve(task.result);
+                    } else if (task.status === 'failed') {
+                        clearInterval(poll);
+                        reject(new Error(task.error || 'Task failed'));
+                    }
+                } catch (e) {
+                    clearInterval(poll);
+                    reject(e);
+                }
+            }, interval);
+
+            // Timeout after 60 seconds
+            setTimeout(() => {
+                clearInterval(poll);
+                reject(new Error('Task polling timeout'));
+            }, 60000);
+        });
+    }
 }
+
+

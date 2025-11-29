@@ -47,12 +47,18 @@ class LocalSecretManager:
                 content = target_file.read_text(encoding='utf-8').strip()
                 if content:
                     return content
+                # If file exists but is empty, return None
+                return None
             except UnicodeDecodeError:
+                # File is corrupted, replace with empty file instead of deleting
                 try:
-                    target_file.unlink()
-                    ColorMessage.write(f'Corrupted secret file removed: {key_name}', 'warning')
+                    target_file.write_text('', encoding='utf-8')
                 except OSError:
-                    pass
+                    # If we can't write, try to delete
+                    try:
+                        target_file.unlink()
+                    except OSError:
+                        pass
                 return None
             except OSError:
                 return None
@@ -164,25 +170,46 @@ class LocalSecretManager:
 
 LOCAL_SECRET_MANAGER = LocalSecretManager()
 
+# Track pyfoundations availability to avoid repeated error messages
+_pyfoundations_available = None
+_pyfoundations_error_logged = False
+
 
 def resolve_secret_value(secret_key_name):
     """Load a secret value using pyfoundations or the local fallback"""
+    global _pyfoundations_available, _pyfoundations_error_logged
+    
     if not secret_key_name:
         return None
 
     value = None
 
-    try:
-        from pyfoundations import get_secret_key
-        value = get_secret_key(secret_key_name)
-    except Exception as exc:
-        ColorMessage.write(f"Secret manager error for {secret_key_name}: {exc}", 'warning')
-        value = None
+    # Try pyfoundations only if we haven't determined it's unavailable
+    if _pyfoundations_available is not False:
+        try:
+            from pyfoundations import get_secret_key
+            _pyfoundations_available = True
+            value = get_secret_key(secret_key_name)
+        except ImportError as exc:
+            # Only log import errors once
+            if not _pyfoundations_error_logged:
+                _pyfoundations_error_logged = True
+            _pyfoundations_available = False
+            value = None
+        except Exception as exc:
+            # For other errors, try local fallback silently
+            value = None
 
     if value:
         return value
 
-    return LOCAL_SECRET_MANAGER.get_secret(secret_key_name)
+    # Try local secret manager
+    local_value = LOCAL_SECRET_MANAGER.get_secret(secret_key_name)
+    if local_value:
+        return local_value
+    
+    # Return None if no value found (file will be handled by _read_raw_value if corrupted)
+    return None
 
 
 __all__ = ['LocalSecretManager', 'LOCAL_SECRET_MANAGER', 'resolve_secret_value']

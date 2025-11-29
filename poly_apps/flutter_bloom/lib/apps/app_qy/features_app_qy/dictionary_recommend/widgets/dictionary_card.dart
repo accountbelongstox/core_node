@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../domain/model/dictionary_model.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 /// Beautiful Dictionary Card Widget
 /// Displays dictionary information in an attractive card format
@@ -21,7 +26,8 @@ class DictionaryCard extends StatefulWidget {
   State<DictionaryCard> createState() => _DictionaryCardState();
 }
 
-class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProviderStateMixin {
+class _DictionaryCardState extends State<DictionaryCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool _isPressed = false;
@@ -152,7 +158,8 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
                   child: Center(
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
                           : null,
                     ),
                   ),
@@ -170,7 +177,8 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
           child: Container(
             height: 80,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -234,26 +242,32 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
     return Row(
       children: [
         // Word Count
-        Icon(Icons.book_outlined, size: 16, color: Colors.blue[700]),
-        const SizedBox(width: 4),
+        Icon(
+          Icons.book_outlined,
+          size: 16,
+          color: ColorsAppQy.qyPrimary,
+        ),
+        const SizedBox(width: ThemeDimensions.spacing4),
         Text(
-          '${widget.dictionary.wordCount} words',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
+          '${widget.dictionary.wordCount} ${QyAppLocalizationKeys.qyWords.tr(context)}',
+          style: ThemeTextStyles.caption.copyWith(
+            color: ColorsAppQy.qyTextSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: ThemeDimensions.spacing16),
 
         // Like Count
-        Icon(Icons.favorite, size: 16, color: Colors.red[400]),
-        const SizedBox(width: 4),
+        Icon(
+          Icons.favorite,
+          size: 16,
+          color: ColorsAppQy.qyError,
+        ),
+        const SizedBox(width: ThemeDimensions.spacing4),
         Text(
           _formatCount(widget.dictionary.likeCount),
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
+          style: ThemeTextStyles.caption.copyWith(
+            color: ColorsAppQy.qyTextSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -263,21 +277,26 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
 
   Widget _buildTags() {
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: ThemeDimensions.spacing6,
+      runSpacing: ThemeDimensions.spacing6,
       children: widget.dictionary.tags.take(2).map((tag) {
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: ThemeDimensions.spacing8,
+            vertical: ThemeDimensions.spacing4,
+          ),
           decoration: BoxDecoration(
-            color: Colors.blue[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue[200]!, width: 1),
+            color: ColorsAppQy.qyPrimaryLight.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(
+              color: ColorsAppQy.qyPrimary.withOpacity(0.3),
+              width: 1,
+            ),
           ),
           child: Text(
-            '#$tag',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.blue[700],
+            '#${tag.tr(context)}',
+            style: ThemeTextStyles.caption.copyWith(
+              color: ColorsAppQy.qyPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -287,59 +306,81 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // Add/Remove Button
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: widget.onToggleAdd,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.dictionary.isAdded ? Colors.grey[300] : Colors.blue[600],
-              foregroundColor: widget.dictionary.isAdded ? Colors.black87 : Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+    return Builder(
+      builder: (context) {
+        return Row(
+          children: [
+            // Add/Remove Button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: widget.onToggleAdd,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.dictionary.isAdded
+                      ? ColorsAppQy.qyTextSecondary.withOpacity(0.3)
+                      : ColorsAppQy.qyPrimary,
+                  foregroundColor: widget.dictionary.isAdded
+                      ? ColorsAppQy.qyTextPrimary
+                      : ColorsAppQy.qyTextOnPrimary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      ThemeDimensions.radiusMedium,
+                    ),
+                  ),
+                ),
+                icon: Icon(
+                  widget.dictionary.isAdded
+                      ? Icons.check_circle
+                      : Icons.add_circle_outline,
+                  size: 18,
+                ),
+                label: Text(
+                  widget.dictionary.isAdded
+                      ? QyAppLocalizationKeys.qyDictionaryAdded.tr(context)
+                      : QyAppLocalizationKeys.qyDictionaryAddToLibrary
+                          .tr(context),
+                  style: ThemeTextStyles.button.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            icon: Icon(
-              widget.dictionary.isAdded ? Icons.check_circle : Icons.add_circle_outline,
-              size: 18,
-            ),
-            label: Text(
-              widget.dictionary.isAdded ? 'Added' : 'Add',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
+            const SizedBox(width: ThemeDimensions.spacing8),
 
-        // Details Button
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: widget.onTap,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.blue[700],
-              side: BorderSide(color: Colors.blue[300]!, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+            // Details Button
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: widget.onTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: ColorsAppQy.qyPrimary,
+                  side: BorderSide(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.5),
+                    width: 1.5,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      ThemeDimensions.radiusMedium,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.info_outline, size: 18),
+                label: Text(
+                  QyAppLocalizationKeys.qyDictionaryDetails.tr(context),
+                  style: ThemeTextStyles.button.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            icon: const Icon(Icons.info_outline, size: 18),
-            label: const Text(
-              'Details',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

@@ -10,6 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -25,10 +26,21 @@ import 'controller_app_qy/settings_controller_app_qy.dart';
 import 'controller_app_qy/settings_controller_refactored_app_qy.dart';
 import 'controller_app_qy/learning_controller_app_qy.dart';
 import 'controller_app_qy/auth_controller_app_qy.dart';
+import 'controller_app_qy/endpoint_discovery_controller_app_qy.dart';
+import 'features_app_qy/course/controllers/course_controller_app_qy.dart';
+import 'features_app_qy/course/domain/service/course_service.dart';
+import 'features_app_qy/word/controllers/word_controller_app_qy.dart';
+import 'features_app_qy/word/domain/service/word_service.dart';
+import 'features_app_qy/home/controllers/learning_controller_app_qy.dart'
+    as home_learning;
+import 'features_app_qy/home/domain/service/learning_service.dart';
 import 'services_app_qy/api_service_app_qy.dart';
 import 'services_app_qy/vocabulary_service_app_qy.dart';
 import 'services_app_qy/auth_service_app_qy.dart';
 import 'models_app_qy/user_model_app_qy.dart';
+import 'config_app_qy/api_config_app_qy.dart';
+import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
+import 'widgets_app_qy/network_status_notification_app_qy.dart';
 
 /// QY App specific widget
 /// This can be customized for QY app specific needs
@@ -37,17 +49,46 @@ import 'models_app_qy/user_model_app_qy.dart';
 /// - Maintained integration with common app structure
 /// - Ready for app-specific customizations when needed
 /// Other AIs: This follows the common app pattern correctly
-class QyApp extends StatelessWidget {
+class QyApp extends StatefulWidget {
   final GoRouter routerConfig;
 
   const QyApp({super.key, required this.routerConfig});
 
   @override
+  State<QyApp> createState() => _QyAppState();
+}
+
+class _QyAppState extends State<QyApp> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // For now, use the common app structure
-    // Later this can be customized for QY app specific needs
-    return FlutterBloomMainApp(
-      routerConfig: routerConfig,
+    // Set context for endpoint discovery controller in build method
+    // This ensures context is always up-to-date
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final controller = context.read<EndpointDiscoveryControllerAppQy>();
+          controller.setContext(context);
+        } catch (e) {
+          debugPrint('⚠️ Could not set context for endpoint discovery: $e');
+        }
+      }
+    });
+
+    // Wrap with Stack to show network status notification at the top
+    // Explicitly set textDirection to avoid Directionality widget requirement
+    return Stack(
+      textDirection: TextDirection.ltr,
+      children: [
+        FlutterBloomMainApp(
+          routerConfig: widget.routerConfig,
+        ),
+        const NetworkStatusNotificationAppQy(),
+      ],
     );
   }
 }
@@ -56,12 +97,41 @@ class QyApp extends StatelessWidget {
 /// This entry point can be used to launch only the QY app
 /// with specific configurations and customizations
 Future<void> main() async {
+  // Initialize multi-endpoint discovery before creating services
+  final discovery = MultiEndpointDiscovery();
+  discovery.configureEndpoints(ApiConfigAppQy.endpointConfigs);
+
+  // Quick scan for available endpoints (fast, non-blocking)
+  // Discovery runs in background and updates service when complete
+  discovery
+      .discoverAvailableEndpoint(
+    healthCheckPath: '',
+    timeout: const Duration(seconds: 2),
+    parallelScan: true,
+  )
+      .then((selectedEndpoint) {
+    if (selectedEndpoint != null) {
+      // Base URL should be just /api, endpoints already include full path
+      final baseUrl = selectedEndpoint.buildFullUrl(path: 'api');
+      ApiServiceAppQy().updateBaseUrl(baseUrl);
+      debugPrint('✅ API endpoint updated to: $baseUrl');
+    } else {
+      debugPrint('⚠️ No available endpoints found, using default');
+    }
+  }).catchError((error) {
+    debugPrint('⚠️ Endpoint discovery failed: $error');
+  });
+
   final QyUserProvider qyUserProvider = QyUserProvider();
   final GoRouter routerConfig = QyAppRoutesProvider.createRouter();
 
   final ApiServiceAppQy apiService = ApiServiceAppQy();
   final VocabularyServiceAppQy vocabularyService = VocabularyServiceAppQy();
   final AuthServiceAppQy authService = AuthServiceAppQy();
+  final CourseService courseService = CourseService(apiService: apiService);
+  final WordService wordService = WordService(apiService: apiService);
+  final LearningService learningService =
+      LearningService(apiService: apiService);
 
   await runCommonApp(
     appName: QyAppConfig.appName,
@@ -81,7 +151,9 @@ Future<void> main() async {
         lazy: false,
       ),
       ChangeNotifierProvider<SettingsControllerRefactoredAppQy>(
-        create: (_) => SettingsControllerRefactoredAppQy(),
+        create: (_) => SettingsControllerRefactoredAppQy(
+          commonSettingsController: commonSettingsController,
+        ),
         lazy: false,
       ),
       ChangeNotifierProvider<UserModelAppQy>(
@@ -97,11 +169,29 @@ Future<void> main() async {
         ),
         lazy: false,
       ),
+      ChangeNotifierProvider<home_learning.LearningControllerAppQy>(
+        create: (_) => home_learning.LearningControllerAppQy(
+          learningService: learningService,
+        ),
+        lazy: false,
+      ),
       ChangeNotifierProvider<AuthServiceAppQy>.value(
         value: authService,
       ),
       ChangeNotifierProvider<AuthControllerAppQy>(
         create: (_) => AuthControllerAppQy(authService: authService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<CourseControllerAppQy>(
+        create: (_) => CourseControllerAppQy(courseService: courseService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<WordControllerAppQy>(
+        create: (_) => WordControllerAppQy(wordService: wordService),
+        lazy: false,
+      ),
+      ChangeNotifierProvider<EndpointDiscoveryControllerAppQy>(
+        create: (_) => EndpointDiscoveryControllerAppQy(),
         lazy: false,
       ),
     ],
