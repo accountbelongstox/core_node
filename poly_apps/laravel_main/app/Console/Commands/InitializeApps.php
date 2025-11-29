@@ -6,6 +6,8 @@ use Illuminate\Console\Command;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
+use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 
 class InitializeApps extends Command
 {
@@ -209,9 +211,17 @@ class InitializeApps extends Command
         }
         
         $this->newLine();
+
+        $this->info('Creating AppQyV1 user initialization tables...');
+        $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
+        foreach ($userInitResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
         
         $this->info('Creating vocabulary library tables...');
-        $vocabResults = \App\Services\AppQyV1VocabularyService::ensureVocabularyTablesExist();
+        $vocabResults = AppQyV1VocabularyService::ensureVocabularyTablesExist();
         foreach ($vocabResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
@@ -220,7 +230,7 @@ class InitializeApps extends Command
         $this->newLine();
         
         $this->info('Importing vocabulary libraries from files...');
-        $importResults = \App\Services\AppQyV1VocabularyService::importVocabularyFromFiles();
+        $importResults = AppQyV1VocabularyService::importVocabularyFromFiles();
         $this->line("  ✅ Imported: {$importResults['imported']} libraries");
         $this->line("  ✓ Skipped: {$importResults['skipped']} libraries");
         if ($importResults['errors'] > 0) {

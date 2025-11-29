@@ -24,6 +24,7 @@ if (groupEditModalEl) {
     });
 }
 document.body.classList.remove('fullscreen-mode');
+document.body.classList.remove('tab-hidden');
 
 function loadPendingTasksFromStorage() {
     try {
@@ -788,9 +789,7 @@ async function previousSubtitle() {
 
     if (result.success) {
         await loadQueue();
-        if (isPlaying) {
-            autoStartPlayback();
-        }
+        autoStartPlayback();
     }
 }
 
@@ -800,7 +799,7 @@ async function nextSubtitle(autoTriggered = false) {
 
     if (result.success) {
         await loadQueue();
-        if (!autoTriggered && isPlaying) {
+        if (!autoTriggered) {
             autoStartPlayback();
         }
     }
