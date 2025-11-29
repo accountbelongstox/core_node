@@ -25,6 +25,7 @@ use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
 use App\Http\Controllers\StartupMonitorController;
 
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -109,14 +110,6 @@ Route::prefix('system/init')->group(function () {
     Route::post('/all', [AppInitializationController::class, 'initializeAll']);
     Route::post('/{appName}', [AppInitializationController::class, 'initialize']);
     Route::post('/{appName}/reset', [AppInitializationController::class, 'reset']);
-});
-
-Route::get('/learning', function () {
-    return response()->file(public_path('learning.html'));
-});
-
-Route::get('/learning/demo', function () {
-    return response()->file(public_path('learning-demo.html'));
 });
 
 Route::get('/csrf-token', function () {

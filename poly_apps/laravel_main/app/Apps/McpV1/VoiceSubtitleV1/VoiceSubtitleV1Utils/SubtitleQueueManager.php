@@ -11,6 +11,8 @@ class SubtitleQueueManager
     private $queue = [];
     private $currentIndex = 0;
     private $queueFilePath;
+    private $queueLastModified = 0;
+    private $queueFileHash = null;
 
     private function __construct()
     {
@@ -19,7 +21,7 @@ class SubtitleQueueManager
 
         $this->queueFilePath = $cacheDir . '/subtitle_queue.json';
 
-        $this->loadQueue();
+        $this->loadQueue(true);
     }
 
     public static function getInstance(): self
@@ -32,9 +34,12 @@ class SubtitleQueueManager
 
     public function addItem(array $item, ?string $group = 'default'): array
     {
+        $this->refreshQueueFromDisk();
+
         $item['group'] = $group ?: 'default';
         $item['id'] = uniqid('item_', true);
         $item['added_at'] = date('Y-m-d H:i:s');
+        $item['play_count'] = $item['play_count'] ?? 0;
 
         $this->queue[] = $item;
         $this->saveQueue();
@@ -49,21 +54,26 @@ class SubtitleQueueManager
 
     public function getQueue(): array
     {
+        $this->refreshQueueFromDisk();
         return $this->queue;
     }
 
     public function getQueueLength(): int
     {
+        $this->refreshQueueFromDisk();
         return count($this->queue);
     }
 
     public function getCurrentIndex(): int
     {
+        $this->refreshQueueFromDisk();
         return $this->currentIndex;
     }
 
     public function setCurrentIndex(int $index): void
     {
+        $this->refreshQueueFromDisk();
+
         if ($index < 0) {
             $this->currentIndex = 0;
         } elseif ($index >= count($this->queue)) {
@@ -77,6 +87,8 @@ class SubtitleQueueManager
 
     public function getCurrentItem(): ?array
     {
+        $this->refreshQueueFromDisk();
+
         if (empty($this->queue) || $this->currentIndex >= count($this->queue)) {
             return null;
         }
@@ -86,6 +98,8 @@ class SubtitleQueueManager
 
     public function moveToNext(): ?array
     {
+        $this->refreshQueueFromDisk();
+
         if (empty($this->queue)) {
             return null;
         }
@@ -103,6 +117,8 @@ class SubtitleQueueManager
 
     public function moveToPrevious(): ?array
     {
+        $this->refreshQueueFromDisk();
+
         if (empty($this->queue)) {
             return null;
         }
@@ -120,22 +136,9 @@ class SubtitleQueueManager
 
     public function removeItem(int $index, bool $deleteFiles = true): void
     {
-        if ($index >= 0 && $index < count($this->queue)) {
-            $item = $this->queue[$index];
+        $this->refreshQueueFromDisk();
 
-            if ($deleteFiles && isset($item['tts_files']) && is_array($item['tts_files'])) {
-                foreach ($item['tts_files'] as $ttsFile) {
-                    if (isset($ttsFile['audio_path']) && file_exists($ttsFile['audio_path'])) {
-                        @unlink($ttsFile['audio_path']);
-                        Log::debug('[SubtitleQueueManager] Deleted audio file', [
-                            'path' => $ttsFile['audio_path'],
-                        ]);
-                    }
-                }
-            }
-
-            array_splice($this->queue, $index, 1);
-
+        if ($this->deleteItemAtIndex($index, $deleteFiles)) {
             if ($this->currentIndex >= count($this->queue) && $this->currentIndex > 0) {
                 $this->currentIndex = count($this->queue) - 1;
             }
@@ -150,8 +153,56 @@ class SubtitleQueueManager
         }
     }
 
+    public function removeItems(array $indices, bool $deleteFiles = true): int
+    {
+        $this->refreshQueueFromDisk();
+
+        $uniqueIndices = array_values(array_unique(array_filter($indices, function ($value) {
+            return is_numeric($value);
+        })));
+
+        rsort($uniqueIndices, SORT_NUMERIC);
+
+        $removed = 0;
+
+        foreach ($uniqueIndices as $index) {
+            if ($this->deleteItemAtIndex((int) $index, $deleteFiles)) {
+                $removed++;
+            }
+        }
+
+        if ($removed > 0) {
+            if ($this->currentIndex >= count($this->queue) && $this->currentIndex > 0) {
+                $this->currentIndex = count($this->queue) - 1;
+            }
+            $this->saveQueue();
+        }
+
+        return $removed;
+    }
+
+    public function incrementPlayCount(int $index): ?array
+    {
+        $this->refreshQueueFromDisk();
+
+        if ($index < 0 || $index >= count($this->queue)) {
+            return null;
+        }
+
+        if (!isset($this->queue[$index]['play_count'])) {
+            $this->queue[$index]['play_count'] = 0;
+        }
+
+        $this->queue[$index]['play_count']++;
+        $this->saveQueue();
+
+        return $this->queue[$index];
+    }
+
     public function clearQueue(): void
     {
+        $this->refreshQueueFromDisk();
+
         $this->queue = [];
         $this->currentIndex = 0;
         $this->saveQueue();
@@ -161,6 +212,8 @@ class SubtitleQueueManager
 
     public function updateItemGroup(int $index, string $group): bool
     {
+        $this->refreshQueueFromDisk();
+
         if ($index >= 0 && $index < count($this->queue)) {
             $this->queue[$index]['group'] = $group ?: 'default';
             $this->saveQueue();
@@ -178,6 +231,8 @@ class SubtitleQueueManager
 
     public function getAllGroups(): array
     {
+        $this->refreshQueueFromDisk();
+
         $groups = [];
         foreach ($this->queue as $item) {
             $group = $item['group'] ?? 'default';
@@ -191,6 +246,8 @@ class SubtitleQueueManager
 
     public function getQueueByGroup(?string $group = null): array
     {
+        $this->refreshQueueFromDisk();
+
         if ($group === null) {
             return $this->queue;
         }
@@ -200,22 +257,52 @@ class SubtitleQueueManager
         }));
     }
 
-    private function loadQueue(): void
+    private function refreshQueueFromDisk(): void
     {
-        if (file_exists($this->queueFilePath)) {
-            try {
-                $data = json_decode(file_get_contents($this->queueFilePath), true);
+        $this->loadQueue();
+    }
 
-                if ($data && isset($data['queue'])) {
-                    $this->queue = $data['queue'];
-                    $this->currentIndex = $data['current_index'] ?? 0;
-                }
+    private function loadQueue(bool $force = false): void
+    {
+        clearstatcache(true, $this->queueFilePath);
 
-            } catch (\Exception $e) {
-                Log::error('[SubtitleQueueManager] Error loading queue', [
-                    'error' => $e->getMessage(),
-                ]);
+        if (!file_exists($this->queueFilePath)) {
+            $this->queue = [];
+            $this->currentIndex = 0;
+            $this->queueLastModified = 0;
+            $this->queueFileHash = null;
+            return;
+        }
+
+        $fileModifiedAt = filemtime($this->queueFilePath);
+        if ($fileModifiedAt === false) {
+            $fileModifiedAt = 0;
+        }
+
+        $fileHash = md5_file($this->queueFilePath);
+        if ($fileHash === false) {
+            $fileHash = null;
+        }
+
+        if (!$force && $fileModifiedAt === $this->queueLastModified && $fileHash === $this->queueFileHash) {
+            return;
+        }
+
+        try {
+            $contents = file_get_contents($this->queueFilePath);
+            $data = json_decode($contents, true);
+
+            if ($data && isset($data['queue'])) {
+                $this->queue = $data['queue'];
+                $this->currentIndex = $data['current_index'] ?? 0;
+                $this->queueLastModified = $fileModifiedAt;
+                $this->queueFileHash = $fileHash ?? md5($contents);
             }
+
+        } catch (\Exception $e) {
+            Log::error('[SubtitleQueueManager] Error loading queue', [
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -228,15 +315,46 @@ class SubtitleQueueManager
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
 
-            file_put_contents(
-                $this->queueFilePath,
-                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-            );
+            $payload = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            if ($payload === false) {
+                throw new \RuntimeException('Failed to encode queue payload');
+            }
+
+            if (file_put_contents($this->queueFilePath, $payload) === false) {
+                throw new \RuntimeException('Failed to write queue file');
+            }
+
+            clearstatcache(true, $this->queueFilePath);
+            $this->queueLastModified = filemtime($this->queueFilePath) ?: time();
+            $this->queueFileHash = md5($payload);
 
         } catch (\Exception $e) {
             Log::error('[SubtitleQueueManager] Error saving queue', [
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function deleteItemAtIndex(int $index, bool $deleteFiles): bool
+    {
+        if ($index < 0 || $index >= count($this->queue)) {
+            return false;
+        }
+
+        $item = $this->queue[$index];
+
+        if ($deleteFiles && isset($item['tts_files']) && is_array($item['tts_files'])) {
+            foreach ($item['tts_files'] as $ttsFile) {
+                if (isset($ttsFile['audio_path']) && file_exists($ttsFile['audio_path'])) {
+                    @unlink($ttsFile['audio_path']);
+                    Log::debug('[SubtitleQueueManager] Deleted audio file', [
+                        'path' => $ttsFile['audio_path'],
+                    ]);
+                }
+            }
+        }
+
+        array_splice($this->queue, $index, 1);
+        return true;
     }
 }
