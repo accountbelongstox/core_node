@@ -26,7 +26,8 @@ class DictionaryCard extends StatefulWidget {
   State<DictionaryCard> createState() => _DictionaryCardState();
 }
 
-class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProviderStateMixin {
+class _DictionaryCardState extends State<DictionaryCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool _isPressed = false;
@@ -157,7 +158,8 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
                   child: Center(
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
                           : null,
                     ),
                   ),
@@ -175,7 +177,8 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
           child: Container(
             height: 80,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -303,59 +306,81 @@ class _DictionaryCardState extends State<DictionaryCard> with SingleTickerProvid
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // Add/Remove Button
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: widget.onToggleAdd,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.dictionary.isAdded ? Colors.grey[300] : Colors.blue[600],
-              foregroundColor: widget.dictionary.isAdded ? Colors.black87 : Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+    return Builder(
+      builder: (context) {
+        return Row(
+          children: [
+            // Add/Remove Button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: widget.onToggleAdd,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.dictionary.isAdded
+                      ? ColorsAppQy.qyTextSecondary.withOpacity(0.3)
+                      : ColorsAppQy.qyPrimary,
+                  foregroundColor: widget.dictionary.isAdded
+                      ? ColorsAppQy.qyTextPrimary
+                      : ColorsAppQy.qyTextOnPrimary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      ThemeDimensions.radiusMedium,
+                    ),
+                  ),
+                ),
+                icon: Icon(
+                  widget.dictionary.isAdded
+                      ? Icons.check_circle
+                      : Icons.add_circle_outline,
+                  size: 18,
+                ),
+                label: Text(
+                  widget.dictionary.isAdded
+                      ? QyAppLocalizationKeys.qyDictionaryAdded.tr(context)
+                      : QyAppLocalizationKeys.qyDictionaryAddToLibrary
+                          .tr(context),
+                  style: ThemeTextStyles.button.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            icon: Icon(
-              widget.dictionary.isAdded ? Icons.check_circle : Icons.add_circle_outline,
-              size: 18,
-            ),
-            label: Text(
-              widget.dictionary.isAdded ? 'Added' : 'Add',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
+            const SizedBox(width: ThemeDimensions.spacing8),
 
-        // Details Button
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: widget.onTap,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.blue[700],
-              side: BorderSide(color: Colors.blue[300]!, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+            // Details Button
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: widget.onTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: ColorsAppQy.qyPrimary,
+                  side: BorderSide(
+                    color: ColorsAppQy.qyPrimary.withOpacity(0.5),
+                    width: 1.5,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: ThemeDimensions.spacing8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      ThemeDimensions.radiusMedium,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.info_outline, size: 18),
+                label: Text(
+                  QyAppLocalizationKeys.qyDictionaryDetails.tr(context),
+                  style: ThemeTextStyles.button.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            icon: const Icon(Icons.info_outline, size: 18),
-            label: const Text(
-              'Details',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

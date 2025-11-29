@@ -47,7 +47,8 @@ const CONFIG = {
         CODE_SYNC_STATUS: '/code-sync/status',
         CODE_SYNC_START_SERVER: '/code-sync/set-server',
         CODE_SYNC_START_CLIENT: '/code-sync/set-client',
-        CODE_SYNC_STOP: '/code-sync/stop'
+        CODE_SYNC_STOP: '/code-sync/stop',
+        CODE_SYNC_TOGGLE_BACKUP: '/code-sync/toggle-backup'
     },
 
     // WebSocket configuration

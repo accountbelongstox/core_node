@@ -7,6 +7,7 @@ Mounted at /code-sync/*
 """
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 
@@ -51,6 +52,11 @@ class StatusResponse(BaseModel):
     mode: str  # "server", "client", or "disabled"
     server: Optional[Dict] = None
     client: Optional[Dict] = None
+
+
+class DownloadRequest(BaseModel):
+    client_id: str
+    file_path: str  # Relative file path
 
 
 # Endpoints
@@ -237,4 +243,70 @@ async def stop_sync():
 
     except Exception as e:
         ColorPrint.red(f"[CodeSync Router] Error stopping: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/download")
+async def download_file(request: DownloadRequest):
+    """Download file content from server"""
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+        from pathlib import Path
+
+        manager = get_code_sync_manager()
+
+        if not manager.is_server_mode():
+            raise HTTPException(status_code=503, detail="Not in server mode")
+
+        server = manager.get_server()
+        if not server:
+            raise HTTPException(status_code=503, detail="Server not available")
+
+        # Get file path
+        file_path = server.root_dir / request.file_path
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Read file content
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        # Return file content
+        return Response(content=content, media_type='application/octet-stream')
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        ColorPrint.red(f"[CodeSync Router] Error downloading file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/toggle-backup")
+async def toggle_backup(request: Dict):
+    """Toggle backup setting for client"""
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+        manager = get_code_sync_manager()
+
+        if not manager.is_client_mode():
+            raise HTTPException(status_code=503, detail="Not in client mode")
+
+        client = manager.get_client()
+        if not client:
+            raise HTTPException(status_code=503, detail="Client not available")
+
+        # Toggle backup setting
+        enabled = request.get('enabled', True)
+        client.enable_backup = enabled
+
+        ColorPrint.blue(f"[CodeSync] Backup {('enabled' if enabled else 'disabled')}")
+
+        return {"success": True, "enabled": enabled}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        ColorPrint.red(f"[CodeSync Router] Error toggling backup: {e}")
         raise HTTPException(status_code=500, detail=str(e))
