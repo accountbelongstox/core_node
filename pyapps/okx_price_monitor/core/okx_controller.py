@@ -96,14 +96,22 @@ class OKXController:
         print()
 
         # Create trading controller
+        import sys
         self.manager = TradingController()
+        print("[OKX Controller] TradingController created successfully")
+        sys.stdout.flush()
 
-        # Initialize historical data (SQLite → Redis)
+        # Initialize historical data (SQLite -> Redis)
         print("[TRADING MODE] Loading historical data...")
+        sys.stdout.flush()
         self.manager.initialize_historical_data()
+        print("[TRADING MODE] Historical data loaded")
+        sys.stdout.flush()
 
         print("\n[TRADING MODE] Initialization complete")
+        sys.stdout.flush()
         print()
+        sys.stdout.flush()
 
         return True
 
