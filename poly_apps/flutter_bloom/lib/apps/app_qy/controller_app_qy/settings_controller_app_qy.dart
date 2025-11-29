@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localization/flutter_localization.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 // AI MODIFICATION NOTE: This controller was enhanced to follow development guide standards
 // - Added integration with common SettingsController
@@ -113,6 +114,9 @@ class SettingsControllerAppQy extends ChangeNotifier {
   Future<void> changeLanguage(String languageCode) async {
     _storage.setLocale(languageCode);
     _localization.translate(languageCode);
+
+    // Update AppLocale cache for immediate translation updates
+    AppLocale.updateCurrentLanguage(languageCode);
 
     // Sync with common SettingsController for immediate UI refresh
     await _commonSettingsController.changeLanguage(languageCode);

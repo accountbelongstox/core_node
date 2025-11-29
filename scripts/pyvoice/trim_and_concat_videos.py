@@ -67,12 +67,13 @@ sys.path.insert(0, str(project_root))
 from pycore.pyutils.translator import GoogleTranslator
 
 
-async def translate_filename(filename: str) -> str:
+async def translate_filename(filename: str, verbose: bool = True) -> str:
     """
     Translate filename to English using GoogleTranslator
 
     Args:
         filename: Original filename (without extension)
+        verbose: Print detailed debug info
 
     Returns:
         Translated filename
@@ -85,12 +86,33 @@ async def translate_filename(filename: str) -> str:
                 dest='en',
                 use_cache=True
             )
+
+            if verbose:
+                print(f"    [DEBUG] Translation Details:")
+                print(f"      - Original text: {result.original_text}")
+                print(f"      - Translated text: {result.translated_text}")
+                print(f"      - Detected source lang: {result.src_lang}")
+                print(f"      - Target lang: {result.dest_lang}")
+                print(f"      - From cache: {result.from_cache}")
+                if result.pronunciation:
+                    print(f"      - Pronunciation: {result.pronunciation}")
+                if result.error:
+                    print(f"      - Error: {result.error}")
+
             if result.error:
-                print(f"Translation warning: {result.error}, using original name")
+                print(f"    [WARNING] Translation failed: {result.error}")
+                print(f"    [INFO] Using original name")
                 return filename
+
             return result.translated_text
+
     except Exception as e:
-        print(f"Translation error: {e}, using original name")
+        print(f"    [ERROR] Translation exception: {type(e).__name__}: {e}")
+        print(f"    [INFO] Using original name")
+        import traceback
+        if verbose:
+            print(f"    [DEBUG] Traceback:")
+            traceback.print_exc()
         return filename
 
 

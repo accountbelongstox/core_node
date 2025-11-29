@@ -13,7 +13,6 @@
 /// QY App specific localization keys
 /// All keys must have 'qy_' prefix to indicate they are app-specific
 class QyAppLocalizationKeys {
-
   static const String qyAppName = 'qy_app_name';
   static const String qyAppDescription = 'qy_app_description';
   static const String qyAppSlogan = 'qy_app_slogan';
@@ -70,6 +69,8 @@ class QyAppLocalizationKeys {
   static const String qyCompleted = 'qy_completed';
   static const String qyPending = 'qy_pending';
   static const String qyFailed = 'qy_failed';
+  static const String qyEnabled = 'qy_enabled';
+  static const String qyDisabled = 'qy_disabled';
 
   // General exercise/learning keys
   static const String qyCorrect = 'qy_correct';
@@ -95,12 +96,14 @@ class QyAppLocalizationKeys {
   static const String qyRegisterSuccess = 'qy_register_success';
   static const String qyRegisterFailed = 'qy_register_failed';
   static const String qyPasswordsDoNotMatch = 'qy_passwords_do_not_match';
-  static const String qyInvalidRegistrationData = 'qy_invalid_registration_data';
+  static const String qyInvalidRegistrationData =
+      'qy_invalid_registration_data';
   static const String qySwitchToRegister = 'qy_switch_to_register';
   static const String qySwitchToLogin = 'qy_switch_to_login';
   static const String qyRegisterToContinue = 'qy_register_to_continue';
   static const String qyPleaseEnterEmail = 'qy_please_enter_email';
-  static const String qyPleaseEnterConfirmPassword = 'qy_please_enter_confirm_password';
+  static const String qyPleaseEnterConfirmPassword =
+      'qy_please_enter_confirm_password';
   static const String qyForgotPassword = 'qy_forgot_password';
   static const String qyResetPassword = 'qy_reset_password';
   static const String qyChangePassword = 'qy_change_password';
@@ -139,7 +142,8 @@ class QyAppLocalizationKeys {
   static const String qyProfileEnterFullName = 'qy_profile_enter_full_name';
   static const String qyProfileEnterEmail = 'qy_profile_enter_email';
   static const String qyProfileEnterPhone = 'qy_profile_enter_phone';
-  static const String qyProfileTellAboutYourself = 'qy_profile_tell_about_yourself';
+  static const String qyProfileTellAboutYourself =
+      'qy_profile_tell_about_yourself';
   static const String qyProfileCityCountry = 'qy_profile_city_country';
   static const String qyProfileDefaultName = 'qy_profile_default_name';
   static const String qyProfileFollowers = 'qy_profile_followers';
@@ -164,23 +168,31 @@ class QyAppLocalizationKeys {
   static const String qySettingsThemeAuto = 'qy_settings_theme_auto';
   static const String qySettingsThemeLight = 'qy_settings_theme_light';
   static const String qySettingsThemeDark = 'qy_settings_theme_dark';
-  static const String qySettingsThemeDescription = 'qy_settings_theme_description';
+  static const String qySettingsThemeDescription =
+      'qy_settings_theme_description';
   static const String qySettingsThemePreview = 'qy_settings_theme_preview';
-  static const String qySettingsThemePreviewText = 'qy_settings_theme_preview_text';
-  static const String qySettingsThemePreviewBackground = 'qy_settings_theme_preview_background';
-  static const String qySettingsThemePreviewButton = 'qy_settings_theme_preview_button';
+  static const String qySettingsThemePreviewText =
+      'qy_settings_theme_preview_text';
+  static const String qySettingsThemePreviewBackground =
+      'qy_settings_theme_preview_background';
+  static const String qySettingsThemePreviewButton =
+      'qy_settings_theme_preview_button';
   static const String qySettingsDailyGoal = 'qy_settings_daily_goal';
   static const String qySettingsGeneral = 'qy_settings_general';
   static const String qySettingsLearning = 'qy_settings_learning';
   static const String qySettingsAutoPlayAudio = 'qy_settings_auto_play_audio';
-  static const String qySettingsShowTranslation = 'qy_settings_show_translation';
+  static const String qySettingsShowTranslation =
+      'qy_settings_show_translation';
   static const String qySettingsNotifications = 'qy_settings_notifications';
-  static const String qySettingsEnableNotifications = 'qy_settings_enable_notifications';
+  static const String qySettingsEnableNotifications =
+      'qy_settings_enable_notifications';
   static const String qySettingsSound = 'qy_settings_sound';
   static const String qySettingsVibration = 'qy_settings_vibration';
   static const String qySettingsReminder = 'qy_settings_reminder';
-  static const String qySettingsWeekendReminder = 'qy_settings_weekend_reminder';
-  static const String qySettingsWeekendReminderDescription = 'qy_settings_weekend_reminder_description';
+  static const String qySettingsWeekendReminder =
+      'qy_settings_weekend_reminder';
+  static const String qySettingsWeekendReminderDescription =
+      'qy_settings_weekend_reminder_description';
   static const String qySettingsOther = 'qy_settings_other';
   static const String qySettingsAbout = 'qy_settings_about';
   static const String qySettingsReset = 'qy_settings_reset';
@@ -189,25 +201,68 @@ class QyAppLocalizationKeys {
   static const String qySettingsPrivacy = 'qy_settings_privacy';
   static const String qySettingsAccount = 'qy_settings_account';
   static const String qySettingsAccountInfo = 'qy_settings_account_info';
-  static const String qySettingsAccountNickname = 'qy_settings_account_nickname';
+  static const String qySettingsAccountNickname =
+      'qy_settings_account_nickname';
   static const String qySettingsAccountPhone = 'qy_settings_account_phone';
   static const String qySettingsAccountEmail = 'qy_settings_account_email';
-  static const String qySettingsAccountSecurity = 'qy_settings_account_security';
-  static const String qySettingsAccountChangePassword = 'qy_settings_account_change_password';
-  static const String qySettingsAccountOldPassword = 'qy_settings_account_old_password';
-  static const String qySettingsAccountNewPassword = 'qy_settings_account_new_password';
-  static const String qySettingsAccountConfirmPassword = 'qy_settings_account_confirm_password';
-  static const String qySettingsAccountPasswordChanged = 'qy_settings_account_password_changed';
-  static const String qySettingsAccountPasswordMismatch = 'qy_settings_account_password_mismatch';
-  static const String qySettingsAccountTwoFactor = 'qy_settings_account_two_factor';
-  static const String qySettingsAccountTwoFactorDisabled = 'qy_settings_account_two_factor_disabled';
-  static const String qySettingsAccountDangerZone = 'qy_settings_account_danger_zone';
+  static const String qySettingsAccountSecurity =
+      'qy_settings_account_security';
+  static const String qySettingsAccountChangePassword =
+      'qy_settings_account_change_password';
+  static const String qySettingsAccountOldPassword =
+      'qy_settings_account_old_password';
+  static const String qySettingsAccountNewPassword =
+      'qy_settings_account_new_password';
+  static const String qySettingsAccountConfirmPassword =
+      'qy_settings_account_confirm_password';
+  static const String qySettingsAccountPasswordChanged =
+      'qy_settings_account_password_changed';
+  static const String qySettingsAccountPasswordMismatch =
+      'qy_settings_account_password_mismatch';
+  static const String qySettingsAccountTwoFactor =
+      'qy_settings_account_two_factor';
+  static const String qySettingsAccountTwoFactorDisabled =
+      'qy_settings_account_two_factor_disabled';
+  static const String qySettingsAccountDangerZone =
+      'qy_settings_account_danger_zone';
   static const String qySettingsAccountDelete = 'qy_settings_account_delete';
-  static const String qySettingsAccountDeleteDescription = 'qy_settings_account_delete_description';
-  static const String qySettingsAccountDeleteTitle = 'qy_settings_account_delete_title';
-  static const String qySettingsAccountDeleteWarning = 'qy_settings_account_delete_warning';
-  static const String qySettingsAccountUpdateSuccess = 'qy_settings_account_update_success';
+  static const String qySettingsAccountDeleteDescription =
+      'qy_settings_account_delete_description';
+  static const String qySettingsAccountDeleteTitle =
+      'qy_settings_account_delete_title';
+  static const String qySettingsAccountDeleteWarning =
+      'qy_settings_account_delete_warning';
+  static const String qySettingsAccountUpdateSuccess =
+      'qy_settings_account_update_success';
   static const String qyDisplayMode = 'qy_display_mode';
+  static const String qyDisplay = 'qy_display';
+  static const String qyAudioVoice = 'qy_audio_voice';
+  static const String qyTtsSettings = 'qy_tts_settings';
+  static const String qyMyAccount = 'qy_my_account';
+  static const String qyLearningLanguages = 'qy_learning_languages';
+  static const String qyVocabularyCollections = 'qy_vocabulary_collections';
+  static const String qyManageWordLibraries = 'qy_manage_word_libraries';
+  static const String qyLearningStats = 'qy_learning_stats';
+  static const String qyWordsLearned = 'qy_words_learned';
+  static const String qyQuickSettings = 'qy_quick_settings';
+  static const String qyAutoPlayAudio = 'qy_auto_play_audio';
+  static const String qyAnimations = 'qy_animations';
+  static const String qyHapticFeedback = 'qy_haptic_feedback';
+  static const String qyDataStorage = 'qy_data_storage';
+  static const String qySyncData = 'qy_sync_data';
+  static const String qyLastSynced = 'qy_last_synced';
+  static const String qyClearCache = 'qy_clear_cache';
+  static const String qyExportData = 'qy_export_data';
+  static const String qyBackupLearningData = 'qy_backup_learning_data';
+  static const String qyRestoreDefaultSettings = 'qy_restore_default_settings';
+  static const String qyAreYouSureReset = 'qy_are_you_sure_reset';
+  static const String qySettingsResetDefaults = 'qy_settings_reset_defaults';
+  static const String qyLoginToUnlock = 'qy_login_to_unlock';
+  static const String qyHelpCenter = 'qy_help_center';
+  static const String qyFaqsSupport = 'qy_faqs_support';
+  static const String qyHowWeProtectData = 'qy_how_we_protect_data';
+  static const String qyTermsConditions = 'qy_terms_conditions';
+  static const String qySignOutAccount = 'qy_sign_out_account';
   static const String qyAboutUs = 'qy_about_us';
   static const String qyCheckForUpdate = 'qy_check_for_update';
   static const String qyNetworkDiagnostics = 'qy_network_diagnostics';
@@ -253,7 +308,8 @@ class QyAppLocalizationKeys {
   static const String qyDisplayLayoutSettings = 'qy_display_layout_settings';
   static const String qyCompatibilitySettings = 'qy_compatibility_settings';
   static const String qyDailyStudyReminder = 'qy_daily_study_reminder';
-  static const String qyPersonalizedRecommendations = 'qy_personalized_recommendations';
+  static const String qyPersonalizedRecommendations =
+      'qy_personalized_recommendations';
   static const String qySyncSettings = 'qy_sync_settings';
   static const String qyNotLoggedIn = 'qy_not_logged_in';
   static const String qyUser = 'qy_user';
@@ -329,12 +385,15 @@ class QyAppLocalizationKeys {
 
   static const String qyValidationRequired = 'qy_validation_required';
   static const String qyValidationEmailInvalid = 'qy_validation_email_invalid';
-  static const String qyValidationPasswordShort = 'qy_validation_password_short';
+  static const String qyValidationPasswordShort =
+      'qy_validation_password_short';
   static const String qyValidationPasswordWeak = 'qy_validation_password_weak';
-  static const String qyValidationPasswordMismatch = 'qy_validation_password_mismatch';
+  static const String qyValidationPasswordMismatch =
+      'qy_validation_password_mismatch';
   static const String qyValidationPhoneInvalid = 'qy_validation_phone_invalid';
   static const String qyValidationUrlInvalid = 'qy_validation_url_invalid';
-  static const String qyValidationNumberInvalid = 'qy_validation_number_invalid';
+  static const String qyValidationNumberInvalid =
+      'qy_validation_number_invalid';
   static const String qyValidationDateInvalid = 'qy_validation_date_invalid';
   static const String qyValidationMinLength = 'qy_validation_min_length';
   static const String qyValidationMaxLength = 'qy_validation_max_length';
@@ -422,7 +481,8 @@ class QyAppLocalizationKeys {
   static const String qyMessageCenter = 'qy_message_center';
   static const String qyUnreadMessages = 'qy_unread_messages';
   static const String qyLearningAssistant = 'qy_learning_assistant';
-  static const String qyVocabularyLearningCompleted = 'qy_vocabulary_learning_completed';
+  static const String qyVocabularyLearningCompleted =
+      'qy_vocabulary_learning_completed';
   static const String qyMinutesAgo2 = 'qy_minutes_ago_2';
   static const String qyEnglishCornerGroup = 'qy_english_corner_group';
   static const String qyJohnGrammarQuestion = 'qy_john_grammar_question';
@@ -439,14 +499,16 @@ class QyAppLocalizationKeys {
   static const String qyNoGroupChats = 'qy_no_group_chats';
   static const String qyJoinOrCreateGroup = 'qy_join_or_create_group';
   static const String qyNoNotifications = 'qy_no_notifications';
-  static const String qyNotificationsWillShowHere = 'qy_notifications_will_show_here';
+  static const String qyNotificationsWillShowHere =
+      'qy_notifications_will_show_here';
   static const String qyStartNewConversation = 'qy_start_new_conversation';
   static const String qyPrivateChat = 'qy_private_chat';
   static const String qyChatWithSingleStudent = 'qy_chat_with_single_student';
   static const String qyGroupChat = 'qy_group_chat';
   static const String qyAiAssistant = 'qy_ai_assistant';
   static const String qyGetLearningAdvice = 'qy_get_learning_advice';
-  static const String qyAllMessagesMarkedAsRead = 'qy_all_messages_marked_as_read';
+  static const String qyAllMessagesMarkedAsRead =
+      'qy_all_messages_marked_as_read';
   static const String qyMarkAllAsRead = 'qy_mark_all_as_read';
   static const String qyMarkAllAsReadConfirm = 'qy_mark_all_as_read_confirm';
   static const String qyNoMessages = 'qy_no_messages';
@@ -468,7 +530,8 @@ class QyAppLocalizationKeys {
   static const String qyCommunity = 'qy_community';
   static const String qyGlobalSearch = 'qy_global_search';
   static const String qyAiSearch = 'qy_ai_search';
-  static const String qyPlaceholderSearchContent = 'qy_placeholder_search_content';
+  static const String qyPlaceholderSearchContent =
+      'qy_placeholder_search_content';
   static const String qyLearningProgress = 'qy_learning_progress';
   static const String qyStudyDuration = 'qy_study_duration';
   static const String qyAccuracyRate = 'qy_accuracy_rate';
@@ -479,10 +542,12 @@ class QyAppLocalizationKeys {
   static const String qyUnknown = 'qy_unknown';
 
   static const String qyCertificateCenter = 'qy_certificate_center';
-  static const String qyCertificateCenterSubtitle = 'qy_certificate_center_subtitle';
+  static const String qyCertificateCenterSubtitle =
+      'qy_certificate_center_subtitle';
   static const String qyCertificates = 'qy_certificates';
   static const String qyNoCertificates = 'qy_no_certificates';
-  static const String qyNoCertificatesDescription = 'qy_no_certificates_description';
+  static const String qyNoCertificatesDescription =
+      'qy_no_certificates_description';
   static const String qyCertificateEarned = 'qy_certificate_earned';
   static const String qyCertificateInProgress = 'qy_certificate_in_progress';
   static const String qyCertificateTotalPoints = 'qy_certificate_total_points';
@@ -492,36 +557,55 @@ class QyAppLocalizationKeys {
   static const String qyCertificateNumber = 'qy_certificate_number';
   static const String qyCertificateIssueDate = 'qy_certificate_issue_date';
   static const String qyCertificateKeepWorking = 'qy_certificate_keep_working';
-  static const String qyCertificateShareToWechat = 'qy_certificate_share_to_wechat';
-  static const String qyCertificateShareToMoments = 'qy_certificate_share_to_moments';
+  static const String qyCertificateShareToWechat =
+      'qy_certificate_share_to_wechat';
+  static const String qyCertificateShareToMoments =
+      'qy_certificate_share_to_moments';
   static const String qyCertificateSaveImage = 'qy_certificate_save_image';
   static const String qyCertificateCopyLink = 'qy_certificate_copy_link';
-  static const String qyCertificateDownloadInProgress = 'qy_certificate_download_in_progress';
-  static const String qyCertificateShareInProgress = 'qy_certificate_share_in_progress';
+  static const String qyCertificateDownloadInProgress =
+      'qy_certificate_download_in_progress';
+  static const String qyCertificateShareInProgress =
+      'qy_certificate_share_in_progress';
   static const String qyCertificateDescription = 'qy_certificate_description';
-  static const String qyCertificateLevelBeginner = 'qy_certificate_level_beginner';
-  static const String qyCertificateLevelIntermediate = 'qy_certificate_level_intermediate';
-  static const String qyCertificateLevelAdvanced = 'qy_certificate_level_advanced';
+  static const String qyCertificateLevelBeginner =
+      'qy_certificate_level_beginner';
+  static const String qyCertificateLevelIntermediate =
+      'qy_certificate_level_intermediate';
+  static const String qyCertificateLevelAdvanced =
+      'qy_certificate_level_advanced';
   static const String qyCertificateLevelExpert = 'qy_certificate_level_expert';
   static const String qyCertificateBadgeNewbie = 'qy_certificate_badge_newbie';
-  static const String qyCertificateBadgeDiligent = 'qy_certificate_badge_diligent';
-  static const String qyCertificateBadgePersistent = 'qy_certificate_badge_persistent';
-  static const String qyCertificateBadgePerfectAttendance = 'qy_certificate_badge_perfect_attendance';
+  static const String qyCertificateBadgeDiligent =
+      'qy_certificate_badge_diligent';
+  static const String qyCertificateBadgePersistent =
+      'qy_certificate_badge_persistent';
+  static const String qyCertificateBadgePerfectAttendance =
+      'qy_certificate_badge_perfect_attendance';
   static const String qyCertificateBadgeExpert = 'qy_certificate_badge_expert';
-  static const String qyCertificateBadgeExcellent = 'qy_certificate_badge_excellent';
+  static const String qyCertificateBadgeExcellent =
+      'qy_certificate_badge_excellent';
 
   static const String qyCertBasicEnglishTitle = 'qy_cert_basic_english_title';
   static const String qyCertBasicEnglishDesc = 'qy_cert_basic_english_desc';
   static const String qyCertWordMasterTitle = 'qy_cert_word_master_title';
   static const String qyCertWordMasterDesc = 'qy_cert_word_master_desc';
-  static const String qyCertListeningMasterTitle = 'qy_cert_listening_master_title';
-  static const String qyCertListeningMasterDesc = 'qy_cert_listening_master_desc';
-  static const String qyCertPerfectAttendanceTitle = 'qy_cert_perfect_attendance_title';
-  static const String qyCertPerfectAttendanceDesc = 'qy_cert_perfect_attendance_desc';
-  static const String qyCertVocabularyExpertTitle = 'qy_cert_vocabulary_expert_title';
-  static const String qyCertVocabularyExpertDesc = 'qy_cert_vocabulary_expert_desc';
-  static const String qyCertIeltsHighScoreTitle = 'qy_cert_ielts_high_score_title';
-  static const String qyCertIeltsHighScoreDesc = 'qy_cert_ielts_high_score_desc';
+  static const String qyCertListeningMasterTitle =
+      'qy_cert_listening_master_title';
+  static const String qyCertListeningMasterDesc =
+      'qy_cert_listening_master_desc';
+  static const String qyCertPerfectAttendanceTitle =
+      'qy_cert_perfect_attendance_title';
+  static const String qyCertPerfectAttendanceDesc =
+      'qy_cert_perfect_attendance_desc';
+  static const String qyCertVocabularyExpertTitle =
+      'qy_cert_vocabulary_expert_title';
+  static const String qyCertVocabularyExpertDesc =
+      'qy_cert_vocabulary_expert_desc';
+  static const String qyCertIeltsHighScoreTitle =
+      'qy_cert_ielts_high_score_title';
+  static const String qyCertIeltsHighScoreDesc =
+      'qy_cert_ielts_high_score_desc';
 
   static const String qyAuthWelcomeMessage = 'qy_auth_welcome_message';
   static const String qyAuthAppSlogan = 'qy_auth_app_slogan';
@@ -583,51 +667,75 @@ class QyAppLocalizationKeys {
   static const String qyAuthRegisterModeSwitch = 'qy_auth_register_mode_switch';
   static const String qyAuthThirdPartyLogin = 'qy_auth_third_party_login';
 
-  static const String qySettingsPlayerCompatibility = 'qy_settings_player_compatibility';
+  static const String qySettingsPlayerCompatibility =
+      'qy_settings_player_compatibility';
   static const String qySettingsFeedback = 'qy_settings_feedback';
-  static const String qySettingsFeedbackInProgress = 'qy_settings_feedback_in_progress';
-  static const String qySettingsAboutInProgress = 'qy_settings_about_in_progress';
-  static const String qySettingsTermsInProgress = 'qy_settings_terms_in_progress';
-  static const String qySettingsPrivacyInProgress = 'qy_settings_privacy_in_progress';
+  static const String qySettingsFeedbackInProgress =
+      'qy_settings_feedback_in_progress';
+  static const String qySettingsAboutInProgress =
+      'qy_settings_about_in_progress';
+  static const String qySettingsTermsInProgress =
+      'qy_settings_terms_in_progress';
+  static const String qySettingsPrivacyInProgress =
+      'qy_settings_privacy_in_progress';
 
   static const String qySettingsDailyReminder = 'qy_settings_daily_reminder';
-  static const String qySettingsEnableDailyReminder = 'qy_settings_enable_daily_reminder';
-  static const String qySettingsEnableDailyReminderSubtitle = 'qy_settings_enable_daily_reminder_subtitle';
+  static const String qySettingsEnableDailyReminder =
+      'qy_settings_enable_daily_reminder';
+  static const String qySettingsEnableDailyReminderSubtitle =
+      'qy_settings_enable_daily_reminder_subtitle';
   static const String qySettingsReminderTime = 'qy_settings_reminder_time';
-  static const String qySettingsVibrationReminder = 'qy_settings_vibration_reminder';
-  static const String qySettingsVibrationReminderSubtitle = 'qy_settings_vibration_reminder_subtitle';
+  static const String qySettingsVibrationReminder =
+      'qy_settings_vibration_reminder';
+  static const String qySettingsVibrationReminderSubtitle =
+      'qy_settings_vibration_reminder_subtitle';
   static const String qySettingsSoundReminder = 'qy_settings_sound_reminder';
-  static const String qySettingsSoundReminderSubtitle = 'qy_settings_sound_reminder_subtitle';
+  static const String qySettingsSoundReminderSubtitle =
+      'qy_settings_sound_reminder_subtitle';
   static const String qySettingsReminderDate = 'qy_settings_reminder_date';
   static const String qySettingsRemindEveryday = 'qy_settings_remind_everyday';
   static const String qySettingsWeekdayMonday = 'qy_settings_weekday_monday';
   static const String qySettingsWeekdayTuesday = 'qy_settings_weekday_tuesday';
-  static const String qySettingsWeekdayWednesday = 'qy_settings_weekday_wednesday';
-  static const String qySettingsWeekdayThursday = 'qy_settings_weekday_thursday';
+  static const String qySettingsWeekdayWednesday =
+      'qy_settings_weekday_wednesday';
+  static const String qySettingsWeekdayThursday =
+      'qy_settings_weekday_thursday';
   static const String qySettingsWeekdayFriday = 'qy_settings_weekday_friday';
-  static const String qySettingsWeekdaySaturday = 'qy_settings_weekday_saturday';
+  static const String qySettingsWeekdaySaturday =
+      'qy_settings_weekday_saturday';
   static const String qySettingsWeekdaySunday = 'qy_settings_weekday_sunday';
-  static const String qySettingsReminderMorning = 'qy_settings_reminder_morning';
-  static const String qySettingsReminderAfternoon = 'qy_settings_reminder_afternoon';
-  static const String qySettingsReminderEvening = 'qy_settings_reminder_evening';
+  static const String qySettingsReminderMorning =
+      'qy_settings_reminder_morning';
+  static const String qySettingsReminderAfternoon =
+      'qy_settings_reminder_afternoon';
+  static const String qySettingsReminderEvening =
+      'qy_settings_reminder_evening';
   static const String qySettingsReminderNight = 'qy_settings_reminder_night';
-  static const String qySettingsReminderChangeTime = 'qy_settings_reminder_change_time';
-  static const String qySettingsReminderQuickSelect = 'qy_settings_reminder_quick_select';
+  static const String qySettingsReminderChangeTime =
+      'qy_settings_reminder_change_time';
+  static const String qySettingsReminderQuickSelect =
+      'qy_settings_reminder_quick_select';
   static const String qySettingsReminderInfo = 'qy_settings_reminder_info';
-  static const String qySettingsReminderInfoDetails = 'qy_settings_reminder_info_details';
+  static const String qySettingsReminderInfoDetails =
+      'qy_settings_reminder_info_details';
 
   static const String qySettingsFontSettings = 'qy_settings_font_settings';
   static const String qySettingsFont = 'qy_settings_font';
-  static const String qySettingsAppearanceSettings = 'qy_settings_appearance_settings';
-  static const String qySettingsInterfaceLayout = 'qy_settings_interface_layout';
+  static const String qySettingsAppearanceSettings =
+      'qy_settings_appearance_settings';
+  static const String qySettingsInterfaceLayout =
+      'qy_settings_interface_layout';
   static const String qySettingsStandardMode = 'qy_settings_standard_mode';
   static const String qySettingsAccessibility = 'qy_settings_accessibility';
   static const String qySettingsHighContrast = 'qy_settings_high_contrast';
-  static const String qySettingsHighContrastSubtitle = 'qy_settings_high_contrast_subtitle';
+  static const String qySettingsHighContrastSubtitle =
+      'qy_settings_high_contrast_subtitle';
   static const String qySettingsLargeFontMode = 'qy_settings_large_font_mode';
-  static const String qySettingsLargeFontModeSubtitle = 'qy_settings_large_font_mode_subtitle';
+  static const String qySettingsLargeFontModeSubtitle =
+      'qy_settings_large_font_mode_subtitle';
   static const String qySettingsSelectFont = 'qy_settings_select_font';
-  static const String qySettingsLayoutInProgress = 'qy_settings_layout_in_progress';
+  static const String qySettingsLayoutInProgress =
+      'qy_settings_layout_in_progress';
 
   static const String qySettingsModify = 'qy_settings_modify';
   static const String qySettingsRebind = 'qy_settings_rebind';
@@ -638,79 +746,130 @@ class QyAppLocalizationKeys {
   static const String qySettingsWechat = 'qy_settings_wechat';
   static const String qySettingsWeibo = 'qy_settings_weibo';
   static const String qySettingsQQ = 'qy_settings_qq';
-  static const String qySettingsAccountDeletion = 'qy_settings_account_deletion';
-  static const String qySettingsAccountDeletionSubtitle = 'qy_settings_account_deletion_subtitle';
+  static const String qySettingsAccountDeletion =
+      'qy_settings_account_deletion';
+  static const String qySettingsAccountDeletionSubtitle =
+      'qy_settings_account_deletion_subtitle';
   static const String qySettingsDeleteAccount = 'qy_settings_delete_account';
   static const String qySettingsChangeUsername = 'qy_settings_change_username';
-  static const String qySettingsEnterNewUsername = 'qy_settings_enter_new_username';
-  static const String qySettingsUsernameUpdated = 'qy_settings_username_updated';
-  static const String qySettingsChangePasswordTitle = 'qy_settings_change_password_title';
-  static const String qySettingsEnterNewPassword = 'qy_settings_enter_new_password';
-  static const String qySettingsConfirmNewPassword = 'qy_settings_confirm_new_password';
-  static const String qySettingsPasswordUpdated = 'qy_settings_password_updated';
+  static const String qySettingsEnterNewUsername =
+      'qy_settings_enter_new_username';
+  static const String qySettingsUsernameUpdated =
+      'qy_settings_username_updated';
+  static const String qySettingsChangePasswordTitle =
+      'qy_settings_change_password_title';
+  static const String qySettingsEnterNewPassword =
+      'qy_settings_enter_new_password';
+  static const String qySettingsConfirmNewPassword =
+      'qy_settings_confirm_new_password';
+  static const String qySettingsPasswordUpdated =
+      'qy_settings_password_updated';
   static const String qySettingsPhoneBinding = 'qy_settings_phone_binding';
-  static const String qySettingsPhoneBindingInProgress = 'qy_settings_phone_binding_in_progress';
+  static const String qySettingsPhoneBindingInProgress =
+      'qy_settings_phone_binding_in_progress';
   static const String qySettingsWechatBinding = 'qy_settings_wechat_binding';
-  static const String qySettingsWechatBindingInProgress = 'qy_settings_wechat_binding_in_progress';
+  static const String qySettingsWechatBindingInProgress =
+      'qy_settings_wechat_binding_in_progress';
   static const String qySettingsWeiboBinding = 'qy_settings_weibo_binding';
-  static const String qySettingsWeiboBindingInProgress = 'qy_settings_weibo_binding_in_progress';
+  static const String qySettingsWeiboBindingInProgress =
+      'qy_settings_weibo_binding_in_progress';
   static const String qySettingsQQBinding = 'qy_settings_qq_binding';
-  static const String qySettingsQQBindingInProgress = 'qy_settings_qq_binding_in_progress';
-  static const String qySettingsDeletionWarning = 'qy_settings_deletion_warning';
+  static const String qySettingsQQBindingInProgress =
+      'qy_settings_qq_binding_in_progress';
+  static const String qySettingsDeletionWarning =
+      'qy_settings_deletion_warning';
   static const String qySettingsAfterDeletion = 'qy_settings_after_deletion';
-  static const String qySettingsDeletionDataLoss = 'qy_settings_deletion_data_loss';
-  static const String qySettingsDeletionCourseLoss = 'qy_settings_deletion_course_loss';
-  static const String qySettingsDeletionAccountClear = 'qy_settings_deletion_account_clear';
-  static const String qySettingsConfirmDeletion = 'qy_settings_confirm_deletion';
-  static const String qySettingsFinalConfirmation = 'qy_settings_final_confirmation';
-  static const String qySettingsFinalConfirmationMessage = 'qy_settings_final_confirmation_message';
+  static const String qySettingsDeletionDataLoss =
+      'qy_settings_deletion_data_loss';
+  static const String qySettingsDeletionCourseLoss =
+      'qy_settings_deletion_course_loss';
+  static const String qySettingsDeletionAccountClear =
+      'qy_settings_deletion_account_clear';
+  static const String qySettingsConfirmDeletion =
+      'qy_settings_confirm_deletion';
+  static const String qySettingsFinalConfirmation =
+      'qy_settings_final_confirmation';
+  static const String qySettingsFinalConfirmationMessage =
+      'qy_settings_final_confirmation_message';
   static const String qySettingsLetMeThink = 'qy_settings_let_me_think';
-  static const String qySettingsAccountDeletionInProgress = 'qy_settings_account_deletion_in_progress';
+  static const String qySettingsAccountDeletionInProgress =
+      'qy_settings_account_deletion_in_progress';
 
-  static const String qySettingsSmartRecommendation = 'qy_settings_smart_recommendation';
+  static const String qySettingsSmartRecommendation =
+      'qy_settings_smart_recommendation';
   static const String qySettingsAutoRecommend = 'qy_settings_auto_recommend';
-  static const String qySettingsAutoRecommendSubtitle = 'qy_settings_auto_recommend_subtitle';
+  static const String qySettingsAutoRecommendSubtitle =
+      'qy_settings_auto_recommend_subtitle';
   static const String qySettingsRecommend = 'qy_settings_recommend';
   static const String qySettingsRecommendWords = 'qy_settings_recommend_words';
-  static const String qySettingsRecommendProgress = 'qy_settings_recommend_progress';
-  static const String qySettingsRecommendProgressDescription = 'qy_settings_recommend_progress_description';
-  static const String qySettingsRecommendDifficulty = 'qy_settings_recommend_difficulty';
-  static const String qySettingsRecommendDifficultyDescription = 'qy_settings_recommend_difficulty_description';
-  static const String qySettingsRecommendSimilar = 'qy_settings_recommend_similar';
-  static const String qySettingsRecommendSimilarDescription = 'qy_settings_recommend_similar_description';
-  static const String qySettingsRecommendErrors = 'qy_settings_recommend_errors';
-  static const String qySettingsRecommendErrorsDescription = 'qy_settings_recommend_errors_description';
-  static const String qySettingsRecommendContent = 'qy_settings_recommend_content';
-  static const String qySettingsRecommendTrending = 'qy_settings_recommend_trending';
-  static const String qySettingsRecommendTrendingDescription = 'qy_settings_recommend_trending_description';
-  static const String qySettingsRecommendPersonalized = 'qy_settings_recommend_personalized';
-  static const String qySettingsRecommendPersonalizedDescription = 'qy_settings_recommend_personalized_description';
+  static const String qySettingsRecommendProgress =
+      'qy_settings_recommend_progress';
+  static const String qySettingsRecommendProgressDescription =
+      'qy_settings_recommend_progress_description';
+  static const String qySettingsRecommendDifficulty =
+      'qy_settings_recommend_difficulty';
+  static const String qySettingsRecommendDifficultyDescription =
+      'qy_settings_recommend_difficulty_description';
+  static const String qySettingsRecommendSimilar =
+      'qy_settings_recommend_similar';
+  static const String qySettingsRecommendSimilarDescription =
+      'qy_settings_recommend_similar_description';
+  static const String qySettingsRecommendErrors =
+      'qy_settings_recommend_errors';
+  static const String qySettingsRecommendErrorsDescription =
+      'qy_settings_recommend_errors_description';
+  static const String qySettingsRecommendContent =
+      'qy_settings_recommend_content';
+  static const String qySettingsRecommendTrending =
+      'qy_settings_recommend_trending';
+  static const String qySettingsRecommendTrendingDescription =
+      'qy_settings_recommend_trending_description';
+  static const String qySettingsRecommendPersonalized =
+      'qy_settings_recommend_personalized';
+  static const String qySettingsRecommendPersonalizedDescription =
+      'qy_settings_recommend_personalized_description';
   static const String qySettingsRecommendInfo = 'qy_settings_recommend_info';
-  static const String qySettingsRecommendInfoDescription = 'qy_settings_recommend_info_description';
+  static const String qySettingsRecommendInfoDescription =
+      'qy_settings_recommend_info_description';
   static const String qySettingsRecommendReset = 'qy_settings_recommend_reset';
-  static const String qySettingsRecommendResetDefaults = 'qy_settings_recommend_reset_defaults';
+  static const String qySettingsRecommendResetDefaults =
+      'qy_settings_recommend_reset_defaults';
   static const String qySettingsDifficulty = 'qy_settings_difficulty';
-  static const String qySettingsDifficultySettings = 'qy_settings_difficulty_settings';
-  static const String qySettingsDifficultyBeginner = 'qy_settings_difficulty_beginner';
-  static const String qySettingsDifficultyIntermediate = 'qy_settings_difficulty_intermediate';
-  static const String qySettingsDifficultyAdvanced = 'qy_settings_difficulty_advanced';
-  static const String qySettingsDifficultyExpert = 'qy_settings_difficulty_expert';
+  static const String qySettingsDifficultySettings =
+      'qy_settings_difficulty_settings';
+  static const String qySettingsDifficultyBeginner =
+      'qy_settings_difficulty_beginner';
+  static const String qySettingsDifficultyIntermediate =
+      'qy_settings_difficulty_intermediate';
+  static const String qySettingsDifficultyAdvanced =
+      'qy_settings_difficulty_advanced';
+  static const String qySettingsDifficultyExpert =
+      'qy_settings_difficulty_expert';
   static const String qySettingsInterestTags = 'qy_settings_interest_tags';
-  static const String qySettingsInterestTagsSelected = 'qy_settings_interest_tags_selected';
-  static const String qySettingsRecommendationFrequency = 'qy_settings_recommendation_frequency';
-  static const String qySettingsRecommendationStrength = 'qy_settings_recommendation_strength';
-  static const String qySettingsSelectDifficulty = 'qy_settings_select_difficulty';
-  static const String qySettingsDifficultyBeginnerDesc = 'qy_settings_difficulty_beginner_desc';
-  static const String qySettingsDifficultyIntermediateDesc = 'qy_settings_difficulty_intermediate_desc';
-  static const String qySettingsDifficultyAdvancedDesc = 'qy_settings_difficulty_advanced_desc';
-  static const String qySettingsDifficultyExpertDesc = 'qy_settings_difficulty_expert_desc';
+  static const String qySettingsInterestTagsSelected =
+      'qy_settings_interest_tags_selected';
+  static const String qySettingsRecommendationFrequency =
+      'qy_settings_recommendation_frequency';
+  static const String qySettingsRecommendationStrength =
+      'qy_settings_recommendation_strength';
+  static const String qySettingsSelectDifficulty =
+      'qy_settings_select_difficulty';
+  static const String qySettingsDifficultyBeginnerDesc =
+      'qy_settings_difficulty_beginner_desc';
+  static const String qySettingsDifficultyIntermediateDesc =
+      'qy_settings_difficulty_intermediate_desc';
+  static const String qySettingsDifficultyAdvancedDesc =
+      'qy_settings_difficulty_advanced_desc';
+  static const String qySettingsDifficultyExpertDesc =
+      'qy_settings_difficulty_expert_desc';
 
   // Word Book Module
   static const String qyWordBook = 'qy_word_book';
   static const String qyWordBookTitle = 'qy_word_book_title';
   static const String qyWords = 'qy_words';
   static const String qyCorpus = 'qy_corpus';
-  static const String qyWordBookExampleSentence = 'qy_word_book_example_sentence';
+  static const String qyWordBookExampleSentence =
+      'qy_word_book_example_sentence';
   static const String qyWordBookPronunciation = 'qy_word_book_pronunciation';
   static const String qyWordBookMastered = 'qy_word_book_mastered';
   static const String qyWordBookMasteryLevel = 'qy_word_book_mastery_level';
@@ -727,10 +886,12 @@ class QyAppLocalizationKeys {
   static const String qyWordBookNoWords = 'qy_word_book_no_words';
   static const String qyWordBookAddToNew = 'qy_word_book_add_to_new';
   static const String qyWordBookAddToMastered = 'qy_word_book_add_to_mastered';
-  static const String qyWordBookRemoveFromBook = 'qy_word_book_remove_from_book';
+  static const String qyWordBookRemoveFromBook =
+      'qy_word_book_remove_from_book';
   static const String qyWordBookFilterTitle = 'qy_word_book_filter_title';
   static const String qyWordBookFilterAll = 'qy_word_book_filter_all';
-  static const String qyWordBookFilterWithinBook = 'qy_word_book_filter_within_book';
+  static const String qyWordBookFilterWithinBook =
+      'qy_word_book_filter_within_book';
   static const String qyWordBookSnackPlay = 'qy_word_book_snack_play';
   static const String qyWordBookSnackLearned = 'qy_word_book_snack_learned';
   static const String qyWordBookSnackAdded = 'qy_word_book_snack_added';
@@ -788,36 +949,57 @@ class QyAppLocalizationKeys {
   static const String qyListeningSpeedNormal = 'qy_listening_speed_normal';
   static const String qyListeningSpeedFast = 'qy_listening_speed_fast';
   static const String qyListeningCategoryDaily = 'qy_listening_category_daily';
-  static const String qyListeningCategoryDailyDesc = 'qy_listening_category_daily_desc';
-  static const String qyListeningCategoryBusiness = 'qy_listening_category_business';
-  static const String qyListeningCategoryBusinessDesc = 'qy_listening_category_business_desc';
-  static const String qyListeningCategoryAcademic = 'qy_listening_category_academic';
-  static const String qyListeningCategoryAcademicDesc = 'qy_listening_category_academic_desc';
-  static const String qyListeningCategoryTravel = 'qy_listening_category_travel';
-  static const String qyListeningCategoryTravelDesc = 'qy_listening_category_travel_desc';
+  static const String qyListeningCategoryDailyDesc =
+      'qy_listening_category_daily_desc';
+  static const String qyListeningCategoryBusiness =
+      'qy_listening_category_business';
+  static const String qyListeningCategoryBusinessDesc =
+      'qy_listening_category_business_desc';
+  static const String qyListeningCategoryAcademic =
+      'qy_listening_category_academic';
+  static const String qyListeningCategoryAcademicDesc =
+      'qy_listening_category_academic_desc';
+  static const String qyListeningCategoryTravel =
+      'qy_listening_category_travel';
+  static const String qyListeningCategoryTravelDesc =
+      'qy_listening_category_travel_desc';
   static const String qyListeningCategoryTech = 'qy_listening_category_tech';
-  static const String qyListeningCategoryTechDesc = 'qy_listening_category_tech_desc';
-  static const String qyListeningCategoryMedical = 'qy_listening_category_medical';
-  static const String qyListeningCategoryMedicalDesc = 'qy_listening_category_medical_desc';
-  static const String qyListeningDictationBeginner = 'qy_listening_dictation_beginner';
-  static const String qyListeningDictationBeginnerDesc = 'qy_listening_dictation_beginner_desc';
-  static const String qyListeningDictationIntermediate = 'qy_listening_dictation_intermediate';
-  static const String qyListeningDictationIntermediateDesc = 'qy_listening_dictation_intermediate_desc';
-  static const String qyListeningDictationAdvanced = 'qy_listening_dictation_advanced';
-  static const String qyListeningDictationAdvancedDesc = 'qy_listening_dictation_advanced_desc';
-  static const String qyListeningDictationExpert = 'qy_listening_dictation_expert';
-  static const String qyListeningDictationExpertDesc = 'qy_listening_dictation_expert_desc';
+  static const String qyListeningCategoryTechDesc =
+      'qy_listening_category_tech_desc';
+  static const String qyListeningCategoryMedical =
+      'qy_listening_category_medical';
+  static const String qyListeningCategoryMedicalDesc =
+      'qy_listening_category_medical_desc';
+  static const String qyListeningDictationBeginner =
+      'qy_listening_dictation_beginner';
+  static const String qyListeningDictationBeginnerDesc =
+      'qy_listening_dictation_beginner_desc';
+  static const String qyListeningDictationIntermediate =
+      'qy_listening_dictation_intermediate';
+  static const String qyListeningDictationIntermediateDesc =
+      'qy_listening_dictation_intermediate_desc';
+  static const String qyListeningDictationAdvanced =
+      'qy_listening_dictation_advanced';
+  static const String qyListeningDictationAdvancedDesc =
+      'qy_listening_dictation_advanced_desc';
+  static const String qyListeningDictationExpert =
+      'qy_listening_dictation_expert';
+  static const String qyListeningDictationExpertDesc =
+      'qy_listening_dictation_expert_desc';
   static const String qyListeningDictation = 'qy_listening_dictation';
-  static const String qyListeningDictationTitle = 'qy_listening_dictation_title';
+  static const String qyListeningDictationTitle =
+      'qy_listening_dictation_title';
   static const String qyListeningDictationDesc = 'qy_listening_dictation_desc';
-  static const String qyListeningQuestionNumber = 'qy_listening_question_number';
+  static const String qyListeningQuestionNumber =
+      'qy_listening_question_number';
   static const String qyListeningAccuracy = 'qy_listening_accuracy';
   static const String qyListeningProgress = 'qy_listening_progress';
   static const String qyListeningPlayWord = 'qy_listening_play_word';
   static const String qyListeningStopPlay = 'qy_listening_stop_play';
   static const String qyListeningPlayCount = 'qy_listening_play_count';
   static const String qyListeningEnterWord = 'qy_listening_enter_word';
-  static const String qyListeningInputPlaceholder = 'qy_listening_input_placeholder';
+  static const String qyListeningInputPlaceholder =
+      'qy_listening_input_placeholder';
   static const String qyListeningSubmitAnswer = 'qy_listening_submit_answer';
   static const String qyListeningHint = 'qy_listening_hint';
   static const String qyListeningHintMessage = 'qy_listening_hint_message';
@@ -829,15 +1011,19 @@ class QyAppLocalizationKeys {
   static const String qyListeningPrevious = 'qy_listening_previous';
   static const String qyListeningNext = 'qy_listening_next';
   static const String qyListeningComplete = 'qy_listening_complete';
-  static const String qyListeningPracticeComplete = 'qy_listening_practice_complete';
-  static const String qyListeningCorrectAnswers = 'qy_listening_correct_answers';
-  static const String qyListeningTodayListening = 'qy_listening_today_listening';
+  static const String qyListeningPracticeComplete =
+      'qy_listening_practice_complete';
+  static const String qyListeningCorrectAnswers =
+      'qy_listening_correct_answers';
+  static const String qyListeningTodayListening =
+      'qy_listening_today_listening';
   static const String qyListeningLearnedWords = 'qy_listening_learned_words';
   static const String qyListeningStreakDays = 'qy_listening_streak_days';
   static const String qyListeningTodayPractice = 'qy_listening_today_practice';
   static const String qyListeningWeekPractice = 'qy_listening_week_practice';
   static const String qyListeningTotalTime = 'qy_listening_total_time';
-  static const String qyListeningContinuousDays = 'qy_listening_continuous_days';
+  static const String qyListeningContinuousDays =
+      'qy_listening_continuous_days';
   static const String qyListeningDailyAverage = 'qy_listening_daily_average';
   static const String qyListeningFreeTitle = 'qy_listening_free_title';
   static const String qyListeningFreeDesc = 'qy_listening_free_desc';
@@ -849,23 +1035,33 @@ class QyAppLocalizationKeys {
   static const String qyListeningPracticing = 'qy_listening_practicing';
   static const String qyListeningMastered = 'qy_listening_mastered';
   static const String qyListeningAccuracyRate = 'qy_listening_accuracy_rate';
-  static const String qyListeningDictationTraining = 'qy_listening_dictation_training';
-  static const String qyListeningDictationTrainingDesc = 'qy_listening_dictation_training_desc';
+  static const String qyListeningDictationTraining =
+      'qy_listening_dictation_training';
+  static const String qyListeningDictationTrainingDesc =
+      'qy_listening_dictation_training_desc';
   static const String qyListeningWordCount = 'qy_listening_word_count';
-  static const String qyListeningUnlockAfterCurrentLevel = 'qy_listening_unlock_after_current_level';
+  static const String qyListeningUnlockAfterCurrentLevel =
+      'qy_listening_unlock_after_current_level';
   static const String qyListeningDictationHelp = 'qy_listening_dictation_help';
-  static const String qyListeningHelpHowToPractice = 'qy_listening_help_how_to_practice';
-  static const String qyListeningHelpPracticeSteps = 'qy_listening_help_practice_steps';
-  static const String qyListeningHelpTipsContent = 'qy_listening_help_tips_content';
-  static const String qyListeningDailyChallengeInDev = 'qy_listening_daily_challenge_in_dev';
-  static const String qyListeningDailyChallenge = 'qy_listening_daily_challenge';
+  static const String qyListeningHelpHowToPractice =
+      'qy_listening_help_how_to_practice';
+  static const String qyListeningHelpPracticeSteps =
+      'qy_listening_help_practice_steps';
+  static const String qyListeningHelpTipsContent =
+      'qy_listening_help_tips_content';
+  static const String qyListeningDailyChallengeInDev =
+      'qy_listening_daily_challenge_in_dev';
+  static const String qyListeningDailyChallenge =
+      'qy_listening_daily_challenge';
   static const String qyListeningUnlockTip = 'qy_listening_unlock_tip';
   static const String qyListeningHelp = 'qy_listening_help';
   static const String qyListeningHelpContent = 'qy_listening_help_content';
   static const String qyListeningHelpTips = 'qy_listening_help_tips';
   static const String qyListeningGotIt = 'qy_listening_got_it';
-  static const String qyListeningDailyChallengeComingSoon = 'qy_listening_daily_challenge_coming_soon';
-  static const String qyListeningSelectCategory = 'qy_listening_select_category';
+  static const String qyListeningDailyChallengeComingSoon =
+      'qy_listening_daily_challenge_coming_soon';
+  static const String qyListeningSelectCategory =
+      'qy_listening_select_category';
   static const String qyListeningPlaylist = 'qy_listening_playlist';
   static const String qyListeningMinutes = 'qy_listening_minutes';
   static const String qyListeningDays = 'qy_listening_days';
@@ -876,7 +1072,8 @@ class QyAppLocalizationKeys {
   static const String qyListeningClickToPlay = 'qy_listening_click_to_play';
   static const String qyListeningWriteWord = 'qy_listening_write_word';
   static const String qyListeningInputWord = 'qy_listening_input_word';
-  static const String qyListeningPreviousAttempts = 'qy_listening_previous_attempts';
+  static const String qyListeningPreviousAttempts =
+      'qy_listening_previous_attempts';
   static const String qyListeningHintShown = 'qy_listening_hint_shown';
   static const String qyListeningShowHint = 'qy_listening_show_hint';
   static const String qyListeningCheckAnswer = 'qy_listening_check_answer';
@@ -889,33 +1086,44 @@ class QyAppLocalizationKeys {
   // Word Listening - Sleep Mode
   static const String qyListeningSleepTitle = 'qy_listening_sleep_title';
   static const String qyListeningSleepSubtitle = 'qy_listening_sleep_subtitle';
-  static const String qyListeningSleepCategorySoothing = 'qy_listening_sleep_category_soothing';
-  static const String qyListeningSleepCategoryNature = 'qy_listening_sleep_category_nature';
-  static const String qyListeningSleepCategoryStory = 'qy_listening_sleep_category_story';
-  static const String qyListeningSleepCategoryPoetry = 'qy_listening_sleep_category_poetry';
-  static const String qyListeningSleepCategoryMeditation = 'qy_listening_sleep_category_meditation';
-  static const String qyListeningSleepSelectCategory = 'qy_listening_sleep_select_category';
+  static const String qyListeningSleepCategorySoothing =
+      'qy_listening_sleep_category_soothing';
+  static const String qyListeningSleepCategoryNature =
+      'qy_listening_sleep_category_nature';
+  static const String qyListeningSleepCategoryStory =
+      'qy_listening_sleep_category_story';
+  static const String qyListeningSleepCategoryPoetry =
+      'qy_listening_sleep_category_poetry';
+  static const String qyListeningSleepCategoryMeditation =
+      'qy_listening_sleep_category_meditation';
+  static const String qyListeningSleepSelectCategory =
+      'qy_listening_sleep_select_category';
   static const String qyListeningSleepDuration = 'qy_listening_sleep_duration';
   static const String qyListeningSleepMinutes = 'qy_listening_sleep_minutes';
-  static const String qyListeningSleepTipsTitle = 'qy_listening_sleep_tips_title';
+  static const String qyListeningSleepTipsTitle =
+      'qy_listening_sleep_tips_title';
   static const String qyListeningSleepTip1 = 'qy_listening_sleep_tip1';
   static const String qyListeningSleepTip2 = 'qy_listening_sleep_tip2';
   static const String qyListeningSleepTip3 = 'qy_listening_sleep_tip3';
   static const String qyListeningSleepTip4 = 'qy_listening_sleep_tip4';
   static const String qyListeningSleepStart = 'qy_listening_sleep_start';
   static const String qyListeningSleepPlaying = 'qy_listening_sleep_playing';
-  static const String qyListeningSleepRemainingTime = 'qy_listening_sleep_remaining_time';
+  static const String qyListeningSleepRemainingTime =
+      'qy_listening_sleep_remaining_time';
   static const String qyListeningSleepProgress = 'qy_listening_sleep_progress';
   static const String qyListeningSleepEnd = 'qy_listening_sleep_end';
   static const String qyListeningSleepPrevious = 'qy_listening_sleep_previous';
   static const String qyListeningSleepNext = 'qy_listening_sleep_next';
   static const String qyListeningSleepEndTitle = 'qy_listening_sleep_end_title';
-  static const String qyListeningSleepEndMessage = 'qy_listening_sleep_end_message';
+  static const String qyListeningSleepEndMessage =
+      'qy_listening_sleep_end_message';
   static const String qyListeningSleepContinue = 'qy_listening_sleep_continue';
-  
+
   // Expert Dictation Level 3 specific keys
-  static const String qyListeningDictationExpertTitle = 'qy_listening_dictation_expert_title';
-  static const String qyListeningExpertProgress = 'qy_listening_expert_progress';
+  static const String qyListeningDictationExpertTitle =
+      'qy_listening_dictation_expert_title';
+  static const String qyListeningExpertProgress =
+      'qy_listening_expert_progress';
   static const String qyListeningStreak = 'qy_listening_streak';
   static const String qyListeningAttempts = 'qy_listening_attempts';
   static const String qyListeningLevel = 'qy_listening_level';
@@ -926,16 +1134,26 @@ class QyAppLocalizationKeys {
   static const String qyListeningClickExpert = 'qy_listening_click_expert';
   static const String qyListeningEnterExpert = 'qy_listening_enter_expert';
   static const String qyListeningInputExpert = 'qy_listening_input_expert';
-  static const String qyListeningAttemptHistory = 'qy_listening_attempt_history';
-  static const String qyListeningWordPhenomenalMeaning = 'qy_listening_word_phenomenal_meaning';
-  static const String qyListeningWordConscientiousMeaning = 'qy_listening_word_conscientious_meaning';
-  static const String qyListeningWordUnprecedentedMeaning = 'qy_listening_word_unprecedented_meaning';
-  static const String qyListeningWordEntrepreneurialMeaning = 'qy_listening_word_entrepreneurial_meaning';
-  static const String qyListeningWordSophisticatedMeaning = 'qy_listening_word_sophisticated_meaning';
-  static const String qyListeningPlayingExpertAudio = 'qy_listening_playing_expert_audio';
-  static const String qyListeningCorrectAnswerLabel = 'qy_listening_correct_answer_label';
-  static const String qyListeningExpertCertified = 'qy_listening_expert_certified';
-  static const String qyListeningChallengeComplete = 'qy_listening_challenge_complete';
+  static const String qyListeningAttemptHistory =
+      'qy_listening_attempt_history';
+  static const String qyListeningWordPhenomenalMeaning =
+      'qy_listening_word_phenomenal_meaning';
+  static const String qyListeningWordConscientiousMeaning =
+      'qy_listening_word_conscientious_meaning';
+  static const String qyListeningWordUnprecedentedMeaning =
+      'qy_listening_word_unprecedented_meaning';
+  static const String qyListeningWordEntrepreneurialMeaning =
+      'qy_listening_word_entrepreneurial_meaning';
+  static const String qyListeningWordSophisticatedMeaning =
+      'qy_listening_word_sophisticated_meaning';
+  static const String qyListeningPlayingExpertAudio =
+      'qy_listening_playing_expert_audio';
+  static const String qyListeningCorrectAnswerLabel =
+      'qy_listening_correct_answer_label';
+  static const String qyListeningExpertCertified =
+      'qy_listening_expert_certified';
+  static const String qyListeningChallengeComplete =
+      'qy_listening_challenge_complete';
   static const String qyListeningFinalAccuracy = 'qy_listening_final_accuracy';
   static const String qyListeningCorrectWords = 'qy_listening_correct_words';
   static const String qyListeningMaxStreak = 'qy_listening_max_streak';
@@ -943,22 +1161,34 @@ class QyAppLocalizationKeys {
   static const String qyListeningVerifyAnswer = 'qy_listening_verify_answer';
   static const String qyListeningSkip = 'qy_listening_skip';
   static const String qyListeningStreakSuccess = 'qy_listening_streak_success';
-  static const String qyListeningWordAppleMeaning = 'qy_listening_word_apple_meaning';
-  static const String qyListeningWordBeautifulMeaning = 'qy_listening_word_beautiful_meaning';
-  static const String qyListeningWordComputerMeaning = 'qy_listening_word_computer_meaning';
-  static const String qyListeningWordEducationMeaning = 'qy_listening_word_education_meaning';
-  static const String qyListeningWordFriendshipMeaning = 'qy_listening_word_friendship_meaning';
-  static const String qyListeningWordMagnificentMeaning = 'qy_listening_word_magnificent_meaning';
-  static const String qyListeningWordExtraordinaryMeaning = 'qy_listening_word_extraordinary_meaning';
-  static const String qyListeningWordAccomplishmentMeaning = 'qy_listening_word_accomplishment_meaning';
-  static const String qyListeningWordEnvironmentalMeaning = 'qy_listening_word_environmental_meaning';
-  static const String qyListeningWordRevolutionaryMeaning = 'qy_listening_word_revolutionary_meaning';
+  static const String qyListeningWordAppleMeaning =
+      'qy_listening_word_apple_meaning';
+  static const String qyListeningWordBeautifulMeaning =
+      'qy_listening_word_beautiful_meaning';
+  static const String qyListeningWordComputerMeaning =
+      'qy_listening_word_computer_meaning';
+  static const String qyListeningWordEducationMeaning =
+      'qy_listening_word_education_meaning';
+  static const String qyListeningWordFriendshipMeaning =
+      'qy_listening_word_friendship_meaning';
+  static const String qyListeningWordMagnificentMeaning =
+      'qy_listening_word_magnificent_meaning';
+  static const String qyListeningWordExtraordinaryMeaning =
+      'qy_listening_word_extraordinary_meaning';
+  static const String qyListeningWordAccomplishmentMeaning =
+      'qy_listening_word_accomplishment_meaning';
+  static const String qyListeningWordEnvironmentalMeaning =
+      'qy_listening_word_environmental_meaning';
+  static const String qyListeningWordRevolutionaryMeaning =
+      'qy_listening_word_revolutionary_meaning';
   static const String qyListeningSlow = 'qy_listening_slow';
   static const String qyListeningNormal = 'qy_listening_normal';
   static const String qyListeningFast = 'qy_listening_fast';
   static const String qyListeningAnswerCorrect = 'qy_listening_answer_correct';
-  static const String qyListeningAnswerIncorrect = 'qy_listening_answer_incorrect';
-  static const String qyListeningCorrectAnswerIs = 'qy_listening_correct_answer_is';
+  static const String qyListeningAnswerIncorrect =
+      'qy_listening_answer_incorrect';
+  static const String qyListeningCorrectAnswerIs =
+      'qy_listening_correct_answer_is';
   static const String qyListeningContinue = 'qy_listening_continue';
   static const String qyListeningRetry = 'qy_listening_retry';
   static const String qyListeningDone = 'qy_listening_done';
@@ -973,20 +1203,27 @@ class QyAppLocalizationKeys {
   static const String qyCoursesTagline = 'qy_courses_tagline';
   static const String qyCoursesCount = 'qy_courses_count';
   static const String qyCoursesInDev = 'qy_courses_in_dev';
-  static const String qyCourseHotCategoriesTitle = 'qy_course_hot_categories_title';
+  static const String qyCourseHotCategoriesTitle =
+      'qy_course_hot_categories_title';
   static const String qyCourseCategoryCet = 'qy_course_category_cet';
-  static const String qyCourseCategoryPostgraduate = 'qy_course_category_postgraduate';
+  static const String qyCourseCategoryPostgraduate =
+      'qy_course_category_postgraduate';
   static const String qyCourseCategoryOral = 'qy_course_category_oral';
   static const String qyCourseCategoryPython = 'qy_course_category_python';
   static const String qyCourseCategoryReading = 'qy_course_category_reading';
   static const String qyCourseCategoryCollege = 'qy_course_category_college';
-  static const String qyCourseLearningFocusTitle = 'qy_course_learning_focus_title';
-  static const String qyCourseFocusEfficientTitle = 'qy_course_focus_efficient_title';
-  static const String qyCourseFocusEfficientSubtitle = 'qy_course_focus_efficient_subtitle';
+  static const String qyCourseLearningFocusTitle =
+      'qy_course_learning_focus_title';
+  static const String qyCourseFocusEfficientTitle =
+      'qy_course_focus_efficient_title';
+  static const String qyCourseFocusEfficientSubtitle =
+      'qy_course_focus_efficient_subtitle';
   static const String qyCourseFocusDailyTitle = 'qy_course_focus_daily_title';
-  static const String qyCourseFocusDailySubtitle = 'qy_course_focus_daily_subtitle';
+  static const String qyCourseFocusDailySubtitle =
+      'qy_course_focus_daily_subtitle';
   static const String qyCourseFocusCareerTitle = 'qy_course_focus_career_title';
-  static const String qyCourseFocusCareerSubtitle = 'qy_course_focus_career_subtitle';
+  static const String qyCourseFocusCareerSubtitle =
+      'qy_course_focus_career_subtitle';
   static const String qyCourseVipLabel = 'qy_course_vip_label';
   static const String qyCourseVipHeadline = 'qy_course_vip_headline';
   static const String qyCourseVipSubhead = 'qy_course_vip_subhead';
@@ -994,46 +1231,70 @@ class QyAppLocalizationKeys {
   static const String qyCourseVipBenefit2 = 'qy_course_vip_benefit_2';
   static const String qyCourseVipBenefit3 = 'qy_course_vip_benefit_3';
   static const String qyCourseVipCta = 'qy_course_vip_cta';
-  static const String qyCoursePlanBadgeAdvanced = 'qy_course_plan_badge_advanced';
-  static const String qyCoursePlanBadgeFlagship = 'qy_course_plan_badge_flagship';
+  static const String qyCoursePlanBadgeAdvanced =
+      'qy_course_plan_badge_advanced';
+  static const String qyCoursePlanBadgeFlagship =
+      'qy_course_plan_badge_flagship';
   static const String qyCourseFeaturedTitle1 = 'qy_course_featured_title_1';
   static const String qyCourseFeaturedTitle2 = 'qy_course_featured_title_2';
-  static const String qyCoursePlanTitleCareerUpgrade = 'qy_course_plan_title_career_upgrade';
-  static const String qyCoursePlanDescriptionCareerUpgrade = 'qy_course_plan_description_career_upgrade';
-  static const String qyCoursePlanDuration12Weeks = 'qy_course_plan_duration_12_weeks';
-  static const String qyCoursePlanTitleBusinessCommunication = 'qy_course_plan_title_business_communication';
-  static const String qyCoursePlanDescriptionBusinessCommunication = 'qy_course_plan_description_business_communication';
-  static const String qyCoursePlanDuration24Lessons = 'qy_course_plan_duration_24_lessons';
-  static const String qyCoursePlanActionExperience = 'qy_course_plan_action_experience';
-  static const String qyCoursePlanActionDetails = 'qy_course_plan_action_details';
+  static const String qyCoursePlanTitleCareerUpgrade =
+      'qy_course_plan_title_career_upgrade';
+  static const String qyCoursePlanDescriptionCareerUpgrade =
+      'qy_course_plan_description_career_upgrade';
+  static const String qyCoursePlanDuration12Weeks =
+      'qy_course_plan_duration_12_weeks';
+  static const String qyCoursePlanTitleBusinessCommunication =
+      'qy_course_plan_title_business_communication';
+  static const String qyCoursePlanDescriptionBusinessCommunication =
+      'qy_course_plan_description_business_communication';
+  static const String qyCoursePlanDuration24Lessons =
+      'qy_course_plan_duration_24_lessons';
+  static const String qyCoursePlanActionExperience =
+      'qy_course_plan_action_experience';
+  static const String qyCoursePlanActionDetails =
+      'qy_course_plan_action_details';
   static const String qyCoursePlanActionStart = 'qy_course_plan_action_start';
   static const String qyCourseOpening = 'qy_course_opening';
   static const String qyCourseVipSnackbar = 'qy_course_vip_snackbar';
   static const String qyCoursePythonZoneTitle = 'qy_course_python_zone_title';
   static const String qyCourseDigitalSkill = 'qy_course_digital_skill';
   static const String qyCoursePythonPathTitle = 'qy_course_python_path_title';
-  static const String qyCoursePythonPathDescription = 'qy_course_python_path_description';
+  static const String qyCoursePythonPathDescription =
+      'qy_course_python_path_description';
   static const String qyCourseBadgeIntro = 'qy_course_badge_intro';
-  static const String qyCourseBadgeIntermediate = 'qy_course_badge_intermediate';
+  static const String qyCourseBadgeIntermediate =
+      'qy_course_badge_intermediate';
   static const String qyCourseBadgePopular = 'qy_course_badge_popular';
   static const String qyCourseBadgePractical = 'qy_course_badge_practical';
   static const String qyCourseVipFreeTag = 'qy_course_vip_free_tag';
   static const String qyCoursePythonIntroTitle = 'qy_course_python_intro_title';
-  static const String qyCoursePythonIntroSubtitle = 'qy_course_python_intro_subtitle';
-  static const String qyCoursePythonAdvanceTitle = 'qy_course_python_advance_title';
-  static const String qyCoursePythonAdvanceSubtitle = 'qy_course_python_advance_subtitle';
+  static const String qyCoursePythonIntroSubtitle =
+      'qy_course_python_intro_subtitle';
+  static const String qyCoursePythonAdvanceTitle =
+      'qy_course_python_advance_title';
+  static const String qyCoursePythonAdvanceSubtitle =
+      'qy_course_python_advance_subtitle';
   static const String qyCoursePythonDataTitle = 'qy_course_python_data_title';
-  static const String qyCoursePythonDataSubtitle = 'qy_course_python_data_subtitle';
+  static const String qyCoursePythonDataSubtitle =
+      'qy_course_python_data_subtitle';
   static const String qyCoursePythonCasesTitle = 'qy_course_python_cases_title';
-  static const String qyCoursePythonCasesSubtitle = 'qy_course_python_cases_subtitle';
-  static const String qyCourseExperienceZoneTitle = 'qy_course_experience_zone_title';
-  static const String qyCourseVipExperienceSubtitle = 'qy_course_vip_experience_subtitle';
+  static const String qyCoursePythonCasesSubtitle =
+      'qy_course_python_cases_subtitle';
+  static const String qyCourseExperienceZoneTitle =
+      'qy_course_experience_zone_title';
+  static const String qyCourseVipExperienceSubtitle =
+      'qy_course_vip_experience_subtitle';
   static const String qyCourseVipCoverage = 'qy_course_vip_coverage';
-  static const String qyCoursePlanCategoryIelts = 'qy_course_plan_category_ielts';
-  static const String qyCoursePlanCategoryGaokao = 'qy_course_plan_category_gaokao';
-  static const String qyCoursePlanCategoryMiddle = 'qy_course_plan_category_middle';
-  static const String qyCoursePlanAllSkillTagline = 'qy_course_plan_all_skill_tagline';
-  static const String qyCoursePlanAllSkillDescription = 'qy_course_plan_all_skill_description';
+  static const String qyCoursePlanCategoryIelts =
+      'qy_course_plan_category_ielts';
+  static const String qyCoursePlanCategoryGaokao =
+      'qy_course_plan_category_gaokao';
+  static const String qyCoursePlanCategoryMiddle =
+      'qy_course_plan_category_middle';
+  static const String qyCoursePlanAllSkillTagline =
+      'qy_course_plan_all_skill_tagline';
+  static const String qyCoursePlanAllSkillDescription =
+      'qy_course_plan_all_skill_description';
   static const String qyCoursePlanClassicTitle = 'qy_course_plan_classic_title';
   static const String qyCoursePlanClassicName = 'qy_course_plan_classic_name';
   static const String qyCoursePlanClassicStats = 'qy_course_plan_classic_stats';
@@ -1043,10 +1304,12 @@ class QyAppLocalizationKeys {
   static const String qyCoursePlanReadingTitle = 'qy_course_plan_reading_title';
   static const String qyCoursePlanViewMore = 'qy_course_plan_view_more';
   static const String qyCoursePlanTextbookSync = 'qy_course_plan_textbook_sync';
-  static const String qyCoursePlanTextbookTitle = 'qy_course_plan_textbook_title';
+  static const String qyCoursePlanTextbookTitle =
+      'qy_course_plan_textbook_title';
   static const String qyCoursePlanReadingBrand = 'qy_course_plan_reading_brand';
   static const String qyCoursePlanFurtherStudy = 'qy_course_plan_further_study';
-  static const String qyCoursePlanTextbookGrade = 'qy_course_plan_textbook_grade';
+  static const String qyCoursePlanTextbookGrade =
+      'qy_course_plan_textbook_grade';
   static const String qyCoursePlanMoreComing = 'qy_course_plan_more_coming';
 
   // Course Detail
@@ -1061,8 +1324,10 @@ class QyAppLocalizationKeys {
   static const String qyCourseMockTest = 'qy_course_mock_test';
   static const String qyCourseSpeakingPractice = 'qy_course_speaking_practice';
   static const String qyCourseIeltsMasterTitle = 'qy_course_ielts_master_title';
-  static const String qyCourseIeltsMasterSubtitle = 'qy_course_ielts_master_subtitle';
-  static const String qyCourseIeltsMasterDescription = 'qy_course_ielts_master_description';
+  static const String qyCourseIeltsMasterSubtitle =
+      'qy_course_ielts_master_subtitle';
+  static const String qyCourseIeltsMasterDescription =
+      'qy_course_ielts_master_description';
   static const String qyCourseIeltsFeature1 = 'qy_course_ielts_feature_1';
   static const String qyCourseIeltsFeature2 = 'qy_course_ielts_feature_2';
   static const String qyCourseIeltsFeature3 = 'qy_course_ielts_feature_3';
@@ -1075,9 +1340,12 @@ class QyAppLocalizationKeys {
   static const String qyCourseIeltsTopic4 = 'qy_course_ielts_topic_4';
   static const String qyCourseIeltsTopic5 = 'qy_course_ielts_topic_5';
   static const String qyCourseIeltsTopic6 = 'qy_course_ielts_topic_6';
-  static const String qyCoursePythonMasterTitle = 'qy_course_python_master_title';
-  static const String qyCoursePythonMasterSubtitle = 'qy_course_python_master_subtitle';
-  static const String qyCoursePythonMasterDescription = 'qy_course_python_master_description';
+  static const String qyCoursePythonMasterTitle =
+      'qy_course_python_master_title';
+  static const String qyCoursePythonMasterSubtitle =
+      'qy_course_python_master_subtitle';
+  static const String qyCoursePythonMasterDescription =
+      'qy_course_python_master_description';
   static const String qyCoursePythonFeature1 = 'qy_course_python_feature_1';
   static const String qyCoursePythonFeature2 = 'qy_course_python_feature_2';
   static const String qyCoursePythonFeature3 = 'qy_course_python_feature_3';
@@ -1153,7 +1421,8 @@ class QyAppLocalizationKeys {
   static const String qyIeltsCourseRating = 'qy_ielts_course_rating';
   static const String qyIeltsCourseFeatures = 'qy_ielts_course_features';
   static const String qyIeltsCourseInstructor = 'qy_ielts_course_instructor';
-  static const String qyIeltsCourseInstructorDesc = 'qy_ielts_course_instructor_desc';
+  static const String qyIeltsCourseInstructorDesc =
+      'qy_ielts_course_instructor_desc';
   static const String qyIeltsCourseOutline = 'qy_ielts_course_outline';
   static const String qyIeltsCourseContent = 'qy_ielts_course_content';
   static const String qyIeltsLessonListening = 'qy_ielts_lesson_listening';
@@ -1163,29 +1432,42 @@ class QyAppLocalizationKeys {
   static const String qyIeltsLessonCompleted = 'qy_ielts_lesson_completed';
   static const String qyIeltsPracticeAndTest = 'qy_ielts_practice_and_test';
   static const String qyIeltsPracticeMockTest = 'qy_ielts_practice_mock_test';
-  static const String qyIeltsPracticeMockTestDesc = 'qy_ielts_practice_mock_test_desc';
-  static const String qyIeltsPracticeMockTestDuration = 'qy_ielts_practice_mock_test_duration';
+  static const String qyIeltsPracticeMockTestDesc =
+      'qy_ielts_practice_mock_test_desc';
+  static const String qyIeltsPracticeMockTestDuration =
+      'qy_ielts_practice_mock_test_duration';
   static const String qyIeltsPracticeSkill = 'qy_ielts_practice_skill';
   static const String qyIeltsPracticeSkillDesc = 'qy_ielts_practice_skill_desc';
-  static const String qyIeltsPracticeSkillDuration = 'qy_ielts_practice_skill_duration';
-  static const String qyIeltsPracticePastPapers = 'qy_ielts_practice_past_papers';
-  static const String qyIeltsPracticePastPapersDesc = 'qy_ielts_practice_past_papers_desc';
-  static const String qyIeltsPracticePastPapersDuration = 'qy_ielts_practice_past_papers_duration';
+  static const String qyIeltsPracticeSkillDuration =
+      'qy_ielts_practice_skill_duration';
+  static const String qyIeltsPracticePastPapers =
+      'qy_ielts_practice_past_papers';
+  static const String qyIeltsPracticePastPapersDesc =
+      'qy_ielts_practice_past_papers_desc';
+  static const String qyIeltsPracticePastPapersDuration =
+      'qy_ielts_practice_past_papers_duration';
   static const String qyIeltsPracticeSpeaking = 'qy_ielts_practice_speaking';
-  static const String qyIeltsPracticeSpeakingDesc = 'qy_ielts_practice_speaking_desc';
-  static const String qyIeltsPracticeSpeakingDuration = 'qy_ielts_practice_speaking_duration';
+  static const String qyIeltsPracticeSpeakingDesc =
+      'qy_ielts_practice_speaking_desc';
+  static const String qyIeltsPracticeSpeakingDuration =
+      'qy_ielts_practice_speaking_duration';
   static const String qyIeltsLearningStats = 'qy_ielts_learning_stats';
   static const String qyIeltsStudyDays = 'qy_ielts_study_days';
   static const String qyIeltsCompletedLessons = 'qy_ielts_completed_lessons';
   static const String qyIeltsPracticeHours = 'qy_ielts_practice_hours';
   static const String qyIeltsAverageScore = 'qy_ielts_average_score';
   static const String qyIeltsProgressTrend = 'qy_ielts_progress_trend';
-  static const String qyIeltsProgressChartPlaceholder = 'qy_ielts_progress_chart_placeholder';
+  static const String qyIeltsProgressChartPlaceholder =
+      'qy_ielts_progress_chart_placeholder';
   static const String qyIeltsAchievements = 'qy_ielts_achievements';
-  static const String qyIeltsAchievementStreak7 = 'qy_ielts_achievement_streak_7';
-  static const String qyIeltsAchievementFirstTest = 'qy_ielts_achievement_first_test';
-  static const String qyIeltsAchievementListeningBreakthrough = 'qy_ielts_achievement_listening_breakthrough';
-  static const String qyIeltsAchievementPerfectScore = 'qy_ielts_achievement_perfect_score';
+  static const String qyIeltsAchievementStreak7 =
+      'qy_ielts_achievement_streak_7';
+  static const String qyIeltsAchievementFirstTest =
+      'qy_ielts_achievement_first_test';
+  static const String qyIeltsAchievementListeningBreakthrough =
+      'qy_ielts_achievement_listening_breakthrough';
+  static const String qyIeltsAchievementPerfectScore =
+      'qy_ielts_achievement_perfect_score';
 
   // Python Course Detail
   static const String qyPythonModuleBasics = 'qy_python_module_basics';
@@ -1194,58 +1476,79 @@ class QyAppLocalizationKeys {
   static const String qyPythonModuleOOPDesc = 'qy_python_module_oop_desc';
   static const String qyPythonModuleWeb = 'qy_python_module_web';
   static const String qyPythonModuleWebDesc = 'qy_python_module_web_desc';
-  static const String qyPythonModuleDataAnalysis = 'qy_python_module_data_analysis';
-  static const String qyPythonModuleDataAnalysisDesc = 'qy_python_module_data_analysis_desc';
+  static const String qyPythonModuleDataAnalysis =
+      'qy_python_module_data_analysis';
+  static const String qyPythonModuleDataAnalysisDesc =
+      'qy_python_module_data_analysis_desc';
   static const String qyPythonModuleML = 'qy_python_module_ml';
   static const String qyPythonModuleMLDesc = 'qy_python_module_ml_desc';
   static const String qyPythonModuleProject = 'qy_python_module_project';
-  static const String qyPythonModuleProjectDesc = 'qy_python_module_project_desc';
-  static const String qyPythonModuleDuration2Weeks = 'qy_python_module_duration_2_weeks';
-  static const String qyPythonModuleDuration2_5Weeks = 'qy_python_module_duration_2_5_weeks';
-  static const String qyPythonModuleDuration3Weeks = 'qy_python_module_duration_3_weeks';
-  static const String qyPythonModuleDuration3_5Weeks = 'qy_python_module_duration_3_5_weeks';
-  static const String qyPythonModuleDuration4Weeks = 'qy_python_module_duration_4_weeks';
+  static const String qyPythonModuleProjectDesc =
+      'qy_python_module_project_desc';
+  static const String qyPythonModuleDuration2Weeks =
+      'qy_python_module_duration_2_weeks';
+  static const String qyPythonModuleDuration2_5Weeks =
+      'qy_python_module_duration_2_5_weeks';
+  static const String qyPythonModuleDuration3Weeks =
+      'qy_python_module_duration_3_weeks';
+  static const String qyPythonModuleDuration3_5Weeks =
+      'qy_python_module_duration_3_5_weeks';
+  static const String qyPythonModuleDuration4Weeks =
+      'qy_python_module_duration_4_weeks';
   static const String qyPythonProjects = 'qy_python_projects';
   static const String qyPythonProjectTodo = 'qy_python_project_todo';
   static const String qyPythonProjectTodoApp = 'qy_python_project_todo_app';
-  static const String qyPythonProjectTodoAppDesc = 'qy_python_project_todo_app_desc';
+  static const String qyPythonProjectTodoAppDesc =
+      'qy_python_project_todo_app_desc';
   static const String qyPythonProjectDashboard = 'qy_python_project_dashboard';
   static const String qyPythonProjectDataViz = 'qy_python_project_data_viz';
-  static const String qyPythonProjectDataVizDesc = 'qy_python_project_data_viz_desc';
+  static const String qyPythonProjectDataVizDesc =
+      'qy_python_project_data_viz_desc';
   static const String qyPythonProjectScraper = 'qy_python_project_scraper';
-  static const String qyPythonProjectWebScraper = 'qy_python_project_web_scraper';
-  static const String qyPythonProjectWebScraperDesc = 'qy_python_project_web_scraper_desc';
-  static const String qyPythonProjectScraperDesc = 'qy_python_project_scraper_desc';
+  static const String qyPythonProjectWebScraper =
+      'qy_python_project_web_scraper';
+  static const String qyPythonProjectWebScraperDesc =
+      'qy_python_project_web_scraper_desc';
+  static const String qyPythonProjectScraperDesc =
+      'qy_python_project_scraper_desc';
   static const String qyPythonProjectBlog = 'qy_python_project_blog';
   static const String qyPythonProjectBlogDesc = 'qy_python_project_blog_desc';
   static const String qyPythonProjectML = 'qy_python_project_ml';
   static const String qyPythonProjectMLPredict = 'qy_python_project_ml_predict';
-  static const String qyPythonProjectMLPredictDesc = 'qy_python_project_ml_predict_desc';
+  static const String qyPythonProjectMLPredictDesc =
+      'qy_python_project_ml_predict_desc';
   static const String qyPythonProjectMLDesc = 'qy_python_project_ml_desc';
-  static const String qyPythonDifficultyBeginner = 'qy_python_difficulty_beginner';
-  static const String qyPythonDifficultyIntermediate = 'qy_python_difficulty_intermediate';
-  static const String qyPythonDifficultyAdvanced = 'qy_python_difficulty_advanced';
+  static const String qyPythonDifficultyBeginner =
+      'qy_python_difficulty_beginner';
+  static const String qyPythonDifficultyIntermediate =
+      'qy_python_difficulty_intermediate';
+  static const String qyPythonDifficultyAdvanced =
+      'qy_python_difficulty_advanced';
   static const String qyPythonStatusCompleted = 'qy_python_status_completed';
   static const String qyPythonStatusInProgress = 'qy_python_status_in_progress';
   static const String qyPythonStatusLocked = 'qy_python_status_locked';
   static const String qyPythonCodingStats = 'qy_python_coding_stats';
   static const String qyPythonCodingDays = 'qy_python_coding_days';
-  static const String qyPythonCompletedProjects = 'qy_python_completed_projects';
+  static const String qyPythonCompletedProjects =
+      'qy_python_completed_projects';
   static const String qyPythonLinesOfCode = 'qy_python_lines_of_code';
   static const String qyPythonPracticeHours = 'qy_python_practice_hours';
   static const String qyPythonCodingActivity = 'qy_python_coding_activity';
-  static const String qyPythonCodingActivityChart = 'qy_python_coding_activity_chart';
+  static const String qyPythonCodingActivityChart =
+      'qy_python_coding_activity_chart';
   static const String qyPythonSkillsProgress = 'qy_python_skills_progress';
   static const String qyPythonSkillBasics = 'qy_python_skill_basics';
   static const String qyPythonSkillOOP = 'qy_python_skill_oop';
   static const String qyPythonSkillWeb = 'qy_python_skill_web';
-  static const String qyPythonSkillDataAnalysis = 'qy_python_skill_data_analysis';
+  static const String qyPythonSkillDataAnalysis =
+      'qy_python_skill_data_analysis';
   static const String qyPythonSkillML = 'qy_python_skill_ml';
 
   // Route Navigation Example
   static const String qyRouteNavigationExample = 'qy_route_navigation_example';
   static const String qyRouteKeysManagement = 'qy_route_keys_management';
-  static const String qyRouteKeysManagementDesc = 'qy_route_keys_management_desc';
+  static const String qyRouteKeysManagementDesc =
+      'qy_route_keys_management_desc';
   static const String qyAppRoutes = 'qy_app_routes';
   static const String qyRouteHomeDesc = 'qy_route_home_desc';
   static const String qyRouteProfileDesc = 'qy_route_profile_desc';
@@ -1256,20 +1559,34 @@ class QyAppLocalizationKeys {
   static const String qyGo = 'qy_go';
 
   // Word Listening Audio Items
-  static const String qyListeningWordResilientMeaning = 'qy_listening_word_resilient_meaning';
-  static const String qyListeningWordResilientExample = 'qy_listening_word_resilient_example';
-  static const String qyListeningWordParadigmMeaning = 'qy_listening_word_paradigm_meaning';
-  static const String qyListeningWordParadigmExample = 'qy_listening_word_paradigm_example';
-  static const String qyListeningWordEphemeralMeaning = 'qy_listening_word_ephemeral_meaning';
-  static const String qyListeningWordEphemeralExample = 'qy_listening_word_ephemeral_example';
-  static const String qyListeningWordUbiquitousMeaning = 'qy_listening_word_ubiquitous_meaning';
-  static const String qyListeningWordUbiquitousExample = 'qy_listening_word_ubiquitous_example';
-  static const String qyListeningWordMeticulousMeaning = 'qy_listening_word_meticulous_meaning';
-  static const String qyListeningWordMeticulousExample = 'qy_listening_word_meticulous_example';
-  static const String qyListeningWordSerendipityMeaning = 'qy_listening_word_serendipity_meaning';
-  static const String qyListeningWordSerendipityExample = 'qy_listening_word_serendipity_example';
-  static const String qyListeningWordSimpleMeaning = 'qy_listening_word_simple_meaning';
-  static const String qyListeningWordSimpleExample = 'qy_listening_word_simple_example';
+  static const String qyListeningWordResilientMeaning =
+      'qy_listening_word_resilient_meaning';
+  static const String qyListeningWordResilientExample =
+      'qy_listening_word_resilient_example';
+  static const String qyListeningWordParadigmMeaning =
+      'qy_listening_word_paradigm_meaning';
+  static const String qyListeningWordParadigmExample =
+      'qy_listening_word_paradigm_example';
+  static const String qyListeningWordEphemeralMeaning =
+      'qy_listening_word_ephemeral_meaning';
+  static const String qyListeningWordEphemeralExample =
+      'qy_listening_word_ephemeral_example';
+  static const String qyListeningWordUbiquitousMeaning =
+      'qy_listening_word_ubiquitous_meaning';
+  static const String qyListeningWordUbiquitousExample =
+      'qy_listening_word_ubiquitous_example';
+  static const String qyListeningWordMeticulousMeaning =
+      'qy_listening_word_meticulous_meaning';
+  static const String qyListeningWordMeticulousExample =
+      'qy_listening_word_meticulous_example';
+  static const String qyListeningWordSerendipityMeaning =
+      'qy_listening_word_serendipity_meaning';
+  static const String qyListeningWordSerendipityExample =
+      'qy_listening_word_serendipity_example';
+  static const String qyListeningWordSimpleMeaning =
+      'qy_listening_word_simple_meaning';
+  static const String qyListeningWordSimpleExample =
+      'qy_listening_word_simple_example';
   static const String qyLessons = 'qy_lessons';
   static const String qyHelpful = 'qy_helpful';
   static const String qySearchCourses = 'qy_search_courses';
@@ -1282,9 +1599,11 @@ class QyAppLocalizationKeys {
   static const String qyDownloading = 'qy_downloading';
   static const String qySharing = 'qy_sharing';
   static const String qyCertificate = 'qy_certificate';
-  static const String qyCertificateOfCompletion = 'qy_certificate_of_completion';
+  static const String qyCertificateOfCompletion =
+      'qy_certificate_of_completion';
   static const String qyThisCertifies = 'qy_this_certifies';
-  static const String qyHasSuccessfullyCompleted = 'qy_has_successfully_completed';
+  static const String qyHasSuccessfullyCompleted =
+      'qy_has_successfully_completed';
   static const String qyCompletionDate = 'qy_completion_date';
   static const String qyFinalScore = 'qy_final_score';
   static const String qyVerifiedCertificate = 'qy_verified_certificate';
@@ -1296,7 +1615,8 @@ class QyAppLocalizationKeys {
   static const String qyCourseLearningProgress = 'qy_course_learning_progress';
   static const String qyCourseCompletedLessons = 'qy_course_completed_lessons';
   static const String qyCourseConsecutiveDays = 'qy_course_consecutive_days';
-  static const String qyCourseProjectsCompleted = 'qy_course_projects_completed';
+  static const String qyCourseProjectsCompleted =
+      'qy_course_projects_completed';
   static const String qyCourseLinesOfCode = 'qy_course_lines_of_code';
   static const String qyCourseInfo = 'qy_course_info';
   static const String qyCourseDuration = 'qy_course_duration';
@@ -1308,51 +1628,96 @@ class QyAppLocalizationKeys {
   static const String qyCourseDuration2Weeks = 'qy_course_duration_2_weeks';
   static const String qyCourseDuration3_5Weeks = 'qy_course_duration_3_5_weeks';
   static const String qyCourseCodePractice = 'qy_course_code_practice';
-  static const String qyCourseDifficultyBeginner = 'qy_course_difficulty_beginner';
-  static const String qyCourseDifficultyIntermediate = 'qy_course_difficulty_intermediate';
-  static const String qyCourseDifficultyAdvanced = 'qy_course_difficulty_advanced';
-  static const String qyCourseDifficultyProgression = 'qy_course_difficulty_progression';
-  static const String qyCourseIeltsModuleListeningTitle = 'qy_course_ielts_module_listening_title';
-  static const String qyCourseIeltsModuleListeningSubtitle = 'qy_course_ielts_module_listening_subtitle';
-  static const String qyCourseIeltsModuleListeningDescription = 'qy_course_ielts_module_listening_description';
-  static const String qyCourseIeltsModuleReadingTitle = 'qy_course_ielts_module_reading_title';
-  static const String qyCourseIeltsModuleReadingSubtitle = 'qy_course_ielts_module_reading_subtitle';
-  static const String qyCourseIeltsModuleReadingDescription = 'qy_course_ielts_module_reading_description';
-  static const String qyCourseIeltsModuleWritingTitle = 'qy_course_ielts_module_writing_title';
-  static const String qyCourseIeltsModuleWritingSubtitle = 'qy_course_ielts_module_writing_subtitle';
-  static const String qyCourseIeltsModuleWritingDescription = 'qy_course_ielts_module_writing_description';
-  static const String qyCourseIeltsModuleSpeakingTitle = 'qy_course_ielts_module_speaking_title';
-  static const String qyCourseIeltsModuleSpeakingSubtitle = 'qy_course_ielts_module_speaking_subtitle';
-  static const String qyCourseIeltsModuleSpeakingDescription = 'qy_course_ielts_module_speaking_description';
-  static const String qyCoursePythonModuleBasicsTitle = 'qy_course_python_module_basics_title';
-  static const String qyCoursePythonModuleBasicsSubtitle = 'qy_course_python_module_basics_subtitle';
-  static const String qyCoursePythonModuleBasicsDescription = 'qy_course_python_module_basics_description';
-  static const String qyCoursePythonModuleOOPTitle = 'qy_course_python_module_oop_title';
-  static const String qyCoursePythonModuleOOPSubtitle = 'qy_course_python_module_oop_subtitle';
-  static const String qyCoursePythonModuleOOPDescription = 'qy_course_python_module_oop_description';
-  static const String qyCoursePythonModuleWebTitle = 'qy_course_python_module_web_title';
-  static const String qyCoursePythonModuleWebSubtitle = 'qy_course_python_module_web_subtitle';
-  static const String qyCoursePythonModuleWebDescription = 'qy_course_python_module_web_description';
-  static const String qyCoursePythonModuleDataTitle = 'qy_course_python_module_data_title';
-  static const String qyCoursePythonModuleDataSubtitle = 'qy_course_python_module_data_subtitle';
-  static const String qyCoursePythonModuleDataDescription = 'qy_course_python_module_data_description';
-  static const String qyCoursePythonModuleMLTitle = 'qy_course_python_module_ml_title';
-  static const String qyCoursePythonModuleMLSubtitle = 'qy_course_python_module_ml_subtitle';
-  static const String qyCoursePythonModuleMLDescription = 'qy_course_python_module_ml_description';
-  static const String qyCoursePythonModuleProjectsTitle = 'qy_course_python_module_projects_title';
-  static const String qyCoursePythonModuleProjectsSubtitle = 'qy_course_python_module_projects_subtitle';
-  static const String qyCoursePythonModuleProjectsDescription = 'qy_course_python_module_projects_description';
-  static const String qyCourseIeltsProjectMockTest1Title = 'qy_course_ielts_project_mock_test_1_title';
-  static const String qyCourseIeltsProjectMockTest1Subtitle = 'qy_course_ielts_project_mock_test_1_subtitle';
-  static const String qyCourseIeltsProjectMockTest1Description = 'qy_course_ielts_project_mock_test_1_description';
-  static const String qyCourseIeltsProjectSpeakingPracticeTitle = 'qy_course_ielts_project_speaking_practice_title';
-  static const String qyCourseIeltsProjectSpeakingPracticeSubtitle = 'qy_course_ielts_project_speaking_practice_subtitle';
-  static const String qyCourseIeltsProjectSpeakingPracticeDescription = 'qy_course_ielts_project_speaking_practice_description';
-  static const String qyPythonProjectTodoAppDescription = 'qy_python_project_todo_app_description';
-  static const String qyPythonProjectDataVizDescription = 'qy_python_project_data_viz_description';
-  static const String qyPythonProjectWebScraperDescription = 'qy_python_project_web_scraper_description';
-  static const String qyPythonProjectBlogDescription = 'qy_python_project_blog_description';
-  static const String qyPythonProjectMLPredictDescription = 'qy_python_project_ml_predict_description';
+  static const String qyCourseDifficultyBeginner =
+      'qy_course_difficulty_beginner';
+  static const String qyCourseDifficultyIntermediate =
+      'qy_course_difficulty_intermediate';
+  static const String qyCourseDifficultyAdvanced =
+      'qy_course_difficulty_advanced';
+  static const String qyCourseDifficultyProgression =
+      'qy_course_difficulty_progression';
+  static const String qyCourseIeltsModuleListeningTitle =
+      'qy_course_ielts_module_listening_title';
+  static const String qyCourseIeltsModuleListeningSubtitle =
+      'qy_course_ielts_module_listening_subtitle';
+  static const String qyCourseIeltsModuleListeningDescription =
+      'qy_course_ielts_module_listening_description';
+  static const String qyCourseIeltsModuleReadingTitle =
+      'qy_course_ielts_module_reading_title';
+  static const String qyCourseIeltsModuleReadingSubtitle =
+      'qy_course_ielts_module_reading_subtitle';
+  static const String qyCourseIeltsModuleReadingDescription =
+      'qy_course_ielts_module_reading_description';
+  static const String qyCourseIeltsModuleWritingTitle =
+      'qy_course_ielts_module_writing_title';
+  static const String qyCourseIeltsModuleWritingSubtitle =
+      'qy_course_ielts_module_writing_subtitle';
+  static const String qyCourseIeltsModuleWritingDescription =
+      'qy_course_ielts_module_writing_description';
+  static const String qyCourseIeltsModuleSpeakingTitle =
+      'qy_course_ielts_module_speaking_title';
+  static const String qyCourseIeltsModuleSpeakingSubtitle =
+      'qy_course_ielts_module_speaking_subtitle';
+  static const String qyCourseIeltsModuleSpeakingDescription =
+      'qy_course_ielts_module_speaking_description';
+  static const String qyCoursePythonModuleBasicsTitle =
+      'qy_course_python_module_basics_title';
+  static const String qyCoursePythonModuleBasicsSubtitle =
+      'qy_course_python_module_basics_subtitle';
+  static const String qyCoursePythonModuleBasicsDescription =
+      'qy_course_python_module_basics_description';
+  static const String qyCoursePythonModuleOOPTitle =
+      'qy_course_python_module_oop_title';
+  static const String qyCoursePythonModuleOOPSubtitle =
+      'qy_course_python_module_oop_subtitle';
+  static const String qyCoursePythonModuleOOPDescription =
+      'qy_course_python_module_oop_description';
+  static const String qyCoursePythonModuleWebTitle =
+      'qy_course_python_module_web_title';
+  static const String qyCoursePythonModuleWebSubtitle =
+      'qy_course_python_module_web_subtitle';
+  static const String qyCoursePythonModuleWebDescription =
+      'qy_course_python_module_web_description';
+  static const String qyCoursePythonModuleDataTitle =
+      'qy_course_python_module_data_title';
+  static const String qyCoursePythonModuleDataSubtitle =
+      'qy_course_python_module_data_subtitle';
+  static const String qyCoursePythonModuleDataDescription =
+      'qy_course_python_module_data_description';
+  static const String qyCoursePythonModuleMLTitle =
+      'qy_course_python_module_ml_title';
+  static const String qyCoursePythonModuleMLSubtitle =
+      'qy_course_python_module_ml_subtitle';
+  static const String qyCoursePythonModuleMLDescription =
+      'qy_course_python_module_ml_description';
+  static const String qyCoursePythonModuleProjectsTitle =
+      'qy_course_python_module_projects_title';
+  static const String qyCoursePythonModuleProjectsSubtitle =
+      'qy_course_python_module_projects_subtitle';
+  static const String qyCoursePythonModuleProjectsDescription =
+      'qy_course_python_module_projects_description';
+  static const String qyCourseIeltsProjectMockTest1Title =
+      'qy_course_ielts_project_mock_test_1_title';
+  static const String qyCourseIeltsProjectMockTest1Subtitle =
+      'qy_course_ielts_project_mock_test_1_subtitle';
+  static const String qyCourseIeltsProjectMockTest1Description =
+      'qy_course_ielts_project_mock_test_1_description';
+  static const String qyCourseIeltsProjectSpeakingPracticeTitle =
+      'qy_course_ielts_project_speaking_practice_title';
+  static const String qyCourseIeltsProjectSpeakingPracticeSubtitle =
+      'qy_course_ielts_project_speaking_practice_subtitle';
+  static const String qyCourseIeltsProjectSpeakingPracticeDescription =
+      'qy_course_ielts_project_speaking_practice_description';
+  static const String qyPythonProjectTodoAppDescription =
+      'qy_python_project_todo_app_description';
+  static const String qyPythonProjectDataVizDescription =
+      'qy_python_project_data_viz_description';
+  static const String qyPythonProjectWebScraperDescription =
+      'qy_python_project_web_scraper_description';
+  static const String qyPythonProjectBlogDescription =
+      'qy_python_project_blog_description';
+  static const String qyPythonProjectMLPredictDescription =
+      'qy_python_project_ml_predict_description';
   static const String qyCourseRating = 'qy_course_rating';
   static const String qyCourseFeatures = 'qy_course_features';
   static const String qyCourseInstructor = 'qy_course_instructor';
@@ -1379,11 +1744,14 @@ class QyAppLocalizationKeys {
   static const String qyHomeMoreFeatures = 'qy_home_more_features';
   static const String qyMoreFeatures = 'qy_more_features';
   static const String qyMoreFeaturesTools = 'qy_more_features_tools';
-  static const String qyMoreFeaturesToolsDescription = 'qy_more_features_tools_description';
+  static const String qyMoreFeaturesToolsDescription =
+      'qy_more_features_tools_description';
   static const String qyComingSoon = 'qy_coming_soon';
   static const String qyHomeConsolidate = 'qy_home_consolidate';
-  static const String qyHomeConsolidateDescription = 'qy_home_consolidate_description';
-  static const String qyHomeExtensionDescription = 'qy_home_extension_description';
+  static const String qyHomeConsolidateDescription =
+      'qy_home_consolidate_description';
+  static const String qyHomeExtensionDescription =
+      'qy_home_extension_description';
   static const String qyHomeWordTest = 'qy_home_word_test';
   static const String qyHomePortableListening = 'qy_home_portable_listening';
   static const String qyHomePhrase = 'qy_home_phrase';
@@ -1423,10 +1791,13 @@ class QyAppLocalizationKeys {
   static const String qyLoginToContinue = 'qy_login_to_continue';
   static const String qyLoginWithUsername = 'qy_login_with_username';
   static const String qyLoginWithPhone = 'qy_login_with_phone';
-  static const String qyAgreeToTermsAndPrivacy = 'qy_agree_to_terms_and_privacy';
+  static const String qyAgreeToTermsAndPrivacy =
+      'qy_agree_to_terms_and_privacy';
   static const String qyPleaseAgreeToTerms = 'qy_please_agree_to_terms';
-  static const String qyPleaseEnterPhoneAndCode = 'qy_please_enter_phone_and_code';
-  static const String qyPleaseEnterUsernameAndPassword = 'qy_please_enter_username_and_password';
+  static const String qyPleaseEnterPhoneAndCode =
+      'qy_please_enter_phone_and_code';
+  static const String qyPleaseEnterUsernameAndPassword =
+      'qy_please_enter_username_and_password';
   static const String qyFailedToSendCode = 'qy_failed_to_send_code';
   static const String qyUserAgreement = 'qy_user_agreement';
   static const String qyAnd = 'qy_and';
@@ -1452,7 +1823,8 @@ class QyAppLocalizationKeys {
   static const String qyTodayFeatured = 'qy_today_featured';
   static const String qyUpdatedDaily = 'qy_updated_daily';
   static const String qyCourseListening = 'qy_course_listening';
-  static const String qyCourseLevelIntermediate = 'qy_course_level_intermediate';
+  static const String qyCourseLevelIntermediate =
+      'qy_course_level_intermediate';
   static const String qyCourseFood = 'qy_course_food';
   static const String qyCourseReading = 'qy_course_reading';
   static const String qyCourseLevelBeginner = 'qy_course_level_beginner';
@@ -1468,7 +1840,6 @@ class QyAppLocalizationKeys {
   static const String qyPremiumLesson = 'qy_premium_lesson';
 
   // Help Center
-  static const String qyHelpCenter = 'qy_help_center';
   static const String qyBrowseTopics = 'qy_browse_topics';
   static const String qyFrequentlyAsked = 'qy_frequently_asked';
   static const String qySearchHelp = 'qy_search_help';
@@ -1512,27 +1883,45 @@ class QyAppLocalizationKeys {
   static const String qyWordUnlocked = 'qy_word_unlocked';
   static const String qyWordLocked = 'qy_word_locked';
   static const String qyWordBookDesc = 'qy_word_book_desc';
-  static const String qyWordBookWordResilientMeaning = 'qy_word_book_word_resilient_meaning';
-  static const String qyWordBookWordResilientExample = 'qy_word_book_word_resilient_example';
-  static const String qyWordBookWordParadigmMeaning = 'qy_word_book_word_paradigm_meaning';
-  static const String qyWordBookWordParadigmExample = 'qy_word_book_word_paradigm_example';
-  static const String qyWordBookWordEphemeralMeaning = 'qy_word_book_word_ephemeral_meaning';
-  static const String qyWordBookWordEphemeralExample = 'qy_word_book_word_ephemeral_example';
-  static const String qyWordBookWordUbiquitousMeaning = 'qy_word_book_word_ubiquitous_meaning';
-  static const String qyWordBookWordUbiquitousExample = 'qy_word_book_word_ubiquitous_example';
-  static const String qyWordBookWordMeticulousMeaning = 'qy_word_book_word_meticulous_meaning';
-  static const String qyWordBookWordMeticulousExample = 'qy_word_book_word_meticulous_example';
-  static const String qyWordBookWordSerendipityMeaning = 'qy_word_book_word_serendipity_meaning';
-  static const String qyWordBookWordSerendipityExample = 'qy_word_book_word_serendipity_example';
+  static const String qyWordBookWordResilientMeaning =
+      'qy_word_book_word_resilient_meaning';
+  static const String qyWordBookWordResilientExample =
+      'qy_word_book_word_resilient_example';
+  static const String qyWordBookWordParadigmMeaning =
+      'qy_word_book_word_paradigm_meaning';
+  static const String qyWordBookWordParadigmExample =
+      'qy_word_book_word_paradigm_example';
+  static const String qyWordBookWordEphemeralMeaning =
+      'qy_word_book_word_ephemeral_meaning';
+  static const String qyWordBookWordEphemeralExample =
+      'qy_word_book_word_ephemeral_example';
+  static const String qyWordBookWordUbiquitousMeaning =
+      'qy_word_book_word_ubiquitous_meaning';
+  static const String qyWordBookWordUbiquitousExample =
+      'qy_word_book_word_ubiquitous_example';
+  static const String qyWordBookWordMeticulousMeaning =
+      'qy_word_book_word_meticulous_meaning';
+  static const String qyWordBookWordMeticulousExample =
+      'qy_word_book_word_meticulous_example';
+  static const String qyWordBookWordSerendipityMeaning =
+      'qy_word_book_word_serendipity_meaning';
+  static const String qyWordBookWordSerendipityExample =
+      'qy_word_book_word_serendipity_example';
   static const String qyWordVocabulary = 'qy_word_vocabulary';
 
   // Course Plan Data
-  static const String qyCoursePlan7DayReadingTitle = 'qy_course_plan_7day_reading_title';
-  static const String qyCoursePlan7DayReadingSubtitle = 'qy_course_plan_7day_reading_subtitle';
-  static const String qyCoursePlan7DayReadingDesc = 'qy_course_plan_7day_reading_desc';
-  static const String qyCoursePlan7DaySpeakingTitle = 'qy_course_plan_7day_speaking_title';
-  static const String qyCoursePlan7DaySpeakingSubtitle = 'qy_course_plan_7day_speaking_subtitle';
-  static const String qyCoursePlan7DaySpeakingDesc = 'qy_course_plan_7day_speaking_desc';
+  static const String qyCoursePlan7DayReadingTitle =
+      'qy_course_plan_7day_reading_title';
+  static const String qyCoursePlan7DayReadingSubtitle =
+      'qy_course_plan_7day_reading_subtitle';
+  static const String qyCoursePlan7DayReadingDesc =
+      'qy_course_plan_7day_reading_desc';
+  static const String qyCoursePlan7DaySpeakingTitle =
+      'qy_course_plan_7day_speaking_title';
+  static const String qyCoursePlan7DaySpeakingSubtitle =
+      'qy_course_plan_7day_speaking_subtitle';
+  static const String qyCoursePlan7DaySpeakingDesc =
+      'qy_course_plan_7day_speaking_desc';
 
   // Word Book Data
   static const String qyWordBookCoca20000 = 'qy_word_book_coca_20000';
@@ -1548,7 +1937,8 @@ class QyAppLocalizationKeys {
   static const String qyVocabularyTest = 'qy_vocabulary_test';
   static const String qyVocabularyTestDesc = 'qy_vocabulary_test_desc';
   static const String qyPronunciationPractice = 'qy_pronunciation_practice';
-  static const String qyPronunciationPracticeDesc = 'qy_pronunciation_practice_desc';
+  static const String qyPronunciationPracticeDesc =
+      'qy_pronunciation_practice_desc';
   static const String qyGrammarPractice = 'qy_grammar_practice';
   static const String qyGrammarPracticeDesc = 'qy_grammar_practice_desc';
   static const String qyWritingAssistant = 'qy_writing_assistant';
@@ -1586,7 +1976,8 @@ class QyAppLocalizationKeys {
   static const String qyClickToSearchFeatures = 'qy_click_to_search_features';
 
   // Word Listening AI Explain
-  static const String qyListeningAIExplainTitle = 'qy_listening_ai_explain_title';
+  static const String qyListeningAIExplainTitle =
+      'qy_listening_ai_explain_title';
   static const String qyListeningAIAnalyzing = 'qy_listening_ai_analyzing';
   static const String qyListeningAIAnalysis = 'qy_listening_ai_analysis';
   static const String qyListeningEtymology = 'qy_listening_etymology';

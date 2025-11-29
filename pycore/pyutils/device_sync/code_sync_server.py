@@ -29,6 +29,10 @@ class CodeSyncClient:
         self.synced_file_states: Dict[str, Tuple[float, str]] = {}
         self.is_initial_sync_done = False
 
+        # Statistics
+        self.push_count = 0  # Total number of pushes to this client
+        self.total_files_pushed = 0  # Total files pushed (including duplicates)
+
     def update_last_seen(self):
         """Update last seen timestamp"""
         self.last_seen = datetime.now()
@@ -45,6 +49,16 @@ class CodeSyncClient:
             file_states: {relative_path: (mtime, hash)}
         """
         self.synced_file_states.update(file_states)
+
+    def record_push(self, file_count: int):
+        """
+        Record a push operation
+
+        Args:
+            file_count: Number of files in this push
+        """
+        self.push_count += 1
+        self.total_files_pushed += file_count
 
 
 class CodeSyncServer:
@@ -208,6 +222,7 @@ class CodeSyncServer:
                 client = self.clients[client_id]
                 client.mark_files_synced(file_states)
                 client.is_initial_sync_done = True
+                client.record_push(len(files))  # Record initial sync as a push
 
         ColorPrint.green(f"[CodeSync Server] Initial sync prepared: {len(files)} files for {client_id}")
         return files
@@ -273,7 +288,9 @@ class CodeSyncServer:
         if new_states:
             with self.clients_lock:
                 if client_id in self.clients:
-                    self.clients[client_id].mark_files_synced(new_states)
+                    client = self.clients[client_id]
+                    client.mark_files_synced(new_states)
+                    client.record_push(len(changed))  # Record incremental push
 
         if changed:
             ColorPrint.green(f"[CodeSync Server] Sync for {client_id}: {len(changed)} changed files")
@@ -430,7 +447,9 @@ class CodeSyncServer:
                             'connected_at': client.connected_at.isoformat(),
                             'last_seen': client.last_seen.isoformat(),
                             'synced_files': len(client.synced_file_states),
-                            'initial_sync_done': client.is_initial_sync_done
+                            'initial_sync_done': client.is_initial_sync_done,
+                            'push_count': client.push_count,
+                            'total_files_pushed': client.total_files_pushed
                         }
                         for client_id, client in self.clients.items()
                     ],
