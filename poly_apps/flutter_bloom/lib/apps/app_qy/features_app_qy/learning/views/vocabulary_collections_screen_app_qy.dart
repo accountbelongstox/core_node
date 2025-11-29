@@ -8,6 +8,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/vocabulary_recommendation_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/vocabulary_models_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class VocabularyCollectionsScreenAppQy extends StatefulWidget {
   const VocabularyCollectionsScreenAppQy({super.key});
@@ -56,7 +57,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
     try {
       final authService = context.read<AuthServiceAppQy>();
       final user = authService.currentUser;
-      final learningLanguages = user?.learningLanguages ?? ['en'];
+      final learningLanguages = user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages;
 
       final recommendations = await _service.getRecommendations(
         langCodes: learningLanguages,

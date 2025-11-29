@@ -1075,3 +1075,542 @@ body.subtitle-mode #subtitleModeExitBtn:hover {
     font-size: 14px;
     font-weight: 500;
 }
+
+/* ========== Task Queue Styles ========== */
+
+.task-stats-panel {
+    background: var(--bg-medium);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.task-filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.task-filters .filter-select {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-medium);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.task-filters .filter-btn {
+    padding: 8px 16px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.task-filters .filter-btn:hover {
+    background: var(--primary-hover);
+}
+
+.task-list-container {
+    background: var(--bg-medium);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.task-table {
+    width: 100%;
+}
+
+.task-row {
+    transition: background-color 0.2s;
+}
+
+.task-row:hover {
+    background: var(--bg-light) !important;
+}
+
+.task-row.processing {
+    background: rgba(33, 150, 243, 0.05);
+}
+
+.task-row.failed {
+    background: rgba(244, 67, 54, 0.05);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-pending {
+    background: rgba(255, 152, 0, 0.15);
+    color: #FF9800;
+}
+
+.status-processing {
+    background: rgba(33, 150, 243, 0.15);
+    color: #2196F3;
+}
+
+.status-completed {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+}
+
+.status-failed {
+    background: rgba(244, 67, 54, 0.15);
+    color: #F44336;
+}
+
+.progress-bar-container {
+    position: relative;
+    width: 100%;
+    height: 20px;
+    background: var(--bg-light);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #66BB6A);
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.task-detail-panel {
+    background: var(--bg-medium);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.task-detail-panel .collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.task-detail-panel .close-btn {
+    padding: 4px 12px;
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.task-detail-panel .close-btn:hover {
+    background: var(--danger-hover);
+}
+
+.task-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.detail-value {
+    color: var(--text-primary);
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.detail-value pre {
+    background: var(--bg-light);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.detail-value.error {
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+/* ========== API Configuration Styles ========== */
+
+.api-mode-panel,
+.remote-api-panel,
+.discovered-servers-panel,
+.connection-status-panel {
+    background: var(--bg-medium);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.api-mode-selection {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 16px;
+}
+
+.api-mode-option {
+    cursor: pointer;
+}
+
+.api-mode-option input[type="radio"] {
+    display: none;
+}
+
+.mode-card {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.api-mode-option input[type="radio"]:checked + .mode-card {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.mode-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.mode-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+.mode-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.mode-desc {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.api-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 16px;
+}
+
+.config-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.config-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.config-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.config-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.config-input:readonly {
+    background: var(--bg-medium);
+    opacity: 0.7;
+}
+
+.config-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    opacity: 0.8;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.input-group .config-input {
+    flex: 1;
+}
+
+.input-btn {
+    padding: 10px 20px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.input-btn:hover {
+    background: var(--primary-hover);
+}
+
+.scan-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-light);
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.status-indicator {
+    font-size: 18px;
+}
+
+.servers-list {
+    background: var(--bg-light);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.servers-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.servers-table thead {
+    background: var(--bg-medium);
+}
+
+.servers-table th {
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.servers-table td {
+    padding: 12px;
+    font-size: 13px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.servers-table tbody tr:hover {
+    background: var(--bg-medium);
+}
+
+.servers-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.action-btn-small {
+    padding: 6px 12px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+    margin-left: auto;
+}
+
+.action-btn-small:hover {
+    background: var(--primary-hover);
+}
+
+.collapsible-header .action-btn-small {
+    margin-left: 0;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 16px;
+}
+
+.connection-indicator {
+    font-size: 14px;
+    margin-right: 4px;
+}
+
+/* ========== Settings Dialog Styles ========== */
+
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
+}
+
+.dialog-container {
+    background: var(--bg-dark);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--text-primary);
+}
+
+.dialog-close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s;
+}
+
+.dialog-close-btn:hover {
+    color: var(--text-primary);
+}
+
+.settings-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    background: var(--bg-medium);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-light);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.dialog-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.settings-section {
+    background: var(--bg-medium);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.settings-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.subnet-info {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--primary-color);
+    font-weight: 600;
+}

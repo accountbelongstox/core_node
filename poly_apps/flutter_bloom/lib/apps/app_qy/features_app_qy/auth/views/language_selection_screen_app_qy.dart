@@ -8,6 +8,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/api_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/vocabulary_models_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class LanguageSelectionScreenAppQy extends StatefulWidget {
   const LanguageSelectionScreenAppQy({super.key});
@@ -109,7 +110,7 @@ class _LanguageSelectionScreenAppQyState extends State<LanguageSelectionScreenAp
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red.shade400,
+        backgroundColor: ColorsAppQy.qyError,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -212,7 +213,7 @@ class _LanguageSelectionScreenAppQyState extends State<LanguageSelectionScreenAp
           const Icon(
             Icons.error_outline,
             size: 64,
-            color: Colors.red,
+            color: ColorsAppQy.qyError,
           ),
           const SizedBox(height: ThemeDimensions.spacing16),
           Text(

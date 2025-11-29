@@ -9,6 +9,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class LoginScreenRefactoredAppQy extends StatefulWidget {
   const LoginScreenRefactoredAppQy({super.key});
@@ -97,7 +98,12 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     }
 
     if (success && mounted) {
-      context.go('/language-selection');
+      // Check if user needs initialization, otherwise go to home
+      final user = authService.currentUser;
+      final needsInit = user == null || 
+          (user.learningLanguages.isEmpty || 
+           user.learningLanguages.length == 1 && user.learningLanguages.first == DefaultLanguageConfigAppQy.defaultLearningLanguage);
+      context.go(needsInit ? QyAppRoutesProvider.routeOnboarding : QyAppRoutesProvider.routeHome);
     } else if (mounted) {
       _showError(
           authService.error ?? QyAppLocalizationKeys.qyLoginFailed.tr(context));
@@ -147,7 +153,8 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       _showSuccess(QyAppLocalizationKeys.qyRegisterSuccess.tr(context));
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
-          context.go('/language-selection');
+          // New users always need initialization
+          context.go(QyAppRoutesProvider.routeOnboarding);
         }
       });
     } else if (mounted) {
@@ -201,7 +208,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red.shade400,
+        backgroundColor: ColorsAppQy.qyError,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -215,7 +222,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green.shade400,
+        backgroundColor: ColorsAppQy.qySuccess,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -263,7 +270,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
           ),
           if (authService.isLoading)
             Container(
-              color: Colors.black26,
+              color: ColorsAppQy.qyShadowMedium,
               child: const Center(
                 child: CircularProgressIndicator(
                   valueColor:
@@ -555,7 +562,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
             gradient: canSend
                 ? ColorsAppQy.qyPrimaryGradient
                 : LinearGradient(
-                    colors: [Colors.grey.shade400, Colors.grey.shade500],
+                    colors: [ColorsAppQy.qyTextTertiary, ColorsAppQy.qyTextSecondary],
                   ),
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             boxShadow: canSend
@@ -599,7 +606,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
             gradient: _agreedToTerms && !authService.isLoading
                 ? ColorsAppQy.qyPrimaryGradient
                 : LinearGradient(
-                    colors: [Colors.grey.shade400, Colors.grey.shade500],
+                    colors: [ColorsAppQy.qyTextTertiary, ColorsAppQy.qyTextSecondary],
                   ),
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
             boxShadow: _agreedToTerms && !authService.isLoading
