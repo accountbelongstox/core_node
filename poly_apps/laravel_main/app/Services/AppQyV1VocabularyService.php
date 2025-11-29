@@ -11,180 +11,109 @@ class AppQyV1VocabularyService
     {
         $results = [];
         $connection = 'appqyv1';
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_vocabulary_libraries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR(255) NOT NULL,
-                    description TEXT,
-                    language VARCHAR(50) NOT NULL DEFAULT "english",
-                    total_words INTEGER DEFAULT 0,
-                    is_public INTEGER DEFAULT 1,
-                    owner_user_id INTEGER,
-                    source VARCHAR(100),
-                    difficulty_level VARCHAR(50),
-                    tags TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_lib_language ON app_qy_v1_vocabulary_libraries(language)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_lib_public ON app_qy_v1_vocabulary_libraries(is_public)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_lib_owner ON app_qy_v1_vocabulary_libraries(owner_user_id)
-            ');
-            
-            $results['app_qy_v1_vocabulary_libraries'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[VocabService] Failed to create vocabulary_libraries: " . $e->getMessage());
-            $results['app_qy_v1_vocabulary_libraries'] = 'error: ' . $e->getMessage();
-        }
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_vocabulary_words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    library_id INTEGER NOT NULL,
-                    word_index INTEGER NOT NULL,
-                    word TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_words_library ON app_qy_v1_vocabulary_words(library_id)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_words_word ON app_qy_v1_vocabulary_words(word)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_vocab_words_lib_index ON app_qy_v1_vocabulary_words(library_id, word_index)
-            ');
-            
-            $results['app_qy_v1_vocabulary_words'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[VocabService] Failed to create vocabulary_words: " . $e->getMessage());
-            $results['app_qy_v1_vocabulary_words'] = 'error: ' . $e->getMessage();
-        }
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_user_languages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    language VARCHAR(50) NOT NULL,
-                    native_language VARCHAR(50),
-                    is_learning INTEGER DEFAULT 1,
-                    proficiency_level VARCHAR(50),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(user_id, language)
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_user_lang_user ON app_qy_v1_user_languages(user_id)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_user_lang_learning ON app_qy_v1_user_languages(is_learning)
-            ');
-            
-            $results['app_qy_v1_user_languages'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[VocabService] Failed to create user_languages: " . $e->getMessage());
-            $results['app_qy_v1_user_languages'] = 'error: ' . $e->getMessage();
-        }
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_user_vocabulary_selections (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    library_id INTEGER NOT NULL,
-                    selected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active INTEGER DEFAULT 1,
-                    UNIQUE(user_id, library_id),
-                    FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_user ON app_qy_v1_user_vocabulary_selections(user_id)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_active ON app_qy_v1_user_vocabulary_selections(is_active)
-            ');
-            
-            $results['app_qy_v1_user_vocabulary_selections'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[VocabService] Failed to create user_vocabulary_selections: " . $e->getMessage());
-            $results['app_qy_v1_user_vocabulary_selections'] = 'error: ' . $e->getMessage();
-        }
-        
-        try {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS app_qy_v1_user_learning_progress (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    library_id INTEGER NOT NULL,
-                    word_index INTEGER NOT NULL,
-                    word TEXT NOT NULL,
-                    status VARCHAR(50) DEFAULT "new",
-                    familiarity_level INTEGER DEFAULT 0,
-                    times_reviewed INTEGER DEFAULT 0,
-                    times_correct INTEGER DEFAULT 0,
-                    times_wrong INTEGER DEFAULT 0,
-                    last_reviewed_at TIMESTAMP,
-                    next_review_at TIMESTAMP,
-                    mastered_at TIMESTAMP,
-                    first_learned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(user_id, library_id, word_index),
-                    FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
-                )
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_learning_progress_user ON app_qy_v1_user_learning_progress(user_id)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_learning_progress_status ON app_qy_v1_user_learning_progress(status)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_learning_progress_review ON app_qy_v1_user_learning_progress(next_review_at)
-            ');
-            
-            DB::connection($connection)->statement('
-                CREATE INDEX IF NOT EXISTS idx_learning_progress_user_lib ON app_qy_v1_user_learning_progress(user_id, library_id)
-            ');
-            
-            $results['app_qy_v1_user_learning_progress'] = 'created';
-            
-        } catch (\Exception $e) {
-            Log::error("[VocabService] Failed to create user_learning_progress: " . $e->getMessage());
-            $results['app_qy_v1_user_learning_progress'] = 'error: ' . $e->getMessage();
-        }
-        
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS app_qy_v1_vocabulary_libraries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                language VARCHAR(50) NOT NULL DEFAULT "english",
+                total_words INTEGER DEFAULT 0,
+                is_public INTEGER DEFAULT 1,
+                owner_user_id INTEGER,
+                source VARCHAR(100),
+                difficulty_level VARCHAR(50),
+                tags TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_lib_language ON app_qy_v1_vocabulary_libraries(language)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_lib_public ON app_qy_v1_vocabulary_libraries(is_public)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_lib_owner ON app_qy_v1_vocabulary_libraries(owner_user_id)
+        ');
+
+        $results['app_qy_v1_vocabulary_libraries'] = 'created';
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS app_qy_v1_vocabulary_words (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                library_id INTEGER NOT NULL,
+                word_index INTEGER NOT NULL,
+                word TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_words_library ON app_qy_v1_vocabulary_words(library_id)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_words_word ON app_qy_v1_vocabulary_words(word)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_vocab_words_lib_index ON app_qy_v1_vocabulary_words(library_id, word_index)
+        ');
+
+        $results['app_qy_v1_vocabulary_words'] = 'created';
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS app_qy_v1_user_languages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                language VARCHAR(50) NOT NULL,
+                native_language VARCHAR(50),
+                is_learning INTEGER DEFAULT 1,
+                proficiency_level VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, language)
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_user_lang_user ON app_qy_v1_user_languages(user_id)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_user_lang_learning ON app_qy_v1_user_languages(is_learning)
+        ');
+
+        $results['app_qy_v1_user_languages'] = 'created';
+
+        DB::connection($connection)->statement('
+            CREATE TABLE IF NOT EXISTS app_qy_v1_user_vocabulary_selections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                library_id INTEGER NOT NULL,
+                selected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1,
+                UNIQUE(user_id, library_id),
+                FOREIGN KEY (library_id) REFERENCES app_qy_v1_vocabulary_libraries(id) ON DELETE CASCADE
+            )
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_user ON app_qy_v1_user_vocabulary_selections(user_id)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_user_vocab_sel_active ON app_qy_v1_user_vocabulary_selections(is_active)
+        ');
+
+        $results['app_qy_v1_user_vocabulary_selections'] = 'created';
+
         return $results;
     }
     

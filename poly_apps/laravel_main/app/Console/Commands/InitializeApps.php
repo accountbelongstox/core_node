@@ -105,7 +105,15 @@ class InitializeApps extends Command
             $this->line("  {$icon} {$table}: {$status}");
         }
         $this->newLine();
-        
+
+        $this->info('Creating voice subtitle user settings tables...');
+        $voiceSubtitleResults = \App\Services\UserSyncService::ensureVoiceSubtitleTablesExist();
+        foreach ($voiceSubtitleResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
         $this->info('Creating multilingual word tables...');
         $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
         foreach ($wordTableResults as $table => $status) {
