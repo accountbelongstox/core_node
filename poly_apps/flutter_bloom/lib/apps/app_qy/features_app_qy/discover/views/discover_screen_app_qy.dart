@@ -21,7 +21,6 @@ import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
-import '../../../router_app_qy/routes_provider_app_qy.dart';
 
 class DiscoverScreenRefactoredAppQy extends StatefulWidget {
   const DiscoverScreenRefactoredAppQy({super.key});
@@ -51,14 +50,14 @@ class _DiscoverScreenRefactoredAppQyState
         'title': 'Check-in Challenge',
         'subtitle': 'Daily learning challenges',
         'color': Colors.orange,
-        'route': QyAppRoutesProvider.routeCheckinChallenge,
+        'route': '/qy/social/checkin-challenge',
       },
       {
         'icon': Icons.message_outlined,
         'title': 'Message Center',
         'subtitle': 'Community updates & notifications',
         'color': Colors.blue,
-        'route': QyAppRoutesProvider.routeMessageCenter,
+        'route': '/qy/social/message-center',
       },
       {
         'icon': Icons.people_outline,

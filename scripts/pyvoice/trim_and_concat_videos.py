@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-视频批量处理工具 - 裁剪并合并视频 (v2.0)
-Video Batch Processing Tool - Trim and Concatenate Videos (v2.0)
+Video Batch Processing Tool - Trim and Concatenate Videos (v2.2)
 
-功能 / Features:
-- 🌍 自动翻译文件名为英文 (使用 Google Translate + 缓存)
-- 🧹 清理文件名 (替换空格为下划线，移除特殊字符)
-- ✂️ 裁剪视频开头和结尾
-- 📦 批量处理目录中的所有视频
-- 🔗 自动合并为单个视频文件
-- 🕐 生成时间戳文件名
-- 🔧 自动处理路径转义和特殊字符
-- 🎵 修复音画不同步问题
-- ⏭️ 支持跳过包含特定关键字的文件
-- 📝 详细错误日志输出
+Features:
+- 🚀 CUDA/NVENC hardware acceleration (NVIDIA GPU 3-5x speed boost)
+- 🌍 Auto-translate filenames to English (Google Translate + cache)
+- 🧹 Sanitize filenames (replace spaces with underscores, remove special chars)
+- ✂️ Trim video start and end
+- 📦 Batch process all videos in directory
+- 🔗 Auto-merge into single video file
+- 🕐 Generate timestamped filenames
+- 🔧 Auto-handle path escaping and special characters
+- 🎵 Fix audio-video sync issues
+- ⏭️ Skip files containing specific keywords
+- 📝 Detailed error logging
+- 📊 Real-time FFmpeg progress display
 
 Usage:
-    # 基本使用
+    # Basic usage
     python trim_and_concat_videos.py <video_directory>
 
-    # Windows 路径示例（支持以下所有格式）
-    python trim_and_concat_videos.py "D:\.tmp\BaiduNetdiskDownload\Laos\v"
-    python trim_and_concat_videos.py D:\.tmp\BaiduNetdiskDownload\Laos\v
-    python trim_and_concat_videos.py D:\\.tmp\\BaiduNetdiskDownload\\Laos\\v
+    # Windows path examples (all formats supported)
+    python trim_and_concat_videos.py "D:\videos"
+    python trim_and_concat_videos.py D:\videos
+    python trim_and_concat_videos.py D:\\videos
 
-    # 跳过包含"书写"关键字的文件（默认已启用）
-    python trim_and_concat_videos.py ./videos
+    # Skip files containing "writing" keyword (default enabled)
+    python trim_and_concat_videos.py ./videos --skip-keywords writing
 
-    # 跳过多个关键字
-    python trim_and_concat_videos.py ./videos --skip-keywords 书写 测试
+    # Skip multiple keywords
+    python trim_and_concat_videos.py ./videos --skip-keywords writing test
 
-    # 自定义裁剪时间
+    # Custom trim times
     python trim_and_concat_videos.py ./videos --trim-start 5 --trim-end 4
 
-    # 指定输出目录
+    # Specify output directory
     python trim_and_concat_videos.py ./videos --output ./output
 
-音画同步修复:
-    脚本使用自动回退机制确保视频兼容性:
-    1. 首先尝试快速流复制
-    2. 如果失败，自动使用重新编码
-    3. 重新编码使用 H.264 + AAC 确保所有播放器都能播放
+Audio-Video Sync Fix:
+    Script uses automatic fallback mechanism to ensure video compatibility:
+    1. First try fast stream copy
+    2. If failed, auto-use re-encoding
+    3. Re-encoding uses H.264 + AAC to ensure playback on all players
 
-    重新编码参数:
-    - Video: H.264, CRF 23 (高质量)
+    Re-encoding parameters:
+    - Video: H.264, CRF 23 (high quality)
     - Audio: AAC, 192kbps
-    - Optimization: faststart (流媒体优化)
+    - Optimization: faststart (streaming optimization)
 """
 
 import os
@@ -67,12 +68,13 @@ sys.path.insert(0, str(project_root))
 from pycore.pyutils.translator import GoogleTranslator
 
 
-async def translate_filename(filename: str, verbose: bool = True, retry_count: int = 2) -> str:
+async def translate_filename(filename: str, src_lang: str = 'zh-CN', verbose: bool = True, retry_count: int = 2) -> str:
     """
     Translate filename to English using GoogleTranslator
 
     Args:
         filename: Original filename (without extension)
+        src_lang: Source language code (default: 'zh-CN' for Chinese)
         verbose: Print detailed debug info
         retry_count: Number of retries on failure
 
@@ -90,10 +92,11 @@ async def translate_filename(filename: str, verbose: bool = True, retry_count: i
                 if verbose and attempt == 0:
                     print(f"    [INFO] Translating: '{filename}'")
                     print(f"    [INFO] Text length: {len(filename)} chars")
+                    print(f"    [INFO] Source language: {src_lang} (forced)")
 
                 result = await translator.translate_single(
                     text=filename,
-                    src='auto',
+                    src=src_lang,  # Use specified source language instead of 'auto'
                     dest='en',
                     use_cache=True
                 )
@@ -168,49 +171,54 @@ def sanitize_filename(filename: str) -> str:
 
 def normalize_path(path_str: str) -> Path:
     """
-    规范化路径，自动处理转义和特殊字符
+    Normalize path, auto-handle escaping and special characters
 
     Args:
-        path_str: 原始路径字符串
+        path_str: Original path string
 
     Returns:
-        规范化的 Path 对象
+        Normalized Path object
     """
-    # 移除路径两端的引号
+    # Remove quotes from both ends
     path_str = path_str.strip('\'"')
 
-    # 转换为 Path 对象，自动处理转义
+    # Convert to Path object, auto-handle escaping
     path = Path(path_str)
 
-    # 解析为绝对路径
+    # Resolve to absolute path
     path = path.resolve()
 
     return path
 
 
 class VideoProcessor:
-    """视频处理器"""
+    """Video processor for batch trimming and concatenating videos"""
 
-    # 支持的视频格式
+    # Supported video formats
     SUPPORTED_FORMATS = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v'}
 
-    def __init__(self, trim_start: float = 5.0, trim_end: float = 4.0, skip_keywords: list = None, verbose: bool = True):
+    def __init__(self, trim_start: float = 5.0, trim_end: float = 4.0, skip_keywords: list = None, verbose: bool = True, src_lang: str = 'zh-CN'):
         """
-        初始化视频处理器
+        Initialize video processor
 
         Args:
-            trim_start: 裁剪开头秒数 (default: 5.0)
-            trim_end: 裁剪结尾秒数 (default: 4.0)
-            skip_keywords: 跳过包含这些关键字的文件 (default: None)
-            verbose: 是否输出详细调试信息 (default: True)
+            trim_start: Seconds to trim from start (default: 5.0)
+            trim_end: Seconds to trim from end (default: 4.0)
+            skip_keywords: Skip files containing these keywords (default: None)
+            verbose: Enable detailed debug output (default: True)
+            src_lang: Source language code for translation (default: 'zh-CN')
         """
         self.trim_start = trim_start
         self.trim_end = trim_end
         self.skip_keywords = skip_keywords or []
         self.verbose = verbose
+        self.src_lang = src_lang
+
+        # Auto-detect CUDA support (enabled by default)
+        self.cuda_available = self.check_cuda_support()
 
     def check_ffmpeg(self) -> bool:
-        """检查 FFmpeg 是否安装"""
+        """Check if FFmpeg is installed"""
         try:
             result = subprocess.run(
                 ['ffmpeg', '-version'],
@@ -222,22 +230,62 @@ class VideoProcessor:
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    def find_videos(self, directory: Path) -> list:
+    def check_cuda_support(self) -> bool:
         """
-        查找目录中的所有视频文件
-
-        Args:
-            directory: 视频目录路径
+        Check if FFmpeg supports NVIDIA CUDA/NVENC hardware acceleration
 
         Returns:
-            排序后的视频文件路径列表（已过滤跳过的关键字）
+            True if CUDA is supported, False otherwise
+        """
+        try:
+            # Check if FFmpeg encoder list contains h264_nvenc
+            result = subprocess.run(
+                ['ffmpeg', '-encoders'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                output = result.stdout
+                has_nvenc = 'h264_nvenc' in output
+
+                if has_nvenc:
+                    print("✅ CUDA/NVENC hardware acceleration detected")
+                    print("   Encoder: h264_nvenc (NVIDIA GPU)")
+                    return True
+                else:
+                    print("⚠️  CUDA/NVENC not available")
+                    print("   FFmpeg was not compiled with NVENC support")
+                    print("   Falling back to CPU encoding (libx264)")
+                    return False
+            else:
+                print("⚠️  Could not detect CUDA support")
+                print("   Falling back to CPU encoding")
+                return False
+
+        except Exception as e:
+            print(f"⚠️  Error checking CUDA support: {e}")
+            print("   Falling back to CPU encoding")
+            return False
+
+    def find_videos(self, directory: Path) -> list:
+        """
+        Find all video files in directory
+
+        Args:
+            directory: Video directory path
+
+        Returns:
+            Sorted list of video file paths (filtered by skip keywords)
         """
         videos = []
         skipped = []
 
         for file_path in directory.iterdir():
             if file_path.is_file() and file_path.suffix.lower() in self.SUPPORTED_FORMATS:
-                # 检查是否包含跳过的关键字
+                # Check if contains skip keywords
                 should_skip = False
                 for keyword in self.skip_keywords:
                     if keyword.lower() in file_path.name.lower():
@@ -248,14 +296,14 @@ class VideoProcessor:
                 if not should_skip:
                     videos.append(file_path)
 
-        # 显示跳过的文件
+        # Display skipped files
         if skipped:
-            print(f"\n⏭️  跳过 {len(skipped)} 个包含关键字的文件:")
+            print(f"\n⏭️  Skipped {len(skipped)} files containing keywords:")
             for file_path, keyword in skipped:
-                print(f"   - {file_path.name} (关键字: {keyword})")
+                print(f"   - {file_path.name} (keyword: {keyword})")
             print()
 
-        # 按文件名排序
+        # Sort by filename
         videos.sort()
         return videos
 
@@ -284,8 +332,8 @@ class VideoProcessor:
             print(f"  - Original filename: {stem}")
 
             # Step 1: Translate filename to English
-            print(f"  - Translating to English...")
-            translated_name = await translate_filename(stem, verbose=self.verbose)
+            print(f"  - Translating to English (from {self.src_lang})...")
+            translated_name = await translate_filename(stem, src_lang=self.src_lang, verbose=self.verbose)
 
             if not self.verbose:
                 # Only show summary if verbose is off
@@ -328,13 +376,13 @@ class VideoProcessor:
 
     def get_video_duration(self, video_path: Path) -> float:
         """
-        获取视频时长
+        Get video duration
 
         Args:
-            video_path: 视频文件路径
+            video_path: Video file path
 
         Returns:
-            视频时长（秒）
+            Video duration in seconds
         """
         cmd = [
             'ffprobe',
@@ -355,49 +403,49 @@ class VideoProcessor:
             if result.returncode == 0:
                 return float(result.stdout.strip())
             else:
-                print(f"警告: 无法获取视频时长 {video_path.name}")
+                print(f"Warning: Cannot get video duration {video_path.name}")
                 return 0.0
         except Exception as e:
-            print(f"错误: 获取视频时长失败 - {e}")
+            print(f"Error: Failed to get video duration - {e}")
             return 0.0
 
     def trim_video(self, input_path: Path, output_path: Path, use_reencode: bool = False) -> bool:
         """
-        裁剪视频（去掉开头和结尾）
-        使用重新编码确保兼容性和音画同步
+        Trim video (remove start and end portions)
+        Uses re-encoding to ensure compatibility and audio-video sync
 
         Args:
-            input_path: 输入视频路径
-            output_path: 输出视频路径
-            use_reencode: 是否使用重新编码（默认False，流复制失败时自动重试）
+            input_path: Input video path
+            output_path: Output video path
+            use_reencode: Use re-encoding (default False, auto-retry on stream copy failure)
 
         Returns:
-            是否成功
+            True if successful, False otherwise
         """
-        # 获取视频时长
+        # Get video duration
         duration = self.get_video_duration(input_path)
 
         if duration <= 0:
             print(f"Skip: {input_path.name} (cannot get duration)")
             return False
 
-        # 计算裁剪后的时长
+        # Calculate trimmed duration
         trimmed_duration = duration - self.trim_start - self.trim_end
 
         if trimmed_duration <= 0:
             print(f"Skip: {input_path.name} (too short after trimming)")
             return False
 
-        # 尝试两种方案：先流复制，失败则重新编码
+        # Try two methods: stream copy first, then re-encode on failure
         if not use_reencode:
-            # 方案1: 流复制（快速但可能有兼容性问题）
+            # Method 1: Stream copy (fast but may have compatibility issues)
             cmd = [
                 'ffmpeg',
-                '-ss', str(self.trim_start),   # 在 -i 之前更快
+                '-ss', str(self.trim_start),   # Before -i for faster seek
                 '-i', str(input_path),
                 '-t', str(trimmed_duration),
-                '-c', 'copy',                  # 流复制
-                '-avoid_negative_ts', '1',     # 修复时间戳
+                '-c', 'copy',                  # Stream copy
+                '-avoid_negative_ts', '1',     # Fix timestamps
                 '-y',
                 str(output_path)
             ]
@@ -416,10 +464,10 @@ class VideoProcessor:
                     return True
                 else:
                     print(f"Fast mode failed, retrying with re-encoding...")
-                    # 删除失败的输出文件
+                    # Remove failed output file
                     if output_path.exists():
                         output_path.unlink()
-                    # 递归调用，使用重新编码
+                    # Recursive call with re-encoding
                     return self.trim_video(input_path, output_path, use_reencode=True)
 
             except subprocess.TimeoutExpired:
@@ -429,45 +477,86 @@ class VideoProcessor:
                 print(f"Error: {input_path.name} - {e}")
                 return False
         else:
-            # 方案2: 重新编码（慢但可靠）
-            cmd = [
-                'ffmpeg',
-                '-ss', str(self.trim_start),
-                '-i', str(input_path),
-                '-t', str(trimmed_duration),
-                '-c:v', 'libx264',             # H.264 视频编码
-                '-preset', 'medium',           # 编码速度
-                '-crf', '23',                  # 质量（18-28，越小质量越高）
-                '-c:a', 'aac',                 # AAC 音频编码
-                '-b:a', '192k',                # 音频比特率
-                '-movflags', '+faststart',     # 优化流媒体
-                '-y',
-                str(output_path)
-            ]
+            # Method 2: Re-encoding (slow but reliable)
+            # Choose encoding parameters based on CUDA availability
+            if self.cuda_available:
+                # CUDA/NVENC hardware accelerated encoding
+                cmd = [
+                    'ffmpeg',
+                    '-ss', str(self.trim_start),
+                    '-i', str(input_path),
+                    '-t', str(trimmed_duration),
+                    '-c:v', 'h264_nvenc',          # NVIDIA H.264 hardware encoder
+                    '-preset', 'p4',               # NVENC preset (p1-p7, p4=medium)
+                    '-rc', 'vbr',                  # Rate control mode: variable bitrate
+                    '-cq', '23',                   # Constant quality (like CRF, 18-28)
+                    '-b:v', '0',                   # Set to 0 for VBR mode
+                    '-c:a', 'aac',                 # AAC audio encoding
+                    '-b:a', '192k',                # Audio bitrate
+                    '-movflags', '+faststart',     # Optimize for streaming
+                    '-progress', 'pipe:1',         # Output progress to stdout
+                    '-y',
+                    str(output_path)
+                ]
+                encode_mode = "CUDA/NVENC (GPU)"
+            else:
+                # CPU software encoding (libx264)
+                cmd = [
+                    'ffmpeg',
+                    '-ss', str(self.trim_start),
+                    '-i', str(input_path),
+                    '-t', str(trimmed_duration),
+                    '-c:v', 'libx264',             # H.264 CPU encoding
+                    '-preset', 'medium',           # Encoding speed
+                    '-crf', '23',                  # Quality (18-28, lower = better)
+                    '-c:a', 'aac',                 # AAC audio encoding
+                    '-b:a', '192k',                # Audio bitrate
+                    '-movflags', '+faststart',     # Optimize for streaming
+                    '-progress', 'pipe:1',         # Output progress to stdout
+                    '-y',
+                    str(output_path)
+                ]
+                encode_mode = "CPU (libx264)"
 
             try:
                 print(f"Processing (re-encode): {input_path.name} ({duration:.1f}s → {trimmed_duration:.1f}s)")
-                result = subprocess.run(
+                print(f"Encoder: {encode_mode}")
+                print(f"FFmpeg command: {' '.join(cmd)}")
+                print(f"[FFmpeg Output Start] " + "=" * 50)
+
+                # Real-time FFmpeg output
+                process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=600  # 重新编码需要更多时间
+                    stderr=subprocess.STDOUT,  # Merge stderr to stdout
+                    universal_newlines=True,
+                    bufsize=1
                 )
 
-                if result.returncode == 0:
-                    print(f"Done (re-encoded): {output_path.name}")
+                # Read and display output in real-time
+                for line in process.stdout:
+                    print(line.rstrip())
+
+                # Wait for process to finish
+                process.wait(timeout=600)
+
+                print(f"[FFmpeg Output End] " + "=" * 50)
+
+                if process.returncode == 0:
+                    print(f"✅ Done (re-encoded): {output_path.name}")
                     return True
                 else:
-                    error_msg = result.stderr.decode('utf-8', errors='ignore')
-                    print(f"Failed: {input_path.name}")
-                    print(f"Error: {error_msg[:200]}")
+                    print(f"❌ Failed: {input_path.name} (return code: {process.returncode})")
                     return False
 
             except subprocess.TimeoutExpired:
-                print(f"Timeout: {input_path.name}")
+                print(f"❌ Timeout: {input_path.name}")
+                process.kill()
                 return False
             except Exception as e:
-                print(f"Error: {input_path.name} - {e}")
+                print(f"❌ Error: {input_path.name} - {e}")
+                import traceback
+                traceback.print_exc()
                 return False
 
     def concat_videos(self, video_paths: list, output_path: Path) -> bool:
@@ -500,45 +589,81 @@ class VideoProcessor:
 
         try:
             # FFmpeg concat command - using re-encoding for compatibility
-            cmd = [
-                'ffmpeg',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', str(concat_file),
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-crf', '23',
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-movflags', '+faststart',
-                '-y',
-                str(output_path)
-            ]
+            # Choose encoding parameters based on CUDA availability
+            if self.cuda_available:
+                # CUDA/NVENC hardware accelerated encoding
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', str(concat_file),
+                    '-c:v', 'h264_nvenc',          # NVIDIA H.264 hardware encoder
+                    '-preset', 'p4',               # NVENC preset (p1-p7, p4=medium)
+                    '-rc', 'vbr',                  # Rate control mode: variable bitrate
+                    '-cq', '23',                   # Constant quality (like CRF)
+                    '-b:v', '0',                   # Set to 0 for VBR mode
+                    '-c:a', 'aac',
+                    '-b:a', '192k',
+                    '-movflags', '+faststart',
+                    '-progress', 'pipe:1',         # Output progress to stdout
+                    '-y',
+                    str(output_path)
+                ]
+                encode_mode = "CUDA/NVENC (GPU)"
+            else:
+                # CPU software encoding (libx264)
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', str(concat_file),
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '23',
+                    '-c:a', 'aac',
+                    '-b:a', '192k',
+                    '-movflags', '+faststart',
+                    '-progress', 'pipe:1',  # Output progress to stdout
+                    '-y',
+                    str(output_path)
+                ]
+                encode_mode = "CPU (libx264)"
 
-            print(f"\nConcatenating {len(video_paths)} videos (with re-encoding)...")
-            print("Note: Re-encoding ensures compatibility and fixes sync issues")
-            print("This may take a long time depending on video count and size...")
+            print(f"\n🔗 Concatenating {len(video_paths)} videos (with re-encoding)...")
+            print(f"🚀 Encoder: {encode_mode}")
+            print("📝 Note: Re-encoding ensures compatibility and fixes sync issues")
+            print("⏱️  This may take a long time depending on video count and size...")
+            print(f"FFmpeg command: {' '.join(cmd)}")
+            print(f"[FFmpeg Concat Output Start] " + "=" * 50)
 
             timeout = 7200  # 120 minutes (2 hours)
 
-            result = subprocess.run(
+            # Real-time FFmpeg output
+            process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout
+                stderr=subprocess.STDOUT,  # Merge stderr to stdout
+                universal_newlines=True,
+                bufsize=1
             )
 
-            if result.returncode == 0:
-                print(f"Concatenation completed: {output_path.name}")
+            # Read and display output in real-time
+            for line in process.stdout:
+                print(line.rstrip())
+
+            # Wait for process to finish
+            process.wait(timeout=timeout)
+
+            print(f"[FFmpeg Concat Output End] " + "=" * 50)
+
+            if process.returncode == 0:
+                print(f"✅ Concatenation completed: {output_path.name}")
                 return True
             else:
-                error_msg = result.stderr.decode('utf-8', errors='ignore')
                 print(f"\n" + "=" * 70)
-                print("ERROR: Concatenation failed!")
+                print("❌ ERROR: Concatenation failed!")
                 print("=" * 70)
-                print(f"Return code: {result.returncode}")
-                print(f"\n[Full Error Output]:")
-                print(error_msg)
+                print(f"Return code: {process.returncode}")
                 print("=" * 70)
 
                 # Save error log to file
@@ -548,25 +673,26 @@ class VideoProcessor:
                         log_file.write("FFmpeg Concatenation Error Log\n")
                         log_file.write("=" * 70 + "\n\n")
                         log_file.write(f"Command: {' '.join(cmd)}\n\n")
-                        log_file.write(f"Return code: {result.returncode}\n\n")
-                        log_file.write("Stderr output:\n")
-                        log_file.write(error_msg)
+                        log_file.write(f"Return code: {process.returncode}\n\n")
                         log_file.write("\n\nConcat file content:\n")
                         with open(concat_file, 'r', encoding='utf-8') as cf:
                             log_file.write(cf.read())
-                    print(f"\nError log saved to: {error_log_path}")
+                    print(f"\n📄 Error log saved to: {error_log_path}")
                 except Exception as e:
-                    print(f"Warning: Could not save error log: {e}")
+                    print(f"⚠️  Warning: Could not save error log: {e}")
 
                 return False
 
         except subprocess.TimeoutExpired:
-            print(f"Concatenation timeout (exceeded {timeout//60} minutes)")
-            print(f"Suggestion: Too many videos or videos too large")
-            print(f"Consider processing in smaller batches")
+            print(f"❌ Concatenation timeout (exceeded {timeout//60} minutes)")
+            print(f"💡 Suggestion: Too many videos or videos too large")
+            print(f"💡 Consider processing in smaller batches")
+            process.kill()
             return False
         except Exception as e:
-            print(f"Concatenation error: {e}")
+            print(f"❌ Concatenation error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
         finally:
             # Clean up temp file
@@ -582,7 +708,7 @@ class VideoProcessor:
             output_dir: Output directory (default: same as input)
 
         Returns:
-            Path to final output video
+            Path to final output video, or None if failed
         """
         if output_dir is None:
             output_dir = directory
@@ -663,138 +789,145 @@ class VideoProcessor:
 
 
 def main():
-    """主函数"""
+    """Main function"""
     parser = argparse.ArgumentParser(
-        description='视频批量处理工具 - 裁剪并合并视频\n支持自动路径转义处理',
+        description='Video Batch Processing Tool - Trim and Concatenate Videos\nSupports automatic path escaping',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例 / Examples:
-  # 基本使用
+Examples:
+  # Basic usage
   python trim_and_concat_videos.py ./videos
 
-  # Windows 路径（自动处理转义）
-  python trim_and_concat_videos.py "D:\.tmp\BaiduNetdiskDownload\Laos\v"
-  python trim_and_concat_videos.py D:\\.tmp\\BaiduNetdiskDownload\\Laos\\v
+  # Windows path (auto-handle escaping)
+  python trim_and_concat_videos.py "D:\videos"
+  python trim_and_concat_videos.py D:\\videos
 
-  # 自定义裁剪时间
+  # Custom trim times
   python trim_and_concat_videos.py ./videos --trim-start 5 --trim-end 4
 
-  # 跳过包含特定关键字的文件（默认跳过"书写"）
-  python trim_and_concat_videos.py ./videos --skip-keywords 书写 测试
+  # Skip files containing specific keywords
+  python trim_and_concat_videos.py ./videos --skip-keywords writing test
 
-  # 不跳过任何关键字
+  # Don't skip any keywords
   python trim_and_concat_videos.py ./videos --skip-keywords
 
-  # 指定输出目录
+  # Specify output directory
   python trim_and_concat_videos.py ./videos --output ./output
 
-注意：脚本已自动修复音画不同步问题
+Note: Script automatically fixes audio-video sync issues
         """
     )
 
     parser.add_argument(
         'directory',
         type=str,
-        help='视频目录路径 / Video directory path'
+        help='Video directory path'
     )
 
     parser.add_argument(
         '--trim-start',
         type=float,
         default=5.0,
-        help='裁剪开头秒数 / Seconds to trim from start (default: 5.0)'
+        help='Seconds to trim from start (default: 5.0)'
     )
 
     parser.add_argument(
         '--trim-end',
         type=float,
         default=4.0,
-        help='裁剪结尾秒数 / Seconds to trim from end (default: 4.0)'
+        help='Seconds to trim from end (default: 4.0)'
     )
 
     parser.add_argument(
         '--output',
         type=str,
         default=None,
-        help='输出目录 / Output directory (default: same as input)'
+        help='Output directory (default: same as input)'
     )
 
     parser.add_argument(
         '--skip-keywords',
         type=str,
         nargs='*',
-        default=['书写'],
-        help='跳过包含这些关键字的文件 / Skip files containing these keywords (default: 书写)'
+        default=['writing'],
+        help='Skip files containing these keywords (default: writing)'
     )
 
     parser.add_argument(
         '--verbose',
         action='store_true',
         default=True,
-        help='显示详细调试信息 / Show detailed debug information (default: True)'
+        help='Show detailed debug information (default: True)'
     )
 
     parser.add_argument(
         '--quiet',
         action='store_true',
-        help='静默模式，只显示重要信息 / Quiet mode, show only important info'
+        help='Quiet mode, show only important info'
+    )
+
+    parser.add_argument(
+        '--src-lang',
+        type=str,
+        default='zh-CN',
+        help='Source language code for translation (default: zh-CN for Chinese)'
     )
 
     args = parser.parse_args()
 
-    # 验证目录 - 使用 normalize_path 自动处理转义
+    # Validate directory - use normalize_path to auto-handle escaping
     try:
         directory = normalize_path(args.directory)
     except Exception as e:
-        print(f"错误: 无法解析目录路径 - {e}")
-        print(f"原始路径: {args.directory}")
+        print(f"Error: Cannot parse directory path - {e}")
+        print(f"Original path: {args.directory}")
         sys.exit(1)
 
     if not directory.exists():
-        print(f"错误: 目录不存在 - {directory}")
+        print(f"Error: Directory does not exist - {directory}")
         sys.exit(1)
 
     if not directory.is_dir():
-        print(f"错误: 不是有效的目录 - {directory}")
+        print(f"Error: Not a valid directory - {directory}")
         sys.exit(1)
 
-    # 输出目录 - 使用 normalize_path 处理
+    # Output directory - use normalize_path to handle
     if args.output:
         try:
             output_dir = normalize_path(args.output)
         except Exception as e:
-            print(f"错误: 无法解析输出目录路径 - {e}")
-            print(f"原始路径: {args.output}")
+            print(f"Error: Cannot parse output directory path - {e}")
+            print(f"Original path: {args.output}")
             sys.exit(1)
     else:
         output_dir = directory
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 确定 verbose 设置
-    verbose = not args.quiet  # 如果设置了 --quiet，则 verbose=False
+    # Determine verbose setting
+    verbose = not args.quiet  # If --quiet is set, verbose=False
 
-    # 创建处理器
+    # Create processor (auto-detect CUDA)
     processor = VideoProcessor(
         trim_start=args.trim_start,
         trim_end=args.trim_end,
         skip_keywords=args.skip_keywords,
-        verbose=verbose
+        verbose=verbose,
+        src_lang=args.src_lang
     )
 
-    # 检查 FFmpeg
+    # Check FFmpeg
     if not processor.check_ffmpeg():
-        print("错误: 未安装 FFmpeg 或无法访问")
         print("Error: FFmpeg is not installed or not accessible")
-        print("\n请安装 FFmpeg:")
+        print("\nPlease install FFmpeg:")
         print("Windows: https://ffmpeg.org/download.html")
         print("Linux: sudo apt-get install ffmpeg")
         print("macOS: brew install ffmpeg")
         sys.exit(1)
 
     print("\n" + "=" * 70)
-    print("Video Batch Processing Tool / 视频批量处理工具")
-    print("v2.0.0 - Filename Translation + Re-encoding + Keep Temp Files")
+    print("Video Batch Processing Tool")
+    print("v2.2.0 - Auto CUDA + Translation + Re-encoding")
     print("=" * 70)
     print(f"\n📂 Input directory: {directory}")
     print(f"📂 Output directory: {output_dir}")
@@ -803,9 +936,21 @@ def main():
         print(f"⏭️  Skip keywords: {', '.join(args.skip_keywords)}")
     print(f"\n🔧 Features:")
     print(f"  - Auto-translate filenames to English (Google Translate)")
+    print(f"    Source language: {args.src_lang} (forced, not auto-detect)")
     print(f"  - Sanitize filenames (remove special chars, replace spaces)")
     print(f"  - Re-encoding ALL videos (ensures maximum compatibility)")
-    print(f"\n📊 Quality: H.264 CRF 23, AAC 192kbps")
+
+    # CUDA status display (auto-detected)
+    if processor.cuda_available:
+        print(f"\n🚀 Hardware Acceleration: ENABLED (Auto-detected)")
+        print(f"   Encoder: h264_nvenc (NVIDIA GPU)")
+        print(f"   Preset: p4 (medium quality/speed balance)")
+        print(f"   Expected: 3-5x faster than CPU encoding")
+    else:
+        print(f"\n🖥️  Encoder: CPU (libx264)")
+        print(f"   CUDA not available, using CPU encoding")
+
+    print(f"\n📊 Quality: H.264 CQ 23, AAC 192kbps")
     print(f"💾 Temp files: Will be PRESERVED for review")
     print(f"⏱️  Timeout: 120 minutes for concatenation")
     print(f"🐛 Verbose mode: {'ON (detailed logs)' if verbose else 'OFF (quiet mode)'}")
