@@ -3,12 +3,20 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
 {
+    private AppQyV1VocabularyCoverService $coverService;
+
+    public function __construct(AppQyV1VocabularyCoverService $coverService)
+    {
+        $this->coverService = $coverService;
+    }
+
     public function getRecommended(Request $request): JsonResponse
     {
         $language = $request->query('language', 'english');
@@ -84,6 +92,8 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
 
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library): array
     {
+        $cover = $this->coverService->getCoverData($library);
+
         return [
             'id' => (int) $library->id,
             'name' => $library->name,
@@ -92,7 +102,8 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'language' => $library->language,
             'difficulty' => $library->difficulty_level ?? 'intermediate',
             'category' => $library->category ?? 'general',
-            'image_url' => $library->image_url,
+            'image_url' => $cover['url'],
+            'cover_status' => $cover['status'],
             'is_recommended' => (bool) $library->is_recommended,
             'tags' => $library->tags ?? [],
         ];

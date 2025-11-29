@@ -170,6 +170,79 @@ class GeminiClient
         return $this->extractTextFromResponse($response);
     }
     
+    public function generateImage(string $prompt, array $options = []): array
+    {
+        if (!$this->apiKey) {
+            return [
+                'success' => false,
+                'error' => 'No Gemini API key configured',
+            ];
+        }
+
+        $model = $options['model'] ?? 'gemini-2.0-flash-exp';
+        $size = $options['size'] ?? '1024x1024';
+        $timeout = $options['timeout'] ?? 180;
+
+        $payload = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => $prompt]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'responseMimeType' => 'image/png',
+                'imageGenerationConfig' => [
+                    'size' => $size,
+                ],
+            ]
+        ];
+
+        try {
+            $response = Http::withHeaders($this->buildHeaders())
+                ->timeout($timeout)
+                ->post(self::BASE_URL . "/models/{$model}:generateContent", $payload);
+
+            if (!$response->successful()) {
+                $body = $response->json();
+                $error = $body['error']['message'] ?? $response->body();
+                Log::error('[GeminiClient] Image request failed', [
+                    'status' => $response->status(),
+                    'error' => $error,
+                    'body' => $body,
+                ]);
+                return ['success' => false, 'error' => $error];
+            }
+
+            $data = $response->json();
+            $inlineData = $data['candidates'][0]['content']['parts'][0]['inlineData'] ?? null;
+
+            if (!$inlineData || empty($inlineData['data'])) {
+                return [
+                    'success' => false,
+                    'error' => 'Image data not found in Gemini response',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'binary' => base64_decode($inlineData['data'], true),
+                'mime_type' => $inlineData['mimeType'] ?? 'image/png',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('[GeminiClient] Image generation exception: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+    
     public function getModels(): array
     {
         return [
