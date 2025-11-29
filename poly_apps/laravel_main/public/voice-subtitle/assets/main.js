@@ -12,6 +12,17 @@ let availableLanguages = [];
 let currentTasks = [];
 let taskRefreshTimer = null;
 let pendingTaskIds = loadPendingTasksFromStorage();
+let playerQueueVisible = false;
+let playerQueueFilterGroup = '';
+let pendingGroupEditIndex = null;
+const groupEditModalEl = document.getElementById('groupEditModal');
+if (groupEditModalEl) {
+    groupEditModalEl.addEventListener('click', (event) => {
+        if (event.target === groupEditModalEl) {
+            closeGroupEditModal();
+        }
+    });
+}
 document.body.classList.remove('fullscreen-mode');
 
 function loadPendingTasksFromStorage() {
@@ -105,6 +116,8 @@ function renderLanguageCheckboxes() {
             <label for="lang_${lang.code}">${lang.native_name}</label>
         </div>
     `).join('');
+
+    filterLanguageOptions(document.querySelector('.language-filter-input')?.value || '');
 }
 
 function updateTargetLanguageDisplay() {
@@ -118,6 +131,18 @@ function updateTargetLanguageDisplay() {
     }).join('');
 
     document.getElementById('targetLangBadges').innerHTML = badgesHtml || '<span class="lang-badge">None selected</span>';
+}
+
+function filterLanguageOptions(keyword = '') {
+    const container = document.getElementById('languageCheckboxes');
+    if (!container) {
+        return;
+    }
+    const lower = keyword.trim().toLowerCase();
+    container.querySelectorAll('.language-checkbox').forEach(item => {
+        const label = item.textContent.toLowerCase();
+        item.style.display = !lower || label.includes(lower) ? 'flex' : 'none';
+    });
 }
 
 function updateAPIExamples() {
@@ -307,6 +332,9 @@ async function loadQueue() {
             currentIndex = result.current_index || 0;
             updateCurrentSubtitle();
             renderQueueTab();
+            if (playerQueueVisible) {
+                renderPlayerQueue();
+            }
         }
     } catch (error) {
         console.error('Failed to load queue', error);
@@ -367,6 +395,7 @@ async function loadGroups() {
         allGroups = result.groups;
         updateGroupSuggestions();
         updateGroupFilter();
+        updatePlayerQueueFilterOptions();
     }
 }
 
@@ -377,6 +406,9 @@ function updateGroupSuggestions() {
 
 function updateGroupFilter() {
     const select = document.getElementById('groupFilter');
+    if (!select) {
+        return;
+    }
     const currentValue = select.value;
     select.innerHTML = '<option value="">All Groups</option>' +
         allGroups.map(group => `<option value="${group}">${group}</option>`).join('');
@@ -424,6 +456,20 @@ function renderQueueTab() {
             </div>
         `;
     }).join('');
+}
+
+function updatePlayerQueueFilterOptions() {
+    const select = document.getElementById('playerQueueGroupFilter');
+    if (!select) {
+        return;
+    }
+    const previous = playerQueueFilterGroup || '';
+    select.innerHTML = '<option value="">All</option>' +
+        allGroups.map(group => `<option value="${group}">${group}</option>`).join('');
+    if (previous && !allGroups.includes(previous)) {
+        playerQueueFilterGroup = '';
+    }
+    select.value = playerQueueFilterGroup;
 }
 
 function renderTaskList() {
@@ -491,6 +537,126 @@ function renderTaskList() {
 
 function filterByGroup() {
     renderQueueTab();
+}
+
+function togglePlayerQueue(forceState) {
+    playerQueueVisible = typeof forceState === 'boolean' ? forceState : !playerQueueVisible;
+    const panel = document.getElementById('playerQueuePanel');
+    const toggleBtn = document.querySelector('.queue-toggle');
+    if (panel) {
+        panel.classList.toggle('active', playerQueueVisible);
+    }
+    if (toggleBtn) {
+        toggleBtn.textContent = playerQueueVisible ? '📋 Hide Queue' : '📋 Queue';
+    }
+    if (playerQueueVisible) {
+        updatePlayerQueueFilterOptions();
+        renderPlayerQueue();
+    }
+}
+
+function renderPlayerQueue() {
+    const list = document.getElementById('playerQueueList');
+    if (!list) {
+        return;
+    }
+
+    if (!currentQueue.length) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <div class="empty-state-text">Queue is empty</div>
+            </div>
+        `;
+        return;
+    }
+    const select = document.getElementById('playerQueueGroupFilter');
+    if (select) {
+        select.value = playerQueueFilterGroup;
+    }
+
+    const filteredQueue = playerQueueFilterGroup
+        ? currentQueue.filter(item => (item.group || 'default') === playerQueueFilterGroup)
+        : currentQueue;
+
+    if (!filteredQueue.length) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">🗂️</div>
+                <div class="empty-state-text">No items in this group</div>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = filteredQueue.map((item, index) => {
+        const globalIndex = currentQueue.indexOf(item);
+        const textPreview = truncate(item.translated_text || item.original_text || 'No text', 90);
+        return `
+            <div class="player-queue-item ${globalIndex === currentIndex ? 'active' : ''}">
+                <h4>${textPreview}</h4>
+                <div class="player-queue-meta">
+                    <span>${item.language}</span> ·
+                    <span>${item.voice}</span> ·
+                    <span>${item.group || 'default'}</span>
+                </div>
+                <div class="player-queue-actions">
+                    <button class="queue-btn-primary" onclick="playFromPlayerQueue(${globalIndex})">Play</button>
+                    <button class="queue-btn-secondary" onclick="promptChangeGroup(${globalIndex}, '${item.group || 'default'}')">Group</button>
+                    <button class="queue-btn-danger" onclick="deleteQueueItem(${globalIndex})">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function setPlayerQueueFilter(group) {
+    playerQueueFilterGroup = group || '';
+    renderPlayerQueue();
+}
+
+function promptChangeGroup(index, currentGroup = 'default') {
+    openGroupEditModal(index, currentGroup);
+}
+
+async function playFromPlayerQueue(index) {
+    await jumpToIndex(index);
+    autoStartPlayback(200);
+}
+
+function openGroupEditModal(index, currentGroup = 'default') {
+    pendingGroupEditIndex = index;
+    const modal = document.getElementById('groupEditModal');
+    if (!modal) {
+        return;
+    }
+    const pathPreview = currentQueue[index]
+        ? truncate(currentQueue[index].translated_text || currentQueue[index].original_text || 'No text', 80)
+        : '';
+    document.getElementById('groupEditInput').value = currentGroup || 'default';
+    document.getElementById('groupEditPath').textContent = pathPreview;
+    modal.classList.add('active');
+    setTimeout(() => document.getElementById('groupEditInput')?.focus(), 50);
+}
+
+function closeGroupEditModal() {
+    pendingGroupEditIndex = null;
+    document.getElementById('groupEditModal')?.classList.remove('active');
+}
+
+async function submitGroupEditModal() {
+    if (pendingGroupEditIndex === null) {
+        closeGroupEditModal();
+        return;
+    }
+    const value = document.getElementById('groupEditInput').value.trim() || 'default';
+    await editItemGroup(pendingGroupEditIndex, value);
+    await loadGroups();
+    closeGroupEditModal();
+    await loadQueue();
+    if (playerQueueVisible) {
+        renderPlayerQueue();
+    }
 }
 
 function updateCurrentSubtitle() {
@@ -584,22 +750,7 @@ function ensureSubtitleInner(wrapper = document.getElementById('subtitleText')) 
 }
 
 function updateSubtitleScrolling(wrapper, inner) {
-    if (!wrapper || !inner) {
-        return;
-    }
-    wrapper.classList.remove('scroll-active');
-    wrapper.style.removeProperty('--scroll-distance');
-    wrapper.style.removeProperty('--scroll-duration');
-
-    requestAnimationFrame(() => {
-        const overflow = inner.scrollHeight - wrapper.clientHeight;
-        if (overflow > 20) {
-            wrapper.classList.add('scroll-active');
-            wrapper.style.setProperty('--scroll-distance', `${overflow}px`);
-            const duration = Math.max(8, overflow / 20);
-            wrapper.style.setProperty('--scroll-duration', `${duration}s`);
-        }
-    });
+    wrapper?.classList.remove('scroll-active');
 }
 
 async function playPause() {

@@ -5,6 +5,7 @@ namespace App\Apps\McpV1\McpV1Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\McpV1\McpV1Utils\ScreenshotService;
+use App\Utils\FileSystemManager;
 
 /**
  * MCP Screenshot Controller (McpV1)
@@ -34,6 +35,31 @@ class McpV1ScreenshotCtl
     public function upload(Request $request): JsonResponse
     {
         try {
+            $id = $request->input('id');
+            $description = $request->input('description', '');
+            $replace = filter_var($request->input('replace', false), FILTER_VALIDATE_BOOLEAN);
+            $keywords = $this->normalizeKeywords($request->input('keywords', []));
+            $imageDescriptions = $this->normalizeDescriptions($request->input('image_descriptions', []));
+
+            $multiFiles = $request->file('images');
+            if ($multiFiles) {
+                $files = is_array($multiFiles) ? $multiFiles : [$multiFiles];
+                if (count($files) > 1) {
+                    return $this->handleMultiImageUpload(
+                        $files,
+                        $imageDescriptions,
+                        $description,
+                        $keywords,
+                        $id,
+                        $replace
+                    );
+                }
+
+                if (!$request->hasFile('image') && isset($files[0])) {
+                    $request->files->set('image', $files[0]);
+                }
+            }
+
             // Get uploaded file
             if (!$request->hasFile('image')) {
                 return response()->json([
@@ -43,24 +69,14 @@ class McpV1ScreenshotCtl
             }
 
             $uploadedFile = $request->file('image');
-            $id = $request->input('id');
-            $description = $request->input('description', '');
-            $keywords = $request->input('keywords', []);
-            $replace = $request->input('replace', false);
-
-            // Parse keywords if string
-            if (is_string($keywords)) {
-                $keywords = array_filter(array_map('trim', explode(',', $keywords)));
+            $singleDescription = $description;
+            if ($singleDescription === '' && !empty($imageDescriptions)) {
+                $singleDescription = $imageDescriptions[0];
             }
-
-            // Convert replace to boolean
-            $replace = filter_var($replace, FILTER_VALIDATE_BOOLEAN);
-
-            // Upload screenshot
             $result = $this->screenshotService->uploadScreenshot(
                 $uploadedFile->getRealPath(),
                 $id,
-                $description,
+                $singleDescription,
                 $keywords,
                 $replace
             );
@@ -266,14 +282,23 @@ class McpV1ScreenshotCtl
             ], 404);
         }
 
-        if (!file_exists($screenshot['file_path'])) {
+        if (!FileSystemManager::exists($screenshot['file_path'])) {
             return response()->json([
                 'success' => false,
                 'error' => 'Screenshot file not found'
             ], 404);
         }
 
-        return response()->file($screenshot['file_path'], [
+        $contents = FileSystemManager::readFile($screenshot['file_path']);
+
+        if ($contents === false) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to read screenshot file'
+            ], 500);
+        }
+
+        return response($contents, 200, [
             'Content-Type' => $screenshot['mime_type'],
             'Content-Disposition' => 'inline; filename="' . $screenshot['original_name'] . '"'
         ]);
@@ -437,5 +462,101 @@ class McpV1ScreenshotCtl
                 'error' => 'Batch upload failed: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function handleMultiImageUpload(array $files, array $imageDescriptions, string $summaryDescription, array $keywords, ?string $id, bool $replace): JsonResponse
+    {
+        $filePaths = [];
+        foreach ($files as $file) {
+            if ($file && method_exists($file, 'getRealPath')) {
+                $filePaths[] = $file->getRealPath();
+            }
+        }
+
+        if (empty($filePaths)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No valid image files provided'
+            ], 400);
+        }
+
+        $customDescriptions = [];
+        foreach ($filePaths as $index => $_path) {
+            $customDescriptions[$index] = $imageDescriptions[$index] ?? '';
+        }
+
+        $displayDescriptions = [];
+        foreach ($filePaths as $index => $_path) {
+            $label = 'Screenshot ' . ($index + 1);
+            $customText = trim($customDescriptions[$index] ?? '');
+            if ($customText !== '') {
+                $label .= ' - ' . $customText;
+            }
+            $displayDescriptions[$index] = $label;
+        }
+
+        $options = [
+            'image_options' => [
+                'maxImageWidth' => 1080,
+                'fontSize' => 36,
+                'titleHeight' => 110,
+                'padding' => 32
+            ],
+            'original_descriptions' => $customDescriptions,
+            'summary_description' => $summaryDescription
+        ];
+
+        $keywordString = empty($keywords) ? '' : implode(',', $keywords);
+
+        $result = $this->screenshotService->uploadAndMerge(
+            $filePaths,
+            $displayDescriptions,
+            $keywordString,
+            $id,
+            $replace,
+            $options
+        );
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['screenshot']
+        ]);
+    }
+
+    private function normalizeKeywords($input): array
+    {
+        if (is_array($input)) {
+            return array_values(array_filter(array_map('trim', $input)));
+        }
+
+        if (is_string($input)) {
+            $decoded = json_decode($input, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter(array_map('trim', $decoded)));
+            }
+
+            return array_values(array_filter(array_map('trim', explode(',', $input))));
+        }
+
+        return [];
+    }
+
+    private function normalizeDescriptions($input): array
+    {
+        if (is_array($input)) {
+            return array_map(function ($value) {
+                return trim((string) $value);
+            }, $input);
+        }
+
+        if (is_string($input) && $input !== '') {
+            return [trim($input)];
+        }
+
+        return [];
     }
 }

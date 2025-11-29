@@ -244,10 +244,10 @@ Route::prefix('api/mcp/v1/screenshots')->group(function () {
     Route::get('/search', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'search']);
     Route::get('/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getStats']);
     Route::get('/', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getAll']);
-    Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById']);
-    Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile']);
     // Support URLs with image extension for AI recognition: /screenshots/{id}.jpg, /screenshots/{id}.png, etc.
     Route::get('/{id}.{ext}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFileWithExt'])->where('ext', 'jpg|jpeg|png|gif|webp|bmp');
+    Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById'])->where('id', '[A-Za-z0-9_\-]+');
+    Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile'])->where('id', '[A-Za-z0-9_\-]+');
     Route::delete('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'delete']);
     Route::delete('/clear-all/confirm', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'clearAll']);
 });

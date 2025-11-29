@@ -123,13 +123,25 @@ const McpManager = {
 const McpScreenshotModule = {
     screenshots: [],
     selectedScreenshot: null,
+    uploadMode: 'single',
 
     async init(container) {
+        this.cleanupExistingModals();
         container.innerHTML = this.getTemplate();
         // Move modals to body to avoid overflow:hidden clipping from parent .card
         this.moveModalsToBody();
         this.setupEventListeners();
         await this.loadScreenshots();
+    },
+
+    cleanupExistingModals() {
+        const modalIds = ['mcp-ss-upload-modal', 'mcp-ss-batch-modal'];
+        modalIds.forEach((id) => {
+            const existing = document.getElementById(id);
+            if (existing && existing.parentElement) {
+                existing.parentElement.removeChild(existing);
+            }
+        });
     },
 
     moveModalsToBody() {
@@ -195,9 +207,25 @@ const McpScreenshotModule = {
                         </div>
                         <div class="mcp-modal-body">
                             <div class="mcp-form-group">
-                                <label>Image File *</label>
+                                <label>Upload Mode</label>
+                                <div id="mcp-ss-upload-mode" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                        <input type="radio" name="mcp-ss-mode" value="single" checked>
+                                        <span>Single screenshot</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                        <input type="radio" name="mcp-ss-mode" value="multi">
+                                        <span>Merge multiple screenshots</span>
+                                    </label>
+                                </div>
+                                <small id="mcp-ss-mode-hint" style="display:block;margin-top:6px;color:#888;">Upload a single image without merging.</small>
+                            </div>
+                            <div class="mcp-form-group">
+                                <label>Image Files *</label>
                                 <input type="file" id="mcp-ss-file-input" accept="image/*" required>
+                                <small id="mcp-ss-upload-help" style="display:block; margin-top:6px; color:#888;">Select one image to upload.</small>
                                 <div id="mcp-ss-file-preview" style="margin-top: 10px;"></div>
+                                <div id="mcp-ss-upload-items" style="margin-top: 12px; display: none;"></div>
                             </div>
                             <div class="mcp-form-group">
                                 <label>ID (Optional, auto-generated if empty)</label>
@@ -301,7 +329,15 @@ const McpScreenshotModule = {
 
         // File input preview
         document.getElementById('mcp-ss-file-input').addEventListener('change', (e) => {
-            this.previewFile(e.target.files[0]);
+            this.handleUploadFileSelection(e.target.files);
+        });
+
+        document.querySelectorAll('input[name="mcp-ss-mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.setUploadMode(e.target.value);
+                }
+            });
         });
 
         // Batch upload modal events
@@ -584,6 +620,11 @@ const McpScreenshotModule = {
         document.getElementById('mcp-ss-description-input').value = '';
         document.getElementById('mcp-ss-keywords-input').value = '';
         document.getElementById('mcp-ss-file-preview').innerHTML = '';
+        const itemsContainer = document.getElementById('mcp-ss-upload-items');
+        if (itemsContainer) {
+            itemsContainer.innerHTML = '';
+            itemsContainer.style.display = 'none';
+        }
     },
 
     previewFile(file) {
@@ -601,6 +642,116 @@ const McpScreenshotModule = {
         reader.readAsDataURL(file);
     },
 
+    handleUploadFileSelection(fileList) {
+        const previewEl = document.getElementById('mcp-ss-file-preview');
+        const itemsContainer = document.getElementById('mcp-ss-upload-items');
+        previewEl.innerHTML = '';
+        itemsContainer.innerHTML = '';
+        itemsContainer.style.display = 'none';
+
+        if (!fileList || fileList.length === 0) {
+            return;
+        }
+
+        const files = Array.from(fileList);
+
+        if (this.uploadMode !== 'multi') {
+            this.previewFile(files[0]);
+            return;
+        }
+
+        if (files.length < 2) {
+            itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select at least two images to merge.</div>';
+            itemsContainer.style.display = 'block';
+            return;
+        }
+
+        const rows = files.map((file, index) => {
+            const sizeText = this.formatBytes(file.size);
+            return `
+                <div class="mcp-upload-item" data-index="${index}" style="background:#1f1f1f;border:1px solid #333;border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-weight:600;color:#fff;">Screenshot ${index + 1}</div>
+                            <div style="color:#bbb;font-size:12px;">${file.name} • ${sizeText}</div>
+                        </div>
+                    </div>
+                    <input type="text" class="mcp-ss-upload-desc-input" data-index="${index}" placeholder="Optional description for this image" style="margin-top:8px;width:100%;padding:8px;border-radius:4px;border:1px solid #444;background:#151515;color:#eee;">
+                </div>
+            `;
+        }).join('');
+
+        itemsContainer.innerHTML = rows;
+        itemsContainer.style.display = 'block';
+    },
+
+    setUploadMode(mode) {
+        const normalized = mode === 'multi' ? 'multi' : 'single';
+        this.uploadMode = normalized;
+
+        const fileInput = document.getElementById('mcp-ss-file-input');
+        if (fileInput) {
+            fileInput.multiple = normalized === 'multi';
+            if (normalized === 'multi') {
+                fileInput.setAttribute('multiple', 'multiple');
+            } else {
+                fileInput.removeAttribute('multiple');
+            }
+            fileInput.value = '';
+        }
+
+        this.updateUploadModeUI();
+
+        if (fileInput) {
+            this.handleUploadFileSelection(fileInput.files);
+        }
+    },
+
+    updateUploadModeUI() {
+        const hint = document.getElementById('mcp-ss-mode-hint');
+        const help = document.getElementById('mcp-ss-upload-help');
+        const submitBtn = document.getElementById('mcp-ss-upload-submit-btn');
+        const itemsContainer = document.getElementById('mcp-ss-upload-items');
+        const previewEl = document.getElementById('mcp-ss-file-preview');
+
+        if (this.uploadMode === 'multi') {
+            if (hint) hint.textContent = 'Merge multiple images into a single tall screenshot with numbered labels.';
+            if (help) help.textContent = 'Select at least two images. They will be resized to max 1080px width and merged top-to-bottom.';
+            if (submitBtn) submitBtn.textContent = 'Upload & Merge';
+            if (itemsContainer) {
+                if (itemsContainer.innerHTML.trim() === '') {
+                    itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select images to configure per-screenshot descriptions.</div>';
+                }
+                itemsContainer.style.display = 'block';
+            }
+            if (previewEl) previewEl.innerHTML = '';
+        } else {
+            if (hint) hint.textContent = 'Upload a single image without merging.';
+            if (help) help.textContent = 'Select one image to upload.';
+            if (submitBtn) submitBtn.textContent = 'Upload Screenshot';
+            if (itemsContainer) {
+                itemsContainer.innerHTML = '';
+                itemsContainer.style.display = 'none';
+            }
+        }
+
+        document.querySelectorAll('input[name="mcp-ss-mode"]').forEach(radio => {
+            radio.checked = radio.value === this.uploadMode;
+        });
+    },
+
+    formatBytes(bytes) {
+        if (!bytes) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+        return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+    },
+
     async uploadScreenshot(replace = false) {
         const fileInput = document.getElementById('mcp-ss-file-input');
         const id = document.getElementById('mcp-ss-id-input').value.trim();
@@ -612,8 +763,28 @@ const McpScreenshotModule = {
             return;
         }
 
+        const files = Array.from(fileInput.files);
+        const isMultiMode = this.uploadMode === 'multi';
+        const perImageDescriptions = Array.from(document.querySelectorAll('.mcp-ss-upload-desc-input'))
+            .sort((a, b) => Number(a.dataset.index || 0) - Number(b.dataset.index || 0))
+            .map(input => input.value.trim());
+
         const formData = new FormData();
-        formData.append('image', fileInput.files[0]);
+
+        if (isMultiMode) {
+            if (files.length < 2) {
+                alert('Select at least two images to use merge mode.');
+                return;
+            }
+            files.forEach(file => formData.append('images[]', file));
+            perImageDescriptions.forEach(desc => formData.append('image_descriptions[]', desc));
+        } else {
+            formData.append('image', files[0]);
+            if (perImageDescriptions[0]) {
+                formData.append('image_descriptions[]', perImageDescriptions[0]);
+            }
+        }
+
         if (id) formData.append('id', id);
         if (description) formData.append('description', description);
         if (keywords) formData.append('keywords', keywords);

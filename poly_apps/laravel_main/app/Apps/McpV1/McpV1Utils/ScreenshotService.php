@@ -378,9 +378,10 @@ class ScreenshotService
      * @param array $descriptions Array of descriptions (same index as files)
      * @param string $keyword Common keyword for the merged image
      * @param string|null $id Custom ID (optional)
+     * @param array $options Additional options (image_options, original_descriptions, summary_description)
      * @return array Result with merged screenshot info
      */
-    public function uploadAndMerge(array $filePaths, array $descriptions = [], string $keyword = '', ?string $id = null, bool $replace = false)
+    public function uploadAndMerge(array $filePaths, array $descriptions = [], string $keyword = '', ?string $id = null, bool $replace = false, array $options = [])
     {
         if (empty($filePaths)) {
             return ['error' => 'No files provided', 'success' => false];
@@ -405,8 +406,19 @@ class ScreenshotService
         }
 
         try {
+            $displayDescriptions = is_array($descriptions) ? $descriptions : [];
+            $originalDescriptions = $options['original_descriptions'] ?? $displayDescriptions;
+            if (!is_array($originalDescriptions)) {
+                $originalDescriptions = $displayDescriptions;
+            }
+
             // Merge images using common utility
-            $mergeResult = ImageProcessUtil::mergeImagesVertically($filePaths, $descriptions);
+            $mergeResult = ImageProcessUtil::mergeImagesVertically(
+                $filePaths,
+                $displayDescriptions,
+                null,
+                $options['image_options'] ?? []
+            );
 
             if (!isset($mergeResult['success']) || !$mergeResult['success']) {
                 return ['error' => 'Failed to merge images', 'success' => false];
@@ -429,10 +441,19 @@ class ScreenshotService
             // Clean up temp file
             @unlink($mergedPath);
 
-            // Build description from all provided descriptions
+            // Build description from provided descriptions
             $combinedDescription = '';
-            if (!empty($descriptions)) {
-                $combinedDescription = implode(' | ', array_filter($descriptions));
+            if (!empty($originalDescriptions)) {
+                $combinedDescription = implode(' | ', array_filter(array_map('trim', $originalDescriptions)));
+            }
+
+            if (!empty($options['summary_description'])) {
+                $summary = trim($options['summary_description']);
+                if ($summary !== '') {
+                    $combinedDescription = $combinedDescription
+                        ? ($summary . ' | ' . $combinedDescription)
+                        : $summary;
+                }
             }
 
             // Build keywords array
@@ -459,7 +480,8 @@ class ScreenshotService
                     'image_count' => $mergeResult['image_count'],
                     'width' => $mergeResult['width'],
                     'height' => $mergeResult['height'],
-                    'individual_descriptions' => $descriptions
+                    'individual_descriptions' => $originalDescriptions,
+                    'display_descriptions' => $displayDescriptions
                 ]
             ];
 

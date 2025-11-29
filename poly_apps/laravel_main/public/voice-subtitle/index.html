@@ -7,23 +7,49 @@
     <link rel="stylesheet" href="/voice-subtitle/assets/main.css">
 </head>
 <body>
-    <div class="user-info">
-        <span class="user-info-logged-in">● Logged in as: </span>
-        <span class="user-identifier" id="userIdentifier">Loading...</span>
-    </div>
+    <div class="page-wrapper">
+        <div class="top-bar">
+            <div class="user-info">
+                <span class="user-info-logged-in">● Logged in as: </span>
+                <span class="user-identifier" id="userIdentifier">Loading...</span>
+            </div>
 
-    <div class="tab-nav">
-        <button class="tab-button active" onclick="switchTab('player')">Player</button>
-        <button class="tab-button" onclick="switchTab('add')">Add to Queue</button>
-        <button class="tab-button" onclick="switchTab('queue')">Queue</button>
-        <button class="tab-button" onclick="switchTab('settings')">Settings</button>
-    </div>
+            <div class="tab-nav">
+                <button class="tab-button active" onclick="switchTab('player')">Queue Player</button>
+                <button class="tab-button" onclick="switchTab('add')">Add to Queue</button>
+                <button class="tab-button" onclick="switchTab('queue')">Queue</button>
+                <button class="tab-button" onclick="switchTab('settings')">Settings</button>
+            </div>
+        </div>
 
-    <!-- Player Tab -->
-    <div id="playerTab" class="tab-content active">
-        <button class="fullscreen-toggle" onclick="toggleFullscreen()">🖥️ Fullscreen Subtitle</button>
+        <!-- Player Tab -->
+        <div id="playerTab" class="tab-content active">
+            <div class="panel">
+                <div class="player-container">
+                    <div class="player-actions">
+                        <button class="queue-toggle" onclick="togglePlayerQueue()">📋 Queue</button>
+                        <button class="fullscreen-toggle" onclick="toggleFullscreen()">🖥️ Fullscreen Subtitle</button>
+                    </div>
 
-        <div class="player-container">
+                    <div class="player-queue-panel" id="playerQueuePanel">
+            <div class="player-queue-header">
+                <h3>Current Queue</h3>
+                <button class="queue-close-btn" onclick="togglePlayerQueue()">✕</button>
+            </div>
+            <div class="player-queue-filter">
+                <label for="playerQueueGroupFilter">Group:</label>
+                <select id="playerQueueGroupFilter" onchange="setPlayerQueueFilter(this.value)">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="player-queue-list" id="playerQueueList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <div class="empty-state-text">No items loaded</div>
+                </div>
+            </div>
+        </div>
+
             <div class="subtitle-display">
                 <div class="subtitle-text" id="subtitleText">Ready to play...</div>
             </div>
@@ -65,15 +91,16 @@
                     <span class="playback-rate-value" id="playbackRateValue">1.0x</span>
                 </div>
             </div>
+                    <audio id="audioPlayer" controls></audio>
+                </div>
+            </div>
         </div>
 
-        <audio id="audioPlayer" controls></audio>
-    </div>
-
-    <!-- Add Tab -->
-    <div id="addTab" class="tab-content">
+        <!-- Add Tab -->
+        <div id="addTab" class="tab-content">
         <div class="add-container">
-            <div class="form-card">
+            <div class="form-card panel">
+            <div class="form-card panel">
                 <h2>Add to Queue</h2>
                 <div id="addMessage"></div>
 
@@ -132,7 +159,7 @@
                 </div>
             </div>
 
-            <div class="task-monitor">
+            <div class="task-monitor panel">
                 <div class="task-monitor-header">
                     <h3>Processing Tasks</h3>
                     <span class="task-last-updated" id="taskLastUpdated"></span>
@@ -140,11 +167,11 @@
                 <div id="taskList">Loading...</div>
             </div>
         </div>
-    </div>
+        </div>
 
-    <!-- Queue Tab -->
-    <div id="queueTab" class="tab-content">
-        <div class="queue-container">
+        <!-- Queue Tab -->
+        <div id="queueTab" class="tab-content">
+        <div class="queue-container panel">
             <div class="queue-header-section">
                 <h2>Queue</h2>
                 <div class="queue-stats">
@@ -166,17 +193,18 @@
                 </div>
             </div>
         </div>
-    </div>
+        </div>
 
-    <!-- Settings Tab -->
-    <div id="settingsTab" class="tab-content">
+        <!-- Settings Tab -->
+        <div id="settingsTab" class="tab-content">
         <div class="settings-container">
-            <div class="settings-section">
+            <div class="settings-section panel">
                 <h3>⚙️ User Settings</h3>
                 <div id="settingsMessage"></div>
 
                 <div class="setting-item">
                     <label class="setting-label">Target Languages (Check all that apply)</label>
+                    <input type="text" class="language-filter-input" placeholder="Filter languages..." oninput="filterLanguageOptions(this.value)">
                     <div class="language-checkboxes" id="languageCheckboxes">
                         <div>Loading...</div>
                     </div>
@@ -209,9 +237,22 @@
                 <button class="btn-save" onclick="saveSettings()">Save Settings</button>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section panel">
                 <h3>📊 Statistics</h3>
                 <div id="statsInfo">Loading...</div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="groupEditModal">
+        <div class="modal-card">
+            <h3>Update Group</h3>
+            <p id="groupEditPath" class="modal-subtitle"></p>
+            <input type="text" id="groupEditInput" placeholder="Enter new group name">
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeGroupEditModal()">Cancel</button>
+                <button class="btn-primary" onclick="submitGroupEditModal()">Save</button>
             </div>
         </div>
     </div>
