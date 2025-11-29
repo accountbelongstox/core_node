@@ -460,6 +460,9 @@
         <div onclick="StaticResourceBrowser.renameWithTranslation()" style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
             🌐 Rename to English
         </div>
+        <div onclick="StaticResourceBrowser.promptDeleteSelection()" style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;" onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'">
+            🗑️ Delete
+        </div>
     </div>
 
     <!-- Upload Dialog -->
@@ -501,6 +504,24 @@
             <div style="padding: 16px 24px; border-bottom: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
                 <button onclick="StaticResourceBrowser.closeCreateDirDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
                 <button id="create-dir-btn" onclick="StaticResourceBrowser.executeCreateDir()" style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <div id="static-delete-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div style="background: #252526; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 520px; box-shadow: 0 8px 32px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #ff7373; font-size: 16px; font-weight: 500;">🗑️ Delete Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="static-delete-summary" style="margin: 0 0 15px 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;">Preparing delete summary...</p>
+                <input type="text" id="static-delete-confirm-input" placeholder="Type 确认 to confirm" style="width: 100%; padding: 10px; background: #3c3c3c; color: #f1f1f1; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;">
+                <p style="margin-top: 10px; font-size: 12px; color: #888;">For safety, please type <strong>确认</strong> to proceed.</p>
+            </div>
+            <div style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeDeleteDialog()" style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;" onmouseover="this.style.background='#505050'" onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="static-delete-confirm-btn" onclick="StaticResourceBrowser.executeDelete()" style="padding: 8px 20px; background: #b33939; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='#c74a4a'" onmouseout="this.style.background='#b33939'" disabled>Delete</button>
             </div>
         </div>
     </div>

@@ -92,6 +92,11 @@ class AppQyV1SupportedLanguagesController extends Controller
         'zu' => ['name' => 'Zulu', 'native_name' => 'isiZulu', 'voice_id' => 'zu-ZA-ThandoNeural'],
     ];
 
+    public static function getSupportedLanguagesStatic(): array
+    {
+        return self::$languages;
+    }
+
     public function getSupportedLanguages(Request $request): JsonResponse
     {
         $languages = [];

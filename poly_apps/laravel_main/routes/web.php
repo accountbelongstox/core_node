@@ -277,6 +277,8 @@ Route::prefix('static-resources')->group(function () {
     Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
     Route::post('/rename', [StaticResourceController::class, 'renameItem']);
     Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+    Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
+    Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
 
     Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
     Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
