@@ -282,7 +282,7 @@ class ApiServiceAppQy {
 
   String getTtsAudioUrl(String audioPath) {
     // ApiEndpointsAppQy.ttsAudio is /api/app_qy_v1/ai_tools/tts/audio
-    // baseUrl is http://192.168.50.2:9000/api
+    // baseUrl is http://192.168.50.2:9000 (host:port only)
     // Result: http://192.168.50.2:9000/api/app_qy_v1/ai_tools/tts/audio/{audioPath}
     return '${_dio.options.baseUrl}${ApiEndpointsAppQy.ttsAudio}/$audioPath';
   }
