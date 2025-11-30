@@ -14,7 +14,8 @@
 library;
 
 import '../model/learning_stats_model.dart';
-import '../../../../../services_app_qy/api_service_app_qy.dart';
+import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../../word/data/word_book_data_service.dart';
 
 class LearningService {
   final ApiServiceAppQy _apiService;
@@ -26,7 +27,8 @@ class LearningService {
   Future<LearningStatsModel> getLearningStats() async {
     try {
       final response = await _apiService.get('/api/v1/learning/stats');
-      return LearningStatsModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return LearningStatsModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return LearningStatsModel.empty();
     }
@@ -70,14 +72,10 @@ class LearningService {
   Future<Map<String, dynamic>> getWordBookInfo() async {
     try {
       final response = await _apiService.get('/api/v1/learning/wordbook');
-      return response.data as Map<String, dynamic>;
+      final data = response['data'] ?? response;
+      return data as Map<String, dynamic>;
     } catch (e) {
-      return {
-        'name': '默认词书',
-        'total_words': 16952,
-        'learned': 27,
-        'remaining': 16925,
-      };
+      return WordBookDataService.getDefaultWordBookInfo();
     }
   }
 }

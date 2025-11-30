@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.366631+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "nothing",
+        "laos": "ບໍ່ມີຫຍັງ",
+        "jp": "何もない",
+        "vie": "không có gì",
+        "en_pronunciation": "/ˈnəθɪŋ/",
+        "laos_pronunciation": "bomijang",
+        "jp_pronunciation": "nanimo nai",
+        "vie_pronunciation": "khong co gi"
+      },
+      "means": {
+        "en": "A quantity of no importance",
+        "zh": "数量不重要"
+      }
+    },
+    {
+      "word": {
+        "en": "notice",
+        "laos": "ແຈ້ງການ",
+        "jp": "気づく",
+        "vie": "thông báo",
+        "en_pronunciation": "/ˈnoʊtɪs/",
+        "laos_pronunciation": "aechngkan",
+        "jp_pronunciation": "kizu ku",
+        "vie_pronunciation": "thong bao"
+      },
+      "means": {
+        "en": "An announcement containing information about an event; ; ; \"a notice of sale",
+        "zh": "包含有关事件的信息的公告；"
+      }
+    },
+    {
+      "word": {
+        "en": "noticeable",
+        "laos": "ທີ່ສັງເກດເຫັນໄດ້",
+        "jp": "目立つ",
+        "vie": "đáng chú ý",
+        "en_pronunciation": "/ˈnoʊtəsəbəl/",
+        "laos_pronunciation": "thisangkedhendai",
+        "jp_pronunciation": "medatsu",
+        "vie_pronunciation": "dang chu y"
+      },
+      "means": {
+        "en": "Capable or worthy of being perceived",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "notify",
+        "laos": "ບອກເລົ່າ",
+        "jp": "通知する",
+        "vie": "thông báo",
+        "en_pronunciation": "/ˈnoʊtəˌfaɪ/",
+        "laos_pronunciation": "bokleoa",
+        "jp_pronunciation": "tsuuchi suru",
+        "vie_pronunciation": "thong bao"
+      },
+      "means": {
+        "en": "Inform (somebody) of something",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "notification",
+        "laos": "ການແຈ້ງການ",
+        "jp": "通知",
+        "vie": "thông báo",
+        "en_pronunciation": "/ˌnoʊtəfəˈkeɪʃən/",
+        "laos_pronunciation": "kanaechngkan",
+        "jp_pronunciation": "tsuuchi",
+        "vie_pronunciation": "thong bao"
+      },
+      "means": {
+        "en": "An accusation of crime made by a grand jury on its own initiative",
+        "zh": "“出售通知"
+      }
+    },
+    {
+      "word": {
+        "en": "notion",
+        "laos": "ແນວຄິດ",
+        "jp": "概念",
+        "vie": "quan niệm",
+        "en_pronunciation": "/ˈnoʊʃən/",
+        "laos_pronunciation": "aenuakhid",
+        "jp_pronunciation": "gainen",
+        "vie_pronunciation": "quan niem"
+      },
+      "means": {
+        "en": "A vague idea in which some confidence is placed",
+        "zh": "有能力或值得被感知"
+      }
+    },
+    {
+      "word": {
+        "en": "notional",
+        "laos": "ບໍ່ມີ",
+        "jp": "概念的な",
+        "vie": "danh nghĩa",
+        "en_pronunciation": "/notional/",
+        "laos_pronunciation": "bomi",
+        "jp_pronunciation": "gainenteki na",
+        "vie_pronunciation": "danh nghia"
+      },
+      "means": {
+        "en": "Not based on fact; unreal; - F.D.Roosevelt",
+        "zh": "通知（某人）某事"
+      }
+    },
+    {
+      "word": {
+        "en": "notorious",
+        "laos": "ທີ່ມີຊື່ສຽງ",
+        "jp": "悪名高い",
+        "vie": "khét tiếng",
+        "en_pronunciation": "/noʊˈtɔriəs/",
+        "laos_pronunciation": "thimisusiang",
+        "jp_pronunciation": "akumeitakai",
+        "vie_pronunciation": "khet tieng"
+      },
+      "means": {
+        "en": "Known widely and usually unfavorably",
+        "zh": "大陪审团主动提出的犯罪指控"
+      }
+    },
+    {
+      "word": {
+        "en": "notoriety",
+        "laos": "ສະມຸດ",
+        "jp": "悪名",
+        "vie": "tai tiếng",
+        "en_pronunciation": "/ˌnoʊtərˈaɪəti/",
+        "laos_pronunciation": "samud",
+        "jp_pronunciation": "akumei",
+        "vie_pronunciation": "tai tieng"
+      },
+      "means": {
+        "en": "The state of being known for some unfavorable act or quality",
+        "zh": "一个模糊的想法，但有一定的信心"
+      }
+    },
+    {
+      "word": {
+        "en": "notwithstanding",
+        "laos": "ເຖິງວ່າຈະບໍ່ຮອດ",
+        "jp": "それにもかかわらず",
+        "vie": "mặc dù vậy",
+        "en_pronunciation": "/ˌnɑtwɪθˈstændɪŋ/",
+        "laos_pronunciation": "thoengvachabohod",
+        "jp_pronunciation": "sorenimokakawarazu",
+        "vie_pronunciation": "mac du vay"
+      },
+      "means": {
+        "en": "Despite anything to the contrary (usually following a concession)",
+        "zh": "不基于事实；"
+      }
+    },
+    {
+      "word": {
+        "en": "noun",
+        "laos": "ນາມ",
+        "jp": "名詞",
+        "vie": "danh từ",
+        "en_pronunciation": "/naʊn/",
+        "laos_pronunciation": "nam",
+        "jp_pronunciation": "meishi",
+        "vie_pronunciation": "danh tu"
+      },
+      "means": {
+        "en": "A content word that can be used to refer to a person, place, thing, quality, or action",
+        "zh": "不真实的；"
+      }
+    },
+    {
+      "word": {
+        "en": "nourish",
+        "laos": "ບໍາລຸງ",
+        "jp": "栄養を与える",
+        "vie": "nuôi dưỡng",
+        "en_pronunciation": "/nərɪʃ/",
+        "laos_pronunciation": "boalung",
+        "jp_pronunciation": "eiyou wo atae ru",
+        "vie_pronunciation": "nuoi duong"
+      },
+      "means": {
+        "en": "Provide with nourishment",
+        "zh": "——罗斯福"
+      }
+    },
+    {
+      "word": {
+        "en": "nourishment",
+        "laos": "ບໍາ",
+        "jp": "栄養",
+        "vie": "sự nuôi dưỡng",
+        "en_pronunciation": "/ˈnərɪʃmənt/",
+        "laos_pronunciation": "boa",
+        "jp_pronunciation": "eiyou",
+        "vie_pronunciation": "su nuoi duong"
+      },
+      "means": {
+        "en": "A source of materials to nourish the body",
+        "zh": "广为人知但通常不受欢迎"
+      }
+    },
+    {
+      "word": {
+        "en": "novel",
+        "laos": "ນະວະນິຍາຍ",
+        "jp": "小説",
+        "vie": "tiểu thuyết",
+        "en_pronunciation": "/ˈnɑvəl/",
+        "laos_pronunciation": "nauaaninyai",
+        "jp_pronunciation": "shousetsu",
+        "vie_pronunciation": "tieu thuyet"
+      },
+      "means": {
+        "en": "An extended fictional work in prose; usually in the form of a story",
+        "zh": "因某些不利的行为或品质而闻名的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "novelist",
+        "laos": "ຜູ້ຢິງນະເລື່ອງ",
+        "jp": "小説家",
+        "vie": "tiểu thuyết gia",
+        "en_pronunciation": "/ˈnɑvələst/",
+        "laos_pronunciation": "phu ying naleuong",
+        "jp_pronunciation": "shousetsuka",
+        "vie_pronunciation": "tieu thuyet gia"
+      },
+      "means": {
+        "en": "One who writes novels",
+        "zh": "尽管有任何相反的情况（通常是在做出让步之后）"
+      }
+    },
+    {
+      "word": {
+        "en": "novelty",
+        "laos": "ນະວະນິຍາຍ",
+        "jp": "目新しさ",
+        "vie": "sự mới lạ",
+        "en_pronunciation": "/ˈnɑvəlti/",
+        "laos_pronunciation": "nauaaninyai",
+        "jp_pronunciation": "meatarashisa",
+        "vie_pronunciation": "su moi la"
+      },
+      "means": {
+        "en": "Originality by virtue of being refreshingly novel",
+        "zh": "可用于指代人、地点、事物、品质或动作的实词"
+      }
+    },
+    {
+      "word": {
+        "en": "november",
+        "laos": "ເດືອນພະຈິກ",
+        "jp": "11月",
+        "vie": "tháng mười một",
+        "en_pronunciation": "/noʊˈvɛmbər/",
+        "laos_pronunciation": "deuonphachik",
+        "jp_pronunciation": "11 gatsu",
+        "vie_pronunciation": "thang muoi mot"
+      },
+      "means": {
+        "en": "The month following October and preceding December",
+        "zh": "提供营养"
+      }
+    },
+    {
+      "word": {
+        "en": "now",
+        "laos": "ດຽວນີ້",
+        "jp": "今",
+        "vie": "bây giờ",
+        "en_pronunciation": "/naʊ/",
+        "laos_pronunciation": "diauani",
+        "jp_pronunciation": "ima",
+        "vie_pronunciation": "bay gio"
+      },
+      "means": {
+        "en": "The momentary present",
+        "zh": "滋养身体的物质来源"
+      }
+    },
+    {
+      "word": {
+        "en": "nowadays",
+        "laos": "ໃນປັດຈຸບັນ",
+        "jp": "最近",
+        "vie": "ngày nay",
+        "en_pronunciation": "/ˈnaʊəˌdeɪz/",
+        "laos_pronunciation": "naipadchuban",
+        "jp_pronunciation": "saikin",
+        "vie_pronunciation": "ngay nay"
+      },
+      "means": {
+        "en": "The period of time that is happening now; any continuous stretch of time including the moment of speech",
+        "zh": "一篇长篇小说散文作品；"
+      }
+    },
+    {
+      "word": {
+        "en": "nowhere",
+        "laos": "ບໍ່ມີບ່ອນໃດ",
+        "jp": "どこにもない",
+        "vie": "hư không",
+        "en_pronunciation": "/ˈnoʊˌwɛr/",
+        "laos_pronunciation": "bomibondai",
+        "jp_pronunciation": "dokonimonai",
+        "vie_pronunciation": "hu khong"
+      },
+      "means": {
+        "en": "An insignificant place",
+        "zh": "通常以故事的形式"
+      }
+    },
+    {
+      "word": {
+        "en": "nuclear",
+        "laos": "ນິລນິວເຄຼຍ",
+        "jp": "核",
+        "vie": "hạt nhân",
+        "en_pronunciation": "/ˈnukliər/",
+        "laos_pronunciation": "ni lniuakheny",
+        "jp_pronunciation": "kaku",
+        "vie_pronunciation": "hat nhan"
+      },
+      "means": {
+        "en": "(weapons) deriving destructive energy from the release of atomic energy",
+        "zh": "一个写小说的人"
+      }
+    },
+    {
+      "word": {
+        "en": "nucleus",
+        "laos": "nucleus",
+        "jp": "核",
+        "vie": "hạt nhân",
+        "en_pronunciation": "/ˈnukliəs/",
+        "laos_pronunciation": "nucleus",
+        "jp_pronunciation": "kaku",
+        "vie_pronunciation": "hat nhan"
+      },
+      "means": {
+        "en": "A part of the cell containing DNA and RNA and responsible for growth and reproduction",
+        "zh": "原创性在于新颖新颖"
+      }
+    },
+    {
+      "word": {
+        "en": "nude",
+        "laos": "ເປືອຍ",
+        "jp": "ヌード",
+        "vie": "khỏa thân",
+        "en_pronunciation": "/nud/",
+        "laos_pronunciation": "peuony",
+        "jp_pronunciation": "nuudo",
+        "vie_pronunciation": "khoa than"
+      },
+      "means": {
+        "en": "A painting of a naked human figure",
+        "zh": "10 月之后和 12 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "nudity",
+        "laos": "ຄວາມໂລບມາກ",
+        "jp": "ヌード",
+        "vie": "ảnh khoả thân",
+        "en_pronunciation": "/ˈnudɪti/",
+        "laos_pronunciation": "khuaam olbmak",
+        "jp_pronunciation": "nuudo",
+        "vie_pronunciation": "anh khoa than"
+      },
+      "means": {
+        "en": "The state of being without clothing or covering of any kind",
+        "zh": "瞬间的现在"
+      }
+    },
+    {
+      "word": {
+        "en": "nuisance",
+        "laos": "ຄວາມກັງວົນໃຈ",
+        "jp": "迷惑",
+        "vie": "phiền toái",
+        "en_pronunciation": "/ˈnusəns/",
+        "laos_pronunciation": "khuaam kangvonchai",
+        "jp_pronunciation": "meiwaku",
+        "vie_pronunciation": "phien toai"
+      },
+      "means": {
+        "en": "(law) a broad legal concept including anything that disturbs the reasonable use of your property or endangers life and health or is offensive",
+        "zh": "现在正在发生的一段时间；"
+      }
+    },
+    {
+      "word": {
+        "en": "numb",
+        "laos": "ມຶນ",
+        "jp": "しびれている",
+        "vie": "tê liệt",
+        "en_pronunciation": "/nəm/",
+        "laos_pronunciation": "mun",
+        "jp_pronunciation": "shibireteiru",
+        "vie_pronunciation": "te liet"
+      },
+      "means": {
+        "en": "Make numb or insensitive",
+        "zh": "任何连续的时间段，包括讲话时刻"
+      }
+    },
+    {
+      "word": {
+        "en": "number",
+        "laos": "ຈໍານວນ",
+        "jp": "番号",
+        "vie": "con số",
+        "en_pronunciation": "/ˈnəmbər/",
+        "laos_pronunciation": "choanuan",
+        "jp_pronunciation": "bangou",
+        "vie_pronunciation": "con so"
+      },
+      "means": {
+        "en": "The property possessed by a sum or total or indefinite quantity of units or individuals",
+        "zh": "一个不起眼的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "numerical",
+        "laos": "ກ້ວາ",
+        "jp": "数値的",
+        "vie": "số",
+        "en_pronunciation": "/nuˈmɛrɪkəl/",
+        "laos_pronunciation": "kuaa",
+        "jp_pronunciation": "suuchiteki",
+        "vie_pronunciation": "so"
+      },
+      "means": {
+        "en": "Measured or expressed in numbers",
+        "zh": "（武器）从原子能的释放中获得破坏性能量"
+      }
+    },
+    {
+      "word": {
+        "en": "numerous",
+        "laos": "ມີຫລາຍ",
+        "jp": "多数の",
+        "vie": "nhiều",
+        "en_pronunciation": "/ˈnumərəs/",
+        "laos_pronunciation": "milai",
+        "jp_pronunciation": "tasuu no",
+        "vie_pronunciation": "nhieu"
+      },
+      "means": {
+        "en": "Amounting to a large indefinite number",
+        "zh": "细胞的一部分，含有 DNA 和 RNA，负责生长和繁殖"
+      }
+    },
+    {
+      "word": {
+        "en": "nurse",
+        "laos": "ນາງພະຍາບານ",
+        "jp": "看護師",
+        "vie": "y tá",
+        "en_pronunciation": "/nərs/",
+        "laos_pronunciation": "nangphanyaban",
+        "jp_pronunciation": "kango shi",
+        "vie_pronunciation": "y ta"
+      },
+      "means": {
+        "en": "One skilled in caring for young children or the sick (usually under the supervision of a physician)",
+        "zh": "裸体人物画"
+      }
+    },
+    {
+      "word": {
+        "en": "nursery",
+        "laos": "ສວນກ້າ",
+        "jp": "保育園",
+        "vie": "vườn ươm",
+        "en_pronunciation": "/ˈnərsəri/",
+        "laos_pronunciation": "suanka",
+        "jp_pronunciation": "hoikuen",
+        "vie_pronunciation": "vuon uom"
+      },
+      "means": {
+        "en": "A child's room for a baby",
+        "zh": "没有衣服或任何遮盖物的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "nurture",
+        "laos": "ການລ້ຽງດູ",
+        "jp": "育てる",
+        "vie": "nuôi dưỡng",
+        "en_pronunciation": "/ˈnərʧər/",
+        "laos_pronunciation": "kanliangdu",
+        "jp_pronunciation": "sodate ru",
+        "vie_pronunciation": "nuoi duong"
+      },
+      "means": {
+        "en": "The properties acquired as a consequence of the way you were treated as a child",
+        "zh": "（法律）广泛的法律概念，包括任何干扰您财产的合理使用或危及生命和健康或具有攻击性的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "nut",
+        "laos": "ຫມາກແຫ້ງໄນ",
+        "jp": "ナット",
+        "vie": "hạt dẻ",
+        "en_pronunciation": "/nət/",
+        "laos_pronunciation": "mak aehngnai",
+        "jp_pronunciation": "natto",
+        "vie_pronunciation": "hat de"
+      },
+      "means": {
+        "en": "Usually large hard-shelled seed",
+        "zh": "使人麻木或麻木"
+      }
+    },
+    {
+      "word": {
+        "en": "nutrition",
+        "laos": "ໂພຊະນາການ",
+        "jp": "栄養",
+        "vie": "dinh dưỡng",
+        "en_pronunciation": "/nuˈtrɪʃən/",
+        "laos_pronunciation": "ophsanakan",
+        "jp_pronunciation": "eiyou",
+        "vie_pronunciation": "dinh duong"
+      },
+      "means": {
+        "en": "(physiology) the organic process of nourishing or being nourished; the processes by which an organism assimilates food and uses it for growth and maintenance",
+        "zh": "单位或者个人的全部、全部或者无限数量所拥有的财产"
+      }
+    },
+    {
+      "word": {
+        "en": "nutrient",
+        "laos": "ທາດອາຫານ",
+        "jp": "栄養素",
+        "vie": "chất dinh dưỡng",
+        "en_pronunciation": "/ˈnutriənt/",
+        "laos_pronunciation": "thadoahan",
+        "jp_pronunciation": "eiyouso",
+        "vie_pronunciation": "chat dinh duong"
+      },
+      "means": {
+        "en": "Any substance that can be metabolized by an animal to give energy and build tissue",
+        "zh": "以数字来衡量或表达"
+      }
+    },
+    {
+      "word": {
+        "en": "oak",
+        "laos": "ຕົ້ນໂອກ",
+        "jp": "オーク材",
+        "vie": "cây sồi",
+        "en_pronunciation": "/oʊk/",
+        "laos_pronunciation": "tonook",
+        "jp_pronunciation": "ooku zai",
+        "vie_pronunciation": "cay soi"
+      },
+      "means": {
+        "en": "The hard durable wood of any oak; used especially for furniture and flooring",
+        "zh": "相当于一个大的不定数"
+      }
+    },
+    {
+      "word": {
+        "en": "oar",
+        "laos": "ໄມ້ກິນ",
+        "jp": "オール",
+        "vie": "mái chèo",
+        "en_pronunciation": "/ɔr/",
+        "laos_pronunciation": "maikin",
+        "jp_pronunciation": "ooru",
+        "vie_pronunciation": "mai cheo"
+      },
+      "means": {
+        "en": "An implement used to propel or steer a boat",
+        "zh": "一名擅长照顾幼儿或病人的人（通常在医生的监督下）"
+      }
+    },
+    {
+      "word": {
+        "en": "oath",
+        "laos": "ຄໍາສາບານ",
+        "jp": "誓い",
+        "vie": "lời thề",
+        "en_pronunciation": "/oʊθ/",
+        "laos_pronunciation": "khoasaban",
+        "jp_pronunciation": "chikai",
+        "vie_pronunciation": "loi the"
+      },
+      "means": {
+        "en": "Profane or obscene expression usually of surprise or anger",
+        "zh": "为婴儿设计的儿童房"
+      }
+    },
+    {
+      "word": {
+        "en": "obese",
+        "laos": "ເປັນອົ້ນ",
+        "jp": "肥満",
+        "vie": "béo phì",
+        "en_pronunciation": "/əˈbis/",
+        "laos_pronunciation": "penon",
+        "jp_pronunciation": "himan",
+        "vie_pronunciation": "beo phi"
+      },
+      "means": {
+        "en": "Excessively fat",
+        "zh": "由于您小时候受到的对待而获得的财产"
+      }
+    },
+    {
+      "word": {
+        "en": "obesity",
+        "laos": "ໂລກອ້ວນເຕີຍ",
+        "jp": "肥満",
+        "vie": "béo phì",
+        "en_pronunciation": "/əˈbisəti/",
+        "laos_pronunciation": "olk vntoeny",
+        "jp_pronunciation": "himan",
+        "vie_pronunciation": "beo phi"
+      },
+      "means": {
+        "en": "More than average fatness",
+        "zh": "通常是大的硬壳种子"
+      }
+    },
+    {
+      "word": {
+        "en": "obey",
+        "laos": "ເຊື່ອຟັງ",
+        "jp": "従う",
+        "vie": "tuân theo",
+        "en_pronunciation": "/oʊˈbeɪ/",
+        "laos_pronunciation": "seuofang",
+        "jp_pronunciation": "shitagau",
+        "vie_pronunciation": "tuan theo"
+      },
+      "means": {
+        "en": "Be obedient to",
+        "zh": "（生理学）滋养或被滋养的有机过程；"
+      }
+    },
+    {
+      "word": {
+        "en": "obedient",
+        "laos": "ທີ່ເຊື່ອຖື",
+        "jp": "従順な",
+        "vie": "vâng lời",
+        "en_pronunciation": "/oʊˈbidiənt/",
+        "laos_pronunciation": "thiseuothu",
+        "jp_pronunciation": "juujun na",
+        "vie_pronunciation": "vang loi"
+      },
+      "means": {
+        "en": "Dutifully complying with the commands or instructions of those in authority; ; ; ; - Edmund Burke",
+        "zh": "有机体吸收食物并将其用于生长和维持的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "obedience",
+        "laos": "ການເຊື່ອຟັງ",
+        "jp": "従順",
+        "vie": "sự vâng lời",
+        "en_pronunciation": "/oʊˈbidiəns/",
+        "laos_pronunciation": "kanseuofang",
+        "jp_pronunciation": "juujun",
+        "vie_pronunciation": "su vang loi"
+      },
+      "means": {
+        "en": "The act of obeying; dutiful or submissive behavior with respect to another person",
+        "zh": "任何可以被动物代谢以提供能量和构建组织的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "object",
+        "laos": "ວັດຖຸ",
+        "jp": "オブジェクト",
+        "vie": "vật thể",
+        "en_pronunciation": "/ˈɑbʤɛkt/",
+        "laos_pronunciation": "vadthu",
+        "jp_pronunciation": "obujiekuto",
+        "vie_pronunciation": "vat the"
+      },
+      "means": {
+        "en": "A tangible and visible entity; an entity that can cast a shadow",
+        "zh": "任何橡木的坚硬耐用木材；"
+      }
+    },
+    {
+      "word": {
+        "en": "objection",
+        "laos": "ການຄຶດຕໍ່ການ",
+        "jp": "異議",
+        "vie": "phản đối",
+        "en_pronunciation": "/əˈbʤɛkʃən/",
+        "laos_pronunciation": "kan khudtokan",
+        "jp_pronunciation": "igi",
+        "vie_pronunciation": "phan doi"
+      },
+      "means": {
+        "en": "The act of expressing earnest opposition or protest",
+        "zh": "特别用于家具和地板"
+      }
+    },
+    {
+      "word": {
+        "en": "objective",
+        "laos": "ຈຸດປະສົງ",
+        "jp": "目的",
+        "vie": "mục tiêu",
+        "en_pronunciation": "/əˈbʤɛktɪv/",
+        "laos_pronunciation": "chudpasong",
+        "jp_pronunciation": "mokuteki",
+        "vie_pronunciation": "muc tieu"
+      },
+      "means": {
+        "en": "The goal intended to be attained (and which is believed to be attainable)",
+        "zh": "用于推动或操纵船只的工具"
+      }
+    },
+    {
+      "word": {
+        "en": "oblige",
+        "laos": "ອະນຸໂລມ",
+        "jp": "義務を負う",
+        "vie": "bắt buộc",
+        "en_pronunciation": "/əˈblaɪʤ/",
+        "laos_pronunciation": "anuolm",
+        "jp_pronunciation": "gimu wo ou",
+        "vie_pronunciation": "bat buoc"
+      },
+      "means": {
+        "en": "Force somebody to do something",
+        "zh": "亵渎或淫秽的表达，通常表示惊讶或愤怒"
+      }
+    },
+    {
+      "word": {
+        "en": "obligation",
+        "laos": "ຂໍ້ຜູກມັດ",
+        "jp": "義務",
+        "vie": "nghĩa vụ",
+        "en_pronunciation": "/ˌɑbləˈgeɪʃən/",
+        "laos_pronunciation": "khophukmad",
+        "jp_pronunciation": "gimu",
+        "vie_pronunciation": "nghia vu"
+      },
+      "means": {
+        "en": "The social force that binds you to the courses of action demanded by that force; ; - John D.Rockefeller Jr",
+        "zh": "过于肥胖"
+      }
+    },
+    {
+      "word": {
+        "en": "obliged",
+        "laos": "ບັງຄັບ",
+        "jp": "義務付けられた",
+        "vie": "bắt buộc",
+        "en_pronunciation": "/əˈblaɪʤd/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "gimuzuke rareta",
+        "vie_pronunciation": "bat buoc"
+      },
+      "means": {
+        "en": "Force somebody to do something",
+        "zh": "肥胖程度高于平均水平"
+      }
+    },
+    {
+      "word": {
+        "en": "obligatory",
+        "laos": "ການບັງຖານ",
+        "jp": "義務的な",
+        "vie": "bắt buộc",
+        "en_pronunciation": "/əˈblɪgəˌtɔri/",
+        "laos_pronunciation": "kan bangthan",
+        "jp_pronunciation": "gimuteki na",
+        "vie_pronunciation": "bat buoc"
+      },
+      "means": {
+        "en": "Morally or legally constraining or binding",
+        "zh": "服从"
+      }
+    },
+    {
+      "word": {
+        "en": "obscene",
+        "laos": "ຂີ້ຄວງ",
+        "jp": "わいせつな",
+        "vie": "tục tĩu",
+        "en_pronunciation": "/əbˈsin/",
+        "laos_pronunciation": "khikhuang",
+        "jp_pronunciation": "waisetsuna",
+        "vie_pronunciation": "tuc tiu"
+      },
+      "means": {
+        "en": "Designed to incite to indecency or lust; -Margaret Mead",
+        "zh": "尽职尽责地遵守当权者的命令或指示；"
+      }
+    },
+    {
+      "word": {
+        "en": "obscenity",
+        "laos": "ອະພິໄຕ",
+        "jp": "猥褻",
+        "vie": "sự tục tĩu",
+        "en_pronunciation": "/əbˈsɛnɪti/",
+        "laos_pronunciation": "aphitai",
+        "jp_pronunciation": "waisetsu",
+        "vie_pronunciation": "su tuc tiu"
+      },
+      "means": {
+        "en": "The trait of behaving in an obscene manner",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "obscure",
+        "laos": "ເຮັດໃຫ້ມົວຫູມົວ",
+        "jp": "あいまいな",
+        "vie": "mơ hồ",
+        "en_pronunciation": "/əbˈskjʊr/",
+        "laos_pronunciation": "hedhai mua humua",
+        "jp_pronunciation": "aimaina",
+        "vie_pronunciation": "mo ho"
+      },
+      "means": {
+        "en": "Make less visible or unclear",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "obscurity",
+        "laos": "ຄວາມມືດ",
+        "jp": "あいまいさ",
+        "vie": "sự tối tăm",
+        "en_pronunciation": "/əbˈskjʊrəti/",
+        "laos_pronunciation": "khuaammud",
+        "jp_pronunciation": "aimaisa",
+        "vie_pronunciation": "su toi tam"
+      },
+      "means": {
+        "en": "The quality of being unclear or abstruse and hard to understand",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "observatory",
+        "laos": "ສັງເກດເຫັນ",
+        "jp": "天文台",
+        "vie": "đài quan sát",
+        "en_pronunciation": "/əbˈzərvəˌtɔri/",
+        "laos_pronunciation": "sangkedhen",
+        "jp_pronunciation": "tenmondai",
+        "vie_pronunciation": "dai quan sat"
+      },
+      "means": {
+        "en": "A building designed and equipped to observe astronomical phenomena",
+        "zh": "——埃德蒙·伯克"
+      }
+    },
+    {
+      "word": {
+        "en": "observe",
+        "laos": "ສັງເກດ",
+        "jp": "観察する",
+        "vie": "quan sát",
+        "en_pronunciation": "/əbˈzərv/",
+        "laos_pronunciation": "sangked",
+        "jp_pronunciation": "kansatsu suru",
+        "vie_pronunciation": "quan sat"
+      },
+      "means": {
+        "en": "Discover or determine the existence, presence, or fact of",
+        "zh": "服从的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "observation",
+        "laos": "ການສັງເກດ",
+        "jp": "観察",
+        "vie": "quan sát",
+        "en_pronunciation": "/ˌɑbzərˈveɪʃən/",
+        "laos_pronunciation": "kansangked",
+        "jp_pronunciation": "kansatsu",
+        "vie_pronunciation": "quan sat"
+      },
+      "means": {
+        "en": "The act of making and recording a measurement",
+        "zh": "对他人的尽职或顺从行为"
+      }
+    },
+    {
+      "word": {
+        "en": "observer",
+        "laos": "ຜູ້ສັງເກດການ",
+        "jp": "観察者",
+        "vie": "người quan sát",
+        "en_pronunciation": "/əbˈzərvər/",
+        "laos_pronunciation": "phusangkedkan",
+        "jp_pronunciation": "kansatsusha",
+        "vie_pronunciation": "nguoi quan sat"
+      },
+      "means": {
+        "en": "A person who becomes aware (of things or events) through the senses",
+        "zh": "有形、可见的实体；"
+      }
+    },
+    {
+      "word": {
+        "en": "observant",
+        "laos": "ຜູ້ສັງເກດການ",
+        "jp": "観察力のある",
+        "vie": "quan sát",
+        "en_pronunciation": "/əbˈzərvənt/",
+        "laos_pronunciation": "phusangkedkan",
+        "jp_pronunciation": "kansatsuryoku noaru",
+        "vie_pronunciation": "quan sat"
+      },
+      "means": {
+        "en": "Paying close attention especially to details",
+        "zh": "可以投射阴影的实体"
+      }
+    },
+    {
+      "word": {
+        "en": "obsess",
+        "laos": "ເຄື່ອງຫຼີ້ນ",
+        "jp": "執着する",
+        "vie": "ám ảnh",
+        "en_pronunciation": "/əbˈsɛs/",
+        "laos_pronunciation": "kheuongrin",
+        "jp_pronunciation": "shuuchaku suru",
+        "vie_pronunciation": "am anh"
+      },
+      "means": {
+        "en": "Haunt like a ghost; pursue",
+        "zh": "表示强烈反对或抗议的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "obsession",
+        "laos": "ຄວາມຕະຫຼາດ",
+        "jp": "強迫観念",
+        "vie": "nỗi ám ảnh",
+        "en_pronunciation": "/əbˈsɛʃən/",
+        "laos_pronunciation": "khuaamtarad",
+        "jp_pronunciation": "kyouhakukannen",
+        "vie_pronunciation": "noi am anh"
+      },
+      "means": {
+        "en": "An irrational motive for performing trivial or repetitive actions, even against your will",
+        "zh": "打算实现的目标（并且被认为是可以实现的）"
+      }
+    },
+    {
+      "word": {
+        "en": "obsessive",
+        "laos": "ທີ່ບໍ່ມັກ",
+        "jp": "強迫観念的な",
+        "vie": "ám ảnh",
+        "en_pronunciation": "/əbˈsɛsɪv/",
+        "laos_pronunciation": "thibomak",
+        "jp_pronunciation": "kyouhakukannen tekina",
+        "vie_pronunciation": "am anh"
+      },
+      "means": {
+        "en": "A person who has obsessions",
+        "zh": "强迫某人做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "obstacle",
+        "laos": "ສິ່ງກີດຂວາງ",
+        "jp": "障害物",
+        "vie": "trở ngại",
+        "en_pronunciation": "/ˈɑbstəkəl/",
+        "laos_pronunciation": "sing kidkhuaang",
+        "jp_pronunciation": "shougaibutsu",
+        "vie_pronunciation": "tro ngai"
+      },
+      "means": {
+        "en": "Something immaterial that stands in the way and must be circumvented or surmounted",
+        "zh": "将你束缚于该力量所要求的行动方针的社会力量；"
+      }
+    },
+    {
+      "word": {
+        "en": "obstruct",
+        "laos": "ກີດຂວາງ",
+        "jp": "邪魔する",
+        "vie": "cản trở",
+        "en_pronunciation": "/əbˈstrəkt/",
+        "laos_pronunciation": "kidkhuaang",
+        "jp_pronunciation": "jama suru",
+        "vie_pronunciation": "can tro"
+      },
+      "means": {
+        "en": "Hinder or prevent the progress or accomplishment of",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "obstruction",
+        "laos": "ການກີດຂວາງ",
+        "jp": "障害物",
+        "vie": "tắc nghẽn",
+        "en_pronunciation": "/əbˈstrəkʃən/",
+        "laos_pronunciation": "kan kidkhuaang",
+        "jp_pronunciation": "shougaibutsu",
+        "vie_pronunciation": "tac nghen"
+      },
+      "means": {
+        "en": "Any structure that makes progress difficult",
+        "zh": "——小约翰·D·洛克菲勒"
+      }
+    },
+    {
+      "word": {
+        "en": "obtain",
+        "laos": "ໄດ້ຮັບ",
+        "jp": "入手する",
+        "vie": "có được",
+        "en_pronunciation": "/əbˈteɪn/",
+        "laos_pronunciation": "daihab",
+        "jp_pronunciation": "nyuushu suru",
+        "vie_pronunciation": "co duoc"
+      },
+      "means": {
+        "en": "Come into possession of",
+        "zh": "强迫某人做某事"
+      }
+    },
+    {
+      "word": {
+        "en": "obtainment",
+        "laos": "ການໄດ້ຮັບ",
+        "jp": "入手",
+        "vie": "sự đạt được",
+        "en_pronunciation": "/obtainment/",
+        "laos_pronunciation": "kandaihab",
+        "jp_pronunciation": "nyuushu",
+        "vie_pronunciation": "su dat duoc"
+      },
+      "means": {
+        "en": "The act of obtaining",
+        "zh": "道德或法律上的约束或约束"
+      }
+    },
+    {
+      "word": {
+        "en": "obvious",
+        "laos": "ທີ່ເຫັນໄດ້",
+        "jp": "明らかな",
+        "vie": "hiển nhiên",
+        "en_pronunciation": "/ˈɑbviəs/",
+        "laos_pronunciation": "thihendai",
+        "jp_pronunciation": "akiraka na",
+        "vie_pronunciation": "hien nhien"
+      },
+      "means": {
+        "en": "Easily perceived by the senses or grasped by the mind",
+        "zh": "旨在煽动猥亵或淫欲；"
+      }
+    },
+    {
+      "word": {
+        "en": "obviously",
+        "laos": "ແນ່ນອນ",
+        "jp": "明らかに",
+        "vie": "rõ ràng",
+        "en_pronunciation": "/ˈɑbviəsli/",
+        "laos_pronunciation": "aennon",
+        "jp_pronunciation": "akiraka ni",
+        "vie_pronunciation": "ro rang"
+      },
+      "means": {
+        "en": "Unmistakably (`plain' is often used informally for `plainly')",
+        "zh": "——玛格丽特·米德"
+      }
+    },
+    {
+      "word": {
+        "en": "occasion",
+        "laos": "ໂອກາດ",
+        "jp": "行事",
+        "vie": "dịp",
+        "en_pronunciation": "/əˈkeɪʒən/",
+        "laos_pronunciation": "ookad",
+        "jp_pronunciation": "gyouji",
+        "vie_pronunciation": "dip"
+      },
+      "means": {
+        "en": "An event that occurs at a critical time",
+        "zh": "行为猥亵的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "occasional",
+        "laos": "ບາງຄັ້ງຄາວ",
+        "jp": "時々",
+        "vie": "thỉnh thoảng",
+        "en_pronunciation": "/ɔˈkeɪʒənəl/",
+        "laos_pronunciation": "bangkhangkhav",
+        "jp_pronunciation": "tokidoki",
+        "vie_pronunciation": "thinh thoang"
+      },
+      "means": {
+        "en": "Occurring from time to time",
+        "zh": "使不那么明显或不清楚"
+      }
+    },
+    {
+      "word": {
+        "en": "occasionally",
+        "laos": "ບາງຄັ້ງບາງຄາວ",
+        "jp": "時々",
+        "vie": "thỉnh thoảng",
+        "en_pronunciation": "/ɔˈkeɪʒənəˌli/",
+        "laos_pronunciation": "bangkhangbangkhav",
+        "jp_pronunciation": "tokidoki",
+        "vie_pronunciation": "thinh thoang"
+      },
+      "means": {
+        "en": "Now and then or here and there",
+        "zh": "不清楚或深奥且难以理解的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "occupation",
+        "laos": "ອາຊີບ",
+        "jp": "職業",
+        "vie": "nghề nghiệp",
+        "en_pronunciation": "/ˌɑkjəˈpeɪʃən/",
+        "laos_pronunciation": "asib",
+        "jp_pronunciation": "shokugyou",
+        "vie_pronunciation": "nghe nghiep"
+      },
+      "means": {
+        "en": "The principal activity in your life that you do to earn money",
+        "zh": "为观测天文现象而设计和配备的建筑物"
+      }
+    },
+    {
+      "word": {
+        "en": "occupational",
+        "laos": "ອາຊີບ",
+        "jp": "職業上の",
+        "vie": "nghề nghiệp",
+        "en_pronunciation": "/ɑkjəˈpeɪʃənəl/",
+        "laos_pronunciation": "asib",
+        "jp_pronunciation": "shokugyou ueno",
+        "vie_pronunciation": "nghe nghiep"
+      },
+      "means": {
+        "en": "Of or relating to the activity or business for which you are trained",
+        "zh": "发现或确定以下事物的存在、存在或事实"
+      }
+    },
+    {
+      "word": {
+        "en": "occupy",
+        "laos": "ຍຶດຄອງ",
+        "jp": "占領する",
+        "vie": "chiếm đóng",
+        "en_pronunciation": "/ˈɑkjəˌpaɪ/",
+        "laos_pronunciation": "nyudkhong",
+        "jp_pronunciation": "senryou suru",
+        "vie_pronunciation": "chiem dong"
+      },
+      "means": {
+        "en": "Keep busy with",
+        "zh": "进行和记录测量的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "occupancy",
+        "laos": "ການຄອບຄອງ",
+        "jp": "占有率",
+        "vie": "sức chứa",
+        "en_pronunciation": "/ˈɑkjəpənsi/",
+        "laos_pronunciation": "kankhobkhong",
+        "jp_pronunciation": "senyuuritsu",
+        "vie_pronunciation": "suc chua"
+      },
+      "means": {
+        "en": "An act of being a tenant or occupant",
+        "zh": "通过感官意识到（事物或事件）的人"
+      }
+    },
+    {
+      "word": {
+        "en": "occupant",
+        "laos": "ຜູ້ຢິງອາຊີບ",
+        "jp": "占有者",
+        "vie": "người cư ngụ",
+        "en_pronunciation": "/ˈɑkjəpənt/",
+        "laos_pronunciation": "phu yingoasib",
+        "jp_pronunciation": "senyuu mono",
+        "vie_pronunciation": "nguoi cu ngu"
+      },
+      "means": {
+        "en": "Someone who lives at a particular place for a prolonged period or who was born there",
+        "zh": "特别关注细节"
+      }
+    },
+    {
+      "word": {
+        "en": "occur",
+        "laos": "ເກີດຂຶ້ນ",
+        "jp": "発生する",
+        "vie": "xảy ra",
+        "en_pronunciation": "/əˈkər/",
+        "laos_pronunciation": "koedkhun",
+        "jp_pronunciation": "hassei suru",
+        "vie_pronunciation": "xay ra"
+      },
+      "means": {
+        "en": "Come to pass",
+        "zh": "像幽灵一样出没；"
+      }
+    },
+    {
+      "word": {
+        "en": "occurrence",
+        "laos": "ການເກີດຂຶ້ນ",
+        "jp": "発生",
+        "vie": "sự xuất hiện",
+        "en_pronunciation": "/əˈkərəns/",
+        "laos_pronunciation": "kankoedkhun",
+        "jp_pronunciation": "hassei",
+        "vie_pronunciation": "su xuat hien"
+      },
+      "means": {
+        "en": "An event that happens",
+        "zh": "追求"
+      }
+    },
+    {
+      "word": {
+        "en": "ocean",
+        "laos": "ມະຫາສະ",
+        "jp": "海洋",
+        "vie": "đại dương",
+        "en_pronunciation": "/ˈoʊʃən/",
+        "laos_pronunciation": "mahasa",
+        "jp_pronunciation": "kaiyou",
+        "vie_pronunciation": "dai duong"
+      },
+      "means": {
+        "en": "A large body of water constituting a principal part of the hydrosphere",
+        "zh": "执行琐碎或重复行为的非理性动机，甚至违背您的意愿"
+      }
+    },
+    {
+      "word": {
+        "en": "oceanic",
+        "laos": "ມະຫາຕະຍູ",
+        "jp": "海洋性",
+        "vie": "đại dương",
+        "en_pronunciation": "/ˌoʊʃiˈænɪk/",
+        "laos_pronunciation": "maha tanyu",
+        "jp_pronunciation": "kaiyou sei",
+        "vie_pronunciation": "dai duong"
+      },
+      "means": {
+        "en": "An eastern subfamily of Malayo-Polynesian languages",
+        "zh": "一个有执念的人"
+      }
+    },
+    {
+      "word": {
+        "en": "o'clock",
+        "laos": "ໂມງ",
+        "jp": "時",
+        "vie": "giờ",
+        "en_pronunciation": "/əˈklɑk/",
+        "laos_pronunciation": "omng",
+        "jp_pronunciation": "toki",
+        "vie_pronunciation": "gio"
+      },
+      "means": {
+        "en": "According to the clock",
+        "zh": "阻碍的非物质因素，必须规避或克服"
+      }
+    },
+    {
+      "word": {
+        "en": "october",
+        "laos": "ເດືອນຕຸລາ",
+        "jp": "10月",
+        "vie": "tháng mười",
+        "en_pronunciation": "/ɑkˈtoʊbər/",
+        "laos_pronunciation": "deuontula",
+        "jp_pronunciation": "10 gatsu",
+        "vie_pronunciation": "thang muoi"
+      },
+      "means": {
+        "en": "The month following September and preceding November",
+        "zh": "阻碍或阻止进展或成就"
+      }
+    },
+    {
+      "word": {
+        "en": "odd",
+        "laos": "ແປກ",
+        "jp": "奇妙な",
+        "vie": "kỳ quặc",
+        "en_pronunciation": "/ɑd/",
+        "laos_pronunciation": "aepk",
+        "jp_pronunciation": "kimyou na",
+        "vie_pronunciation": "ky quac"
+      },
+      "means": {
+        "en": "Not divisible by two",
+        "zh": "任何阻碍进展的结构"
+      }
+    },
+    {
+      "word": {
+        "en": "oddity",
+        "laos": "ຄວາມຄຽດ",
+        "jp": "奇妙",
+        "vie": "sự kỳ quặc",
+        "en_pronunciation": "/ˈɑdəti/",
+        "laos_pronunciation": "khuaamkhiad",
+        "jp_pronunciation": "kimyou",
+        "vie_pronunciation": "su ky quac"
+      },
+      "means": {
+        "en": "Eccentricity that is not easily explained",
+        "zh": "拥有"
+      }
+    },
+    {
+      "word": {
+        "en": "odds",
+        "laos": "ໄພມໍ່ໆມາ",
+        "jp": "オッズ",
+        "vie": "tỷ lệ cược",
+        "en_pronunciation": "/ɑdz/",
+        "laos_pronunciation": "phai moma",
+        "jp_pronunciation": "ozzu",
+        "vie_pronunciation": "ty le cuoc"
+      },
+      "means": {
+        "en": "The likelihood of a thing occurring rather than not occurring",
+        "zh": "获得行为"
+      }
+    },
+    {
+      "word": {
+        "en": "odor",
+        "laos": "ກິ່ນ",
+        "jp": "臭い",
+        "vie": "mùi",
+        "en_pronunciation": "/ˈoʊdər/",
+        "laos_pronunciation": "kin",
+        "jp_pronunciation": "kusai",
+        "vie_pronunciation": "mui"
+      },
+      "means": {
+        "en": "Any property detected by the olfactory system",
+        "zh": "容易被感官感知或被心灵掌握"
+      }
+    },
+    {
+      "word": {
+        "en": "odour",
+        "laos": "ກິ່ນ",
+        "jp": "臭い",
+        "vie": "mùi",
+        "en_pronunciation": "/ˈoʊdər/",
+        "laos_pronunciation": "kin",
+        "jp_pronunciation": "kusai",
+        "vie_pronunciation": "mui"
+      },
+      "means": {
+        "en": "The sensation that results when olfactory receptors in the nose are stimulated by particular chemicals in gaseous form",
+        "zh": "毫无疑问（“plain”通常非正式地用于“plainly”）"
+      }
+    },
+    {
+      "word": {
+        "en": "odorous",
+        "laos": "ໂລໂກ",
+        "jp": "臭い",
+        "vie": "có mùi hôi",
+        "en_pronunciation": "/ˈoʊdərəs/",
+        "laos_pronunciation": "olok",
+        "jp_pronunciation": "kusai",
+        "vie_pronunciation": "co mui hoi"
+      },
+      "means": {
+        "en": "Having odor or a characteristic odor",
+        "zh": "在关键时刻发生的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "of",
+        "laos": "ຂອງ",
+        "jp": "の",
+        "vie": "của",
+        "en_pronunciation": "/əv/",
+        "laos_pronunciation": "khong",
+        "jp_pronunciation": "no",
+        "vie_pronunciation": "cua"
+      },
+      "means": {
+        "en": "Of is an English word referring to 'of'.",
+        "zh": "不时发生"
+      }
+    },
+    {
+      "word": {
+        "en": "off",
+        "laos": "ປິດ",
+        "jp": "オフ",
+        "vie": "tắt",
+        "en_pronunciation": "/ɔf/",
+        "laos_pronunciation": "pid",
+        "jp_pronunciation": "ofu",
+        "vie_pronunciation": "tat"
+      },
+      "means": {
+        "en": "Kill intentionally and with premeditation",
+        "zh": "时不时或这里那里"
+      }
+    },
+    {
+      "word": {
+        "en": "offend",
+        "laos": "ເຄືອງ",
+        "jp": "気分を害する",
+        "vie": "xúc phạm",
+        "en_pronunciation": "/əˈfɛnd/",
+        "laos_pronunciation": "kheuong",
+        "jp_pronunciation": "kibun wo gaisu ru",
+        "vie_pronunciation": "xuc pham"
+      },
+      "means": {
+        "en": "Cause to feel resentment or indignation",
+        "zh": "您生活中的主要活动是为了赚钱"
+      }
+    },
+    {
+      "word": {
+        "en": "offense",
+        "laos": "ຄວາມຜິດ",
+        "jp": "犯罪",
+        "vie": "sự xúc phạm",
+        "en_pronunciation": "/əˈfɛns/",
+        "laos_pronunciation": "khuaamphid",
+        "jp_pronunciation": "hanzai",
+        "vie_pronunciation": "su xuc pham"
+      },
+      "means": {
+        "en": "A lack of politeness; a failure to show regard for others; wounding the feelings or others",
+        "zh": "属于您接受培训的活动或业务的或与之相关的"
+      }
+    },
+    {
+      "word": {
+        "en": "offence",
+        "laos": "ຄວາມຜິດ",
+        "jp": "犯罪",
+        "vie": "sự xúc phạm",
+        "en_pronunciation": "/offence/",
+        "laos_pronunciation": "khuaamphid",
+        "jp_pronunciation": "hanzai",
+        "vie_pronunciation": "su xuc pham"
+      },
+      "means": {
+        "en": "The action of attacking an enemy",
+        "zh": "继续忙于"
+      }
+    },
+    {
+      "word": {
+        "en": "offensive",
+        "laos": "ການຣົບ",
+        "jp": "攻撃的な",
+        "vie": "xúc phạm",
+        "en_pronunciation": "/əˈfɛnsɪv/",
+        "laos_pronunciation": "kanrob",
+        "jp_pronunciation": "kougekiteki na",
+        "vie_pronunciation": "xuc pham"
+      },
+      "means": {
+        "en": "The action of attacking an enemy",
+        "zh": "作为租户或居住者的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "offender",
+        "laos": "ຜູ້ຮ້າຍ",
+        "jp": "犯罪者",
+        "vie": "người phạm tội",
+        "en_pronunciation": "/əˈfɛndər/",
+        "laos_pronunciation": "phuhai",
+        "jp_pronunciation": "hanzaisha",
+        "vie_pronunciation": "nguoi pham toi"
+      },
+      "means": {
+        "en": "A person who transgresses moral or civil law",
+        "zh": "长期居住在某一特定地点或出生于该地点的人"
+      }
+    },
+    {
+      "word": {
+        "en": "offer",
+        "laos": "ຢົກໃຫ້",
+        "jp": "オファー",
+        "vie": "đề nghị",
+        "en_pronunciation": "/ˈɔfər/",
+        "laos_pronunciation": "yokhai",
+        "jp_pronunciation": "ofaa",
+        "vie_pronunciation": "de nghi"
+      },
+      "means": {
+        "en": "The verbal act of offering",
+        "zh": "来通过"
+      }
+    },
+    {
+      "word": {
+        "en": "offering",
+        "laos": "ການຖວາຍ",
+        "jp": "提供物",
+        "vie": "cúng dường",
+        "en_pronunciation": "/ˈɔfərɪŋ/",
+        "laos_pronunciation": "kanthuaai",
+        "jp_pronunciation": "teikyou mono",
+        "vie_pronunciation": "cung duong"
+      },
+      "means": {
+        "en": "Something offered (as a proposal or bid)",
+        "zh": "发生的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "office",
+        "laos": "ຫ້ອງການ",
+        "jp": "オフィス",
+        "vie": "văn phòng",
+        "en_pronunciation": "/ˈɔfəs/",
+        "laos_pronunciation": "hongkan",
+        "jp_pronunciation": "ofisu",
+        "vie_pronunciation": "van phong"
+      },
+      "means": {
+        "en": "Place of business where professional or clerical duties are performed",
+        "zh": "构成水圈主要部分的一大片水体"
+      }
+    },
+    {
+      "word": {
+        "en": "officer",
+        "laos": "ເຈົ້າຫນ້າທີ່",
+        "jp": "役人",
+        "vie": "sĩ quan",
+        "en_pronunciation": "/ˈɔfɪsər/",
+        "laos_pronunciation": "chaonathi",
+        "jp_pronunciation": "yakunin",
+        "vie_pronunciation": "si quan"
+      },
+      "means": {
+        "en": "Any person in the armed services who holds a position of authority or command",
+        "zh": "马来-波利尼西亚语言的东部语族"
+      }
+    }
+  ]
+}

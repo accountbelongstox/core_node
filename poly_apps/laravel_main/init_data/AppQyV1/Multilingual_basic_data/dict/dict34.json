@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.325294+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "graphically",
+        "laos": "ຟາຍຮູບ",
+        "jp": "グラフィック的に",
+        "vie": "bằng đồ họa",
+        "en_pronunciation": "/ˈgræfɪkli/",
+        "laos_pronunciation": "faihub",
+        "jp_pronunciation": "gurafikku tekini",
+        "vie_pronunciation": "bang do hoa"
+      },
+      "means": {
+        "en": "In a diagrammatic manner",
+        "zh": "以图解的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "grasp",
+        "laos": "ກໍາ",
+        "jp": "把握する",
+        "vie": "nắm bắt",
+        "en_pronunciation": "/græsp/",
+        "laos_pronunciation": "koa",
+        "jp_pronunciation": "haaku suru",
+        "vie_pronunciation": "nam bat"
+      },
+      "means": {
+        "en": "Understanding of the nature or meaning or quality or magnitude of something",
+        "zh": "对事物的本质、意义、质量或大小的理解"
+      }
+    },
+    {
+      "word": {
+        "en": "grass",
+        "laos": "ຫຢ້າ",
+        "jp": "草",
+        "vie": "cỏ",
+        "en_pronunciation": "/græs/",
+        "laos_pronunciation": "hya",
+        "jp_pronunciation": "kusa",
+        "vie_pronunciation": "co"
+      },
+      "means": {
+        "en": "Narrow-leaved green herbage: grown as lawns; used as pasture for grazing animals; cut and dried as hay",
+        "zh": "窄叶绿色牧草：作为草坪种植；"
+      }
+    },
+    {
+      "word": {
+        "en": "grassy",
+        "laos": "ເຈັບແສບ",
+        "jp": "草が茂った",
+        "vie": "có nhiều cỏ",
+        "en_pronunciation": "/ˈgræsi/",
+        "laos_pronunciation": "chebaesb",
+        "jp_pronunciation": "kusa ga shigetsu ta",
+        "vie_pronunciation": "co nhieu co"
+      },
+      "means": {
+        "en": "Abounding in grass",
+        "zh": "草丛茂盛"
+      }
+    },
+    {
+      "word": {
+        "en": "grateful",
+        "laos": "ທີ່ຮູ້ບຸນຄຸນ",
+        "jp": "感謝している",
+        "vie": "biết ơn",
+        "en_pronunciation": "/ˈgreɪtfəl/",
+        "laos_pronunciation": "thi hubunkhun",
+        "jp_pronunciation": "kanshashi teiru",
+        "vie_pronunciation": "biet on"
+      },
+      "means": {
+        "en": "Feeling or showing gratitude",
+        "zh": "表达感激之情"
+      }
+    },
+    {
+      "word": {
+        "en": "gratitude",
+        "laos": "ຄວາມກະຕັນຍູ",
+        "jp": "感謝の気持ち",
+        "vie": "lòng biết ơn",
+        "en_pronunciation": "/ˈgrætəˌtud/",
+        "laos_pronunciation": "khuaam ka tnaiu",
+        "jp_pronunciation": "kansha no kimochi",
+        "vie_pronunciation": "long biet on"
+      },
+      "means": {
+        "en": "A feeling of thankfulness and appreciation",
+        "zh": "一种感恩和欣赏的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "grave",
+        "laos": "ທີ່ຝັງສົບ",
+        "jp": "墓",
+        "vie": "phần mộ",
+        "en_pronunciation": "/greɪv/",
+        "laos_pronunciation": "thifangsob",
+        "jp_pronunciation": "haka",
+        "vie_pronunciation": "phan mo"
+      },
+      "means": {
+        "en": "Death of a person",
+        "zh": "一个人的死亡"
+      }
+    },
+    {
+      "word": {
+        "en": "gravitation",
+        "laos": "ການພວຍ",
+        "jp": "重力",
+        "vie": "lực hấp dẫn",
+        "en_pronunciation": "/ˌgrævɪˈteɪʃən/",
+        "laos_pronunciation": "kan phuany",
+        "jp_pronunciation": "juuryoku",
+        "vie_pronunciation": "luc hap dan"
+      },
+      "means": {
+        "en": "(physics) the force of attraction between all masses in the universe; especially the attraction of the earth's mass for bodies near its surface; ; ; --Albert Einstein",
+        "zh": "（物理学）宇宙中所有质量之间的吸引力；"
+      }
+    },
+    {
+      "word": {
+        "en": "gravity",
+        "laos": "ກາວິທັດ",
+        "jp": "重力",
+        "vie": "trọng lực",
+        "en_pronunciation": "/ˈgrævɪti/",
+        "laos_pronunciation": "ka vithad",
+        "jp_pronunciation": "juuryoku",
+        "vie_pronunciation": "trong luc"
+      },
+      "means": {
+        "en": "(physics) the force of attraction between all masses in the universe; especially the attraction of the earth's mass for bodies near its surface; ; ; --Albert Einstein",
+        "zh": "（物理学）宇宙中所有质量之间的吸引力；"
+      }
+    },
+    {
+      "word": {
+        "en": "gray",
+        "laos": "ສີເທົາ",
+        "jp": "グレー",
+        "vie": "màu xám",
+        "en_pronunciation": "/greɪ/",
+        "laos_pronunciation": "sithao",
+        "jp_pronunciation": "guree",
+        "vie_pronunciation": "mau xam"
+      },
+      "means": {
+        "en": "A neutral achromatic color midway between white and black",
+        "zh": "介于白色和黑色之间的中性无彩色"
+      }
+    },
+    {
+      "word": {
+        "en": "grey",
+        "laos": "ສີເທົາ",
+        "jp": "グレー",
+        "vie": "màu xám",
+        "en_pronunciation": "/greɪ/",
+        "laos_pronunciation": "sithao",
+        "jp_pronunciation": "guree",
+        "vie_pronunciation": "mau xam"
+      },
+      "means": {
+        "en": "United States writer of western adventure novels (1875-1939)",
+        "zh": "美国西部冒险小说作家（1875-1939）"
+      }
+    },
+    {
+      "word": {
+        "en": "graze",
+        "laos": "ຕ້ອຍ",
+        "jp": "放牧する",
+        "vie": "gặm cỏ",
+        "en_pronunciation": "/greɪz/",
+        "laos_pronunciation": "tony",
+        "jp_pronunciation": "houboku suru",
+        "vie_pronunciation": "gam co"
+      },
+      "means": {
+        "en": "A superficial abrasion",
+        "zh": "表面磨损"
+      }
+    },
+    {
+      "word": {
+        "en": "grease",
+        "laos": "ໄຂມັນ",
+        "jp": "グリース",
+        "vie": "dầu mỡ",
+        "en_pronunciation": "/gris/",
+        "laos_pronunciation": "khaiman",
+        "jp_pronunciation": "guriisu",
+        "vie_pronunciation": "dau mo"
+      },
+      "means": {
+        "en": "A thick fatty oil (especially one used to lubricate machinery)",
+        "zh": "一种浓稠的脂肪油（尤其是用于润滑机械的脂肪油）"
+      }
+    },
+    {
+      "word": {
+        "en": "greasy",
+        "laos": "ທີ່ມີໄຂມັນ",
+        "jp": "脂っこい",
+        "vie": "nhờn",
+        "en_pronunciation": "/ˈgrisi/",
+        "laos_pronunciation": "thimikhaiman",
+        "jp_pronunciation": "aburakkoi",
+        "vie_pronunciation": "nhon"
+      },
+      "means": {
+        "en": "Containing an unusual amount of grease or oil",
+        "zh": "含有异常量的油脂或油"
+      }
+    },
+    {
+      "word": {
+        "en": "great",
+        "laos": "ອະນັນຕະ",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/greɪt/",
+        "laos_pronunciation": "a nanta",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "A person who has achieved distinction and honor in some field",
+        "zh": "在某个领域取得杰出成就和荣誉的人"
+      }
+    },
+    {
+      "word": {
+        "en": "greed",
+        "laos": "ໂລບ",
+        "jp": "貪欲",
+        "vie": "lòng tham",
+        "en_pronunciation": "/grid/",
+        "laos_pronunciation": "olb",
+        "jp_pronunciation": "donyoku",
+        "vie_pronunciation": "long tham"
+      },
+      "means": {
+        "en": "Excessive desire to acquire or possess more (especially more material wealth) than one needs or deserves",
+        "zh": "过度渴望获得或拥有比自己需要或应得的更多（尤其是更多的物质财富）"
+      }
+    },
+    {
+      "word": {
+        "en": "greedy",
+        "laos": "ໂລບ",
+        "jp": "貪欲な",
+        "vie": "tham lam",
+        "en_pronunciation": "/ˈgridi/",
+        "laos_pronunciation": "olb",
+        "jp_pronunciation": "donyoku na",
+        "vie_pronunciation": "tham lam"
+      },
+      "means": {
+        "en": "Immoderately desirous of acquiring e.g. wealth",
+        "zh": "极度渴望获得例如"
+      }
+    },
+    {
+      "word": {
+        "en": "green",
+        "laos": "ຂຽວ",
+        "jp": "緑",
+        "vie": "màu xanh lá cây",
+        "en_pronunciation": "/grin/",
+        "laos_pronunciation": "khiav",
+        "jp_pronunciation": "midori",
+        "vie_pronunciation": "mau xanh la cay"
+      },
+      "means": {
+        "en": "Green color or pigment; resembling the color of growing grass",
+        "zh": "绿色颜料或颜料；"
+      }
+    },
+    {
+      "word": {
+        "en": "greenhouse",
+        "laos": "ເຮືອນແກ້ວ",
+        "jp": "温室",
+        "vie": "nhà kính",
+        "en_pronunciation": "/ˈgrinˌhaʊs/",
+        "laos_pronunciation": "heuonaekv",
+        "jp_pronunciation": "onshitsu",
+        "vie_pronunciation": "nha kinh"
+      },
+      "means": {
+        "en": "A building with glass walls and roof; for the cultivation and exhibition of plants under controlled conditions",
+        "zh": "有玻璃墙和屋顶的建筑物；"
+      }
+    },
+    {
+      "word": {
+        "en": "greet",
+        "laos": "ການນັບຖື",
+        "jp": "挨拶する",
+        "vie": "chào",
+        "en_pronunciation": "/grit/",
+        "laos_pronunciation": "kannabthu",
+        "jp_pronunciation": "aisatsu suru",
+        "vie_pronunciation": "chao"
+      },
+      "means": {
+        "en": "Express greetings upon meeting someone",
+        "zh": "见到某人时表达问候"
+      }
+    },
+    {
+      "word": {
+        "en": "greeting",
+        "laos": "ການທັກທາຍ",
+        "jp": "挨拶",
+        "vie": "lời chào",
+        "en_pronunciation": "/ˈgritɪŋ/",
+        "laos_pronunciation": "kanthakthai",
+        "jp_pronunciation": "aisatsu",
+        "vie_pronunciation": "loi chao"
+      },
+      "means": {
+        "en": "(usually plural) an acknowledgment or expression of good will (especially on meeting)",
+        "zh": "（通常是复数）善意的承认或表达（尤其是在见面时）"
+      }
+    },
+    {
+      "word": {
+        "en": "grid",
+        "laos": "ຕາຂ່າຍໄຟຟ້າ",
+        "jp": "グリッド",
+        "vie": "lưới",
+        "en_pronunciation": "/grɪd/",
+        "laos_pronunciation": "takhaifaifa",
+        "jp_pronunciation": "guriddo",
+        "vie_pronunciation": "luoi"
+      },
+      "means": {
+        "en": "A pattern of regularly spaced horizontal and vertical lines",
+        "zh": "规则间隔的水平线和垂直线的图案"
+      }
+    },
+    {
+      "word": {
+        "en": "grief",
+        "laos": "ຄວາມໂສກເສ້ົາເສັຽໃຈ",
+        "jp": "悲しみ",
+        "vie": "đau buồn",
+        "en_pronunciation": "/grif/",
+        "laos_pronunciation": "khuaam osk se oaseiachai",
+        "jp_pronunciation": "kanashimi",
+        "vie_pronunciation": "dau buon"
+      },
+      "means": {
+        "en": "Intense sorrow caused by loss of a loved one (especially by death)",
+        "zh": "因失去亲人（尤其是死亡）而感到强烈的悲伤"
+      }
+    },
+    {
+      "word": {
+        "en": "grieve",
+        "laos": "ໂສກເສົ້າ",
+        "jp": "悲しむ",
+        "vie": "đau buồn",
+        "en_pronunciation": "/griv/",
+        "laos_pronunciation": "osksao",
+        "jp_pronunciation": "kanashi mu",
+        "vie_pronunciation": "dau buon"
+      },
+      "means": {
+        "en": "Feel grief",
+        "zh": "感到悲伤"
+      }
+    },
+    {
+      "word": {
+        "en": "grievous",
+        "laos": "ໂສກເສົ້າ",
+        "jp": "悲惨な",
+        "vie": "đau buồn",
+        "en_pronunciation": "/ˈgrivəs/",
+        "laos_pronunciation": "osk sao",
+        "jp_pronunciation": "hisan na",
+        "vie_pronunciation": "dau buon"
+      },
+      "means": {
+        "en": "Causing fear or anxiety by threatening great harm",
+        "zh": "通过威胁造成巨大伤害而引起恐惧或焦虑"
+      }
+    },
+    {
+      "word": {
+        "en": "grill",
+        "laos": "ປີ້ງ",
+        "jp": "グリル",
+        "vie": "nướng",
+        "en_pronunciation": "/grɪl/",
+        "laos_pronunciation": "ping",
+        "jp_pronunciation": "guriru",
+        "vie_pronunciation": "nuong"
+      },
+      "means": {
+        "en": "A restaurant where food is cooked on a grill",
+        "zh": "在烤架上烹制食物的餐厅"
+      }
+    },
+    {
+      "word": {
+        "en": "grim",
+        "laos": "ກ້ໍາ",
+        "jp": "厳しい",
+        "vie": "nghiệt ngã",
+        "en_pronunciation": "/grɪm/",
+        "laos_pronunciation": "koa",
+        "jp_pronunciation": "ikameshii",
+        "vie_pronunciation": "nghiet nga"
+      },
+      "means": {
+        "en": "Not to be placated or appeased or moved by entreaty",
+        "zh": "不因恳求而安抚、安抚或感动"
+      }
+    },
+    {
+      "word": {
+        "en": "grin",
+        "laos": "ຍັ່ງ",
+        "jp": "ニヤリと笑う",
+        "vie": "cười toe toét",
+        "en_pronunciation": "/grɪn/",
+        "laos_pronunciation": "nyang",
+        "jp_pronunciation": "niyari to warau",
+        "vie_pronunciation": "cuoi toe toet"
+      },
+      "means": {
+        "en": "A facial expression characterized by turning up the corners of the mouth; usually shows pleasure or amusement",
+        "zh": "以嘴角上扬为特征的面部表情；"
+      }
+    },
+    {
+      "word": {
+        "en": "grind",
+        "laos": "ບົດ",
+        "jp": "粉砕する",
+        "vie": "xay",
+        "en_pronunciation": "/graɪnd/",
+        "laos_pronunciation": "bod",
+        "jp_pronunciation": "funsai suru",
+        "vie_pronunciation": "xay"
+      },
+      "means": {
+        "en": "An insignificant student who is ridiculed as being affected or boringly studious",
+        "zh": "被嘲笑做作、好学无趣的小学生"
+      }
+    },
+    {
+      "word": {
+        "en": "grip",
+        "laos": "ກໍາມື",
+        "jp": "グリップ",
+        "vie": "nắm chặt",
+        "en_pronunciation": "/grɪp/",
+        "laos_pronunciation": "koamu",
+        "jp_pronunciation": "gurippu",
+        "vie_pronunciation": "nam chat"
+      },
+      "means": {
+        "en": "The act of grasping",
+        "zh": "抓握的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "groan",
+        "laos": "ການຮ້ອງຄາງ",
+        "jp": "うめき声を上げる",
+        "vie": "rên rỉ",
+        "en_pronunciation": "/groʊn/",
+        "laos_pronunciation": "kan hongkhang",
+        "jp_pronunciation": "umeki koe wo age ru",
+        "vie_pronunciation": "ren ri"
+      },
+      "means": {
+        "en": "An utterance expressing pain or disapproval",
+        "zh": "表达痛苦或不满的话语"
+      }
+    },
+    {
+      "word": {
+        "en": "grocer",
+        "laos": "ຮ້ານຂາຍເຄື່ອງແຫ້ງ",
+        "jp": "食料品店",
+        "vie": "người bán tạp phẩm",
+        "en_pronunciation": "/ˈgroʊsər/",
+        "laos_pronunciation": "hankhai kheuongaehng",
+        "jp_pronunciation": "shokuryouhin mise",
+        "vie_pronunciation": "nguoi ban tap pham"
+      },
+      "means": {
+        "en": "A retail merchant who sells foodstuffs (and some household supplies)",
+        "zh": "销售食品（和一些家庭用品）的零售商"
+      }
+    },
+    {
+      "word": {
+        "en": "groove",
+        "laos": "ຮ່ອງ",
+        "jp": "溝",
+        "vie": "rãnh",
+        "en_pronunciation": "/gruv/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "mizo",
+        "vie_pronunciation": "ranh"
+      },
+      "means": {
+        "en": "A long narrow furrow cut either by a natural process (such as erosion) or by a tool (as e.g. a groove in a phonograph record)",
+        "zh": "通过自然过程（例如侵蚀）或工具（例如留声机唱片中的凹槽）切出的又长又窄的沟槽"
+      }
+    },
+    {
+      "word": {
+        "en": "grope",
+        "laos": "ງ້ວງ",
+        "jp": "手探り",
+        "vie": "mò mẫm",
+        "en_pronunciation": "/groʊp/",
+        "laos_pronunciation": "nguang",
+        "jp_pronunciation": "tesaguri",
+        "vie_pronunciation": "mo mam"
+      },
+      "means": {
+        "en": "The act of groping; and instance of groping",
+        "zh": "摸索的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "gross",
+        "laos": "ບວກໄປ",
+        "jp": "ひどい",
+        "vie": "thô thiển",
+        "en_pronunciation": "/groʊs/",
+        "laos_pronunciation": "buakpai",
+        "jp_pronunciation": "hidoi",
+        "vie_pronunciation": "tho thien"
+      },
+      "means": {
+        "en": "Twelve dozen",
+        "zh": "十二打"
+      }
+    },
+    {
+      "word": {
+        "en": "ground",
+        "laos": "ພື້ນດິນ",
+        "jp": "地面",
+        "vie": "mặt đất",
+        "en_pronunciation": "/graʊnd/",
+        "laos_pronunciation": "phundin",
+        "jp_pronunciation": "jimen",
+        "vie_pronunciation": "mat dat"
+      },
+      "means": {
+        "en": "The solid part of the earth's surface",
+        "zh": "地球表面的固体部分"
+      }
+    },
+    {
+      "word": {
+        "en": "group",
+        "laos": "ຈັດເຂົ້າ",
+        "jp": "グループ",
+        "vie": "nhóm",
+        "en_pronunciation": "/grup/",
+        "laos_pronunciation": "chadkhao",
+        "jp_pronunciation": "guruupu",
+        "vie_pronunciation": "nhom"
+      },
+      "means": {
+        "en": "Any number of entities (members) considered as a unit",
+        "zh": "任意数量的实体（成员）被视为一个单位"
+      }
+    },
+    {
+      "word": {
+        "en": "grow",
+        "laos": "ງອກ",
+        "jp": "成長する",
+        "vie": "phát triển",
+        "en_pronunciation": "/groʊ/",
+        "laos_pronunciation": "ngok",
+        "jp_pronunciation": "seichousu ru",
+        "vie_pronunciation": "phat trien"
+      },
+      "means": {
+        "en": "Pass into a condition gradually, take on a specific property or attribute; become",
+        "zh": "逐渐进入某种状态，呈现出特定的性质或属性；"
+      }
+    },
+    {
+      "word": {
+        "en": "guarantee",
+        "laos": "ຮັບປະກັນ",
+        "jp": "保証",
+        "vie": "đảm bảo",
+        "en_pronunciation": "/ˌgɛrənˈti/",
+        "laos_pronunciation": "habpakan",
+        "jp_pronunciation": "hoshou",
+        "vie_pronunciation": "dam bao"
+      },
+      "means": {
+        "en": "A written assurance that some product or service will be provided or will meet certain specifications",
+        "zh": "将提供某些产品或服务或将满足某些规格的书面保证"
+      }
+    },
+    {
+      "word": {
+        "en": "guard",
+        "laos": "ເຝົ້າ",
+        "jp": "ガード",
+        "vie": "canh gác",
+        "en_pronunciation": "/gɑrd/",
+        "laos_pronunciation": "fao",
+        "jp_pronunciation": "gaado",
+        "vie_pronunciation": "canh gac"
+      },
+      "means": {
+        "en": "A person who keeps watch over something or someone",
+        "zh": "监视某事或某人的人"
+      }
+    },
+    {
+      "word": {
+        "en": "guess",
+        "laos": "ແນ",
+        "jp": "推測する",
+        "vie": "đoán",
+        "en_pronunciation": "/gɛs/",
+        "laos_pronunciation": "aen",
+        "jp_pronunciation": "suisoku suru",
+        "vie_pronunciation": "doan"
+      },
+      "means": {
+        "en": "A message expressing an opinion based on incomplete evidence",
+        "zh": "基于不完整证据表达意见的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "guest",
+        "laos": "ກະການ",
+        "jp": "ゲスト",
+        "vie": "khách",
+        "en_pronunciation": "/gɛst/",
+        "laos_pronunciation": "kakan",
+        "jp_pronunciation": "gesuto",
+        "vie_pronunciation": "khach"
+      },
+      "means": {
+        "en": "A visitor to whom hospitality is extended",
+        "zh": "受到热情款待的访客"
+      }
+    },
+    {
+      "word": {
+        "en": "guide",
+        "laos": "ນໍາພາ",
+        "jp": "ガイド",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/gaɪd/",
+        "laos_pronunciation": "noapha",
+        "jp_pronunciation": "gaido",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "Someone employed to conduct others",
+        "zh": "受雇指挥他人的人"
+      }
+    },
+    {
+      "word": {
+        "en": "guideline",
+        "laos": "ຄໍາແນະນໍາ",
+        "jp": "ガイドライン",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/ˈgaɪˌdlaɪn/",
+        "laos_pronunciation": "khoanaenoa",
+        "jp_pronunciation": "gaidorain",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "A light line that is used in lettering to help align the letters",
+        "zh": "刻字时使用的光线，有助于对齐字母"
+      }
+    },
+    {
+      "word": {
+        "en": "guilt",
+        "laos": "ໂທດ",
+        "jp": "罪悪感",
+        "vie": "tội lỗi",
+        "en_pronunciation": "/gɪlt/",
+        "laos_pronunciation": "othd",
+        "jp_pronunciation": "zaiakukan",
+        "vie_pronunciation": "toi loi"
+      },
+      "means": {
+        "en": "The state of having committed an offense",
+        "zh": "犯罪的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "guitar",
+        "laos": "ກີຕ້າ",
+        "jp": "ギター",
+        "vie": "đàn ghi-ta",
+        "en_pronunciation": "/gɪˈtɑr/",
+        "laos_pronunciation": "kita",
+        "jp_pronunciation": "gitaa",
+        "vie_pronunciation": "dan ghi-ta"
+      },
+      "means": {
+        "en": "A stringed instrument usually having six strings; played by strumming or plucking",
+        "zh": "通常有六根弦的弦乐器；"
+      }
+    },
+    {
+      "word": {
+        "en": "gulf",
+        "laos": "ອ່າວ",
+        "jp": "湾",
+        "vie": "vịnh",
+        "en_pronunciation": "/gəlf/",
+        "laos_pronunciation": "av",
+        "jp_pronunciation": "wan",
+        "vie_pronunciation": "vinh"
+      },
+      "means": {
+        "en": "An arm of a sea or ocean partly enclosed by land; larger than a bay",
+        "zh": "部分被陆地包围的海域或大洋的海湾；"
+      }
+    },
+    {
+      "word": {
+        "en": "gum",
+        "laos": "ເຫືອກ",
+        "jp": "ガム",
+        "vie": "kẹo cao su",
+        "en_pronunciation": "/gəm/",
+        "laos_pronunciation": "heuok",
+        "jp_pronunciation": "gamu",
+        "vie_pronunciation": "keo cao su"
+      },
+      "means": {
+        "en": "A preparation (usually made of sweetened chicle) for chewing",
+        "zh": "咀嚼用制剂（通常由甜糖胶制成）"
+      }
+    },
+    {
+      "word": {
+        "en": "gun",
+        "laos": "ປືນ",
+        "jp": "銃",
+        "vie": "súng",
+        "en_pronunciation": "/gən/",
+        "laos_pronunciation": "pun",
+        "jp_pronunciation": "juu",
+        "vie_pronunciation": "sung"
+      },
+      "means": {
+        "en": "A weapon that discharges a missile at high velocity (especially from a metal tube or barrel)",
+        "zh": "高速发射导弹的武器（尤其是从金属管或金属桶）"
+      }
+    },
+    {
+      "word": {
+        "en": "gut",
+        "laos": "ລໍານ່ອງ",
+        "jp": "腸",
+        "vie": "ruột",
+        "en_pronunciation": "/gət/",
+        "laos_pronunciation": "loa nong",
+        "jp_pronunciation": "chou",
+        "vie_pronunciation": "ruot"
+      },
+      "means": {
+        "en": "The part of the alimentary canal between the stomach and the anus",
+        "zh": "消化道位于胃和肛门之间的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "guy",
+        "laos": "ຜູ້ຊາຍ",
+        "jp": "男",
+        "vie": "anh chàng",
+        "en_pronunciation": "/gaɪ/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "otoko",
+        "vie_pronunciation": "anh chang"
+      },
+      "means": {
+        "en": "An informal term for a youth or man",
+        "zh": "青年或男子的非正式术语"
+      }
+    },
+    {
+      "word": {
+        "en": "gym",
+        "laos": "ການອອກກໍາລັງກາຍ",
+        "jp": "ジム",
+        "vie": "phòng tập thể dục",
+        "en_pronunciation": "/ʤɪm/",
+        "laos_pronunciation": "kanookkoalangkai",
+        "jp_pronunciation": "jimu",
+        "vie_pronunciation": "phong tap the duc"
+      },
+      "means": {
+        "en": "Athletic facility equipped for sports or physical training",
+        "zh": "用于运动或体能训练的体育设施"
+      }
+    },
+    {
+      "word": {
+        "en": "gymnasium",
+        "laos": "ຫ້ອງຫັດກາຢຢະກໍາ",
+        "jp": "体育館",
+        "vie": "phòng tập thể dục",
+        "en_pronunciation": "/ʤɪmˈneɪziəm/",
+        "laos_pronunciation": "hong had ka y yakoa",
+        "jp_pronunciation": "taiikukan",
+        "vie_pronunciation": "phong tap the duc"
+      },
+      "means": {
+        "en": "A school for students intermediate between elementary school and college; usually grades 9 to 12",
+        "zh": "面向小学至大学的中级学生的学校；"
+      }
+    },
+    {
+      "word": {
+        "en": "habit",
+        "laos": "ນິໄສ",
+        "jp": "習慣",
+        "vie": "thói quen",
+        "en_pronunciation": "/ˈhæbət/",
+        "laos_pronunciation": "nisai",
+        "jp_pronunciation": "shuukan",
+        "vie_pronunciation": "thoi quen"
+      },
+      "means": {
+        "en": "An established custom",
+        "zh": "既定的习俗"
+      }
+    },
+    {
+      "word": {
+        "en": "habitat",
+        "laos": "ທີ່ຢູ່ອາໄສ",
+        "jp": "生息地",
+        "vie": "môi trường sống",
+        "en_pronunciation": "/ˈhæbəˌtæt/",
+        "laos_pronunciation": "thiyuoasai",
+        "jp_pronunciation": "seisokuchi",
+        "vie_pronunciation": "moi truong song"
+      },
+      "means": {
+        "en": "The type of environment in which an organism or group normally lives or occurs",
+        "zh": "有机体或群体正常生活或发生的环境类型"
+      }
+    },
+    {
+      "word": {
+        "en": "hack",
+        "laos": "hack",
+        "jp": "ハック",
+        "vie": "hack",
+        "en_pronunciation": "/hæk/",
+        "laos_pronunciation": "hack",
+        "jp_pronunciation": "hakku",
+        "vie_pronunciation": "hack"
+      },
+      "means": {
+        "en": "One who works hard at boring tasks",
+        "zh": "一个在无聊的事情上努力工作的人"
+      }
+    },
+    {
+      "word": {
+        "en": "hail",
+        "laos": "ຫມາກເຫັບ",
+        "jp": "あられ",
+        "vie": "mưa đá",
+        "en_pronunciation": "/heɪl/",
+        "laos_pronunciation": "mak heb",
+        "jp_pronunciation": "arare",
+        "vie_pronunciation": "mua da"
+      },
+      "means": {
+        "en": "Precipitation of ice pellets when there are strong rising air currents",
+        "zh": "当有强烈的上升气流时冰粒就会沉淀"
+      }
+    },
+    {
+      "word": {
+        "en": "hair",
+        "laos": "ຂົນ",
+        "jp": "髪",
+        "vie": "tóc",
+        "en_pronunciation": "/hɛr/",
+        "laos_pronunciation": "khon",
+        "jp_pronunciation": "kami",
+        "vie_pronunciation": "toc"
+      },
+      "means": {
+        "en": "A covering for the body (or parts of it) consisting of a dense growth of threadlike structures (as on the human head); helps to prevent heat loss",
+        "zh": "身体（或其部分）的覆盖物，由密集生长的线状结构组成（如人的头部）；"
+      }
+    },
+    {
+      "word": {
+        "en": "half",
+        "laos": "ເຄີ່ງ",
+        "jp": "半分",
+        "vie": "một nửa",
+        "en_pronunciation": "/hæf/",
+        "laos_pronunciation": "khoeng",
+        "jp_pronunciation": "hanbun",
+        "vie_pronunciation": "mot nua"
+      },
+      "means": {
+        "en": "One of two equal parts of a divisible whole",
+        "zh": "可分整体的两个相等部分之一"
+      }
+    },
+    {
+      "word": {
+        "en": "halfway",
+        "laos": "ເຄິ່ງທາງ",
+        "jp": "中途半端",
+        "vie": "nửa chừng",
+        "en_pronunciation": "/ˈhæfˈweɪ/",
+        "laos_pronunciation": "khoengthang",
+        "jp_pronunciation": "chuutohanpa",
+        "vie_pronunciation": "nua chung"
+      },
+      "means": {
+        "en": "Equally distant from the extremes",
+        "zh": "同样远离极端"
+      }
+    },
+    {
+      "word": {
+        "en": "hall",
+        "laos": "ນິທານ",
+        "jp": "ホール",
+        "vie": "đại sảnh",
+        "en_pronunciation": "/hɔl/",
+        "laos_pronunciation": "nithan",
+        "jp_pronunciation": "hooru",
+        "vie_pronunciation": "dai sanh"
+      },
+      "means": {
+        "en": "An interior passage or corridor onto which rooms open",
+        "zh": "房间通向的内部通道或走廊"
+      }
+    },
+    {
+      "word": {
+        "en": "halt",
+        "laos": "ຢຸດ້ໍາ",
+        "jp": "停止する",
+        "vie": "dừng lại",
+        "en_pronunciation": "/hɔlt/",
+        "laos_pronunciation": "yudoa",
+        "jp_pronunciation": "teishi suru",
+        "vie_pronunciation": "dung lai"
+      },
+      "means": {
+        "en": "The state of inactivity following an interruption",
+        "zh": "中断后的不活动状态"
+      }
+    },
+    {
+      "word": {
+        "en": "ham",
+        "laos": "ແຮມ",
+        "jp": "ハム",
+        "vie": "giăm bông",
+        "en_pronunciation": "/hæm/",
+        "laos_pronunciation": "aehm",
+        "jp_pronunciation": "hamu",
+        "vie_pronunciation": "giam bong"
+      },
+      "means": {
+        "en": "Meat cut from the thigh of a hog (usually smoked)",
+        "zh": "从猪大腿上切下来的肉（通常是熏制的）"
+      }
+    },
+    {
+      "word": {
+        "en": "hamburger",
+        "laos": "ແຮມເບີເກີ",
+        "jp": "ハンバーガー",
+        "vie": "bánh hamburger",
+        "en_pronunciation": "/ˈhæmbərgər/",
+        "laos_pronunciation": "aehmboekoe",
+        "jp_pronunciation": "hanbaagaa",
+        "vie_pronunciation": "banh hamburger"
+      },
+      "means": {
+        "en": "A sandwich consisting of a fried cake of minced beef served on a bun, often with other ingredients",
+        "zh": "一种三明治，由碎牛肉炸饼放在小圆面包上组成，通常与其他配料一起食用"
+      }
+    },
+    {
+      "word": {
+        "en": "burger",
+        "laos": "ກະຫມອບ",
+        "jp": "ハンバーガー",
+        "vie": "bánh mì kẹp thịt",
+        "en_pronunciation": "/ˈbərgər/",
+        "laos_pronunciation": "ka mob",
+        "jp_pronunciation": "hanbaagaa",
+        "vie_pronunciation": "banh mi kep thit"
+      },
+      "means": {
+        "en": "United States jurist appointed chief justice of the United States Supreme Court by Richard Nixon (1907-1995)",
+        "zh": "美国法学家，被理查德·尼克松任命为美国最高法院首席大法官（1907-1995）"
+      }
+    },
+    {
+      "word": {
+        "en": "hammer",
+        "laos": "ຄ້ອນເຫລັກ",
+        "jp": "ハンマー",
+        "vie": "cái búa",
+        "en_pronunciation": "/ˈhæmər/",
+        "laos_pronunciation": "khonhelak",
+        "jp_pronunciation": "hanmaa",
+        "vie_pronunciation": "cai bua"
+      },
+      "means": {
+        "en": "The part of a gunlock that strikes the percussion cap when the trigger is pulled",
+        "zh": "扣动扳机时击中雷管的枪机部分"
+      }
+    },
+    {
+      "word": {
+        "en": "hamper",
+        "laos": "ຂັດຂວາງ",
+        "jp": "妨げる",
+        "vie": "cản trở",
+        "en_pronunciation": "/ˈhæmpər/",
+        "laos_pronunciation": "khadkhuaang",
+        "jp_pronunciation": "samatage ru",
+        "vie_pronunciation": "can tro"
+      },
+      "means": {
+        "en": "A restraint that confines or restricts freedom (especially something used to tie down or restrain a prisoner)",
+        "zh": "限制或限制自由的束缚（尤其是用来束缚或约束囚犯的东西）"
+      }
+    },
+    {
+      "word": {
+        "en": "grocery",
+        "laos": "ການກິນເຂົ້າ",
+        "jp": "食料品",
+        "vie": "cửa hàng tạp hóa",
+        "en_pronunciation": "/ˈgroʊsəri/",
+        "laos_pronunciation": "kankinkhao",
+        "jp_pronunciation": "shokuryouhin",
+        "vie_pronunciation": "cua hang tap hoa"
+      },
+      "means": {
+        "en": "A marketplace where groceries are sold",
+        "zh": "出售杂货的市场"
+      }
+    },
+    {
+      "word": {
+        "en": "growth",
+        "laos": "ການເຕີບໂຕ",
+        "jp": "成長",
+        "vie": "tăng trưởng",
+        "en_pronunciation": "/groʊθ/",
+        "laos_pronunciation": "kantoebot",
+        "jp_pronunciation": "seichou",
+        "vie_pronunciation": "tang truong"
+      },
+      "means": {
+        "en": "(biology) the process of an individual organism growing organically; a purely biological unfolding of events involved in an organism changing gradually from a simple to a more complex level",
+        "zh": "（生物学）个体有机体有机生长的过程；"
+      }
+    },
+    {
+      "word": {
+        "en": "guardian",
+        "laos": "ຜູ້ປົກຄອງ",
+        "jp": "守護者",
+        "vie": "người giám hộ",
+        "en_pronunciation": "/ˈgɑrdiən/",
+        "laos_pronunciation": "phupokkhong",
+        "jp_pronunciation": "shugosha",
+        "vie_pronunciation": "nguoi giam ho"
+      },
+      "means": {
+        "en": "A person who cares for persons or property",
+        "zh": "关心他人或财产的人"
+      }
+    },
+    {
+      "word": {
+        "en": "guidance",
+        "laos": "ການຊີ້ນໍາ",
+        "jp": "指導",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/ˈgaɪdəns/",
+        "laos_pronunciation": "kansinoa",
+        "jp_pronunciation": "shidou",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "Something that provides direction or advice as to a decision or course of action",
+        "zh": "为决策或行动方案提供方向或建议的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "guilty",
+        "laos": "ມີຄວາມຜິດ",
+        "jp": "有罪",
+        "vie": "có tội",
+        "en_pronunciation": "/ˈgɪlti/",
+        "laos_pronunciation": "mikhuaamphid",
+        "jp_pronunciation": "yuuzai",
+        "vie_pronunciation": "co toi"
+      },
+      "means": {
+        "en": "Responsible for or chargeable with a reprehensible act",
+        "zh": "对应受谴责的行为负责或被指控"
+      }
+    },
+    {
+      "word": {
+        "en": "guitarist",
+        "laos": "ປະສາດພາສາກີຕ້າ",
+        "jp": "ギタリスト",
+        "vie": "nghệ sĩ guitar",
+        "en_pronunciation": "/ˌgɪˈtɑrɪst/",
+        "laos_pronunciation": "pasad phasa kita",
+        "jp_pronunciation": "gitarisuto",
+        "vie_pronunciation": "nghe si guitar"
+      },
+      "means": {
+        "en": "A musician who plays the guitar",
+        "zh": "弹吉他的音乐家"
+      }
+    },
+    {
+      "word": {
+        "en": "habitual",
+        "laos": "ນິໄສ",
+        "jp": "習慣的な",
+        "vie": "thói quen",
+        "en_pronunciation": "/həˈbɪʧuəl/",
+        "laos_pronunciation": "nisai",
+        "jp_pronunciation": "shuukanteki na",
+        "vie_pronunciation": "thoi quen"
+      },
+      "means": {
+        "en": "Commonly used or practiced; usual",
+        "zh": "常用或实践的；"
+      }
+    },
+    {
+      "word": {
+        "en": "hacker",
+        "laos": "ແຮກເກີແລ້ວ",
+        "jp": "ハッカー",
+        "vie": "tin tặc",
+        "en_pronunciation": "/ˈhækər/",
+        "laos_pronunciation": "aehk koe aelv",
+        "jp_pronunciation": "hakkaa",
+        "vie_pronunciation": "tin tac"
+      },
+      "means": {
+        "en": "Someone who plays golf poorly",
+        "zh": "高尔夫球打得不好的人"
+      }
+    },
+    {
+      "word": {
+        "en": "hairy",
+        "laos": "ເຮັດໃຫ້ເປັນຂົນ",
+        "jp": "毛深い",
+        "vie": "có lông",
+        "en_pronunciation": "/ˈhɛri/",
+        "laos_pronunciation": "hedhai penkhon",
+        "jp_pronunciation": "kebukai",
+        "vie_pronunciation": "co long"
+      },
+      "means": {
+        "en": "Having or covered with hair",
+        "zh": "有头发或被头发覆盖"
+      }
+    },
+    {
+      "word": {
+        "en": "hand",
+        "laos": "ມື",
+        "jp": "手",
+        "vie": "tay",
+        "en_pronunciation": "/hænd/",
+        "laos_pronunciation": "mu",
+        "jp_pronunciation": "te",
+        "vie_pronunciation": "tay"
+      },
+      "means": {
+        "en": "The (prehensile) extremity of the superior limb",
+        "zh": "上肢的（可抓握的）肢体"
+      }
+    },
+    {
+      "word": {
+        "en": "handbook",
+        "laos": "ປື້ມຄູ່ມື",
+        "jp": "ハンドブック",
+        "vie": "sổ tay",
+        "en_pronunciation": "/ˈhændˌbʊk/",
+        "laos_pronunciation": "pumkhumu",
+        "jp_pronunciation": "handobukku",
+        "vie_pronunciation": "so tay"
+      },
+      "means": {
+        "en": "A concise reference book providing specific information about a subject or location",
+        "zh": "一本简明的参考书，提供有关主题或地点的具体信息"
+      }
+    },
+    {
+      "word": {
+        "en": "handicap",
+        "laos": "ຄວາມຕ້ອງການ",
+        "jp": "ハンディキャップ",
+        "vie": "khuyết tật",
+        "en_pronunciation": "/ˈhændiˌkæp/",
+        "laos_pronunciation": "khuaamtongkan",
+        "jp_pronunciation": "handikyappu",
+        "vie_pronunciation": "khuyet tat"
+      },
+      "means": {
+        "en": "The condition of being unable to perform as a consequence of physical or mental unfitness",
+        "zh": "由于身体或精神不健康而无法工作的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "handful",
+        "laos": "ມືມື",
+        "jp": "一握りの",
+        "vie": "một số ít",
+        "en_pronunciation": "/ˈhændˌfʊl/",
+        "laos_pronunciation": "mumu",
+        "jp_pronunciation": "hitonigiri no",
+        "vie_pronunciation": "mot so it"
+      },
+      "means": {
+        "en": "A small number or amount",
+        "zh": "少量或少量"
+      }
+    },
+    {
+      "word": {
+        "en": "handicapped",
+        "laos": "ເຮັດໃຫ້ພິການ",
+        "jp": "障害者",
+        "vie": "tàn tật",
+        "en_pronunciation": "/ˈhændiˌkæpt/",
+        "laos_pronunciation": "hedhaiphikan",
+        "jp_pronunciation": "shougaisha",
+        "vie_pronunciation": "tan tat"
+      },
+      "means": {
+        "en": "People collectively who are crippled or otherwise physically handicapped",
+        "zh": "残废或其他身体残疾的人的统称"
+      }
+    },
+    {
+      "word": {
+        "en": "handicraft",
+        "laos": "ເຄື່ອງຫັດຖະກໍາ",
+        "jp": "手工芸品",
+        "vie": "thủ công mỹ nghệ",
+        "en_pronunciation": "/ˈhændiˌkræft/",
+        "laos_pronunciation": "kheuonghadthakoa",
+        "jp_pronunciation": "shukougei hin",
+        "vie_pronunciation": "thu cong my nghe"
+      },
+      "means": {
+        "en": "A work produced by hand labor",
+        "zh": "手工制作的作品"
+      }
+    },
+    {
+      "word": {
+        "en": "handle",
+        "laos": "ດ້າມຈັບ",
+        "jp": "ハンドル",
+        "vie": "xử lý",
+        "en_pronunciation": "/ˈhændəl/",
+        "laos_pronunciation": "damchab",
+        "jp_pronunciation": "handoru",
+        "vie_pronunciation": "xu ly"
+      },
+      "means": {
+        "en": "The appendage to an object that is designed to be held in order to use or move it",
+        "zh": "为使用或移动而设计的物体的附属物"
+      }
+    },
+    {
+      "word": {
+        "en": "handsome",
+        "laos": "ທໍາອິດ",
+        "jp": "ハンサム",
+        "vie": "đẹp trai",
+        "en_pronunciation": "/ˈhænsəm/",
+        "laos_pronunciation": "thoaid",
+        "jp_pronunciation": "hansamu",
+        "vie_pronunciation": "dep trai"
+      },
+      "means": {
+        "en": "Pleasing in appearance especially by reason of conformity to ideals of form and proportion; ; ; ; - Thackeray; - Lillian Hellman",
+        "zh": "外观令人愉悦，尤其是由于符合理想的形式和比例；"
+      }
+    },
+    {
+      "word": {
+        "en": "handwriting",
+        "laos": "ການຂຽນດ້ວຍມື",
+        "jp": "手書き",
+        "vie": "chữ viết tay",
+        "en_pronunciation": "/ˈhænˌdraɪtɪŋ/",
+        "laos_pronunciation": "kankhian duanymu",
+        "jp_pronunciation": "tegaki",
+        "vie_pronunciation": "chu viet tay"
+      },
+      "means": {
+        "en": "Something written by hand",
+        "zh": "手写的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "handy",
+        "laos": "ມີປະໂຫຍດ",
+        "jp": "便利な",
+        "vie": "tiện dụng",
+        "en_pronunciation": "/ˈhændi/",
+        "laos_pronunciation": "mipaojd",
+        "jp_pronunciation": "benri na",
+        "vie_pronunciation": "tien dung"
+      },
+      "means": {
+        "en": "United States blues musician who transcribed and published traditional blues music (1873-1958)",
+        "zh": "转录和出版传统布鲁斯音乐的美国布鲁斯音乐家（1873-1958）"
+      }
+    },
+    {
+      "word": {
+        "en": "hang",
+        "laos": "ແຂວນໄວ້",
+        "jp": "ハングする",
+        "vie": "treo",
+        "en_pronunciation": "/hæŋ/",
+        "laos_pronunciation": "aekhuanuaai",
+        "jp_pronunciation": "hangu suru",
+        "vie_pronunciation": "treo"
+      },
+      "means": {
+        "en": "A special way of doing something",
+        "zh": "做某事的特殊方式"
+      }
+    },
+    {
+      "word": {
+        "en": "happen",
+        "laos": "ເກີດຂຶ້ນ",
+        "jp": "起こる",
+        "vie": "xảy ra",
+        "en_pronunciation": "/ˈhæpən/",
+        "laos_pronunciation": "koedkhun",
+        "jp_pronunciation": "oko ru",
+        "vie_pronunciation": "xay ra"
+      },
+      "means": {
+        "en": "Come to pass",
+        "zh": "来通过"
+      }
+    },
+    {
+      "word": {
+        "en": "happy",
+        "laos": "ສະບາຍດີ",
+        "jp": "幸せな",
+        "vie": "hạnh phúc",
+        "en_pronunciation": "/ˈhæpi/",
+        "laos_pronunciation": "sabaidi",
+        "jp_pronunciation": "shiawase na",
+        "vie_pronunciation": "hanh phuc"
+      },
+      "means": {
+        "en": "Enjoying or showing or marked by joy or pleasure",
+        "zh": "享受或展示或以快乐或愉悦为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "happiness",
+        "laos": "ຄວາມສຸກ",
+        "jp": "幸福",
+        "vie": "hạnh phúc",
+        "en_pronunciation": "/ˈhæpinəs/",
+        "laos_pronunciation": "khuaamsuk",
+        "jp_pronunciation": "koufuku",
+        "vie_pronunciation": "hanh phuc"
+      },
+      "means": {
+        "en": "State of well-being characterized by emotions ranging from contentment to intense joy",
+        "zh": "幸福状态的特征是从满足到强烈喜悦的情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "happily",
+        "laos": "ຢ່າງມີຄວາມສຸກ",
+        "jp": "幸せに",
+        "vie": "hạnh phúc",
+        "en_pronunciation": "/ˈhæpəli/",
+        "laos_pronunciation": "yangmikhuaamsuk",
+        "jp_pronunciation": "shiawase ni",
+        "vie_pronunciation": "hanh phuc"
+      },
+      "means": {
+        "en": "In a joyous manner",
+        "zh": "以一种欢乐的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "harass",
+        "laos": "ຈູ້ຈີ້",
+        "jp": "嫌がらせ",
+        "vie": "quấy rối",
+        "en_pronunciation": "/həræs/",
+        "laos_pronunciation": "chuchi",
+        "jp_pronunciation": "iyagarase",
+        "vie_pronunciation": "quay roi"
+      },
+      "means": {
+        "en": "Annoy continually or chronically",
+        "zh": "持续或长期骚扰"
+      }
+    },
+    {
+      "word": {
+        "en": "harbor",
+        "laos": "ທ່າເຮືອ",
+        "jp": "港",
+        "vie": "hải cảng",
+        "en_pronunciation": "/ˈhɑrbər/",
+        "laos_pronunciation": "thaheu",
+        "jp_pronunciation": "minato",
+        "vie_pronunciation": "hai cang"
+      },
+      "means": {
+        "en": "A sheltered port where ships can take on or discharge cargo",
+        "zh": "船舶可以装卸货物的庇护港口"
+      }
+    },
+    {
+      "word": {
+        "en": "harbour",
+        "laos": "ທ່າເຮືອ",
+        "jp": "港",
+        "vie": "hải cảng",
+        "en_pronunciation": "/ˈhɑrbər/",
+        "laos_pronunciation": "thaheu",
+        "jp_pronunciation": "minato",
+        "vie_pronunciation": "hai cang"
+      },
+      "means": {
+        "en": "A sheltered port where ships can take on or discharge cargo",
+        "zh": "船舶可以装卸货物的庇护港口"
+      }
+    },
+    {
+      "word": {
+        "en": "harassment",
+        "laos": "ກໍ່ກວນ",
+        "jp": "ハラスメント",
+        "vie": "quấy rối",
+        "en_pronunciation": "/hərˈæsmənt/",
+        "laos_pronunciation": "kokuan",
+        "jp_pronunciation": "harasumento",
+        "vie_pronunciation": "quay roi"
+      },
+      "means": {
+        "en": "A feeling of intense annoyance caused by being tormented",
+        "zh": "因受到折磨而产生的强烈烦恼感"
+      }
+    },
+    {
+      "word": {
+        "en": "hard",
+        "laos": "ຍາກ",
+        "jp": "難しい",
+        "vie": "cứng",
+        "en_pronunciation": "/hɑrd/",
+        "laos_pronunciation": "nyak",
+        "jp_pronunciation": "muzukashii",
+        "vie_pronunciation": "cung"
+      },
+      "means": {
+        "en": "Not easy; requiring great physical or mental effort to accomplish or comprehend or endure",
+        "zh": "不容易；"
+      }
+    },
+    {
+      "word": {
+        "en": "harden",
+        "laos": "ແຂງ",
+        "jp": "硬化する",
+        "vie": "cứng lại",
+        "en_pronunciation": "/ˈhɑrdən/",
+        "laos_pronunciation": "aekhng",
+        "jp_pronunciation": "kouka suru",
+        "vie_pronunciation": "cung lai"
+      },
+      "means": {
+        "en": "Become hard or harder",
+        "zh": "变得坚硬还是更加坚硬"
+      }
+    },
+    {
+      "word": {
+        "en": "hardly",
+        "laos": "ຍາກຫຼາຢ",
+        "jp": "ほとんど",
+        "vie": "khó",
+        "en_pronunciation": "/ˈhɑrdli/",
+        "laos_pronunciation": "nyak ray",
+        "jp_pronunciation": "hotondo",
+        "vie_pronunciation": "kho"
+      },
+      "means": {
+        "en": "Only a very short time before; ; ; ; ; - W.B.Yeats",
+        "zh": "就在不久之前；"
+      }
+    },
+    {
+      "word": {
+        "en": "hardship",
+        "laos": "ຄວາມລໍາບາກ",
+        "jp": "苦難",
+        "vie": "khó khăn",
+        "en_pronunciation": "/ˈhɑrdʃɪp/",
+        "laos_pronunciation": "khuaamloabak",
+        "jp_pronunciation": "kunan",
+        "vie_pronunciation": "kho khan"
+      },
+      "means": {
+        "en": "A state of misfortune or affliction",
+        "zh": "不幸或痛苦的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "hardware",
+        "laos": "ຮາດແວ",
+        "jp": "ハードウェア",
+        "vie": "phần cứng",
+        "en_pronunciation": "/ˈhɑrdˌwɛr/",
+        "laos_pronunciation": "had aev",
+        "jp_pronunciation": "haadouea",
+        "vie_pronunciation": "phan cung"
+      },
+      "means": {
+        "en": "Major items of military weaponry (as tanks or missile)",
+        "zh": "主要军事武器装备（如坦克或导弹）"
+      }
+    }
+  ]
+}

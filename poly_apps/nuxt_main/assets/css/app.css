@@ -1,5 +1,5 @@
-@import 'perfect-scrollbar/css/perfect-scrollbar.css';
-@import 'tippy.js/dist/tippy.css';
-@import '@bhplugin/vue3-datatable/dist/style.css';
+@import './vue3-perfect-scrollbar.css';
+@import './tippy.css';
+@import './vue3-datatable.css';
 @import './tailwind.css';
-@import 'sweetalert2/dist/sweetalert2.min.css';
+@import './sweetalert2.min.css';

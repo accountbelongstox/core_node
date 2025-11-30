@@ -5,14 +5,10 @@ import time
 from pathlib import Path
 
 # Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_pywinauto
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import psutil
+psutil = get_third_package_psutil()
+pywinauto = get_third_package_pywinauto()
 from pywinauto import Application
 
 class AppLauncher:

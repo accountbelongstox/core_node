@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class InterestWidget extends StatelessWidget {
   final String interest;
@@ -23,7 +23,7 @@ class InterestWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomCircular(
-      outlineColor: ThemeColors.green,
+      outlineColor: ColorsAppQy.qyPrimary,
       radius: ThemeDimensions.radiusBig,
       widget: Padding(
         padding: const EdgeInsets.symmetric(
@@ -32,7 +32,7 @@ class InterestWidget extends StatelessWidget {
         child: Text(
           interest,
           style: ThemeTextStyles.textMedium.copyWith(
-              color: Colors.green, fontSize: ThemeDimensions.fontSizeDefault),
+              color: ColorsAppQy.qyPrimary, fontSize: ThemeDimensions.fontSizeDefault),
         ),
       ),
     );

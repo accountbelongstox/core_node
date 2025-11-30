@@ -1,7 +1,9 @@
 // Composable for API Client management
 // Provides reactive API connection state and methods
+// Per NUXT_MULTI_APP_ARCHITECTURE.md - uses centralized services
 
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, readonly } from 'vue';
+import { itToolsApi } from '@/apps/app_ittools/services_app_ittools/ittools-api';
 import apiClient, { type ApiResponse, type WebSocketCallbacks } from '@/apps/app_ittools/services_app_ittools/api-client';
 
 export interface ConnectionState {
@@ -240,8 +242,11 @@ export function useApiClient() {
     startAutoReconnect,
     stopAutoReconnect,
 
-    // API client access
+    // API client access (legacy)
     apiClient,
+
+    // Centralized API service (preferred)
+    itToolsApi,
   };
 }
 

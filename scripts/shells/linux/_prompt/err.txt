@@ -1,0 +1,350 @@
+132_setup_domain_ssl.sh
+
+Starting execution of 132_setup_domain_ssl.sh...
+[132] Domain Setup - SSL Certificate Configuration
+[132] Starting SSL certificate setup...
+[132] Configuration:
+[132]   Laravel directory: /www/programing/core_node/poly_apps/laravel_main
+[132]   Selected prefixes: local,si,sz,sh,api
+[132]
+[132] Domains to process:
+[132]   - gm15.com
+[132]   - 12gm.com
+[132]
+[132] This will add SSL certificates for all domains listed above
+[132] Using DNS provider: DNSPod
+[132] Using prefixes: local,si,sz,sh,api
+
+[132] Continue with SSL certificate setup? (Y/n): 
+
+[132] ==================================
+[132] PROCESSING DOMAINS
+[132] ==================================
+[132]
+[132] [1] Processing: gm15.com
+[132] ==================================
+[132] Setting up SSL certificate for: gm15.com
+[132] Prefixes: local,si,sz,sh,api
+[132] ==================================
+[132] Executing: sudo php artisan servermanager:certificate add "gm15.com" --prefixes=local,si,sz,sh,api --provider=dnspod
+[132] SSL certificate result:
+[132]   Adding certificate for: gm15.com
+[132]   Subdomain prefixes: local,si,sz,sh,api
+[132]   Provider: dnspod
+[132]   Certificate will cover domains:
+[132]     - gm15.com
+[132]     - *.gm15.com
+[132]     - *.si.gm15.com
+[132]     - *.sz.gm15.com
+[132]     - *.local.gm15.com
+[132]     - *.api.gm15.com
+[132]   Generating SSL certificate with expanded domain coverage...
+[132]   Executing: certbot plugins
+[132]   Command executed successfully
+[132]   
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   * dns-cloudflare
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-cloudflare',
+[132]   value='certbot_dns_cloudflare._internal.dns_cloudflare:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * dns-dnspod
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-dnspod',
+[132]   value='certbot_dns_dnspod.dns_dnspod:Authenticator', group='certbot.plugins')
+[132]   
+[132]   * dns-route53
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using AWS
+[132]   Route53 for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-route53',
+[132]   value='certbot_dns_route53._internal.dns_route53:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * nginx
+[132]   Description: Nginx Web Server plugin
+[132]   Interfaces: Authenticator, Installer, Plugin
+[132]   Entry point: EntryPoint(name='nginx',
+[132]   value='certbot_nginx._internal.configurator:NginxConfigurator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * standalone
+[132]   Description: Runs an HTTP server locally which serves the necessary validation
+[132]   files under the /.well-known/acme-challenge/ request path. Suitable if there is
+[132]   no HTTP server already running. HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='standalone',
+[132]   value='certbot._internal.plugins.standalone:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * webroot
+[132]   Description: Saves the necessary validation files to a
+[132]   .well-known/acme-challenge/ directory within the nominated webroot path. A
+[132]   seperate HTTP server must be running and serving files from the webroot path.
+[132]   HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='webroot',
+[132]   value='certbot._internal.plugins.webroot:Authenticator',
+[132]   group='certbot.plugins')
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   
+[132]   Available certbot plugins:
+[132]   
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   * dns-cloudflare
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-cloudflare',
+[132]   value='certbot_dns_cloudflare._internal.dns_cloudflare:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * dns-dnspod
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-dnspod',
+[132]   value='certbot_dns_dnspod.dns_dnspod:Authenticator', group='certbot.plugins')
+[132]   
+[132]   * dns-route53
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using AWS
+[132]   Route53 for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-route53',
+[132]   value='certbot_dns_route53._internal.dns_route53:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * nginx
+[132]   Description: Nginx Web Server plugin
+[132]   Interfaces: Authenticator, Installer, Plugin
+[132]   Entry point: EntryPoint(name='nginx',
+[132]   value='certbot_nginx._internal.configurator:NginxConfigurator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * standalone
+[132]   Description: Runs an HTTP server locally which serves the necessary validation
+[132]   files under the /.well-known/acme-challenge/ request path. Suitable if there is
+[132]   no HTTP server already running. HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='standalone',
+[132]   value='certbot._internal.plugins.standalone:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * webroot
+[132]   Description: Saves the necessary validation files to a
+[132]   .well-known/acme-challenge/ directory within the nominated webroot path. A
+[132]   seperate HTTP server must be running and serving files from the webroot path.
+[132]   HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='webroot',
+[132]   value='certbot._internal.plugins.webroot:Authenticator',
+[132]   group='certbot.plugins')
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   
+[132]   Using plugin: dns-dnspod
+[132]   SSL command output:
+[132]   Executing: certbot certonly --dns-dnspod --dns-dnspod-credentials /www/nginxconfig/ssl/credentials/dnspod-1763067551.ini --email accountbelongstox@163.com --agree-tos --non-interactive -d gm15.com -d *.gm15.com -d *.si.gm15.com -d *.sz.gm15.com -d *.local.gm15.com -d *.api.gm15.com
+[132]   Command failed with exit code: 2
+[132]   usage: 
+[132]     certbot [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
+[132]   
+[132]   Certbot can obtain and install HTTPS/TLS/SSL certificates.  By default,
+[132]   it will attempt to use a webserver both for obtaining and installing the
+[132]   certificate. 
+[132]   certbot: error: ambiguous option: --dns-dnspod could match --dns-dnspod-propagation-seconds, --dns-dnspod-credentials
+[132]   
+[132]   Certbot result: failed
+[132]   Error: usage: 
+[132]     certbot [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
+[132]   
+[132]   Certbot can obtain and install HTTPS/TLS/SSL certificates.  By default,
+[132]   it will attempt to use a webserver both for obtaining and installing the
+[132]   certificate. 
+[132]   certbot: error: ambiguous option: --dns-dnspod could match --dns-dnspod-propagation-seconds, --dns-dnspod-credentials
+[132]   
+[132]   Failed to generate certificate
+[132] [WARN] SSL certificate setup failed for: gm15.com
+[132] Continuing anyway (websites can be added without SSL)
+[132] [OK] Successfully configured: gm15.com
+[132] ---
+[132]
+[132] [2] Processing: 12gm.com
+[132] ==================================
+[132] Setting up SSL certificate for: 12gm.com
+[132] Prefixes: local,si,sz,sh,api
+[132] ==================================
+[132] Executing: sudo php artisan servermanager:certificate add "12gm.com" --prefixes=local,si,sz,sh,api --provider=dnspod
+[132] SSL certificate result:
+[132]   Adding certificate for: 12gm.com
+[132]   Subdomain prefixes: local,si,sz,sh,api
+[132]   Provider: dnspod
+[132]   Certificate will cover domains:
+[132]     - 12gm.com
+[132]     - *.12gm.com
+[132]     - *.si.12gm.com
+[132]     - *.sz.12gm.com
+[132]     - *.local.12gm.com
+[132]     - *.api.12gm.com
+[132]   Generating SSL certificate with expanded domain coverage...
+[132]   Executing: certbot plugins
+[132]   Command executed successfully
+[132]   
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   * dns-cloudflare
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-cloudflare',
+[132]   value='certbot_dns_cloudflare._internal.dns_cloudflare:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * dns-dnspod
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-dnspod',
+[132]   value='certbot_dns_dnspod.dns_dnspod:Authenticator', group='certbot.plugins')
+[132]   
+[132]   * dns-route53
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using AWS
+[132]   Route53 for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-route53',
+[132]   value='certbot_dns_route53._internal.dns_route53:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * nginx
+[132]   Description: Nginx Web Server plugin
+[132]   Interfaces: Authenticator, Installer, Plugin
+[132]   Entry point: EntryPoint(name='nginx',
+[132]   value='certbot_nginx._internal.configurator:NginxConfigurator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * standalone
+[132]   Description: Runs an HTTP server locally which serves the necessary validation
+[132]   files under the /.well-known/acme-challenge/ request path. Suitable if there is
+[132]   no HTTP server already running. HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='standalone',
+[132]   value='certbot._internal.plugins.standalone:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * webroot
+[132]   Description: Saves the necessary validation files to a
+[132]   .well-known/acme-challenge/ directory within the nominated webroot path. A
+[132]   seperate HTTP server must be running and serving files from the webroot path.
+[132]   HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='webroot',
+[132]   value='certbot._internal.plugins.webroot:Authenticator',
+[132]   group='certbot.plugins')
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   
+[132]   Available certbot plugins:
+[132]   
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   * dns-cloudflare
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-cloudflare',
+[132]   value='certbot_dns_cloudflare._internal.dns_cloudflare:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * dns-dnspod
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using
+[132]   Cloudflare for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-dnspod',
+[132]   value='certbot_dns_dnspod.dns_dnspod:Authenticator', group='certbot.plugins')
+[132]   
+[132]   * dns-route53
+[132]   Description: Obtain certificates using a DNS TXT record (if you are using AWS
+[132]   Route53 for DNS).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='dns-route53',
+[132]   value='certbot_dns_route53._internal.dns_route53:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * nginx
+[132]   Description: Nginx Web Server plugin
+[132]   Interfaces: Authenticator, Installer, Plugin
+[132]   Entry point: EntryPoint(name='nginx',
+[132]   value='certbot_nginx._internal.configurator:NginxConfigurator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * standalone
+[132]   Description: Runs an HTTP server locally which serves the necessary validation
+[132]   files under the /.well-known/acme-challenge/ request path. Suitable if there is
+[132]   no HTTP server already running. HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='standalone',
+[132]   value='certbot._internal.plugins.standalone:Authenticator',
+[132]   group='certbot.plugins')
+[132]   
+[132]   * webroot
+[132]   Description: Saves the necessary validation files to a
+[132]   .well-known/acme-challenge/ directory within the nominated webroot path. A
+[132]   seperate HTTP server must be running and serving files from the webroot path.
+[132]   HTTP challenge only (wildcards not supported).
+[132]   Interfaces: Authenticator, Plugin
+[132]   Entry point: EntryPoint(name='webroot',
+[132]   value='certbot._internal.plugins.webroot:Authenticator',
+[132]   group='certbot.plugins')
+[132]   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[132]   
+[132]   Using plugin: dns-dnspod
+[132]   SSL command output:
+[132]   Executing: certbot certonly --dns-dnspod --dns-dnspod-credentials /www/nginxconfig/ssl/credentials/dnspod-1763067553.ini --email accountbelongstox@163.com --agree-tos --non-interactive -d 12gm.com -d *.12gm.com -d *.si.12gm.com -d *.sz.12gm.com -d *.local.12gm.com -d *.api.12gm.com
+[132]   Command failed with exit code: 2
+[132]   usage: 
+[132]     certbot [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
+[132]   
+[132]   Certbot can obtain and install HTTPS/TLS/SSL certificates.  By default,
+[132]   it will attempt to use a webserver both for obtaining and installing the
+[132]   certificate. 
+[132]   certbot: error: ambiguous option: --dns-dnspod could match --dns-dnspod-propagation-seconds, --dns-dnspod-credentials
+[132]   
+[132]   Certbot result: failed
+[132]   Error: usage: 
+[132]     certbot [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
+[132]   
+[132]   Certbot can obtain and install HTTPS/TLS/SSL certificates.  By default,
+[132]   it will attempt to use a webserver both for obtaining and installing the
+[132]   certificate. 
+[132]   certbot: error: ambiguous option: --dns-dnspod could match --dns-dnspod-propagation-seconds, --dns-dnspod-credentials
+[132]   
+[132]   Failed to generate certificate
+[132] [WARN] SSL certificate setup failed for: 12gm.com
+[132] Continuing anyway (websites can be added without SSL)
+[132] [OK] Successfully configured: 12gm.com
+[132] ---
+
+[132] ==================================
+[132] SSL SETUP SUMMARY
+[132] ==================================
+[132] Successfully configured: 2/2 domains
+[132]
+[132] Certificate Summary:
+[132] Executing: sudo php artisan servermanager:certificate summary
+[132]   Certificates Summary:
+[132]     Total certificates: 0
+[132]     Active certificates: 0
+[132]     Expired certificates: 0
+[132]     Expiring soon (30 days): 0
+[132]   
+[132] ==================================
+[132]
+[132] Next Steps:
+[132]   1. Run 133_setup_api_domains.sh to setup API domains
+[132]   2. Run 134_setup_html_domains.sh to setup HTML domains
+[132] ==================================
+[132] All SSL certificates configured successfully!
+
+Script execution completed with exit code: 0
+Press any key to return to test scripts menu.

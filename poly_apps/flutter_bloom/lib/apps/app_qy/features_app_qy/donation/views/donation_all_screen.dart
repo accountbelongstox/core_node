@@ -11,35 +11,46 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:percent_indicator/percent_indicator.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/donation/domain/model/doantion_model.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:percent_indicator/percent_indicator.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/donation/data/donation_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class MyDonationAllScreen extends StatelessWidget {
   const MyDonationAllScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final donations = DonationData.getDonations();
     return Scaffold(
       appBar: AppBar(
-          title:
-              Text("My Donations ( ${donationModelList.length.toString()} )"),
-          actions: const [
-            ActionWidget(
-                actionIcon: Icon(
+        title: Text(
+          '${QyAppLocalizationKeys.qyMyDonations.tr(context)} '
+          '(${donations.length})',
+          style: ThemeTextStyles.textSemiBold.copyWith(
+            color: ColorsAppQy.qyTextPrimary,
+          ),
+        ),
+        actions: const [
+          ActionWidget(
+            actionIcon: Icon(
               Icons.more_vert,
               color: Colors.white,
-            ))
-          ]),
-      body: Expanded(
-          child: Padding(
+            ),
+          ),
+        ],
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: ListView.builder(
-            itemCount: donationModelList.length,
+            itemCount: donations.length,
             itemBuilder: (_, index) {
+              final donation = donations[index];
               return Padding(
                 padding: const EdgeInsets.symmetric(
                     vertical: ThemeDimensions.defaultSize),
@@ -49,7 +60,9 @@ class MyDonationAllScreen extends StatelessWidget {
                         borderRadius:
                             BorderRadius.circular(ThemeDimensions.defaultSize),
                         border: Border.all(
-                            width: 3.5, color: Colors.grey.withOpacity(0.2))),
+                          width: 3.5,
+                          color: ColorsAppQy.qyBorderLight,
+                        )),
                     child: Column(children: [
                       Padding(
                           padding: const EdgeInsets.all(8.0),
@@ -60,7 +73,7 @@ class MyDonationAllScreen extends StatelessWidget {
                                     height: ThemeDimensions.sizeOneTwenty,
                                     width: ThemeDimensions.sizeOneTwenty,
                                     decoration: const BoxDecoration(
-                                        color: Colors.grey,
+                                        color: Colors.black12,
                                         borderRadius: BorderRadius.only(
                                             topLeft: Radius.circular(
                                                 ThemeDimensions.radiusLarge),
@@ -74,7 +87,7 @@ class MyDonationAllScreen extends StatelessWidget {
                                                 ThemeDimensions.radiusLarge)),
                                         child: Image(
                                             image: AssetImage(
-                                              "${donationModelList[index].image}",
+                                              donation.image ?? '',
                                             ),
                                             fit: BoxFit.cover))),
                                 const SizedBox(
@@ -85,20 +98,29 @@ class MyDonationAllScreen extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      "${donationModelList[index].title}",
-                                      style: ThemeTextStyles.textBold,
+                                      donation.title ?? '',
+                                      style: ThemeTextStyles.textBold.copyWith(
+                                        color: ColorsAppQy.qyTextPrimary,
+                                      ),
                                     ),
                                     const SizedBox(
                                       height: 10,
                                     ),
                                     Row(children: [
                                       Text(
-                                        "\$ ${donationModelList[index].donators}",
-                                        style: ThemeTextStyles.textBold.copyWith(
-                                            color: Colors.green),
+                                        '\$ ${donation.found ?? ''}',
+                                        style:
+                                            ThemeTextStyles.textBold.copyWith(
+                                          color: ColorsAppQy.qyPrimary,
+                                        ),
                                       ),
-                                      const Text(" fund raising from the ",
-                                          style: ThemeTextStyles.textMedium)
+                                      Text(
+                                        ' ${QyAppLocalizationKeys.qyDonationFundRaising.tr(context)}',
+                                        style: ThemeTextStyles.textMedium
+                                            .copyWith(
+                                          color: ColorsAppQy.qyTextSecondary,
+                                        ),
+                                      ),
                                     ]),
                                     Padding(
                                         padding: const EdgeInsets.symmetric(
@@ -118,19 +140,39 @@ class MyDonationAllScreen extends StatelessWidget {
                                         children: [
                                           Row(children: [
                                             Text(
-                                                "${donationModelList[index].donators}",
-                                                style: ThemeTextStyles.textBold.copyWith(
-                                                    color: Colors.green)),
-                                            const Text(" Donations",
-                                                style: ThemeTextStyles.textSemiBold)
+                                                donation.donators ?? '',
+                                                style: ThemeTextStyles.textBold
+                                                    .copyWith(
+                                                  color: ColorsAppQy.qyPrimary,
+                                                ),
+                                              ),
+                                              Text(
+                                                ' ${QyAppLocalizationKeys.qyDonationDonations.tr(context)}',
+                                                style: ThemeTextStyles
+                                                    .textSemiBold
+                                                    .copyWith(
+                                                  color:
+                                                      ColorsAppQy.qyTextPrimary,
+                                                ),
+                                              ),
                                           ]),
                                           Row(children: [
                                             Text(
-                                              "${donationModelList[index].days}",
-                                              style: ThemeTextStyles.textBold.copyWith(
-                                                  color: Colors.green),
+                                                donation.days ?? '',
+                                                style: ThemeTextStyles.textBold
+                                                    .copyWith(
+                                                  color: ColorsAppQy.qyPrimary,
+                                                ),
                                             ),
-                                            const Text(" days left"),
+                                              Text(
+                                                ' ${QyAppLocalizationKeys.qyDonationDaysLeft.tr(context)}',
+                                                style: ThemeTextStyles
+                                                    .textSemiBold
+                                                    .copyWith(
+                                                  color:
+                                                      ColorsAppQy.qyTextPrimary,
+                                                ),
+                                              ),
                                           ])
                                         ]),
                                   ],
@@ -142,14 +184,18 @@ class MyDonationAllScreen extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Row(children: [
-                                  const Text(
-                                    "You have donated ",
-                                    style: ThemeTextStyles.textBold,
+                                  Text(
+                                    QyAppLocalizationKeys.qyDonationNoDonation
+                                        .tr(context),
+                                    style: ThemeTextStyles.textBold.copyWith(
+                                      color: ColorsAppQy.qyTextSecondary,
+                                    ),
                                   ),
                                   Text(
-                                    "${donationModelList[index].donators}",
-                                    style:
-                                        ThemeTextStyles.textBold.copyWith(color: Colors.green),
+                                    donation.donators ?? '',
+                                    style: ThemeTextStyles.textBold.copyWith(
+                                      color: ColorsAppQy.qyPrimary,
+                                    ),
                                   ),
                                 ]),
                                 CustomCircular(
@@ -160,14 +206,20 @@ class MyDonationAllScreen extends StatelessWidget {
                                     widget: Padding(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 5, horizontal: 10),
-                                        child: Text("Donate Again",
-                                            style: ThemeTextStyles.textSemiBold.copyWith(
-                                                color: Colors.green)))),
+                                        child: Text(
+                                          QyAppLocalizationKeys
+                                              .qyDonationMakeNow
+                                              .tr(context),
+                                          style: ThemeTextStyles.textSemiBold
+                                              .copyWith(
+                                            color: ColorsAppQy.qyPrimary,
+                                          ),
+                                        ))),
                               ]))
                     ])),
               );
             }),
-      )),
+      ),
     );
   }
 }

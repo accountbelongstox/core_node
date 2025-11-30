@@ -1,419 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="">
     <title>Laravel API Debug Interface</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .layout { display: flex; height: 100vh; }
-        
-        /* Left Sidebar */
-        .sidebar {
-            width: 250px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-right: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
-        
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            background: rgba(0,0,0,0.05);
-        }
-        
-        .sidebar-header h1 {
-            font-size: 18px;
-            color: #2c3e50;
-            font-weight: 600;
-        }
-        
-        .menu-items {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .menu-item {
-            padding: 0;
-        }
-        
-        .menu-item a {
-            display: block;
-            padding: 15px 20px;
-            text-decoration: none;
-            color: #555;
-            transition: all 0.3s ease;
-            border-left: 3px solid transparent;
-        }
-        
-        .menu-item a:hover {
-            background: rgba(103, 126, 234, 0.1);
-            border-left-color: #667eea;
-            color: #667eea;
-        }
-        
-        .menu-item a.active {
-            background: rgba(103, 126, 234, 0.15);
-            border-left-color: #667eea;
-            color: #667eea;
-            font-weight: 500;
-        }
-        
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        .content-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 20px 30px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .content-body {
-            padding: 30px;
-        }
-        
-        .content-section {
-            display: none;
-        }
-        
-        .content-section.active {
-            display: block;
-        }
-        
-        /* Cards */
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-        
-        .card-header {
-            padding: 20px 25px;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            background: rgba(0,0,0,0.02);
-        }
-        
-        .card-header h2 {
-            font-size: 20px;
-            color: #2c3e50;
-            font-weight: 600;
-        }
-        
-        .card-body {
-            padding: 25px;
-        }
-        
-        /* Form Controls */
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #555;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            background: rgba(255, 255, 255, 0.9);
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(103, 126, 234, 0.1);
-        }
-        
-        /* Buttons */
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(103, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #545b62;
-            transform: translateY(-2px);
-        }
-        
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-        
-        /* API Items */
-        .api-item {
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        
-        .api-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 12px rgba(103, 126, 234, 0.2);
-        }
-        
-        .api-item.search-highlighted {
-            border-color: #28a745 !important;
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4) !important;
-            transform: scale(1.02);
-        }
-        
-        .api-number {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-            z-index: 10;
-        }
-        
-        .api-header {
-            background: rgba(248, 249, 250, 0.8);
-            padding: 15px 20px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s ease;
-        }
-        
-        .api-header:hover {
-            background: rgba(103, 126, 234, 0.1);
-        }
-        
-        .api-method {
-            padding: 6px 12px;
-            border-radius: 6px;
-            color: white;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 12px;
-            margin-right: 10px;
-        }
-        
-        .method-get { background: linear-gradient(135deg, #28a745, #20c997); }
-        .method-post { background: linear-gradient(135deg, #007bff, #6610f2); }
-        .method-put { background: linear-gradient(135deg, #ffc107, #fd7e14); color: #000; }
-        .method-delete { background: linear-gradient(135deg, #dc3545, #e83e8c); }
-        
-        .api-details {
-            padding: 25px;
-            display: none;
-            border-top: 1px solid #e9ecef;
-            background: rgba(255, 255, 255, 0.5);
-        }
-        
-        /* JSON Viewer */
-        .json-viewer {
-            background: rgba(248, 249, 250, 0.8);
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            border: 2px solid #e9ecef;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-        }
-        
-        .json-viewer pre {
-            margin: 0;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        
-        /* Response Area */
-        .response-area {
-            margin-top: 20px;
-            padding: 20px;
-            background: rgba(248, 249, 250, 0.8);
-            border-radius: 8px;
-            white-space: pre-wrap;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            border: 2px solid #e9ecef;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        
-        /* Loading Animation */
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 8px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Status Messages */
-        .status-success {
-            color: #28a745;
-            font-weight: 500;
-        }
-        
-        .status-error {
-            color: #dc3545;
-            font-weight: 500;
-        }
-        
-        /* Feature and Headers Info */
-        .feature-docs {
-            background: linear-gradient(135deg, #e8f4f8, #f0f9ff) !important;
-            border-left: 4px solid #667eea !important;
-        }
-        
-        .feature-docs h5 {
-            color: #2c3e50 !important;
-            font-weight: 600 !important;
-        }
-        
-        .supported-headers {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef) !important;
-            border-left: 4px solid #28a745 !important;
-        }
-        
-        .supported-headers h5 {
-            color: #2c3e50 !important;
-            font-weight: 600 !important;
-        }
-        
-        /* Button Groups */
-        .btn-group {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        
-        .btn-group .btn {
-            font-size: 13px;
-            padding: 8px 16px;
-        }
-        
-        /* API Item Enhancements */
-        .api-header strong {
-            font-size: 16px;
-            color: #2c3e50;
-        }
-        
-        .api-header small {
-            background: rgba(103, 126, 234, 0.1);
-            padding: 2px 8px;
-            border-radius: 4px;
-            color: #667eea !important;
-            font-weight: 500;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .layout {
-                flex-direction: column;
-                height: auto;
-            }
-            
-            .sidebar {
-                width: 100%;
-                height: auto;
-            }
-            
-            .content-body {
-                padding: 20px;
-            }
-            
-            .btn-group {
-                justify-content: center;
-            }
-            
-            .api-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .api-header > div {
-                margin-bottom: 8px;
-            }
-        }
-    </style>
+
+    <!-- NAMESPACE: External CSS Imports -->
+    <link rel="stylesheet" href="/debug-assets/css/debug-interface.css">
+    <link rel="stylesheet" href="/debug-assets/css/ittools-layout.css">
+    <link rel="stylesheet" href="/debug-assets/css/mcp-manager.css">
+    <link rel="stylesheet" href="/debug-assets/css/static-resources.css">
+    <link rel="stylesheet" href="/debug-assets/css/video-js.min.css">
 </head>
+
 <body>
+    <!-- Mobile Navigation Bar -->
+    <div class="mobile-nav" id="mobile-nav">
+        <button class="mobile-nav-toggle" onclick="toggleMobileSidebar()">☰</button>
+        <span class="mobile-nav-title" id="mobile-nav-title">API Debug Center</span>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileSidebar()"></div>
+
     <div class="layout">
-        <!-- Left Sidebar -->
-        <div class="sidebar">
-            <div class="sidebar-header">
+        <!-- NAMESPACE: Left Sidebar (Collapsible) -->
+        <div class="sidebar" id="main-sidebar">
+            <div class="sidebar-header" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <span class="sidebar-toggle-btn">☰</span>
                 <h1>API Debug Center</h1>
             </div>
             <ul class="menu-items">
                 <li class="menu-item">
-                    <a href="#" onclick="showSection('api-testing')" class="active">
-                        🚀 API Testing Dashboard
+                    <a href="#" onclick="showSection('api-testing')" class="active" data-section="api-testing">
+                        <span class="menu-icon">🚀</span>
+                        <span class="menu-text">API Testing Dashboard</span>
+                        <span class="menu-tooltip">API Testing Dashboard</span>
                     </a>
                 </li>
                 <li class="menu-item">
-                    <a href="#" onclick="showSection('system-info')">
-                        📊 System Information
+                    <a href="#" onclick="showSection('dev-tools')" data-section="dev-tools">
+                        <span class="menu-icon">🛠️</span>
+                        <span class="menu-text">Development Tools</span>
+                        <span class="menu-tooltip">Development Tools</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('system-info')" data-section="system-info">
+                        <span class="menu-icon">📊</span>
+                        <span class="menu-text">System Information</span>
+                        <span class="menu-tooltip">System Information</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('learning')" data-section="learning">
+                        <span class="menu-icon">📚</span>
+                        <span class="menu-text">Vocabulary Learning</span>
+                        <span class="menu-tooltip">Vocabulary Learning</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('code-browser')" data-section="code-browser">
+                        <span class="menu-icon">💻</span>
+                        <span class="menu-text">Code Browser</span>
+                        <span class="menu-tooltip">Code Browser</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('static-resources')" data-section="static-resources">
+                        <span class="menu-icon">🎬</span>
+                        <span class="menu-text">Static Resources</span>
+                        <span class="menu-tooltip">Static Resources</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('mcp-manager')" data-section="mcp-manager">
+                        <span class="menu-icon">📸</span>
+                        <span class="menu-text">MCP Manager</span>
+                        <span class="menu-tooltip">MCP Manager</span>
                     </a>
                 </li>
             </ul>
@@ -422,8 +88,24 @@
         <!-- Main Content -->
         <div class="main-content">
             <div class="content-header">
-                <h2 id="page-title">API Testing Dashboard</h2>
-                <p id="page-description">Test and debug your Laravel API endpoints</p>
+                <div style="display: none;">
+                    <h2 id="page-title">API Testing Dashboard</h2>
+                    <p id="page-description">Test and debug your Laravel API endpoints</p>
+                </div>
+                <div id="user-info-area"
+                    style="width: 100%; display: flex; justify-content: flex-end; align-items: center;">
+                    <div id="user-logged-in" style="display: none;">
+                        <span style="color: #28a745; font-weight: 500;">● Logged in as: </span>
+                        <span id="user-display-name" style="font-weight: 600; color: #2c3e50;"></span>
+                        <button onclick="handleLogout()"
+                            style="margin-left: 10px; padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Logout</button>
+                    </div>
+                    <div id="user-not-logged-in">
+                        <span style="color: #6c757d; font-weight: 500;">● Not logged in</span>
+                        <button onclick="AuthHelper.showAuthModal()"
+                            style="margin-left: 10px; padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Login</button>
+                    </div>
+                </div>
             </div>
 
             <div class="content-body">
@@ -440,22 +122,114 @@
                                     <option value="">Choose an app to test its APIs</option>
                                 </select>
                             </div>
-                            
+
                             <div class="form-group" id="api-search-container" style="display: none;">
                                 <label class="form-label">🔍 Search APIs:</label>
-                                <input type="text" id="api-search" class="form-control" 
-                                       placeholder="Type to search APIs by path, description, or number..." 
-                                       oninput="searchAndJumpToAPI(this.value)">
+                                <input type="text" id="api-search" class="form-control"
+                                    placeholder="Type to search APIs by path, description, or number..."
+                                    oninput="searchAndJumpToAPI(this.value)">
                                 <small style="color: #666; font-size: 12px;">
-                                    Search by API number (e.g., "1"), path (e.g., "initialize"), or description. 
+                                    Search by API number (e.g., "1"), path (e.g., "initialize"), or description.
                                     Best match will be automatically highlighted and scrolled to.
                                 </small>
                             </div>
-                            
+
                             <div id="api-list" class="api-list">
                                 <p style="text-align: center; color: #666; padding: 40px;">
                                     Select an application to view and test its available APIs
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NAMESPACE: Development Tools Section -->
+                <div id="dev-tools-section" class="content-section">
+                    <div class="ittools-container">
+                        <!-- ITTools Top Menu -->
+                        <div class="ittools-top-menu">
+                            <button class="ittools-top-menu-item active" data-top-menu-id="tools">
+                                🛠️ Tools
+                            </button>
+                            <button class="ittools-top-menu-item" data-top-menu-id="favorites">
+                                ⭐ Favorites
+                            </button>
+                            <button class="ittools-top-menu-item" data-top-menu-id="recent">
+                                🕐 Recent
+                            </button>
+
+                            <div class="ittools-search-wrapper">
+                                <input type="text" id="ittools-search-input" class="ittools-search-input"
+                                    placeholder="Search tools...">
+                                <button class="ittools-search-clear" onclick="ITTools.Search.clearSearch()">×</button>
+                            </div>
+                        </div>
+
+                        <!-- ITTools Top Dropdown Menu (Hover to expand) -->
+                        <div class="ittools-top-dropdown-container" id="ittools-top-dropdown-menu">
+                            <!-- Generated by ITTools.UniversalMenu -->
+                        </div>
+
+                        <!-- ITTools Body -->
+                        <div class="ittools-body">
+                            <!-- Left Menu (Dynamically Generated with fixed height scroll) -->
+                            <div class="ittools-left-menu collapsed" id="ittools-dynamic-menu">
+                                <!-- Menu will be generated by ITTools.UniversalMenu -->
+                            </div>
+
+                            <!-- Content Wrapper -->
+                            <div class="ittools-content-wrapper" style="position: relative;">
+                                <!-- Left Menu Collapse Button -->
+                                <button class="ittools-menu-collapse-btn" id="ittools-menu-collapse-btn"
+                                    onclick="ITTools.Menu.toggleLeftMenu()">▶</button>
+                                <!-- Main Content Area -->
+                                <div class="ittools-main-content" id="ittools-main-content">
+                                    <div class="ittools-card">
+                                        <div class="ittools-card-header">Welcome to Development Tools</div>
+                                        <div class="ittools-card-body">
+                                            <p>Select a tool from the left menu to get started.</p>
+                                            <p style="margin-top: 10px; color: #666;">
+                                                Available categories:
+                                            </p>
+                                            <ul style="margin-top: 10px; margin-left: 20px; color: #666;">
+                                                <li>📝 Text Tools - Encoding, decoding, and text manipulation</li>
+                                                <li>🔐 Crypto Tools - Hashing, UUID generation, tokens</li>
+                                                <li>✨ Formatters - JSON, XML, SQL formatting</li>
+                                                <li>🔄 Converters - Timestamps, colors, units</li>
+                                                <li>🎲 Generators - Passwords, lorem ipsum, QR codes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Right Panel -->
+                                <div class="ittools-right-panel">
+                                    <h3 style="margin-bottom: 15px; color: #2c3e50;">Tool Information</h3>
+                                    <p style="color: #666; font-size: 13px;">
+                                        This panel will show additional information about the selected tool.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ITTools History Bar (Horizontal scroll, localStorage) -->
+                        <div class="ittools-history-container" id="ittools-history-bar">
+                            <!-- Generated by ITTools.UniversalMenu -->
+                        </div>
+
+                        <!-- ITTools Bottom Menu -->
+                        <div class="ittools-bottom-menu">
+                            <div class="ittools-bottom-menu-left">
+                                <button class="ittools-bottom-btn" onclick="ITTools.UI.toggleRightPanel()">
+                                    📋 Info Panel
+                                </button>
+                                <div id="dict-stats-container"
+                                    style="display: inline-flex; gap: 15px; margin-left: 20px; font-size: 12px; color: #666;">
+                                    <span id="dict-stats-loading">Loading dictionary stats...</span>
+                                </div>
+                            </div>
+                            <div class="ittools-bottom-menu-right">
+                                <span class="ittools-bottom-status">Ready</span>
                             </div>
                         </div>
                     </div>
@@ -476,1207 +250,577 @@
                     </div>
                 </div>
 
+                <!-- NAMESPACE: Code Browser Section -->
+                <div id="code-browser-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Code Browser - Core Node Directory</h2>
+                            <p id="code-browser-path-display"
+                                style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="code-browser-auth-check" style="padding: 25px; text-align: center; display: none;">
+                                <p style="color: #dc3545; font-size: 18px; margin-bottom: 20px;">🔒 Authentication
+                                    Required</p>
+                                <p style="color: #666; margin-bottom: 20px;">Please login to access the code browser</p>
+                                <button onclick="AuthHelper.showAuthModal()"
+                                    style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Login
+                                    Now</button>
+                            </div>
+                            <div id="code-browser-content" style="display: none;">
+                                <!-- Upper Panel: File Browser & Editor -->
+                                <div
+                                    style="display: flex; height: 45vh; background: #1e1e1e; border-bottom: 2px solid #333;">
+                                    <!-- File Tree (Left Panel) -->
+                                    <div id="file-tree-panel"
+                                        style="width: 300px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
+                                            <div
+                                                style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span style="font-weight: 500; font-size: 13px;">📁 core_node</span>
+                                                <button onclick="CodeBrowser.refreshTree()"
+                                                    style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;"
+                                                    title="Refresh">🔄</button>
+                                            </div>
+                                        </div>
+                                        <div id="file-tree" style="padding: 5px; font-size: 13px;">
+                                            <div style="padding: 20px; text-align: center; color: #888;">Loading...
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Code Editor (Right Panel) -->
+                                    <div style="flex: 1; display: flex; flex-direction: column; background: #1e1e1e;">
+                                        <div
+                                            style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <span id="current-file-path"
+                                                    style="font-size: 13px; color: #cccccc; font-family: monospace;">No
+                                                    file selected</span>
+                                                <span id="file-status"
+                                                    style="margin-left: 15px; font-size: 12px; color: #888;"></span>
+                                            </div>
+                                            <div>
+                                                <button id="save-file-btn" onclick="CodeBrowser.saveFile()"
+                                                    style="background: #0e639c; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-right: 5px; display: none;">💾
+                                                    Save</button>
+                                                <button onclick="CodeBrowser.closeFile()"
+                                                    style="background: #dc3545; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                                                    id="close-file-btn" disabled>✕ Close</button>
+                                            </div>
+                                        </div>
+                                        <div id="code-editor-container" style="flex: 1; overflow: hidden;">
+                                            <textarea id="code-editor"
+                                                style="width: 100%; height: 100%; padding: 15px; background: #1e1e1e; color: #d4d4d4; border: none; outline: none; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: none; tab-size: 4;"
+                                                placeholder="Select a file to edit..." readonly></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Lower Panel: Tasks/Prompts & Mapping Manager -->
+                                <div style="display: flex; height: 35vh; background: #1e1e1e;">
+                                    <!-- Tasks/Prompts List (Left Panel) -->
+                                    <div id="prompts-tasks-panel"
+                                        style="width: 300px; border-right: 1px solid #333; overflow-y: auto; background: #252526; color: #cccccc;">
+                                        <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
+                                            <div
+                                                style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                                <span style="font-weight: 500; font-size: 13px;">📝 Tasks/Prompts</span>
+                                                <div>
+                                                    <button onclick="PromptsTasksManager.showNewTaskDialog()"
+                                                        style="background: transparent; border: none; color: #28a745; cursor: pointer; font-size: 14px; padding: 2px 6px;"
+                                                        title="New Task">+</button>
+                                                    <button onclick="PromptsTasksManager.refresh()"
+                                                        style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;"
+                                                        title="Refresh">🔄</button>
+                                                </div>
+                                            </div>
+                                            <!-- Category Selector -->
+                                            <select id="prompt-category-selector"
+                                                style="width: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 5px; font-size: 12px; border-radius: 3px;">
+                                                <option value="global">Global</option>
+                                                <option value="mcp-dev">MCP Development</option>
+                                                <option value="ncore-dev">NCORE Development</option>
+                                                <option value="pycore-dev">PYCORE Development</option>
+                                                <option value="laravel-main-dev">Laravel Main</option>
+                                                <option value="nuxt-dev">NUXT Development</option>
+                                            </select>
+                                        </div>
+                                        <div id="prompts-tasks-list" style="padding: 5px; font-size: 13px;">
+                                            <div style="padding: 20px; text-align: center; color: #888;">Select a
+                                                category</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Prompt Mapping Manager (Right Panel) -->
+                                    <div id="prompt-mapping-panel-embedded"
+                                        style="flex: 1; background: #1e1e1e; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NAMESPACE: Static Resources Section -->
+                <div id="static-resources-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Static Resources - Media Browser</h2>
+                            <p id="static-resources-path-display"
+                                style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="static-resources-content">
+                                <!-- Mobile toggle button -->
+                                <button id="mobile-file-list-toggle" class="mobile-file-list-toggle"
+                                    onclick="StaticResourceBrowser.toggleFileList()">📁</button>
+
+                                <div class="static-resources-container">
+                                    <!-- File List Overlay (mobile) -->
+                                    <div id="file-list-overlay" class="file-list-overlay"
+                                        onclick="StaticResourceBrowser.toggleFileList()"></div>
+
+                                    <!-- File List (Left Panel - slides from left on mobile) -->
+                                    <div id="static-file-list-panel" class="static-file-list-panel">
+                                        <div class="static-file-list-header">
+                                            <div class="static-file-list-header-title">
+                                                <span>🎬 Files</span>
+                                                <span class="static-file-list-header-toggle"
+                                                    onclick="StaticResourceBrowser.toggleFileList()">◀</span>
+                                            </div>
+                                            <div class="static-file-list-header-actions">
+                                                <button onclick="StaticResourceBrowser.showCreateDirDialog()"
+                                                    title="New Folder">📁+</button>
+                                                <button onclick="StaticResourceBrowser.refreshList()"
+                                                    title="Refresh">🔄</button>
+                                                <button onclick="StaticResourceBrowser.showUploadDialog()"
+                                                    title="Upload">📤</button>
+                                            </div>
+                                        </div>
+                                        <div id="static-file-list" class="static-file-list">
+                                            <div class="static-loading">Loading...</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Preview Panel (Right Panel) -->
+                                    <div class="static-preview-panel">
+                                        <!-- Video Settings Bar -->
+                                        <div id="video-settings-bar" class="video-settings-bar floating"
+                                            style="display: none;">
+                                            <div class="video-settings-item">
+                                                <input type="checkbox" id="video-auto-play-next" checked>
+                                                <label for="video-auto-play-next">Auto-play</label>
+                                            </div>
+                                            <div class="video-settings-item">
+                                                <label>Skip:</label>
+                                                <input type="number" id="video-skip-intro" min="0" max="300" value="0">
+                                                <span>s</span>
+                                            </div>
+                                            <button class="playlist-toggle-btn"
+                                                onclick="StaticResourceBrowser.togglePlaylist()">
+                                                <span>📋</span>
+                                                <span id="playlist-count-badge">0</span>
+                                            </button>
+                                        </div>
+
+                                        <div class="static-preview-header">
+                                            <div class="static-preview-header-info">
+                                                <span id="preview-file-name" class="static-preview-file-name">No file
+                                                    selected</span>
+                                                <span id="preview-file-info" class="static-preview-file-meta"></span>
+                                            </div>
+                                            <div class="static-preview-controls" id="preview-controls"></div>
+                                        </div>
+                                        <div id="preview-container" class="static-preview-container">
+                                            <!-- Floating nav buttons for video -->
+                                            <div id="video-nav-left" class="video-nav-floating left">
+                                                <button class="video-nav-btn large" id="video-prev-btn-float"
+                                                    onclick="StaticResourceBrowser.playPrevVideo()" disabled>⏮</button>
+                                            </div>
+                                            <div id="video-nav-right" class="video-nav-floating right">
+                                                <button class="video-nav-btn large" id="video-next-btn-float"
+                                                    onclick="StaticResourceBrowser.playNextVideo()" disabled>⏭</button>
+                                            </div>
+                                            <div class="static-preview-empty">
+                                                <div class="static-preview-empty-icon">📂</div>
+                                                <p class="static-preview-empty-text">Select a file to preview</p>
+                                                <p class="static-preview-empty-hint">Supports images, videos, audio, and
+                                                    text files</p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Video Playlist (collapsible) -->
+                                        <div id="video-playlist-panel" class="video-playlist-panel">
+                                            <div class="video-playlist-header"
+                                                onclick="StaticResourceBrowser.togglePlaylist()">
+                                                <span>📋 Playlist <span id="video-playlist-count"></span></span>
+                                                <span class="video-playlist-toggle">▲</span>
+                                            </div>
+                                            <div id="video-playlist"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NAMESPACE: MCP Manager Section -->
+                <div id="mcp-manager-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>MCP Manager</h2>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Manage MCP (Model Context
+                                Protocol) features and resources</p>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div id="mcp-manager-content">
+                                <div class="mcp-container">
+                                    <div class="mcp-menu">
+                                        <div class="mcp-menu-header">MCP Manager</div>
+                                        <div id="mcp-menu-container"></div>
+                                    </div>
+                                    <div class="mcp-content">
+                                        <div id="mcp-content-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
-    </div></body>
+    </div>
 
-    <script>
+    <!-- Context Menu for Static Resources -->
+    <div id="static-context-menu"
+        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
+        <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📂 Enter this folder
+        </div>
+        <div id="static-menu-expand-all" onclick="StaticResourceBrowser.expandAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬇️ Expand all subfolders
+        </div>
+        <div id="static-menu-collapse-all" onclick="StaticResourceBrowser.collapseAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #ce9178; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬆️ Collapse all subfolders
+        </div>
+        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()"
+            style="padding: 8px 16px; cursor: pointer; color: #dcdcaa; font-size: 13px; display: none; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📤 Upload to this folder
+        </div>
+        <div onclick="StaticResourceBrowser.renameWithTranslation()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            🌐 Rename to English
+        </div>
+        <div onclick="StaticResourceBrowser.promptDeleteSelection()"
+            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'">
+            🗑️ Delete
+        </div>
+    </div>
 
-        
-        let apiData = {};
-        let publicInfo = {};
-        let cachedParams = {}; // Browser cache for API parameters
-        let cachedHeaders = {}; // Browser cache for app headers
+    <!-- Upload Dialog -->
+    <div id="upload-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📤 Upload Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div id="upload-drop-zone"
+                    style="border: 2px dashed #454545; border-radius: 8px; padding: 60px 20px; text-align: center; background: #1e1e1e; cursor: pointer;"
+                    onclick="document.getElementById('upload-file-input').click()">
+                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">📁 Drag and drop files or folders here
+                    </p>
+                    <p style="color: #666; font-size: 13px;">or click to browse</p>
+                    <input type="file" id="upload-file-input" multiple webkitdirectory directory style="display: none;">
+                </div>
+                <div id="upload-file-list" style="margin-top: 15px; max-height: 200px; overflow-y: auto;"></div>
+                <p id="upload-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Target: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeUploadDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="upload-btn" onclick="StaticResourceBrowser.executeUploadWithChunking()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'"
+                    disabled>Upload</button>
+            </div>
+        </div>
+    </div>
 
-        // Navigation Functions
-        function showSection(sectionType) {
-            // Update menu active state
-            document.querySelectorAll('.menu-item a').forEach(link => {
-                link.classList.remove('active');
-            });
-            event.target.classList.add('active');
+    <!-- Create Directory Dialog -->
+    <div id="create-dir-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📁 Create New Folder</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input type="text" id="new-dir-name" placeholder="Folder name..."
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace; margin-bottom: 15px;">
+                <div
+                    style="display: flex; align-items: center; padding: 10px; background: #1e1e1e; border-radius: 4px;">
+                    <input type="checkbox" id="translate-dir-name" style="margin-right: 10px; cursor: pointer;">
+                    <label for="translate-dir-name" style="color: #cccccc; font-size: 13px; cursor: pointer;">🌐
+                        Translate to English automatically</label>
+                </div>
+                <p id="create-dir-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Parent: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-bottom: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeCreateDirDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="create-dir-btn" onclick="StaticResourceBrowser.executeCreateDir()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">Create</button>
+            </div>
+        </div>
+    </div>
 
-            // Hide all sections
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
-            });
+    <!-- Delete Confirmation Dialog -->
+    <div id="static-delete-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 520px; box-shadow: 0 8px 32px rgba(0,0,0,0.8);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #ff7373; font-size: 16px; font-weight: 500;">🗑️ Delete Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="static-delete-summary"
+                    style="margin: 0 0 15px 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;">Preparing delete
+                    summary...</p>
+                <input type="text" id="static-delete-confirm-input" placeholder="Type 确认 to confirm"
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #f1f1f1; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;">
+                <p style="margin-top: 10px; font-size: 12px; color: #888;">For safety, please type <strong>确认</strong>
+                    to proceed.</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeDeleteDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="static-delete-confirm-btn" onclick="StaticResourceBrowser.executeDelete()"
+                    style="padding: 8px 20px; background: #b33939; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#c74a4a'" onmouseout="this.style.background='#b33939'"
+                    disabled>Delete</button>
+            </div>
+        </div>
+    </div>
 
-            // Show selected section and update header
-            if (sectionType === 'system-info') {
-                document.getElementById('system-info-section').classList.add('active');
-                document.getElementById('page-title').textContent = 'System Information';
-                document.getElementById('page-description').textContent = 'View comprehensive system and application information';
-            } else if (sectionType === 'api-testing') {
-                document.getElementById('api-testing-section').classList.add('active');
-                document.getElementById('page-title').textContent = 'API Testing Dashboard';
-                document.getElementById('page-description').textContent = 'Test and debug your Laravel API endpoints';
-            }
-        }
+    <!-- Context Menu for File Tree -->
+    <div id="file-context-menu"
+        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10000; min-width: 180px; border-radius: 4px; padding: 4px 0;">
+        <div onclick="CodeBrowser.copyRelativePath()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-copy-path">
+            📋 Copy Relative Path
+        </div>
+        <div onclick="CodeBrowser.copyAbsolutePath()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-copy-abspath">
+            📋 Copy Absolute Path
+        </div>
+        <div onclick="CodeBrowser.renameItem()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-rename">
+            ✏️ Rename
+        </div>
+        <div onclick="CodeBrowser.autoRenameToEnglish()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-auto-rename">
+            🔤 Auto Rename to English
+        </div>
+        <div onclick="CodeBrowser.translateChineseLines()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-translate">
+            🌐 Translate Chinese Lines
+        </div>
+        <div onclick="CodeBrowser.deleteFile()"
+            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'"
+            id="menu-delete">
+            🗑️ Delete
+        </div>
+        <div onclick="CodeBrowser.restoreFile()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-restore">
+            ♻️ Restore
+        </div>
+    </div>
 
-        // Cache Management Functions
-        function saveParamsToServer(appName, endpoint, method, params) {
-            const data = {
-                app_name: appName,
-                api_endpoint: endpoint,
-                method: method,
-                params: params
-            };
+    <!-- Confirm Dialog -->
+    <div id="confirm-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 id="confirm-title" style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Confirm
+                </h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="confirm-message" style="margin: 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;"></p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeConfirmDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="confirm-ok-btn" onclick="CodeBrowser.confirmDialogOk()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">OK</button>
+            </div>
+        </div>
+    </div>
 
-            fetch('/api_params_cache/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    showStatus('Parameters saved successfully!', 'success');
-                } else {
-                    showStatus('Failed to save parameters: ' + result.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error saving parameters:', error);
-                showStatus('Error saving parameters', 'error');
-            });
-        }
+    <!-- Rename Dialog -->
+    <div id="rename-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Rename</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input id="rename-input" type="text"
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;"
+                    placeholder="Enter new name...">
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeRenameDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button onclick="CodeBrowser.executeRename()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">Rename</button>
+            </div>
+        </div>
+    </div>
 
-        function loadParamsFromServer(appName, endpoint) {
-            return fetch('/api_params_cache/load?' + new URLSearchParams({
-                app_name: appName,
-                api_endpoint: endpoint
-            }))
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    return result.data;
-                }
-                return null;
-            })
-            .catch(error => {
-                console.error('Error loading parameters:', error);
-                return null;
-            });
-        }
+    <!-- NAMESPACE: Global Dropdown Container (Outside all overflow containers) -->
+    <div id="global-dropdown-container"
+        style="position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 99999; pointer-events: none;"></div>
 
-        function saveToBrowserCache(appName, endpoint, params) {
-            const cacheKey = appName + '_' + endpoint;
-            cachedParams[cacheKey] = {
-                params: params,
-                timestamp: Date.now()
-            };
-            localStorage.setItem('api_debug_cache', JSON.stringify(cachedParams));
-        }
+    <!-- NAMESPACE: Global Search Results Container -->
+    <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
 
-        function loadFromBrowserCache(appName, endpoint) {
-            const cacheKey = appName + '_' + endpoint;
-            const cached = localStorage.getItem('api_debug_cache');
-            if (cached) {
-                cachedParams = JSON.parse(cached);
-                return cachedParams[cacheKey]?.params || '';
-            }
-            return '';
-        }
+    <!-- NAMESPACE: External JavaScript Imports -->
+    <!-- API Client Library (Load First - Required by all other modules) -->
+    <script src="/debug-assets/js/api-client.js"></script>
 
-        function showStatus(message, type) {
-            const statusEl = document.createElement('div');
-            statusEl.className = 'status-' + type;
-            statusEl.textContent = message;
-            statusEl.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 10px 20px; border-radius: 4px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;';
-            document.body.appendChild(statusEl);
-            setTimeout(() => statusEl.remove(), 3000);
-        }
+    <!-- Core Framework (Load Second) -->
+    <script src="/debug-assets/js/ittools-menu-config.js"></script>
+    <script src="/debug-assets/js/ittools-core.js"></script>
+    <script src="/debug-assets/js/ittools-menu-universal.js"></script>
+    <script src="/debug-assets/js/ittools-client-tools.js"></script>
+    <script src="/debug-assets/js/ittools-advanced-tools.js"></script>
+    <script src="/debug-assets/js/ittools-tools.js"></script>
 
-        // Load initial data
-        fetch("/api_info")
-            .then(response => response.json())
-            .then(data => {
-                apiData = data.api_reference || {};
-                publicInfo = data.public_info || {};
-                
-                // Display complete system info (all data including API references)
-                const completeInfo = {
-                    public_info: publicInfo,
-                    api_reference: apiData
-                };
-                document.getElementById("system-info").innerHTML = 
-                    "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
-                
-                // Populate app selector
-                const appSelect = document.getElementById("app-select");
-                Object.keys(apiData).forEach(appName => {
-                    const option = document.createElement("option");
-                    option.value = appName;
-                    option.textContent = appName;
-                    appSelect.appendChild(option);
-                });
-                
-                // Load previously selected app from cache
-                const cachedApp = localStorage.getItem('selected_app');
-                if (cachedApp && apiData[cachedApp]) {
-                    appSelect.value = cachedApp;
-                    loadAppAPIs(); // Auto-load the cached app's APIs
-                }
-            })
-            .catch(error => {
-                console.error("Error loading API data:", error);
-                document.getElementById("system-info").innerHTML = 
-                    "<div class=\"status-error\">Error loading system information</div>";
-            });
+    <!-- Category Implementations (Load After Core) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-clipboard.js"></script>
+    <script src="/debug-assets/js/ittools-impl-images.js"></script>
+    <script src="/debug-assets/js/ittools-impl-crypto.js"></script>
+    <script src="/debug-assets/js/ittools-impl-converters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-formatters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-web.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators-2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-text.js"></script>
+    <script src="/debug-assets/js/ittools-impl-dev.js"></script>
 
-        let currentAppAPIs = []; // Store current APIs for searching
-        
-        function loadAppAPIs() {
-            const selectedApp = document.getElementById("app-select").value;
-            const apiListDiv = document.getElementById("api-list");
-            const searchContainer = document.getElementById("api-search-container");
-            
-            // Cache the selected app
-            if (selectedApp) {
-                localStorage.setItem('selected_app', selectedApp);
-            }
-            
-            if (!selectedApp || !apiData[selectedApp]) {
-                apiListDiv.innerHTML = "<p style=\"text-align: center; color: #666; padding: 40px;\">No APIs found for this app</p>";
-                searchContainer.style.display = "none";
-                currentAppAPIs = [];
-                return;
-            }
-            
-            // Show search container when app is selected
-            searchContainer.style.display = "block";
+    <!-- Batch Implementations (New Tools) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-batch1a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch1b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch4.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch5.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch6a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch6b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch7a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch7b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch8.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch9.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch10.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch11.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch12.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch13.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch14.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch15.js"></script>
+    <script src="/debug-assets/js/ittools-tts-helper.js"></script>
+    <script src="/debug-assets/js/auth-helper.js"></script>
+    <script src="/debug-assets/js/ittools-impl-translation.js"></script>
 
-            const appAPIs = apiData[selectedApp];
-            let html = "";
-            
-            // Add shared headers management section at the top
-            if (appAPIs.supported_headers && typeof appAPIs.supported_headers === 'object') {
-                html += createSharedHeadersSection(selectedApp, appAPIs.supported_headers);
-            }
-            
-            // Store APIs for searching and reset search
-            currentAppAPIs = [];
-            document.getElementById("api-search").value = "";
-            
-            if (typeof appAPIs === "string") {
-                html += "<div class=\"card\"><div class=\"card-body\"><p>" + appAPIs + "</p></div></div>";
-            } else if (Array.isArray(appAPIs) || typeof appAPIs === "object") {
-                // Handle new simplified format with endpoints array
-                if (appAPIs.endpoints && Array.isArray(appAPIs.endpoints)) {
-                    appAPIs.endpoints.forEach((api, index) => {
-                        currentAppAPIs.push({...api, apiIndex: index + 1});
-                        html += createAPIItem(api, index, selectedApp);
-                    });
-                } else if (appAPIs.legacy_api_documentation && appAPIs.legacy_api_documentation.apis && Array.isArray(appAPIs.legacy_api_documentation.apis)) {
-                    // Handle legacy format
-                    appAPIs.legacy_api_documentation.apis.forEach((api, index) => {
-                        currentAppAPIs.push({...api, apiIndex: index + 1});
-                        html += createAPIItem(api, index, selectedApp);
-                    });
-                } else if (Array.isArray(appAPIs)) {
-                    // Handle direct array format
-                    appAPIs.forEach((api, index) => {
-                        currentAppAPIs.push({...api, apiIndex: index + 1});
-                        html += createAPIItem(api, index, selectedApp);
-                    });
-                } else {
-                    // Fallback: show raw JSON
-                    html = "<div class=\"card\"><div class=\"card-body\"><div class=\"json-viewer\"><pre>" + JSON.stringify(appAPIs, null, 2) + "</pre></div></div></div>";
-                }
-            }
-            
-            apiListDiv.innerHTML = html;
-        }
+    <!-- Debug Registry Checker (Development Only) -->
+    <script src="/debug-assets/js/debug-registry.js"></script>
 
-        function createAPIItem(api, index, appName) {
-            // Handle both old and new API data formats
-            const apiPath = api.path || "";
-            const feature = api.feature || "";
-            
-            // Parse feature information: auth_required/POST|Description|Controller
-            const featureParts = feature.split('|');
-            const authAndMethod = featureParts[0] || "";
-            const description = featureParts[1] || "";
-            const controller = featureParts[2] || "";
-            
-            const method = extractMethodFromFeature(authAndMethod) || api.method || "GET";
-            const endpoint = extractEndpointFromPath(apiPath);
-            const fullUrl = apiPath || ("/api" + endpoint);
-            
-            // Generate enhanced feature documentation using new parser
-            let featureDocs = '';
-            if (feature) {
-                try {
-                    const parsedFeature = parseFeatureString(feature);
-                    
-                    if (parsedFeature && typeof parsedFeature === 'object') {
-                        featureDocs = '<div class="feature-docs" style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin-bottom: 15px;">' +
-                            '<h5 style="color: #2c3e50; margin-bottom: 10px;">📋 API Details:</h5>' +
-                            '<div style="font-size: 13px; color: #34495e; line-height: 1.5;">' +
-                                '<strong>Authentication:</strong> ' + (authAndMethod.includes('auth_required') ? 'Required' : 'Not Required') + '<br>' +
-                                '<strong>Method:</strong> ' + method + '<br>' +
-                                (description ? '<strong>Description:</strong> ' + description + '<br>' : '') +
-                                (controller ? '<strong>Controller:</strong> ' + controller + '<br>' : '') +
-                                (parsedFeature.tags && parsedFeature.tags.length > 0 ? '<strong>Tags:</strong> ' + parsedFeature.tags.join(', ') + '<br>' : '') +
-                            '</div>';
-                        
-                        // Add parameters info if available
-                        if (parsedFeature.params && Object.keys(parsedFeature.params).length > 0) {
-                            featureDocs += '<div style="margin-top: 10px;">' +
-                                '<strong style="color: #2c3e50;">📝 Parameters:</strong><br>' +
-                                '<div style="font-size: 12px; margin-left: 10px;">';
-                            
-                            Object.values(parsedFeature.params).forEach(param => {
-                                if (param && param.name) {
-                                    const required = param.requirement === 'required' ? '🔴' : '🟡';
-                                    featureDocs += `${required} <code>${param.name}</code> (${param.type || 'string'}) - ${param.requirement || 'optional'}`;
-                                    if (param.example) featureDocs += ` - Example: "${param.example}"`;
-                                    featureDocs += '<br>';
-                                }
-                            });
-                            featureDocs += '</div></div>';
-                        }
-                        
-                        // Add response info if available
-                        if (parsedFeature.response && Object.keys(parsedFeature.response).length > 0) {
-                            featureDocs += '<div style="margin-top: 10px;">' +
-                                '<strong style="color: #2c3e50;">📤 Response:</strong><br>' +
-                                '<div style="font-size: 12px; margin-left: 10px;">';
-                            
-                            Object.values(parsedFeature.response).forEach(resp => {
-                                if (resp && resp.name) {
-                                    featureDocs += `• <code>${resp.name}</code> (${resp.type || 'string'})`;
-                                    if (resp.example) featureDocs += ` - ${resp.example}`;
-                                    featureDocs += '<br>';
-                                }
-                            });
-                            featureDocs += '</div></div>';
-                        }
-                        
-                        featureDocs += '</div>';
-                    }
-                } catch (error) {
-                    console.error('Error parsing feature for documentation:', error);
-                    featureDocs = '<div class="feature-docs" style="background: #ffebee; padding: 15px; border-radius: 6px; margin-bottom: 15px;">' +
-                        '<h5 style="color: #c62828;">⚠️ Feature parsing error</h5>' +
-                        '<p style="font-size: 12px; color: #666;">Unable to parse feature string for this endpoint.</p>' +
-                    '</div>';
-                }
-            }
-            
-            // No longer show individual headers info since we have shared headers at app level
-            let headersInfo = '';
-            
-            // Generate preset JSON based on feature with header linking
-            const presetJson = generatePresetJson(feature, method, appName);
-            
-            return '<div class="api-item" id="api-item-' + index + '">' +
-                '<div class="api-number">#' + (index + 1) + '</div>' +
-                '<div class="api-header" onclick="toggleAPIDetails(' + index + ', \'' + appName + '\', \'' + endpoint + '\')">' +
-                    '<div>' +
-                        '<span class="api-method method-' + method.toLowerCase() + '">' + method + '</span>' +
-                        '<strong style="margin-right: 10px;">' + endpoint + '</strong>' +
-                        (description ? '<small style="color: #666; font-family: monospace;">' + description + '</small>' : '') +
-                    '</div>' +
-                    '<span id="toggle-' + index + '">▼</span>' +
-                '</div>' +
-                '<div id="details-' + index + '" class="api-details">' +
-                    featureDocs +
-                    headersInfo +
-                    '<div class="form-group">' +
-                        '<label class="form-label">API Endpoint URL:</label>' +
-                        '<input type="text" id="url-' + index + '" class="form-control" value="' + fullUrl + '">' +
-                    '</div>' +
-                    '<div class="form-group">' +
-                        '<label class="form-label">Request Parameters (JSON):</label>' +
-                        '<textarea id="params-' + index + '" class="form-control" placeholder="Enter JSON parameters" rows="6">' + presetJson + '</textarea>' +
-                    '</div>' +
-                    '<div class="btn-group" style="margin-bottom: 15px;">' +
-                        '<button class="btn btn-primary" onclick="testAPI(' + index + ', \'' + method + '\', \'' + appName + '\', \'' + endpoint + '\')">🚀 Send Request</button>' +
-                        '<button class="btn btn-secondary" onclick="saveParams(' + index + ', \'' + appName + '\', \'' + endpoint + '\', \'' + method + '\')">💾 Save Params</button>' +
-                        '<button class="btn btn-secondary" onclick="loadParamsWithReset(' + index + ', \'' + appName + '\', \'' + endpoint + '\')">📥 Load Params</button>' +
-                        '<button class="btn btn-success" onclick="copyHeaders(' + index + ', \'' + appName + '\')">📋 Copy Headers</button>' +
-                    '</div>' +
-                    '<div id="response-' + index + '" class="response-area" style="display: none;"></div>' +
-                '</div>' +
-            '</div>';
-        }
+    <!-- NAMESPACE: Initialize Dynamic Menu -->
+    <script src="/debug-assets/js/debug-init.js"></script>
 
-        function extractMethodFromFeature(feature) {
-            if (!feature) return "GET";
-            const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
-            const upperFeature = feature.toUpperCase();
-            
-            // Handle "ANY" method specially - default to POST for parameter generation
-            if (upperFeature.includes('ANY')) {
-                return "POST";
-            }
-            
-            for (let method of methods) {
-                if (upperFeature.includes(method)) {
-                    return method;
-                }
-            }
-            return "GET";
-        }
+    <!-- Debug Interface Core JS -->
+    <script src="/debug-assets/js/debug-interface.js"></script>
 
-        function extractEndpointFromPath(path) {
-            if (!path) return "";
-            try {
-                const url = new URL(path);
-                return url.pathname;
-            } catch (e) {
-                // If not a valid URL, assume it's already a path
-                return path.startsWith('/') ? path : '/' + path;
-            }
-        }
+    <!-- Note: All JS functionality is now in external debug-interface.js file -->
 
-        function parseFeatureInfo(feature) {
-            if (!feature) return {};
-            const parts = feature.split('/');
-            return {
-                requirements: parts.filter(part => part.includes('required')),
-                method: extractMethodFromFeature(feature),
-                auth: feature.includes('auth'),
-                other: parts.filter(part => !part.includes('required') && !['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].some(m => part.toUpperCase().includes(m)))
-            };
-        }
-         
-        /**
-         * Create shared headers management section for an app
-         */
-        function createSharedHeadersSection(appName, supportedHeaders) {
-            const cachedAppHeaders = loadAppHeadersFromCache(appName);
-            
-            let html = '<div class="card" style="margin-bottom: 20px; border-left: 4px solid #28a745;">' +
-                '<div class="card-header" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">' +
-                    '<h3 style="color: #2c3e50; margin: 0;">📤 ' + appName + ' - Shared Headers</h3>' +
-                    '<p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Edit these values to use across all ' + appName + ' APIs. Changes are automatically cached.</p>' +
-                '</div>' +
-                '<div class="card-body">' +
-                    '<div class="form-group">' +
-                        '<div id="shared-headers-' + appName + '" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; align-items: center;">';
-            
-            Object.keys(supportedHeaders).forEach(headerName => {
-                const currentValue = cachedAppHeaders[headerName] || '';
-                const description = supportedHeaders[headerName];
-                
-                html += '<label style="font-weight: 500; color: #555;">' + headerName + ':</label>' +
-                    '<input type="text" id="header-' + appName + '-' + headerName + '" ' +
-                        'class="form-control" placeholder="' + description + '" ' +
-                        'value="' + currentValue + '" ' +
-                        'onchange="saveAppHeader(\'' + appName + '\', \'' + headerName + '\', this.value)">' +
-                    '<small style="color: #666; font-size: 12px;">' + description + '</small>';
-            });
-            
-            html += '</div>' +
-                '</div>' +
-                '<div style="padding: 15px; background: #f8f9fa; border-top: 1px solid #e9ecef;">' +
-                    '<div class="btn-group">' +
-                        '<button class="btn btn-success" onclick="saveAllAppHeaders(\'' + appName + '\')">💾 Save All Headers</button>' +
-                        '<button class="btn btn-secondary" onclick="resetAppHeaders(\'' + appName + '\')">🔄 Reset to Defaults</button>' +
-                        '<button class="btn btn-primary" onclick="copyAppHeaders(\'' + appName + '\')">📋 Copy Headers JSON</button>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-            
-            return html;
-        }
-        
-        /**
-         * Load app headers from browser cache
-         */
-        function loadAppHeadersFromCache(appName) {
-            const cacheKey = 'app_headers_' + appName;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                try {
-                    return JSON.parse(cached);
-                } catch (e) {
-                    console.error('Failed to parse cached headers:', e);
-                    return {};
-                }
-            }
-            return {};
-        }
-        
-        /**
-         * Save individual app header
-         */
-        function saveAppHeader(appName, headerName, value) {
-            const cacheKey = 'app_headers_' + appName;
-            let headers = loadAppHeadersFromCache(appName);
-            headers[headerName] = value;
-            
-            localStorage.setItem(cacheKey, JSON.stringify(headers));
-            cachedHeaders[appName] = headers;
-            
-            // Save to server as well
-            saveAppHeadersToServer(appName, headers);
-            
-            showStatus('Header "' + headerName + '" saved for ' + appName, 'success');
-        }
-        
-        /**
-         * Save all app headers at once
-         */
-        function saveAllAppHeaders(appName) {
-            const headers = {};
-            const supportedHeaders = apiData[appName]?.supported_headers || {};
-            
-            Object.keys(supportedHeaders).forEach(headerName => {
-                const input = document.getElementById('header-' + appName + '-' + headerName);
-                if (input) {
-                    headers[headerName] = input.value;
-                }
-            });
-            
-            const cacheKey = 'app_headers_' + appName;
-            localStorage.setItem(cacheKey, JSON.stringify(headers));
-            cachedHeaders[appName] = headers;
-            
-            // Save to server as well
-            saveAppHeadersToServer(appName, headers);
-            
-            showStatus('All headers saved for ' + appName, 'success');
-        }
-        
-        /**
-         * Reset app headers to defaults
-         */
-        function resetAppHeaders(appName) {
-            if (confirm('Are you sure you want to reset all headers for ' + appName + ' to default values? This will clear all cached values.')) {
-                const cacheKey = 'app_headers_' + appName;
-                localStorage.removeItem(cacheKey);
-                delete cachedHeaders[appName];
-                
-                // Clear server cache as well
-                resetAppHeadersOnServer(appName);
-                
-                // Reload the app to refresh the UI
-                loadAppAPIs();
-                
-                showStatus('Headers reset for ' + appName, 'success');
-            }
-        }
-        
-        /**
-         * Copy app headers as JSON
-         */
-        function copyAppHeaders(appName) {
-            const headers = loadAppHeadersFromCache(appName);
-            const headersJson = JSON.stringify(headers, null, 2);
-            
-            navigator.clipboard.writeText(headersJson).then(() => {
-                showStatus('Headers JSON copied to clipboard!', 'success');
-            }).catch(err => {
-                showStatus('Failed to copy headers', 'error');
-                console.error('Copy failed:', err);
-            });
-        }
-        
-        /**
-         * Save app headers to server
-         */
-        function saveAppHeadersToServer(appName, headers) {
-            const data = {
-                app_name: appName,
-                headers: headers
-            };
 
-            fetch('/api_headers_cache/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (!result.success) {
-                    console.error('Failed to save headers to server:', result.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error saving headers to server:', error);
-            });
-        }
-        
-        /**
-         * Reset app headers on server
-         */
-        function resetAppHeadersOnServer(appName) {
-            fetch('/api_headers_cache/reset', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ app_name: appName })
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (!result.success) {
-                    console.error('Failed to reset headers on server:', result.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error resetting headers on server:', error);
-            });
-        }
-        
-        
-        /**
-         * Parse complete feature string into components
-         * @param {string} feature - Feature string to parse
-         * @returns {object} Parsed feature components
-         */
-        function parseFeatureString(feature) {
-            if (!feature || typeof feature !== 'string') {
-                return {
-                    authAndMethod: '',
-                    description: '',
-                    controller: '',
-                    params: {},
-                    headers: {},
-                    response: {},
-                    tags: []
-                };
-            }
-            
-            const parts = feature.split('|');
-            const result = {
-                authAndMethod: parts[0] || '',
-                description: parts[1] || '',
-                controller: parts[2] || '',
-                params: {},
-                headers: {},
-                response: {},
-                tags: []
-            };
-            
-            // Parse additional sections
-            for (let i = 3; i < parts.length; i++) {
-                const section = parts[i];
-                if (section.startsWith('params:')) {
-                    result.params = parseParameterSection(section.substring(7));
-                } else if (section.startsWith('headers:')) {
-                    result.headers = parseParameterSection(section.substring(8));
-                } else if (section.startsWith('response:')) {
-                    result.response = parseParameterSection(section.substring(9));
-                } else if (section.startsWith('tags:')) {
-                    result.tags = section.substring(5).split(',').map(tag => tag.trim());
-                }
-            }
-            
-            return result;
-        }
-        
-        /**
-         * Parse parameter section (params, headers, response)
-         * @param {string} section - Parameter section string
-         * @returns {object} Parsed parameters
-         */
-        function parseParameterSection(section) {
-            const params = {};
-            if (!section) return params;
-            
-            // More sophisticated splitting to handle commas inside parentheses
-            const paramList = [];
-            let current = '';
-            let depth = 0;
-            
-            for (let i = 0; i < section.length; i++) {
-                const char = section[i];
-                if (char === '(') depth++;
-                else if (char === ')') depth--;
-                else if (char === ',' && depth === 0) {
-                    paramList.push(current.trim());
-                    current = '';
-                    continue;
-                }
-                current += char;
-            }
-            if (current.trim()) {
-                paramList.push(current.trim());
-            }
-            
-            paramList.forEach(param => {
-                const parsed = parseParameterDefinition(param.trim());
-                if (parsed.name) {
-                    params[parsed.name] = parsed;
-                }
-            });
-            
-            return params;
-        }
-        
-        /**
-         * Parse individual parameter definition
-         * @param {string} paramDef - Parameter definition like "name(string,required,John Doe)"
-         * @returns {object} Parsed parameter details
-         */
-        function parseParameterDefinition(paramDef) {
-            const match = paramDef.match(/^([^(]+)\(([^)]+)\)$/);
-            if (!match) {
-                return { name: paramDef, type: 'string', requirement: 'optional', example: '' };
-            }
-            
-            const name = match[1].trim();
-            const detailsString = match[2];
-            
-            // Split details more carefully - handle commas in examples
-            const details = [];
-            let current = '';
-            let inQuotes = false;
-            
-            for (let i = 0; i < detailsString.length; i++) {
-                const char = detailsString[i];
-                if (char === '"' || char === "'") {
-                    inQuotes = !inQuotes;
-                }
-                if (char === ',' && !inQuotes) {
-                    details.push(current.trim());
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            details.push(current.trim());
-            
-            const result = {
-                name: name,
-                type: details[0] || 'string',
-                requirement: details[1] || 'optional',
-                example: details[2] || ''
-            };
-            
-            return result;
-        }
-        
-        /**
-         * Generate JSON parameters from feature string with header linking
-         * @param {string} feature - Complete feature string
-         * @param {string} method - HTTP method
-         * @param {string} appName - Application name for header lookup
-         * @returns {string} JSON parameter string
-         */
-        function generateParamsFromFeature(feature, method, appName = null) {
-            if (!feature || typeof feature !== 'string' || method === 'GET') return '';
-            
-            try {
-                const parsed = parseFeatureString(feature);
-                if (!parsed || typeof parsed !== 'object') {
-                    return '';
-                }
-            
-            const jsonParams = {};
-            
-            // Get cached headers for the app if available
-            let cachedAppHeaders = appName ? loadAppHeadersFromCache(appName) : {};
-            
-            // Ensure cachedHeaders is not null or undefined
-            if (!cachedAppHeaders || typeof cachedAppHeaders !== 'object') {
-                cachedAppHeaders = {};
-            }
-            
-            // Generate parameters from parsed feature
-            if (parsed.params && typeof parsed.params === 'object') {
-                // First add all required parameters
-                Object.values(parsed.params).forEach(param => {
-                    if (param && param.name && param.requirement === 'required') {
-                        let value = param.example || getDefaultValueForType(param.type);
-                        
-                        // Check if this parameter references a shared header
-                        value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                        
-                        jsonParams[param.name] = value;
-                    }
-                });
-                
-                // Then add optional parameters that have examples
-                Object.values(parsed.params).forEach(param => {
-                    if (param && param.name && param.requirement === 'optional' && param.example) {
-                        let value = param.example;
-                        
-                        // Check if this parameter references a shared header
-                        value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                        
-                        jsonParams[param.name] = value;
-                    }
-                });
-                
-                // If no required params but have optional params with examples, use them
-                if (Object.keys(jsonParams).length === 0) {
-                    Object.values(parsed.params).forEach(param => {
-                        if (param && param.name && param.example) {
-                            let value = param.example;
-                            
-                            // Check if this parameter references a shared header
-                            value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                            
-                            jsonParams[param.name] = value;
-                        }
-                    });
-                }
-            }
-            
-            return Object.keys(jsonParams).length > 0 ? JSON.stringify(jsonParams, null, 2) : '';
-            
-            } catch (error) {
-                console.error('Error generating parameters from feature:', error);
-                return '';
-            }
-        }
-        
-        /**
-         * Link parameter to shared header value if applicable
-         * @param {string} paramName - Parameter name
-         * @param {*} paramValue - Current parameter value
-         * @param {object} cachedHeaders - Cached header values
-         * @returns {*} Linked value or original value
-         */
-        function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
-            // Ensure paramValue is a string for processing
-            if (paramValue === null || paramValue === undefined) {
-                paramValue = '';
-            }
-            
-            // Convert to string if it's not already
-            const paramValueStr = String(paramValue);
-            
-            // Ensure cachedHeaders is valid
-            if (!cachedHeaders || typeof cachedHeaders !== 'object') {
-                return paramValue;
-            }
-            
-            // Common parameter-to-header mappings
-            const paramHeaderMap = {
-                'token': 'Authorization',
-                'auth_token': 'Authorization',
-                'user_token': 'Authorization',
-                'access_token': 'Authorization',
-                'bearer_token': 'Authorization',
-                'client_token': 'X-Client-Token',
-                'api_key': 'X-API-Key',
-                'username': 'X-Auth-Username',
-                'password': 'X-Auth-Password'
-            };
-            
-            // Check if parameter name maps to a header
-            const headerName = paramHeaderMap[paramName.toLowerCase()];
-            if (headerName && cachedHeaders[headerName]) {
-                return cachedHeaders[headerName];
-            }
-            
-            // Check for direct header name matches (case insensitive)
-            for (const [headerKey, headerValue] of Object.entries(cachedHeaders)) {
-                if (headerKey.toLowerCase() === paramName.toLowerCase() && headerValue) {
-                    return headerValue;
-                }
-            }
-            
-            // Check if parameter value contains header placeholder like {{header_name}}
-            try {
-                const headerPlaceholderMatch = paramValueStr.match(/\{\{([^}]+)\}\}/);
-                if (headerPlaceholderMatch) {
-                    const placeholderName = headerPlaceholderMatch[1];
-                    for (const [headerKey, headerValue] of Object.entries(cachedHeaders)) {
-                        if (headerKey.toLowerCase() === placeholderName.toLowerCase() && headerValue) {
-                            return headerValue;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error processing parameter value for header linking:', error);
-            }
-            
-            return paramValue;
-        }
-        
-        /**
-         * Get default value for parameter type
-         * @param {string} type - Parameter type
-         * @returns {*} Default value for the type
-         */
-        function getDefaultValueForType(type) {
-            switch (type.toLowerCase()) {
-                case 'string': return 'example_string';
-                case 'int': case 'integer': return 123;
-                case 'boolean': case 'bool': return true;
-                case 'array': return ['item1', 'item2'];
-                case 'object': return { key: 'value' };
-                case 'email': return 'user@example.com';
-                case 'date': return '2024-01-01';
-                case 'float': case 'decimal': return 12.34;
-                case 'file': return null;
-                default: return 'example_value';
-            }
-        }
-        
-        /**
-         * Legacy function for backward compatibility
-         * Now uses enhanced feature parsing with header linking
-         */
-        function generatePresetJson(feature, method, appName = null) {
-            return generateParamsFromFeature(feature, method, appName);
-        }
+    <!-- Code Browser Module -->
+    <script src="/debug-assets/js/code-browser.js"></script>
 
-        function copyHeaders(index, appName) {
-            if (apiData[appName] && apiData[appName].supportedHeaders) {
-                const headers = JSON.stringify(apiData[appName].supportedHeaders, null, 2);
-                navigator.clipboard.writeText(headers).then(() => {
-                    showStatus('Headers copied to clipboard!', 'success');
-                }).catch(err => {
-                    showStatus('Failed to copy headers', 'error');
-                });
-            } else {
-                showStatus('No supported headers found for this app', 'error');
-            }
-        }
+    <!-- Prompts Manager Module -->
+    <script src="/debug-assets/js/prompts-manager.js"></script>
 
-        function toggleAPIDetails(index, appName, endpoint) {
-            const details = document.getElementById("details-" + index);
-            const toggle = document.getElementById("toggle-" + index);
-            
-            if (details.style.display === "none" || details.style.display === "") {
-                details.style.display = "block";
-                toggle.textContent = "▲";
-                
-                // Auto-load cached parameters when opening
-                loadParams(index, appName, endpoint);
-            } else {
-                details.style.display = "none";
-                toggle.textContent = "▼";
-            }
-        }
+    <!-- Video.js Library -->
+    <script src="/debug-assets/js/video.min.js"></script>
 
-        function saveParams(index, appName, endpoint, method) {
-            const params = document.getElementById("params-" + index).value;
-            
-            // Save to browser cache immediately
-            saveToBrowserCache(appName, endpoint, params);
-            
-            // Save to server cache
-            saveParamsToServer(appName, endpoint, method, params);
-        }
+    <!-- Static Resource Browser Module -->
+    <script src="/debug-assets/js/static-resource-browser.js"></script>
 
-        function loadParams(index, appName, endpoint) {
-            const paramsTextarea = document.getElementById("params-" + index);
-            
-            // Priority: 1. Browser cache (highest), 2. Server cache, 3. Parsed from feature (lowest)
-            
-            // Try browser cache first
-            const browserCached = loadFromBrowserCache(appName, endpoint);
-            if (browserCached) {
-                paramsTextarea.value = browserCached;
-                return;
-            }
-            
-            // If no browser cache, try server cache
-            loadParamsFromServer(appName, endpoint)
-                .then(serverData => {
-                    if (serverData && serverData.params) {
-                        paramsTextarea.value = serverData.params;
-                        // Update browser cache with server data
-                        saveToBrowserCache(appName, endpoint, serverData.params);
-                    } else {
-                        // If no cached data available, use parsed feature as fallback
-                        if (!paramsTextarea.value) {
-                            // Find the API feature for this endpoint
-                            const apiInfo = apiData[appName];
-                            if (apiInfo && apiInfo.endpoints) {
-                                const api = apiInfo.endpoints.find(ep => ep.path && ep.path.includes(endpoint));
-                                if (api && api.feature) {
-                                    const method = extractMethodFromFeature(api.feature);
-                                    const parsedParams = generateParamsFromFeature(api.feature, method, appName);
-                                    if (parsedParams) {
-                                        paramsTextarea.value = parsedParams;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Failed to load params:', error);
-                });
-        }
-        
-        /**
-         * Load parameters with reset confirmation (for Load Params button)
-         */
-        function loadParamsWithReset(index, appName, endpoint) {
-            if (confirm('This will reset parameters to parsed defaults and may override your current changes. Continue?')) {
-                const paramsTextarea = document.getElementById("params-" + index);
-                
-                // Find the API feature for this endpoint
-                const apiInfo = apiData[appName];
-                if (apiInfo && apiInfo.endpoints) {
-                    const api = apiInfo.endpoints.find(ep => ep.path && ep.path.includes(endpoint));
-                    if (api && api.feature) {
-                        const method = extractMethodFromFeature(api.feature);
-                        const parsedParams = generateParamsFromFeature(api.feature, method, appName);
-                        if (parsedParams) {
-                            paramsTextarea.value = parsedParams;
-                            showStatus('Parameters reset to parsed defaults', 'success');
-                        } else {
-                            paramsTextarea.value = '';
-                            showStatus('No parameters to parse from feature', 'error');
-                        }
-                    } else {
-                        paramsTextarea.value = '';
-                        showStatus('No feature string found for this endpoint', 'error');
-                    }
-                } else {
-                    showStatus('No API info found for this app', 'error');
-                }
-            }
-        }
+    <!-- Prompts/Tasks Manager Module (Integrated with Code Browser) -->
+    <script src="/debug-assets/js/prompts-tasks-manager.js"></script>
 
-        function testAPI(index, method, appName, endpoint) {
-            const url = document.getElementById("url-" + index).value;
-            const params = document.getElementById("params-" + index).value;
-            const responseDiv = document.getElementById("response-" + index);
-            
-            responseDiv.style.display = "block";
-            responseDiv.innerHTML = '<div class="loading"></div>Sending request...';
-            
-            let requestOptions = {
-                method: method,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                }
-            };
-            
-            if (params && (method === "POST" || method === "PUT" || method === "PATCH")) {
-                try {
-                    JSON.parse(params); // Validate JSON
-                    requestOptions.body = params;
-                } catch (e) {
-                    responseDiv.innerHTML = '<div class="status-error">Error: Invalid JSON parameters</div>';
-                    return;
-                }
-            }
-            
-            fetch(url, requestOptions)
-                .then(response => {
-                    return response.text().then(text => ({
-                        status: response.status,
-                        statusText: response.statusText,
-                        body: text,
-                        headers: Object.fromEntries(response.headers.entries()),
-                        ok: response.ok
-                    }));
-                })
-                .then(result => {
-                    let responseText = "Status: " + (result.ok ? "✅" : "❌") + " " + result.status + " " + result.statusText + "\n\n";
-                    responseText += "Headers:\n" + JSON.stringify(result.headers, null, 2) + "\n\n";
-                    responseText += "Response:\n";
-                    
-                    try {
-                        const jsonBody = JSON.parse(result.body);
-                        responseText += JSON.stringify(jsonBody, null, 2);
-                    } catch (e) {
-                        responseText += result.body;
-                    }
-                    
-                    responseDiv.textContent = responseText;
-                    
-                    // Auto-save successful parameters
-                    if (result.ok && params) {
-                        saveToBrowserCache(appName, endpoint, params);
-                    }
-                })
-                .catch(error => {
-                    responseDiv.innerHTML = '<div class="status-error">Error: ' + error.message + '</div>';
-                });
-        }
+    <!-- Prompt Mapping Manager Module -->
+    <script src="/debug-assets/js/prompt-mapping-manager.js"></script>
 
-        
-        let searchTimeout;
-        
-        /**
-         * Search APIs and jump to best match
-         * @param {string} searchTerm - Search term entered by user
-         */
-        function searchAndJumpToAPI(searchTerm) {
-            // Clear previous timeout to avoid excessive searching
-            clearTimeout(searchTimeout);
-            
-            // Clear previous highlighting
-            document.querySelectorAll('.api-item').forEach(item => {
-                item.classList.remove('search-highlighted');
-            });
-            
-            if (!searchTerm || searchTerm.trim() === '') {
-                return;
-            }
-            
-            searchTimeout = setTimeout(() => {
-                const term = searchTerm.trim().toLowerCase();
-                let bestMatch = null;
-                let bestScore = 0;
-                
-                currentAppAPIs.forEach((api, arrayIndex) => {
-                    const score = calculateMatchScore(api, term, arrayIndex);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestMatch = { api, index: arrayIndex, score };
-                    }
-                });
-                
-                if (bestMatch && bestScore > 0) {
-                    jumpToAPI(bestMatch.index);
-                }
-            }, 300); // Debounce search by 300ms
-        }
-        
-        /**
-         * Calculate match score for an API
-         * @param {object} api - API object
-         * @param {string} term - Search term
-         * @param {number} index - Array index of API
-         * @returns {number} Match score (higher is better)
-         */
-        function calculateMatchScore(api, term, index) {
-            let score = 0;
-            const apiNumber = (index + 1).toString();
-            const path = (api.path || '').toLowerCase();
-            const feature = (api.feature || '').toLowerCase();
-            const method = (extractMethodFromFeature(api.feature) || '').toLowerCase();
-            
-            // Parse feature for description
-            const featureParts = feature.split('|');
-            const description = (featureParts[1] || '').toLowerCase();
-            
-            // Extract endpoint from path for easier matching
-            const endpoint = extractEndpointFromPath(path).toLowerCase();
-            
-            // Exact number match gets highest priority
-            if (term === apiNumber) {
-                return 1000;
-            }
-            
-            // Number prefix match
-            if (apiNumber.startsWith(term)) {
-                score += 500;
-            }
-            
-            // Exact endpoint match gets high priority
-            if (endpoint === term) {
-                score += 800;
-            }
-            
-            // Endpoint starts with term
-            if (endpoint.startsWith(term)) {
-                score += 400;
-            }
-            
-            // Endpoint contains term
-            if (endpoint.includes(term)) {
-                score += 200;
-            }
-            
-            // Path contains term
-            if (path.includes(term)) {
-                score += 150;
-            }
-            
-            // Method match
-            if (method === term) {
-                score += 300;
-            }
-            
-            // Description contains term
-            if (description.includes(term)) {
-                score += 100;
-            }
-            
-            // Feature contains term
-            if (feature.includes(term)) {
-                score += 50;
-            }
-            
-            // Fuzzy matching for endpoints (character-by-character)
-            score += calculateFuzzyScore(endpoint, term) * 10;
-            score += calculateFuzzyScore(description, term) * 5;
-            
-            return score;
-        }
-        
-        /**
-         * Calculate fuzzy match score
-         * @param {string} text - Text to search in
-         * @param {string} term - Search term
-         * @returns {number} Fuzzy score
-         */
-        function calculateFuzzyScore(text, term) {
-            if (!text || !term) return 0;
-            
-            let score = 0;
-            let termIndex = 0;
-            
-            for (let i = 0; i < text.length && termIndex < term.length; i++) {
-                if (text[i] === term[termIndex]) {
-                    score++;
-                    termIndex++;
-                    
-                    // Bonus for consecutive matches
-                    if (i > 0 && text[i-1] === term[termIndex-2]) {
-                        score += 0.5;
-                    }
-                }
-            }
-            
-            // Normalize by term length
-            return termIndex === term.length ? score / term.length : 0;
-        }
-        
-        /**
-         * Jump to and highlight API
-         * @param {number} apiIndex - Index of API to jump to
-         */
-        function jumpToAPI(apiIndex) {
-            const apiItem = document.getElementById('api-item-' + apiIndex);
-            if (apiItem) {
-                // Highlight the API
-                apiItem.classList.add('search-highlighted');
-                
-                // Scroll to the API with smooth animation
-                apiItem.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-                
-                // Auto-expand the API details if not already open
-                const details = document.getElementById('details-' + apiIndex);
-                const toggle = document.getElementById('toggle-' + apiIndex);
-                
-                if (details && (details.style.display === 'none' || details.style.display === '')) {
-                    setTimeout(() => {
-                        details.style.display = 'block';
-                        if (toggle) toggle.textContent = '▲';
-                        
-                        // Load cached parameters for convenience
-                        const selectedApp = document.getElementById("app-select").value;
-                        const api = currentAppAPIs[apiIndex];
-                        if (selectedApp && api && api.path) {
-                            const endpoint = extractEndpointFromPath(api.path);
-                            loadParams(apiIndex, selectedApp, endpoint);
-                        }
-                    }, 500);
-                }
-                
-                // Show success message
-                showStatus('Jumped to API #' + (apiIndex + 1), 'success');
-            }
-        }
-    </script>
+    <!-- MCP Placeholder Module -->
+    <script src="/debug-assets/js/mcp-placeholder-module.js"></script>
+
+    <!-- MCP Manager Module -->
+    <script src="/debug-assets/js/mcp-manager.js"></script>
 </body>
+
 </html>

@@ -10,83 +10,74 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Word Listening 1 Screen for QY App
 library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../controllers/word_controller_app_qy.dart';
 
-class WordListening1ScreenAppQy extends StatefulWidget {
-  const WordListening1ScreenAppQy({super.key});
+class WordListening1ScreenRefactoredAppQy extends StatefulWidget {
+  const WordListening1ScreenRefactoredAppQy({super.key});
 
   @override
-  State<WordListening1ScreenAppQy> createState() => _WordListening1ScreenAppQyState();
+  State<WordListening1ScreenRefactoredAppQy> createState() =>
+      _WordListening1ScreenRefactoredAppQyState();
 }
 
-class _WordListening1ScreenAppQyState extends State<WordListening1ScreenAppQy> {
-  final List<Map<String, String>> _headerStats;
-  final List<Map<String, dynamic>> _learningStatus;
-  final List<Map<String, String>> _taskFilters;
-  final List<Map<String, dynamic>> _todayTasks;
-  int _selectedFilterIndex;
+class _WordListening1ScreenRefactoredAppQyState
+    extends State<WordListening1ScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  int _selectedTab;
+  int _selectedCategory;
+  final List<Map<String, dynamic>> _wordCategories;
 
-  _WordListening1ScreenAppQyState()
-      : _headerStats = [
-          {'label': '今日新词', 'value': '20'},
-          {'label': '生词本', 'value': '12'},
-          {'label': '完成率', 'value': '86%'},
-        ],
-        _learningStatus = [
-          {'title': '在学单词', 'count': 1, 'description': '当前正在学习'},
-          {'title': '未学单词', 'count': 63, 'description': '等待开启的词汇'},
-          {'title': '简单词', 'count': 20, 'description': '复习巩固词'},
-        ],
-        _taskFilters = [
-          {'title': '单词书', 'subtitle': '16952 词'},
-          {'title': '生词本', 'subtitle': '27 词'},
-          {'title': '今日任务', 'subtitle': '3 个任务'},
-        ],
-        _todayTasks = [
-          {
-            'title': '今日新词听写',
-            'description': '跟随老师语音，完成 20 个新词听写',
-            'progress': 0.75,
-            'duration': '12 min',
-            'isPriority': true,
-          },
-          {
-            'title': '生词本巩固',
-            'description': '慢速播放，重复 12 个薄弱词汇',
-            'progress': 0.45,
-            'duration': '8 min',
-            'isPriority': false,
-          },
-          {
-            'title': '轻松模式',
-            'description': '随机播放简单词，保持语感',
-            'progress': 0.2,
-            'duration': '5 min',
-            'isPriority': false,
-          },
-        ],
-        _selectedFilterIndex = 0;
+  _WordListening1ScreenRefactoredAppQyState()
+      : _selectedTab = 0,
+        _selectedCategory = 0,
+        _wordCategories = [];
 
-  void _handleFilterTap(int index) {
-    setState(() {
-      _selectedFilterIndex = index;
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          _selectedTab = _tabController.index;
+        });
+      }
+    });
+    _initWordCategories();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WordControllerAppQy>().loadWordBooks();
     });
   }
 
-  void _handleStartTask(Map<String, dynamic> task) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${task['title']} ${QyAppLocalizationKeys.qyListeningPracticing.tr(context)}'),
-      ),
-    );
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _initWordCategories() {
+    _wordCategories.addAll([
+      {'label': 'qyWordTodayTask', 'count': 20},
+      {'label': 'qyWordLearning', 'count': 1},
+      {'label': 'qyWordNotLearned', 'count': 63},
+      {'label': 'qyWordSimple', 'count': 0},
+    ]);
+  }
+
+  void _handleCategorySelect(int index) {
+    setState(() {
+      _selectedCategory = index;
+    });
   }
 
   @override
@@ -95,326 +86,252 @@ class _WordListening1ScreenAppQyState extends State<WordListening1ScreenAppQy> {
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          QyAppLocalizationKeys.qyListeningTodayListening.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          QyAppLocalizationKeys.qyWordListening.tr(context),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(QyAppLocalizationKeys.qyListeningStats.tr(context)),
-              ),
-            ),
-            icon: Icon(Icons.bar_chart, color: ThemeColors.textSecondary),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeroCard(),
-              SizedBox(height: Dimensions.spacingMedium),
-              _buildFilterRow(),
-              SizedBox(height: Dimensions.spacingMedium),
-              _buildStatusGrid(),
-              SizedBox(height: Dimensions.spacingMedium),
-              _buildTaskList(),
-            ],
-          ),
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
         ),
+      ),
+      body: Consumer<WordControllerAppQy>(
+        builder: (context, controller, child) {
+          return Column(
+            children: [
+              _buildWordBookSelector(),
+              _buildWordBookCard(),
+              Expanded(
+                child: _buildCategoriesList(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHeroCard() {
+  Widget _buildWordBookSelector() {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [ThemeColors.primary, ThemeColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+      margin: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.paddingMedium,
+        vertical: ThemeDimensions.paddingSmall,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: ThemeColors.surface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '单词随身听',
-            style: TextStyles.h2.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+            QyAppLocalizationKeys.qyWordWordBook.tr(context),
+            style: ThemeTextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
             ),
           ),
-          SizedBox(height: Dimensions.spacingXSmall),
+          SizedBox(width: ThemeDimensions.spacingSmall),
           Text(
-            '单词书 · 今日新词',
-            style: TextStyles.body1.copyWith(color: Colors.white70),
+            '•',
+            style: ThemeTextStyles.body1.copyWith(
+              color: ThemeColors.textSecondary,
+            ),
           ),
-          SizedBox(height: Dimensions.spacingLarge),
-          Row(
-            children: _headerStats.map((stat) {
-              return Expanded(
+          SizedBox(width: ThemeDimensions.spacingSmall),
+          Text(
+            QyAppLocalizationKeys.qyWordTodayNew.tr(context),
+            style: ThemeTextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
+            ),
+          ),
+          SizedBox(width: ThemeDimensions.spacingSmall),
+          Icon(
+            Icons.arrow_drop_down,
+            color: ThemeColors.textSecondary,
+            size: 24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWordBookCard() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
+      height: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.shadow.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    ThemeColors.primary.withOpacity(0.3),
+                    ThemeColors.secondary.withOpacity(0.2),
+                  ],
+                ),
+              ),
+              child: Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      stat['value']!,
-                      style: TextStyles.h2.copyWith(color: Colors.white),
+                    Icon(
+                      Icons.book,
+                      size: 64,
+                      color: ThemeColors.primary.withOpacity(0.5),
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingMedium),
                     Text(
-                      stat['label']!,
-                      style: TextStyles.caption.copyWith(color: Colors.white70),
+                      'Word Book',
+                      style: ThemeTextStyles.h4.copyWith(
+                        color: ThemeColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
-              );
-            }).toList(),
-          ),
-          SizedBox(height: Dimensions.spacingMedium),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: ThemeColors.primary,
-              minimumSize: const Size(double.infinity, 48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
               ),
             ),
-            onPressed: () => _handleStartTask(_todayTasks.first),
-            icon: const Icon(Icons.play_arrow),
-            label: Text(QyAppLocalizationKeys.qyListeningPlay.tr(context)),
-          ),
-        ],
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ThemeColors.surface.withOpacity(0.95),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(ThemeDimensions.radiusLarge),
+                    bottomRight: Radius.circular(ThemeDimensions.radiusLarge),
+                  ),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: ThemeColors.primary,
+                  indicatorWeight: 3,
+                  labelColor: ThemeColors.primary,
+                  unselectedLabelColor: ThemeColors.textSecondary,
+                  labelStyle: ThemeTextStyles.body1.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: ThemeTextStyles.body1,
+                  tabs: [
+                    Tab(text: QyAppLocalizationKeys.qyWordWordBook.tr(context)),
+                    Tab(
+                        text: QyAppLocalizationKeys.qyWordNewWordBook
+                            .tr(context)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilterRow() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          QyAppLocalizationKeys.qyListeningSelectCategory.tr(context),
-          style: TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+  Widget _buildCategoriesList() {
+    return Container(
+      margin: EdgeInsets.only(top: ThemeDimensions.spacingLarge),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(ThemeDimensions.radiusXLarge),
+          topRight: Radius.circular(ThemeDimensions.radiusXLarge),
         ),
-        SizedBox(height: Dimensions.spacingSmall),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(_taskFilters.length, (index) {
-              final filter = _taskFilters[index];
-              final bool isSelected = _selectedFilterIndex == index;
-              return GestureDetector(
-                onTap: () => _handleFilterTap(index),
-                child: Container(
-                  margin: EdgeInsets.only(right: Dimensions.spacingSmall),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Dimensions.paddingMedium,
-                    vertical: Dimensions.paddingSmall,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? ThemeColors.primary.withOpacity(0.1) : ThemeColors.surface,
-                    borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                    border: Border.all(
-                      color: isSelected ? ThemeColors.primary : ThemeColors.border,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        filter['title']!,
-                        style: TextStyles.body1.copyWith(
-                          color: isSelected ? ThemeColors.primary : ThemeColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: Dimensions.spacingXSmall),
-                      Text(
-                        filter['subtitle']!,
-                        style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
+      ),
+      child: ListView.separated(
+        padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
+        itemCount: _wordCategories.length,
+        separatorBuilder: (context, index) =>
+            SizedBox(height: ThemeDimensions.spacingSmall),
+        itemBuilder: (context, index) {
+          return _buildCategoryItem(index);
+        },
+      ),
     );
   }
 
-  Widget _buildStatusGrid() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '学习状态',
-          style: TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
-        ),
-        SizedBox(height: Dimensions.spacingSmall),
-        Column(
-          children: _learningStatus.map((status) {
-            return Container(
-              margin: EdgeInsets.only(bottom: Dimensions.spacingSmall),
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
-              decoration: BoxDecoration(
-                color: ThemeColors.surface,
-                borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-                border: Border.all(color: ThemeColors.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(Dimensions.paddingSmall),
-                    decoration: BoxDecoration(
-                      color: ThemeColors.primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                    ),
-                    child: Text(
-                      '${status['count']}',
-                      style: TextStyles.h3.copyWith(color: ThemeColors.primary),
-                    ),
-                  ),
-                  SizedBox(width: Dimensions.spacingMedium),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          status['title'] as String,
-                          style: TextStyles.body1.copyWith(
-                            color: ThemeColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.spacingXSmall),
-                        Text(
-                          status['description'] as String,
-                          style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ThemeColors.textTertiary),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
+  Widget _buildCategoryItem(int index) {
+    final category = _wordCategories[index];
+    final isSelected = _selectedCategory == index;
+    final count = category['count'] as int;
+    final labelKey = category['label'] as String;
 
-  Widget _buildTaskList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '今日任务',
-          style: TextStyles.subtitle1.copyWith(
-            color: ThemeColors.textSecondary,
+    return InkWell(
+      onTap: () => _handleCategorySelect(index),
+      child: Container(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ThemeColors.primary.withOpacity(0.05)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          border: Border.all(
+            color: isSelected
+                ? ThemeColors.primary.withOpacity(0.3)
+                : ThemeColors.border,
+            width: 1,
           ),
         ),
-        SizedBox(height: Dimensions.spacingSmall),
-        Column(
-          children: _todayTasks.map((task) {
-            final bool isPriority = task['isPriority'] as bool;
-            return Container(
-              margin: EdgeInsets.only(bottom: Dimensions.spacingSmall),
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
-              decoration: BoxDecoration(
-                color: ThemeColors.surface,
-                borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-                border: Border.all(
-                  color: isPriority ? ThemeColors.primary : ThemeColors.border,
+        child: Row(
+          children: [
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: ThemeColors.primary,
+                size: 20,
+              )
+            else
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ThemeColors.border,
+                    width: 2,
+                  ),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          task['title'] as String,
-                          style: TextStyles.body1.copyWith(
-                            color: ThemeColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (isPriority)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: Dimensions.paddingSmall,
-                            vertical: Dimensions.paddingSizeExtraSmall,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ThemeColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                          ),
-                          child: Text(
-                            '优先任务',
-                            style: TextStyles.caption.copyWith(color: ThemeColors.primary),
-                          ),
-                        ),
-                    ],
-                  ),
-                  SizedBox(height: Dimensions.spacingXSmall),
-                  Text(
-                    task['description'] as String,
-                    style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-                  ),
-                  SizedBox(height: Dimensions.spacingSmall),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                    child: LinearProgressIndicator(
-                      value: task['progress'] as double,
-                      minHeight: 6,
-                      backgroundColor: ThemeColors.primary.withOpacity(0.1),
-                      valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
-                    ),
-                  ),
-                  SizedBox(height: Dimensions.spacingSmall),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.timer_outlined, size: 16, color: ThemeColors.textTertiary),
-                          SizedBox(width: Dimensions.spacingXSmall),
-                          Text(
-                            task['duration'] as String,
-                            style: TextStyles.caption.copyWith(color: ThemeColors.textTertiary),
-                          ),
-                        ],
-                      ),
-                      TextButton(
-                        onPressed: () => _handleStartTask(task),
-                        child: Text(
-                          QyAppLocalizationKeys.qyListeningPlay.tr(context),
-                          style: TextStyles.button.copyWith(color: ThemeColors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+            SizedBox(width: ThemeDimensions.spacingMedium),
+            Expanded(
+              child: Text(
+                labelKey.tr(context),
+                style: ThemeTextStyles.body1.copyWith(
+                  color: isSelected
+                      ? ThemeColors.primary
+                      : ThemeColors.textPrimary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
-            );
-          }).toList(),
+            ),
+            Text(
+              count.toString(),
+              style: ThemeTextStyles.h4.copyWith(
+                color: isSelected
+                    ? ThemeColors.primary
+                    : ThemeColors.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

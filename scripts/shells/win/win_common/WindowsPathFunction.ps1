@@ -22,6 +22,21 @@ $osInfo = Get-CimInstance Win32_OperatingSystem
 $winVer = $osInfo.Version
 $winBuild = [int]$osInfo.BuildNumber
 
+$Global:HAS_ADMIN_RIGHTS = $false
+try {
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    $Global:HAS_ADMIN_RIGHTS = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+} catch {
+    $Global:HAS_ADMIN_RIGHTS = $false
+}
+
+if (-not $Global:HAS_ADMIN_RIGHTS) {
+    Write-Log "ERROR: This script requires Administrator privileges" -color "Red"
+    Write-Log "Please run PowerShell as Administrator and try again" -color "Yellow"
+    Write-Log "Right-click PowerShell -> Run as Administrator" -color "Yellow"
+    exit 1
+}
+
 if ($winBuild -ge 22000) {
     $systemName = "win11"
     $Global:isWin11 = $true
@@ -51,16 +66,15 @@ if ($winBuild -ge 22000) {
 $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"
 
-$scriptCurrentPath = $PSScriptRoot
-$winDirPath = Split-Path $scriptCurrentPath -Parent
-$shellsDirPath = Split-Path $winDirPath -Parent
-$scriptsDirPath = Split-Path $shellsDirPath -Parent
-$projectDirPath = Split-Path $scriptsDirPath -Parent
-
-$Global:PROJECT_ROOT_DIR = Split-Path $projectDirPath -Parent
-$Global:PROJECT_DIR = $projectDirPath
-$Global:PROJECT_SCRIPTS_DIR = $scriptsDirPath
-$Global:INLINE_WINENVS_DIR = Join-Path $scriptsDirPath "winenvs"  # Inline scripts directory - scripts travel with code
+# Load GlobalVars.ps1 to get PROJECT_DIR and INLINE_WINENVS_DIR
+# This is needed when WindowsPathFunction.ps1 is called as a standalone script
+$scriptDir = $PSScriptRoot
+if ($scriptDir) {
+    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+    if (Test-Path $globalVarsPath) {
+        . $globalVarsPath
+    }
+}
 
 function Write-Log {
     param (
@@ -223,29 +237,29 @@ function Backup-Environment {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupDir = "D:\.tmp\.GlobalEnv"
     $backupFile = "$backupDir\path_$timestamp.bak"
-    
-    # Ensure backup directory exists
-    if (-not (Test-Path $backupDir)) {
-        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        Write-Log "Created backup directory: $backupDir" -color "Yellow"
-    }
-    
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    Set-Content -Path $backupFile -Value $currentPath
-    Write-Log "Backup created at $backupFile"
-    
-    # Clean up old backups, keep only the most recent 100
+
     try {
-        $backupFiles = Get-ChildItem -Path $backupDir -Filter "path_*.bak" | Sort-Object LastWriteTime -Descending
-        if ($backupFiles.Count -gt 100) {
-            $filesToDelete = $backupFiles | Select-Object -Skip 100
-            foreach ($file in $filesToDelete) {
-                Remove-Item -Path $file.FullName -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
+            Write-Log "Created backup directory: $backupDir" -color "Yellow"
+        }
+
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        Set-Content -Path $backupFile -Value $currentPath -ErrorAction Stop
+        Write-Log "Backup created at $backupFile" -color "Green"
+
+        $backupFiles = @(Get-ChildItem -Path $backupDir -Filter "path_*.bak" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+        if ($backupFiles -and $backupFiles.Count -gt 100) {
+            $filesToDelete = @($backupFiles | Select-Object -Skip 100)
+            if ($filesToDelete -and $filesToDelete.Count -gt 0) {
+                foreach ($file in $filesToDelete) {
+                    Remove-Item -Path $file.FullName -Force -ErrorAction SilentlyContinue
+                }
+                Write-Log "Cleaned up $($filesToDelete.Count) old backup files, keeping the most recent 100" -color "Yellow"
             }
-            Write-Log "Cleaned up $($filesToDelete.Count) old backup files, keeping the most recent 100" -color "Yellow"
         }
     } catch {
-        Write-Log "Failed to clean up old backups: $($_.Exception.Message)" -color "Red"
+        Write-Log "Failed to create backup: $($_.Exception.Message)" -color "Yellow"
     }
 }
 
@@ -253,8 +267,7 @@ function Add-Path {
     param (
         [string]$newPath
     )
-    
-    # Smart detection: if it's a file path, automatically extract parent directory
+
     if (-not [string]::IsNullOrWhiteSpace($newPath)) {
         $normalizedPath = Normalize-WindowsPath $newPath
         if ($normalizedPath -and (Test-Path $normalizedPath -PathType Leaf)) {
@@ -263,19 +276,24 @@ function Add-Path {
             $newPath = $parentDir
         }
     }
-    
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $paths = $currentPath -split ';'
-    $newPath = Normalize-WindowsPath $newPath
-    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
-    if (-not ($pathsNormalized -contains $newPath)) {
-        $pathsNormalized += $newPath
-        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
-        Backup-Environment
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
-        Write-Log "Added $newPath to PATH" -color "Green"
-    } else {
-        Write-Log "Path $newPath already exists" -color "Yellow"
+
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $paths = $currentPath -split ';'
+        $newPath = Normalize-WindowsPath $newPath
+        $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+
+        if (-not ($pathsNormalized -contains $newPath)) {
+            $pathsNormalized += $newPath
+            $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+            Backup-Environment
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString -ErrorAction Stop
+            Write-Log "Added $newPath to PATH" -color "Green"
+        } else {
+            Write-Log "Path $newPath already exists" -color "Yellow"
+        }
+    } catch {
+        Write-Log "ERROR: Failed to add $newPath to PATH: $($_.Exception.Message)" -color "Red"
     }
 }
 
@@ -283,18 +301,24 @@ function Remove-Path {
     param (
         [string]$pathToRemove
     )
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $paths = $currentPath -split ';'
-    $normToRemove = Normalize-WindowsPath $pathToRemove
-    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
-    if ($pathsNormalized -contains $normToRemove) {
-        $pathsNormalized = $pathsNormalized | Where-Object { $_ -ne $normToRemove }
-        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
-        Backup-Environment
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
-        Write-Log "Removed $normToRemove from PATH" -color "Green"
-    } else {
-        Write-Log "Path $normToRemove does not exist" -color "Yellow"
+
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $paths = $currentPath -split ';'
+        $normToRemove = Normalize-WindowsPath $pathToRemove
+        $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+
+        if ($pathsNormalized -contains $normToRemove) {
+            $pathsNormalized = $pathsNormalized | Where-Object { $_ -ne $normToRemove }
+            $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+            Backup-Environment
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString -ErrorAction Stop
+            Write-Log "Removed $normToRemove from PATH" -color "Green"
+        } else {
+            Write-Log "Path $normToRemove does not exist" -color "Yellow"
+        }
+    } catch {
+        Write-Log "ERROR: Failed to remove $pathToRemove from PATH: $($_.Exception.Message)" -color "Red"
     }
 }
 
@@ -312,7 +336,7 @@ function Is-Path {
 function Show-Path {
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $paths = $currentPath -split ';'
-    Write-Log "Current PATH entries:"
+    Write-Log "Current PATH entries:" -color "Cyan"
     $paths | ForEach-Object { Write-Log $_ }
 }
 
@@ -340,16 +364,26 @@ function Set-EnvVar {
         [string]$varName,
         [string]$varValue
     )
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -Value $varValue
-    Write-Log "Set $varName to $varValue" -color "Green"
+
+    try {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -Value $varValue -ErrorAction Stop
+        Write-Log "Set $varName to $varValue" -color "Green"
+    } catch {
+        Write-Log "ERROR: Failed to set ${varName}: $($_.Exception.Message)" -color "Red"
+    }
 }
 
 function Remove-EnvVar {
     param (
         [string]$varName
     )
-    Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -ErrorAction SilentlyContinue
-    Write-Log "Removed $varName" -color "Green"
+
+    try {
+        Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -ErrorAction Stop
+        Write-Log "Removed $varName" -color "Green"
+    } catch {
+        Write-Log "WARNING: Failed to remove ${varName}: $($_.Exception.Message)" -color "Yellow"
+    }
 }
 
 function Add-ExecutableToGlobalEnvs {
@@ -590,13 +624,31 @@ function Add-ScriptContentToWinEnvs {
     }
 }
 
-function Ensure-InlineWinEnvsDir {
-    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
-        New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
-        Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
+# Ensure project directories are appended to PATH so dd.cmd and winenv scripts are globally accessible.
+function Set-CoreNodePaths {
+    $pathsToAdd = @()
+
+    if ($Global:PROJECT_DIR) {
+        $pathsToAdd += (Normalize-WindowsPath $Global:PROJECT_DIR)
+        $pathsToAdd += (Normalize-WindowsPath (Join-Path $Global:PROJECT_DIR "scripts"))
+        $pathsToAdd += (Normalize-WindowsPath (Join-Path $Global:PROJECT_DIR "scripts\winenvs"))
     }
-    $inlineEnvsNormalized = Normalize-WindowsPath $Global:INLINE_WINENVS_DIR
-    Add-Path -newPath $inlineEnvsNormalized
+
+    if ($Global:CORE_NODE_DIR -and $Global:CORE_NODE_DIR -ne $Global:PROJECT_DIR) {
+        $pathsToAdd += (Normalize-WindowsPath $Global:CORE_NODE_DIR)
+    }
+
+    $pathsToAdd = $pathsToAdd | Where-Object { $_ }
+    foreach ($pathToAdd in $pathsToAdd) {
+        Add-Path -newPath $pathToAdd
+    }
+}
+
+# DEPRECATED: Ensure-InlineWinEnvsDir is no longer used
+# We now simply add PROJECT_DIR to PATH instead of managing separate inline/global directories
+function Ensure-InlineWinEnvsDir {
+    Write-Log "Ensure-InlineWinEnvsDir is deprecated. PROJECT_DIR is added to PATH instead." -color "Yellow"
+    return
 }
 
 function Copy-ItemToInline {
@@ -668,6 +720,21 @@ function Add-ExecToInline {
 }
 
 Set-Alias -Name Add-ScriptToInline -Value Add-FileToInline
+
+# DEPRECATED: Sync-InlineToGlobal is no longer used
+# We now simply add PROJECT_DIR to PATH instead of creating symlinks
+# This simplifies the architecture and avoids issues with:
+# - WSL/Linux reserved filenames (nul, CON, PRN, etc.)
+# - Complex sync logic and symlink management
+# - File conflicts between projects
+function Sync-InlineToGlobal {
+    param([switch]$Force)
+
+    Write-Log "Sync-InlineToGlobal is deprecated." -color "Yellow"
+    Write-Log "PROJECT_DIR is now added to PATH directly - no sync needed." -color "Green"
+    Write-Log "Scripts in project directory are automatically available from anywhere." -color "Green"
+    return
+}
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
 try {
@@ -829,6 +896,16 @@ switch ($action) {
             Add-ExecToInline -execPath $param1
         }
     }
+    "setcorepaths" {
+        Set-CoreNodePaths
+    }
+    "sync" {
+        if ($param1 -eq "-Force" -or $param1 -eq "force") {
+            Sync-InlineToGlobal -Force
+        } else {
+            Sync-InlineToGlobal
+        }
+    }
     "help" {
         Write-Log "Invalid action. Available actions:" -color "Red"
         Write-Log "  PATH Management:" -color "Yellow"
@@ -857,6 +934,9 @@ switch ($action) {
         Write-Log "    inlineaddscript <scriptPath>   - Add script to inline winenvs (travels with code)" -color "White"
         Write-Log "    inlineaddfile <filePath>       - Add file to inline winenvs (travels with code)" -color "White"
         Write-Log "    inlineaddexec <execPath>       - Add executable to inline winenvs (travels with code)" -color "White"
+        Write-Log "  Synchronization:" -color "Yellow"
+        Write-Log "    sync                           - Sync scripts from inline winenvs to global .winenvs (smart link)" -color "White"
+        Write-Log "    sync force                     - Force sync all scripts (recreate all links)" -color "White"
         Write-Log "  Examples:" -color "Yellow"
         Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\bin'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\cmd\git.exe'  # Auto-detects file" -color "Cyan"

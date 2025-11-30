@@ -1,0 +1,104 @@
+# Words 301-400
+
+| # | English | Lao | Lao Pronunciation | Japanese | Japanese Pronunciation | Vietnamese | Vietnamese Pronunciation | English Meaning | Chinese Meaning |
+|---|---------|-----|-------------------|----------|------------------------|------------|---------------------------|-----------------|-----------------|
+| 301 | amendment | ການແກ້ແກ້ງ | kan kae kaeng | 修正 | shūsei | sự sửa đổi | sự sửa đổi | a minor change or addition designed to improve a text, piece of legislation, etc. | 修正，修正案 |
+| 302 | amiable | ເປັນມິດ | pen mit | 愛想の良い | aisō no yoi | thân thiện | thân thiện | having or displaying a friendly and pleasant manner | 和蔼可亲的，友好的 |
+| 303 | amid | ຢູ່ກາງ | yu kang | の真ん中で | no mannaka de | giữa | giữa | in the middle of, surrounded by | 在...中间，在...之中 |
+| 304 | amidst | ຢູ່ກາງ | yu kang | の真ん中で | no mannaka de | giữa | giữa | in the middle of, surrounded by | 在...中间，在...之中（amid的变体） |
+| 305 | ammunition | ລະເບີດ | la bet | 弾薬 | danyaku | đạn dược | đạn dược | a supply of bullets and shells | 弹药，军火 |
+| 306 | among | ລະວ່າງ | la vang | の中で | no naka de | trong số | trong số | situated more or less centrally in relation to several other things | 在...之中，在...中间 |
+| 307 | amongst | ລະວ່າງ | la vang | の中で | no naka de | trong số | trong số | situated more or less centrally in relation to several other things | 在...之中，在...中间（among的变体） |
+| 308 | amount | ຈຳນວນ | cham nuan | 量 | ryō | số lượng | số lượng | a quantity of something, the total of two or more quantities | 数量，总额 |
+| 309 | ample | ພຽງພໍ | phiang pho | 十分な | jūbun na | đầy đủ | đầy đủ | enough or more than enough, plentiful | 充足的，丰富的 |
+| 310 | amplify | ຂະຫຍາຍ | kha nyai | 増幅する | zōfuku suru | khuếch đại | khuếch đại | to increase the volume or strength of sound, to make larger or more powerful | 放大，增强 |
+| 311 | amplification | ການຂະຫຍາຍ | kan kha nyai | 増幅 | zōfuku | sự khuếch đại | sự khuếch đại | the action of amplifying something or the state of being amplified | 放大，增强 |
+| 312 | amuse | ມ່ວນ | muan | 楽しませる | tanoshimaseru | làm vui | làm vui | to cause someone to find something funny, to entertain | 逗乐，使娱乐 |
+| 313 | amusing | ມ່ວນ | muan | 面白い | omoshiroi | thú vị | thú vị | causing laughter and providing entertainment | 有趣的，逗乐的 |
+| 314 | amusement | ຄວາມມ່ວນ | khwam muan | 娯楽 | goraku | sự giải trí | sự giải trí | the state or experience of finding something funny or entertaining | 娱乐，消遣 |
+| 315 | analogue | ຄ້າຍຄື | khai khu | 類似物 | ruijibutsu | tương tự | tương tự | a person or thing seen as comparable to another | 类似物，模拟的（英式拼写） |
+| 316 | analogous | ຄ້າຍຄື | khai khu | 類似した | ruiji shita | tương tự | tương tự | comparable in certain respects, typically in a way that makes clearer the nature of the things compared | 类似的，相似的 |
+| 317 | analogy | ການປຽບທຽບ | kan piab thiab | 類推 | ruisui | sự tương tự | sự tương tự | a comparison between one thing and another, typically for the purpose of explanation or clarification | 类比，相似 |
+| 318 | analyze | ວິເຄາະ | vi kheo | 分析する | bunseki suru | phân tích | phân tích | to examine methodically and in detail the constitution or structure of something | 分析（美式拼写） |
+| 319 | analyse | ວິເຄາະ | vi kheo | 分析する | bunseki suru | phân tích | phân tích | to examine methodically and in detail the constitution or structure of something | 分析（英式拼写） |
+| 320 | analysis | ການວິເຄາະ | kan vi kheo | 分析 | bunseki | phân tích | phân tích | detailed examination of the elements or structure of something | 分析 |
+| 321 | analytic | ທາງວິເຄາະ | thang vi kheo | 分析的な | bunsekiteki na | phân tích | phân tích | relating to or using analysis or logical reasoning | 分析的，解析的 |
+| 322 | analytical | ທາງວິເຄາະ | thang vi kheo | 分析的な | bunsekiteki na | phân tích | phân tích | relating to or using analysis or logical reasoning | 分析的，解析的 |
+| 323 | analyst | ນັກວິເຄາະ | nak vi kheo | 分析者 | bunsekisha | nhà phân tích | nhà phân tích | a person who conducts analysis | 分析师，分析员 |
+| 324 | ancestor | ບັນພະບູລຸດ | ban pha bu lut | 祖先 | sosen | tổ tiên | tổ tiên | a person, typically one more remote than a grandparent, from whom one is descended | 祖先，先辈 |
+| 325 | ancestry | ຕະກູນ | ta kun | 祖先 | sosen | dòng dõi | dòng dõi | one's family or ethnic descent | 祖先，血统 |
+| 326 | anchor | ສະໝໍ | sa mo | 錨 | ikari | mỏ neo | mỏ neo | a heavy object attached to a rope or chain and used to moor a vessel to the sea bottom | 锚，主持人 |
+| 327 | anchorage | ທີ່ຈອດ | thi chot | 停泊地 | teihakuchi | nơi neo đậu | nơi neo đậu | an area off the coast which is suitable for a ship to anchor | 锚地，停泊处 |
+| 328 | ancient | ເກົ່າ | kao | 古代の | kodai no | cổ xưa | cổ xưa | belonging to the very distant past and no longer in existence | 古代的，古老的 |
+| 329 | and | ແລະ | lae | と | to | và | và | used to connect words of the same part of speech, clauses, or sentences | 和，与，并且 |
+| 330 | anecdote | ເລື່ອງລາວ | leuang lao | 逸話 | itsuwa | giai thoại | giai thoại | a short amusing or interesting story about a real incident or person | 轶事，趣闻 |
+| 331 | anecdotal | ເລື່ອງລາວ | leuang lao | 逸話的な | itsuwateki na | theo giai thoại | theo giai thoại | not necessarily true or reliable, because based on personal accounts rather than facts or research | 轶事的，传闻的 |
+| 332 | anew | ໃໝ່ | mai | 新しく | atarashiku | lại | lại | in a new or different and typically more positive way | 重新，再次 |
+| 333 | angel | ນາງຟ້າ | nang fa | 天使 | tenshi | thiên thần | thiên thần | a spiritual being believed to act as an attendant, agent, or messenger of God | 天使 |
+| 334 | angle | ມຸມ | mum | 角度 | kakudo | góc | góc | the space between two lines or surfaces that meet, measured in degrees | 角度，角 |
+| 335 | angry | ໂກດ | kot | 怒っている | okotteiru | tức giận | tức giận | feeling or showing strong annoyance, displeasure, or hostility | 生气的，愤怒的 |
+| 336 | anger | ຄວາມໂກດ | khwam kot | 怒り | ikari | sự tức giận | sự tức giận | a strong feeling of annoyance, displeasure, or hostility | 愤怒，生气 |
+| 337 | anguish | ຄວາມເຈັບປວດ | khwam chep puad | 苦悩 | kunō | nỗi đau | nỗi đau | severe mental or physical pain or suffering | 极度痛苦，苦恼 |
+| 338 | animal | ສັດ | sat | 動物 | dōbutsu | động vật | động vật | a living organism that feeds on organic matter, typically having specialized sense organs | 动物 |
+| 339 | animate | ມີຊີວິດ | mi si vit | 生きている | ikiteiru | có sự sống | có sự sống | alive, having life, to bring to life | 有生命的，使有生气 |
+| 340 | animated | ມີຊີວິດ | mi si vit | アニメーションの | animeeshon no | hoạt hình | hoạt hình | full of life or excitement, using animation techniques | 有生气的，动画的 |
+| 341 | animation | ການເຮັດໃຫ້ມີຊີວິດ | kan het hai mi si vit | アニメーション | animeeshon | hoạt hình | hoạt hình | the technique of photographing successive drawings or positions to create an illusion of movement | 动画，动画制作 |
+| 342 | ankle | ຂໍ້ຕີນ | kho tin | 足首 | ashikubi | mắt cá chân | mắt cá chân | the joint connecting the foot with the leg | 脚踝 |
+| 343 | annex | ສາຂາ | sa kha | 併合する | heigō suru | sáp nhập | sáp nhập | to add as an extra or subordinate part, especially to a document | 附加，吞并 |
+| 344 | annexation | ການສາຂາ | kan sa kha | 併合 | heigō | sự sáp nhập | sự sáp nhập | the action of annexing something, especially territory | 吞并，附加 |
+| 345 | anniversary | ວັນຄົບຮອບ | van khob hop | 記念日 | kinenbi | kỷ niệm | kỷ niệm | the date on which an event took place in a previous year | 周年纪念日 |
+| 346 | announce | ປະກາດ | pa kat | 発表する | happō suru | thông báo | thông báo | to make a formal public statement about a fact, occurrence, or intention | 宣布，宣告 |
+| 347 | announcement | ການປະກາດ | kan pa kat | 発表 | happō | thông báo | thông báo | a formal public statement about a fact, occurrence, or intention | 宣布，公告 |
+| 348 | annoy | ລົບກວນ | lop kuan | 困らせる | komaraseru | làm phiền | làm phiền | to irritate someone, make someone a little angry | 使烦恼，使生气 |
+| 349 | annoyance | ຄວາມລົບກວນ | khwam lop kuan | 迷惑 | meiwaku | sự phiền toái | sự phiền toái | the feeling or state of being annoyed, irritation | 烦恼，恼怒 |
+| 350 | annual | ປະຈຳປີ | pa cham pi | 年間の | nenkan no | hàng năm | hàng năm | occurring once every year | 每年的，年度的 |
+| 351 | anonymous | ບໍ່ມີຊື່ | bo mi su | 匿名の | tokumei no | ẩn danh | ẩn danh | not identified by name, of unknown name | 匿名的，无名的 |
+| 352 | anonymity | ຄວາມບໍ່ມີຊື່ | khwam bo mi su | 匿名 | tokumei | sự ẩn danh | sự ẩn danh | the condition of being anonymous | 匿名，无名 |
+| 353 | another | ອີກ | ik | 別の | betsu no | khác | khác | used to refer to an additional person or thing of the same type as one already mentioned | 另一个，又一个 |
+| 354 | answer | ຄຳຕອບ | kham top | 答え | kotae | câu trả lời | câu trả lời | a thing said, written, or done to deal with or as a reaction to a question, statement, or situation | 回答，答案 |
+| 355 | ant | ມົດ | mot | 蟻 | ari | kiến | kiến | a small insect typically having a sting and living in a complex social colony | 蚂蚁 |
+| 356 | antagonism | ການຕໍ່ຕ້ານ | kan to tan | 敵対 | tekitai | sự đối kháng | sự đối kháng | active hostility or opposition | 对抗，敌对 |
+| 357 | antagonist | ຄູ່ແຂ່ງ | khu khaeng | 敵対者 | tekitai sha | đối thủ | đối thủ | a person who actively opposes or is hostile to someone or something | 对手，敌手 |
+| 358 | antagonistic | ຕໍ່ຕ້ານ | to tan | 敵対的な | tekitaiteki na | đối kháng | đối kháng | showing or feeling active opposition or hostility toward someone or something | 敌对的，对抗的 |
+| 359 | antagonistically | ຢ່າງຕໍ່ຕ້ານ | yang to tan | 敵対的に | tekitaiteki ni | một cách đối kháng | một cách đối kháng | in a way that shows active opposition or hostility | 敌对地，对抗地 |
+| 360 | antenna | ເສົາສັນຍານ | sao san nyan | アンテナ | antena | ăng-ten | ăng-ten | a rod, wire, or other device used to transmit or receive radio or television signals | 天线 |
+| 361 | antibiotic | ຢາຕ້ານເຊື້ອ | ya tan seu | 抗生物質 | kōseibusshitsu | kháng sinh | kháng sinh | a medicine that inhibits the growth of or destroys microorganisms | 抗生素 |
+| 362 | anticipate | ຄາດຄະເນ | khat kha ne | 予期する | yoki suru | dự đoán | dự đoán | to regard as probable, expect or predict | 预期，预料 |
+| 363 | anticipation | ການຄາດຄະເນ | kan khat kha ne | 予期 | yoki | sự dự đoán | sự dự đoán | the action of anticipating something, expectation or prediction | 预期，预料 |
+| 364 | antique | ເກົ່າ | kao | 骨董品 | kottōhin | đồ cổ | đồ cổ | a collectible object such as a piece of furniture or work of art that has a high value because of its age and quality | 古董，古物 |
+| 365 | antonym | ຄຳກົງກັນຂ້າມ | kham kong kan kham | 対義語 | taigo | từ trái nghĩa | từ trái nghĩa | a word opposite in meaning to another | 反义词 |
+| 366 | anxious | ກັງວົນ | kang von | 心配な | shinpai na | lo lắng | lo lắng | experiencing worry, unease, or nervousness | 焦虑的，担心的 |
+| 367 | anxiety | ຄວາມກັງວົນ | khwam kang von | 不安 | fuan | sự lo lắng | sự lo lắng | a feeling of worry, nervousness, or unease about something with an uncertain outcome | 焦虑，担心 |
+| 368 | any | ໃດໆ | dai dai | 任意の | nin'i no | bất kỳ | bất kỳ | used to refer to one or some of a thing or number of things, no matter how much or many | 任何，任一 |
+| 369 | anybody | ໃຜໆ | phai phai | 誰でも | dare demo | bất kỳ ai | bất kỳ ai | any person, anyone | 任何人 |
+| 370 | anyone | ໃຜໆ | phai phai | 誰でも | dare demo | bất kỳ ai | bất kỳ ai | any person or people | 任何人 |
+| 371 | anyhow | ຢ່າງໃດກໍ່ຕາມ | yang dai ko tam | とにかく | tonikaku | dù sao | dù sao | used to indicate that a statement explains or supports a previous statement | 无论如何，不管怎样 |
+| 372 | anything | ສິ່ງໃດໆ | sing dai dai | 何でも | nan demo | bất cứ thứ gì | bất cứ thứ gì | used to refer to a thing, no matter what | 任何东西，任何事情 |
+| 373 | anyway | ຢ່າງໃດກໍ່ຕາມ | yang dai ko tam | とにかく | tonikaku | dù sao | dù sao | used to confirm or support a point or idea just mentioned | 无论如何，不管怎样 |
+| 374 | anywhere | ທຸກບ່ອນ | thuk bon | どこでも | doko demo | bất cứ đâu | bất cứ đâu | in or to any place | 任何地方，无论哪里 |
+| 375 | apart | ແຍກ | nyek | 離れて | hanarete | tách biệt | tách biệt | separated by a distance, into pieces | 分开，分离 |
+| 376 | apartment | ຫ້ອງ | hong | アパート | apāto | căn hộ | căn hộ | a suite of rooms forming one residence, typically in a building containing a number of these | 公寓，套房 |
+| 377 | apt | ເໝາະສົມ | mo som | 適切な | tekisetsu na | phù hợp | phù hợp | appropriate or suitable in the circumstances | 恰当的，合适的 |
+| 378 | ape | ລີງ | ling | 類人猿 | ruijin'en | khỉ không đuôi | khỉ không đuôi | a large primate that lacks a tail, including gorillas, chimpanzees, orangutans | 猿，类人猿 |
+| 379 | apology | ການຂໍໂທດ | kan kho thot | 謝罪 | shazai | lời xin lỗi | lời xin lỗi | a regretful acknowledgment of an offense or failure | 道歉，歉意 |
+| 380 | apologize | ຂໍໂທດ | kho thot | 謝罪する | shazai suru | xin lỗi | xin lỗi | to express regret for something that one has done wrong | 道歉（美式拼写） |
+| 381 | apologise | ຂໍໂທດ | kho thot | 謝罪する | shazai suru | xin lỗi | xin lỗi | to express regret for something that one has done wrong | 道歉（英式拼写） |
+| 382 | apologetic | ຂໍໂທດ | kho thot | 謝罪の | shazai no | xin lỗi | xin lỗi | expressing or showing regretful acknowledgment of an offense or failure | 道歉的，歉意的 |
+| 383 | app | ແອັບ | aep | アプリ | apuri | ứng dụng | ứng dụng | an application, especially as downloaded by a user to a mobile device | 应用程序（application的缩写） |
+| 384 | appal | ຕົກໃຈ | tok chai | ぞっとさせる | zotto saseru | kinh hoàng | kinh hoàng | to greatly dismay or horrify | 使惊骇，使震惊（英式拼写） |
+| 385 | appall | ຕົກໃຈ | tok chai | ぞっとさせる | zotto saseru | kinh hoàng | kinh hoàng | to greatly dismay or horrify | 使惊骇，使震惊（美式拼写） |
+| 386 | appalling | ຕົກໃຈ | tok chai | ぞっとする | zotto suru | kinh hoàng | kinh hoàng | causing shock or dismay, horrific | 令人震惊的，骇人听闻的 |
+| 387 | apparatus | ອຸປະກອນ | u pa kon | 装置 | sōchi | thiết bị | thiết bị | the technical equipment or machinery needed for a particular activity or purpose | 设备，装置 |
+| 388 | apparent | ຊັດເຈນ | sat chen | 明らかな | akiraka na | rõ ràng | rõ ràng | clearly visible or understood, obvious | 明显的，显然的 |
+| 389 | apparently | ຊັດເຈນ | sat chen | 明らかに | akiraka ni | rõ ràng | rõ ràng | as far as one knows or can see, seemingly | 显然，明显地 |
+| 390 | appeal | ອຸທອນ | u thon | 訴える | uttaeru | kêu gọi | kêu gọi | to make a serious or urgent request, typically to the public | 呼吁，上诉 |
+| 391 | appealing | ດຶງດູດ | dung dut | 魅力的な | miryokuteki na | hấp dẫn | hấp dẫn | attractive or interesting | 吸引人的，有魅力的 |
+| 392 | appear | ປາກົດ | pak kot | 現れる | arawareru | xuất hiện | xuất hiện | to come into sight, become visible or noticeable | 出现，显得 |
+| 393 | appearance | ການປາກົດ | kan pak kot | 外観 | gaikan | sự xuất hiện | sự xuất hiện | the way that someone or something looks | 外观，出现 |
+| 394 | appease | ປອບປົບ | pop pop | なだめる | nadameru | xoa dịu | xoa dịu | to pacify or placate someone by acceding to their demands | 安抚，平息 |
+| 395 | appeasement | ການປອບປົບ | kan pop pop | 宥和 | yūwa | sự xoa dịu | sự xoa dịu | the action of appeasing | 安抚，绥靖 |
+| 396 | appendix | ພາກທະວີບ | phak thi vip | 付録 | furoku | phụ lục | phụ lục | a section or table of additional matter at the end of a book or document | 附录，阑尾 |
+| 397 | appetite | ຄວາມຢາກກິນ | khwam yak kin | 食欲 | shokuyoku | sự thèm ăn | sự thèm ăn | a natural desire to satisfy a bodily need, especially for food | 食欲，胃口 |
+| 398 | applaud | ຕົບມື | top meu | 拍手する | hakushu suru | vỗ tay | vỗ tay | to show approval or praise by clapping | 鼓掌，称赞 |
+| 399 | applause | ການຕົບມື | kan top meu | 拍手 | hakushu | tiếng vỗ tay | tiếng vỗ tay | approval or praise expressed by clapping | 掌声，喝彩 |
+| 400 | apple | ໝາກແອັບເປີ້ນ | mak aep poen | リンゴ | ringo | táo | táo | the round fruit of a tree of the rose family, which typically has thin red or green skin and crisp flesh | 苹果 |

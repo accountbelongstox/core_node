@@ -11,21 +11,14 @@ from typing import Optional, List, Tuple, Dict, Any, Union
 from pathlib import Path
 from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import win32gui
-import win32con
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32api = get_third_package_win32api()
 import win32process
-import win32api
 import win32clipboard
-
-from pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 SW_HIDE = 0
 SW_SHOWNORMAL = 1

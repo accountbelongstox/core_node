@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.353976+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "mall",
+        "laos": "ທາງຫ້າງ",
+        "jp": "モール",
+        "vie": "trung tâm mua sắm",
+        "en_pronunciation": "/mɔl/",
+        "laos_pronunciation": "thanghang",
+        "jp_pronunciation": "mooru",
+        "vie_pronunciation": "trung tam mua sam"
+      },
+      "means": {
+        "en": "A public area set aside as a pedestrian walk",
+        "zh": "预留为人行道的公共区域"
+      }
+    },
+    {
+      "word": {
+        "en": "malpractice",
+        "laos": "ກະທໍາຜິດ",
+        "jp": "不正行為",
+        "vie": "hành vi sai trái",
+        "en_pronunciation": "/mælˈpræktɪs/",
+        "laos_pronunciation": "kathoaphid",
+        "jp_pronunciation": "fuseikoui",
+        "vie_pronunciation": "hanh vi sai trai"
+      },
+      "means": {
+        "en": "Professional wrongdoing that results in injury or damage",
+        "zh": "导致人身伤害或财产损失的职业不当行为"
+      }
+    },
+    {
+      "word": {
+        "en": "mammal",
+        "laos": "ສັດລ້ຽງລູກດ້ວຍນໍ້ານົມ",
+        "jp": "哺乳類",
+        "vie": "động vật có vú",
+        "en_pronunciation": "/ˈmæməl/",
+        "laos_pronunciation": "sadliang lukduany noanom",
+        "jp_pronunciation": "honyuurui",
+        "vie_pronunciation": "dong vat co vu"
+      },
+      "means": {
+        "en": "Any warm-blooded vertebrate having the skin more or less covered with hair; young are born alive except for the small subclass of monotremes and nourished with milk",
+        "zh": "任何皮肤或多或少覆盖有毛发的温血脊椎动物；"
+      }
+    },
+    {
+      "word": {
+        "en": "man",
+        "laos": "ຜູ້ຊາຍ",
+        "jp": "男",
+        "vie": "người đàn ông",
+        "en_pronunciation": "/mæn/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "otoko",
+        "vie_pronunciation": "nguoi dan ong"
+      },
+      "means": {
+        "en": "An adult person who is male (as opposed to a woman)",
+        "zh": "除了单孔目动物的小亚纲外，幼崽出生时都是活的，并由牛奶喂养"
+      }
+    },
+    {
+      "word": {
+        "en": "manly",
+        "laos": "ຜູ້ຊາຍ",
+        "jp": "男らしい",
+        "vie": "nam tính",
+        "en_pronunciation": "/ˈmænli/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "otoko rashii",
+        "vie_pronunciation": "nam tinh"
+      },
+      "means": {
+        "en": "Possessing qualities befitting a man",
+        "zh": "成年男性（相对于女性）"
+      }
+    },
+    {
+      "word": {
+        "en": "manhood",
+        "laos": "ຄວາມເປັນຫນຽງ",
+        "jp": "男らしさ",
+        "vie": "nam tính",
+        "en_pronunciation": "/ˈmænˌhʊd/",
+        "laos_pronunciation": "khuaampen niang",
+        "jp_pronunciation": "otoko rashisa",
+        "vie_pronunciation": "nam tinh"
+      },
+      "means": {
+        "en": "The state of being a man; manly qualities",
+        "zh": "具备男人应有的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "manage",
+        "laos": "ຈັດການ",
+        "jp": "管理する",
+        "vie": "quản lý",
+        "en_pronunciation": "/ˈmænɪʤ/",
+        "laos_pronunciation": "chadkan",
+        "jp_pronunciation": "kanri suru",
+        "vie_pronunciation": "quan ly"
+      },
+      "means": {
+        "en": "Be successful; achieve a goal",
+        "zh": "做人的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "management",
+        "laos": "ການຈັດການ",
+        "jp": "管理",
+        "vie": "quản lý",
+        "en_pronunciation": "/ˈmænɪʤmənt/",
+        "laos_pronunciation": "kanchadkan",
+        "jp_pronunciation": "kanri",
+        "vie_pronunciation": "quan ly"
+      },
+      "means": {
+        "en": "The act of managing something",
+        "zh": "男子气概"
+      }
+    },
+    {
+      "word": {
+        "en": "manager",
+        "laos": "ຜູ້ຢິງຈັດການ",
+        "jp": "マネージャー",
+        "vie": "người quản lý",
+        "en_pronunciation": "/ˈmænɪʤər/",
+        "laos_pronunciation": "phu yingchadkan",
+        "jp_pronunciation": "maneejaa",
+        "vie_pronunciation": "nguoi quan ly"
+      },
+      "means": {
+        "en": "Someone who controls resources and expenditures",
+        "zh": "取得成功；"
+      }
+    },
+    {
+      "word": {
+        "en": "managerial",
+        "laos": "ຜູ້ນໍາໃຊ້",
+        "jp": "管理的な",
+        "vie": "quản lý",
+        "en_pronunciation": "/ˌmænɪˈʤɪriəl/",
+        "laos_pronunciation": "phunoasai",
+        "jp_pronunciation": "kanriteki na",
+        "vie_pronunciation": "quan ly"
+      },
+      "means": {
+        "en": "Of or relating to the function or responsibility or activity of management",
+        "zh": "实现一个目标"
+      }
+    },
+    {
+      "word": {
+        "en": "mandate",
+        "laos": "ບັງຄັບ",
+        "jp": "委任する",
+        "vie": "ủy quyền",
+        "en_pronunciation": "/ˈmænˌdeɪt/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "inin suru",
+        "vie_pronunciation": "uy quyen"
+      },
+      "means": {
+        "en": "A document giving an official instruction or command",
+        "zh": "管理某事的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "mandatory",
+        "laos": "ຈໍາເປັນ",
+        "jp": "必須",
+        "vie": "bắt buộc",
+        "en_pronunciation": "/ˈmændəˌtɔri/",
+        "laos_pronunciation": "choapen",
+        "jp_pronunciation": "hissu",
+        "vie_pronunciation": "bat buoc"
+      },
+      "means": {
+        "en": "The recipient of a mandate",
+        "zh": "控制资源和支出的人"
+      }
+    },
+    {
+      "word": {
+        "en": "maneuver",
+        "laos": "ກົນລະຍຸດ",
+        "jp": "操縦",
+        "vie": "điều động",
+        "en_pronunciation": "/məˈnuvər/",
+        "laos_pronunciation": "kon lanyud",
+        "jp_pronunciation": "soujuu",
+        "vie_pronunciation": "dieu dong"
+      },
+      "means": {
+        "en": "A military training exercise",
+        "zh": "属于或与其相关的管理职能、责任或活动"
+      }
+    },
+    {
+      "word": {
+        "en": "manoeuvre",
+        "laos": "ກົນລະຍຸດ",
+        "jp": "操縦",
+        "vie": "điều động",
+        "en_pronunciation": "/manoeuvre/",
+        "laos_pronunciation": "kon lanyud",
+        "jp_pronunciation": "soujuu",
+        "vie_pronunciation": "dieu dong"
+      },
+      "means": {
+        "en": "A plan for attaining a particular goal",
+        "zh": "给出正式指示或命令的文件"
+      }
+    },
+    {
+      "word": {
+        "en": "manifest",
+        "laos": "ສະແດງອອກ",
+        "jp": "マニフェスト",
+        "vie": "biểu hiện",
+        "en_pronunciation": "/ˈmænəˌfɛst/",
+        "laos_pronunciation": "saaedngook",
+        "jp_pronunciation": "manifesuto",
+        "vie_pronunciation": "bieu hien"
+      },
+      "means": {
+        "en": "A customs document listing the contents put on a ship or plane",
+        "zh": "授权书的接受者"
+      }
+    },
+    {
+      "word": {
+        "en": "manifestation",
+        "laos": "ການສະແດງອອກ",
+        "jp": "顕現",
+        "vie": "biểu hiện",
+        "en_pronunciation": "/ˌmænəfɛˈsteɪʃən/",
+        "laos_pronunciation": "kansaaedngook",
+        "jp_pronunciation": "kengen",
+        "vie_pronunciation": "bieu hien"
+      },
+      "means": {
+        "en": "A clear appearance",
+        "zh": "一次军事训练演习"
+      }
+    },
+    {
+      "word": {
+        "en": "manipulate",
+        "laos": "ການຫມູນໃຊ້",
+        "jp": "操作する",
+        "vie": "thao túng",
+        "en_pronunciation": "/məˈnɪpjəˌleɪt/",
+        "laos_pronunciation": "kanmunsai",
+        "jp_pronunciation": "sousa suru",
+        "vie_pronunciation": "thao tung"
+      },
+      "means": {
+        "en": "Influence or control shrewdly or deviously",
+        "zh": "实现特定目标的计划"
+      }
+    },
+    {
+      "word": {
+        "en": "manipulation",
+        "laos": "ການຫມູນໃຊ້",
+        "jp": "操作",
+        "vie": "thao túng",
+        "en_pronunciation": "/məˌnɪpjəˈleɪʃən/",
+        "laos_pronunciation": "kanmunsai",
+        "jp_pronunciation": "sousa",
+        "vie_pronunciation": "thao tung"
+      },
+      "means": {
+        "en": "Exerting shrewd or devious influence especially for one's own advantage",
+        "zh": "列出船上或飞机上物品的海关文件"
+      }
+    },
+    {
+      "word": {
+        "en": "manipulative",
+        "laos": "ຫມູນໃຊ້",
+        "jp": "操作的な",
+        "vie": "thao túng",
+        "en_pronunciation": "/məˈnɪpjəˌleɪtɪv/",
+        "laos_pronunciation": "munsai",
+        "jp_pronunciation": "sousateki na",
+        "vie_pronunciation": "thao tung"
+      },
+      "means": {
+        "en": "Skillful in influencing or controlling others to your own advantage",
+        "zh": "清晰的外观"
+      }
+    },
+    {
+      "word": {
+        "en": "mankind",
+        "laos": "ມະໂນໂລ",
+        "jp": "人類",
+        "vie": "nhân loại",
+        "en_pronunciation": "/ˈmænˈkaɪnd/",
+        "laos_pronunciation": "maonol",
+        "jp_pronunciation": "jinrui",
+        "vie_pronunciation": "nhan loai"
+      },
+      "means": {
+        "en": "All of the living human inhabitants of the earth",
+        "zh": "精明或狡猾地影响或控制"
+      }
+    },
+    {
+      "word": {
+        "en": "manner",
+        "laos": "ປະສາ",
+        "jp": "マナー",
+        "vie": "cách thức",
+        "en_pronunciation": "/ˈmænər/",
+        "laos_pronunciation": "pasa",
+        "jp_pronunciation": "manaa",
+        "vie_pronunciation": "cach thuc"
+      },
+      "means": {
+        "en": "How something is done or how it happens",
+        "zh": "特别是为了自己的利益而施加精明或狡猾的影响"
+      }
+    },
+    {
+      "word": {
+        "en": "mansion",
+        "laos": "ເຮືອນຢາວ",
+        "jp": "邸宅",
+        "vie": "biệt thự",
+        "en_pronunciation": "/ˈmænʃən/",
+        "laos_pronunciation": "heuonyav",
+        "jp_pronunciation": "teitaku",
+        "vie_pronunciation": "biet thu"
+      },
+      "means": {
+        "en": "(astrology) one of 12 equal areas into which the zodiac is divided",
+        "zh": "善于影响或控制他人以达到自己的利益"
+      }
+    },
+    {
+      "word": {
+        "en": "manual",
+        "laos": "ປື້ມຄູ່ມື",
+        "jp": "マニュアル",
+        "vie": "hướng dẫn sử dụng",
+        "en_pronunciation": "/ˈmænjuəl/",
+        "laos_pronunciation": "pumkhumu",
+        "jp_pronunciation": "manyuaru",
+        "vie_pronunciation": "huong dan su dung"
+      },
+      "means": {
+        "en": "A small handbook",
+        "zh": "地球上所有活着的人类居民"
+      }
+    },
+    {
+      "word": {
+        "en": "manufacture",
+        "laos": "ຜະລິດ",
+        "jp": "製造",
+        "vie": "sản xuất",
+        "en_pronunciation": "/ˌmænjəˈfækʧər/",
+        "laos_pronunciation": "phalid",
+        "jp_pronunciation": "seizou",
+        "vie_pronunciation": "san xuat"
+      },
+      "means": {
+        "en": "The organized action of making of goods and services for sale",
+        "zh": "某事如何完成或如何发生"
+      }
+    },
+    {
+      "word": {
+        "en": "manufacturer",
+        "laos": "ຜູ້ຜະລິດ",
+        "jp": "メーカー",
+        "vie": "nhà sản xuất",
+        "en_pronunciation": "/ˌmænjəˈfækʧərər/",
+        "laos_pronunciation": "phuphalid",
+        "jp_pronunciation": "meekaa",
+        "vie_pronunciation": "nha san xuat"
+      },
+      "means": {
+        "en": "A business engaged in manufacturing some product",
+        "zh": "（占星学）将黄道带划分为 12 个相等的区域之一"
+      }
+    },
+    {
+      "word": {
+        "en": "manuscript",
+        "laos": "ຫນັງສືໃບລານ",
+        "jp": "原稿",
+        "vie": "bản thảo",
+        "en_pronunciation": "/ˈmænjəˌskrɪpt/",
+        "laos_pronunciation": "nangsubailan",
+        "jp_pronunciation": "genkou",
+        "vie_pronunciation": "ban thao"
+      },
+      "means": {
+        "en": "The form of a literary work submitted for publication",
+        "zh": "一本小手册"
+      }
+    },
+    {
+      "word": {
+        "en": "many",
+        "laos": "ຈ້ໍາ",
+        "jp": "たくさんの",
+        "vie": "nhiều",
+        "en_pronunciation": "/ˈmɛni/",
+        "laos_pronunciation": "choa",
+        "jp_pronunciation": "takusanno",
+        "vie_pronunciation": "nhieu"
+      },
+      "means": {
+        "en": "A quantifier that can be used with count nouns and is often preceded by `as' or `too' or `so' or `that'; amounting to a large but indefinite number",
+        "zh": "制造用于销售的商品和服务的有组织的行动"
+      }
+    },
+    {
+      "word": {
+        "en": "map",
+        "laos": "ແຜນທີ່",
+        "jp": "地図",
+        "vie": "bản đồ",
+        "en_pronunciation": "/mæp/",
+        "laos_pronunciation": "aephnthi",
+        "jp_pronunciation": "chizu",
+        "vie_pronunciation": "ban do"
+      },
+      "means": {
+        "en": "A diagrammatic representation of the earth's surface (or part of it)",
+        "zh": "从事某些产品制造的企业"
+      }
+    },
+    {
+      "word": {
+        "en": "mar",
+        "laos": "ເປັນ Mar",
+        "jp": "3月",
+        "vie": "tháng ba",
+        "en_pronunciation": "/mɑr/",
+        "laos_pronunciation": "pen Mar",
+        "jp_pronunciation": "3 gatsu",
+        "vie_pronunciation": "thang ba"
+      },
+      "means": {
+        "en": "The month following February and preceding April",
+        "zh": "提交出版的文学作品的形式"
+      }
+    },
+    {
+      "word": {
+        "en": "marathon",
+        "laos": "ມາຣາທອນ",
+        "jp": "マラソン",
+        "vie": "chạy marathon",
+        "en_pronunciation": "/ˈmɛrəˌθɑn/",
+        "laos_pronunciation": "marathon",
+        "jp_pronunciation": "marason",
+        "vie_pronunciation": "chay marathon"
+      },
+      "means": {
+        "en": "Any long and arduous undertaking",
+        "zh": "可与可数名词一起使用的量词，前面通常带有“as”、“too”、“so”或“that”；"
+      }
+    },
+    {
+      "word": {
+        "en": "marble",
+        "laos": "ຫິນອ່ອນ",
+        "jp": "大理石",
+        "vie": "đá cẩm thạch",
+        "en_pronunciation": "/ˈmɑrbəl/",
+        "laos_pronunciation": "hinon",
+        "jp_pronunciation": "dairiseki",
+        "vie_pronunciation": "da cam thach"
+      },
+      "means": {
+        "en": "A hard crystalline metamorphic rock that takes a high polish; used for sculpture and as building material",
+        "zh": "数量很大但不确定"
+      }
+    },
+    {
+      "word": {
+        "en": "march",
+        "laos": "ດົນໆ",
+        "jp": "行進",
+        "vie": "hành quân",
+        "en_pronunciation": "/mɑrʧ/",
+        "laos_pronunciation": "don",
+        "jp_pronunciation": "koushin",
+        "vie_pronunciation": "hanh quan"
+      },
+      "means": {
+        "en": "The month following February and preceding April",
+        "zh": "地球表面（或其一部分）的图示"
+      }
+    },
+    {
+      "word": {
+        "en": "march",
+        "laos": "ດົນໆ",
+        "jp": "行進",
+        "vie": "hành quân",
+        "en_pronunciation": "/mɑrʧ/",
+        "laos_pronunciation": "don",
+        "jp_pronunciation": "koushin",
+        "vie_pronunciation": "hanh quan"
+      },
+      "means": {
+        "en": "The month following February and preceding April",
+        "zh": "2 月之后和 4 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "margin",
+        "laos": "ຂອບ",
+        "jp": "マージン",
+        "vie": "lề",
+        "en_pronunciation": "/ˈmɑrʤən/",
+        "laos_pronunciation": "khob",
+        "jp_pronunciation": "maajin",
+        "vie_pronunciation": "le"
+      },
+      "means": {
+        "en": "The boundary line or the area immediately inside the boundary",
+        "zh": "任何长期而艰巨的事业"
+      }
+    },
+    {
+      "word": {
+        "en": "marginal",
+        "laos": "ສະງ່າດ້ອຍ",
+        "jp": "限界的な",
+        "vie": "cận biên",
+        "en_pronunciation": "/ˈmɑrʤənəl/",
+        "laos_pronunciation": "sa ngadony",
+        "jp_pronunciation": "genkai tekina",
+        "vie_pronunciation": "can bien"
+      },
+      "means": {
+        "en": "At or constituting a border or edge",
+        "zh": "一种坚硬的结晶变质岩，经过高度抛光；"
+      }
+    },
+    {
+      "word": {
+        "en": "marine",
+        "laos": "ນ້ໍາທະເລ",
+        "jp": "海洋",
+        "vie": "biển",
+        "en_pronunciation": "/mərˈin/",
+        "laos_pronunciation": "noathale",
+        "jp_pronunciation": "kaiyou",
+        "vie_pronunciation": "bien"
+      },
+      "means": {
+        "en": "A member of the United States Marine Corps",
+        "zh": "用于雕塑和建筑材料"
+      }
+    },
+    {
+      "word": {
+        "en": "maritime",
+        "laos": "ເດີນທະເລ",
+        "jp": "海事",
+        "vie": "hàng hải",
+        "en_pronunciation": "/ˈmærəˌtaɪm/",
+        "laos_pronunciation": "doenthale",
+        "jp_pronunciation": "kaiji",
+        "vie_pronunciation": "hang hai"
+      },
+      "means": {
+        "en": "Relating to or involving ships or shipping or navigation or seamen",
+        "zh": "2 月之后和 4 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "mark",
+        "laos": "ເຄື່ອງຫມາຍ",
+        "jp": "マーク",
+        "vie": "đánh dấu",
+        "en_pronunciation": "/mɑrk/",
+        "laos_pronunciation": "kheuongmai",
+        "jp_pronunciation": "maaku",
+        "vie_pronunciation": "danh dau"
+      },
+      "means": {
+        "en": "A number or letter indicating quality (especially of a student's performance)",
+        "zh": "2 月之后和 4 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "market",
+        "laos": "ຕະຫຼາດ",
+        "jp": "市場",
+        "vie": "thị trường",
+        "en_pronunciation": "/ˈmɑrkɪt/",
+        "laos_pronunciation": "tarad",
+        "jp_pronunciation": "shijou",
+        "vie_pronunciation": "thi truong"
+      },
+      "means": {
+        "en": "The world of commercial activity where goods and services are bought and sold",
+        "zh": "边界线或边界内紧邻的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "marketing",
+        "laos": "ການຕະຫຼາດ",
+        "jp": "マーケティング",
+        "vie": "tiếp thị",
+        "en_pronunciation": "/ˈmɑrkətɪŋ/",
+        "laos_pronunciation": "kantarad",
+        "jp_pronunciation": "maaketeingu",
+        "vie_pronunciation": "tiep thi"
+      },
+      "means": {
+        "en": "The exchange of goods for an agreed sum of money",
+        "zh": "位于或构成边界或边缘"
+      }
+    },
+    {
+      "word": {
+        "en": "marry",
+        "laos": "ແຕ່ງງານ",
+        "jp": "結婚する",
+        "vie": "kết hôn",
+        "en_pronunciation": "/ˈmɛri/",
+        "laos_pronunciation": "aetngngan",
+        "jp_pronunciation": "kekkon suru",
+        "vie_pronunciation": "ket hon"
+      },
+      "means": {
+        "en": "Take in marriage",
+        "zh": "美国海军陆战队成员"
+      }
+    },
+    {
+      "word": {
+        "en": "marriage",
+        "laos": "ການແຕ່ງງານ",
+        "jp": "結婚",
+        "vie": "hôn nhân",
+        "en_pronunciation": "/ˈmɛrɪʤ/",
+        "laos_pronunciation": "kanaetngngan",
+        "jp_pronunciation": "kekkon",
+        "vie_pronunciation": "hon nhan"
+      },
+      "means": {
+        "en": "The state of being a married couple voluntarily joined for life (or until divorce)",
+        "zh": "与船舶、航运、航海或海员有关或涉及的"
+      }
+    },
+    {
+      "word": {
+        "en": "marital",
+        "laos": "ສໍາຄັນ",
+        "jp": "夫婦",
+        "vie": "hôn nhân",
+        "en_pronunciation": "/ˈmærətəl/",
+        "laos_pronunciation": "soakhan",
+        "jp_pronunciation": "fuufu",
+        "vie_pronunciation": "hon nhan"
+      },
+      "means": {
+        "en": "Of or relating to the state of marriage",
+        "zh": "表示质量（尤其是学生表现）的数字或字母"
+      }
+    },
+    {
+      "word": {
+        "en": "marsh",
+        "laos": "ບຸ່ງ",
+        "jp": "沼地",
+        "vie": "đầm lầy",
+        "en_pronunciation": "/mɑrʃ/",
+        "laos_pronunciation": "bung",
+        "jp_pronunciation": "numachi",
+        "vie_pronunciation": "dam lay"
+      },
+      "means": {
+        "en": "Low-lying wet land with grassy vegetation; usually is a transition zone between land and water",
+        "zh": "买卖商品和服务的商业活动世界"
+      }
+    },
+    {
+      "word": {
+        "en": "marshal",
+        "laos": "ພຶມ",
+        "jp": "マーシャル",
+        "vie": "nguyên soái",
+        "en_pronunciation": "/ˈmɑrʃəl/",
+        "laos_pronunciation": "phum",
+        "jp_pronunciation": "maasharu",
+        "vie_pronunciation": "nguyen soai"
+      },
+      "means": {
+        "en": "A law officer having duties similar to those of a sheriff in carrying out the judgments of a court of law",
+        "zh": "以约定金额交换货物"
+      }
+    },
+    {
+      "word": {
+        "en": "martyr",
+        "laos": "ຜູ້ຢິງຢອມຕາຢຕາງຫມູ່",
+        "jp": "殉教者",
+        "vie": "liệt sĩ",
+        "en_pronunciation": "/ˈmɑrtər/",
+        "laos_pronunciation": "phu ying yom ta y tangmu",
+        "jp_pronunciation": "junkyou mono",
+        "vie_pronunciation": "liet si"
+      },
+      "means": {
+        "en": "One who suffers for the sake of principle",
+        "zh": "走入婚姻"
+      }
+    },
+    {
+      "word": {
+        "en": "martyrdom",
+        "laos": "martyrdom",
+        "jp": "殉教",
+        "vie": "tử đạo",
+        "en_pronunciation": "/ˈmɑrtərdəm/",
+        "laos_pronunciation": "martyrdom",
+        "jp_pronunciation": "junkyou",
+        "vie_pronunciation": "tu dao"
+      },
+      "means": {
+        "en": "Death that is imposed because of the person's adherence of a religious faith or cause",
+        "zh": "已婚夫妇自愿终身结合（或直至离婚）的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "marvel",
+        "laos": "ເຫລັກໃຈ",
+        "jp": "驚異",
+        "vie": "ngạc nhiên",
+        "en_pronunciation": "/ˈmɑrvəl/",
+        "laos_pronunciation": "helakchai",
+        "jp_pronunciation": "kyoui",
+        "vie_pronunciation": "ngac nhien"
+      },
+      "means": {
+        "en": "Something that causes feelings of wonder",
+        "zh": "属于或与婚姻状况有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "marvelous",
+        "laos": "Marvelous",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/ˈmɑrvələs/",
+        "laos_pronunciation": "Marvelous",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Extraordinarily good or great ; used especially as intensifiers",
+        "zh": "地势低洼、有草类植被的湿地；"
+      }
+    },
+    {
+      "word": {
+        "en": "marvellous",
+        "laos": "Marvelous",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/ˈmɑrvələs/",
+        "laos_pronunciation": "Marvelous",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Extraordinarily good or great ; used especially as intensifiers",
+        "zh": "通常是陆地和水域之间的过渡带"
+      }
+    },
+    {
+      "word": {
+        "en": "marxism",
+        "laos": "Marxism",
+        "jp": "マルクス主義",
+        "vie": "chủ nghĩa Mác",
+        "en_pronunciation": "/ˈmɑrksɪzəm/",
+        "laos_pronunciation": "Marxism",
+        "jp_pronunciation": "marukusu shugi",
+        "vie_pronunciation": "chu nghia Mac"
+      },
+      "means": {
+        "en": "The economic and political theories of Karl Marx and Friedrich Engels that hold that human actions and institutions are economically determined and that class struggle is needed to create historical change and that capitalism will ultimately be superseded by communism",
+        "zh": "与治安官类似的执法人员，执行法院的判决"
+      }
+    },
+    {
+      "word": {
+        "en": "marxist",
+        "laos": "ໂລໂກ",
+        "jp": "マルクス主義者",
+        "vie": "người theo chủ nghĩa Mác",
+        "en_pronunciation": "/ˈmɑrksɪst/",
+        "laos_pronunciation": "olok",
+        "jp_pronunciation": "marukusu shugisha",
+        "vie_pronunciation": "nguoi theo chu nghia Mac"
+      },
+      "means": {
+        "en": "An advocate of Marxism",
+        "zh": "为原则而受苦的人"
+      }
+    },
+    {
+      "word": {
+        "en": "masculine",
+        "laos": "ເພດຊາຍ",
+        "jp": "男性的な",
+        "vie": "nam tính",
+        "en_pronunciation": "/ˈmæskjələn/",
+        "laos_pronunciation": "phedsai",
+        "jp_pronunciation": "danseiteki na",
+        "vie_pronunciation": "nam tinh"
+      },
+      "means": {
+        "en": "A gender that refers chiefly (but not exclusively) to males or to objects classified as male",
+        "zh": "由于个人坚持宗教信仰或事业而被强加的死亡"
+      }
+    },
+    {
+      "word": {
+        "en": "masculinity",
+        "laos": "ມະນີມະໄລ",
+        "jp": "男らしさ",
+        "vie": "nam tính",
+        "en_pronunciation": "/ˌmæskjəˈlɪnəti/",
+        "laos_pronunciation": "manimalai",
+        "jp_pronunciation": "otoko rashisa",
+        "vie_pronunciation": "nam tinh"
+      },
+      "means": {
+        "en": "The properties characteristic of the male sex",
+        "zh": "引起惊奇感的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "mask",
+        "laos": "ຫນ້າກາກ",
+        "jp": "マスク",
+        "vie": "mặt nạ",
+        "en_pronunciation": "/mæsk/",
+        "laos_pronunciation": "nakak",
+        "jp_pronunciation": "masuku",
+        "vie_pronunciation": "mat na"
+      },
+      "means": {
+        "en": "A covering to disguise or conceal the face",
+        "zh": "非常好或非常好；"
+      }
+    },
+    {
+      "word": {
+        "en": "mass",
+        "laos": "ມະຫາຊົນ",
+        "jp": "質量",
+        "vie": "khối lượng",
+        "en_pronunciation": "/mæs/",
+        "laos_pronunciation": "mahason",
+        "jp_pronunciation": "shitsuryou",
+        "vie_pronunciation": "khoi luong"
+      },
+      "means": {
+        "en": "The property of a body that causes it to have weight in a gravitational field",
+        "zh": "特别用作增强剂"
+      }
+    },
+    {
+      "word": {
+        "en": "massive",
+        "laos": "ໃຫຢ່",
+        "jp": "巨大な",
+        "vie": "đồ sộ",
+        "en_pronunciation": "/ˈmæsɪv/",
+        "laos_pronunciation": "haiy",
+        "jp_pronunciation": "kyodai na",
+        "vie_pronunciation": "do so"
+      },
+      "means": {
+        "en": "Imposing in size or bulk or solidity",
+        "zh": "非常好或非常好；"
+      }
+    },
+    {
+      "word": {
+        "en": "massacre",
+        "laos": "ການຂ້າ Massacre",
+        "jp": "虐殺",
+        "vie": "thảm sát",
+        "en_pronunciation": "/ˈmæsəkər/",
+        "laos_pronunciation": "kankha Massacre",
+        "jp_pronunciation": "gyakusatsu",
+        "vie_pronunciation": "tham sat"
+      },
+      "means": {
+        "en": "The savage and excessive killing of many people",
+        "zh": "特别用作增强剂"
+      }
+    },
+    {
+      "word": {
+        "en": "massage",
+        "laos": "ນວດ",
+        "jp": "マッサージ",
+        "vie": "xoa bóp",
+        "en_pronunciation": "/məˈsɑʒ/",
+        "laos_pronunciation": "nuad",
+        "jp_pronunciation": "massaaji",
+        "vie_pronunciation": "xoa bop"
+      },
+      "means": {
+        "en": "Kneading and rubbing parts of the body to increase circulation and promote relaxation",
+        "zh": "卡尔·马克思和弗里德里希·恩格斯的经济和政治理论认为，人类的行为和制度是由经济决定的，需要阶级斗争来创造历史变革，资本主义最终将被共产主义取代"
+      }
+    },
+    {
+      "word": {
+        "en": "master",
+        "laos": "ຕົ້ນສະບັບ",
+        "jp": "マスター",
+        "vie": "bậc thầy",
+        "en_pronunciation": "/ˈmæstər/",
+        "laos_pronunciation": "tonsabab",
+        "jp_pronunciation": "masutaa",
+        "vie_pronunciation": "bac thay"
+      },
+      "means": {
+        "en": "An artist of consummate skill",
+        "zh": "马克思主义的倡导者"
+      }
+    },
+    {
+      "word": {
+        "en": "mastery",
+        "laos": "ການຊ້ໍາ",
+        "jp": "熟達",
+        "vie": "sự làm chủ",
+        "en_pronunciation": "/ˈmæstəri/",
+        "laos_pronunciation": "kan soa",
+        "jp_pronunciation": "jukutatsu",
+        "vie_pronunciation": "su lam chu"
+      },
+      "means": {
+        "en": "Great skillfulness and knowledge of some subject or activity",
+        "zh": "主要指（但不限于）男性或归类为男性的对象的性别"
+      }
+    },
+    {
+      "word": {
+        "en": "masterpiece",
+        "laos": "ຕົ້ນສະບັບ",
+        "jp": "傑作",
+        "vie": "kiệt tác",
+        "en_pronunciation": "/ˈmæstərˌpis/",
+        "laos_pronunciation": "tonsabab",
+        "jp_pronunciation": "kessaku",
+        "vie_pronunciation": "kiet tac"
+      },
+      "means": {
+        "en": "The most outstanding work of a creative artist or craftsman",
+        "zh": "男性的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "mat",
+        "laos": "ເສື່ອສາດ",
+        "jp": "マット",
+        "vie": "chiếu",
+        "en_pronunciation": "/mæt/",
+        "laos_pronunciation": "seuosad",
+        "jp_pronunciation": "matto",
+        "vie_pronunciation": "chieu"
+      },
+      "means": {
+        "en": "A thick flat pad used as a floor covering",
+        "zh": "掩饰或隐藏脸部的遮盖物"
+      }
+    },
+    {
+      "word": {
+        "en": "match",
+        "laos": "ປະຕິໄປ",
+        "jp": "一致",
+        "vie": "trận đấu",
+        "en_pronunciation": "/mæʧ/",
+        "laos_pronunciation": "patipai",
+        "jp_pronunciation": "itchi",
+        "vie_pronunciation": "tran dau"
+      },
+      "means": {
+        "en": "Lighter consisting of a thin piece of wood or cardboard tipped with combustible chemical; ignites with friction",
+        "zh": "物体在引力场中具有重量的特性"
+      }
+    },
+    {
+      "word": {
+        "en": "mate",
+        "laos": "ການຫາຄູ່",
+        "jp": "仲間",
+        "vie": "bạn đời",
+        "en_pronunciation": "/meɪt/",
+        "laos_pronunciation": "kanhakhu",
+        "jp_pronunciation": "nakama",
+        "vie_pronunciation": "ban doi"
+      },
+      "means": {
+        "en": "The officer below the master on a commercial ship",
+        "zh": "尺寸、体积或坚固性令人印象深刻"
+      }
+    },
+    {
+      "word": {
+        "en": "material",
+        "laos": "ອຸປະກອນ",
+        "jp": "素材",
+        "vie": "vật chất",
+        "en_pronunciation": "/məˈtɪriəl/",
+        "laos_pronunciation": "upakon",
+        "jp_pronunciation": "sozai",
+        "vie_pronunciation": "vat chat"
+      },
+      "means": {
+        "en": "The tangible substance that goes into the makeup of a physical object",
+        "zh": "野蛮过度的屠杀多人"
+      }
+    },
+    {
+      "word": {
+        "en": "materialism",
+        "laos": "ການປະວັດ",
+        "jp": "唯物論",
+        "vie": "chủ nghĩa duy vật",
+        "en_pronunciation": "/məˈtɪriəˌlɪzəm/",
+        "laos_pronunciation": "kanpavad",
+        "jp_pronunciation": "yuibutsuron",
+        "vie_pronunciation": "chu nghia duy vat"
+      },
+      "means": {
+        "en": "A desire for wealth and material possessions with little interest in ethical or spiritual matters",
+        "zh": "揉捏和摩擦身体部位以增加血液循环并促进放松"
+      }
+    },
+    {
+      "word": {
+        "en": "materialist",
+        "laos": "ຈູງໃຈເອກະສານ",
+        "jp": "唯物論者",
+        "vie": "người theo chủ nghĩa duy vật",
+        "en_pronunciation": "/məˈtɪriəlɪst/",
+        "laos_pronunciation": "chung chaioekasan",
+        "jp_pronunciation": "yuibutsuron mono",
+        "vie_pronunciation": "nguoi theo chu nghia duy vat"
+      },
+      "means": {
+        "en": "Someone with great regard for material possessions",
+        "zh": "技艺精湛的艺术家"
+      }
+    },
+    {
+      "word": {
+        "en": "materialize",
+        "laos": "ທີ່ເຮັດຂຶ້ນ",
+        "jp": "具現化する",
+        "vie": "hiện thực hóa",
+        "en_pronunciation": "/məˈtɪriəˌlaɪz/",
+        "laos_pronunciation": "thi hedkhun",
+        "jp_pronunciation": "gugenka suru",
+        "vie_pronunciation": "hien thuc hoa"
+      },
+      "means": {
+        "en": "Come into being; become reality",
+        "zh": "对某些主题或活动具有出色的技巧和知识"
+      }
+    },
+    {
+      "word": {
+        "en": "materialise",
+        "laos": "ທີ່ເຮັດຂຶ້ນ",
+        "jp": "具現化する",
+        "vie": "hiện thực hóa",
+        "en_pronunciation": "/materialise/",
+        "laos_pronunciation": "thi hedkhun",
+        "jp_pronunciation": "gugenka suru",
+        "vie_pronunciation": "hien thuc hoa"
+      },
+      "means": {
+        "en": "Come into being; become reality",
+        "zh": "创意艺术家或工匠最杰出的作品"
+      }
+    },
+    {
+      "word": {
+        "en": "maternal",
+        "laos": "ມາຕິກະ",
+        "jp": "母性",
+        "vie": "bà mẹ",
+        "en_pronunciation": "/məˈtərnəl/",
+        "laos_pronunciation": "matika",
+        "jp_pronunciation": "bosei",
+        "vie_pronunciation": "ba me"
+      },
+      "means": {
+        "en": "Characteristic of a mother; - Dorothy Sayers",
+        "zh": "用作地板覆盖物的厚平垫"
+      }
+    },
+    {
+      "word": {
+        "en": "maternity",
+        "laos": "ແມ່ທ້ອງ",
+        "jp": "マタニティ",
+        "vie": "thai sản",
+        "en_pronunciation": "/məˈtərnɪti/",
+        "laos_pronunciation": "aemthong",
+        "jp_pronunciation": "matanitei",
+        "vie_pronunciation": "thai san"
+      },
+      "means": {
+        "en": "The state of being pregnant; the period from conception to birth when a woman carries a developing fetus in her uterus",
+        "zh": "由一片薄木头或纸板制成的打火机，上面涂有可燃化学品；"
+      }
+    },
+    {
+      "word": {
+        "en": "math",
+        "laos": "ເລກ",
+        "jp": "数学",
+        "vie": "môn toán",
+        "en_pronunciation": "/mæθ/",
+        "laos_pronunciation": "lek",
+        "jp_pronunciation": "suugaku",
+        "vie_pronunciation": "mon toan"
+      },
+      "means": {
+        "en": "A science (or group of related sciences) dealing with the logic of quantity and shape and arrangement",
+        "zh": "因摩擦而点燃"
+      }
+    },
+    {
+      "word": {
+        "en": "mathematics",
+        "laos": "ຄະດອກ",
+        "jp": "数学",
+        "vie": "toán học",
+        "en_pronunciation": "/ˌmæθəˈmætɪks/",
+        "laos_pronunciation": "khadok",
+        "jp_pronunciation": "suugaku",
+        "vie_pronunciation": "toan hoc"
+      },
+      "means": {
+        "en": "A science (or group of related sciences) dealing with the logic of quantity and shape and arrangement",
+        "zh": "商船上船长以下的高级船员"
+      }
+    },
+    {
+      "word": {
+        "en": "maths",
+        "laos": "ທາງຄະນິດສາດ",
+        "jp": "数学",
+        "vie": "môn toán",
+        "en_pronunciation": "/maths/",
+        "laos_pronunciation": "thangkhanidsad",
+        "jp_pronunciation": "suugaku",
+        "vie_pronunciation": "mon toan"
+      },
+      "means": {
+        "en": "A science (or group of related sciences) dealing with the logic of quantity and shape and arrangement",
+        "zh": "构成物理对象的有形物质"
+      }
+    },
+    {
+      "word": {
+        "en": "mathematical",
+        "laos": "ອັດຕະໂນມັດ",
+        "jp": "数学的",
+        "vie": "toán học",
+        "en_pronunciation": "/ˌmæθəˈmætɪkəl/",
+        "laos_pronunciation": "adtaonmad",
+        "jp_pronunciation": "suugakuteki",
+        "vie_pronunciation": "toan hoc"
+      },
+      "means": {
+        "en": "Of or pertaining to or of the nature of mathematics",
+        "zh": "对财富和物质财富的渴望，对道德或精神问题不感兴趣"
+      }
+    },
+    {
+      "word": {
+        "en": "matter",
+        "laos": "ວັດຖຸ",
+        "jp": "問題",
+        "vie": "vấn đề",
+        "en_pronunciation": "/ˈmætər/",
+        "laos_pronunciation": "vadthu",
+        "jp_pronunciation": "mondai",
+        "vie_pronunciation": "van de"
+      },
+      "means": {
+        "en": "A vaguely specified concern",
+        "zh": "非常重视物质财富的人"
+      }
+    },
+    {
+      "word": {
+        "en": "mature",
+        "laos": "ປະນາມ",
+        "jp": "成熟した",
+        "vie": "trưởng thành",
+        "en_pronunciation": "/məˈʧʊr/",
+        "laos_pronunciation": "panam",
+        "jp_pronunciation": "seijuku shita",
+        "vie_pronunciation": "truong thanh"
+      },
+      "means": {
+        "en": "Develop and reach maturity; undergo maturation",
+        "zh": "产生；"
+      }
+    },
+    {
+      "word": {
+        "en": "maturity",
+        "laos": "ການໃຫຢ່",
+        "jp": "成熟度",
+        "vie": "trưởng thành",
+        "en_pronunciation": "/məˈʧʊrəti/",
+        "laos_pronunciation": "kan haiy",
+        "jp_pronunciation": "seijuku do",
+        "vie_pronunciation": "truong thanh"
+      },
+      "means": {
+        "en": "The period of time in your life after your physical growth has stopped and you are fully developed",
+        "zh": "成为现实"
+      }
+    },
+    {
+      "word": {
+        "en": "maximum",
+        "laos": "ສູງສຸດ",
+        "jp": "最大値",
+        "vie": "tối đa",
+        "en_pronunciation": "/ˈmæksəməm/",
+        "laos_pronunciation": "sungsud",
+        "jp_pronunciation": "saidaichi",
+        "vie_pronunciation": "toi da"
+      },
+      "means": {
+        "en": "The largest possible quantity",
+        "zh": "产生；"
+      }
+    },
+    {
+      "word": {
+        "en": "may",
+        "laos": "ເດືອນພຶດສະພາ",
+        "jp": "かもしれない",
+        "vie": "tháng năm",
+        "en_pronunciation": "/meɪ/",
+        "laos_pronunciation": "deuonphudsapha",
+        "jp_pronunciation": "kamoshirenai",
+        "vie_pronunciation": "thang nam"
+      },
+      "means": {
+        "en": "The month following April and preceding June",
+        "zh": "成为现实"
+      }
+    },
+    {
+      "word": {
+        "en": "maximize",
+        "laos": "ເຮັດໃຫ້ສູງສຸດ",
+        "jp": "最大化する",
+        "vie": "tối đa hóa",
+        "en_pronunciation": "/ˈmæksəˌmaɪz/",
+        "laos_pronunciation": "hedhaisungsud",
+        "jp_pronunciation": "saidaika suru",
+        "vie_pronunciation": "toi da hoa"
+      },
+      "means": {
+        "en": "Make as big or large as possible",
+        "zh": "母亲的特征；"
+      }
+    },
+    {
+      "word": {
+        "en": "maximise",
+        "laos": "ເຮັດໃຫ້ສູງສຸດ",
+        "jp": "最大化する",
+        "vie": "tối đa hóa",
+        "en_pronunciation": "/maximise/",
+        "laos_pronunciation": "hedhaisungsud",
+        "jp_pronunciation": "saidaika suru",
+        "vie_pronunciation": "toi da hoa"
+      },
+      "means": {
+        "en": "Make the most of",
+        "zh": "- 多萝西·塞耶斯"
+      }
+    },
+    {
+      "word": {
+        "en": "maximal",
+        "laos": "ສູງສຸດ",
+        "jp": "最大の",
+        "vie": "tối đa",
+        "en_pronunciation": "/ˈmæksəməl/",
+        "laos_pronunciation": "sungsud",
+        "jp_pronunciation": "saidai no",
+        "vie_pronunciation": "toi da"
+      },
+      "means": {
+        "en": "The greatest or most complete or best possible",
+        "zh": "怀孕状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "may",
+        "laos": "ເດືອນພຶດສະພາ",
+        "jp": "かもしれない",
+        "vie": "tháng năm",
+        "en_pronunciation": "/meɪ/",
+        "laos_pronunciation": "deuonphudsapha",
+        "jp_pronunciation": "kamoshirenai",
+        "vie_pronunciation": "thang nam"
+      },
+      "means": {
+        "en": "The month following April and preceding June",
+        "zh": "从受孕到分娩期间，妇女在子宫内怀有发育中的胎儿"
+      }
+    },
+    {
+      "word": {
+        "en": "maybe",
+        "laos": "ບາງທີ",
+        "jp": "たぶん",
+        "vie": "có lẽ",
+        "en_pronunciation": "/ˈmeɪbi/",
+        "laos_pronunciation": "bangthi",
+        "jp_pronunciation": "tabun",
+        "vie_pronunciation": "co le"
+      },
+      "means": {
+        "en": "By chance",
+        "zh": "研究数量、形状和排列逻辑的一门科学（或一组相关科学）"
+      }
+    },
+    {
+      "word": {
+        "en": "mayor",
+        "laos": "ເຈົ້າເມືອງ",
+        "jp": "市長",
+        "vie": "thị trưởng",
+        "en_pronunciation": "/meɪər/",
+        "laos_pronunciation": "chaomeuong",
+        "jp_pronunciation": "shichou",
+        "vie_pronunciation": "thi truong"
+      },
+      "means": {
+        "en": "The head of a city government",
+        "zh": "研究数量、形状和排列逻辑的一门科学（或一组相关科学）"
+      }
+    },
+    {
+      "word": {
+        "en": "me",
+        "laos": "ຂ້ອຍ",
+        "jp": "私",
+        "vie": "tôi",
+        "en_pronunciation": "/mi/",
+        "laos_pronunciation": "khony",
+        "jp_pronunciation": "watashi",
+        "vie_pronunciation": "toi"
+      },
+      "means": {
+        "en": "A state in New England",
+        "zh": "研究数量、形状和排列逻辑的一门科学（或一组相关科学）"
+      }
+    },
+    {
+      "word": {
+        "en": "meadow",
+        "laos": "ທົ່ງຫຢ້າ",
+        "jp": "草原",
+        "vie": "đồng cỏ",
+        "en_pronunciation": "/ˈmɛˌdoʊ/",
+        "laos_pronunciation": "thong hya",
+        "jp_pronunciation": "sougen",
+        "vie_pronunciation": "dong co"
+      },
+      "means": {
+        "en": "A field where grass or alfalfa are grown to be made into hay",
+        "zh": "属于或关于数学性质或属于数学性质的"
+      }
+    },
+    {
+      "word": {
+        "en": "meal",
+        "laos": "ອາຫານ",
+        "jp": "食事",
+        "vie": "bữa ăn",
+        "en_pronunciation": "/mil/",
+        "laos_pronunciation": "ahan",
+        "jp_pronunciation": "shokuji",
+        "vie_pronunciation": "bua an"
+      },
+      "means": {
+        "en": "The food served and eaten at one time",
+        "zh": "模糊具体的关注点"
+      }
+    },
+    {
+      "word": {
+        "en": "mean",
+        "laos": "ມີຄວາມຫມາຍ",
+        "jp": "意味",
+        "vie": "nghĩa là",
+        "en_pronunciation": "/min/",
+        "laos_pronunciation": "mikhuaammai",
+        "jp_pronunciation": "imi",
+        "vie_pronunciation": "nghia la"
+      },
+      "means": {
+        "en": "An average of n numbers computed by adding some function of the numbers and dividing by some function of n",
+        "zh": "发展并达到成熟；"
+      }
+    },
+    {
+      "word": {
+        "en": "meaning",
+        "laos": "ຊຶ່ງ",
+        "jp": "意味",
+        "vie": "ý nghĩa",
+        "en_pronunciation": "/ˈminɪŋ/",
+        "laos_pronunciation": "sung",
+        "jp_pronunciation": "imi",
+        "vie_pronunciation": "y nghia"
+      },
+      "means": {
+        "en": "The message that is intended or expressed or signified",
+        "zh": "经历成熟"
+      }
+    },
+    {
+      "word": {
+        "en": "meaningful",
+        "laos": "ທີ່ມີຄວາມຫມາຍ",
+        "jp": "意味のある",
+        "vie": "có ý nghĩa",
+        "en_pronunciation": "/ˈminɪŋfəl/",
+        "laos_pronunciation": "thimikhuaammai",
+        "jp_pronunciation": "imi noaru",
+        "vie_pronunciation": "co y nghia"
+      },
+      "means": {
+        "en": "Having a meaning or purpose",
+        "zh": "身体生长停止、发育完全后的一段时期"
+      }
+    },
+    {
+      "word": {
+        "en": "means",
+        "laos": "ວິທີ",
+        "jp": "意味",
+        "vie": "nghĩa là",
+        "en_pronunciation": "/minz/",
+        "laos_pronunciation": "vithi",
+        "jp_pronunciation": "imi",
+        "vie_pronunciation": "nghia la"
+      },
+      "means": {
+        "en": "How a result is obtained or an end is achieved",
+        "zh": "最大可能数量"
+      }
+    },
+    {
+      "word": {
+        "en": "meantime",
+        "laos": "ເວຈານ",
+        "jp": "その間",
+        "vie": "trong lúc đó",
+        "en_pronunciation": "/ˈminˌtaɪm/",
+        "laos_pronunciation": "vechan",
+        "jp_pronunciation": "sono kan",
+        "vie_pronunciation": "trong luc do"
+      },
+      "means": {
+        "en": "The time between one event, process, or period and another",
+        "zh": "4 月之后和 6 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "meanwhile",
+        "laos": "ໃນຂະນະດຽວກັນ",
+        "jp": "その間",
+        "vie": "trong khi đó",
+        "en_pronunciation": "/ˈminˌwaɪl/",
+        "laos_pronunciation": "naikhanadiauakan",
+        "jp_pronunciation": "sono kan",
+        "vie_pronunciation": "trong khi do"
+      },
+      "means": {
+        "en": "The time between one event, process, or period and another",
+        "zh": "尽可能大或大"
+      }
+    },
+    {
+      "word": {
+        "en": "measure",
+        "laos": "ວັດແທກ",
+        "jp": "測る",
+        "vie": "đo lường",
+        "en_pronunciation": "/ˈmɛʒər/",
+        "laos_pronunciation": "vadaethk",
+        "jp_pronunciation": "hakaru",
+        "vie_pronunciation": "do luong"
+      },
+      "means": {
+        "en": "Any maneuver made as part of progress toward a goal",
+        "zh": "充分利用"
+      }
+    },
+    {
+      "word": {
+        "en": "measurement",
+        "laos": "ການວັດແທກ",
+        "jp": "測定",
+        "vie": "đo lường",
+        "en_pronunciation": "/ˈmɛʒərmənt/",
+        "laos_pronunciation": "kanvadaethk",
+        "jp_pronunciation": "sokutei",
+        "vie_pronunciation": "do luong"
+      },
+      "means": {
+        "en": "The act or process of assigning numbers to phenomena according to a rule",
+        "zh": "最伟大的或最完整的或最好的可能"
+      }
+    },
+    {
+      "word": {
+        "en": "measurable",
+        "laos": "ສາມາດວັດແທກໄດ້",
+        "jp": "測定可能な",
+        "vie": "có thể đo lường được",
+        "en_pronunciation": "/ˈmɛʒərəbəl/",
+        "laos_pronunciation": "samad vadaethkdai",
+        "jp_pronunciation": "sokuteikanou na",
+        "vie_pronunciation": "co the do luong duoc"
+      },
+      "means": {
+        "en": "Capable of being measured",
+        "zh": "4 月之后和 6 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "meat",
+        "laos": "ຊີ້ນ",
+        "jp": "肉",
+        "vie": "thịt",
+        "en_pronunciation": "/mit/",
+        "laos_pronunciation": "sin",
+        "jp_pronunciation": "niku",
+        "vie_pronunciation": "thit"
+      },
+      "means": {
+        "en": "The flesh of animals (including fishes and birds and snails) used as food",
+        "zh": "偶然"
+      }
+    }
+  ]
+}

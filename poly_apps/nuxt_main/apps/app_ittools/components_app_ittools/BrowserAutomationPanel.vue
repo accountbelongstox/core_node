@@ -1,147 +1,92 @@
 <template>
-  <div class="space-y-6">
+  <div class="it-tools-panel">
     <!-- Connection Status -->
-    <div class="bg-white rounded-lg shadow p-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <div class="w-3 h-3 rounded-full" :class="apiClient.isFullyConnected ? 'bg-green-500' : 'bg-red-500'"></div>
-          <span class="text-sm font-medium" :class="apiClient.statusColor">
-            {{ apiClient.statusText }}
-          </span>
+    <div class="bento-card status-card">
+      <div class="status-content">
+        <div class="connection-badge" :class="apiClient.isFullyConnected ? 'connected' : 'disconnected'">
+          <span class="status-dot" :class="{ online: apiClient.isFullyConnected }"></span>
+          <span>{{ apiClient.statusText }}</span>
         </div>
-        <button
-          @click="apiClient.reconnectConnections"
-          :disabled="apiClient.isLoading"
-          class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition disabled:opacity-50"
-        >
-          <i v-if="apiClient.isLoading" class="fas fa-spinner fa-spin mr-1"></i>
-          <i v-else class="fas fa-sync mr-1"></i>
-          Reconnect
+        <button @click="apiClient.reconnectConnections" :disabled="apiClient.isLoading" class="btn-glass">
+          <i :class="['fas', apiClient.isLoading ? 'fa-spinner fa-spin' : 'fa-sync']"></i>
+          <span>Reconnect</span>
         </button>
       </div>
     </div>
 
     <!-- Quick Actions -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">
-        <i class="fas fa-globe text-blue-600 mr-2"></i>
-        Browser Automation
-      </h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <button
-          @click="takeScreenshot"
-          :disabled="isProcessing"
-          class="p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-camera text-2xl"></i>
-          <span class="font-medium">Take Screenshot</span>
-          <span class="text-sm text-blue-600">Capture current page</span>
-        </button>
-
-        <button
-          @click="getPageContent"
-          :disabled="isProcessing"
-          class="p-4 bg-green-50 hover:bg-green-100 rounded-lg text-green-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-file-alt text-2xl"></i>
-          <span class="font-medium">Get Page Content</span>
-          <span class="text-sm text-green-600">Extract HTML</span>
-        </button>
-
-        <button
-          @click="openWebPage"
-          :disabled="isProcessing"
-          class="p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-purple-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-external-link-alt text-2xl"></i>
-          <span class="font-medium">Open Page</span>
-          <span class="text-sm text-purple-600">Navigate to URL</span>
-        </button>
-
-        <button
-          @click="clickElement"
-          :disabled="isProcessing"
-          class="p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-orange-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-mouse-pointer text-2xl"></i>
-          <span class="font-medium">Click Element</span>
-          <span class="text-sm text-orange-600">Interactive clicking</span>
-        </button>
-
-        <button
-          @click="evaluateJavaScript"
-          :disabled="isProcessing"
-          class="p-4 bg-red-50 hover:bg-red-100 rounded-lg text-red-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-code text-2xl"></i>
-          <span class="font-medium">Execute JS</span>
-          <span class="text-sm text-red-600">Run JavaScript</span>
-        </button>
-
-        <button
-          @click="getBrowserStatus"
-          :disabled="isProcessing"
-          class="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 transition flex flex-col items-center space-y-2"
-        >
-          <i class="fas fa-info-circle text-2xl"></i>
-          <span class="font-medium">Browser Status</span>
-          <span class="text-sm text-gray-600">Check status</span>
-        </button>
+    <div class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fas fa-globe"></i>
+          <span>Browser Automation</span>
+        </div>
+      </div>
+      
+      <div class="panel-body">
+        <div class="bento-grid bento-grid-auto">
+          <button v-for="action in BROWSER_ACTIONS_LIST" :key="action.id" @click="handleAction(action.id)" :disabled="isProcessing" class="action-card" :class="action.colorClass">
+            <div class="action-card-icon" :class="action.colorClass">
+              <i :class="action.icon"></i>
+            </div>
+            <span class="action-card-title">{{ action.name }}</span>
+            <span class="action-card-desc">{{ action.description }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Results Section -->
-    <div v-if="result" class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-3">Results</h3>
-      <div class="bg-gray-50 rounded-lg p-4">
-        <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ JSON.stringify(result, null, 2) }}</pre>
+    <div v-if="result" class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fas fa-terminal"></i>
+          <span>Results</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="terminal-output glass-scroll">
+          <pre>{{ JSON.stringify(result, null, 2) }}</pre>
+        </div>
       </div>
     </div>
 
     <!-- Browser Status -->
-    <div v-if="browserStatus" class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-3">Browser Status</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <span class="text-sm text-gray-500">Status:</span>
-          <span class="ml-2 font-medium" :class="browserStatus.isRunning ? 'text-green-600' : 'text-red-600'">
-            {{ browserStatus.isRunning ? 'Running' : 'Stopped' }}
-          </span>
+    <div v-if="browserStatus" class="bento-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fas fa-server"></i>
+          <span>Browser Status</span>
         </div>
-        <div>
-          <span class="text-sm text-gray-500">Port:</span>
-          <span class="ml-2 font-medium">{{ browserStatus.port }}</span>
-        </div>
-        <div>
-          <span class="text-sm text-gray-500">URL:</span>
-          <span class="ml-2 font-medium text-blue-600 underline">{{ browserStatus.url }}</span>
-        </div>
-        <div>
-          <span class="text-sm text-gray-500">Has Process:</span>
-          <span class="ml-2 font-medium">{{ browserStatus.hasChildProcess ? 'Yes' : 'No' }}</span>
+      </div>
+      <div class="panel-body">
+        <div class="bento-grid bento-grid-2">
+          <div class="status-item-card">
+            <span class="label-glass">Status</span>
+            <span :class="['tag-glass', browserStatus.isRunning ? 'tag-success' : 'tag-error']">
+              {{ browserStatus.isRunning ? 'Running' : 'Stopped' }}
+            </span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Port</span>
+            <span class="status-value">{{ browserStatus.port }}</span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">URL</span>
+            <span class="status-value text-primary">{{ browserStatus.url }}</span>
+          </div>
+          <div class="status-item-card">
+            <span class="label-glass">Has Process</span>
+            <span class="status-value">{{ browserStatus.hasChildProcess ? 'Yes' : 'No' }}</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Modals -->
-    <OpenPageModal
-      v-if="showOpenPageModal"
-      @close="showOpenPageModal = false"
-      @open="handleOpenPage"
-    />
-
-    <ClickElementModal
-      v-if="showClickElementModal"
-      @close="showClickElementModal = false"
-      @click="handleClickElement"
-    />
-
-    <ExecuteJSModal
-      v-if="showExecuteJSModal"
-      @close="showExecuteJSModal = false"
-      @execute="handleExecuteJS"
-    />
+    <OpenPageModal v-if="showOpenPageModal" @close="showOpenPageModal = false" @open="handleOpenPage" />
+    <ClickElementModal v-if="showClickElementModal" @close="showClickElementModal = false" @click="handleClickElement" />
+    <ExecuteJSModal v-if="showExecuteJSModal" @close="showExecuteJSModal = false" @execute="handleExecuteJS" />
   </div>
 </template>
 
@@ -152,6 +97,16 @@ import ClickElementModal from './ClickElementModal.vue';
 import ExecuteJSModal from './ExecuteJSModal.vue';
 import { useApiClient } from '@/apps/app_ittools/composables_app_ittools/useApiClient';
 
+// Actions configuration
+const BROWSER_ACTIONS_LIST = [
+  { id: 'screenshot', name: 'Take Screenshot', icon: 'fas fa-camera', description: 'Capture current page', colorClass: 'blue' },
+  { id: 'content', name: 'Get Page Content', icon: 'fas fa-file-alt', description: 'Extract HTML', colorClass: 'green' },
+  { id: 'open', name: 'Open Page', icon: 'fas fa-external-link-alt', description: 'Navigate to URL', colorClass: 'purple' },
+  { id: 'click', name: 'Click Element', icon: 'fas fa-mouse-pointer', description: 'Interactive clicking', colorClass: 'orange' },
+  { id: 'execute', name: 'Execute JS', icon: 'fas fa-code', description: 'Run JavaScript', colorClass: 'red' },
+  { id: 'status', name: 'Browser Status', icon: 'fas fa-info-circle', description: 'Check status', colorClass: 'gray' }
+];
+
 const isProcessing = ref(false);
 const result = ref<any>(null);
 const browserStatus = ref<any>(null);
@@ -161,21 +116,26 @@ const showExecuteJSModal = ref(false);
 
 const apiClient = useApiClient();
 
-// Browser automation functions via API
+const handleAction = (actionId: string) => {
+  switch (actionId) {
+    case 'screenshot': takeScreenshot(); break;
+    case 'content': getPageContent(); break;
+    case 'open': showOpenPageModal.value = true; break;
+    case 'click': showClickElementModal.value = true; break;
+    case 'execute': showExecuteJSModal.value = true; break;
+    case 'status': getBrowserStatus(); break;
+  }
+};
+
 const takeScreenshot = async () => {
   if (!apiClient.isFullyConnected.value) {
     result.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await apiClient.apiClient.post('/api/browser/screenshot', {
-      url: 'https://example.com',
-      full_page: true
-    });
+    const response = await apiClient.apiClient.post('/api/browser/screenshot', { url: 'https://example.com', full_page: true });
     result.value = response;
   } catch (error) {
     result.value = { error: error instanceof Error ? error.message : 'Screenshot failed' };
@@ -189,14 +149,10 @@ const getPageContent = async () => {
     result.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   result.value = null;
-
   try {
-    const response = await apiClient.apiClient.post('/api/browser/content', {
-      url: 'https://example.com'
-    });
+    const response = await apiClient.apiClient.post('/api/browser/content', { url: 'https://example.com' });
     result.value = response;
   } catch (error) {
     result.value = { error: error instanceof Error ? error.message : 'Failed to get page content' };
@@ -205,19 +161,13 @@ const getPageContent = async () => {
   }
 };
 
-const openWebPage = () => {
-  showOpenPageModal.value = true;
-};
-
 const handleOpenPage = async (data: { url: string; waitFor: string; selector?: string; timeout: number; userAgent?: string; headless: boolean }) => {
   if (!apiClient.isFullyConnected.value) {
     result.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await apiClient.apiClient.post('/api/browser/open', data);
     result.value = response;
@@ -228,19 +178,13 @@ const handleOpenPage = async (data: { url: string; waitFor: string; selector?: s
   }
 };
 
-const clickElement = () => {
-  showClickElementModal.value = true;
-};
-
 const handleClickElement = async (data: { url: string; selector: string; clickType: string; waitBefore: number; waitAfter: number; waitForNavigation: boolean }) => {
   if (!apiClient.isFullyConnected.value) {
     result.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await apiClient.apiClient.post('/api/browser/click', data);
     result.value = response;
@@ -251,19 +195,13 @@ const handleClickElement = async (data: { url: string; selector: string; clickTy
   }
 };
 
-const evaluateJavaScript = () => {
-  showExecuteJSModal.value = true;
-};
-
 const handleExecuteJS = async (data: { url: string; script: string; context: string; timeout: number; returnResult: boolean }) => {
   if (!apiClient.isFullyConnected.value) {
     result.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   result.value = null;
-
   try {
     const response = await apiClient.apiClient.post('/api/browser/execute-js', data);
     result.value = response;
@@ -279,17 +217,12 @@ const getBrowserStatus = async () => {
     browserStatus.value = { error: 'Not connected to backend services' };
     return;
   }
-
   isProcessing.value = true;
   browserStatus.value = null;
-
   try {
     const response = await apiClient.apiClient.get('/api/browser/status');
-    if (response.success) {
-      browserStatus.value = response.data;
-    } else {
-      browserStatus.value = { error: response.error || 'Failed to get browser status' };
-    }
+    if (response.success) browserStatus.value = response.data;
+    else browserStatus.value = { error: response.error || 'Failed to get browser status' };
   } catch (error) {
     browserStatus.value = { error: error instanceof Error ? error.message : 'Failed to get browser status' };
   } finally {
@@ -297,23 +230,47 @@ const getBrowserStatus = async () => {
   }
 };
 
-// Connection status indicator
 onMounted(() => {
-  // Auto-refresh browser status when connection is established
   const checkStatus = () => {
-    if (apiClient.isFullyConnected.value) {
-      getBrowserStatus();
-    }
+    if (apiClient.isFullyConnected.value) getBrowserStatus();
   };
-
-  // Check status every 10 seconds
   const statusInterval = setInterval(checkStatus, 10000);
-
-  // Initial check
   checkStatus();
-
-  onUnmounted(() => {
-    clearInterval(statusInterval);
-  });
+  onUnmounted(() => { clearInterval(statusInterval); });
 });
 </script>
+
+<style scoped>
+.status-card {
+  padding: 1rem 1.25rem;
+}
+
+.status-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--glass-bg-light);
+  border-radius: var(--radius-md);
+}
+
+.status-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* Action Card Colors */
+.action-card.blue .action-card-icon { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.action-card.green .action-card-icon { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
+.action-card.purple .action-card-icon { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+.action-card.orange .action-card-icon { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+.action-card.red .action-card-icon { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+.action-card.gray .action-card-icon { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); }
+</style>

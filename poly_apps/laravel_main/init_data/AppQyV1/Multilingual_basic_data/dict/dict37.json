@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.333038+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "humidity",
+        "laos": "ຄວາມຊຸ່ມຊື່ນ",
+        "jp": "湿度",
+        "vie": "độ ẩm",
+        "en_pronunciation": "/hjuˈmɪdəti/",
+        "laos_pronunciation": "khuaamsumsun",
+        "jp_pronunciation": "shitsudo",
+        "vie_pronunciation": "do am"
+      },
+      "means": {
+        "en": "Wetness in the atmosphere",
+        "zh": "大气中的湿度"
+      }
+    },
+    {
+      "word": {
+        "en": "humiliate",
+        "laos": "ເຮັດໃຫ້ອາຍ",
+        "jp": "屈辱を与える",
+        "vie": "làm nhục",
+        "en_pronunciation": "/hjuˈmɪliˌeɪt/",
+        "laos_pronunciation": "hedhaioai",
+        "jp_pronunciation": "kutsujoku wo atae ru",
+        "vie_pronunciation": "lam nhuc"
+      },
+      "means": {
+        "en": "Cause to feel shame; hurt the pride of",
+        "zh": "导致感到羞耻；"
+      }
+    },
+    {
+      "word": {
+        "en": "humor",
+        "laos": "ຕະຫລົກ",
+        "jp": "ユーモア",
+        "vie": "hài hước",
+        "en_pronunciation": "/ˈhjumər/",
+        "laos_pronunciation": "talok",
+        "jp_pronunciation": "yuumoa",
+        "vie_pronunciation": "hai huoc"
+      },
+      "means": {
+        "en": "A message whose ingenuity or verbal skill or incongruity has the power to evoke laughter",
+        "zh": "一条信息的独创性、语言技巧或不协调都能引起笑声"
+      }
+    },
+    {
+      "word": {
+        "en": "humour",
+        "laos": "ຕະຫລົກ",
+        "jp": "ユーモア",
+        "vie": "hài hước",
+        "en_pronunciation": "/ˈhjumər/",
+        "laos_pronunciation": "talok",
+        "jp_pronunciation": "yuumoa",
+        "vie_pronunciation": "hai huoc"
+      },
+      "means": {
+        "en": "A characteristic (habitual or relatively temporary) state of feeling",
+        "zh": "一种特有的（习惯性的或相对暂时的）感觉状态"
+      }
+    },
+    {
+      "word": {
+        "en": "humiliation",
+        "laos": "ຄວາມອັບອາຍຢ",
+        "jp": "屈辱",
+        "vie": "sự sỉ nhục",
+        "en_pronunciation": "/hjuˌmɪliˈeɪʃən/",
+        "laos_pronunciation": "khuaam boaiy",
+        "jp_pronunciation": "kutsujoku",
+        "vie_pronunciation": "su si nhuc"
+      },
+      "means": {
+        "en": "State of disgrace or loss of self-respect",
+        "zh": "耻辱或丧失自尊的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "humorous",
+        "laos": "ຕະຫຼົກ",
+        "jp": "ユーモラスな",
+        "vie": "hài hước",
+        "en_pronunciation": "/ˈhjumərəs/",
+        "laos_pronunciation": "tarok",
+        "jp_pronunciation": "yuumorasu na",
+        "vie_pronunciation": "hai huoc"
+      },
+      "means": {
+        "en": "Full of or characterized by humor",
+        "zh": "充满幽默或以幽默为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "humourous",
+        "laos": "ຕະຫຼົກ",
+        "jp": "ユーモラスな",
+        "vie": "hài hước",
+        "en_pronunciation": "/humourous/",
+        "laos_pronunciation": "tarok",
+        "jp_pronunciation": "yuumorasu na",
+        "vie_pronunciation": "hai huoc"
+      },
+      "means": {
+        "en": "Full of or characterized by humor",
+        "zh": "充满幽默或以幽默为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "hundred",
+        "laos": "ຮ້ອຍ",
+        "jp": "百",
+        "vie": "trăm",
+        "en_pronunciation": "/ˈhənərd/",
+        "laos_pronunciation": "hony",
+        "jp_pronunciation": "hyaku",
+        "vie_pronunciation": "tram"
+      },
+      "means": {
+        "en": "Ten 10s",
+        "zh": "十个 10"
+      }
+    },
+    {
+      "word": {
+        "en": "hunger",
+        "laos": "ຄວາມອຶດຫິວ",
+        "jp": "飢え",
+        "vie": "đói",
+        "en_pronunciation": "/ˈhəŋgər/",
+        "laos_pronunciation": "khuaamudhiv",
+        "jp_pronunciation": "ue",
+        "vie_pronunciation": "doi"
+      },
+      "means": {
+        "en": "A physiological need for food; the consequence of food deprivation",
+        "zh": "对食物的生理需求；"
+      }
+    },
+    {
+      "word": {
+        "en": "hungry",
+        "laos": "ທີ່ຫິວໂຫຍ",
+        "jp": "お腹が空いた",
+        "vie": "đói bụng",
+        "en_pronunciation": "/ˈhəŋgri/",
+        "laos_pronunciation": "thi hiuaoj",
+        "jp_pronunciation": "o hara ga ai ta",
+        "vie_pronunciation": "doi bung"
+      },
+      "means": {
+        "en": "Feeling hunger; feeling a need or desire to eat food",
+        "zh": "感到饥饿；"
+      }
+    },
+    {
+      "word": {
+        "en": "hunt",
+        "laos": "ລ່າ",
+        "jp": "狩り",
+        "vie": "đi săn",
+        "en_pronunciation": "/hənt/",
+        "laos_pronunciation": "la",
+        "jp_pronunciation": "kari",
+        "vie_pronunciation": "di san"
+      },
+      "means": {
+        "en": "Englishman and Pre-Raphaelite painter (1827-1910)",
+        "zh": "英国人和拉斐尔前派画家（1827-1910）"
+      }
+    },
+    {
+      "word": {
+        "en": "hunting",
+        "laos": "ການທໍາລາຍ",
+        "jp": "狩猟",
+        "vie": "săn bắn",
+        "en_pronunciation": "/ˈhəntɪŋ/",
+        "laos_pronunciation": "kanthoalai",
+        "jp_pronunciation": "shuryou",
+        "vie_pronunciation": "san ban"
+      },
+      "means": {
+        "en": "The pursuit and killing or capture of wild animals regarded as a sport",
+        "zh": "追捕、捕杀或捕捉野生动物被视为一项运动"
+      }
+    },
+    {
+      "word": {
+        "en": "hunter",
+        "laos": "ພານ",
+        "jp": "ハンター",
+        "vie": "thợ săn",
+        "en_pronunciation": "/ˈhəntər/",
+        "laos_pronunciation": "phan",
+        "jp_pronunciation": "hantaa",
+        "vie_pronunciation": "tho san"
+      },
+      "means": {
+        "en": "Someone who hunts game",
+        "zh": "打猎游戏的人"
+      }
+    },
+    {
+      "word": {
+        "en": "hurdle",
+        "laos": "ປະສິການ",
+        "jp": "ハードル",
+        "vie": "trở ngại",
+        "en_pronunciation": "/ˈhərdəl/",
+        "laos_pronunciation": "pa sikan",
+        "jp_pronunciation": "haadoru",
+        "vie_pronunciation": "tro ngai"
+      },
+      "means": {
+        "en": "A light movable barrier that competitors must leap over in certain races",
+        "zh": "在某些比赛中参赛者必须跳过的轻型可移动障碍物"
+      }
+    },
+    {
+      "word": {
+        "en": "hurl",
+        "laos": "ເກມອອນໄລນ໌ Hurl",
+        "jp": "投げつける",
+        "vie": "ném mạnh",
+        "en_pronunciation": "/hərl/",
+        "laos_pronunciation": "kemoonlain Hurl",
+        "jp_pronunciation": "nage tsukeru",
+        "vie_pronunciation": "nem manh"
+      },
+      "means": {
+        "en": "A violent throw",
+        "zh": "猛烈的投掷"
+      }
+    },
+    {
+      "word": {
+        "en": "hurricane",
+        "laos": "ພະຍຸເຮີລິເຄນ",
+        "jp": "ハリケーン",
+        "vie": "cơn bão",
+        "en_pronunciation": "/ˈhərəˌkeɪnz/",
+        "laos_pronunciation": "phanyu hoe likhen",
+        "jp_pronunciation": "harikeen",
+        "vie_pronunciation": "con bao"
+      },
+      "means": {
+        "en": "A severe tropical cyclone usually with heavy rains and winds moving a 73-136 knots (12 on the Beaufort scale)",
+        "zh": "严重的热带气旋，通常伴有大雨和风速 73-136 节（波弗特级 12 节）"
+      }
+    },
+    {
+      "word": {
+        "en": "hurry",
+        "laos": "ຟ້າວ",
+        "jp": "急いでください",
+        "vie": "nhanh lên",
+        "en_pronunciation": "/ˈhəri/",
+        "laos_pronunciation": "fav",
+        "jp_pronunciation": "isoi dekudasai",
+        "vie_pronunciation": "nhanh len"
+      },
+      "means": {
+        "en": "A condition of urgency making it necessary to hurry",
+        "zh": "情况紧急，必须抓紧时间"
+      }
+    },
+    {
+      "word": {
+        "en": "hurriedly",
+        "laos": "ຕະລີແຫ້ງ",
+        "jp": "急いで",
+        "vie": "vội vã",
+        "en_pronunciation": "/ˈhəridli/",
+        "laos_pronunciation": "ta liaehng",
+        "jp_pronunciation": "isoi de",
+        "vie_pronunciation": "voi va"
+      },
+      "means": {
+        "en": "In a hurried or hasty manner",
+        "zh": "以匆忙或仓促的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "hurt",
+        "laos": "ເຈັບປວດ",
+        "jp": "傷ついた",
+        "vie": "đau",
+        "en_pronunciation": "/hərt/",
+        "laos_pronunciation": "chebpuad",
+        "jp_pronunciation": "kizutsu ita",
+        "vie_pronunciation": "dau"
+      },
+      "means": {
+        "en": "Any physical damage to the body caused by violence or accident or fracture etc.",
+        "zh": "任何因暴力、事故、骨折等对身体造成的物理损伤。"
+      }
+    },
+    {
+      "word": {
+        "en": "hurtful",
+        "laos": "ທີ່ເຈັບປວດ",
+        "jp": "有害な",
+        "vie": "gây tổn thương",
+        "en_pronunciation": "/ˈhərtfəl/",
+        "laos_pronunciation": "thichebpuad",
+        "jp_pronunciation": "yuugai na",
+        "vie_pronunciation": "gay ton thuong"
+      },
+      "means": {
+        "en": "Causing hurt",
+        "zh": "造成伤害"
+      }
+    },
+    {
+      "word": {
+        "en": "husband",
+        "laos": "ຜົວ",
+        "jp": "夫",
+        "vie": "chồng",
+        "en_pronunciation": "/ˈhəzbənd/",
+        "laos_pronunciation": "phua",
+        "jp_pronunciation": "otto",
+        "vie_pronunciation": "chong"
+      },
+      "means": {
+        "en": "A married man; a woman's partner in marriage",
+        "zh": "已婚男人；"
+      }
+    },
+    {
+      "word": {
+        "en": "hut",
+        "laos": "ຕູບ",
+        "jp": "小屋",
+        "vie": "túp lều",
+        "en_pronunciation": "/hət/",
+        "laos_pronunciation": "tub",
+        "jp_pronunciation": "koya",
+        "vie_pronunciation": "tup leu"
+      },
+      "means": {
+        "en": "Temporary military shelter",
+        "zh": "临时军事掩体"
+      }
+    },
+    {
+      "word": {
+        "en": "hybrid",
+        "laos": "ລູກປະສົມ",
+        "jp": "ハイブリッド",
+        "vie": "lai",
+        "en_pronunciation": "/ˈhaɪbrɪd/",
+        "laos_pronunciation": "lukpasom",
+        "jp_pronunciation": "haiburiddo",
+        "vie_pronunciation": "lai"
+      },
+      "means": {
+        "en": "A word that is composed of parts from different languages (e.g., `monolingual' has a Greek prefix and a Latin root)",
+        "zh": "由不同语言的部分组成的单词（例如，“单语言”具有希腊语前缀和拉丁语词根）"
+      }
+    },
+    {
+      "word": {
+        "en": "hydrogen",
+        "laos": "hydrogen",
+        "jp": "水素",
+        "vie": "hydro",
+        "en_pronunciation": "/ˈhaɪdrəʤən/",
+        "laos_pronunciation": "hydrogen",
+        "jp_pronunciation": "suiso",
+        "vie_pronunciation": "hydro"
+      },
+      "means": {
+        "en": "A nonmetallic univalent element that is normally a colorless and odorless highly flammable diatomic gas; the simplest and lightest and most abundant element in the universe",
+        "zh": "一种非金属单价元素，通常是无色无味的高度易燃的双原子气体；"
+      }
+    },
+    {
+      "word": {
+        "en": "hygiene",
+        "laos": "ສຸກ",
+        "jp": "衛生",
+        "vie": "vệ sinh",
+        "en_pronunciation": "/ˈhaɪˌʤin/",
+        "laos_pronunciation": "suk",
+        "jp_pronunciation": "eisei",
+        "vie_pronunciation": "ve sinh"
+      },
+      "means": {
+        "en": "A condition promoting sanitary practices",
+        "zh": "促进卫生习惯的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "hyphen",
+        "laos": "ສະກົດ",
+        "jp": "ハイフン",
+        "vie": "gạch nối",
+        "en_pronunciation": "/ˈhaɪfən/",
+        "laos_pronunciation": "sakod",
+        "jp_pronunciation": "haifun",
+        "vie_pronunciation": "gach noi"
+      },
+      "means": {
+        "en": "A punctuation mark (-) used between parts of a compound word or between the syllables of a word when the word is divided at the end of a line of text",
+        "zh": "当单词在一行文本的末尾被分割时，在复合词的各部分之间或单词的音节之间使用的标点符号 (-)"
+      }
+    },
+    {
+      "word": {
+        "en": "hypocrisy",
+        "laos": "ຫນ້າຊື່ໃຈຄົດ",
+        "jp": "偽善",
+        "vie": "đạo đức giả",
+        "en_pronunciation": "/hɪˈpɑkrəsi/",
+        "laos_pronunciation": "na su chaikhod",
+        "jp_pronunciation": "gizen",
+        "vie_pronunciation": "dao duc gia"
+      },
+      "means": {
+        "en": "An expression of agreement that is not supported by real conviction",
+        "zh": "没有真正信念支持的同意表达"
+      }
+    },
+    {
+      "word": {
+        "en": "hypothesis",
+        "laos": "ສົມມຸດຕິຖານ",
+        "jp": "仮説",
+        "vie": "giả thuyết",
+        "en_pronunciation": "/haɪˈpɑθəsəs/",
+        "laos_pronunciation": "sommud tithan",
+        "jp_pronunciation": "kasetsu",
+        "vie_pronunciation": "gia thuyet"
+      },
+      "means": {
+        "en": "A proposal intended to explain certain facts or observations",
+        "zh": "旨在解释某些事实或观察结果的提案"
+      }
+    },
+    {
+      "word": {
+        "en": "hysterical",
+        "laos": "ຮິຍ່າງ",
+        "jp": "ヒステリックな",
+        "vie": "cuồng loạn",
+        "en_pronunciation": "/hɪˈstɛrɪkəl/",
+        "laos_pronunciation": "hinyang",
+        "jp_pronunciation": "hisuterikku na",
+        "vie_pronunciation": "cuong loan"
+      },
+      "means": {
+        "en": "Characterized by or arising from psychoneurotic hysteria; - Morris Fishbein",
+        "zh": "以精神神经性癔症为特征或由其引起；"
+      }
+    },
+    {
+      "word": {
+        "en": "hygienic",
+        "laos": "ອະນາໄມ",
+        "jp": "衛生的な",
+        "vie": "hợp vệ sinh",
+        "en_pronunciation": "/hygienic/",
+        "laos_pronunciation": "anamai",
+        "jp_pronunciation": "eiseiteki na",
+        "vie_pronunciation": "hop ve sinh"
+      },
+      "means": {
+        "en": "Tending to promote or preserve health",
+        "zh": "倾向于促进或保持健康"
+      }
+    },
+    {
+      "word": {
+        "en": "hypocritical",
+        "laos": "ທີ່ຫນ້າຊື່ໃຈ",
+        "jp": "偽善的な",
+        "vie": "đạo đức giả",
+        "en_pronunciation": "/ˌhɪpəˈkrɪtɪkəl/",
+        "laos_pronunciation": "thi na suchai",
+        "jp_pronunciation": "gizenteki na",
+        "vie_pronunciation": "dao duc gia"
+      },
+      "means": {
+        "en": "Professing feelings or virtues one does not have",
+        "zh": "宣称自己没有感情或美德"
+      }
+    },
+    {
+      "word": {
+        "en": "hypothetical",
+        "laos": "ສົມມຸດຕິຖານ",
+        "jp": "仮説的な",
+        "vie": "giả định",
+        "en_pronunciation": "/ˌhaɪpəˈθɛtɪkəl/",
+        "laos_pronunciation": "sommud tithan",
+        "jp_pronunciation": "kasetsu tekina",
+        "vie_pronunciation": "gia dinh"
+      },
+      "means": {
+        "en": "A hypothetical possibility, circumstance, statement, proposal, situation, etc.",
+        "zh": "假设的可能性、情况、陈述、建议、情况等。"
+      }
+    },
+    {
+      "word": {
+        "en": "hysteria",
+        "laos": "ໂລກຢືດຢ້າວ",
+        "jp": "ヒステリー",
+        "vie": "chứng cuồng loạn",
+        "en_pronunciation": "/hɪˈstɛriə/",
+        "laos_pronunciation": "olk yudyav",
+        "jp_pronunciation": "hisuterii",
+        "vie_pronunciation": "chung cuong loan"
+      },
+      "means": {
+        "en": "State of violent mental agitation",
+        "zh": "精神剧烈躁动的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "hypocrite",
+        "laos": "ຄົນຫນ້າກຽດຊັງ",
+        "jp": "偽善者",
+        "vie": "kẻ đạo đức giả",
+        "en_pronunciation": "/ˈhɪpəˌkrɪt/",
+        "laos_pronunciation": "khon na kiadsang",
+        "jp_pronunciation": "gizensha",
+        "vie_pronunciation": "ke dao duc gia"
+      },
+      "means": {
+        "en": "A person who professes beliefs and opinions that he or she does not hold in order to conceal his or her real feelings or motives",
+        "zh": "为了隐藏自己的真实感受或动机而公开表达自己并不持有的信念和观点的人"
+      }
+    },
+    {
+      "word": {
+        "en": "i",
+        "laos": "ຂ້າພະເຈົ້າ",
+        "jp": "私は",
+        "vie": "tôi",
+        "en_pronunciation": "/aɪ/",
+        "laos_pronunciation": "khaphachao",
+        "jp_pronunciation": "watashi ha",
+        "vie_pronunciation": "toi"
+      },
+      "means": {
+        "en": "A nonmetallic element belonging to the halogens; used especially in medicine and photography and in dyes; occurs naturally only in combination in small quantities (as in sea water or rocks)",
+        "zh": "属于卤素的非金属元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "ice",
+        "laos": "ກ້ອນ",
+        "jp": "氷",
+        "vie": "băng",
+        "en_pronunciation": "/aɪs/",
+        "laos_pronunciation": "kon",
+        "jp_pronunciation": "koori",
+        "vie_pronunciation": "bang"
+      },
+      "means": {
+        "en": "Water frozen in the solid state",
+        "zh": "水冻结在固态"
+      }
+    },
+    {
+      "word": {
+        "en": "icy",
+        "laos": "ນ້ໍາກ້ອນ",
+        "jp": "氷っぽい",
+        "vie": "băng giá",
+        "en_pronunciation": "/ˈaɪsi/",
+        "laos_pronunciation": "noakon",
+        "jp_pronunciation": "koori ppoi",
+        "vie_pronunciation": "bang gia"
+      },
+      "means": {
+        "en": "Devoid of warmth and cordiality; expressive of unfriendliness or disdain",
+        "zh": "缺乏热情和诚恳；"
+      }
+    },
+    {
+      "word": {
+        "en": "iceberg",
+        "laos": "ໄອພີ",
+        "jp": "氷山",
+        "vie": "tảng băng trôi",
+        "en_pronunciation": "/ˈaɪsbərg/",
+        "laos_pronunciation": "aiphi",
+        "jp_pronunciation": "hyouzan",
+        "vie_pronunciation": "tang bang troi"
+      },
+      "means": {
+        "en": "A large mass of ice floating at sea; usually broken off of a polar glacier",
+        "zh": "海上漂浮着大块冰块；"
+      }
+    },
+    {
+      "word": {
+        "en": "ice-cream",
+        "laos": "ຄີມກ້ອນ",
+        "jp": "アイスクリーム",
+        "vie": "kem",
+        "en_pronunciation": "/ˈaɪˌskrim/",
+        "laos_pronunciation": "khimkon",
+        "jp_pronunciation": "aisukuriimu",
+        "vie_pronunciation": "kem"
+      },
+      "means": {
+        "en": "Ice-cream is an English word referring to 'ice-cream'.",
+        "zh": "Ice-cream是一个英语单词，指的是“冰淇淋”。"
+      }
+    },
+    {
+      "word": {
+        "en": "icon",
+        "laos": "ໄອຄອນ",
+        "jp": "アイコン",
+        "vie": "biểu tượng",
+        "en_pronunciation": "/ˈaɪkɑn/",
+        "laos_pronunciation": "aikhon",
+        "jp_pronunciation": "aikon",
+        "vie_pronunciation": "bieu tuong"
+      },
+      "means": {
+        "en": "(computer science) a graphic symbol (usually a simple picture) that denotes a program or a command or a data file or a concept in a graphical user interface",
+        "zh": "（计算机科学）图形符号（通常是简单的图片），表示图形用户界面中的程序、命令、数据文件或概念"
+      }
+    },
+    {
+      "word": {
+        "en": "idea",
+        "laos": "ຄວາມຄິດ",
+        "jp": "アイデア",
+        "vie": "ý tưởng",
+        "en_pronunciation": "/aɪˈdiə/",
+        "laos_pronunciation": "khuaamkhid",
+        "jp_pronunciation": "aidea",
+        "vie_pronunciation": "y tuong"
+      },
+      "means": {
+        "en": "The content of cognition; the main thing you are thinking about",
+        "zh": "认知内容；"
+      }
+    },
+    {
+      "word": {
+        "en": "ideal",
+        "laos": "ຄວາມເຫມາະສົມ",
+        "jp": "理想的な",
+        "vie": "lý tưởng",
+        "en_pronunciation": "/aɪˈdil/",
+        "laos_pronunciation": "khuaamhemaasom",
+        "jp_pronunciation": "risouteki na",
+        "vie_pronunciation": "ly tuong"
+      },
+      "means": {
+        "en": "The idea of something that is perfect; something that one hopes to attain",
+        "zh": "完美事物的想法；"
+      }
+    },
+    {
+      "word": {
+        "en": "idealistic",
+        "laos": "ຄວາມປອດໄພ",
+        "jp": "理想主義的な",
+        "vie": "duy tâm",
+        "en_pronunciation": "/aɪˌdiəˈlɪstɪk/",
+        "laos_pronunciation": "khuaampodphai",
+        "jp_pronunciation": "risoushugi tekina",
+        "vie_pronunciation": "duy tam"
+      },
+      "means": {
+        "en": "Of or relating to the philosophical doctrine of the reality of ideas",
+        "zh": "属于或关于观念实在性的哲学学说"
+      }
+    },
+    {
+      "word": {
+        "en": "idealism",
+        "laos": "ຄວາມປອດໄພ",
+        "jp": "理想主義",
+        "vie": "chủ nghĩa duy tâm",
+        "en_pronunciation": "/aɪˈdilɪzəm/",
+        "laos_pronunciation": "khuaampodphai",
+        "jp_pronunciation": "risoushugi",
+        "vie_pronunciation": "chu nghia duy tam"
+      },
+      "means": {
+        "en": "(philosophy) the philosophical theory that ideas are the only reality",
+        "zh": "（哲学）观念是唯一现实的哲学理论"
+      }
+    },
+    {
+      "word": {
+        "en": "identify",
+        "laos": "ບອກລັກສະນະ",
+        "jp": "特定する",
+        "vie": "xác định",
+        "en_pronunciation": "/aɪˈdɛntəˌfaɪ/",
+        "laos_pronunciation": "boklaksana",
+        "jp_pronunciation": "tokutei suru",
+        "vie_pronunciation": "xac dinh"
+      },
+      "means": {
+        "en": "Recognize as being; establish the identity of someone or something",
+        "zh": "认识到存在；"
+      }
+    },
+    {
+      "word": {
+        "en": "identification",
+        "laos": "ການລະບຸຕົວຕົນ",
+        "jp": "識別",
+        "vie": "nhận dạng",
+        "en_pronunciation": "/aɪˌdɛntəfəˈkeɪʃən/",
+        "laos_pronunciation": "kan labu tuaton",
+        "jp_pronunciation": "shikibetsu",
+        "vie_pronunciation": "nhan dang"
+      },
+      "means": {
+        "en": "The act of designating or identifying something",
+        "zh": "指定或识别某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "identity",
+        "laos": "ຕົວຕົນ",
+        "jp": "アイデンティティ",
+        "vie": "danh tính",
+        "en_pronunciation": "/aɪˈdɛntəˌti/",
+        "laos_pronunciation": "tuaton",
+        "jp_pronunciation": "aidenteitei",
+        "vie_pronunciation": "danh tinh"
+      },
+      "means": {
+        "en": "The distinct personality of an individual regarded as a persisting entity",
+        "zh": "被视为持久实体的个体的独特个性"
+      }
+    },
+    {
+      "word": {
+        "en": "identical",
+        "laos": "ຄືກັນກັບ",
+        "jp": "同一の",
+        "vie": "giống hệt nhau",
+        "en_pronunciation": "/aɪˈdɛntɪkəl/",
+        "laos_pronunciation": "khukankab",
+        "jp_pronunciation": "douitsu no",
+        "vie_pronunciation": "giong het nhau"
+      },
+      "means": {
+        "en": "Exactly alike; incapable of being perceived as different",
+        "zh": "一模一样；"
+      }
+    },
+    {
+      "word": {
+        "en": "ideology",
+        "laos": "ລັດທິ",
+        "jp": "イデオロギー",
+        "vie": "hệ tư tưởng",
+        "en_pronunciation": "/ˌaɪdiˈɑləʤi/",
+        "laos_pronunciation": "ladthi",
+        "jp_pronunciation": "ideorogii",
+        "vie_pronunciation": "he tu tuong"
+      },
+      "means": {
+        "en": "An orientation that characterizes the thinking of a group or nation",
+        "zh": "表征一个群体或国家的思维特征的取向"
+      }
+    },
+    {
+      "word": {
+        "en": "ideological",
+        "laos": "ແນວຄິດ",
+        "jp": "イデオロギー的な",
+        "vie": "tư tưởng",
+        "en_pronunciation": "/ˌaɪdiəˈlɑʤɪkəl/",
+        "laos_pronunciation": "aenuakhid",
+        "jp_pronunciation": "ideorogii tekina",
+        "vie_pronunciation": "tu tuong"
+      },
+      "means": {
+        "en": "Of or pertaining to or characteristic of an orientation that characterizes the thinking of a group or nation",
+        "zh": "属于或属于某个群体或国家的思维特征的倾向或特征"
+      }
+    },
+    {
+      "word": {
+        "en": "idiom",
+        "laos": "ບຸຣີ",
+        "jp": "イディオム",
+        "vie": "thành ngữ",
+        "en_pronunciation": "/ˈɪdiəm/",
+        "laos_pronunciation": "buri",
+        "jp_pronunciation": "idiomu",
+        "vie_pronunciation": "thanh ngu"
+      },
+      "means": {
+        "en": "A manner of speaking that is natural to native speakers of a language",
+        "zh": "一种语言母语者自然的说话方式"
+      }
+    },
+    {
+      "word": {
+        "en": "idiomatic",
+        "laos": "ສໍາໄກ່",
+        "jp": "慣用的な",
+        "vie": "thành ngữ",
+        "en_pronunciation": "/ˌɪdiəˈmætɪk/",
+        "laos_pronunciation": "soakai",
+        "jp_pronunciation": "kanyouteki na",
+        "vie_pronunciation": "thanh ngu"
+      },
+      "means": {
+        "en": "Of or relating to or conforming to idiom",
+        "zh": "属于习语或与习语有关或符合习语"
+      }
+    },
+    {
+      "word": {
+        "en": "idiot",
+        "laos": "ຈ້າ",
+        "jp": "バカ",
+        "vie": "đồ ngốc",
+        "en_pronunciation": "/ˈɪˌdiət/",
+        "laos_pronunciation": "cha",
+        "jp_pronunciation": "baka",
+        "vie_pronunciation": "do ngoc"
+      },
+      "means": {
+        "en": "A person of subnormal intelligence",
+        "zh": "智力低于正常水平的人"
+      }
+    },
+    {
+      "word": {
+        "en": "idiotic",
+        "laos": "ຈ້າ",
+        "jp": "愚かな",
+        "vie": "ngu ngốc",
+        "en_pronunciation": "/ˌɪdiˈɑtɪk/",
+        "laos_pronunciation": "cha",
+        "jp_pronunciation": "oroka na",
+        "vie_pronunciation": "ngu ngoc"
+      },
+      "means": {
+        "en": "Insanely irresponsible",
+        "zh": "极其不负责任"
+      }
+    },
+    {
+      "word": {
+        "en": "idle",
+        "laos": "ບໍ່ເຮັດຫຢັງ",
+        "jp": "アイドル状態",
+        "vie": "nhàn rỗi",
+        "en_pronunciation": "/ˈaɪdəl/",
+        "laos_pronunciation": "bohed hyang",
+        "jp_pronunciation": "aidoru joutai",
+        "vie_pronunciation": "nhan roi"
+      },
+      "means": {
+        "en": "The state of an engine or other mechanism that is idling",
+        "zh": "发动机或其他机构空转的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "idly",
+        "laos": "ຄັກເພຫຼາ",
+        "jp": "ぼんやりと",
+        "vie": "nhàn rỗi",
+        "en_pronunciation": "/ˈaɪdli/",
+        "laos_pronunciation": "khak phe ra",
+        "jp_pronunciation": "bonyarito",
+        "vie_pronunciation": "nhan roi"
+      },
+      "means": {
+        "en": "In an idle manner",
+        "zh": "以闲散的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "idol",
+        "laos": "Idol",
+        "jp": "アイドル",
+        "vie": "thần tượng",
+        "en_pronunciation": "/ˈaɪdəl/",
+        "laos_pronunciation": "Idol",
+        "jp_pronunciation": "aidoru",
+        "vie_pronunciation": "than tuong"
+      },
+      "means": {
+        "en": "A material effigy that is worshipped",
+        "zh": "受崇拜的物质雕像"
+      }
+    },
+    {
+      "word": {
+        "en": "if",
+        "laos": "ຜິວ່າ",
+        "jp": "もし",
+        "vie": "nếu",
+        "en_pronunciation": "/ɪf/",
+        "laos_pronunciation": "phiva",
+        "jp_pronunciation": "moshi",
+        "vie_pronunciation": "neu"
+      },
+      "means": {
+        "en": "If is an English word referring to 'if'.",
+        "zh": "if是一个英语单词，指的是“如果”。"
+      }
+    },
+    {
+      "word": {
+        "en": "ignite",
+        "laos": "ໄຕ້",
+        "jp": "点火する",
+        "vie": "đốt cháy",
+        "en_pronunciation": "/ˌɪgˈnaɪt/",
+        "laos_pronunciation": "tai",
+        "jp_pronunciation": "tenka suru",
+        "vie_pronunciation": "dot chay"
+      },
+      "means": {
+        "en": "Cause to start burning; subject to fire or great heat",
+        "zh": "导致开始燃烧；"
+      }
+    },
+    {
+      "word": {
+        "en": "ignition",
+        "laos": "ການມອດ",
+        "jp": "点火",
+        "vie": "đánh lửa",
+        "en_pronunciation": "/ˌɪgˈnɪʃən/",
+        "laos_pronunciation": "kanmod",
+        "jp_pronunciation": "tenka",
+        "vie_pronunciation": "danh lua"
+      },
+      "means": {
+        "en": "The process of initiating combustion or catching fire",
+        "zh": "引发燃烧或着火的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "ignorant",
+        "laos": "ໂງ່",
+        "jp": "無知な",
+        "vie": "ngu dốt",
+        "en_pronunciation": "/ˈɪgnərənt/",
+        "laos_pronunciation": "ong",
+        "jp_pronunciation": "muchi na",
+        "vie_pronunciation": "ngu dot"
+      },
+      "means": {
+        "en": "Uneducated in general; lacking knowledge or sophistication",
+        "zh": "普遍没有受过教育；"
+      }
+    },
+    {
+      "word": {
+        "en": "ignorance",
+        "laos": "ຄວາມໂງ່",
+        "jp": "無知",
+        "vie": "sự thiếu hiểu biết",
+        "en_pronunciation": "/ˈɪgnərəns/",
+        "laos_pronunciation": "khuaamong",
+        "jp_pronunciation": "muchi",
+        "vie_pronunciation": "su thieu hieu biet"
+      },
+      "means": {
+        "en": "The lack of knowledge or education",
+        "zh": "缺乏知识或教育"
+      }
+    },
+    {
+      "word": {
+        "en": "ignore",
+        "laos": "ນິ້ງນອນໃຈ",
+        "jp": "無視する",
+        "vie": "bỏ qua",
+        "en_pronunciation": "/ˌɪgˈnɔr/",
+        "laos_pronunciation": "ning nonchai",
+        "jp_pronunciation": "mushisu ru",
+        "vie_pronunciation": "bo qua"
+      },
+      "means": {
+        "en": "Refuse to acknowledge",
+        "zh": "拒绝承认"
+      }
+    },
+    {
+      "word": {
+        "en": "ill",
+        "laos": "ເຈັບປ່ວຍ",
+        "jp": "病気",
+        "vie": "bị bệnh",
+        "en_pronunciation": "/ɪl/",
+        "laos_pronunciation": "chebpuany",
+        "jp_pronunciation": "byouki",
+        "vie_pronunciation": "bi benh"
+      },
+      "means": {
+        "en": "An often persistent bodily disorder or disease; a cause for complaining",
+        "zh": "经常持续存在的身体失调或疾病；"
+      }
+    },
+    {
+      "word": {
+        "en": "illness",
+        "laos": "​ການ​ເຈັບ​ປ່ວຍ",
+        "jp": "病気",
+        "vie": "bệnh tật",
+        "en_pronunciation": "/ˈɪlnəs/",
+        "laos_pronunciation": "kan chebpuany",
+        "jp_pronunciation": "byouki",
+        "vie_pronunciation": "benh tat"
+      },
+      "means": {
+        "en": "Impairment of normal physiological function affecting part or all of an organism",
+        "zh": "影响生物体部分或全部正常生理功能的损害"
+      }
+    },
+    {
+      "word": {
+        "en": "illegal",
+        "laos": "ຜິດກົດຫມາຍ",
+        "jp": "違法な",
+        "vie": "bất hợp pháp",
+        "en_pronunciation": "/ˌɪˈligəl/",
+        "laos_pronunciation": "phidkodmai",
+        "jp_pronunciation": "ihou na",
+        "vie_pronunciation": "bat hop phap"
+      },
+      "means": {
+        "en": "Prohibited by law or by official or accepted rules",
+        "zh": "法律、官方或公认规则禁止"
+      }
+    },
+    {
+      "word": {
+        "en": "illicit",
+        "laos": "ຜິດຍາດ",
+        "jp": "違法な",
+        "vie": "bất hợp pháp",
+        "en_pronunciation": "/ˌɪˈlɪsət/",
+        "laos_pronunciation": "phidnyad",
+        "jp_pronunciation": "ihou na",
+        "vie_pronunciation": "bat hop phap"
+      },
+      "means": {
+        "en": "Contrary to accepted morality (especially sexual morality) or convention",
+        "zh": "与公认的道德（尤其是性道德）或惯例相反"
+      }
+    },
+    {
+      "word": {
+        "en": "illiterate",
+        "laos": "ທີ່ບໍ່ຮູ້ຫນັງສື",
+        "jp": "文盲",
+        "vie": "mù chữ",
+        "en_pronunciation": "/ˌɪˈlɪtərət/",
+        "laos_pronunciation": "thi bohunangsu",
+        "jp_pronunciation": "monmou",
+        "vie_pronunciation": "mu chu"
+      },
+      "means": {
+        "en": "A person unable to read",
+        "zh": "一个无法读书的人"
+      }
+    },
+    {
+      "word": {
+        "en": "illiteracy",
+        "laos": "ຈວງ",
+        "jp": "文盲",
+        "vie": "mù chữ",
+        "en_pronunciation": "/ˌɪˈlɪtərəsi/",
+        "laos_pronunciation": "chuang",
+        "jp_pronunciation": "monmou",
+        "vie_pronunciation": "mu chu"
+      },
+      "means": {
+        "en": "Ignorance resulting from not reading",
+        "zh": "不读书导致的无知"
+      }
+    },
+    {
+      "word": {
+        "en": "illuminate",
+        "laos": "ສ່ອງແສງ",
+        "jp": "照らす",
+        "vie": "chiếu sáng",
+        "en_pronunciation": "/ˌɪˈlumɪnɪt/",
+        "laos_pronunciation": "songaesng",
+        "jp_pronunciation": "tera su",
+        "vie_pronunciation": "chieu sang"
+      },
+      "means": {
+        "en": "Make lighter or brighter",
+        "zh": "使颜色变浅或变亮"
+      }
+    },
+    {
+      "word": {
+        "en": "illumination",
+        "laos": "ແສງສະຫວ່າງ",
+        "jp": "イルミネーション",
+        "vie": "chiếu sáng",
+        "en_pronunciation": "/ˌɪˌluməˈneɪʃən/",
+        "laos_pronunciation": "aesngsavang",
+        "jp_pronunciation": "irumineeshon",
+        "vie_pronunciation": "chieu sang"
+      },
+      "means": {
+        "en": "A condition of spiritual awareness; divine illumination",
+        "zh": "精神意识的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "illusion",
+        "laos": "ເລືອມ",
+        "jp": "幻想",
+        "vie": "ảo tưởng",
+        "en_pronunciation": "/ˌɪˈluʒən/",
+        "laos_pronunciation": "leuom",
+        "jp_pronunciation": "gensou",
+        "vie_pronunciation": "ao tuong"
+      },
+      "means": {
+        "en": "An erroneous mental representation",
+        "zh": "错误的心理表征"
+      }
+    },
+    {
+      "word": {
+        "en": "illusory",
+        "laos": "ຄວາມຢພ້ໍາຕາ",
+        "jp": "幻想的な",
+        "vie": "ảo tưởng",
+        "en_pronunciation": "/ˌɪˈlusəri/",
+        "laos_pronunciation": "khuaam y ph oata",
+        "jp_pronunciation": "gensouteki na",
+        "vie_pronunciation": "ao tuong"
+      },
+      "means": {
+        "en": "Based on or having the nature of an illusion",
+        "zh": "基于或具有幻觉的性质"
+      }
+    },
+    {
+      "word": {
+        "en": "illustrate",
+        "laos": "ທໍາອິດວາດສະແດງ",
+        "jp": "説明する",
+        "vie": "minh họa",
+        "en_pronunciation": "/ˈɪləˌstreɪt/",
+        "laos_pronunciation": "thoaid vadsaaedng",
+        "jp_pronunciation": "setsumeisu ru",
+        "vie_pronunciation": "minh hoa"
+      },
+      "means": {
+        "en": "Clarify by giving an example of",
+        "zh": "举例说明"
+      }
+    },
+    {
+      "word": {
+        "en": "illustration",
+        "laos": "ຮູບແຕ້ມປະກອບ",
+        "jp": "イラスト",
+        "vie": "hình minh họa",
+        "en_pronunciation": "/ˌɪləˈstreɪʃən/",
+        "laos_pronunciation": "hubaetm pakob",
+        "jp_pronunciation": "irasuto",
+        "vie_pronunciation": "hinh minh hoa"
+      },
+      "means": {
+        "en": "Artwork that helps make something clear or attractive",
+        "zh": "有助于使事物变得清晰或有吸引力的艺术品"
+      }
+    },
+    {
+      "word": {
+        "en": "illustrative",
+        "laos": "ຜູ້ນ້ໍາຮູບ",
+        "jp": "実例的な",
+        "vie": "minh họa",
+        "en_pronunciation": "/ˌɪˈləstrətɪv/",
+        "laos_pronunciation": "phun oahub",
+        "jp_pronunciation": "jitsurei tekina",
+        "vie_pronunciation": "minh hoa"
+      },
+      "means": {
+        "en": "Clarifying by use of examples",
+        "zh": "通过使用示例来阐明"
+      }
+    },
+    {
+      "word": {
+        "en": "image",
+        "laos": "ຮູບ",
+        "jp": "画像",
+        "vie": "hình ảnh",
+        "en_pronunciation": "/ˈɪmɪʤ/",
+        "laos_pronunciation": "hub",
+        "jp_pronunciation": "gazou",
+        "vie_pronunciation": "hinh anh"
+      },
+      "means": {
+        "en": "An iconic mental representation",
+        "zh": "标志性的心理表征"
+      }
+    },
+    {
+      "word": {
+        "en": "imaging",
+        "laos": "ພາບສານ",
+        "jp": "イメージング",
+        "vie": "hình ảnh",
+        "en_pronunciation": "/ˈɪmɪʤɪŋ/",
+        "laos_pronunciation": "phabsan",
+        "jp_pronunciation": "imeejingu",
+        "vie_pronunciation": "hinh anh"
+      },
+      "means": {
+        "en": "The ability to form mental images of things or events",
+        "zh": "形成事物或事件的心理图像的能力"
+      }
+    },
+    {
+      "word": {
+        "en": "imagine",
+        "laos": "ຈິນ",
+        "jp": "想像してください",
+        "vie": "tưởng tượng",
+        "en_pronunciation": "/ˌɪˈmæʤən/",
+        "laos_pronunciation": "chin",
+        "jp_pronunciation": "souzou shitekudasai",
+        "vie_pronunciation": "tuong tuong"
+      },
+      "means": {
+        "en": "Form a mental image of something that is not present or that is not the case",
+        "zh": "在心理上形成不存在或事实并非如此的事物的形象"
+      }
+    },
+    {
+      "word": {
+        "en": "imagination",
+        "laos": "ຈິນຕະນາການ",
+        "jp": "想像力",
+        "vie": "trí tưởng tượng",
+        "en_pronunciation": "/ˌɪˌmæʤəˈneɪʃən/",
+        "laos_pronunciation": "chintanakan",
+        "jp_pronunciation": "souzouryoku",
+        "vie_pronunciation": "tri tuong tuong"
+      },
+      "means": {
+        "en": "The formation of a mental image of something that is not perceived as real and is not present to the senses",
+        "zh": "某种不被感知为真实且不存在于感官的事物的心理图像的形成"
+      }
+    },
+    {
+      "word": {
+        "en": "imaginative",
+        "laos": "ທີ່ມີຈິນຕະນາການ",
+        "jp": "想像力豊かな",
+        "vie": "giàu trí tưởng tượng",
+        "en_pronunciation": "/ˌɪˈmæʤənətɪv/",
+        "laos_pronunciation": "thimichintanakan",
+        "jp_pronunciation": "souzouryoku yutaka na",
+        "vie_pronunciation": "giau tri tuong tuong"
+      },
+      "means": {
+        "en": "(used of persons or artifacts) marked by independence and creativity in thought or action; ; - Lewis Mumford",
+        "zh": "（使用人或物）在思想或行动上具有独立性和创造性；"
+      }
+    },
+    {
+      "word": {
+        "en": "imaginary",
+        "laos": "ທີ່ຂຶ້ນສູ່ຄິດ",
+        "jp": "想像上の",
+        "vie": "tưởng tượng",
+        "en_pronunciation": "/ˌɪˈmæʤəˌnɛri/",
+        "laos_pronunciation": "thi khunsukhid",
+        "jp_pronunciation": "souzou ueno",
+        "vie_pronunciation": "tuong tuong"
+      },
+      "means": {
+        "en": "(mathematics) a number of the form a+bi where a and b are real numbers and i is the square root of -1",
+        "zh": "（数学）a+bi 形式的数字，其中 a 和 b 是实数，i 是 -1 的平方根"
+      }
+    },
+    {
+      "word": {
+        "en": "imitate",
+        "laos": "ອະນຸໂລມ",
+        "jp": "真似する",
+        "vie": "bắt chước",
+        "en_pronunciation": "/ˈɪməˌteɪt/",
+        "laos_pronunciation": "anuolm",
+        "jp_pronunciation": "mane suru",
+        "vie_pronunciation": "bat chuoc"
+      },
+      "means": {
+        "en": "Reproduce someone's behavior or looks",
+        "zh": "再现某人的行为或外表"
+      }
+    },
+    {
+      "word": {
+        "en": "imitation",
+        "laos": "ການຮຽນແບບ",
+        "jp": "模倣",
+        "vie": "bắt chước",
+        "en_pronunciation": "/ˌɪməˈteɪʃən/",
+        "laos_pronunciation": "kanhianaebb",
+        "jp_pronunciation": "mohou",
+        "vie_pronunciation": "bat chuoc"
+      },
+      "means": {
+        "en": "The doctrine that representations of nature or human behavior should be accurate imitations",
+        "zh": "自然或人类行为的表现应该是准确模仿的学说"
+      }
+    },
+    {
+      "word": {
+        "en": "imitative",
+        "laos": "ສິນຣະຍາດ",
+        "jp": "模倣的な",
+        "vie": "bắt chước",
+        "en_pronunciation": "/ˈɪməˌteɪtɪv/",
+        "laos_pronunciation": "sin ranyad",
+        "jp_pronunciation": "mohou tekina",
+        "vie_pronunciation": "bat chuoc"
+      },
+      "means": {
+        "en": "Marked by or given to imitation",
+        "zh": "带有仿制品标记或给予仿制品"
+      }
+    },
+    {
+      "word": {
+        "en": "immediate",
+        "laos": "ທັນທີ",
+        "jp": "即時",
+        "vie": "ngay lập tức",
+        "en_pronunciation": "/ˌɪˈmiˌdiət/",
+        "laos_pronunciation": "thanthi",
+        "jp_pronunciation": "sokuji",
+        "vie_pronunciation": "ngay lap tuc"
+      },
+      "means": {
+        "en": "Of the present time and place",
+        "zh": "现在的时间和地点"
+      }
+    },
+    {
+      "word": {
+        "en": "immediately",
+        "laos": "ທັນທີ",
+        "jp": "すぐに",
+        "vie": "ngay lập tức",
+        "en_pronunciation": "/ˌɪˈmiˌdiətli/",
+        "laos_pronunciation": "thanthi",
+        "jp_pronunciation": "suguni",
+        "vie_pronunciation": "ngay lap tuc"
+      },
+      "means": {
+        "en": "Without delay or hesitation; with no time intervening",
+        "zh": "毫不拖延或犹豫；"
+      }
+    },
+    {
+      "word": {
+        "en": "immense",
+        "laos": "ດີ",
+        "jp": "計り知れない",
+        "vie": "bao la",
+        "en_pronunciation": "/ˌɪˈmɛns/",
+        "laos_pronunciation": "di",
+        "jp_pronunciation": "hakari shire nai",
+        "vie_pronunciation": "bao la"
+      },
+      "means": {
+        "en": "Unusually great in size or amount or degree or especially extent or scope; ; ; ; ; ; ; ; ; - W.R.Inge",
+        "zh": "规模、数量、程度，尤其是程度或范围异常大；"
+      }
+    },
+    {
+      "word": {
+        "en": "immensely",
+        "laos": "ຢ່າງຫລວງຫລາຍ",
+        "jp": "非常に",
+        "vie": "vô cùng",
+        "en_pronunciation": "/ˌɪˈmɛnsli/",
+        "laos_pronunciation": "yangluanglai",
+        "jp_pronunciation": "hijouni",
+        "vie_pronunciation": "vo cung"
+      },
+      "means": {
+        "en": "To an exceedingly great extent or degree",
+        "zh": "在极大程度上"
+      }
+    },
+    {
+      "word": {
+        "en": "immensity",
+        "laos": "ຄວາມຖີ່",
+        "jp": "巨大さ",
+        "vie": "sự bao la",
+        "en_pronunciation": "/immensity/",
+        "laos_pronunciation": "khuaamthi",
+        "jp_pronunciation": "kyodai sa",
+        "vie_pronunciation": "su bao la"
+      },
+      "means": {
+        "en": "Unusual largeness in size or extent or number",
+        "zh": "尺寸、范围或数量异常巨大"
+      }
+    },
+    {
+      "word": {
+        "en": "immerse",
+        "laos": "ຈຸ່ມ",
+        "jp": "浸す",
+        "vie": "đắm chìm",
+        "en_pronunciation": "/ˌɪˈmərs/",
+        "laos_pronunciation": "chum",
+        "jp_pronunciation": "hitasu",
+        "vie_pronunciation": "dam chim"
+      },
+      "means": {
+        "en": "Thrust or throw into",
+        "zh": "推入或扔入"
+      }
+    },
+    {
+      "word": {
+        "en": "immersion",
+        "laos": "ການເອົາໃຈໃສ່",
+        "jp": "浸漬",
+        "vie": "ngâm",
+        "en_pronunciation": "/ˌɪˈmərʒən/",
+        "laos_pronunciation": "kanoaochaisai",
+        "jp_pronunciation": "shinshi",
+        "vie_pronunciation": "ngam"
+      },
+      "means": {
+        "en": "Sinking until covered completely with water",
+        "zh": "下沉直至完全被水覆盖"
+      }
+    },
+    {
+      "word": {
+        "en": "immigrate",
+        "laos": "ເຂົ້າເມືອງ",
+        "jp": "移民する",
+        "vie": "nhập cư",
+        "en_pronunciation": "/ˈɪməˌgreɪt/",
+        "laos_pronunciation": "khaomeuong",
+        "jp_pronunciation": "imin suru",
+        "vie_pronunciation": "nhap cu"
+      },
+      "means": {
+        "en": "Migrate to a new environment",
+        "zh": "迁移到新环境"
+      }
+    },
+    {
+      "word": {
+        "en": "immigration",
+        "laos": "ການເຂົ້າມາຍູ່",
+        "jp": "移民",
+        "vie": "nhập cư",
+        "en_pronunciation": "/ˌɪməˈgreɪʃən/",
+        "laos_pronunciation": "kan khaoma nyu",
+        "jp_pronunciation": "imin",
+        "vie_pronunciation": "nhap cu"
+      },
+      "means": {
+        "en": "Migration into a place (especially migration to a country of which you are not a native in order to settle there)",
+        "zh": "移民到一个地方（尤其是为了定居而移民到一个非本国人的国家）"
+      }
+    },
+    {
+      "word": {
+        "en": "immigrant",
+        "laos": "ຜູ້ຢິງເຂົ້າເມືອງ",
+        "jp": "移民",
+        "vie": "người nhập cư",
+        "en_pronunciation": "/ˈɪməgrənt/",
+        "laos_pronunciation": "phu yingkhaomeuong",
+        "jp_pronunciation": "imin",
+        "vie_pronunciation": "nguoi nhap cu"
+      },
+      "means": {
+        "en": "A person who comes to a country where they were not born in order to settle there",
+        "zh": "一个人来到一个不是他们出生的国家并在那里定居的人"
+      }
+    },
+    {
+      "word": {
+        "en": "imminent",
+        "laos": "ຈວນຕົວ",
+        "jp": "差し迫った",
+        "vie": "sắp xảy ra",
+        "en_pronunciation": "/ˈɪmənənt/",
+        "laos_pronunciation": "chuantua",
+        "jp_pronunciation": "sashi sematsu ta",
+        "vie_pronunciation": "sap xay ra"
+      },
+      "means": {
+        "en": "Close in time; about to occur",
+        "zh": "时间接近；"
+      }
+    },
+    {
+      "word": {
+        "en": "immune",
+        "laos": "ຕ້ານທານ",
+        "jp": "免疫力",
+        "vie": "miễn dịch",
+        "en_pronunciation": "/ˌɪmˈjun/",
+        "laos_pronunciation": "tanthan",
+        "jp_pronunciation": "men'ekiryoku",
+        "vie_pronunciation": "mien dich"
+      },
+      "means": {
+        "en": "A person who is immune to a particular infection",
+        "zh": "对某种特定感染具有免疫力的人"
+      }
+    },
+    {
+      "word": {
+        "en": "immunity",
+        "laos": "ພູມຕ້ານທານ",
+        "jp": "免疫力",
+        "vie": "miễn dịch",
+        "en_pronunciation": "/ˌɪmˈjunɪti/",
+        "laos_pronunciation": "phumtanthan",
+        "jp_pronunciation": "men'ekiryoku",
+        "vie_pronunciation": "mien dich"
+      },
+      "means": {
+        "en": "The state of not being susceptible",
+        "zh": "不受影响的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "immunize",
+        "laos": "ສົມມຸດຕິ",
+        "jp": "予防接種する",
+        "vie": "gây miễn dịch",
+        "en_pronunciation": "/ˈɪmjuˌnaɪz/",
+        "laos_pronunciation": "sommudti",
+        "jp_pronunciation": "yobou sesshu suru",
+        "vie_pronunciation": "gay mien dich"
+      },
+      "means": {
+        "en": "Law: grant immunity from prosecution",
+        "zh": "法律：给予起诉豁免权"
+      }
+    },
+    {
+      "word": {
+        "en": "immunise",
+        "laos": "ສົມມຸດຕິ",
+        "jp": "予防接種する",
+        "vie": "tạo miễn dịch",
+        "en_pronunciation": "/immunise/",
+        "laos_pronunciation": "sommud ti",
+        "jp_pronunciation": "yobou sesshu suru",
+        "vie_pronunciation": "tao mien dich"
+      },
+      "means": {
+        "en": "Law: grant immunity from prosecution",
+        "zh": "法律：给予起诉豁免权"
+      }
+    }
+  ]
+}

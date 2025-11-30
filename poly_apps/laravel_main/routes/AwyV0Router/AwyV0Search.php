@@ -15,6 +15,6 @@ use Illuminate\Support\Facades\Route;
 
 // AwyV0 Search Routes
 Route::prefix('awy-v0/search')->middleware('auth:sanctum')->group(function () {
-    Route::get('/', [App\Apps\AwyV0\Controllers\AwyV0SearchCtl::class, 'search']);
-    Route::get('/users', [App\Apps\AwyV0\Controllers\AwyV0SearchCtl::class, 'searchUsers']);
+    Route::get('/', [App\Apps\AwyV0\AwyV0Controllers\AwyV0SearchCtl::class, 'search']);
+    Route::get('/users', [App\Apps\AwyV0\AwyV0Controllers\AwyV0SearchCtl::class, 'searchUsers']);
 });

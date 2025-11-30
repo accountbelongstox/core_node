@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.430718+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "tasty",
+        "laos": "ທີ່ແຊບ",
+        "jp": "おいしい",
+        "vie": "ngon",
+        "en_pronunciation": "/ˈteɪsti/",
+        "laos_pronunciation": "thiaesb",
+        "jp_pronunciation": "oishii",
+        "vie_pronunciation": "ngon"
+      },
+      "means": {
+        "en": "Pleasing to the sense of taste",
+        "zh": "愉悦的味觉"
+      }
+    },
+    {
+      "word": {
+        "en": "tax",
+        "laos": "ພາສີ",
+        "jp": "税金",
+        "vie": "thuế",
+        "en_pronunciation": "/tæks/",
+        "laos_pronunciation": "phasi",
+        "jp_pronunciation": "zeikin",
+        "vie_pronunciation": "thue"
+      },
+      "means": {
+        "en": "Charge against a citizen's person or property or activity for the support of government",
+        "zh": "为了支持政府而对公民的人身、财产或活动提出指控"
+      }
+    },
+    {
+      "word": {
+        "en": "taxation",
+        "laos": "ການເກັບພາສີ",
+        "jp": "課税",
+        "vie": "đánh thuế",
+        "en_pronunciation": "/tækˈseɪʃən/",
+        "laos_pronunciation": "kankebphasi",
+        "jp_pronunciation": "kazei",
+        "vie_pronunciation": "danh thue"
+      },
+      "means": {
+        "en": "Charge against a citizen's person or property or activity for the support of government",
+        "zh": "为了支持政府而对公民的人身、财产或活动提出指控"
+      }
+    },
+    {
+      "word": {
+        "en": "taxi",
+        "laos": "ລົດແທັກຊີ້",
+        "jp": "タクシー",
+        "vie": "taxi",
+        "en_pronunciation": "/ˈtæksi/",
+        "laos_pronunciation": "lod thaeksi",
+        "jp_pronunciation": "takushii",
+        "vie_pronunciation": "taxi"
+      },
+      "means": {
+        "en": "A car driven by a person whose job is to take passengers where they want to go in exchange for money",
+        "zh": "由一个人驾驶的汽车，其工作是将乘客带到他们想去的地方以换取金钱"
+      }
+    },
+    {
+      "word": {
+        "en": "tea",
+        "laos": "ນ້ໍາຊາ",
+        "jp": "お茶",
+        "vie": "trà",
+        "en_pronunciation": "/ti/",
+        "laos_pronunciation": "noasa",
+        "jp_pronunciation": "o cha",
+        "vie_pronunciation": "tra"
+      },
+      "means": {
+        "en": "A beverage made by steeping tea leaves in water",
+        "zh": "将茶叶浸泡在水中制成的饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "teach",
+        "laos": "ສອນ",
+        "jp": "教える",
+        "vie": "dạy",
+        "en_pronunciation": "/tiʧ/",
+        "laos_pronunciation": "son",
+        "jp_pronunciation": "oshie ru",
+        "vie_pronunciation": "day"
+      },
+      "means": {
+        "en": "An English pirate who operated in the Caribbean and off the Atlantic coast of North America (died in 1718)",
+        "zh": "一位在加勒比海和北美大西洋沿岸活动的英国海盗（卒于 1718 年）"
+      }
+    },
+    {
+      "word": {
+        "en": "teacher",
+        "laos": "ຄູ",
+        "jp": "先生",
+        "vie": "giáo viên",
+        "en_pronunciation": "/ˈtiʧər/",
+        "laos_pronunciation": "khu",
+        "jp_pronunciation": "sensei",
+        "vie_pronunciation": "giao vien"
+      },
+      "means": {
+        "en": "A person whose occupation is teaching",
+        "zh": "职业是教学的人"
+      }
+    },
+    {
+      "word": {
+        "en": "teaching",
+        "laos": "ການສອນ",
+        "jp": "教える",
+        "vie": "giảng dạy",
+        "en_pronunciation": "/ˈtiʧɪŋ/",
+        "laos_pronunciation": "kanson",
+        "jp_pronunciation": "oshie ru",
+        "vie_pronunciation": "giang day"
+      },
+      "means": {
+        "en": "The profession of a teacher",
+        "zh": "教师的职业"
+      }
+    },
+    {
+      "word": {
+        "en": "team",
+        "laos": "ທີມງານ",
+        "jp": "チーム",
+        "vie": "đội",
+        "en_pronunciation": "/tim/",
+        "laos_pronunciation": "thimngan",
+        "jp_pronunciation": "chiimu",
+        "vie_pronunciation": "doi"
+      },
+      "means": {
+        "en": "A cooperative unit (especially in sports)",
+        "zh": "合作单位（尤其是在体育领域）"
+      }
+    },
+    {
+      "word": {
+        "en": "tear",
+        "laos": "ນ້ໍາຕາ",
+        "jp": "涙",
+        "vie": "xé",
+        "en_pronunciation": "/tɪr/",
+        "laos_pronunciation": "noata",
+        "jp_pronunciation": "namida",
+        "vie_pronunciation": "xe"
+      },
+      "means": {
+        "en": "A drop of the clear salty saline solution secreted by the lacrimal glands",
+        "zh": "一滴由泪腺分泌的透明咸盐溶液"
+      }
+    },
+    {
+      "word": {
+        "en": "tease",
+        "laos": "ກະທໍາ",
+        "jp": "からかう",
+        "vie": "trêu chọc",
+        "en_pronunciation": "/tiz/",
+        "laos_pronunciation": "kathoa",
+        "jp_pronunciation": "karakau",
+        "vie_pronunciation": "treu choc"
+      },
+      "means": {
+        "en": "Someone given to teasing (as by mocking or stirring curiosity)",
+        "zh": "喜欢取笑的人（例如通过嘲笑或激发好奇心）"
+      }
+    },
+    {
+      "word": {
+        "en": "technical",
+        "laos": "ທາງວິຊາການ",
+        "jp": "技術的な",
+        "vie": "kỹ thuật",
+        "en_pronunciation": "/ˈtɛknɪkəl/",
+        "laos_pronunciation": "thangvisakan",
+        "jp_pronunciation": "gijutsuteki na",
+        "vie_pronunciation": "ky thuat"
+      },
+      "means": {
+        "en": "A pickup truck with a gun mounted on it",
+        "zh": "一辆装有枪的皮卡车"
+      }
+    },
+    {
+      "word": {
+        "en": "technician",
+        "laos": "ຊ່າງຊ່າງ",
+        "jp": "技術者",
+        "vie": "kỹ thuật viên",
+        "en_pronunciation": "/tɛkˈnɪʃən/",
+        "laos_pronunciation": "sangsang",
+        "jp_pronunciation": "gijutsusha",
+        "vie_pronunciation": "ky thuat vien"
+      },
+      "means": {
+        "en": "Someone whose occupation involves training in a specific technical process",
+        "zh": "其职业涉及特定技术流程培训的人"
+      }
+    },
+    {
+      "word": {
+        "en": "technique",
+        "laos": "ເຕັກໂນໂລຢີ",
+        "jp": "テクニック",
+        "vie": "kỹ thuật",
+        "en_pronunciation": "/tɛkˈnik/",
+        "laos_pronunciation": "tekonolyi",
+        "jp_pronunciation": "tekunikku",
+        "vie_pronunciation": "ky thuat"
+      },
+      "means": {
+        "en": "A practical method or art applied to some particular task",
+        "zh": "应用于某些特定任务的实用方法或艺术"
+      }
+    },
+    {
+      "word": {
+        "en": "technology",
+        "laos": "ເຕັກໂນໂລຍີ",
+        "jp": "テクノロジー",
+        "vie": "công nghệ",
+        "en_pronunciation": "/tɛkˈnɑləʤi/",
+        "laos_pronunciation": "tekonolnyi",
+        "jp_pronunciation": "tekunorojii",
+        "vie_pronunciation": "cong nghe"
+      },
+      "means": {
+        "en": "The practical application of science to commerce or industry",
+        "zh": "科学在商业或工业中的实际应用"
+      }
+    },
+    {
+      "word": {
+        "en": "tech",
+        "laos": "ເທັກໂນ",
+        "jp": "技術",
+        "vie": "công nghệ",
+        "en_pronunciation": "/tɛk/",
+        "laos_pronunciation": "thekon",
+        "jp_pronunciation": "gijutsu",
+        "vie_pronunciation": "cong nghe"
+      },
+      "means": {
+        "en": "A school teaching mechanical and industrial arts and the applied sciences",
+        "zh": "一所教授机械、工业艺术和应用科学的学校"
+      }
+    },
+    {
+      "word": {
+        "en": "technological",
+        "laos": "ທີ່ເຕັກໂນໂລຢີ",
+        "jp": "技術的な",
+        "vie": "công nghệ",
+        "en_pronunciation": "/ˌtɛknəˈlɑʤɪkəl/",
+        "laos_pronunciation": "thi tekonolyi",
+        "jp_pronunciation": "gijutsuteki na",
+        "vie_pronunciation": "cong nghe"
+      },
+      "means": {
+        "en": "Based in scientific and industrial progress",
+        "zh": "立足于科学和工业进步"
+      }
+    },
+    {
+      "word": {
+        "en": "tedious",
+        "laos": "tedious",
+        "jp": "退屈な",
+        "vie": "tẻ nhạt",
+        "en_pronunciation": "/ˈtidiəs/",
+        "laos_pronunciation": "tedious",
+        "jp_pronunciation": "taikutsu na",
+        "vie_pronunciation": "te nhat"
+      },
+      "means": {
+        "en": "So lacking in interest as to cause mental weariness; ; ; ; ; ; - Edmund Burke; ; - Mark Twain",
+        "zh": "缺乏兴趣以致精神疲倦；"
+      }
+    },
+    {
+      "word": {
+        "en": "teen",
+        "laos": "ໄວຣານ",
+        "jp": "ティーン",
+        "vie": "thiếu niên",
+        "en_pronunciation": "/tin/",
+        "laos_pronunciation": "vairan",
+        "jp_pronunciation": "teiin",
+        "vie_pronunciation": "thieu nien"
+      },
+      "means": {
+        "en": "A juvenile between the onset of puberty and maturity",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "teenager",
+        "laos": "ໄວຣຸ້ນ",
+        "jp": "ティーンエイジャー",
+        "vie": "thiếu niên",
+        "en_pronunciation": "/ˈtiˌneɪʤər/",
+        "laos_pronunciation": "vairun",
+        "jp_pronunciation": "teiin'eijaa",
+        "vie_pronunciation": "thieu nien"
+      },
+      "means": {
+        "en": "A juvenile between the onset of puberty and maturity",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "telecommunications",
+        "laos": "ໂທລະຄົມມະນາຄົມ",
+        "jp": "電気通信",
+        "vie": "viễn thông",
+        "en_pronunciation": "/ˌtɛləkəmˌjunəˈkeɪʃənz/",
+        "laos_pronunciation": "othlakhommanakhom",
+        "jp_pronunciation": "denkitsuushin",
+        "vie_pronunciation": "vien thong"
+      },
+      "means": {
+        "en": "(often plural) systems used in transmitting messages over a distance electronically",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "telephone",
+        "laos": "ໂທລະສັບ",
+        "jp": "電話",
+        "vie": "điện thoại",
+        "en_pronunciation": "/ˈtɛləˌfoʊn/",
+        "laos_pronunciation": "othlasab",
+        "jp_pronunciation": "denwa",
+        "vie_pronunciation": "dien thoai"
+      },
+      "means": {
+        "en": "Electronic equipment that converts sound into electrical signals that can be transmitted over distances and then converts received signals back into sounds",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "phone",
+        "laos": "ໂທລະສັບ",
+        "jp": "電話",
+        "vie": "điện thoại",
+        "en_pronunciation": "/foʊn/",
+        "laos_pronunciation": "othlasab",
+        "jp_pronunciation": "denwa",
+        "vie_pronunciation": "dien thoai"
+      },
+      "means": {
+        "en": "Electronic equipment that converts sound into electrical signals that can be transmitted over distances and then converts received signals back into sounds",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "telescope",
+        "laos": "ກ້ອງສ່ອງທາງໄກ",
+        "jp": "望遠鏡",
+        "vie": "kính thiên văn",
+        "en_pronunciation": "/ˈtɛləˌskoʊp/",
+        "laos_pronunciation": "kong songthangkai",
+        "jp_pronunciation": "bouenkyou",
+        "vie_pronunciation": "kinh thien van"
+      },
+      "means": {
+        "en": "A magnifier of images of distant objects",
+        "zh": "——埃德蒙·伯克；"
+      }
+    },
+    {
+      "word": {
+        "en": "telescopic",
+        "laos": "telescic",
+        "jp": "伸縮式",
+        "vie": "kính thiên văn",
+        "en_pronunciation": "/ˌtɛləˈskɔpɪk/",
+        "laos_pronunciation": "telescic",
+        "jp_pronunciation": "shinshuku shiki",
+        "vie_pronunciation": "kinh thien van"
+      },
+      "means": {
+        "en": "Visible only with a telescope",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "television",
+        "laos": "ໂທລະພາບ",
+        "jp": "テレビ",
+        "vie": "truyền hình",
+        "en_pronunciation": "/ˈtɛləˌvɪʒən/",
+        "laos_pronunciation": "othlaphab",
+        "jp_pronunciation": "terebi",
+        "vie_pronunciation": "truyen hinh"
+      },
+      "means": {
+        "en": "Broadcasting visual images of stationary or moving objects; ;  - Ernie Kovacs",
+        "zh": "——马克·吐温"
+      }
+    },
+    {
+      "word": {
+        "en": "tv",
+        "laos": "ໂທລະພາບ",
+        "jp": "テレビ",
+        "vie": "truyền hình",
+        "en_pronunciation": "/ˌtɛləˈvɪʒən/",
+        "laos_pronunciation": "othlaphab",
+        "jp_pronunciation": "terebi",
+        "vie_pronunciation": "truyen hinh"
+      },
+      "means": {
+        "en": "Broadcasting visual images of stationary or moving objects; ;  - Ernie Kovacs",
+        "zh": "介于青春期和成熟之间的青少年"
+      }
+    },
+    {
+      "word": {
+        "en": "tell",
+        "laos": "ບອກ",
+        "jp": "伝える",
+        "vie": "nói",
+        "en_pronunciation": "/tɛl/",
+        "laos_pronunciation": "bok",
+        "jp_pronunciation": "tsutae ru",
+        "vie_pronunciation": "noi"
+      },
+      "means": {
+        "en": "A Swiss patriot who lived in the early 14th century and who was renowned for his skill as an archer; according to legend an Austrian governor compelled him to shoot an apple from his son's head with his crossbow (which he did successfully without mishap)",
+        "zh": "介于青春期和成熟之间的青少年"
+      }
+    },
+    {
+      "word": {
+        "en": "telling",
+        "laos": "ບອກ",
+        "jp": "伝える",
+        "vie": "kể",
+        "en_pronunciation": "/ˈtɛlɪŋ/",
+        "laos_pronunciation": "bok",
+        "jp_pronunciation": "tsutae ru",
+        "vie_pronunciation": "ke"
+      },
+      "means": {
+        "en": "An act of narration",
+        "zh": "（通常是复数）用于以电子方式远距离传输消息的系统"
+      }
+    },
+    {
+      "word": {
+        "en": "teller",
+        "laos": "ວາຈົກ",
+        "jp": "出納係",
+        "vie": "người giao dịch",
+        "en_pronunciation": "/ˈtɛlər/",
+        "laos_pronunciation": "vachok",
+        "jp_pronunciation": "suitougakari",
+        "vie_pronunciation": "nguoi giao dich"
+      },
+      "means": {
+        "en": "United States physicist (born in Hungary) who worked on the first atom bomb and the first hydrogen bomb (1908-2003)",
+        "zh": "将声音转换为可远距离传输的电信号，然后将接收到的信号转换回声音的电子设备"
+      }
+    },
+    {
+      "word": {
+        "en": "temper",
+        "laos": "ອາລົມ",
+        "jp": "気性",
+        "vie": "tính khí",
+        "en_pronunciation": "/ˈtɛmpər/",
+        "laos_pronunciation": "alom",
+        "jp_pronunciation": "kishou",
+        "vie_pronunciation": "tinh khi"
+      },
+      "means": {
+        "en": "A sudden outburst of anger",
+        "zh": "将声音转换为可远距离传输的电信号，然后将接收到的信号转换回声音的电子设备"
+      }
+    },
+    {
+      "word": {
+        "en": "temperament",
+        "laos": "temperament",
+        "jp": "気質",
+        "vie": "tính khí",
+        "en_pronunciation": "/ˈtɛmpərmənt/",
+        "laos_pronunciation": "temperament",
+        "jp_pronunciation": "kishitsu",
+        "vie_pronunciation": "tinh khi"
+      },
+      "means": {
+        "en": "Your usual mood",
+        "zh": "远处物体图像的放大镜"
+      }
+    },
+    {
+      "word": {
+        "en": "temperature",
+        "laos": "ອຸນຫະພູມ",
+        "jp": "温度",
+        "vie": "nhiệt độ",
+        "en_pronunciation": "/ˈtɛmpərəʧər/",
+        "laos_pronunciation": "unhaphum",
+        "jp_pronunciation": "ondo",
+        "vie_pronunciation": "nhiet do"
+      },
+      "means": {
+        "en": "The degree of hotness or coldness of a body or environment (corresponding to its molecular activity)",
+        "zh": "只能用望远镜才能看到"
+      }
+    },
+    {
+      "word": {
+        "en": "temple",
+        "laos": "ວັດ",
+        "jp": "寺院",
+        "vie": "ngôi đền",
+        "en_pronunciation": "/ˈtɛmpəl/",
+        "laos_pronunciation": "vad",
+        "jp_pronunciation": "jiin",
+        "vie_pronunciation": "ngoi den"
+      },
+      "means": {
+        "en": "Place of worship consisting of an edifice for the worship of a deity",
+        "zh": "广播静止或移动物体的视觉图像；"
+      }
+    },
+    {
+      "word": {
+        "en": "tempo",
+        "laos": "ມິຕິ",
+        "jp": "テンポ",
+        "vie": "nhịp độ",
+        "en_pronunciation": "/ˈtɛmˌpoʊ/",
+        "laos_pronunciation": "miti",
+        "jp_pronunciation": "tenpo",
+        "vie_pronunciation": "nhip do"
+      },
+      "means": {
+        "en": "(music) the speed at which a composition is to be played",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "temporal",
+        "laos": "ໂລກ",
+        "jp": "一時的な",
+        "vie": "tạm thời",
+        "en_pronunciation": "/ˈtɛmpərəl/",
+        "laos_pronunciation": "olk",
+        "jp_pronunciation": "ichijiteki na",
+        "vie_pronunciation": "tam thoi"
+      },
+      "means": {
+        "en": "The semantic role of the noun phrase that designates the time of the state or action denoted by the verb",
+        "zh": "——厄尼·科瓦奇"
+      }
+    },
+    {
+      "word": {
+        "en": "temporary",
+        "laos": "ຊົ່ວຄາວ",
+        "jp": "一時的な",
+        "vie": "tạm thời",
+        "en_pronunciation": "/ˈtɛmpərˌɛri/",
+        "laos_pronunciation": "souakhav",
+        "jp_pronunciation": "ichijiteki na",
+        "vie_pronunciation": "tam thoi"
+      },
+      "means": {
+        "en": "A worker (especially in an office) hired on a temporary basis",
+        "zh": "广播静止或移动物体的视觉图像；"
+      }
+    },
+    {
+      "word": {
+        "en": "tempt",
+        "laos": "ລໍ້ໃຈ",
+        "jp": "誘惑する",
+        "vie": "cám dỗ",
+        "en_pronunciation": "/tɛmpt/",
+        "laos_pronunciation": "lochai",
+        "jp_pronunciation": "yuuwaku suru",
+        "vie_pronunciation": "cam do"
+      },
+      "means": {
+        "en": "Dispose or incline or entice to",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "ten",
+        "laos": "ສິບ",
+        "jp": "10",
+        "vie": "mười",
+        "en_pronunciation": "/tɛn/",
+        "laos_pronunciation": "sib",
+        "jp_pronunciation": "10",
+        "vie_pronunciation": "muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of nine and one; the base of the decimal system",
+        "zh": "——厄尼·科瓦奇"
+      }
+    },
+    {
+      "word": {
+        "en": "temporarily",
+        "laos": "ຊົ່ວຄາວ",
+        "jp": "一時的に",
+        "vie": "tạm thời",
+        "en_pronunciation": "/ˌtɛmpərˈɛrəli/",
+        "laos_pronunciation": "souakhav",
+        "jp_pronunciation": "ichijiteki ni",
+        "vie_pronunciation": "tam thoi"
+      },
+      "means": {
+        "en": "For a limited time only; not permanently",
+        "zh": "一位生活在14世纪初的瑞士爱国者，以弓箭手闻名；"
+      }
+    },
+    {
+      "word": {
+        "en": "temptation",
+        "laos": "ການລໍ້ໃຈ",
+        "jp": "誘惑",
+        "vie": "sự cám dỗ",
+        "en_pronunciation": "/tɛmˈteɪʃən/",
+        "laos_pronunciation": "kan lochai",
+        "jp_pronunciation": "yuuwaku",
+        "vie_pronunciation": "su cam do"
+      },
+      "means": {
+        "en": "Something that seduces or has the quality to seduce",
+        "zh": "据传说，一位奥地利总督强迫他用十字弓从他儿子的头上射出一个苹果（他成功地做到了，没有发生任何意外）"
+      }
+    },
+    {
+      "word": {
+        "en": "tenant",
+        "laos": "ຜູ້ເຊົ່າ",
+        "jp": "テナント",
+        "vie": "người thuê nhà",
+        "en_pronunciation": "/ˈtɛnənt/",
+        "laos_pronunciation": "phuseoa",
+        "jp_pronunciation": "tenanto",
+        "vie_pronunciation": "nguoi thue nha"
+      },
+      "means": {
+        "en": "Someone who pays rent to use land or a building or a car that is owned by someone else",
+        "zh": "一种叙事行为"
+      }
+    },
+    {
+      "word": {
+        "en": "tend",
+        "laos": "ມັກ",
+        "jp": "傾向がある",
+        "vie": "có xu hướng",
+        "en_pronunciation": "/tɛnd/",
+        "laos_pronunciation": "mak",
+        "jp_pronunciation": "keikou gaaru",
+        "vie_pronunciation": "co xu huong"
+      },
+      "means": {
+        "en": "Have a tendency or disposition to do or be something; be inclined",
+        "zh": "美国物理学家（出生于匈牙利），研制出第一颗原子弹和第一颗氢弹（1908-2003）"
+      }
+    },
+    {
+      "word": {
+        "en": "tendency",
+        "laos": "ການພັນເປັນ",
+        "jp": "傾向",
+        "vie": "xu hướng",
+        "en_pronunciation": "/ˈtɛndənsi/",
+        "laos_pronunciation": "kan phanpen",
+        "jp_pronunciation": "keikou",
+        "vie_pronunciation": "xu huong"
+      },
+      "means": {
+        "en": "An attitude of mind especially one that favors one alternative over others",
+        "zh": "突然爆发的愤怒"
+      }
+    },
+    {
+      "word": {
+        "en": "tender",
+        "laos": "ນຸ່ມ",
+        "jp": "入札",
+        "vie": "đấu thầu",
+        "en_pronunciation": "/ˈtɛndər/",
+        "laos_pronunciation": "num",
+        "jp_pronunciation": "nyuusatsu",
+        "vie_pronunciation": "dau thau"
+      },
+      "means": {
+        "en": "Something that can be used as an official medium of payment",
+        "zh": "你平时的心情"
+      }
+    },
+    {
+      "word": {
+        "en": "tennis",
+        "laos": "ເທັນນິດ",
+        "jp": "テニス",
+        "vie": "quần vợt",
+        "en_pronunciation": "/ˈtɛnɪs/",
+        "laos_pronunciation": "thennid",
+        "jp_pronunciation": "tenisu",
+        "vie_pronunciation": "quan vot"
+      },
+      "means": {
+        "en": "A game played with rackets by two or four players who hit a ball back and forth over a net that divides the court",
+        "zh": "身体或环境的热度或冷度（对应于其分子活动）"
+      }
+    },
+    {
+      "word": {
+        "en": "tense",
+        "laos": "ເຄັ່ງ",
+        "jp": "緊張した",
+        "vie": "căng thẳng",
+        "en_pronunciation": "/tɛns/",
+        "laos_pronunciation": "kheng",
+        "jp_pronunciation": "kinchoushi ta",
+        "vie_pronunciation": "cang thang"
+      },
+      "means": {
+        "en": "A grammatical category of verbs used to express distinctions of time",
+        "zh": "礼拜场所，由崇拜神灵的建筑物组成"
+      }
+    },
+    {
+      "word": {
+        "en": "tension",
+        "laos": "ຄວາມຄຽດແຄ້ນ",
+        "jp": "緊張",
+        "vie": "căng thẳng",
+        "en_pronunciation": "/ˈtɛnʃən/",
+        "laos_pronunciation": "khuaamkhiadaekhn",
+        "jp_pronunciation": "kinchou",
+        "vie_pronunciation": "cang thang"
+      },
+      "means": {
+        "en": "(psychology) a state of mental or emotional strain or suspense",
+        "zh": "（音乐）演奏乐曲的速度"
+      }
+    },
+    {
+      "word": {
+        "en": "tent",
+        "laos": "ຜາມ",
+        "jp": "テント",
+        "vie": "lều",
+        "en_pronunciation": "/tɛnt/",
+        "laos_pronunciation": "pham",
+        "jp_pronunciation": "tento",
+        "vie_pronunciation": "leu"
+      },
+      "means": {
+        "en": "A portable shelter (usually of canvas stretched over supporting poles and fastened to the ground with ropes and pegs)",
+        "zh": "名词短语的语义角色，指定动词所表示的状态或动作的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "tentative",
+        "laos": "ທີ່ເປັນພະຍາກອນ",
+        "jp": "暫定的な",
+        "vie": "thăm dò",
+        "en_pronunciation": "/ˈtɛntətɪv/",
+        "laos_pronunciation": "thipenphanyakon",
+        "jp_pronunciation": "zanteiteki na",
+        "vie_pronunciation": "tham do"
+      },
+      "means": {
+        "en": "Under terms not final or fully worked out or agreed upon",
+        "zh": "临时雇用的工人（尤其是在办公室）"
+      }
+    },
+    {
+      "word": {
+        "en": "tenure",
+        "laos": "ສິດທີ Tendure",
+        "jp": "在職期間",
+        "vie": "nhiệm kỳ",
+        "en_pronunciation": "/ˈtɛnjər/",
+        "laos_pronunciation": "sidthi Tendure",
+        "jp_pronunciation": "zaishoku kikan",
+        "vie_pronunciation": "nhiem ky"
+      },
+      "means": {
+        "en": "The term during which some position is held",
+        "zh": "处置、倾向或引诱"
+      }
+    },
+    {
+      "word": {
+        "en": "term",
+        "laos": "ສິ້ນ",
+        "jp": "期間",
+        "vie": "kỳ hạn",
+        "en_pronunciation": "/tərm/",
+        "laos_pronunciation": "sin",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "ky han"
+      },
+      "means": {
+        "en": "A word or expression used for some particular thing",
+        "zh": "九加一的基数；"
+      }
+    },
+    {
+      "word": {
+        "en": "terminal",
+        "laos": "ທີ່ມີຢູ່ຫຼາຢ",
+        "jp": "端子",
+        "vie": "thiết bị đầu cuối",
+        "en_pronunciation": "/ˈtərmənəl/",
+        "laos_pronunciation": "thimiyu ray",
+        "jp_pronunciation": "tanshi",
+        "vie_pronunciation": "thiet bi dau cuoi"
+      },
+      "means": {
+        "en": "Station where transport vehicles load or unload passengers or goods",
+        "zh": "十进制的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "terminate",
+        "laos": "ວາຍ",
+        "jp": "終了する",
+        "vie": "chấm dứt",
+        "en_pronunciation": "/ˈtərməˌneɪt/",
+        "laos_pronunciation": "vai",
+        "jp_pronunciation": "shuuryou suru",
+        "vie_pronunciation": "cham dut"
+      },
+      "means": {
+        "en": "Bring to an end or halt",
+        "zh": "仅限时间有限；"
+      }
+    },
+    {
+      "word": {
+        "en": "termination",
+        "laos": "ສໍາພັດ",
+        "jp": "終了",
+        "vie": "chấm dứt",
+        "en_pronunciation": "/tərməˈneɪʃən/",
+        "laos_pronunciation": "soaphad",
+        "jp_pronunciation": "shuuryou",
+        "vie_pronunciation": "cham dut"
+      },
+      "means": {
+        "en": "A coming to an end of a contract period",
+        "zh": "不是永久的"
+      }
+    },
+    {
+      "word": {
+        "en": "terrace",
+        "laos": "ລະບຽງ",
+        "jp": "テラス",
+        "vie": "sân thượng",
+        "en_pronunciation": "/ˈtɛrəs/",
+        "laos_pronunciation": "labiang",
+        "jp_pronunciation": "terasu",
+        "vie_pronunciation": "san thuong"
+      },
+      "means": {
+        "en": "Usually paved outdoor area adjoining a residence",
+        "zh": "引诱或具有引诱品质的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "terrain",
+        "laos": "ພູ",
+        "jp": "地形",
+        "vie": "địa hình",
+        "en_pronunciation": "/təreɪn/",
+        "laos_pronunciation": "phu",
+        "jp_pronunciation": "chikei",
+        "vie_pronunciation": "dia hinh"
+      },
+      "means": {
+        "en": "A piece of ground having specific characteristics or military potential",
+        "zh": "支付租金以使用他人拥有的土地、建筑物或汽车的人"
+      }
+    },
+    {
+      "word": {
+        "en": "terrible",
+        "laos": "ເປັນຕາຍ້ານ",
+        "jp": "ひどい",
+        "vie": "khủng khiếp",
+        "en_pronunciation": "/ˈtɛrəbəl/",
+        "laos_pronunciation": "pentaian",
+        "jp_pronunciation": "hidoi",
+        "vie_pronunciation": "khung khiep"
+      },
+      "means": {
+        "en": "Causing fear or dread or terror",
+        "zh": "有做某事或成为某事的倾向或倾向；"
+      }
+    },
+    {
+      "word": {
+        "en": "terribly",
+        "laos": "ຍ່າງຮ້າຢແຮງ",
+        "jp": "ひどく",
+        "vie": "khủng khiếp",
+        "en_pronunciation": "/ˈtɛrəbli/",
+        "laos_pronunciation": "nyang ha yaehng",
+        "jp_pronunciation": "hidoku",
+        "vie_pronunciation": "khung khiep"
+      },
+      "means": {
+        "en": "Used as intensifiers",
+        "zh": "倾向于"
+      }
+    },
+    {
+      "word": {
+        "en": "terrific",
+        "laos": "ຫນ້າຢ້ານ",
+        "jp": "素晴らしい",
+        "vie": "tuyệt vời",
+        "en_pronunciation": "/tərˈɪfɪk/",
+        "laos_pronunciation": "nayan",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "tuyet voi"
+      },
+      "means": {
+        "en": "Very great or intense",
+        "zh": "一种心态，尤其是倾向于一种选择而不是其他选择的态度"
+      }
+    },
+    {
+      "word": {
+        "en": "territory",
+        "laos": "ແດນດິນ",
+        "jp": "領土",
+        "vie": "lãnh thổ",
+        "en_pronunciation": "/ˈtɛrɪˌtɔri/",
+        "laos_pronunciation": "aedndin",
+        "jp_pronunciation": "ryoudo",
+        "vie_pronunciation": "lanh tho"
+      },
+      "means": {
+        "en": "A region marked off for administrative or other purposes",
+        "zh": "可以用作官方支付媒介的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "territorial",
+        "laos": "ດິນເຈື່ອນ",
+        "jp": "領土的な",
+        "vie": "lãnh thổ",
+        "en_pronunciation": "/ˌtɛrɪˈtɔriəl/",
+        "laos_pronunciation": "dincheuon",
+        "jp_pronunciation": "ryoudo tekina",
+        "vie_pronunciation": "lanh tho"
+      },
+      "means": {
+        "en": "Nonprofessional soldier member of a territorial military unit",
+        "zh": "由两名或四名球员用球拍进行的比赛，他们在分隔球场的网上来回击球"
+      }
+    },
+    {
+      "word": {
+        "en": "terror",
+        "laos": "ການຮ້າຢ",
+        "jp": "テロ",
+        "vie": "khủng bố",
+        "en_pronunciation": "/ˈtɛrər/",
+        "laos_pronunciation": "kan hay",
+        "jp_pronunciation": "tero",
+        "vie_pronunciation": "khung bo"
+      },
+      "means": {
+        "en": "An overwhelming feeling of fear and anxiety",
+        "zh": "用于表达时间区别的动词语法类别"
+      }
+    },
+    {
+      "word": {
+        "en": "terrify",
+        "laos": "ເຮັດໃຫ້ຍ້ານ",
+        "jp": "怖がらせる",
+        "vie": "làm kinh hãi",
+        "en_pronunciation": "/ˈtɛrəˌfaɪ/",
+        "laos_pronunciation": "hedhainyan",
+        "jp_pronunciation": "kowaga raseru",
+        "vie_pronunciation": "lam kinh hai"
+      },
+      "means": {
+        "en": "Fill with terror; frighten greatly",
+        "zh": "（心理学）精神或情绪紧张或悬念的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "terrorism",
+        "laos": "ການກໍ່ການຮ້າຢ",
+        "jp": "テロ",
+        "vie": "khủng bố",
+        "en_pronunciation": "/ˈtɛrəˌrɪzəm/",
+        "laos_pronunciation": "kanko kan hay",
+        "jp_pronunciation": "tero",
+        "vie_pronunciation": "khung bo"
+      },
+      "means": {
+        "en": "The calculated use of violence (or the threat of violence) against civilians in order to attain goals that are political or religious or ideological in nature; this is done through intimidation or coercion or instilling fear",
+        "zh": "便携式庇护所（通常是帆布，铺在支撑杆上，并用绳子和钉子固定在地面上）"
+      }
+    },
+    {
+      "word": {
+        "en": "terrorist",
+        "laos": "ຜູ້ຢິງກໍ່ການຮ້າຢ",
+        "jp": "テロリスト",
+        "vie": "khủng bố",
+        "en_pronunciation": "/ˈtɛrərɪst/",
+        "laos_pronunciation": "phu ying ko kan hay",
+        "jp_pronunciation": "terorisuto",
+        "vie_pronunciation": "khung bo"
+      },
+      "means": {
+        "en": "A radical who employs terror as a political weapon; usually organizes with other terrorists in small cells; often uses religion as a cover for terrorist activities",
+        "zh": "根据非最终或完全制定或商定的条款"
+      }
+    },
+    {
+      "word": {
+        "en": "tertiary",
+        "laos": "ໄຕມາດຕະການ",
+        "jp": "三次",
+        "vie": "cấp ba",
+        "en_pronunciation": "/ˈtərʃəri/",
+        "laos_pronunciation": "taimadtakan",
+        "jp_pronunciation": "sanji",
+        "vie_pronunciation": "cap ba"
+      },
+      "means": {
+        "en": "From 63 million to 2 million years ago",
+        "zh": "担任某职务的期限"
+      }
+    },
+    {
+      "word": {
+        "en": "test",
+        "laos": "ທົດລອງ",
+        "jp": "テスト",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/tɛst/",
+        "laos_pronunciation": "thodlong",
+        "jp_pronunciation": "tesuto",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "Trying something to find out about it",
+        "zh": "用于某些特定事物的单词或表达方式"
+      }
+    },
+    {
+      "word": {
+        "en": "testify",
+        "laos": "ເປັນພະຍານ",
+        "jp": "証言する",
+        "vie": "làm chứng",
+        "en_pronunciation": "/ˈtɛstɪˌfaɪ/",
+        "laos_pronunciation": "penphanyan",
+        "jp_pronunciation": "shougen suru",
+        "vie_pronunciation": "lam chung"
+      },
+      "means": {
+        "en": "Give testimony in a court of law",
+        "zh": "运输车辆装卸旅客或货物的车站"
+      }
+    },
+    {
+      "word": {
+        "en": "testimony",
+        "laos": "ຂໍ້ກໍານົດ",
+        "jp": "証言",
+        "vie": "lời khai",
+        "en_pronunciation": "/ˈtɛstɪˌmoʊni/",
+        "laos_pronunciation": "khokoanod",
+        "jp_pronunciation": "shougen",
+        "vie_pronunciation": "loi khai"
+      },
+      "means": {
+        "en": "A solemn statement made under oath",
+        "zh": "结束或停止"
+      }
+    },
+    {
+      "word": {
+        "en": "text",
+        "laos": "ຂໍ້ຄວາມ",
+        "jp": "テキスト",
+        "vie": "văn bản",
+        "en_pronunciation": "/tɛkst/",
+        "laos_pronunciation": "khokhuaam",
+        "jp_pronunciation": "tekisuto",
+        "vie_pronunciation": "van ban"
+      },
+      "means": {
+        "en": "The words of something written",
+        "zh": "A 合同期即将结束"
+      }
+    },
+    {
+      "word": {
+        "en": "textbook",
+        "laos": "ປຶ້ມ",
+        "jp": "教科書",
+        "vie": "sách giáo khoa",
+        "en_pronunciation": "/ˈtɛkstˌbʊk/",
+        "laos_pronunciation": "pum",
+        "jp_pronunciation": "kyoukasho",
+        "vie_pronunciation": "sach giao khoa"
+      },
+      "means": {
+        "en": "A book prepared for use in schools or colleges",
+        "zh": "通常是毗邻住宅的铺砌室外区域"
+      }
+    },
+    {
+      "word": {
+        "en": "textile",
+        "laos": "ຜ້າແພ",
+        "jp": "繊維",
+        "vie": "dệt may",
+        "en_pronunciation": "/ˈtɛkˌstaɪl/",
+        "laos_pronunciation": "phaaeph",
+        "jp_pronunciation": "sen'i",
+        "vie_pronunciation": "det may"
+      },
+      "means": {
+        "en": "Artifact made by weaving or felting or knitting or crocheting natural or synthetic fibers",
+        "zh": "具有特定特征或军事潜力的一块土地"
+      }
+    },
+    {
+      "word": {
+        "en": "texture",
+        "laos": "ເນື້ອຜ້າ",
+        "jp": "テクスチャ",
+        "vie": "kết cấu",
+        "en_pronunciation": "/ˈtɛksʧər/",
+        "laos_pronunciation": "neuopha",
+        "jp_pronunciation": "tekusucha",
+        "vie_pronunciation": "ket cau"
+      },
+      "means": {
+        "en": "The feel of a surface or a fabric",
+        "zh": "引起恐惧或恐惧或恐怖"
+      }
+    },
+    {
+      "word": {
+        "en": "than",
+        "laos": "ກ່ວາ",
+        "jp": "よりも",
+        "vie": "hơn",
+        "en_pronunciation": "/ðən/",
+        "laos_pronunciation": "kuaa",
+        "jp_pronunciation": "yorimo",
+        "vie_pronunciation": "hon"
+      },
+      "means": {
+        "en": "Than is an English word referring to 'than'.",
+        "zh": "用作增强剂"
+      }
+    },
+    {
+      "word": {
+        "en": "thank",
+        "laos": "ຂອບໃຈ",
+        "jp": "ありがとう",
+        "vie": "cảm ơn",
+        "en_pronunciation": "/θæŋk/",
+        "laos_pronunciation": "khobchai",
+        "jp_pronunciation": "arigatou",
+        "vie_pronunciation": "cam on"
+      },
+      "means": {
+        "en": "Express gratitude or show appreciation to",
+        "zh": "非常伟大或强烈"
+      }
+    },
+    {
+      "word": {
+        "en": "thankful",
+        "laos": "ຂໍຂອບໃຈ",
+        "jp": "ありがたい",
+        "vie": "biết ơn",
+        "en_pronunciation": "/ˈθæŋkfəl/",
+        "laos_pronunciation": "khokhobchai",
+        "jp_pronunciation": "arigatai",
+        "vie_pronunciation": "biet on"
+      },
+      "means": {
+        "en": "Feeling or showing gratitude",
+        "zh": "出于行政或其他目的划定的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "thanksgiving",
+        "laos": "ຄວາມຂອບໃຈ",
+        "jp": "感謝祭",
+        "vie": "lễ tạ ơn",
+        "en_pronunciation": "/ˌθæŋksˈgɪvɪŋ/",
+        "laos_pronunciation": "khuaamkhobchai",
+        "jp_pronunciation": "kanshasai",
+        "vie_pronunciation": "le ta on"
+      },
+      "means": {
+        "en": "Fourth Thursday in November in the United States; second Monday in October in Canada; commemorates a feast held in 1621 by the Pilgrims and the Wampanoag",
+        "zh": "领土军事单位的非职业军人"
+      }
+    },
+    {
+      "word": {
+        "en": "that",
+        "laos": "ວ່າ",
+        "jp": "それ",
+        "vie": "đó",
+        "en_pronunciation": "/ðət/",
+        "laos_pronunciation": "va",
+        "jp_pronunciation": "sore",
+        "vie_pronunciation": "do"
+      },
+      "means": {
+        "en": "That is an English word referring to 'that'.",
+        "zh": "一种压倒性的恐惧和焦虑感"
+      }
+    },
+    {
+      "word": {
+        "en": "the",
+        "laos": "ໄດ້",
+        "jp": "の",
+        "vie": "cái",
+        "en_pronunciation": "/ðə/",
+        "laos_pronunciation": "dai",
+        "jp_pronunciation": "no",
+        "vie_pronunciation": "cai"
+      },
+      "means": {
+        "en": "The is an English word referring to 'the'.",
+        "zh": "充满恐惧；"
+      }
+    },
+    {
+      "word": {
+        "en": "theater",
+        "laos": "ໂຮງລະຄອນ",
+        "jp": "劇場",
+        "vie": "rạp hát",
+        "en_pronunciation": "/ˈθieɪtər/",
+        "laos_pronunciation": "ohnglakhon",
+        "jp_pronunciation": "gekijou",
+        "vie_pronunciation": "rap hat"
+      },
+      "means": {
+        "en": "A building where theatrical performances or motion-picture shows can be presented",
+        "zh": "吓坏了"
+      }
+    },
+    {
+      "word": {
+        "en": "theatre",
+        "laos": "ໂຮງລະຄອນ",
+        "jp": "劇場",
+        "vie": "rạp hát",
+        "en_pronunciation": "/ˈθiətər/",
+        "laos_pronunciation": "ohnglakhon",
+        "jp_pronunciation": "gekijou",
+        "vie_pronunciation": "rap hat"
+      },
+      "means": {
+        "en": "A building where theatrical performances or motion-picture shows can be presented",
+        "zh": "为了实现政治、宗教或意识形态目标而有计划地对平民使用暴力（或威胁使用暴力）；"
+      }
+    },
+    {
+      "word": {
+        "en": "theatrical",
+        "laos": "ລະຍາສາດ",
+        "jp": "演劇",
+        "vie": "sân khấu",
+        "en_pronunciation": "/θiˈætrɪkəl/",
+        "laos_pronunciation": "lanyasad",
+        "jp_pronunciation": "engeki",
+        "vie_pronunciation": "san khau"
+      },
+      "means": {
+        "en": "A performance of a play",
+        "zh": "这是通过恐吓、胁迫或灌输恐惧来实现的"
+      }
+    },
+    {
+      "word": {
+        "en": "theft",
+        "laos": "ການລັກສະນະ",
+        "jp": "盗難",
+        "vie": "trộm cắp",
+        "en_pronunciation": "/θɛft/",
+        "laos_pronunciation": "kanlaksana",
+        "jp_pronunciation": "tounan",
+        "vie_pronunciation": "trom cap"
+      },
+      "means": {
+        "en": "The act of taking something from someone unlawfully",
+        "zh": "利用恐怖作为政治武器的激进分子；"
+      }
+    },
+    {
+      "word": {
+        "en": "their",
+        "laos": "ຂອງເຂົາເຈົ້າ",
+        "jp": "彼らの",
+        "vie": "của họ",
+        "en_pronunciation": "/ðɛr/",
+        "laos_pronunciation": "khongkhaochao",
+        "jp_pronunciation": "karera no",
+        "vie_pronunciation": "cua ho"
+      },
+      "means": {
+        "en": "Their is an English word referring to 'their'.",
+        "zh": "通常与其他恐怖分子一起在小团体中组织起来；"
+      }
+    },
+    {
+      "word": {
+        "en": "theirs",
+        "laos": "ຂອງເຂົາ",
+        "jp": "彼らのもの",
+        "vie": "của họ",
+        "en_pronunciation": "/ðɛrz/",
+        "laos_pronunciation": "khongkhao",
+        "jp_pronunciation": "karera nomono",
+        "vie_pronunciation": "cua ho"
+      },
+      "means": {
+        "en": "Theirs is an English word referring to 'theirs'.",
+        "zh": "经常利用宗教作为恐怖活动的掩护"
+      }
+    },
+    {
+      "word": {
+        "en": "them",
+        "laos": "ພວກເຂົາ",
+        "jp": "彼ら",
+        "vie": "họ",
+        "en_pronunciation": "/ðɛm/",
+        "laos_pronunciation": "phuakkhao",
+        "jp_pronunciation": "karera",
+        "vie_pronunciation": "ho"
+      },
+      "means": {
+        "en": "Them is an English word referring to 'them'.",
+        "zh": "6300万年前至200万年前"
+      }
+    },
+    {
+      "word": {
+        "en": "theme",
+        "laos": "ຫົວຂໍ້",
+        "jp": "テーマ",
+        "vie": "chủ đề",
+        "en_pronunciation": "/θim/",
+        "laos_pronunciation": "huakho",
+        "jp_pronunciation": "teema",
+        "vie_pronunciation": "chu de"
+      },
+      "means": {
+        "en": "The subject matter of a conversation or discussion",
+        "zh": "尝试一些事情来了解它"
+      }
+    },
+    {
+      "word": {
+        "en": "themselves",
+        "laos": "ຕົວເອງ",
+        "jp": "自分たち自身",
+        "vie": "chính họ",
+        "en_pronunciation": "/ðɛmˈsɛlvz/",
+        "laos_pronunciation": "tuaoeng",
+        "jp_pronunciation": "jibuntachi jishin",
+        "vie_pronunciation": "chinh ho"
+      },
+      "means": {
+        "en": "Themselves is an English word referring to 'themselves'.",
+        "zh": "在法庭上作证"
+      }
+    },
+    {
+      "word": {
+        "en": "then",
+        "laos": "ຈາກນັ້ນ",
+        "jp": "それから",
+        "vie": "sau đó",
+        "en_pronunciation": "/ðɛn/",
+        "laos_pronunciation": "chaknan",
+        "jp_pronunciation": "sorekara",
+        "vie_pronunciation": "sau do"
+      },
+      "means": {
+        "en": "That time; that moment",
+        "zh": "经宣誓作出的庄严声明"
+      }
+    },
+    {
+      "word": {
+        "en": "theory",
+        "laos": "ທິດສະດີ",
+        "jp": "理論",
+        "vie": "lý thuyết",
+        "en_pronunciation": "/ˈθɪri/",
+        "laos_pronunciation": "thidsadi",
+        "jp_pronunciation": "riron",
+        "vie_pronunciation": "ly thuyet"
+      },
+      "means": {
+        "en": "A well-substantiated explanation of some aspect of the natural world; an organized system of accepted knowledge that applies in a variety of circumstances to explain a specific set of phenomena",
+        "zh": "所写的东西的文字"
+      }
+    },
+    {
+      "word": {
+        "en": "therapy",
+        "laos": "ການຮັກສາ",
+        "jp": "セラピー",
+        "vie": "trị liệu",
+        "en_pronunciation": "/ˈθɛrəpi/",
+        "laos_pronunciation": "kanhaksa",
+        "jp_pronunciation": "serapii",
+        "vie_pronunciation": "tri lieu"
+      },
+      "means": {
+        "en": "(medicine) the act of caring for someone (as by medication or remedial training etc.)",
+        "zh": "准备在学校或学院使用的书"
+      }
+    },
+    {
+      "word": {
+        "en": "there",
+        "laos": "ພຸ້ນ",
+        "jp": "そこに",
+        "vie": "ở đó",
+        "en_pronunciation": "/ðɛr/",
+        "laos_pronunciation": "phun",
+        "jp_pronunciation": "sokoni",
+        "vie_pronunciation": "o do"
+      },
+      "means": {
+        "en": "A location other than here; that place",
+        "zh": "由天然或合成纤维编织、毡制、针织或钩编而成的制品"
+      }
+    },
+    {
+      "word": {
+        "en": "thereby",
+        "laos": "ດັ່ງນັ້ນ",
+        "jp": "それによって",
+        "vie": "qua đó",
+        "en_pronunciation": "/ˈðɛrˈbaɪ/",
+        "laos_pronunciation": "dangnan",
+        "jp_pronunciation": "soreniyotte",
+        "vie_pronunciation": "qua do"
+      },
+      "means": {
+        "en": "By that means or because of that",
+        "zh": "表面或织物的触感"
+      }
+    },
+    {
+      "word": {
+        "en": "therefore",
+        "laos": "ດັ່ງນັ້ນ",
+        "jp": "したがって",
+        "vie": "do đó",
+        "en_pronunciation": "/ˈðɛrˌfɔr/",
+        "laos_pronunciation": "dangnan",
+        "jp_pronunciation": "shitagatte",
+        "vie_pronunciation": "do do"
+      },
+      "means": {
+        "en": "(used to introduce a logical conclusion) from that fact or reason or as a result",
+        "zh": "Than是一个英语单词，指的是“比”。"
+      }
+    },
+    {
+      "word": {
+        "en": "thermal",
+        "laos": "ຄວາມຮ້ອນ",
+        "jp": "熱",
+        "vie": "nhiệt",
+        "en_pronunciation": "/ˈθərməl/",
+        "laos_pronunciation": "khuaamhon",
+        "jp_pronunciation": "netsu",
+        "vie_pronunciation": "nhiet"
+      },
+      "means": {
+        "en": "Rising current of warm air",
+        "zh": "表示感谢或赞赏"
+      }
+    },
+    {
+      "word": {
+        "en": "thermometer",
+        "laos": "ບາໄດ້",
+        "jp": "温度計",
+        "vie": "nhiệt kế",
+        "en_pronunciation": "/θərˈmɑmətər/",
+        "laos_pronunciation": "badai",
+        "jp_pronunciation": "ondokei",
+        "vie_pronunciation": "nhiet ke"
+      },
+      "means": {
+        "en": "Measuring instrument for measuring temperature",
+        "zh": "表达感激之情"
+      }
+    },
+    {
+      "word": {
+        "en": "these",
+        "laos": "ຂອງເຫລົ່ານີ້",
+        "jp": "これらの",
+        "vie": "những cái này",
+        "en_pronunciation": "/ðiz/",
+        "laos_pronunciation": "khongheloani",
+        "jp_pronunciation": "korerano",
+        "vie_pronunciation": "nhung cai nay"
+      },
+      "means": {
+        "en": "These is an English word referring to 'these'.",
+        "zh": "美国十一月第四个星期四；"
+      }
+    },
+    {
+      "word": {
+        "en": "thesis",
+        "laos": "ທິດສະດີ",
+        "jp": "論文",
+        "vie": "luận án",
+        "en_pronunciation": "/ˈθiˌsɪs/",
+        "laos_pronunciation": "thidsadi",
+        "jp_pronunciation": "ronbun",
+        "vie_pronunciation": "luan an"
+      },
+      "means": {
+        "en": "An unproved statement put forward as a premise in an argument",
+        "zh": "加拿大十月第二个星期一；"
+      }
+    },
+    {
+      "word": {
+        "en": "they",
+        "laos": "ພວກເຂົາ",
+        "jp": "彼らは",
+        "vie": "họ",
+        "en_pronunciation": "/ðeɪ/",
+        "laos_pronunciation": "phuakkhao",
+        "jp_pronunciation": "karera ha",
+        "vie_pronunciation": "ho"
+      },
+      "means": {
+        "en": "They is an English word referring to 'they'.",
+        "zh": "纪念 1621 年朝圣者和万帕诺亚格人举办的盛宴"
+      }
+    }
+  ]
+}

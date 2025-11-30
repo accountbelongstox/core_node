@@ -27,8 +27,10 @@ class SocialService {
         '/api/v1/messages',
         queryParameters: {'page': page, 'page_size': pageSize},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['messages'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => MessageModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -42,8 +44,10 @@ class SocialService {
         '/api/v1/notifications',
         queryParameters: {'page': page, 'page_size': pageSize},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['notifications'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => NotificationModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -90,7 +94,8 @@ class SocialService {
   Future<CheckInModel?> checkIn() async {
     try {
       final response = await _apiService.post('/api/v1/check-in');
-      return CheckInModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return CheckInModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return _mockCheckIn();
     }
@@ -99,7 +104,8 @@ class SocialService {
   Future<CheckInModel?> getTodayCheckIn() async {
     try {
       final response = await _apiService.get('/api/v1/check-in/today');
-      return CheckInModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return CheckInModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return null;
     }
@@ -111,8 +117,10 @@ class SocialService {
         '/api/v1/check-in/history',
         queryParameters: {'days': days},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['history'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CheckInModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -123,8 +131,10 @@ class SocialService {
   Future<List<CheckInChallengeModel>> getChallenges() async {
     try {
       final response = await _apiService.get('/api/v1/challenges');
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['challenges'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CheckInChallengeModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {

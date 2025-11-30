@@ -1,0 +1,110 @@
+========================================
+Voice Data Init - Quick Start Guide
+========================================
+
+This Python application initializes vocabulary databases from various sources,
+replacing the Node.js VoiceClientAndCaddy data initialization functionality.
+
+FEATURES:
+---------
+1. Load words from local vocabulary files
+2. Import legacy databases
+3. Validate word entries using dictionary APIs or OpenAI
+4. Synchronize with remote servers
+
+INSTALLATION:
+-------------
+1. All dependencies are already installed (SQLAlchemy, requests, etc.)
+2. Database models are registered in pycore/database/models/app_voice/
+3. No additional setup required!
+
+QUICK START:
+------------
+
+1. Verify Installation:
+   export PYTHONPATH=/path/to/core_node
+   python pyapps/voice_data_init/verify_installation.py
+
+2. Show Statistics:
+   python pyapps/voice_data_init/voice_data_init_main.py --stats
+
+3. Initialize from Local Files:
+   python pyapps/voice_data_init/voice_data_init_main.py --local
+
+4. Validate Words (using free dictionary API):
+   python pyapps/voice_data_init/voice_data_init_main.py --validate
+
+5. Full Workflow:
+   python pyapps/voice_data_init/voice_data_init_main.py --full
+
+USAGE EXAMPLES:
+---------------
+
+# Import old database from URL
+python voice_data_init_main.py --import-old http://example.com/old_db.7z
+
+# Validate using OpenAI (requires API key)
+python voice_data_init_main.py --validate openai --openai-key sk-xxx
+
+# Sync with remote server
+python voice_data_init_main.py --sync https://api.example.com my-token
+
+# Full workflow with all options
+python voice_data_init_main.py --full \
+  --old-db-url http://example.com/old.7z \
+  --api-url https://api.example.com \
+  --client-token my-token
+
+PROGRAMMATIC USAGE:
+-------------------
+
+from pyapps.voice_data_init.controller.init_controller import InitController
+
+controller = InitController()
+controller.setup_database()
+controller.initialize_words_local()
+controller.get_statistics()
+
+DATA LOCATIONS:
+---------------
+- Vocabulary files: ~/.core_node/cache/voice_data/vocabulary/*.txt
+- Old databases: ~/.core_node/cache/voice_data/old_databases/
+- Validity cache: ~/.core_node/cache/voice_data/word_validity_cache.json
+- Main database: /www/pycore_db/voice_main.db (Linux) or D:\www\pycore_db\voice_main.db (Windows)
+
+DATABASE MODELS:
+----------------
+- VoiceDictionariesModel: Main vocabulary table
+  - Stores words with translations, phonetics, voice files, metadata
+
+- VoiceCacheDbDoneModel: Import tracking table
+  - Tracks which legacy databases have been imported
+
+TABLE KEYS:
+-----------
+- TableKeys.VOICE_DICTIONARIES -> "app_voice.dictionaries"
+- TableKeys.VOICE_CACHE_DB_DONE -> "app_voice.cache_db_done"
+
+COMPARISON WITH NODE.JS VERSION:
+---------------------------------
+
+Node.js (VoiceClientAndCaddy)   |   Python (voice_data_init)
+--------------------------------|--------------------------------
+server_init_words.js            |   service/word_init_service.py
+server_init_olddb.js            |   service/olddb_import_service.py
+server_init_valid.js            |   service/word_validity_service.py
+provider/DataProvider.js        |   database/models/app_voice/
+word_main_schema.js             |   dictionaries_model.py
+
+HELP:
+-----
+python voice_data_init_main.py --help
+
+For more examples, see:
+- example_usage.py: Detailed usage examples
+- verify_installation.py: Component verification
+
+========================================
+Created following pycore development standards
+See: development-guides/PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md
+========================================

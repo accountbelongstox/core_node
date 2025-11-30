@@ -1,0 +1,210 @@
+================================================================================
+MCPCTL REFACTORING SUMMARY - Route Organization Cleanup
+Date: 2025-11-23
+================================================================================
+
+OBJECTIVE:
+Move all MCP route organization from pycore/pyctl/mcpctl to pycore/callmodule,
+keeping only business logic handlers in mcpctl.
+
+================================================================================
+CHANGES MADE:
+================================================================================
+
+1. DEPRECATED Route Files (pycore/pyctl/mcpctl/backend/routes/):
+   - meta.py - Cleared (route registration moved)
+   - file.py - Cleared (route registration moved)
+   - database.py - Cleared (route registration moved)
+   - codebase.py - Cleared (route registration moved)
+   - __init__.py - Marked as deprecated module
+
+2. DEPRECATED RPC Route Registration:
+   - backend/rpc_routes.py - Marked as deprecated
+     * register_mcp_routes() now shows deprecation warning
+     * Points users to pycore/callmodule/routers/mcp_router.py
+
+3. ACTIVE Route Organization (pycore/callmodule/routers/):
+   - mcp_router.py - All 22 MCP routes registered here
+     * Uses FastAPI APIRouter with /mcp prefix
+     * References handlers from pycore.pyctl.mcpctl.backend.handlers
+     * Auto-initializes controllers on first request
+
+================================================================================
+ARCHITECTURE AFTER REFACTORING:
+================================================================================
+
+[pycore_module_caller.py]
+         |
+         v
+[pycore/callmodule/app.py]
+         |
+         +-- Creates FastAPI app
+         +-- Registers routers:
+                |
+                +-- health_router
+                +-- module_call_router
+                +-- ocr_router
+                +-- translator_router
+                +-- mcp_router (NEW - 22 MCP tools)
+                      |
+                      v
+         [pycore/callmodule/routers/mcp_router.py]
+                      |
+                      +-- Route: POST /mcp/backend_info
+                      +-- Route: POST /mcp/backend_state
+                      +-- Route: POST /mcp/tools_list
+                      +-- Route: POST /mcp/get_file_info
+                      +-- Route: POST /mcp/generate_placeholder_image
+                      +-- Route: POST /mcp/query_file_processing_history
+                      +-- Route: POST /mcp/clear_file_cache
+                      +-- Route: POST /mcp/database_namespace_negotiation
+                      +-- Route: POST /mcp/database_register_and_connect
+                      +-- Route: POST /mcp/database_execute_query
+                      +-- Route: POST /mcp/database_batch_operations
+                      +-- Route: POST /mcp/database_schema_inspection
+                      +-- Route: POST /mcp/database_get_statistics
+                      +-- Route: POST /mcp/database_health_check
+                      +-- Route: POST /mcp/codebase_get_directory_tree
+                      +-- Route: POST /mcp/codebase_find_files_by_pattern
+                      +-- Route: POST /mcp/codebase_search_content
+                      +-- Route: POST /mcp/codebase_get_file_content
+                      +-- Route: POST /mcp/codebase_analyze_statistics
+                      +-- Route: POST /mcp/codebase_describe_directory
+                      +-- Route: POST /mcp/codebase_scan_framework_apps
+                      +-- Route: POST /mcp/codebase_health_check
+                      |
+                      v
+         [pycore/pyctl/mcpctl/backend/handlers/]
+                      |
+                      +-- file_processing.py (4 handlers)
+                      +-- database.py (7 handlers)
+                      +-- codebase.py (8 handlers)
+                      |
+                      v
+         [pyapps/mcp/controller/]
+                      |
+                      +-- FileInfoController (singleton)
+                      +-- DatabaseController (singleton)
+                      +-- CodebaseController (singleton)
+
+================================================================================
+METHOD SIGNATURE ALIGNMENT:
+================================================================================
+
+All handler methods follow the same signature pattern:
+
+    async def handle_xxx_async(
+        params: Dict[str, Any],
+        request_id: str = None,
+        context: Dict = None
+    ) -> Dict[str, Any]:
+
+All router calls follow the same pattern:
+
+    result = await handlers.handle_xxx_async(params, None, None)
+
+VERIFIED: All 22 MCP tool handlers are properly aligned.
+
+================================================================================
+HANDLER CATEGORIZATION:
+================================================================================
+
+1. Meta Handlers (3 handlers):
+   - handle_backend_info (sync)
+   - backend_state (via get_backend_state_dict)
+   - tools_list (via backend_info)
+
+2. File Processing Handlers (4 handlers):
+   - handle_get_file_info_async
+   - handle_generate_placeholder_image_async
+   - handle_query_file_processing_history_async
+   - handle_clear_file_cache_async
+
+3. Database Handlers (7 handlers):
+   - handle_database_namespace_negotiation_async
+   - handle_database_register_and_connect_async
+   - handle_database_execute_query_async
+   - handle_database_batch_operations_async
+   - handle_database_schema_inspection_async
+   - handle_database_get_statistics_async
+   - handle_database_health_check_async
+
+4. Codebase Handlers (8 handlers):
+   - handle_codebase_get_directory_tree_async
+   - handle_codebase_find_files_by_pattern_async
+   - handle_codebase_search_content_async
+   - handle_codebase_get_file_content_async
+   - handle_codebase_analyze_statistics_async
+   - handle_codebase_describe_directory_async
+   - handle_codebase_scan_framework_apps_async
+   - handle_codebase_health_check_async
+
+================================================================================
+BACKWARDS COMPATIBILITY:
+================================================================================
+
+1. mcp_backend_main.py (standalone RPC v2 server):
+   - Still functional but shows deprecation warning
+   - register_mcp_routes() kept for compatibility
+   - Recommends using pycore_module_caller.py instead
+
+2. Deprecated files kept with warnings:
+   - backend/rpc_routes.py
+   - backend/routes/*.py
+   - All show clear deprecation messages
+
+================================================================================
+MIGRATION GUIDE:
+================================================================================
+
+OLD WAY (Standalone MCP Backend):
+    python -m pycore.pyctl.mcpctl.mcp_backend_main
+
+NEW WAY (Unified Backend):
+    python pycore_module_caller.py
+
+All MCP tools now available at:
+    POST http://localhost:59000/mcp/<tool_name>
+
+Examples:
+    POST http://localhost:59000/mcp/backend_info
+    POST http://localhost:59000/mcp/get_file_info
+    POST http://localhost:59000/mcp/database_execute_query
+    POST http://localhost:59000/mcp/codebase_search_content
+
+================================================================================
+BENEFITS OF REFACTORING:
+================================================================================
+
+1. Single Unified Backend:
+   - One process (pycore_module_caller) serves all APIs
+   - No need for separate MCP backend process
+   - Reduced resource usage and complexity
+
+2. Centralized Route Management:
+   - All routes in pycore/callmodule/routers/
+   - Consistent pattern across all routers
+   - Easier to maintain and extend
+
+3. Separation of Concerns:
+   - mcpctl focuses on business logic (handlers + controllers)
+   - callmodule focuses on API routing (FastAPI routers)
+   - Clear responsibility boundaries
+
+4. Better Integration:
+   - MCP tools integrated with other pycore services
+   - Shared middleware (CORS, logging, etc.)
+   - Unified documentation (FastAPI /docs)
+
+================================================================================
+NEXT STEPS (Future Work):
+================================================================================
+
+1. Optional: Remove deprecated files after transition period
+2. Optional: Add more comprehensive API tests for mcp_router
+3. Optional: Add rate limiting and authentication to MCP routes
+4. Update documentation to reflect new architecture
+
+================================================================================
+END OF SUMMARY
+================================================================================

@@ -4,18 +4,20 @@ library;
 enum WordType { all, learning, newWords, mastered }
 
 class WordItem {
+  final String id;
   final String word;
   final String pronunciation;
-  final String meaning;
-  final String example;
+  final String meaningKey;
+  final String exampleKey;
   WordType type;
   double masteryLevel;
 
   WordItem({
+    required this.id,
     required this.word,
     required this.pronunciation,
-    required this.meaning,
-    required this.example,
+    required this.meaningKey,
+    required this.exampleKey,
     required this.type,
     required this.masteryLevel,
   });

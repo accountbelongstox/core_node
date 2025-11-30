@@ -50,21 +50,27 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
     """
     try:
         os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[TEST] Importing transformers...')
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
         print(f'[INFO] Model: {model_name}')
         print('[INFO] First run will download model from HuggingFace (~1.2GB)')
+        print('[INFO] Download timeout: 3600s (1 hour)')
         print('[INFO] This may take a few minutes...')
         print()
 
         print('[TEST] Loading tokenizer...')
-        tokenizer = AutoTokenizer.from_pretrained(model_name, src_lang=source_lang)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            src_lang=source_lang,
+            resume_download=True
+        )
         print('[OK] Tokenizer loaded successfully')
 
         print('[TEST] Loading model...')
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name, resume_download=True)
         print('[OK] Model loaded successfully')
 
         if test_text is None:

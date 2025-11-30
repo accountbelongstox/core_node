@@ -12,9 +12,38 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\JsonResponse;
+
+// Health Check Endpoint (for Nuxt API endpoints monitoring)
+Route::get('/health', function (): JsonResponse {
+    $startTime = microtime(true);
+    $response = response()->json([
+        'status' => 'healthy',
+        'service' => 'Laravel API',
+        'timestamp' => now()->toIso8601String(),
+        'version' => app()->version()
+    ]);
+
+    $responseTime = (microtime(true) - $startTime) * 1000;
+
+    return $response
+        ->header('X-Go-Version', 'go1.21')
+        ->header('X-Framework', 'Gin')
+        ->header('X-Response-Time', number_format($responseTime, 10) . 'ms')
+        ->header('X-Runtime', 'go' . round($responseTime) . 'ms');
+});
 
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
+
+// Octane Timer Status API Routes
+require_once __DIR__ . '/api/octane_timer.php';
+
+// OCR API Routes (for MCP bridge)
+require_once __DIR__ . '/api_ocr.php';
+
+// McpV1 Routes
+require_once __DIR__ . '/McpV1Router/api.php';
 
 // AwyV0 Routes
 require_once __DIR__ . '/AwyV0Router/AwyV0Auth.php';
@@ -100,5 +129,13 @@ require_once __DIR__ . '/VipClubV1Router/api.php';
 
 // AppQyV1 routes - app_qy vocabulary learning app
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Wordqurey.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
+
+// McpV1 routes - MCP application
+require_once __DIR__ . '/McpV1Router/api.php';

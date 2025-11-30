@@ -36,6 +36,7 @@ class CourseControllerAppQy extends ChangeNotifier {
 
   List<CourseModel> get courses => _courses;
   List<CoursePlanModel> get plans => _plans;
+  List<CoursePlanModel> get coursePlans => _plans;
   String get selectedCategory => _selectedCategory;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -76,6 +77,10 @@ class CourseControllerAppQy extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> loadCoursePlans() async {
+    await loadPlans();
   }
 
   Future<void> enrollCourse(String courseId) async {

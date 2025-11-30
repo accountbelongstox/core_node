@@ -5,7 +5,7 @@ Manages namespaces and rooms for grouped broadcasting
 """
 
 import threading
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Optional
 from pycore.pyfoundations.color_print import ColorPrint
 
 

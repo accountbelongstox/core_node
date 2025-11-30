@@ -2,55 +2,58 @@
 # -*- coding: utf-8 -*-
 """
 Unified Object Detector
-通用目标检测器 - 可作为类库使用，也可作为命令行工具运行
+Universal object detector - can be used as a library or run as a command-line tool
 
 Usage as library:
     from pycore.pyutils.unified_detector import UnifiedDetector
 
-    # 简单使用（自动使用最新模型）
+    # Simple usage (automatically uses latest model)
     detector = UnifiedDetector("d3-check")
     results = detector.detect("screenshot.png")
 
-    # 指定模型
+    # Specify model
     detector = UnifiedDetector("d3-check", model_name="unified_model_20251017_143052")
 
-    # 只检测特定类别
+    # Only detect specific class
     results = detector.detect("screenshot.png", target_class="progress_bar")
 
 Usage as CLI:
-    # 基本检测
+    # Basic detection
     python -m pycore.pyutils.unified_detector d3-check screenshot.png
 
-    # 查看帮助
+    # View help
     python -m pycore.pyutils.unified_detector d3-check --help
 
-    # 列出可用类别
+    # List available classes
     python -m pycore.pyutils.unified_detector d3-check --list-classes
 """
 
 import os
 import sys
-import cv2
-import numpy as np
-import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 import argparse
 import json
 
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
+yaml = get_third_package_yaml()
+
 
 @dataclass
 class DetectionResult:
-    """检测结果数据类"""
-    class_name: str          # 类别名称
-    confidence: float        # 置信度
-    bbox: Dict[str, int]     # 边界框 {x, y, w, h}
-    model_type: str          # 模型类型 (classification/detection)
-    model_name: str          # 模型名称
+    """Detection result dataclass"""
+    class_name: str          # Class name
+    confidence: float        # Confidence
+    bbox: Dict[str, int]     # Bounding box {x, y, w, h}
+    model_type: str          # Model type (classification/detection)
+    model_name: str          # Model name
 
     def to_dict(self) -> dict:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             'class': self.class_name,
             'confidence': self.confidence,
@@ -65,9 +68,9 @@ class DetectionResult:
 
 class UnifiedDetector:
     """
-    通用目标检测器
+    Universal object detector
 
-    支持自动加载分类和检测模型，提供简单的检测接口
+    Supports automatic loading of classification and detection models, provides simple detection interface
     """
 
     def __init__(
@@ -79,30 +82,30 @@ class UnifiedDetector:
         device: str = 'auto'
     ):
         """
-        初始化检测器
+        Initialize detector
 
         Args:
-            project_name: 项目名称（apps 下的目录名，如 'd3-check'）
-            model_name: 模型名称（可选，默认使用最新模型）
-            model_type: 模型类型（可选，'classification'/'detection'/None=自动检测）
-            confidence_threshold: 置信度阈值
-            device: 设备 ('auto', 'cpu', 'cuda', 'mps')
+            project_name: Project name (directory name under apps, e.g., 'd3-check')
+            model_name: Model name (optional, defaults to latest model)
+            model_type: Model type (optional, 'classification'/'detection'/None=auto-detect)
+            confidence_threshold: Confidence threshold
+            device: Device ('auto', 'cpu', 'cuda', 'mps')
         """
         self.project_name = project_name
         self.confidence_threshold = confidence_threshold
         self.device = self._detect_device(device)
 
-        # 定位项目目录
+        # Locate project directory
         self.project_root = self._find_project_root(project_name)
         if not self.project_root:
             raise ValueError(f"Project '{project_name}' not found in apps directory")
 
-        # 模型目录
+        # Model directories
         self.cache_dir = self.project_root / ".cache" / "training_data"
         self.classification_dir = self.cache_dir / "3_models" / "classification"
         self.detection_dir = self.cache_dir / "3_models" / "detection"
 
-        # 加载模型
+        # Load models
         self.classification_model = None
         self.detection_model = None
         self.classification_info = None
@@ -111,8 +114,8 @@ class UnifiedDetector:
         self._load_models(model_name, model_type)
 
     def _find_project_root(self, project_name: str) -> Optional[Path]:
-        """查找项目根目录"""
-        # 从当前文件向上查找 core_node
+        """Find project root directory"""
+        # Search upward from current file to find core_node
         current = Path(__file__).resolve()
         while current.parent != current:
             if current.name == 'core_node':
@@ -124,12 +127,11 @@ class UnifiedDetector:
         return None
 
     def _detect_device(self, device: str) -> str:
-        """检测可用设备"""
+        """Detect available device"""
         if device != 'auto':
             return device
 
         try:
-            import torch
             if torch.cuda.is_available():
                 return 'cuda'
             elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -139,41 +141,41 @@ class UnifiedDetector:
         return 'cpu'
 
     def _load_models(self, model_name: Optional[str], model_type: Optional[str]):
-        """加载模型"""
+        """Load models"""
         from ultralytics import YOLO
         import time
 
-        # 如果指定了模型类型，只加载该类型
+        # If model type is specified, only load that type
         load_cls = model_type in [None, 'classification']
         load_det = model_type in [None, 'detection']
 
-        # 加载分类模型
+        # Load classification model
         if load_cls and self.classification_dir.exists():
             models = self._scan_models(self.classification_dir)
             if models:
                 if model_name and model_name in models:
                     selected = models[model_name]
                 else:
-                    # 使用最新模型
+                    # Use latest model
                     selected = sorted(models.items(), key=lambda x: x[1]['mtime'], reverse=True)[0][1]
 
                 self.classification_model = YOLO(str(selected['path']))
                 self.classification_info = selected
 
-        # 加载检测模型
+        # Load detection model
         if load_det and self.detection_dir.exists():
             models = self._scan_models(self.detection_dir)
             if models:
                 if model_name and model_name in models:
                     selected = models[model_name]
                 else:
-                    # 使用最新模型
+                    # Use latest model
                     selected = sorted(models.items(), key=lambda x: x[1]['mtime'], reverse=True)[0][1]
 
                 self.detection_model = YOLO(str(selected['path']))
                 self.detection_info = selected
 
-                # 加载类别信息
+                # Load class information
                 data_yaml = self.cache_dir / "2_datasets" / "detection" / "unified_model" / "data.yaml"
                 if data_yaml.exists():
                     with open(data_yaml, 'r', encoding='utf-8') as f:
@@ -185,7 +187,7 @@ class UnifiedDetector:
             raise ValueError(f"No models found for project '{self.project_name}'")
 
     def _scan_models(self, model_dir: Path) -> Dict[str, Dict]:
-        """扫描模型目录"""
+        """Scan model directory"""
         import time
         models = {}
 
@@ -206,11 +208,11 @@ class UnifiedDetector:
         return models
 
     def get_available_classes(self) -> List[str]:
-        """获取可用的检测类别"""
+        """Get available detection classes"""
         classes = []
 
         if self.classification_model:
-            classes.extend(['yes', 'no'])  # 分类模型的类别
+            classes.extend(['yes', 'no'])  # Classification model classes
 
         if self.detection_model and self.detection_info:
             classes.extend(self.detection_info.get('classes', []))
@@ -218,7 +220,7 @@ class UnifiedDetector:
         return list(set(classes))
 
     def get_model_info(self) -> Dict[str, Any]:
-        """获取模型信息"""
+        """Get model information"""
         info = {
             'project': self.project_name,
             'device': self.device,
@@ -249,18 +251,18 @@ class UnifiedDetector:
         use_640: bool = True
     ) -> List[DetectionResult]:
         """
-        检测图片中的目标
+        Detect objects in image
 
         Args:
-            image: 图片路径或 numpy 数组
-            target_class: 目标类别（可选，只返回指定类别的检测结果）
-            confidence_threshold: 置信度阈值（可选，覆盖初始化时的值）
-            use_640: 是否使用 640x640 优化（仅检测模型）
+            image: Image path or numpy array
+            target_class: Target class (optional, only return detections of specified class)
+            confidence_threshold: Confidence threshold (optional, overrides initialization value)
+            use_640: Whether to use 640x640 optimization (detection model only)
 
         Returns:
-            检测结果列表
+            List of detection results
         """
-        # 加载图片
+        # Load image
         if isinstance(image, (str, Path)):
             img = cv2.imread(str(image))
             if img is None:
@@ -271,17 +273,17 @@ class UnifiedDetector:
         conf_thresh = confidence_threshold if confidence_threshold is not None else self.confidence_threshold
         results = []
 
-        # 分类模型检测
+        # Classification model detection
         if self.classification_model:
             cls_results = self._detect_classification(img, conf_thresh)
             results.extend(cls_results)
 
-        # 检测模型检测
+        # Detection model detection
         if self.detection_model:
             det_results = self._detect_detection(img, conf_thresh, use_640)
             results.extend(det_results)
 
-        # 过滤目标类别
+        # Filter target class
         if target_class:
             results = [r for r in results if r.class_name == target_class]
 
@@ -294,7 +296,7 @@ class UnifiedDetector:
         window_size: int = 76,
         stride: Optional[int] = None
     ) -> List[DetectionResult]:
-        """分类模型检测（滑动窗口）"""
+        """Classification model detection (sliding window)"""
         img_h, img_w = image.shape[:2]
 
         if stride is None:
@@ -306,7 +308,7 @@ class UnifiedDetector:
             for x in range(0, img_w - window_size + 1, stride):
                 window = image[y:y+window_size, x:x+window_size]
 
-                # 预测
+                # Predict
                 preds = self.classification_model(window, verbose=False)
 
                 for pred in preds:
@@ -315,7 +317,7 @@ class UnifiedDetector:
                         class_id = int(probs.top1)
                         confidence = float(probs.top1conf)
 
-                        # class_id=1 表示 "yes"
+                        # class_id=1 means "yes"
                         if class_id == 1 and confidence >= confidence_threshold:
                             results.append(DetectionResult(
                                 class_name='yes',
@@ -334,25 +336,25 @@ class UnifiedDetector:
         use_640: bool = True,
         iou_threshold: float = 0.45
     ) -> List[DetectionResult]:
-        """检测模型检测"""
+        """Detection model detection"""
         orig_h, orig_w = image.shape[:2]
         classes = self.detection_info.get('classes', [])
 
         if use_640 and (orig_w > 640 or orig_h > 640):
-            # 640x640 优化
+            # 640x640 optimization
             target_size = 640
             scale = min(target_size / orig_w, target_size / orig_h)
             new_w = int(orig_w * scale)
             new_h = int(orig_h * scale)
 
-            # 缩放并添加 padding
+            # Resize and add padding
             resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
             canvas = np.zeros((target_size, target_size, 3), dtype=np.uint8)
             pad_x = (target_size - new_w) // 2
             pad_y = (target_size - new_h) // 2
             canvas[pad_y:pad_y+new_h, pad_x:pad_x+new_w] = resized
 
-            # 检测
+            # Detect
             preds = self.detection_model(
                 canvas,
                 conf=confidence_threshold,
@@ -360,7 +362,7 @@ class UnifiedDetector:
                 verbose=False
             )
         else:
-            # 原始尺寸检测
+            # Original size detection
             scale = 1.0
             pad_x = pad_y = 0
             preds = self.detection_model(
@@ -379,14 +381,14 @@ class UnifiedDetector:
                 confidence = float(box.conf[0])
                 class_id = int(box.cls[0])
 
-                # 转换坐标回原始尺寸
+                # Convert coordinates back to original size
                 if use_640 and scale != 1.0:
                     x1 = (x1 - pad_x) / scale
                     y1 = (y1 - pad_y) / scale
                     x2 = (x2 - pad_x) / scale
                     y2 = (y2 - pad_y) / scale
 
-                # 裁剪到边界
+                # Clip to boundaries
                 x1 = max(0, min(x1, orig_w))
                 y1 = max(0, min(y1, orig_h))
                 x2 = max(0, min(x2, orig_w))
@@ -417,18 +419,18 @@ class UnifiedDetector:
         **kwargs
     ) -> tuple[List[DetectionResult], np.ndarray]:
         """
-        检测并绘制结果
+        Detect and draw results
 
         Args:
-            image: 输入图片
-            output_path: 输出路径（可选）
-            target_class: 目标类别（可选）
-            **kwargs: 传递给 detect() 的其他参数
+            image: Input image
+            output_path: Output path (optional)
+            target_class: Target class (optional)
+            **kwargs: Other parameters passed to detect()
 
         Returns:
-            (检测结果, 绘制后的图片)
+            (Detection results, drawn image)
         """
-        # 加载图片
+        # Load image
         if isinstance(image, (str, Path)):
             img = cv2.imread(str(image))
             if img is None:
@@ -436,14 +438,14 @@ class UnifiedDetector:
         else:
             img = image.copy()
 
-        # 检测
+        # Detect
         results = self.detect(img, target_class=target_class, **kwargs)
 
-        # 绘制
+        # Draw
         output = img.copy()
         colors = {
-            'classification': (0, 255, 0),  # 绿色
-            'detection': (0, 0, 255),       # 红色
+            'classification': (0, 255, 0),  # Green
+            'detection': (0, 0, 255),       # Red
         }
 
         for result in results:
@@ -451,10 +453,10 @@ class UnifiedDetector:
             bbox = result.bbox
             x, y, w, h = bbox['x'], bbox['y'], bbox['w'], bbox['h']
 
-            # 绘制框
+            # Draw box
             cv2.rectangle(output, (x, y), (x+w, y+h), color, 2)
 
-            # 绘制标签
+            # Draw label
             label = f"{result.class_name}: {result.confidence:.2f}"
             cv2.putText(
                 output,
@@ -466,7 +468,7 @@ class UnifiedDetector:
                 2
             )
 
-        # 保存
+        # Save
         if output_path:
             cv2.imwrite(str(output_path), output)
 
@@ -474,31 +476,31 @@ class UnifiedDetector:
 
 
 def main():
-    """命令行入口"""
+    """Command-line entry point"""
     parser = argparse.ArgumentParser(
-        description="Unified Object Detector - 通用目标检测器",
+        description="Unified Object Detector - Universal object detector",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  # 基本检测
+Examples:
+  # Basic detection
   python -m pycore.pyutils.unified_detector d3-check screenshot.png
 
-  # 查看帮助信息
+  # View help information
   python -m pycore.pyutils.unified_detector d3-check --help
 
-  # 列出可用类别
+  # List available classes
   python -m pycore.pyutils.unified_detector d3-check --list-classes
 
-  # 只检测特定类别
+  # Only detect specific class
   python -m pycore.pyutils.unified_detector d3-check screenshot.png --target progress_bar
 
-  # 指定模型
+  # Specify model
   python -m pycore.pyutils.unified_detector d3-check screenshot.png --model unified_model_20251017_143052
 
-  # 保存结果
+  # Save results
   python -m pycore.pyutils.unified_detector d3-check screenshot.png --output result.png
 
-  # JSON 输出
+  # JSON output
   python -m pycore.pyutils.unified_detector d3-check screenshot.png --json
         """
     )
@@ -506,14 +508,14 @@ def main():
     parser.add_argument(
         "project",
         type=str,
-        help="项目名称（apps 目录下的项目，如 'd3-check'）"
+        help="Project name (project under apps directory, e.g., 'd3-check')"
     )
 
     parser.add_argument(
         "image",
         type=str,
         nargs='?',
-        help="输入图片路径"
+        help="Input image path"
     )
 
     parser.add_argument(
@@ -521,7 +523,7 @@ def main():
         "-m",
         type=str,
         default=None,
-        help="模型名称（默认使用最新模型）"
+        help="Model name (defaults to latest model)"
     )
 
     parser.add_argument(
@@ -530,7 +532,7 @@ def main():
         type=str,
         choices=['classification', 'detection'],
         default=None,
-        help="模型类型（默认自动检测）"
+        help="Model type (defaults to auto-detect)"
     )
 
     parser.add_argument(
@@ -539,14 +541,14 @@ def main():
         type=float,
         default=0.25,
         dest="confidence",
-        help="置信度阈值（默认: 0.25）"
+        help="Confidence threshold (default: 0.25)"
     )
 
     parser.add_argument(
         "--target",
         type=str,
         default=None,
-        help="目标类别（只返回指定类别）"
+        help="Target class (only return specified class)"
     )
 
     parser.add_argument(
@@ -554,37 +556,37 @@ def main():
         "-o",
         type=str,
         default=None,
-        help="输出图片路径"
+        help="Output image path"
     )
 
     parser.add_argument(
         "--list-classes",
         action="store_true",
-        help="列出可用的检测类别"
+        help="List available detection classes"
     )
 
     parser.add_argument(
         "--info",
         action="store_true",
-        help="显示模型信息"
+        help="Display model information"
     )
 
     parser.add_argument(
         "--json",
         action="store_true",
-        help="以 JSON 格式输出结果"
+        help="Output results in JSON format"
     )
 
     parser.add_argument(
         "--no-640",
         action="store_true",
-        help="禁用 640x640 优化"
+        help="Disable 640x640 optimization"
     )
 
     args = parser.parse_args()
 
     try:
-        # 创建检测器
+        # Create detector
         detector = UnifiedDetector(
             project_name=args.project,
             model_name=args.model,
@@ -592,35 +594,35 @@ def main():
             confidence_threshold=args.confidence
         )
 
-        # 列出类别
+        # List classes
         if args.list_classes:
             classes = detector.get_available_classes()
-            print("\n可用的检测类别:")
+            print("\nAvailable detection classes:")
             for cls in classes:
                 print(f"  - {cls}")
             return 0
 
-        # 显示模型信息
+        # Display model information
         if args.info:
             info = detector.get_model_info()
-            print("\n模型信息:")
+            print("\nModel Information:")
             print(json.dumps(info, indent=2, ensure_ascii=False))
             return 0
 
-        # 检测图片
+        # Detect image
         if not args.image:
-            parser.error("需要提供图片路径，或使用 --list-classes / --info 查看信息")
+            parser.error("Image path required, or use --list-classes / --info to view information")
 
-        # 执行检测
+        # Execute detection
         results = detector.detect(
             args.image,
             target_class=args.target,
             use_640=not args.no_640
         )
 
-        # 输出结果
+        # Output results
         if args.json:
-            # JSON 格式
+            # JSON format
             output = {
                 'image': args.image,
                 'detections': [r.to_dict() for r in results],
@@ -628,18 +630,18 @@ def main():
             }
             print(json.dumps(output, indent=2, ensure_ascii=False))
         else:
-            # 文本格式
-            print(f"\n检测结果: {args.image}")
-            print(f"找到 {len(results)} 个目标:")
+            # Text format
+            print(f"\nDetection results: {args.image}")
+            print(f"Found {len(results)} objects:")
 
             for i, result in enumerate(results, 1):
                 print(f"\n[{i}] {result.class_name}")
-                print(f"    置信度: {result.confidence:.3f}")
-                print(f"    位置: x={result.bbox['x']}, y={result.bbox['y']}, "
+                print(f"    Confidence: {result.confidence:.3f}")
+                print(f"    Position: x={result.bbox['x']}, y={result.bbox['y']}, "
                       f"w={result.bbox['w']}, h={result.bbox['h']}")
-                print(f"    模型: {result.model_name} ({result.model_type})")
+                print(f"    Model: {result.model_name} ({result.model_type})")
 
-        # 保存绘制结果
+        # Save drawn results
         if args.output:
             _, output_img = detector.detect_and_draw(
                 args.image,
@@ -647,12 +649,12 @@ def main():
                 target_class=args.target,
                 use_640=not args.no_640
             )
-            print(f"\n已保存结果到: {args.output}")
+            print(f"\nResults saved to: {args.output}")
 
         return 0
 
     except Exception as e:
-        print(f"\n错误: {e}", file=sys.stderr)
+        print(f"\nError: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         return 1

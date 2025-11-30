@@ -159,7 +159,7 @@ class HomePopular extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12.0, 0, 12.0, 12.0),
+      margin: const EdgeInsets.fromLTRB(12.0, 0, 12.0, 0),
       padding: const EdgeInsets.all(10.0),
       decoration: BoxDecoration(
         color: Colors.white,

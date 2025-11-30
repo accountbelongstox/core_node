@@ -11,7 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 'use strict';
+
 const { URL } = require('url');
+const logger = require('#@logger');
 
 class UrlTool {
     constructor() {
@@ -42,7 +44,7 @@ class UrlTool {
             'audio/x-scpls': '.pls',
             'audio/midi': '.mid',
             'audio/x-midi': '.mid',
-            
+
             'image/jpeg': '.jpg',
             'image/png': '.png',
             'image/gif': '.gif',
@@ -51,7 +53,7 @@ class UrlTool {
             'image/bmp': '.bmp',
             'image/x-icon': '.ico',
             'image/tiff': '.tiff',
-            
+
             'video/mp4': '.mp4',
             'video/webm': '.webm',
             'video/ogg': '.ogv',
@@ -61,7 +63,7 @@ class UrlTool {
             'video/x-flv': '.flv',
             'video/3gpp': '.3gp',
             'video/x-matroska': '.mkv',
-            
+
             'application/pdf': '.pdf',
             'application/msword': '.doc',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
@@ -69,7 +71,7 @@ class UrlTool {
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
             'application/vnd.ms-powerpoint': '.ppt',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
-            
+
             'text/plain': '.txt',
             'text/html': '.html',
             'text/css': '.css',
@@ -84,205 +86,369 @@ class UrlTool {
         };
     }
 
+    parse(url) {
+        try {
+            return new URL(url);
+        } catch (error) {
+            logger.warn(`Failed to parse URL: ${url}`, error.message);
+            return null;
+        }
+    }
+
+    isHttpUrl(url) {
+        if (!url || typeof url !== 'string') {
+            return false;
+        }
+        return url.startsWith('http://') || url.startsWith('https://');
+    }
+
+    isValidUrl(url) {
+        return this.parse(url) !== null;
+    }
+
     isDynamicUrl(url) {
+        if (!url) {
+            return false;
+        }
         if (url.includes('?')) {
             return true;
         }
         const fileName = url.split('?').pop();
-        return fileName.includes('.') === false;
+        return !fileName.includes('.');
     }
 
-    tofile(url, mode = 'filename') {
-        try {
-            url = new URL(url);
-        } catch (e) {
-            const safeInput = url.replace(/[^a-z0-9.]+/gi, '_');
-            return safeInput;
+    isBlankUrl(url) {
+        if (!url) {
+            return true;
         }
-        const parsedUrl = url;
-        const hostname = parsedUrl.hostname;
-        const pathname = parsedUrl.pathname;
-        const segments = pathname.split('/');
-        const baseFilename = segments.pop() || 'index.html';
-        const safeFilename = baseFilename.replace(/[^a-z0-9\.]+/gi, '_');
-        switch (mode) {
-            case 'full':
-                const safePathname = pathname.replace(/[^a-z0-9./]+/gi, '_').slice(1);
-                return `${hostname.replace(/[^a-z0-9.]+/gi, '_')}_${safePathname}_${safeFilename}`;
-            case 'pathname':
-                return pathname.replace(/[^a-z0-9./]+/gi, '_').slice(1).replace(/\//g, '_') + "_" + safeFilename;
-            case 'filename':
-                return safeFilename;
-            default:
-                console.log('Invalid mode selected.');
-                return '';
-        }
+        const normalizedUrl = url.toLowerCase();
+        return normalizedUrl === 'nullblank' || normalizedUrl === 'about:blank';
     }
 
-    normalizeUrl(url) {
-        if (this.isNullBackUrl(url)) {
-            return this.normalBackUrl(url);
+    isAboutBlankUrl(url) {
+        return this.isBlankUrl(url);
+    }
+
+    normalizeBlankUrl(url) {
+        if (!url) {
+            return 'about:blank';
         }
-        const parsedUrl = new URL(url);
-        let domain = parsedUrl.hostname;
+        const normalizedUrl = url.toLowerCase();
+        if (normalizedUrl === 'nullblank') {
+            return 'about:blank';
+        }
+        return normalizedUrl;
+    }
+
+    normalizeUrl(url, options = {}) {
+        const removeHash = options.removeHash !== false;
+        const removeQuery = options.removeQuery === true;
+        const removeTrailingSlash = options.removeTrailingSlash === true;
+        const removeWww = options.removeWww === true;
+
+        if (this.isBlankUrl(url)) {
+            return this.normalizeBlankUrl(url);
+        }
+
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return url;
+        }
+
+        if (removeHash) {
+            urlObj.hash = '';
+        }
+
+        if (removeQuery) {
+            urlObj.search = '';
+        }
+
+        if (removeWww && urlObj.hostname.startsWith('www.')) {
+            urlObj.hostname = urlObj.hostname.substring(4);
+        }
+
+        let result = urlObj.href;
+
+        if (removeTrailingSlash && result.endsWith('/')) {
+            result = result.slice(0, -1);
+        }
+
+        return result;
+    }
+
+    removeHash(url) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return url;
+        }
+        urlObj.hash = '';
+        return urlObj.href;
+    }
+
+    removeQueryParams(url) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return url;
+        }
+        urlObj.search = '';
+        return urlObj.href;
+    }
+
+    getOrigin(url) {
+        const urlObj = this.parse(url);
+        return urlObj ? urlObj.origin : null;
+    }
+
+    getHostname(url) {
+        const urlObj = this.parse(url);
+        return urlObj ? urlObj.hostname : null;
+    }
+
+    getPathname(url) {
+        const urlObj = this.parse(url);
+        return urlObj ? urlObj.pathname : null;
+    }
+
+    getMainDomain(url) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return null;
+        }
+        return urlObj.hostname;
+    }
+
+    getDomainOnly(url) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return null;
+        }
+        let domain = urlObj.hostname;
         if (domain.startsWith('www.')) {
             domain = domain.substring(4);
         }
         return domain;
     }
 
+    isSameOrigin(url1, url2) {
+        const origin1 = this.getOrigin(url1);
+        const origin2 = this.getOrigin(url2);
+        return origin1 !== null && origin1 === origin2;
+    }
+
+    isSameDomain(url1, url2) {
+        const domain1 = this.getDomainOnly(url1);
+        const domain2 = this.getDomainOnly(url2);
+        return domain1 !== null && domain1 === domain2;
+    }
+
     equalDomain(url1, url2) {
-        url1 = this.getMainDomain(url1)
-        url2 = this.getMainDomain(url2)
-        if (this.isNullBackUrl(url1) || this.isNullBackUrl(url2)) {
-            url1 = this.normalBackUrl(url1)
-            url2 = this.normalBackUrl(url2)
-            return url1 == url2;
+        if (this.isBlankUrl(url1) || this.isBlankUrl(url2)) {
+            return this.normalizeBlankUrl(url1) === this.normalizeBlankUrl(url2);
         }
         if (!this.isHttpUrl(url1) || !this.isHttpUrl(url2)) {
-            return url1 == url2;
+            return url1 === url2;
         }
-        const parsedUrl1 = new URL(url1);
-        const parsedUrl2 = new URL(url2);
+
+        const parsedUrl1 = this.parse(url1);
+        const parsedUrl2 = this.parse(url2);
+
+        if (!parsedUrl1 || !parsedUrl2) {
+            return url1 === url2;
+        }
+
         let domain1 = parsedUrl1.hostname;
         let domain2 = parsedUrl2.hostname;
+
         if (domain1.startsWith('www.')) {
             domain1 = domain1.substring(4);
         }
         if (domain2.startsWith('www.')) {
             domain2 = domain2.substring(4);
         }
+
         let pathname1 = parsedUrl1.pathname;
         let pathname2 = parsedUrl2.pathname;
+
         if (pathname1.endsWith('/')) {
             pathname1 = pathname1.slice(0, -1);
         }
         if (pathname2.endsWith('/')) {
             pathname2 = pathname2.slice(0, -1);
         }
-        if (domain1 != domain2) {
-            return false
-        }
-        if (pathname1 != pathname2) {
-            return false
-        }
-        return true
-    }
 
-    toOpenUrl(urlString) {
-        const parsedUrl = new URL(urlString);
-        const protocol = parsedUrl.protocol;
-        let hostname = parsedUrl.hostname;
-        const port = parsedUrl.port;
-        if (hostname === '0.0.0.0') {
-            hostname = `127.0.0.1`;
-        }
-        const newUrl = `${protocol}//${hostname}:${port}`;
-        return newUrl;
+        return domain1 === domain2 && pathname1 === pathname2;
     }
 
     equalDomainFull(url1, url2) {
-        // console.log(`equalDomainFull: ${url1} ${url2}`)
-        if (this.isNullBackUrl(url1) || this.isNullBackUrl(url2)) {
-            url1 = this.normalBackUrl(url1)
-            url2 = this.normalBackUrl(url2)
-            return url1 == url2;
+        if (this.isBlankUrl(url1) || this.isBlankUrl(url2)) {
+            return this.normalizeBlankUrl(url1) === this.normalizeBlankUrl(url2);
         }
         if (!this.isHttpUrl(url1) || !this.isHttpUrl(url2)) {
-            return url1 == url2;
+            return url1 === url2;
         }
-        const parsedUrl1 = new URL(url1);
-        const parsedUrl2 = new URL(url2);
+
+        const parsedUrl1 = this.parse(url1);
+        const parsedUrl2 = this.parse(url2);
+
+        if (!parsedUrl1 || !parsedUrl2) {
+            return url1 === url2;
+        }
+
         let domain1 = parsedUrl1.hostname;
         let domain2 = parsedUrl2.hostname;
+
         if (domain1.startsWith('www.')) {
             domain1 = domain1.substring(4);
         }
         if (domain2.startsWith('www.')) {
             domain2 = domain2.substring(4);
         }
+
         let pathname1 = parsedUrl1.pathname;
         let pathname2 = parsedUrl2.pathname;
+
         if (pathname1.endsWith('/')) {
             pathname1 = pathname1.slice(0, -1);
         }
         if (pathname2.endsWith('/')) {
             pathname2 = pathname2.slice(0, -1);
         }
+
         let search1 = parsedUrl1.search;
         let search2 = parsedUrl2.search;
-        if (search1.endsWith('/')) {
-            search1 = search1.slice(0, -1);
-        }
-        if (search2.endsWith('/')) {
-            search2 = search2.slice(0, -1);
-        }
-        // console.log(`util.date: ${domain1} ${domain2}`)
-        // console.log(`equalDomainFull: ${pathname1} ${pathname2}`)
-        // console.log(`equalDomainFull: ${search1} ${search2}`)
-        if (domain1 != domain2) {
-            return false
-        }
-        if (pathname1 != pathname2) {
-            return false
-        }
-        if (search1 != search2) {
-            return false
-        }
-        return true
+
+        return domain1 === domain2 && pathname1 === pathname2 && search1 === search2;
     }
 
-    isHttpUrl(url) {
-        return url.startsWith('http');
-    }
+    tofile(url, mode = 'filename') {
+        const safeFilename = (str) => str.replace(/[^a-z0-9.]+/gi, '_');
 
-    normalBackUrl(url) {
-        url = url.toLowerCase()
-        if (url == 'nullblank') {
-            return 'about:blank';
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        } catch (e) {
+            return safeFilename(url);
         }
-        return url
+
+        const hostname = parsedUrl.hostname;
+        const pathname = parsedUrl.pathname;
+        const segments = pathname.split('/');
+        const baseFilename = segments.pop() || 'index.html';
+        const safeBaseFilename = safeFilename(baseFilename);
+
+        switch (mode) {
+            case 'full': {
+                const safePathname = pathname.replace(/[^a-z0-9./]+/gi, '_').slice(1);
+                const safeHostname = safeFilename(hostname);
+                return `${safeHostname}_${safePathname}_${safeBaseFilename}`;
+            }
+            case 'pathname': {
+                const safePathname = pathname.replace(/[^a-z0-9./]+/gi, '_').slice(1).replace(/\//g, '_');
+                return `${safePathname}_${safeBaseFilename}`;
+            }
+            case 'filename':
+                return safeBaseFilename;
+            default:
+                logger.warn(`Invalid tofile mode: ${mode}, using 'filename'`);
+                return safeBaseFilename;
+        }
     }
 
-    isNullBackUrl(url) {
-        url = url.toLowerCase()
-        return url === 'nullblank' || url === 'about:blank';
-    }
+    toOpenUrl(urlString) {
+        const parsedUrl = this.parse(urlString);
+        if (!parsedUrl) {
+            return urlString;
+        }
 
-    isAboutBlankUrl(url) {
-        return this.isNullBackUrl(url)
-    }
+        const protocol = parsedUrl.protocol;
+        let hostname = parsedUrl.hostname;
+        const port = parsedUrl.port;
 
-    isAboutBlankUrl(url) {
-        return this.isNullBackUrl(url)
-    }
+        if (hostname === '0.0.0.0') {
+            hostname = '127.0.0.1';
+        }
 
-    getMainDomain(url) {
-        const urlObject = new URL(url);
-        const domainParts = urlObject.hostname.split('/');
-        return domainParts[0];
+        if (port) {
+            return `${protocol}//${hostname}:${port}`;
+        }
+        return `${protocol}//${hostname}`;
     }
 
     joinPathname(mainDomain, pathname) {
+        if (!pathname) {
+            return mainDomain;
+        }
+
         if (pathname.match(/^https?:\/\//i)) {
-            console.log(`pathname:${pathname} is already a domain name`)
+            logger.debug(`pathname:${pathname} is already a full URL`);
             return pathname;
         }
+
+        let baseDomain = mainDomain;
+
         if (pathname.startsWith('/')) {
-            mainDomain = mainDomain.split(/(?<!\/)\/(?!\/)/)[0];
-            mainDomain = mainDomain.replace(/\/$/, ''); 
+            baseDomain = mainDomain.split(/(?<!\/)\/(?!\/)/)[0];
+            baseDomain = baseDomain.replace(/\/$/, '');
         }
-        const joinedUrl = mainDomain + pathname;
-        console.log(`joinedUrl`,joinedUrl)
+
+        const joinedUrl = baseDomain + pathname;
         return joinedUrl;
     }
 
     extractHttpUrl(str) {
+        if (!str || typeof str !== 'string') {
+            return null;
+        }
+
         const regex = /(?:https?|ftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?/;
         const match = regex.exec(str);
         return match ? match[0] : null;
     }
+
+    extractAllUrls(str) {
+        if (!str || typeof str !== 'string') {
+            return [];
+        }
+
+        const regex = /(?:https?|ftp):\/\/[\w-]+(\.[\w-]+)+([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?/g;
+        return str.match(regex) || [];
+    }
+
+    addQueryParams(url, params) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return url;
+        }
+
+        Object.keys(params).forEach(key => {
+            urlObj.searchParams.set(key, params[key]);
+        });
+
+        return urlObj.href;
+    }
+
+    getQueryParam(url, paramName) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return null;
+        }
+        return urlObj.searchParams.get(paramName);
+    }
+
+    getAllQueryParams(url) {
+        const urlObj = this.parse(url);
+        if (!urlObj) {
+            return {};
+        }
+
+        const params = {};
+        urlObj.searchParams.forEach((value, key) => {
+            params[key] = value;
+        });
+
+        return params;
+    }
 }
 
-UrlTool.toString = () => '[class Url]';
+UrlTool.toString = () => '[class UrlTool]';
 module.exports = new UrlTool();

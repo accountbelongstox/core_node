@@ -295,195 +295,10 @@ $Global:BasePackages = @{
             }
         )
     }
-    NodeJS     = @{
-        PackageId                       = "OpenJS.NodeJS.LTS"
-        Exec                           = "node.exe"
-        Name                           = "node"
-        Description                    = "NodeJS - JavaScript Runtime"
-        InstallType                    = "winget"
-        ForceToInstallDir              = $true
-        VerifySuffix                   = "--version"
-        EnvVars                        = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("node.exe")
-            }
-        )
-        DesktopShortcuts               = $null
-        AdditionalInstallationPackages = @(
-            @{
-                installType    = "npm"
-                installPackage = @("yarn", "pnpm", "pm2")
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type       = "configurator"
-                Executable = "npm.cmd"
-                GlobalParameters = @()  # No mirror configuration for Global region
-                NonGlobalParameters = @(
-                    @("config", "set", "registry", "https://registry.npmmirror.com"),
-                    @("config", "set", "disturl", "https://npmmirror.com/dist"),
-                    @("config", "set", "electron_mirror", "https://npmmirror.com/mirrors/electron/"),
-                    @("config", "set", "sass_binary_site", "https://npmmirror.com/mirrors/node-sass"),
-                    @("config", "set", "phantomjs_cdnurl", "https://npmmirror.com/mirrors/phantomjs")
-                )
-            }
-        )
-    }
-    Python313  = @{
-        Version           = "3.13"
-        PackageId          = "Python.Python.3.13"
-        Exec              = "python.exe"
-        Name              = "python313"
-        Description       = "Python 3.13 - Programming Language"
-        InstallType       = "winget"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        IncludeSystemPaths = $false
-        IsDefault         = $true
-        EnvVars           = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("python.exe")
-            }
-            @{
-                Type    = @("Path")
-                Keyword = @("pip.exe")
-            }
-            @{
-                Type    = @("Path")
-                Keyword = @("uv.exe")
-            }
-            @{
-                Type    = @("Path")
-                Keyword = @("pipx.exe")
-            }
-            @{
-                Type    = @("Path")
-                Keyword = @("poetry.exe")
-            }
-            @{
-                Type    = @("Path")
-                Keyword = @("uvx.exe")
-            }
-        )
-        AdditionalInstallationPackages = @(
-            @{
-                installType    = "pip"
-                installPackage = @(
-                     "pipx",
-                     "uv",
-                     "poetry",
-                    "flake8",
-                    @{
-                        packageName = "numpy"
-                        validationType = "import"
-                        importName = "numpy"
-                    }, 
-                    @{
-                        packageName = "pandas"
-                        validationType = "import"
-                        importName = "pandas"
-                    }, 
-                    @{
-                        packageName = "matplotlib"
-                        validationType = "import"
-                        importName = "matplotlib"
-                    },
-                    @{
-                        packageName = "pillow"
-                        validationType = "import"
-                        importName = "PIL"
-                    },
-                    @{
-                        packageName = "requests"
-                        validationType = "import"
-                        importName = "requests"
-                    }, 
-                    "flask", 
-                    "django", 
-                    "jupyter", 
-                    @{
-                        packageName = "scipy"
-                        validationType = "import"
-                        importName = "scipy"
-                    }, 
-                    @{
-                        packageName = "scikit-learn"
-                        validationType = "import"
-                        importName = "sklearn"
-                    }
-                )
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type       = "copy"
-                SourceFile = "python.exe"
-                TargetFile = "python3.exe"
-            }
-            @{
-                Type       = "copy"
-                SourceFile = "Scripts\pip.exe"
-                TargetFile = "Scripts\pip3.exe"
-            }
-            @{
-                Type       = "configurator"
-                Executable = "Scripts\pip.exe"
-                GlobalParameters = @()  # No mirror configuration for Global region
-                NonGlobalParameters = @(
-                    @("config", "set", "global.index-url", "https://mirrors.huaweicloud.com/repository/pypi/simple"),
-                    @("config", "set", "global.trusted-host", "mirrors.huaweicloud.com")
-                )
-            }
-        )
-    }
-    PHP84      = @{
-        Exec              = "php.exe"
-        Name              = "php84"
-        Description       = "PHP 8.4 - Server-side scripting language"
-        InstallType       = "combo"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        AdditionalKeywords = @("php-cli", "php8")
-        ComboMethods      = @(
-            @{
-                InstallType = "winget"
-                PackageId   = "PHP.PHP.8.4"
-            }
-            @{
-                InstallType    = "choco"
-                PackageId      = "php"
-                ChocoOptions   = @("--version=8.4")
-            }
-            @{
-                InstallType = "scoop"
-                PackageId   = "php84"
-            }
-            @{
-                InstallType     = "web"
-                PackageId       = "php-8.4.12-Win32-vs17-x64.zip"
-                DownloadUrl     = "https://downloads.php.net/~windows/releases/php-8.4.12-Win32-vs17-x64.zip"
-                ExecutableName  = "php.exe"
-                IsArchive       = $true
-                ArchiveType     = "zip"
-            }
-        )
-        EnvVars           = @(
-            @{
-                Type    = @("Path")
-                Keyword = @("php.exe", "composer.exe", "composer.bat")
-            }
-        )
-        DesktopShortcuts  = $null
-        PostInstallCallbacks = @(
-            @{
-                Type = "php"
-                Operation = "full_setup"
-            }
-        )
-    }
+    # NodeJS configuration moved to Step4_InstallNodeJS.ps1
+    # Node.js is now installed and configured by Step4_InstallNodeJS.ps1 directly
+    # Python configuration moved to Step9_InstallPython.ps1
+    # Python is now installed and configured by Step9_InstallPython.ps1 directly
     Pandoc     = @{
         PackageId           = "JohnMacFarlane.Pandoc"
         Exec               = "pandoc.exe"
@@ -861,6 +676,27 @@ $Global:APPLICATIONS_PACKAGES = @{
         DesktopShortcuts    = @(
             @{
                 CreateDesktopShortcut = $false
+            }
+        )
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
+    PuTTY           = @{
+        PackageId            = "PuTTY.PuTTY"
+        Exec                = "putty.exe"
+        Name                = "PuTTY"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description         = "PuTTY - Free SSH and Telnet client"
+        InstallType         = "winget"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AppCustomInstallDir = ""
+        DesktopShortcuts    = @(
+            @{
+                CreateDesktopShortcut = $true
             }
         )
         EnvVars             = @(
@@ -1397,6 +1233,27 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    mRemoteNG = @{
+        PackageId           = "mRemoteNG.mRemoteNG"
+        Exec               = "mRemoteNG.exe"
+        Name               = "mRemoteNG"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_NETWORK_TOOLS
+        Description        = "Multi-protocol remote connections manager (RDP, VNC, SSH, Telnet, HTTP/S)"
+        InstallType        = "winget"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("mRemoteNG", "rdp-manager", "remote-desktop-manager")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     OpenAICodex = @{
         PackageId         = "@openai/codex"
         Exec              = "codex.exe"
@@ -1430,6 +1287,25 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
         # TODO: Unknown callback requirements and exact download mechanism for Cursor Agent
+    }
+    Antigravity = @{
+        PackageId         = "Google.Antigravity"
+        Version           = "1.11.5"
+        Exec              = "Antigravity.exe"
+        Name              = "Antigravity"
+        DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description       = "Antigravity desktop client"
+        InstallType       = "winget"
+        ForceToInstallDir = $true
+        VerifySuffix      = ""
+        AdditionalKeywords = @("antigravity", "antigravity.exe")
+        DesktopShortcuts  = @(
+            @{
+                CreateDesktopShortcut = $true
+                ShortcutName = "Antigravity"
+            }
+        )
+        EnvVars           = @()
     }
     LangChainCli = @{
         PackageId         = "langchain-cli"
@@ -1471,6 +1347,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
     }
     SuperClaude = @{
         UvId              = "SuperClaude"
+        PackageId         = "SuperClaude"
         Exec              = "superclaude.exe"
         Name              = "SuperClaude"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
@@ -1980,5 +1857,3 @@ if ($OutputApplicationsList) {
     # Exit immediately to prevent loading rest of the script
     exit 0
 }
-
-

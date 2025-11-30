@@ -1,0 +1,292 @@
+{
+  "common": {
+    "view_all": "查看全部",
+    "learn_more": "了解更多",
+    "get_started": "开始使用",
+    "contact_us": "联系我们"
+  },
+
+  "codemart": {
+    "platform_name": "码市",
+    "platform_slogan": "互联网软件外包服务平台",
+
+    "nav": {
+      "home": "首页",
+      "projects": "项目",
+      "developers": "开发者",
+      "how_it_works": "如何运作",
+      "about": "关于我们"
+    },
+
+    "footer": {
+      "about": "关于",
+      "about_us": "关于我们",
+      "how_it_works": "如何运作",
+      "pricing": "价格",
+      "blog": "博客",
+      "for_clients": "客户专区",
+      "post_project": "发布项目",
+      "find_developers": "寻找开发者",
+      "client_guide": "客户指南",
+      "success_stories": "成功案例",
+      "for_developers": "开发者专区",
+      "browse_projects": "浏览项目",
+      "become_developer": "成为开发者",
+      "developer_guide": "开发者指南",
+      "skills": "技能",
+      "support": "支持",
+      "help_center": "帮助中心",
+      "contact": "联系我们",
+      "faq": "常见问题",
+      "terms": "服务条款",
+      "privacy": "隐私政策"
+    },
+
+    "customer_service": {
+      "support_team": "客服团队",
+      "online": "在线",
+      "open_chat": "打开聊天",
+      "type_message": "输入消息...",
+      "welcome": "您好！有什么我可以帮您的吗？"
+    },
+
+    "cs": {
+      "quick": {
+        "how_to_start": "如何开始使用？",
+        "pricing": "价格方案？",
+        "payment": "支付如何运作？",
+        "support": "项目需要帮助"
+      },
+      "response": {
+        "pricing": "我们的定价灵活，基于项目复杂度。您可以设置自己的预算范围，开发者会在该范围内提交方案。",
+        "payment": "款项会安全托管在第三方平台。只有在您批准开发者的工作后，资金才会释放给开发者。",
+        "getting_started": "开始使用很简单！您可以作为客户发布项目，或作为开发者浏览可用项目。需要我引导您完成这个过程吗？",
+        "support": "很高兴为您提供帮助！请描述您遇到的问题，我会尽力协助您。",
+        "default": "感谢您的留言。客服人员会尽快回复您。同时，您可以查看我们的帮助中心获取即时答案。"
+      }
+    },
+
+    "developer": {
+      "title": "开发者",
+      "verified": "已认证",
+      "view_profile": "查看资料",
+      "completed_projects": "完成项目",
+      "experience": "年经验",
+      "hourly_rate": "时薪"
+    },
+
+    "home": {
+      "hero_title": "互联网软件外包服务平台",
+      "hero_subtitle": "连接全球开发者与客户的专业平台",
+      "publish_project": "发布项目",
+      "become_developer": "成为开发者",
+      "view_projects": "查看项目",
+      "total_projects": "累计项目数",
+      "total_developers": "注册开发者",
+      "total_transactions": "交易总额",
+      "featured_projects": "精选项目",
+      "top_developers": "优秀开发者",
+      "cta_title": "准备开始您的项目了吗？",
+      "cta_desc": "加入CodeMart数千满意的客户和开发者",
+      "get_started": "立即开始"
+    },
+
+    "workflow": {
+      "step1_title": "发布项目",
+      "step1_desc": "描述您的项目需求，获取AI智能分析",
+      "step2_title": "匹配开发者",
+      "step2_desc": "审查合格开发者的方案，选择最佳人选",
+      "step3_title": "安全开发",
+      "step3_desc": "通过安全托管支付开始工作，实时跟踪进度",
+      "step4_title": "交付与审查",
+      "step4_desc": "接收完成的工作，审查代码质量，释放付款"
+    },
+
+    "roles": {
+      "client": "客户",
+      "developer": "开发者",
+      "architect": "框架师",
+      "reviewer": "点评者",
+      "admin": "管理员"
+    },
+
+    "registration": {
+      "developer_register": "开发者注册",
+      "client_register": "客户注册",
+      "basic_info": "基本信息",
+      "email_verification": "邮箱验证",
+      "phone_verification": "手机验证",
+      "kyc_verification": "实名认证",
+      "deposit_payment": "缴纳保证金",
+      "upload_id_card": "上传身份证件",
+      "id_front": "证件正面",
+      "id_back": "证件反面",
+      "payment_method": "支付方式",
+      "alipay": "支付宝",
+      "wechat": "微信支付",
+      "bank_card": "银行卡"
+    },
+
+    "project": {
+      "create_project": "创建项目",
+      "my_projects": "我的项目",
+      "project_title": "项目标题",
+      "short_description": "项目简介",
+      "detailed_description": "详细需求描述",
+      "upload_attachments": "上传附件",
+      "reference_examples": "参考示例",
+      "reference_url": "参考网站",
+      "reference_code": "参考代码",
+      "budget_range": "预算范围",
+      "expected_deadline": "期望交付日期",
+      "tech_stack": "技术栈",
+      "languages": "开发语言",
+      "frameworks": "框架",
+      "databases": "数据库",
+      "tools": "工具",
+      "ai_analysis": "AI 分析",
+      "ai_recommendations": "AI 推荐方案",
+      "accept_proposal": "接受方案",
+      "modify_requirements": "修改需求",
+      "budget": "预算",
+      "deadline": "截止日期",
+      "category": "分类",
+      "view_details": "查看详情",
+      "status": {
+        "draft": "草稿",
+        "active": "进行中",
+        "pending": "待分析",
+        "analyzing": "AI 分析中",
+        "awaiting_payment": "待支付",
+        "awaiting_architect": "待架构师",
+        "in_progress": "开发中",
+        "in_review": "审核中",
+        "completed": "已完成",
+        "cancelled": "已取消"
+      }
+    },
+
+    "project_status": {
+      "draft": "草稿",
+      "active": "进行中",
+      "pending": "待分析",
+      "analyzing": "AI 分析中",
+      "awaiting_payment": "待支付",
+      "awaiting_architect": "待分配框架师",
+      "in_progress": "开发中",
+      "in_review": "审核中",
+      "completed": "已完成",
+      "cancelled": "已取消"
+    },
+
+    "task": {
+      "task_hall": "任务大厅",
+      "my_tasks": "我的任务",
+      "browse_tasks": "浏览任务",
+      "accept_task": "接受任务",
+      "task_details": "任务详情",
+      "estimated_hours": "预估工时",
+      "skill_tags": "技能标签",
+      "development_env": "开发环境",
+      "online_ide": "在线 IDE",
+      "local_development": "本地开发",
+      "submit_code": "提交代码",
+      "create_merge_request": "创建合并请求"
+    },
+
+    "development": {
+      "code_repository": "代码仓库",
+      "technical_docs": "技术文档",
+      "task_breakdown": "任务分解",
+      "progress_monitor": "进度监控",
+      "code_review": "代码审查",
+      "quality_score": "质量评分",
+      "readability": "可读性",
+      "efficiency": "效率",
+      "standards": "规范性",
+      "overall_score": "综合评分"
+    },
+
+    "payment": {
+      "deposit": "首付款",
+      "milestone": "里程碑付款",
+      "bonus": "奖金",
+      "final_payment": "尾款",
+      "refund": "退款",
+      "payment_amount": "支付金额",
+      "payment_history": "支付记录",
+      "pending": "待支付",
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "refunded": "已退款"
+    },
+
+    "help": {
+      "help_center": "帮助中心",
+      "search_help": "搜索帮助内容",
+      "faq": "常见问题",
+      "for_clients": "我是需求方",
+      "publish_project": "发布项目",
+      "recruit_developers": "招聘开发",
+      "payment_methods": "支付款项",
+      "open_project": "开发项目",
+      "receive_project": "验收项目",
+      "for_developers": "我是开发者",
+      "register": "注册认证",
+      "browse_projects": "浏览项目",
+      "receive_tasks": "接取任务"
+    },
+
+    "statistics": {
+      "total_projects": "项目总数",
+      "active_projects": "进行中",
+      "completed_projects": "已完成",
+      "total_developers": "开发者总数",
+      "total_clients": "客户总数",
+      "total_revenue": "平台总交易额",
+      "average_project_value": "平均项目金额",
+      "success_rate": "成功率"
+    },
+
+    "categories": {
+      "web_development": "Web 开发",
+      "mobile_apps": "移动应用",
+      "desktop_apps": "桌面应用",
+      "apis": "API 接口",
+      "libraries": "类库",
+      "frameworks": "框架",
+      "tools": "工具",
+      "templates": "模板",
+      "plugins": "插件",
+      "games": "游戏",
+      "ai_ml": "人工智能/机器学习",
+      "blockchain": "区块链",
+      "iot": "物联网",
+      "devops": "DevOps"
+    },
+
+    "notifications": {
+      "project_created": "项目已创建",
+      "task_assigned": "任务已分配",
+      "code_reviewed": "代码已审核",
+      "payment_received": "收到付款",
+      "milestone_completed": "里程碑已完成",
+      "project_completed": "项目已完成"
+    },
+
+    "actions": {
+      "publish": "发布",
+      "submit": "提交",
+      "accept": "接受",
+      "reject": "拒绝",
+      "approve": "批准",
+      "review": "审核",
+      "pay": "支付",
+      "cancel": "取消",
+      "modify": "修改",
+      "delete": "删除",
+      "view_details": "查看详情"
+    }
+  }
+}

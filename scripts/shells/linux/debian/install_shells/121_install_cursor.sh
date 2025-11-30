@@ -2,19 +2,14 @@
 # Cursor IDE Installation Script
 #
 # Usage:
-#   ./121_install_cursor.sh                    # Normal installation
+#   ./121_install_cursor.sh                    # Normal installation (root mode with pkexec)
 #   ./121_install_cursor.sh --force           # Force reinstallation
 #   ./121_install_cursor.sh --cleanup         # Remove Cursor installation
+#   ./121_install_cursor.sh --no-root         # Install in normal mode (no pkexec)
 #
-# This script installs Cursor IDE from AppImage files found in ~/Downloads
-# If no AppImage is found, it opens the download page and waits for manual download
+# This script installs Cursor IDE using installer files stored in ~/Downloads or /home/*/Downloads
+# If no installer is found, it opens the Cursor download page and waits for the user to download manually
 #
-# Source simple download manager
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEBIAN_COM_DIR="$(dirname "$SCRIPT_DIR")/debian_com"
-source "$DEBIAN_COM_DIR/simple_download_manager.sh"
-
-
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -36,22 +31,28 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
+USE_ROOT_MODE=true  # Default to root mode (pkexec)
+USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
 # Cursor installation directories using map_web_path
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
 CURSOR_INSTALL_DIR="$APPLICATIONS_DIR/cursor"
-CURSOR_APPIMAGE_DIR="$CURSOR_INSTALL_DIR/appimage"
+CURSOR_PACKAGE_DIR="$CURSOR_INSTALL_DIR/packages"
 CURSOR_EXTRACTED_DIR="$CURSOR_INSTALL_DIR/extracted"
 CURSOR_BIN_DIR="$CURSOR_INSTALL_DIR/bin"
 CURSOR_INSTALLED_FLAG="$CURSOR_INSTALL_DIR/.installed"
-CURSOR_LAUNCHER_SCRIPT="/usr/local/super_scripts/cursor.sh"
-CURSOR_DESKTOP_FILE="/usr/share/applications/cursor.desktop"
+CURSOR_DOWNLOAD_URL="https://cursor.com/download"
+MANUAL_DOWNLOAD_PROMPT_INTERVAL=5
+PRIMARY_DOWNLOAD_DIR="$HOME/Downloads"
+CURRENT_SCRIPT_PID=$$
+PARENT_SCRIPT_PID=$PPID
+SCRIPT_BASHPID=${BASHPID:-$$}
 
 # Colors for output
 RED='\033[0;31m'
@@ -72,9 +73,14 @@ parse_arguments() {
                 CLEANUP_MODE=true
                 shift
                 ;;
+            --no-root)
+                USE_ROOT_MODE=false
+                USE_ROOT_MODE_SPECIFIED=true
+                shift
+                ;;
             *)
                 echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup]"
+                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
                 exit 1
                 ;;
         esac
@@ -108,15 +114,24 @@ get_installed_version() {
     fi
 }
 
+# Get installed type
+get_installed_type() {
+    if [[ -f "$CURSOR_INSTALLED_FLAG" ]]; then
+        grep "^TYPE=" "$CURSOR_INSTALLED_FLAG" 2>/dev/null | cut -d= -f2
+    fi
+}
+
 # Save installation info
 save_installation_info() {
     local version="$1"
     local package_file="$2"
+    local install_type="$3"
 
     $USE_SUDO mkdir -p "$(dirname "$CURSOR_INSTALLED_FLAG")"
     cat <<EOF | $USE_SUDO tee "$CURSOR_INSTALLED_FLAG" > /dev/null
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
 VERSION=$version
+TYPE=$install_type
 PACKAGE=$(basename "$package_file")
 PATH=$package_file
 EOF
@@ -124,16 +139,15 @@ EOF
 
 # Check if Cursor is already installed and configured
 is_cursor_installed() {
-    if [[ -f "$CURSOR_INSTALLED_FLAG" ]] && [[ -f "$CURSOR_LAUNCHER_SCRIPT" ]] && [[ -f "$CURSOR_DESKTOP_FILE" ]]; then
-        if [[ -x "$CURSOR_LAUNCHER_SCRIPT" ]]; then
-            return 0  # Installed and configured
-        fi
+    if [[ -f "$CURSOR_INSTALLED_FLAG" ]]; then
+        return 0  # Installed
     fi
-    return 1  # Not installed or not properly configured
+    return 1  # Not installed
 }
 
 # Find Cursor files in all user Downloads directories
-find_cursor_file() {
+# Returns: "appimage:<path>" or "deb:<path>" or "both:<appimage_path>:<deb_path>"
+find_cursor_files() {
     local search_dirs=()
 
     # Add global shared download directory first (highest priority)
@@ -160,59 +174,90 @@ find_cursor_file() {
         search_dirs+=("/root/Downloads")
     fi
 
-    # Search for .deb files first (sort by modification time, newest first)
-    for dir in "${search_dirs[@]}"; do
-        local deb_file=$(find "$dir" -maxdepth 1 -name "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-        if [[ -n "$deb_file" ]]; then
-            echo "$deb_file"
-            return 0
-        fi
-    done
+    # Search for both AppImage and .deb files
+    local appimage_file=""
+    local deb_file=""
 
     # Search for .AppImage files (sort by modification time, newest first)
     for dir in "${search_dirs[@]}"; do
-        local appimage_file=$(find "$dir" -maxdepth 1 -name "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-        if [[ -n "$appimage_file" ]]; then
-            echo "$appimage_file"
-            return 0
+        local found_appimage=$(find "$dir" -maxdepth 1 -iname "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        if [[ -n "$found_appimage" ]]; then
+            appimage_file="$found_appimage"
+            break
         fi
     done
 
-    return 1
-}
+    # Search for .deb files (sort by modification time, newest first)
+    for dir in "${search_dirs[@]}"; do
+        local found_deb=$(find "$dir" -maxdepth 1 -iname "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        if [[ -n "$found_deb" ]]; then
+            deb_file="$found_deb"
+            break
+        fi
+    done
 
-find_cursor_appimage() {
-    find_cursor_file
-}
-
-# Smart automated download - checks if already downloaded, skips if exists
-cursor_automated_download() {
-    print_step_from_common_functions "Checking for existing downloads..."
-    
-    # Check if both files already exist
-    local vscode_file=$(find_vscode_file)
-    local cursor_file=$(find_cursor_file)
-    
-    if [[ -n "$vscode_file" ]] && [[ -f "$vscode_file" ]] && [[ -n "$cursor_file" ]] && [[ -f "$cursor_file" ]]; then
-        print_success_from_common_functions "Both VSCode and Cursor already downloaded, skipping download"
-        print_info_from_common_functions "Using existing Cursor: $(basename "$cursor_file")"
-        echo "$cursor_file"
+    # Return results based on what was found
+    if [[ -n "$appimage_file" ]] && [[ -n "$deb_file" ]]; then
+        echo "both:$appimage_file:$deb_file"
+        return 0
+    elif [[ -n "$appimage_file" ]]; then
+        echo "appimage:$appimage_file"
+        return 0
+    elif [[ -n "$deb_file" ]]; then
+        echo "deb:$deb_file"
         return 0
     fi
-    
-    # If not both exist, download both
-    print_step_from_common_functions "Downloading VSCode and Cursor via core_node_init..."
-    if download_both; then
-        local cursor_file=$(find_cursor_file)
-        if [[ -n "$cursor_file" ]] && [[ -f "$cursor_file" ]]; then
-            print_success_from_common_functions "Found downloaded Cursor: $(basename "$cursor_file")"
-            echo "$cursor_file"
-            return 0
-        fi
-    fi
-    
-    print_warning_from_common_functions "Cursor download failed"
+
     return 1
+}
+
+# Filter out installer-related PIDs when terminating processes
+should_skip_pid() {
+    local pid="$1"
+
+    if [[ -z "$pid" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$CURRENT_SCRIPT_PID" ]] && [[ "$pid" == "$CURRENT_SCRIPT_PID" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$PARENT_SCRIPT_PID" ]] && [[ "$pid" == "$PARENT_SCRIPT_PID" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$SCRIPT_BASHPID" ]] && [[ "$pid" == "$SCRIPT_BASHPID" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$BASHPID" ]] && [[ "$pid" == "$BASHPID" ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+get_filtered_process_pids() {
+    local process_name="$1"
+    local raw_pids
+    local filtered_pids=""
+
+    raw_pids=$(pgrep -f "$process_name" 2>/dev/null)
+
+    for pid in $raw_pids; do
+        if should_skip_pid "$pid"; then
+            continue
+        fi
+
+        if [[ -z "$filtered_pids" ]]; then
+            filtered_pids="$pid"
+        else
+            filtered_pids="$filtered_pids $pid"
+        fi
+    done
+
+    echo "$filtered_pids"
 }
 
 # Safe process kill function
@@ -220,7 +265,7 @@ safe_kill_processes() {
     local process_name="$1"
     local use_sudo="${2:-false}"
 
-    local pids=$(pgrep -f "$process_name" 2>/dev/null)
+    local pids=$(get_filtered_process_pids "$process_name")
 
     if [[ -z "$pids" ]]; then
         print_info_from_common_functions "No $process_name processes found"
@@ -241,7 +286,7 @@ safe_kill_processes() {
     # Wait up to 5 seconds for processes to terminate
     local waited=0
     while [[ $waited -lt 5 ]]; do
-        pids=$(pgrep -f "$process_name" 2>/dev/null)
+        pids=$(get_filtered_process_pids "$process_name")
         if [[ -z "$pids" ]]; then
             print_success_from_common_functions "$process_name processes terminated gracefully"
             return 0
@@ -251,7 +296,7 @@ safe_kill_processes() {
     done
 
     # Force kill if still running (SIGKILL)
-    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    pids=$(get_filtered_process_pids "$process_name")
     if [[ -n "$pids" ]]; then
         print_warning_from_common_functions "Force killing remaining $process_name processes: $pids"
         for pid in $pids; do
@@ -265,7 +310,7 @@ safe_kill_processes() {
     fi
 
     # Verify all processes are gone
-    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    pids=$(get_filtered_process_pids "$process_name")
     if [[ -z "$pids" ]]; then
         print_success_from_common_functions "All $process_name processes terminated"
         return 0
@@ -275,28 +320,109 @@ safe_kill_processes() {
     fi
 }
 
+# Helper to open Cursor download page
+open_cursor_download_page() {
+    local download_url="${1:-$CURSOR_DOWNLOAD_URL}"
+
+    print_info_from_common_functions "Cursor download page: $download_url"
+
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$download_url" >/dev/null 2>&1 &
+        print_info_from_common_functions "Opened $download_url in default browser"
+    else
+        print_info_from_common_functions "Please open $download_url manually in your browser"
+    fi
+}
+
+print_manual_download_instructions() {
+    print_info_from_common_functions "Download the latest Cursor .AppImage or .deb installer."
+    print_info_from_common_functions "Note: AppImage is preferred over .deb"
+
+    if [[ -n "$PRIMARY_DOWNLOAD_DIR" ]]; then
+        print_info_from_common_functions "Save the file to $PRIMARY_DOWNLOAD_DIR (any /home/*/Downloads directory from any user is scanned automatically)."
+    else
+        print_info_from_common_functions "Save the file to any /home/*/Downloads directory (all users are scanned automatically)."
+    fi
+}
+
 # Manual download fallback
 cursor_manual_download() {
-    print_step_from_common_functions "Falling back to manual download..."
+    local skip_initial_open="${1:-false}"
+    print_step_from_common_functions "Manual download required"
+    print_manual_download_instructions
 
-    # Open Cursor download page
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "https://cursor.sh/" >/dev/null 2>&1 &
-    fi
-
-    print_info_from_common_functions "Please download Cursor .deb file to Downloads directory"
-    print_info_from_common_functions "Waiting for download to complete..."
-
-    # Wait for file to appear
-    local downloaded_file=$(find_cursor_appimage)
-    if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-        print_success_from_common_functions "Found Cursor file: $(basename "$downloaded_file")"
-        echo "$downloaded_file"
-        return 0
+    if [[ "$skip_initial_open" != "true" ]]; then
+        open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
     else
-        print_error_from_common_functions "Timeout waiting for Cursor file download"
-        return 1
+        print_info_from_common_functions "Re-using previously opened download page."
     fi
+
+    local response=""
+    local downloaded_file=""
+    local download_hint="$PRIMARY_DOWNLOAD_DIR"
+    local wait_counter=0
+
+    if [[ -z "$download_hint" ]]; then
+        download_hint="any /home/*/Downloads directory"
+    fi
+
+    print_info_from_common_functions "All /home/*/Downloads directories (including other users) are scanned continuously."
+
+    while true; do
+        downloaded_file=$(find_cursor_file)
+
+        if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
+            print_success_from_common_functions "Detected Cursor installer: $(basename "$downloaded_file")"
+
+            while true; do
+                echo -n "Use $(basename "$downloaded_file") for installation? (yes/no/open/quit): "
+                read -r response
+
+                case "$response" in
+                    [yY]|[yY][eE][sS])
+                        echo "$downloaded_file"
+                        return 0
+                        ;;
+                    [nN]|[nN][oO])
+                        print_warning_from_common_functions "Waiting for a new download saved to $download_hint."
+                        downloaded_file=""
+                        break
+                        ;;
+                    [oO]|[oO][pP][eE][nN])
+                        open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+                        ;;
+                    [qQ]|[qQ][uU][iI][tT])
+                        print_error_from_common_functions "Manual download cancelled by user"
+                        return 1
+                        ;;
+                    *)
+                        print_info_from_common_functions "Type 'yes' to continue, 'no' to wait for another file, 'open' to reopen the page, or 'quit' to exit."
+                        ;;
+                esac
+            done
+
+            continue
+        fi
+
+        wait_counter=$((wait_counter + 1))
+        print_info_from_common_functions "Waiting for Cursor installer... (check #$wait_counter)"
+        echo -n "Type 'open' to reopen the download page, 'quit' to cancel, or press Enter to rescan: "
+
+        if read -r -t "$MANUAL_DOWNLOAD_PROMPT_INTERVAL" response; then
+            case "$response" in
+                [oO]|[oO][pP][eE][nN])
+                    open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+                    ;;
+                [qQ]|[qQ][uU][iI][tT])
+                    print_error_from_common_functions "Manual download cancelled by user"
+                    return 1
+                    ;;
+                *)
+                    print_info_from_common_functions "Rescanning Downloads directories..."
+                    ;;
+            esac
+        fi
+    done
 }
 
 # Check .deb file integrity
@@ -345,11 +471,11 @@ install_deb_package() {
     fi
 
     # Create directories for tracking
-    $USE_SUDO mkdir -p "$CURSOR_APPIMAGE_DIR" "$CURSOR_BIN_DIR"
+    $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_BIN_DIR"
 
     # Copy deb file to installation directory for backup
-    print_step_from_common_functions "Backing up .deb file to $CURSOR_APPIMAGE_DIR"
-    $USE_SUDO cp "$deb_file" "$CURSOR_APPIMAGE_DIR/"
+    print_step_from_common_functions "Backing up .deb file to $CURSOR_PACKAGE_DIR"
+    $USE_SUDO cp "$deb_file" "$CURSOR_PACKAGE_DIR/"
 
     # Install the .deb package
     print_step_from_common_functions "Installing Cursor via dpkg..."
@@ -364,7 +490,7 @@ install_deb_package() {
     if ! dpkg -l | grep -q "^ii.*cursor"; then
         print_error_from_common_functions "Cursor package installation failed"
         print_step_from_common_functions "Removing corrupted backup file..."
-        $USE_SUDO rm -f "$CURSOR_APPIMAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
+        $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
         return 1
     fi
 
@@ -379,14 +505,14 @@ extract_appimage() {
     print_step_from_common_functions "Extracting Cursor AppImage..."
 
     # Create directories
-    $USE_SUDO mkdir -p "$CURSOR_APPIMAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
+    $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
 
     # Copy AppImage to installation directory
-    print_step_from_common_functions "Copying AppImage to $CURSOR_APPIMAGE_DIR"
-    $USE_SUDO cp "$appimage_file" "$CURSOR_APPIMAGE_DIR/"
+    print_step_from_common_functions "Copying AppImage to $CURSOR_PACKAGE_DIR"
+    $USE_SUDO cp "$appimage_file" "$CURSOR_PACKAGE_DIR/"
 
     local appimage_name=$(basename "$appimage_file")
-    local installed_appimage="$CURSOR_APPIMAGE_DIR/$appimage_name"
+    local installed_appimage="$CURSOR_PACKAGE_DIR/$appimage_name"
 
     # Make AppImage executable
     $USE_SUDO chmod +x "$installed_appimage"
@@ -433,150 +559,174 @@ extract_appimage() {
     return 0
 }
 
-# Create launcher script for .deb installation
-create_launcher_script_deb() {
-    print_step_from_common_functions "Creating Cursor launcher script for .deb installation..."
+# Note: Launcher scripts are now created by desktop_entry_manager.sh
+# Old create_launcher_script_deb() and create_launcher_script_appimage() functions removed
 
-    # For .deb installation, cursor is installed at /usr/bin/cursor
-    local super_launcher_content='#!/bin/bash
-# Cursor IDE Super Launcher Script (DEB Installation)
-# This script calls the system-installed cursor with --no-sandbox flag
+# Detect desktop user for userdata directory
+detect_cursor_desktop_user() {
+    local detected_user=""
+    local detected_home=""
 
-CURSOR_BIN="/usr/bin/cursor"
-
-if [[ ! -f "$CURSOR_BIN" ]]; then
-    echo "Error: Cursor not found at $CURSOR_BIN"
-    echo "Please reinstall Cursor"
-    exit 1
-fi
-
-# Launch Cursor with --no-sandbox (required for root execution)
-exec "$CURSOR_BIN" --no-sandbox "$@"
-'
-
-    if command -v sudo >/dev/null 2>&1; then
-        sudo mkdir -p "/usr/local/super_scripts"
-        echo "$super_launcher_content" | sudo tee "/usr/local/super_scripts/cursor.sh" > /dev/null
-        sudo chmod +x "/usr/local/super_scripts/cursor.sh"
-
-        # Remove old symlink if exists and create new one
-        sudo rm -f "/usr/local/bin/cursor"
-        sudo ln -sf "/usr/local/super_scripts/cursor.sh" "/usr/local/bin/cursor"
-    else
-        mkdir -p "/usr/local/super_scripts"
-        echo "$super_launcher_content" | tee "/usr/local/super_scripts/cursor.sh" > /dev/null
-        chmod +x "/usr/local/super_scripts/cursor.sh"
-
-        rm -f "/usr/local/bin/cursor"
-        ln -sf "/usr/local/super_scripts/cursor.sh" "/usr/local/bin/cursor"
+    # Try SUDO_USER first (if running with sudo)
+    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+        detected_user="$SUDO_USER"
+        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+        if [[ -n "$detected_home" ]] && [[ -d "$detected_home" ]]; then
+            echo "$detected_user:$detected_home"
+            return 0
+        fi
     fi
 
-    return 0
-}
+    # Try finding user with active desktop session
+    for user_home in /home/*; do
+        if [[ -d "$user_home" ]]; then
+            detected_user="$(basename "$user_home")"
 
-# Create launcher script for AppImage installation
-create_launcher_script_appimage() {
-    print_step_from_common_functions "Creating Cursor launcher script for AppImage installation..."
-
-    local super_launcher_content='#!/bin/bash
-# Cursor IDE Super Launcher Script (AppImage Installation)
-# This script calls the extracted AppImage AppRun with --no-sandbox flag
-
-CURSOR_EXTRACTED_DIR="'"$CURSOR_EXTRACTED_DIR"'"
-CURSOR_APPRUN="$CURSOR_EXTRACTED_DIR/squashfs-root/AppRun"
-
-if [[ ! -f "$CURSOR_APPRUN" ]]; then
-    echo "Error: Cursor AppRun not found at $CURSOR_APPRUN"
-    echo "Please reinstall Cursor"
-    exit 1
-fi
-
-# Launch Cursor with --no-sandbox (required for root execution)
-exec "$CURSOR_APPRUN" --no-sandbox "$@"
-'
-
-    if command -v sudo >/dev/null 2>&1; then
-        sudo mkdir -p "/usr/local/super_scripts"
-        echo "$super_launcher_content" | sudo tee "/usr/local/super_scripts/cursor.sh" > /dev/null
-        sudo chmod +x "/usr/local/super_scripts/cursor.sh"
-
-        # Remove old symlink if exists and create new one
-        sudo rm -f "/usr/local/bin/cursor"
-        sudo ln -sf "/usr/local/super_scripts/cursor.sh" "/usr/local/bin/cursor"
-    else
-        mkdir -p "/usr/local/super_scripts"
-        echo "$super_launcher_content" | tee "/usr/local/super_scripts/cursor.sh" > /dev/null
-        chmod +x "/usr/local/super_scripts/cursor.sh"
-
-        rm -f "/usr/local/bin/cursor"
-        ln -sf "/usr/local/super_scripts/cursor.sh" "/usr/local/bin/cursor"
-    fi
-
-    return 0
-}
-
-# Create launcher script with sudo and --no-sandbox (backwards compatibility wrapper)
-create_launcher_script() {
-    create_launcher_script_appimage
-}
-
-# Create desktop entry
-create_desktop_entry() {
-    print_step_from_common_functions "Configuring desktop entry..."
-
-    # Check if desktop file already exists (from .deb installation)
-    if [[ -f "$CURSOR_DESKTOP_FILE" ]] && dpkg -l | grep -q "^ii.*cursor"; then
-        # .deb installation: modify existing desktop file to use wrapper script
-        print_info_from_common_functions "Modifying existing desktop file for wrapper script..."
-
-        # Backup original
-        $USE_SUDO cp "$CURSOR_DESKTOP_FILE" "${CURSOR_DESKTOP_FILE}.backup" 2>/dev/null || true
-
-        # Replace Exec lines to use wrapper script
-        $USE_SUDO sed -i 's|^Exec=/usr/share/cursor/cursor|Exec=/usr/local/super_scripts/cursor.sh|g' "$CURSOR_DESKTOP_FILE"
-
-        print_success_from_common_functions "Desktop entry updated to use wrapper script"
-    else
-        # AppImage installation: create complete desktop file
-        print_info_from_common_functions "Creating desktop file for AppImage installation..."
-
-        local icon_path="$CURSOR_EXTRACTED_DIR/squashfs-root/cursor.png"
-        if [[ ! -f "$icon_path" ]]; then
-            icon_path=$(find "$CURSOR_EXTRACTED_DIR/squashfs-root" -name "*.png" -type f 2>/dev/null | head -1)
-            if [[ -z "$icon_path" ]]; then
-                icon_path="cursor"
+            # Check for desktop session indicators
+            if [[ -n "$(pgrep -u "$detected_user" 2>/dev/null)" ]] && \
+               [[ -d "$user_home/.config" ]]; then
+                echo "$detected_user:$user_home"
+                return 0
             fi
         fi
+    done
 
-        local desktop_content="[Desktop Entry]
-Name=Cursor
-Comment=The AI Code Editor.
-GenericName=Text Editor
-Exec=/usr/local/super_scripts/cursor.sh %F
-Icon=$icon_path
-Type=Application
-Categories=TextEditor;Development;IDE;
-MimeType=application/x-cursor-workspace;text/plain;text/x-chdr;text/x-csrc;text/x-c++hdr;text/x-c++src;text/x-java;text/x-dsrc;text/x-pascal;text/x-perl;text/x-python;application/x-php;application/x-httpd-php3;application/x-httpd-php4;application/x-httpd-php5;text/x-sql;text/x-diff;
-Actions=new-empty-window;
-StartupNotify=false
-StartupWMClass=Cursor
-Keywords=cursor;
+    # Fallback: first non-root user in /home with UID >= 1000
+    for user_home in /home/*; do
+        if [[ -d "$user_home" ]]; then
+            detected_user="$(basename "$user_home")"
+            local user_uid="$(id -u "$detected_user" 2>/dev/null || echo 0)"
+            if [[ $user_uid -ge 1000 ]] && [[ $user_uid -lt 60000 ]]; then
+                echo "$detected_user:$user_home"
+                return 0
+            fi
+        fi
+    done
 
-[Desktop Action new-empty-window]
-Name=New Empty Window
-Exec=/usr/local/super_scripts/cursor.sh --new-window %F
-Icon=$icon_path
-"
+    # Last resort: current user
+    echo "$USER:$HOME"
+}
 
-        echo "$desktop_content" | $USE_SUDO tee "$CURSOR_DESKTOP_FILE" > /dev/null
-        $USE_SUDO chmod 644 "$CURSOR_DESKTOP_FILE"
+# Create desktop entry via desktop_entry_manager
+create_desktop_entry() {
+    local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
 
-        print_success_from_common_functions "Desktop entry created"
+    if [[ ! -x "$desktop_manager_script" ]]; then
+        print_warning_from_common_functions "desktop_entry_manager.sh not found or not executable"
+        return 0
     fi
 
-    # Update desktop database
-    if command -v update-desktop-database >/dev/null 2>&1; then
-        $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+    print_step_from_common_functions "Creating desktop entry via desktop_entry_manager.sh"
+
+    # Detect desktop user
+    local desktop_user_info="$(detect_cursor_desktop_user)"
+    local desktop_manager_user="${desktop_user_info%%:*}"
+    local desktop_manager_home="${desktop_user_info##*:}"
+    local desktop_manager_apps_dir="$desktop_manager_home/.local/share/applications"
+
+    print_info_from_common_functions "Detected desktop user: $desktop_manager_user ($desktop_manager_home)"
+
+    # Determine binary and icon based on installation type
+    # Use global variables so they're accessible in install_cursor()
+    CURSOR_BINARY=""
+    CURSOR_ICON=""
+
+    if [[ -f "/usr/bin/cursor" ]] && dpkg -l | grep -q "^ii.*cursor"; then
+        # .deb installation
+        CURSOR_BINARY="/usr/bin/cursor"
+        local icon_candidates=(
+            "/usr/share/pixmaps/cursor.png"
+            "/usr/share/icons/hicolor/128x128/apps/cursor.png"
+            "/usr/share/icons/hicolor/256x256/apps/cursor.png"
+            "/usr/share/icons/hicolor/512x512/apps/cursor.png"
+        )
+        CURSOR_ICON="cursor"
+        for icon_path in "${icon_candidates[@]}"; do
+            if [[ -f "$icon_path" ]]; then
+                CURSOR_ICON="$icon_path"
+                break
+            fi
+        done
+    else
+        # AppImage installation - prioritize co.anysphere.cursor.png
+        CURSOR_BINARY="$CURSOR_EXTRACTED_DIR/squashfs-root/AppRun"
+        local icon_candidates=(
+            "$CURSOR_EXTRACTED_DIR/squashfs-root/co.anysphere.cursor.png"
+            "$CURSOR_EXTRACTED_DIR/squashfs-root/cursor.png"
+            "$CURSOR_EXTRACTED_DIR/squashfs-root/code.png"
+        )
+        CURSOR_ICON="cursor"
+        for icon_path in "${icon_candidates[@]}"; do
+            if [[ -f "$icon_path" ]]; then
+                CURSOR_ICON="$icon_path"
+                break
+            fi
+        done
+    fi
+
+    if [[ ! -x "$CURSOR_BINARY" ]]; then
+        print_error_from_common_functions "Cursor binary not found at: $CURSOR_BINARY"
+        print_error_from_common_functions "Installation may have failed"
+        return 1
+    fi
+
+    print_step_from_common_functions "Using Cursor binary: $CURSOR_BINARY"
+    print_step_from_common_functions "Using Cursor icon: $CURSOR_ICON"
+
+    # Build user data directory path for Cursor
+    CURSOR_USERDATA_DIR="$desktop_manager_home/.config/Cursor"
+    print_info_from_common_functions "Cursor user data directory: $CURSOR_USERDATA_DIR"
+
+    # Create user data directory if it doesn't exist
+    if [[ ! -d "$CURSOR_USERDATA_DIR" ]]; then
+        mkdir -p "$CURSOR_USERDATA_DIR" 2>/dev/null || true
+        # Set ownership to desktop user if running as root
+        if [[ "$USER" == "root" ]] && [[ -d "$CURSOR_USERDATA_DIR" ]]; then
+            chown -R "$desktop_manager_user:$desktop_manager_user" "$CURSOR_USERDATA_DIR" 2>/dev/null || true
+        fi
+    fi
+
+    # Use --create-app to generate launcher and desktop entry
+    # desktop_entry_manager.sh will handle user detection and permissions automatically
+    # Arguments: name display_name binary icon category description wm_class userdata_dir use_root_mode
+    if bash "$desktop_manager_script" --create-app cursor "Cursor" "$CURSOR_BINARY" "$CURSOR_ICON" "Development;IDE" "The AI Code Editor" "Cursor" "$CURSOR_USERDATA_DIR" "$USE_ROOT_MODE" 2>&1; then
+        local expected_entry="$desktop_manager_apps_dir/core_node_cursor.desktop"
+        if [[ -f "$expected_entry" ]]; then
+            print_success_from_common_functions "Desktop entry created for Cursor"
+
+            # Disable system desktop entry if it exists (from .deb installation)
+            local system_desktop="/usr/share/applications/cursor.desktop"
+            if [[ -f "$system_desktop" ]]; then
+                $USE_SUDO mv "$system_desktop" "${system_desktop}.disabled" 2>/dev/null || true
+                print_info_from_common_functions "System desktop entry disabled to avoid duplicates"
+            fi
+
+            # Update desktop and icon cache
+            print_step_from_common_functions "Updating desktop and icon caches..."
+            if command -v update-desktop-database >/dev/null 2>&1; then
+                update-desktop-database "$desktop_manager_apps_dir" 2>/dev/null || true
+            fi
+
+            # Clear icon cache
+            if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+                for icon_theme in /usr/share/icons/hicolor /usr/share/icons/Yaru; do
+                    if [[ -d "$icon_theme" ]]; then
+                        $USE_SUDO gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null || true
+                    fi
+                done
+            fi
+
+            # Notify user about icon refresh
+            if pgrep -x gnome-shell >/dev/null 2>&1; then
+                print_info_from_common_functions "To refresh icons immediately:"
+                print_info_from_common_functions "  Press Alt+F2, type 'r', press Enter (restarts GNOME Shell)"
+                print_info_from_common_functions "  Or log out and log back in"
+            fi
+        else
+            print_warning_from_common_functions "Desktop entry not found after creation: $expected_entry"
+        fi
+    else
+        print_warning_from_common_functions "desktop_entry_manager.sh --create-app encountered an error"
     fi
 
     return 0
@@ -584,11 +734,17 @@ Icon=$icon_path
 
 # Install required dependencies
 install_dependencies() {
-    print_step_from_common_functions "Installing required dependencies..."
+    print_step_from_common_functions "Checking dependencies..."
 
-    # Install libfuse2 which is required for AppImage
-    if ! dpkg -l | grep -q libfuse2; then
-        print_step_from_common_functions "Installing libfuse2..."
+    # Note: libfuse2 is NOT installed on Ubuntu 24.04+ as it may cause system issues
+    # AppImage is extracted and run directly from the extracted directory
+
+    # Check Ubuntu version
+    local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "unknown")
+    if [[ "$ubuntu_version" == "24."* ]]; then
+        print_info_from_common_functions "Ubuntu 24.04+ detected - using extracted AppImage (no libfuse2 needed)"
+    elif [[ "$ubuntu_version" != "unknown" ]] && ! dpkg -l | grep -q libfuse2; then
+        print_step_from_common_functions "Installing libfuse2 for Ubuntu < 24.04..."
         $USE_SUDO apt-get update -qq
         $USE_SUDO apt-get install -y libfuse2
     fi
@@ -611,28 +767,29 @@ cleanup_cursor() {
         $USE_SUDO apt-get remove --purge -y cursor 2>/dev/null || true
     fi
 
-    # Remove installation directory using robust removal
+    # Remove entire installation directory (includes packages, extracted files, and bin)
     if [[ -d "$CURSOR_INSTALL_DIR" ]]; then
         print_step_from_common_functions "Removing installation directory: $CURSOR_INSTALL_DIR"
-        robust_remove_directory "$CURSOR_INSTALL_DIR"
+        $USE_SUDO rm -rf "$CURSOR_INSTALL_DIR"
     fi
 
-    # Remove desktop entry
-    if [[ -f "$CURSOR_DESKTOP_FILE" ]]; then
-        print_step_from_common_functions "Removing desktop entry: $CURSOR_DESKTOP_FILE"
-        $USE_SUDO rm -f "$CURSOR_DESKTOP_FILE"
+    # Remove launcher script (auto-generated by desktop_entry_manager)
+    local desktop_manager_user="${SUDO_USER:-$USER}"
+    local desktop_manager_home="$(getent passwd "$desktop_manager_user" | cut -d: -f6)"
+    if [[ -z "$desktop_manager_home" ]] || [[ ! -d "$desktop_manager_home" ]]; then
+        desktop_manager_home="$HOME"
+    fi
+    local launcher_script="/var/_core_node/scripts_launch_dir/cursor_launcher.sh"
+    if [[ -e "$launcher_script" ]] || [[ -L "$launcher_script" ]]; then
+        print_step_from_common_functions "Removing launcher script: $launcher_script"
+        $USE_SUDO rm -f "$launcher_script"
     fi
 
-    # Remove launcher script
-    if [[ -f "/usr/local/super_scripts/cursor.sh" ]]; then
-        print_step_from_common_functions "Removing launcher script: /usr/local/super_scripts/cursor.sh"
-        $USE_SUDO rm -f "/usr/local/super_scripts/cursor.sh"
-    fi
-
-    # Remove symlink
-    if [[ -L "/usr/local/bin/cursor" ]]; then
-        print_step_from_common_functions "Removing symlink: /usr/local/bin/cursor"
-        $USE_SUDO rm -f "/usr/local/bin/cursor"
+    # Remove desktop entry (auto-generated by desktop_entry_manager)
+    local desktop_entry="$desktop_manager_home/.local/share/applications/core_node_cursor.desktop"
+    if [[ -f "$desktop_entry" ]]; then
+        print_step_from_common_functions "Removing desktop entry: $desktop_entry"
+        rm -f "$desktop_entry"
     fi
 
     # Remove installation flag
@@ -641,9 +798,57 @@ cleanup_cursor() {
         $USE_SUDO rm -f "$CURSOR_INSTALLED_FLAG"
     fi
 
-    # Update desktop database
+    # Clean up ALL cursor desktop entries (including old ones)
+    print_step_from_common_functions "Removing all Cursor desktop entries..."
+    find "$desktop_manager_home/.local/share/applications" -name "*cursor*.desktop" -type f -delete 2>/dev/null || true
+
+    # Remove system desktop entry (both enabled and disabled)
+    local system_desktop="/usr/share/applications/cursor.desktop"
+    if [[ -f "$system_desktop" ]]; then
+        print_step_from_common_functions "Removing system desktop entry: $system_desktop"
+        $USE_SUDO rm -f "$system_desktop"
+    fi
+    if [[ -f "${system_desktop}.disabled" ]]; then
+        print_step_from_common_functions "Removing disabled system desktop entry: ${system_desktop}.disabled"
+        $USE_SUDO rm -f "${system_desktop}.disabled"
+    fi
+
+    # Update desktop database and clear icon caches
+    print_step_from_common_functions "Updating desktop databases and clearing icon caches..."
     if command -v update-desktop-database >/dev/null 2>&1; then
-        $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+        update-desktop-database "$desktop_manager_home/.local/share/applications" 2>/dev/null || true
+        $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
+    fi
+
+    # Clear GTK icon cache
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        print_step_from_common_functions "Clearing GTK icon caches..."
+        # Update icon cache for common icon themes
+        for icon_theme in /usr/share/icons/hicolor /usr/share/icons/Yaru; do
+            if [[ -d "$icon_theme" ]]; then
+                $USE_SUDO gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null || true
+            fi
+        done
+
+        # Update user icon cache if exists
+        if [[ -d "$desktop_manager_home/.local/share/icons" ]]; then
+            for icon_theme in "$desktop_manager_home/.local/share/icons"/*; do
+                if [[ -d "$icon_theme" ]]; then
+                    gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null || true
+                fi
+            done
+        fi
+    fi
+
+    # Clear MIME cache
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database "$desktop_manager_home/.local/share/applications" 2>/dev/null || true
+    fi
+
+    # Notify about GNOME Shell restart
+    if pgrep -x gnome-shell >/dev/null 2>&1; then
+        print_info_from_common_functions "GNOME Shell detected - restart it to refresh icons:"
+        print_info_from_common_functions "  Press Alt+F2, type 'r', press Enter"
     fi
 
     print_success_from_common_functions "Cursor cleanup completed"
@@ -654,49 +859,145 @@ cleanup_cursor() {
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
+    # Prompt for root mode if not already specified via command line
+    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
+        echo ""
+        echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
+        read -r response
+        case "$response" in
+            [nN]|[nN][oO])
+                USE_ROOT_MODE=false
+                print_info_from_common_functions "Installing in normal mode (no root)"
+                ;;
+            *)
+                USE_ROOT_MODE=true
+                print_info_from_common_functions "Installing in root mode (with pkexec)"
+                ;;
+        esac
+        echo ""
+    fi
+
+    # Check if already installed and prompt for cleanup/reinstall
+    if is_cursor_installed; then
+        print_warning_from_common_functions "Cursor is already installed"
+
+        local installed_version=$(get_installed_version)
+        local installed_type=$(get_installed_type)
+
+        if [[ -n "$installed_version" ]]; then
+            print_info_from_common_functions "Installed version: $installed_version"
+        else
+            print_info_from_common_functions "No version metadata found for current installation"
+        fi
+
+        if [[ -n "$installed_type" ]]; then
+            print_info_from_common_functions "Installation type: $installed_type"
+        fi
+
+        echo -n "Do you want to remove the existing installation and reinstall? (y/N): "
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation..."
+                cleanup_cursor
+                ;;
+            *)
+                print_info_from_common_functions "Installation cancelled - keeping existing installation"
+                return 0
+                ;;
+        esac
+    fi
+
     # Install dependencies
     install_dependencies
 
-    # Use simple download manager workflow
-    print_step_from_common_functions "Starting Cursor download workflow..."
+    print_step_from_common_functions "Scanning /home/*/Downloads for Cursor installer..."
 
-    # Check if already downloaded
-    local cursor_file=$(find_cursor_file)
+    # Find available Cursor files
+    local files_result=""
+    files_result=$(find_cursor_files)
+    local find_result=$?
 
-    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]] || [[ "$FORCE_INSTALL" == true ]]; then
-        print_step_from_common_functions "Downloading Cursor via core_node_init..."
+    local cursor_file=""
+    local install_type=""
+    local installed_type=$(get_installed_type)
 
-        # Download using core_node_init
-        if download_cursor; then
-            print_success_from_common_functions "Download completed"
+    if [[ $find_result -eq 0 ]] && [[ -n "$files_result" ]]; then
+        local result_type="${files_result%%:*}"
 
-            # Find the downloaded file
-            sleep 2  # Wait for file to be fully written
-            cursor_file=$(find_cursor_file)
-        else
-            print_warning_from_common_functions "Automated download failed"
+        if [[ "$result_type" == "both" ]]; then
+            # Both AppImage and .deb found
+            local appimage_path=$(echo "$files_result" | cut -d: -f2)
+            local deb_path=$(echo "$files_result" | cut -d: -f3)
+
+            print_info_from_common_functions "Found both AppImage and .deb installers:"
+            print_info_from_common_functions "  AppImage: $(basename "$appimage_path")"
+            print_info_from_common_functions "  .deb: $(basename "$deb_path")"
+            echo ""
+            echo "Which installer would you like to use?"
+            echo "  1) AppImage (recommended, portable)"
+            echo "  2) .deb (system package)"
+            echo -n "Enter choice [1]: "
+            read -r choice
+
+            case "$choice" in
+                2)
+                    cursor_file="$deb_path"
+                    install_type="deb"
+                    print_info_from_common_functions "Selected .deb installer"
+                    ;;
+                *)
+                    cursor_file="$appimage_path"
+                    install_type="appimage"
+                    print_info_from_common_functions "Selected AppImage installer (default)"
+                    ;;
+            esac
+
+        elif [[ "$result_type" == "appimage" ]]; then
+            cursor_file=$(echo "$files_result" | cut -d: -f2)
+            install_type="appimage"
+            print_info_from_common_functions "Found AppImage installer: $(basename "$cursor_file")"
+
+        elif [[ "$result_type" == "deb" ]]; then
+            cursor_file=$(echo "$files_result" | cut -d: -f2)
+            install_type="deb"
+            print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
         fi
+
+        # Check for installation type conflict
+        if [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
+            print_warning_from_common_functions "Installation type conflict detected!"
+            print_warning_from_common_functions "  Currently installed: $installed_type"
+            print_warning_from_common_functions "  About to install: $install_type"
+            print_step_from_common_functions "Cleaning up old installation to prevent conflicts..."
+            cleanup_cursor
+        fi
+
     else
-        print_info_from_common_functions "Found existing Cursor file: $(basename "$cursor_file")"
-    fi
-
-    # Validate the result
-    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-        print_warning_from_common_functions "Download failed, trying manual download..."
-
-        # Try manual download as final fallback
-        cursor_file=$(cursor_manual_download)
+        print_warning_from_common_functions "No Cursor installer detected in any Downloads directories"
+        print_step_from_common_functions "Opening Cursor download page for manual download..."
+        open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+        cursor_file=$(cursor_manual_download true)
         local manual_result=$?
 
         if [[ $manual_result -ne 0 ]] || [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-            print_error_from_common_functions "Failed to find or download Cursor file"
+            print_error_from_common_functions "Manual download is required before installation can continue"
             return 1
+        fi
+
+        # Detect type from manual download
+        local file_ext="${cursor_file##*.}"
+        if [[ "$file_ext" == "AppImage" ]]; then
+            install_type="appimage"
+        elif [[ "$file_ext" == "deb" ]]; then
+            install_type="deb"
         fi
     fi
 
     print_success_from_common_functions "Using Cursor file: $(basename "$cursor_file")"
+    print_info_from_common_functions "Installation type: $install_type"
 
-    # Detect file type and install accordingly
+    # Install based on type
     local file_extension="${cursor_file##*.}"
 
     if [[ "$file_extension" == "deb" ]]; then
@@ -718,24 +1019,18 @@ install_cursor() {
 
                 if [[ $retry_count -lt $((max_retries - 1)) ]]; then
                     print_step_from_common_functions "Removing corrupted backup file..."
-                    $USE_SUDO rm -f "$CURSOR_APPIMAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
+                    $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
 
-                    print_step_from_common_functions "Re-downloading Cursor..."
+                    print_step_from_common_functions "Please download a fresh Cursor installer and save it to your Downloads directory"
+                    cursor_file=$(cursor_manual_download)
+                    local manual_result=$?
 
-                    if download_cursor; then
-                        sleep 2  # Wait for file to be fully written
-                        cursor_file=$(find_cursor_file)
-
-                        if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-                            print_error_from_common_functions "Re-download failed - file not found"
-                            return 1
-                        fi
-
-                        print_info_from_common_functions "Using re-downloaded file: $(basename "$cursor_file")"
-                    else
-                        print_error_from_common_functions "Re-download failed"
+                    if [[ $manual_result -ne 0 ]] || [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+                        print_error_from_common_functions "Manual download failed. Unable to continue installation."
                         return 1
                     fi
+
+                    print_info_from_common_functions "Using newly downloaded file: $(basename "$cursor_file")"
                 fi
 
                 retry_count=$((retry_count + 1))
@@ -750,24 +1045,11 @@ install_cursor() {
             return 1
         fi
 
-        # Create launcher script for .deb installation
-        if ! create_launcher_script_deb; then
-            print_error_from_common_functions "Failed to create launcher script"
-            return 1
-        fi
-
     elif [[ "$file_extension" == "AppImage" ]]; then
         print_info_from_common_functions "Detected AppImage, using extraction method..."
 
-        # Extract AppImage
         if ! extract_appimage "$cursor_file"; then
             print_error_from_common_functions "Failed to extract Cursor AppImage"
-            return 1
-        fi
-
-        # Create launcher script for AppImage installation
-        if ! create_launcher_script_appimage; then
-            print_error_from_common_functions "Failed to create launcher script"
             return 1
         fi
 
@@ -783,146 +1065,36 @@ install_cursor() {
         return 1
     fi
 
-    # Save installation info with version
+    # Save installation info with version and type
     print_step_from_common_functions "Saving installation info..."
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
-        save_installation_info "$installed_version" "$cursor_file"
+        save_installation_info "$installed_version" "$cursor_file" "$install_type"
         print_info_from_common_functions "Installed version: $installed_version"
     else
         # Fallback if version extraction fails
-        $USE_SUDO mkdir -p "$(dirname "$CURSOR_INSTALLED_FLAG")"
-        echo "$(date): Cursor installed successfully from $file_extension" | $USE_SUDO tee "$CURSOR_INSTALLED_FLAG" > /dev/null
+        save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
     print_success_from_common_functions "Cursor IDE installation completed successfully!"
+    print_info_from_common_functions "Installation details:"
+    print_info_from_common_functions "  - Type: $install_type ($file_extension)"
+    print_info_from_common_functions "  - Version: ${installed_version:-unknown}"
+    print_info_from_common_functions "  - Binary: ${CURSOR_BINARY:-unknown}"
+    print_info_from_common_functions "  - Icon: ${CURSOR_ICON:-unknown}"
+    print_info_from_common_functions "  - User data: ${CURSOR_USERDATA_DIR:-unknown}"
+    print_info_from_common_functions ""
     print_info_from_common_functions "You can now launch Cursor from:"
-    print_info_from_common_functions "  - Applications menu"
-    print_info_from_common_functions "  - Command line: cursor"
-    print_info_from_common_functions "  - Direct launcher: /usr/local/super_scripts/cursor.sh"
+    print_info_from_common_functions "  - Applications menu (Cursor icon)"
+    print_info_from_common_functions "  - Desktop entry will launch with pkexec (root with user data directory)"
 
     return 0
 }
 
-# Interactive cleanup prompt with version check
+# Interactive cleanup prompt (deprecated - now handled in install_cursor)
 prompt_cleanup_reinstall() {
-    if is_cursor_installed; then
-        print_warning_from_common_functions "Cursor is already installed"
-
-        local installed_version=$(get_installed_version)
-        if [[ -n "$installed_version" ]]; then
-            print_info_from_common_functions "Installed version: $installed_version"
-        else
-            print_info_from_common_functions "No version metadata found for current installation"
-        fi
-
-        print_step_from_common_functions "Downloading latest version to check for updates..."
-
-        if download_cursor; then
-            sleep 2
-
-            local available_file=$(find_cursor_file)
-            if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
-                local available_version=$(extract_version_from_filename "$available_file")
-                print_info_from_common_functions "Downloaded: $(basename "$available_file")"
-
-                if [[ -n "$available_version" ]]; then
-                    print_info_from_common_functions "Downloaded version: $available_version"
-
-                    if [[ -z "$installed_version" ]]; then
-                        print_info_from_common_functions "No version metadata, proceeding with upgrade..."
-                        cleanup_cursor
-                        return 0
-                    elif [[ "$available_version" != "$installed_version" ]]; then
-                        echo -n "Upgrade to version $available_version? (Y/n): "
-                        read -r response
-                        case "$response" in
-                            [nN]|[nN][oO])
-                                print_info_from_common_functions "Keeping current installation"
-                                return 1
-                                ;;
-                            *)
-                                print_info_from_common_functions "Upgrading Cursor..."
-                                cleanup_cursor
-                                return 0
-                                ;;
-                        esac
-                    else
-                        print_info_from_common_functions "Downloaded version matches installed version"
-                        print_info_from_common_functions "You can update to the latest build or fix potential issues"
-                        echo -n "Update Cursor? (y/N): "
-                        read -r response
-                        case "$response" in
-                            [yY]|[yY][eE][sS])
-                                print_info_from_common_functions "Updating Cursor..."
-                                cleanup_cursor
-                                return 0
-                                ;;
-                            *)
-                                print_info_from_common_functions "Keeping existing installation"
-                                return 1
-                                ;;
-                        esac
-                    fi
-                fi
-            fi
-        else
-            print_warning_from_common_functions "Failed to download latest version"
-        fi
-
-        local available_file=$(find_cursor_file)
-        if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
-            print_info_from_common_functions "Found existing download: $(basename "$available_file")"
-            local available_version=$(extract_version_from_filename "$available_file")
-
-            if [[ -n "$available_version" ]] && [[ -n "$installed_version" ]]; then
-                if [[ "$available_version" != "$installed_version" ]]; then
-                    echo -n "Upgrade to version $available_version? (Y/n): "
-                    read -r response
-                    case "$response" in
-                        [nN]|[nN][oO])
-                            print_info_from_common_functions "Keeping current installation"
-                            return 1
-                            ;;
-                        *)
-                            print_info_from_common_functions "Upgrading Cursor..."
-                            cleanup_cursor
-                            return 0
-                            ;;
-                    esac
-                else
-                    echo -n "Update Cursor? (y/N): "
-                    read -r response
-                    case "$response" in
-                        [yY]|[yY][eE][sS])
-                            print_info_from_common_functions "Updating Cursor..."
-                            cleanup_cursor
-                            return 0
-                            ;;
-                        *)
-                            print_info_from_common_functions "Keeping existing installation"
-                            return 1
-                            ;;
-                    esac
-                fi
-            fi
-        fi
-
-        print_info_from_common_functions "Current installation: $CURSOR_INSTALL_DIR"
-        echo -n "Clean up and update? (y/N): "
-        read -r response
-        case "$response" in
-            [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Cleaning up existing installation..."
-                cleanup_cursor
-                return 0
-                ;;
-            *)
-                print_info_from_common_functions "Keeping existing installation"
-                return 1
-                ;;
-        esac
-    fi
+    # This function is kept for backward compatibility but is no longer used
+    # The cleanup prompt is now handled directly in install_cursor()
     return 0
 }
 
@@ -948,14 +1120,15 @@ main() {
     print_header_from_common_functions "Cursor IDE Installation Script"
     print_info_from_common_functions "Installation Directory: $CURSOR_INSTALL_DIR"
 
-    # Interactive cleanup prompt (unless force install is specified)
-    if [[ "$FORCE_INSTALL" != true ]]; then
-        if ! prompt_cleanup_reinstall; then
-            exit 0
+    # Force cleanup if --force flag is specified
+    if [[ "$FORCE_INSTALL" == true ]]; then
+        if is_cursor_installed; then
+            print_info_from_common_functions "Force install specified - cleaning up existing installation..."
+            cleanup_cursor
         fi
     fi
 
-    # Run installation
+    # Run installation (will prompt for cleanup if already installed and not forced)
     install_cursor
     exit $?
 }

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from pycore.pygvar.pyglobal_vars import (
+from pycore.pygvar import (
     IS_WINDOWS,
     IS_LINUX,
     IS_MAC,

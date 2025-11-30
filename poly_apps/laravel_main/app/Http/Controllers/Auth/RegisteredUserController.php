@@ -16,6 +16,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\UserSyncService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -81,23 +82,67 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request): Response
+    public function store(Request $request): Response | JsonResponse
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'username' => ['required', 'string', 'max:255'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'invitation_code' => ['required', 'string'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'lowercase', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
         ]);
-
-        $user = User::create([
+        
+        $invitationCodeFile = \App\Providers\PathMapper::getLaravelDataDir() . '/app_qy_v1_invitation_code.json';
+        if (file_exists($invitationCodeFile)) {
+            $data = json_decode(file_get_contents($invitationCodeFile), true);
+            $validCode = $data['invitation_code'] ?? 'APPQY2025';
+            
+            if ($request->invitation_code !== $validCode) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid invitation code',
+                    'errors' => ['invitation_code' => ['Invalid invitation code']],
+                ], 422);
+            }
+        }
+        
+        $email = $request->email;
+        if (empty($email) && filter_var($request->username, FILTER_VALIDATE_EMAIL)) {
+            $email = $request->username;
+        }
+        
+        $credentials = [
+            'username' => $request->username,
+            'email' => $email,
+            'phone' => $request->phone,
             'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->string('password')),
-        ]);
-
+            'password' => $request->password,
+            'sub_app_data' => [
+                'credit' => 0,
+            ],
+        ];
+        
+        $result = \App\Services\UnifiedAuthService::register($credentials, 'appqyv1');
+        
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'],
+            ], 422);
+        }
+        
+        $user = $result['user'];
         event(new Registered($user));
-
         Auth::login($user);
+        
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Registration successful',
+                'user' => $user,
+            ]);
+        }
 
         return response()->noContent();
     }

@@ -15,23 +15,23 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api, get_third_package_PIL, get_third_package_pyautogui, get_third_package_pygetwindow, get_third_package_uiautomation
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import psutil
-import win32gui
-import win32con
-import win32api
+psutil = get_third_package_psutil()
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32api = get_third_package_win32api()
+PIL = get_third_package_PIL()
+pyautogui = get_third_package_pyautogui()
+pygetwindow = get_third_package_pygetwindow()
+uiautomation = get_third_package_uiautomation()
 import win32process
-from PIL import Image, ImageDraw, ImageFont
-import pyautogui
-import pygetwindow as gw
-import uiautomation as auto
+
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
+gw = pygetwindow
+auto = uiautomation
 
 from pyfoundations.color_print import ColorPrint
 
@@ -631,7 +631,7 @@ class ClickHandler:
                 value = value.lower()
                 
                 if any(keyword in name or keyword in automation_id or keyword in value 
-                       for keyword in ['diablo', 'd3', '暗黑', '破坏神']):
+                       for keyword in ['diablo', 'd3']):
                     diablo3_button = control
                     diablo3_button_index = i
                     ColorPrint.green(f"✅ Found alternative Diablo III button: {control.get('name', 'No name')}")

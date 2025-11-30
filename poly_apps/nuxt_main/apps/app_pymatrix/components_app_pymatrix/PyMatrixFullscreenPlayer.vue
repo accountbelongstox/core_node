@@ -304,13 +304,25 @@ const canSwitchDevice = computed(() => {
 });
 
 // Methods
-function enterFullscreen() {
+async function enterFullscreen() {
   isFullscreen.value = true;
 
   // Request fullscreen API
   if (fullscreenContainer.value) {
-    if (fullscreenContainer.value.requestFullscreen) {
-      fullscreenContainer.value.requestFullscreen();
+    try {
+      await fullscreenContainer.value.requestFullscreen();
+
+      // Lock screen orientation to landscape on mobile devices
+      if (screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape');
+          console.log('[PyMatrixFullscreenPlayer] Screen orientation locked to landscape');
+        } catch (orientationError) {
+          console.warn('[PyMatrixFullscreenPlayer] Failed to lock screen orientation:', orientationError);
+        }
+      }
+    } catch (error) {
+      console.error('[PyMatrixFullscreenPlayer] Failed to enter fullscreen:', error);
     }
   }
 
@@ -320,12 +332,26 @@ function enterFullscreen() {
   console.log('[PyMatrixFullscreenPlayer] Entered fullscreen mode');
 }
 
-function exitFullscreen() {
+async function exitFullscreen() {
   isFullscreen.value = false;
+
+  // Unlock screen orientation on mobile devices
+  if (screen.orientation && screen.orientation.unlock) {
+    try {
+      screen.orientation.unlock();
+      console.log('[PyMatrixFullscreenPlayer] Screen orientation unlocked');
+    } catch (orientationError) {
+      console.warn('[PyMatrixFullscreenPlayer] Failed to unlock screen orientation:', orientationError);
+    }
+  }
 
   // Exit fullscreen API
   if (document.fullscreenElement) {
-    document.exitFullscreen();
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      console.error('[PyMatrixFullscreenPlayer] Failed to exit fullscreen:', error);
+    }
   }
 
   emit('close');

@@ -1,0 +1,60 @@
+√ Vite server hmr 2 files in 0.012ms                                                                        9:40:02 PM
+ WARN  [Vue Router warn]: uncaught error during route navigation:                                           9:40:02 PM
+[9:40:02 PM]  ERROR  Cannot find module '@/app_ittools/pages_app_ittools/index.vue' imported from 'D:/programing/core_node/poly_apps/nuxt_main/pages/index.vue'.
+
+- If you rely on tsconfig.json's "paths" to resolve modules, please install "vite-tsconfig-paths" plugin to handle module resolution.
+- Make sure you don't have relative aliases in your Vitest config. Use absolute paths instead. Read more: https://vitest.dev/guide/common-errors
+
+    at ViteNodeRunner._resolveUrl (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:207:18)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ViteNodeRunner.resolveUrl (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:232:11)
+    at async request (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:260:28)
+    at async D:/programing/core_node/poly_apps/nuxt_main/pages/index.vue:3:31)
+    at async ViteNodeRunner.runModule (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:397:4)
+    at async ViteNodeRunner.directRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:375:3)
+    at async ViteNodeRunner.cachedRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:189:11)
+    at async ViteNodeRunner.dependencyRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:239:10)
+    at async setup (D:/programing/core_node/poly_apps/nuxt_main/node_modules/nuxt/dist/pages/runtime/plugins/router.js:132:100)
+ WARN  [Vue Router warn]: uncaught error during route navigation:                                           9:40:02 PM
+[9:40:02 PM]  ERROR  Cannot find module '@/app_ittools/pages_app_ittools/index.vue' imported from 'D:/programing/core_node/poly_apps/nuxt_main/pages/index.vue'.
+
+- If you rely on tsconfig.json's "paths" to resolve modules, please install "vite-tsconfig-paths" plugin to handle module resolution.
+- Make sure you don't have relative aliases in your Vitest config. Use absolute paths instead. Read more: https://vitest.dev/guide/common-errors
+
+    at ViteNodeRunner._resolveUrl (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:207:18)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ViteNodeRunner.resolveUrl (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:232:11)
+    at async request (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:260:28)
+    at async D:/programing/core_node/poly_apps/nuxt_main/pages/index.vue:3:31)
+    at async ViteNodeRunner.runModule (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:397:4)
+    at async ViteNodeRunner.directRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:375:3)
+    at async ViteNodeRunner.cachedRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:189:11)
+    at async ViteNodeRunner.dependencyRequest (D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-node/dist/client.mjs:239:10)
+    at async setup (D:/programing/core_node/poly_apps/nuxt_main/node_modules/nuxt/dist/pages/runtime/plugins/router.js:132:100)
+[9:40:02 PM]  WARN  [nuxt] Failed to stringify dev server logs. Received DevalueError: Cannot stringify arbitrary non-POJOs. You can define your own reducer/reviver for rich types following the instructions in https://nuxt.com/docs/api/composables/use-nuxt-app#payload.
+i Compiled plugins.client.mjs in 1720.07ms                                                             nuxt 9:40:04 PM
+i Compiled types/plugins.d.ts in 1727.63ms                                                             nuxt 9:40:04 PM
+
+[9:40:06 PM]  ERROR  Internal server error: Failed to resolve import "@/app_ittools/pages_app_ittools/index.vue" from "pages/index.vue". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/programing/core_node/poly_apps/nuxt_main/pages/index.vue:16:24
+  1  |  import { recordPosition as _tracerRecordPosition } from "./../node_modules/vite-plugin-vue-tracer/dist/client/record.mjs"
+  2  |  import { defineComponent as _defineComponent } from "vue";
+  3  |  import ItToolsPage from "@/app_ittools/pages_app_ittools/index.vue";
+     |                           ^
+  4  |  const _sfc_main = /* @__PURE__ */ _defineComponent({
+  5  |    __name: "index",
+      at TransformPluginContext._formatLog (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:31470:43)
+      at TransformPluginContext.error (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:31467:14)
+      at normalizeUrl (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:30010:18)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:30068:32
+      at async Promise.all (index 2)
+      at async TransformPluginContext.transform (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:30036:4)
+      at async file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite-plugin-inspect/dist/shared/vite-plugin-inspect.DKW6Jl9b.mjs:401:17
+      at async EnvironmentPluginContainer.transform (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:31284:14)
+      at async loadAndTransform (file:///D:/programing/core_node/poly_apps/nuxt_main/node_modules/vite/dist/node/chunks/dep-Bg4HVnP5.js:26454:26)
+
+
+      查看看整个项目的分层设计，其中，主类库是基础类库，之后每个子app单独扩展主类库的主题，api,数据model，等，以及路由。请全面分析代码，调整没有设置好
+的地方。 D:\programing\core_node\poly_apps\nuxt_main\nuxt_main_tree.md

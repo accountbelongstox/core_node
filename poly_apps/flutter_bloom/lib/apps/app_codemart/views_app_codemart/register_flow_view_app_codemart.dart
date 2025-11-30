@@ -5,6 +5,7 @@ import '../main_app_codemart.dart';
 import '../models_app_codemart/codemart_enums.dart';
 import '../router_app_codemart/router_app_codemart.dart';
 import '../services_app_codemart/auth_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class RegisterFlowViewAppCodemart extends StatefulWidget {
   const RegisterFlowViewAppCodemart({super.key});
@@ -138,7 +139,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartRegister)),
+        title: Text(LocalizationKeysAppCodemart.codemartRegister.tr(context)),
         leading: _currentStep > 0
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -229,7 +230,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
           // Developer option
           _RoleSelectionCard(
             icon: Icons.code,
-            title: context.tr(LocalizationKeysAppCodemart.codemartDeveloper),
+            title: LocalizationKeysAppCodemart.codemartDeveloper.tr(context),
             description: 'Find projects and earn by completing tasks',
             isSelected: _selectedRole == UserRoleType.developer,
             onTap: () => setState(() => _selectedRole = UserRoleType.developer),
@@ -239,7 +240,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
           // Client option
           _RoleSelectionCard(
             icon: Icons.business,
-            title: context.tr(LocalizationKeysAppCodemart.codemartClient),
+            title: LocalizationKeysAppCodemart.codemartClient.tr(context),
             description: 'Post projects and hire talented developers',
             isSelected: _selectedRole == UserRoleType.client,
             onTap: () => setState(() => _selectedRole = UserRoleType.client),
@@ -382,7 +383,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
           TextFormField(
             controller: _usernameController,
             decoration: InputDecoration(
-              labelText: context.tr(LocalizationKeysAppCodemart.codemartUsername),
+              labelText: LocalizationKeysAppCodemart.codemartUsername.tr(context),
               prefixIcon: const Icon(Icons.person),
               border: const OutlineInputBorder(),
             ),
@@ -394,7 +395,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
-              labelText: context.tr(LocalizationKeysAppCodemart.codemartEmail),
+              labelText: LocalizationKeysAppCodemart.codemartEmail.tr(context),
               prefixIcon: const Icon(Icons.email),
               border: const OutlineInputBorder(),
             ),
@@ -406,7 +407,7 @@ class _RegisterFlowViewAppCodemartState extends State<RegisterFlowViewAppCodemar
             controller: _passwordController,
             obscureText: true,
             decoration: InputDecoration(
-              labelText: context.tr(LocalizationKeysAppCodemart.codemartPassword),
+              labelText: LocalizationKeysAppCodemart.codemartPassword.tr(context),
               prefixIcon: const Icon(Icons.lock),
               border: const OutlineInputBorder(),
             ),

@@ -1,8 +1,8 @@
 """scrcpy protocol message builder"""
 
 import struct
-from .touch_event import TouchEvent, TouchAction
-from .key_event import KeyEvent, KeyAction
+from pycore.pyutils.control.touch_event import TouchEvent, TouchAction
+from pycore.pyutils.control.key_event import KeyEvent, KeyAction
 
 
 class MessageBuilder:

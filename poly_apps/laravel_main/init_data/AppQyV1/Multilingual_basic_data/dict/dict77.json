@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.442972+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "unilateral",
+        "laos": "ຝ່າຍຈົງ",
+        "jp": "一方的な",
+        "vie": "đơn phương",
+        "en_pronunciation": "/ˌjunəˈlætərəl/",
+        "laos_pronunciation": "faichong",
+        "jp_pronunciation": "ippouteki na",
+        "vie_pronunciation": "don phuong"
+      },
+      "means": {
+        "en": "Involving only one part or side",
+        "zh": "仅涉及一个部分或一侧"
+      }
+    },
+    {
+      "word": {
+        "en": "union",
+        "laos": "ສັມປະໂຍກ",
+        "jp": "組合",
+        "vie": "sự đoàn kết",
+        "en_pronunciation": "/ˈjunjən/",
+        "laos_pronunciation": "sampaonyk",
+        "jp_pronunciation": "kumiai",
+        "vie_pronunciation": "su doan ket"
+      },
+      "means": {
+        "en": "An organization of employees formed to bargain with the employer",
+        "zh": "为与雇主讨价还价而成立的雇员组织"
+      }
+    },
+    {
+      "word": {
+        "en": "unique",
+        "laos": "ເປັນເອກະລັກ",
+        "jp": "ユニークな",
+        "vie": "độc nhất",
+        "en_pronunciation": "/juˈnik/",
+        "laos_pronunciation": "penoekalak",
+        "jp_pronunciation": "yuniiku na",
+        "vie_pronunciation": "doc nhat"
+      },
+      "means": {
+        "en": "Radically distinctive and without equal",
+        "zh": "截然不同且无与伦比"
+      }
+    },
+    {
+      "word": {
+        "en": "unit",
+        "laos": "ຫນ່ວຍງານ",
+        "jp": "単位",
+        "vie": "đơn vị",
+        "en_pronunciation": "/ˈjunɪt/",
+        "laos_pronunciation": "nuanyngan",
+        "jp_pronunciation": "tan'i",
+        "vie_pronunciation": "don vi"
+      },
+      "means": {
+        "en": "Any division of quantity accepted as a standard of measurement or exchange",
+        "zh": "任何被接受为测量或交换标准的数量划分"
+      }
+    },
+    {
+      "word": {
+        "en": "unite",
+        "laos": "ສາມັກຄີ",
+        "jp": "団結する",
+        "vie": "đoàn kết",
+        "en_pronunciation": "/ˈjuˌnaɪt/",
+        "laos_pronunciation": "samakkhi",
+        "jp_pronunciation": "danketsu suru",
+        "vie_pronunciation": "doan ket"
+      },
+      "means": {
+        "en": "Act in concert or unite in a common purpose or belief",
+        "zh": "一致行动或为了共同的目标或信念而团结起来"
+      }
+    },
+    {
+      "word": {
+        "en": "unity",
+        "laos": "ຄວາມສາມັກຄີ",
+        "jp": "団結",
+        "vie": "đoàn kết",
+        "en_pronunciation": "/ˈjunɪti/",
+        "laos_pronunciation": "khuaamsamakkhi",
+        "jp_pronunciation": "danketsu",
+        "vie_pronunciation": "doan ket"
+      },
+      "means": {
+        "en": "An undivided or unbroken completeness or totality with nothing wanting",
+        "zh": "一个不可分割或完整的完整性或整体性，没有任何想要的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "universe",
+        "laos": "ຈັກກະວານ",
+        "jp": "宇宙",
+        "vie": "vũ trụ",
+        "en_pronunciation": "/ˈjunəˌvərs/",
+        "laos_pronunciation": "chakkauaan",
+        "jp_pronunciation": "uchuu",
+        "vie_pronunciation": "vu tru"
+      },
+      "means": {
+        "en": "Everything that exists anywhere",
+        "zh": "任何地方存在的一切"
+      }
+    },
+    {
+      "word": {
+        "en": "universal",
+        "laos": "ວິສະວະ",
+        "jp": "普遍的な",
+        "vie": "phổ quát",
+        "en_pronunciation": "/ˌjunəˈvərsəl/",
+        "laos_pronunciation": "visauaa",
+        "jp_pronunciation": "fuhenteki na",
+        "vie_pronunciation": "pho quat"
+      },
+      "means": {
+        "en": "(linguistics) a grammatical rule (or other linguistic feature) that is found in all languages",
+        "zh": "（语言学）所有语言中都存在的语法规则（或其他语言特征）"
+      }
+    },
+    {
+      "word": {
+        "en": "university",
+        "laos": "ມະຫາວິທະຍາໄລ",
+        "jp": "大学",
+        "vie": "trường đại học",
+        "en_pronunciation": "/ˌjunəˈvərsəti/",
+        "laos_pronunciation": "mahavithanyalai",
+        "jp_pronunciation": "daigaku",
+        "vie_pronunciation": "truong dai hoc"
+      },
+      "means": {
+        "en": "The body of faculty and students at a university",
+        "zh": "大学的教师和学生团体"
+      }
+    },
+    {
+      "word": {
+        "en": "unleash",
+        "laos": "ປົດ",
+        "jp": "解き放つ",
+        "vie": "giải phóng",
+        "en_pronunciation": "/ənˈliʃ/",
+        "laos_pronunciation": "pod",
+        "jp_pronunciation": "toki houttsu",
+        "vie_pronunciation": "giai phong"
+      },
+      "means": {
+        "en": "Release or vent",
+        "zh": "释放或排气"
+      }
+    },
+    {
+      "word": {
+        "en": "unless",
+        "laos": "ເວັ້ນເສັຍແຕ່",
+        "jp": "そうでない限り",
+        "vie": "trừ khi",
+        "en_pronunciation": "/ənˈlɛs/",
+        "laos_pronunciation": "vensenyaet",
+        "jp_pronunciation": "soudenai kagiri",
+        "vie_pronunciation": "tru khi"
+      },
+      "means": {
+        "en": "Unless is an English word referring to 'unless'.",
+        "zh": "除非是一个英语单词，指的是“除非”。"
+      }
+    },
+    {
+      "word": {
+        "en": "unprecedented",
+        "laos": "ບໍ່ເຄີຍມີມາກ່ອນ",
+        "jp": "前例のない",
+        "vie": "chưa từng có",
+        "en_pronunciation": "/ənˈprɛsɪˌdɛntɪd/",
+        "laos_pronunciation": "bokhoenymimakon",
+        "jp_pronunciation": "zenrei nonai",
+        "vie_pronunciation": "chua tung co"
+      },
+      "means": {
+        "en": "Having no precedent; novel",
+        "zh": "没有先例；"
+      }
+    },
+    {
+      "word": {
+        "en": "until",
+        "laos": "ຈົນເຖິງ",
+        "jp": "まで",
+        "vie": "cho đến khi",
+        "en_pronunciation": "/ənˈtɪl/",
+        "laos_pronunciation": "chonthoeng",
+        "jp_pronunciation": "made",
+        "vie_pronunciation": "cho den khi"
+      },
+      "means": {
+        "en": "Until is an English word referring to 'until'.",
+        "zh": "小说"
+      }
+    },
+    {
+      "word": {
+        "en": "unveil",
+        "laos": "ເປີດຕົວ",
+        "jp": "明らかにする",
+        "vie": "tiết lộ",
+        "en_pronunciation": "/ənˈveɪl/",
+        "laos_pronunciation": "poedtua",
+        "jp_pronunciation": "akiraka nisuru",
+        "vie_pronunciation": "tiet lo"
+      },
+      "means": {
+        "en": "Remove the veil from",
+        "zh": "直到是一个英语单词，指的是“直到”。"
+      }
+    },
+    {
+      "word": {
+        "en": "up",
+        "laos": "ຂຶ້ນ",
+        "jp": "上へ",
+        "vie": "lên",
+        "en_pronunciation": "/əp/",
+        "laos_pronunciation": "khun",
+        "jp_pronunciation": "ue he",
+        "vie_pronunciation": "len"
+      },
+      "means": {
+        "en": "Raise",
+        "zh": "除去面纱从"
+      }
+    },
+    {
+      "word": {
+        "en": "update",
+        "laos": "ປັບປຸງໃຫ້ທັນ",
+        "jp": "アップデート",
+        "vie": "cập nhật",
+        "en_pronunciation": "/ˈəpˌdeɪt/",
+        "laos_pronunciation": "pabpunghaithan",
+        "jp_pronunciation": "appudeeto",
+        "vie_pronunciation": "cap nhat"
+      },
+      "means": {
+        "en": "News that updates your information",
+        "zh": "提高"
+      }
+    },
+    {
+      "word": {
+        "en": "upgrade",
+        "laos": "ຍົກລະດັບ",
+        "jp": "アップグレード",
+        "vie": "nâng cấp",
+        "en_pronunciation": "/ˈəpˈgreɪd/",
+        "laos_pronunciation": "nyokladab",
+        "jp_pronunciation": "appugureedo",
+        "vie_pronunciation": "nang cap"
+      },
+      "means": {
+        "en": "An upward slope or grade (as in a road)",
+        "zh": "更新您的信息的新闻"
+      }
+    },
+    {
+      "word": {
+        "en": "uphold",
+        "laos": "ອຢຢ",
+        "jp": "支持する",
+        "vie": "ủng hộ",
+        "en_pronunciation": "/əˈphoʊld/",
+        "laos_pronunciation": "yy",
+        "jp_pronunciation": "shiji suru",
+        "vie_pronunciation": "ung ho"
+      },
+      "means": {
+        "en": "Keep or maintain in unaltered condition; cause to remain or last",
+        "zh": "向上的斜坡或坡度（如道路）"
+      }
+    },
+    {
+      "word": {
+        "en": "upload",
+        "laos": "ເອົາມາລົງ",
+        "jp": "アップロード",
+        "vie": "tải lên",
+        "en_pronunciation": "/ˈəˌploʊd/",
+        "laos_pronunciation": "aomalong",
+        "jp_pronunciation": "appuroodo",
+        "vie_pronunciation": "tai len"
+      },
+      "means": {
+        "en": "Transfer a file or program to a central computer from a smaller computer or a computer at a remote location",
+        "zh": "保持或维持在未改变的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "upon",
+        "laos": "ສັນດານ",
+        "jp": "に",
+        "vie": "trên",
+        "en_pronunciation": "/əˈpɑn/",
+        "laos_pronunciation": "sandan",
+        "jp_pronunciation": "ni",
+        "vie_pronunciation": "tren"
+      },
+      "means": {
+        "en": "Upon is an English word referring to 'upon'.",
+        "zh": "导致留下或持续"
+      }
+    },
+    {
+      "word": {
+        "en": "upper",
+        "laos": "ເທິງ",
+        "jp": "上部",
+        "vie": "phía trên",
+        "en_pronunciation": "/ˈəpər/",
+        "laos_pronunciation": "thoeng",
+        "jp_pronunciation": "joubu",
+        "vie_pronunciation": "phia tren"
+      },
+      "means": {
+        "en": "The higher of two berths",
+        "zh": "将文件或程序从较小的计算机或远程位置的计算机传输到中央计算机"
+      }
+    },
+    {
+      "word": {
+        "en": "upright",
+        "laos": "ທ່ຽງທໍາ",
+        "jp": "直立した",
+        "vie": "ngay thẳng",
+        "en_pronunciation": "/ˈəˌpraɪt/",
+        "laos_pronunciation": "thiangthoa",
+        "jp_pronunciation": "chokuritsu shita",
+        "vie_pronunciation": "ngay thang"
+      },
+      "means": {
+        "en": "A vertical structural member as a post or stake",
+        "zh": "On是一个英语单词，指的是“在”上。"
+      }
+    },
+    {
+      "word": {
+        "en": "uprising",
+        "laos": "ການລົງມາ",
+        "jp": "蜂起",
+        "vie": "cuộc nổi dậy",
+        "en_pronunciation": "/ˈəˌpraɪzɪŋ/",
+        "laos_pronunciation": "kanlongma",
+        "jp_pronunciation": "houki",
+        "vie_pronunciation": "cuoc noi day"
+      },
+      "means": {
+        "en": "Organized opposition to authority; a conflict in which one faction tries to wrest control from another",
+        "zh": "两个泊位中较高的一个"
+      }
+    },
+    {
+      "word": {
+        "en": "upset",
+        "laos": "ອຸກໃຈ",
+        "jp": "動揺する",
+        "vie": "khó chịu",
+        "en_pronunciation": "/ˈəpˌsɛt/",
+        "laos_pronunciation": "ukchai",
+        "jp_pronunciation": "douyou suru",
+        "vie_pronunciation": "kho chiu"
+      },
+      "means": {
+        "en": "An unhappy and worried mental state",
+        "zh": "作为柱或桩的垂直结构构件"
+      }
+    },
+    {
+      "word": {
+        "en": "upstairs",
+        "laos": "ຢູ່ເທິງ",
+        "jp": "上の階",
+        "vie": "trên lầu",
+        "en_pronunciation": "/əpˈstɛrz/",
+        "laos_pronunciation": "yuthoeng",
+        "jp_pronunciation": "ueno kai",
+        "vie_pronunciation": "tren lau"
+      },
+      "means": {
+        "en": "The part of a building above the ground floor",
+        "zh": "有组织地反对权威；"
+      }
+    },
+    {
+      "word": {
+        "en": "up-to-date",
+        "laos": "ເຖິງວັນທີ",
+        "jp": "最新の",
+        "vie": "cập nhật",
+        "en_pronunciation": "/up-to-date/",
+        "laos_pronunciation": "thoengvanthi",
+        "jp_pronunciation": "saishin no",
+        "vie_pronunciation": "cap nhat"
+      },
+      "means": {
+        "en": "Reflecting the latest information or changes",
+        "zh": "一个派系试图从另一个派系手中夺取控制权的冲突"
+      }
+    },
+    {
+      "word": {
+        "en": "upward",
+        "laos": "ຂຶ້ນໄປ",
+        "jp": "上向き",
+        "vie": "trở lên",
+        "en_pronunciation": "/ˈəpwərd/",
+        "laos_pronunciation": "khunpai",
+        "jp_pronunciation": "uwamuki",
+        "vie_pronunciation": "tro len"
+      },
+      "means": {
+        "en": "Directed up",
+        "zh": "不快乐和忧虑的心理状态"
+      }
+    },
+    {
+      "word": {
+        "en": "uranium",
+        "laos": "ທາດຢູເຣນຽມ",
+        "jp": "ウラン",
+        "vie": "uranium",
+        "en_pronunciation": "/jərˈeɪniəm/",
+        "laos_pronunciation": "thad yu reniam",
+        "jp_pronunciation": "uran",
+        "vie_pronunciation": "uranium"
+      },
+      "means": {
+        "en": "A heavy toxic silvery-white radioactive metallic element; occurs in many isotopes; used for nuclear fuels and nuclear weapons",
+        "zh": "建筑物底层以上的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "upwards",
+        "laos": "ຂຶ້ນໄປ",
+        "jp": "上向きに",
+        "vie": "trở lên",
+        "en_pronunciation": "/ˈəpwərdz/",
+        "laos_pronunciation": "khunpai",
+        "jp_pronunciation": "uwamuki ni",
+        "vie_pronunciation": "tro len"
+      },
+      "means": {
+        "en": "Spatially or metaphorically from a lower to a higher position",
+        "zh": "反映最新信息或变化"
+      }
+    },
+    {
+      "word": {
+        "en": "urban",
+        "laos": "ຕົວເມືອງ",
+        "jp": "都会の",
+        "vie": "đô thị",
+        "en_pronunciation": "/ˈərbən/",
+        "laos_pronunciation": "tuameuong",
+        "jp_pronunciation": "tokai no",
+        "vie_pronunciation": "do thi"
+      },
+      "means": {
+        "en": "Relating to or concerned with a city or densely populated area",
+        "zh": "向上定向"
+      }
+    },
+    {
+      "word": {
+        "en": "urbanize",
+        "laos": "ການເມືອງ",
+        "jp": "都市化する",
+        "vie": "đô thị hóa",
+        "en_pronunciation": "/ˈərbəˌnaɪz/",
+        "laos_pronunciation": "kanmeuong",
+        "jp_pronunciation": "toshika suru",
+        "vie_pronunciation": "do thi hoa"
+      },
+      "means": {
+        "en": "Make more industrial or city-like",
+        "zh": "一种重毒的银白色放射性金属元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "urbanise",
+        "laos": "ຕົວເມືອງ",
+        "jp": "都会化する",
+        "vie": "đô thị hóa",
+        "en_pronunciation": "/urbanise/",
+        "laos_pronunciation": "tuameuong",
+        "jp_pronunciation": "tokai kasu ru",
+        "vie_pronunciation": "do thi hoa"
+      },
+      "means": {
+        "en": "Impart urban habits, ways of life, or responsibilities upon",
+        "zh": "存在于许多同位素中；"
+      }
+    },
+    {
+      "word": {
+        "en": "urbanization",
+        "laos": "ການຫັນເປັນຕົວເມືອງ",
+        "jp": "都市化",
+        "vie": "đô thị hóa",
+        "en_pronunciation": "/ˌərbənɪˈzeɪʃən/",
+        "laos_pronunciation": "kanhan pentuameuong",
+        "jp_pronunciation": "toshika",
+        "vie_pronunciation": "do thi hoa"
+      },
+      "means": {
+        "en": "The condition of being urbanized",
+        "zh": "用于核燃料和核武器"
+      }
+    },
+    {
+      "word": {
+        "en": "urbanisation",
+        "laos": "ການຫັນເປັນຕົວເມືອງ",
+        "jp": "都市化",
+        "vie": "đô thị hóa",
+        "en_pronunciation": "/urbanisation/",
+        "laos_pronunciation": "kanhan pentuameuong",
+        "jp_pronunciation": "toshika",
+        "vie_pronunciation": "do thi hoa"
+      },
+      "means": {
+        "en": "The condition of being urbanized",
+        "zh": "空间上或隐喻上从较低位置到较高位置"
+      }
+    },
+    {
+      "word": {
+        "en": "urge",
+        "laos": "ຊຸກຍູ້",
+        "jp": "衝動",
+        "vie": "thôi thúc",
+        "en_pronunciation": "/ərʤ/",
+        "laos_pronunciation": "suknyu",
+        "jp_pronunciation": "shoudou",
+        "vie_pronunciation": "thoi thuc"
+      },
+      "means": {
+        "en": "An instinctive motive",
+        "zh": "与城市或人口稠密地区有关或有关"
+      }
+    },
+    {
+      "word": {
+        "en": "urgent",
+        "laos": "ຮີບດ່ວນ",
+        "jp": "緊急の",
+        "vie": "khẩn cấp",
+        "en_pronunciation": "/ˈərʤənt/",
+        "laos_pronunciation": "hibduan",
+        "jp_pronunciation": "kinkyuu no",
+        "vie_pronunciation": "khan cap"
+      },
+      "means": {
+        "en": "Compelling immediate action",
+        "zh": "使之更加工业化或城市化"
+      }
+    },
+    {
+      "word": {
+        "en": "urgency",
+        "laos": "ຄວາມຮີບດ່ວນ",
+        "jp": "緊急性",
+        "vie": "sự cấp bách",
+        "en_pronunciation": "/ˈərʤənsi/",
+        "laos_pronunciation": "khuaamhibduan",
+        "jp_pronunciation": "kinkyuusei",
+        "vie_pronunciation": "su cap bach"
+      },
+      "means": {
+        "en": "The state of being urgent; an earnest and insistent necessity",
+        "zh": "向人们传授城市习惯、生活方式或责任"
+      }
+    },
+    {
+      "word": {
+        "en": "urine",
+        "laos": "ປັດສະວະ",
+        "jp": "尿",
+        "vie": "nước tiểu",
+        "en_pronunciation": "/ˈjʊrən/",
+        "laos_pronunciation": "padsauaa",
+        "jp_pronunciation": "nyou",
+        "vie_pronunciation": "nuoc tieu"
+      },
+      "means": {
+        "en": "Liquid excretory product",
+        "zh": "城市化的状况"
+      }
+    },
+    {
+      "word": {
+        "en": "urinate",
+        "laos": "ຖ່າຍເບົາ",
+        "jp": "放尿する",
+        "vie": "đi tiểu",
+        "en_pronunciation": "/ˈjərəˌneɪt/",
+        "laos_pronunciation": "thaibao",
+        "jp_pronunciation": "hounyou suru",
+        "vie_pronunciation": "di tieu"
+      },
+      "means": {
+        "en": "Pass after the manner of urine",
+        "zh": "城市化的状况"
+      }
+    },
+    {
+      "word": {
+        "en": "us",
+        "laos": "ພວກເຮົາ",
+        "jp": "私たち",
+        "vie": "chúng tôi",
+        "en_pronunciation": "/ˈjuˈɛs/",
+        "laos_pronunciation": "phuakhao",
+        "jp_pronunciation": "watashitachi",
+        "vie_pronunciation": "chung toi"
+      },
+      "means": {
+        "en": "North American republic containing 50 states - 48 conterminous states in North America plus Alaska in northwest North America and the Hawaiian Islands in the Pacific Ocean; achieved independence in 1776",
+        "zh": "本能的动机"
+      }
+    },
+    {
+      "word": {
+        "en": "usage",
+        "laos": "ການນໍາໃຊ້",
+        "jp": "使用法",
+        "vie": "cách sử dụng",
+        "en_pronunciation": "/ˈjusɪʤ/",
+        "laos_pronunciation": "kannoasai",
+        "jp_pronunciation": "shiyouhou",
+        "vie_pronunciation": "cach su dung"
+      },
+      "means": {
+        "en": "The act of using",
+        "zh": "令人信服的立即行动"
+      }
+    },
+    {
+      "word": {
+        "en": "use",
+        "laos": "ໃຊ້",
+        "jp": "使う",
+        "vie": "sử dụng",
+        "en_pronunciation": "/juz/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "tsukau",
+        "vie_pronunciation": "su dung"
+      },
+      "means": {
+        "en": "The act of using",
+        "zh": "紧急状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "user",
+        "laos": "ຜູ້ໃຊ້",
+        "jp": "ユーザー",
+        "vie": "người dùng",
+        "en_pronunciation": "/ˈjuzər/",
+        "laos_pronunciation": "phusai",
+        "jp_pronunciation": "yuuzaa",
+        "vie_pronunciation": "nguoi dung"
+      },
+      "means": {
+        "en": "A person who makes use of a thing; someone who uses or employs something",
+        "zh": "真诚而坚持的必要性"
+      }
+    },
+    {
+      "word": {
+        "en": "useful",
+        "laos": "ທີ່ເປັນປະໂຫຍດ",
+        "jp": "役に立つ",
+        "vie": "hữu ích",
+        "en_pronunciation": "/ˈjusfəl/",
+        "laos_pronunciation": "thipenpaojd",
+        "jp_pronunciation": "yakunitatsu",
+        "vie_pronunciation": "huu ich"
+      },
+      "means": {
+        "en": "Being of use or service",
+        "zh": "液体排泄物"
+      }
+    },
+    {
+      "word": {
+        "en": "useless",
+        "laos": "ບໍ່ມີປະໂຫຢດ",
+        "jp": "役に立たない",
+        "vie": "vô dụng",
+        "en_pronunciation": "/ˈjusləs/",
+        "laos_pronunciation": "bomi pa ohyd",
+        "jp_pronunciation": "yakunitata nai",
+        "vie_pronunciation": "vo dung"
+      },
+      "means": {
+        "en": "Having no beneficial use or incapable of functioning usefully",
+        "zh": "通过尿液的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "used",
+        "laos": "ເຄີຍໃຊ້",
+        "jp": "使用済み",
+        "vie": "đã sử dụng",
+        "en_pronunciation": "/juzd/",
+        "laos_pronunciation": "khoenysai",
+        "jp_pronunciation": "shiyouzumi",
+        "vie_pronunciation": "da su dung"
+      },
+      "means": {
+        "en": "Put into service; make work or employ for a particular purpose or for its inherent or natural purpose",
+        "zh": "北美共和国包含 50 个州 - 北美的 48 个相连的州加上北美西北部的阿拉斯加和太平洋上的夏威夷群岛；"
+      }
+    },
+    {
+      "word": {
+        "en": "usual",
+        "laos": "ທໍາມະດາ",
+        "jp": "いつもの",
+        "vie": "thông thường",
+        "en_pronunciation": "/ˈjuʒəwəl/",
+        "laos_pronunciation": "thoamada",
+        "jp_pronunciation": "itsumono",
+        "vie_pronunciation": "thong thuong"
+      },
+      "means": {
+        "en": "Occurring or encountered or experienced or observed frequently or in accordance with regular practice or procedure",
+        "zh": "1776年获得独立"
+      }
+    },
+    {
+      "word": {
+        "en": "usually",
+        "laos": "ໂດຍປົກກະຕິ",
+        "jp": "通常",
+        "vie": "thường",
+        "en_pronunciation": "/ˈjuʒəwəli/",
+        "laos_pronunciation": "odnypokkati",
+        "jp_pronunciation": "tsuujou",
+        "vie_pronunciation": "thuong"
+      },
+      "means": {
+        "en": "Under normal conditions",
+        "zh": "使用行为"
+      }
+    },
+    {
+      "word": {
+        "en": "utility",
+        "laos": "ປະສິດທິພາບ",
+        "jp": "ユーティリティ",
+        "vie": "tiện ích",
+        "en_pronunciation": "/juˈtɪləti/",
+        "laos_pronunciation": "pasidthiphab",
+        "jp_pronunciation": "yuuteiritei",
+        "vie_pronunciation": "tien ich"
+      },
+      "means": {
+        "en": "A company that performs a public service; subject to government regulation",
+        "zh": "使用行为"
+      }
+    },
+    {
+      "word": {
+        "en": "utilize",
+        "laos": "ການນໍາໃຊ້",
+        "jp": "活用する",
+        "vie": "sử dụng",
+        "en_pronunciation": "/ˈjutəˌlaɪz/",
+        "laos_pronunciation": "kannoasai",
+        "jp_pronunciation": "katsuyou suru",
+        "vie_pronunciation": "su dung"
+      },
+      "means": {
+        "en": "Put into service; make work or employ for a particular purpose or for its inherent or natural purpose",
+        "zh": "使用某物的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "utilise",
+        "laos": "ການນໍາໃຊ້",
+        "jp": "活用する",
+        "vie": "sử dụng",
+        "en_pronunciation": "/utilise/",
+        "laos_pronunciation": "kannoasai",
+        "jp_pronunciation": "katsuyou suru",
+        "vie_pronunciation": "su dung"
+      },
+      "means": {
+        "en": "Put into service; make work or employ for a particular purpose or for its inherent or natural purpose",
+        "zh": "使用或雇用某物的人"
+      }
+    },
+    {
+      "word": {
+        "en": "utilization",
+        "laos": "ການນໍາໃຊ້",
+        "jp": "活用",
+        "vie": "sự tận dụng",
+        "en_pronunciation": "/ˌjutələˈzeɪʃən/",
+        "laos_pronunciation": "kannoasai",
+        "jp_pronunciation": "katsuyou",
+        "vie_pronunciation": "su tan dung"
+      },
+      "means": {
+        "en": "The act of using",
+        "zh": "具有使用或服务性"
+      }
+    },
+    {
+      "word": {
+        "en": "utilisation",
+        "laos": "ການນໍາໃຊ້",
+        "jp": "活用",
+        "vie": "sự tận dụng",
+        "en_pronunciation": "/utilisation/",
+        "laos_pronunciation": "kannoasai",
+        "jp_pronunciation": "katsuyou",
+        "vie_pronunciation": "su tan dung"
+      },
+      "means": {
+        "en": "The act of using",
+        "zh": "没有有益的用途或无法有效发挥作用"
+      }
+    },
+    {
+      "word": {
+        "en": "utmost",
+        "laos": "ເຕັມທີ່",
+        "jp": "最大限の",
+        "vie": "hết sức",
+        "en_pronunciation": "/ˈətˌmoʊst/",
+        "laos_pronunciation": "temthi",
+        "jp_pronunciation": "saidaigen no",
+        "vie_pronunciation": "het suc"
+      },
+      "means": {
+        "en": "The greatest possible degree",
+        "zh": "投入使用；"
+      }
+    },
+    {
+      "word": {
+        "en": "utter",
+        "laos": "ຄໍານາມ",
+        "jp": "まったく",
+        "vie": "thốt lên",
+        "en_pronunciation": "/ˈətər/",
+        "laos_pronunciation": "khoanam",
+        "jp_pronunciation": "mattaku",
+        "vie_pronunciation": "thot len"
+      },
+      "means": {
+        "en": "Articulate; either verbally or with a cry, shout, or noise",
+        "zh": "为特定目的或其固有或自然目的进行工作或雇用"
+      }
+    },
+    {
+      "word": {
+        "en": "utterly",
+        "laos": "ຢ່າງທັງນະຜົນ",
+        "jp": "全く",
+        "vie": "hoàn toàn",
+        "en_pronunciation": "/ˈətərli/",
+        "laos_pronunciation": "yang thang naphon",
+        "jp_pronunciation": "mattaku",
+        "vie_pronunciation": "hoan toan"
+      },
+      "means": {
+        "en": "Completely and without qualification; used informally as intensifiers",
+        "zh": "经常发生或遇到或经历或观察到或按照常规实践或程序"
+      }
+    },
+    {
+      "word": {
+        "en": "vacant",
+        "laos": "ເປົ່າ",
+        "jp": "空いている",
+        "vie": "bỏ trống",
+        "en_pronunciation": "/ˈveɪkənt/",
+        "laos_pronunciation": "peoa",
+        "jp_pronunciation": "ai teiru",
+        "vie_pronunciation": "bo trong"
+      },
+      "means": {
+        "en": "Void of thought or knowledge",
+        "zh": "正常情况下"
+      }
+    },
+    {
+      "word": {
+        "en": "vacancy",
+        "laos": "ທີ່ຫວ່າງເປົ່າ",
+        "jp": "欠員",
+        "vie": "chỗ trống",
+        "en_pronunciation": "/ˈveɪkənsi/",
+        "laos_pronunciation": "thivangpeoa",
+        "jp_pronunciation": "ketsuin",
+        "vie_pronunciation": "cho trong"
+      },
+      "means": {
+        "en": "Being unoccupied",
+        "zh": "提供公共服务的公司；"
+      }
+    },
+    {
+      "word": {
+        "en": "vacation",
+        "laos": "ວັນພັກ",
+        "jp": "休暇",
+        "vie": "kỳ nghỉ",
+        "en_pronunciation": "/veɪˈkeɪʃən/",
+        "laos_pronunciation": "vanphak",
+        "jp_pronunciation": "kyuuka",
+        "vie_pronunciation": "ky nghi"
+      },
+      "means": {
+        "en": "Leisure time away from work devoted to rest or pleasure",
+        "zh": "受政府监管"
+      }
+    },
+    {
+      "word": {
+        "en": "vaccine",
+        "laos": "ວັກຊີນ",
+        "jp": "ワクチン",
+        "vie": "vắc xin",
+        "en_pronunciation": "/ˌvækˈsin/",
+        "laos_pronunciation": "vaksin",
+        "jp_pronunciation": "wakuchin",
+        "vie_pronunciation": "vac xin"
+      },
+      "means": {
+        "en": "Immunogen consisting of a suspension of weakened or dead pathogenic cells injected in order to stimulate the production of antibodies",
+        "zh": "投入使用；"
+      }
+    },
+    {
+      "word": {
+        "en": "vaccinate",
+        "laos": "ສັກຍາປ້ອງກັນພະຢາດ",
+        "jp": "ワクチン接種する",
+        "vie": "tiêm chủng",
+        "en_pronunciation": "/ˈvæksəneɪt/",
+        "laos_pronunciation": "sak nya pongkan phayad",
+        "jp_pronunciation": "wakuchin sesshu suru",
+        "vie_pronunciation": "tiem chung"
+      },
+      "means": {
+        "en": "Perform vaccinations or produce immunity in by inoculation",
+        "zh": "为特定目的或其固有或自然目的进行工作或雇用"
+      }
+    },
+    {
+      "word": {
+        "en": "vaccination",
+        "laos": "ການສັກຍາປ້ອງກັນພະຢາດ",
+        "jp": "予防接種",
+        "vie": "tiêm chủng",
+        "en_pronunciation": "/væksəˈneɪʃən/",
+        "laos_pronunciation": "kan sak nya pongkan phayad",
+        "jp_pronunciation": "yobou sesshu",
+        "vie_pronunciation": "tiem chung"
+      },
+      "means": {
+        "en": "Taking a vaccine as a precaution against contracting a disease",
+        "zh": "投入使用；"
+      }
+    },
+    {
+      "word": {
+        "en": "vacuum",
+        "laos": "ສູນຍາກາດ",
+        "jp": "真空",
+        "vie": "chân không",
+        "en_pronunciation": "/ˈvækjum/",
+        "laos_pronunciation": "sunnyakad",
+        "jp_pronunciation": "shinkuu",
+        "vie_pronunciation": "chan khong"
+      },
+      "means": {
+        "en": "The absence of matter",
+        "zh": "为特定目的或其固有或自然目的进行工作或雇用"
+      }
+    },
+    {
+      "word": {
+        "en": "vague",
+        "laos": "ວື",
+        "jp": "曖昧な",
+        "vie": "mơ hồ",
+        "en_pronunciation": "/veɪg/",
+        "laos_pronunciation": "vu",
+        "jp_pronunciation": "aimai na",
+        "vie_pronunciation": "mo ho"
+      },
+      "means": {
+        "en": "Not clearly understood or expressed; ; -Anatole Broyard; - P.A.Sorokin; - John Locke",
+        "zh": "使用行为"
+      }
+    },
+    {
+      "word": {
+        "en": "vain",
+        "laos": "ປະຣິກອນ",
+        "jp": "無駄な",
+        "vie": "vô ích",
+        "en_pronunciation": "/veɪn/",
+        "laos_pronunciation": "parikon",
+        "jp_pronunciation": "muda na",
+        "vie_pronunciation": "vo ich"
+      },
+      "means": {
+        "en": "Characteristic of false pride; having an exaggerated sense of self-importance",
+        "zh": "使用行为"
+      }
+    },
+    {
+      "word": {
+        "en": "vanity",
+        "laos": "ຄວາມໂມໂຫ",
+        "jp": "虚栄心",
+        "vie": "sự phù phiếm",
+        "en_pronunciation": "/ˈvænɪti/",
+        "laos_pronunciation": "khuaamomoh",
+        "jp_pronunciation": "kyoeishin",
+        "vie_pronunciation": "su phu phiem"
+      },
+      "means": {
+        "en": "Feelings of excessive pride",
+        "zh": "最大可能程度"
+      }
+    },
+    {
+      "word": {
+        "en": "valid",
+        "laos": "ຖືກຕ້ອງ",
+        "jp": "有効な",
+        "vie": "hợp lệ",
+        "en_pronunciation": "/ˈvælɪd/",
+        "laos_pronunciation": "thuktong",
+        "jp_pronunciation": "yuukou na",
+        "vie_pronunciation": "hop le"
+      },
+      "means": {
+        "en": "Well grounded in logic or truth or having legal force",
+        "zh": "表达清楚；"
+      }
+    },
+    {
+      "word": {
+        "en": "validate",
+        "laos": "validate",
+        "jp": "検証する",
+        "vie": "xác nhận",
+        "en_pronunciation": "/ˈvælədeɪt/",
+        "laos_pronunciation": "validate",
+        "jp_pronunciation": "kenshou suru",
+        "vie_pronunciation": "xac nhan"
+      },
+      "means": {
+        "en": "Declare or make legally valid",
+        "zh": "无论是口头上还是哭喊、喊叫或噪音"
+      }
+    },
+    {
+      "word": {
+        "en": "validity",
+        "laos": "ຄວາມຖືກຕ້ອງ",
+        "jp": "有効性",
+        "vie": "hiệu lực",
+        "en_pronunciation": "/vəˈlɪdɪti/",
+        "laos_pronunciation": "khuaamthuktong",
+        "jp_pronunciation": "yuukousei",
+        "vie_pronunciation": "hieu luc"
+      },
+      "means": {
+        "en": "The quality of being valid and rigorous",
+        "zh": "完全且无资质；"
+      }
+    },
+    {
+      "word": {
+        "en": "valley",
+        "laos": "ຮ່ອມພູ",
+        "jp": "谷",
+        "vie": "thung lũng",
+        "en_pronunciation": "/ˈvæli/",
+        "laos_pronunciation": "homphu",
+        "jp_pronunciation": "tani",
+        "vie_pronunciation": "thung lung"
+      },
+      "means": {
+        "en": "A long depression in the surface of the land that usually contains a river",
+        "zh": "非正式地用作增强剂"
+      }
+    },
+    {
+      "word": {
+        "en": "value",
+        "laos": "ຄຸນຄ່າ",
+        "jp": "値",
+        "vie": "giá trị",
+        "en_pronunciation": "/ˈvælju/",
+        "laos_pronunciation": "khunkha",
+        "jp_pronunciation": "atai",
+        "vie_pronunciation": "gia tri"
+      },
+      "means": {
+        "en": "A numerical quantity measured or assigned or computed",
+        "zh": "没有思想或知识"
+      }
+    },
+    {
+      "word": {
+        "en": "valuable",
+        "laos": "ມີຄ່າ",
+        "jp": "貴重な",
+        "vie": "có giá trị",
+        "en_pronunciation": "/ˈvæljəbəl/",
+        "laos_pronunciation": "mikha",
+        "jp_pronunciation": "kichou na",
+        "vie_pronunciation": "co gia tri"
+      },
+      "means": {
+        "en": "Something of value",
+        "zh": "无人居住"
+      }
+    },
+    {
+      "word": {
+        "en": "valve",
+        "laos": "ວາວ",
+        "jp": "バルブ",
+        "vie": "van",
+        "en_pronunciation": "/vælv/",
+        "laos_pronunciation": "vav",
+        "jp_pronunciation": "barubu",
+        "vie_pronunciation": "van"
+      },
+      "means": {
+        "en": "A structure in a hollow organ (like the heart) with a flap to insure one-way flow of fluid through it",
+        "zh": "远离工作的闲暇时间用于休息或娱乐"
+      }
+    },
+    {
+      "word": {
+        "en": "van",
+        "laos": "ລົດຕູ້",
+        "jp": "バン",
+        "vie": "xe tải",
+        "en_pronunciation": "/væn/",
+        "laos_pronunciation": "lodtu",
+        "jp_pronunciation": "ban",
+        "vie_pronunciation": "xe tai"
+      },
+      "means": {
+        "en": "Any creative group active in the innovation and application of new concepts and techniques in a given field (especially in the arts)",
+        "zh": "免疫原由注射的衰弱或死亡的病原细胞悬浮液组成，以刺激抗体的产生"
+      }
+    },
+    {
+      "word": {
+        "en": "vanish",
+        "laos": "ສາບສູນ",
+        "jp": "消える",
+        "vie": "biến mất",
+        "en_pronunciation": "/ˈvænɪʃ/",
+        "laos_pronunciation": "sabsun",
+        "jp_pronunciation": "kie ru",
+        "vie_pronunciation": "bien mat"
+      },
+      "means": {
+        "en": "Get lost, as without warning or explanation",
+        "zh": "进行疫苗接种或通过接种产生免疫力"
+      }
+    },
+    {
+      "word": {
+        "en": "vapor",
+        "laos": "ອາຍ",
+        "jp": "蒸気",
+        "vie": "hơi nước",
+        "en_pronunciation": "/ˈveɪpər/",
+        "laos_pronunciation": "ai",
+        "jp_pronunciation": "jouki",
+        "vie_pronunciation": "hoi nuoc"
+      },
+      "means": {
+        "en": "A visible suspension in the air of particles of some substance",
+        "zh": "接种疫苗作为预防感染疾病的措施"
+      }
+    },
+    {
+      "word": {
+        "en": "vapour",
+        "laos": "ອາຍ",
+        "jp": "蒸気",
+        "vie": "hơi nước",
+        "en_pronunciation": "/vapour/",
+        "laos_pronunciation": "ai",
+        "jp_pronunciation": "jouki",
+        "vie_pronunciation": "hoi nuoc"
+      },
+      "means": {
+        "en": "A visible suspension in the air of particles of some substance",
+        "zh": "物质的缺失"
+      }
+    },
+    {
+      "word": {
+        "en": "various",
+        "laos": "ຕ່າງໆ",
+        "jp": "いろいろな",
+        "vie": "khác nhau",
+        "en_pronunciation": "/ˈvɛriəs/",
+        "laos_pronunciation": "tang",
+        "jp_pronunciation": "iroirona",
+        "vie_pronunciation": "khac nhau"
+      },
+      "means": {
+        "en": "Of many different kinds purposefully arranged but lacking any uniformity",
+        "zh": "没有清楚地理解或表达；"
+      }
+    },
+    {
+      "word": {
+        "en": "variety",
+        "laos": "ປະເພນີ",
+        "jp": "さまざまな",
+        "vie": "đa dạng",
+        "en_pronunciation": "/vərˈaɪəti/",
+        "laos_pronunciation": "papheni",
+        "jp_pronunciation": "samazamana",
+        "vie_pronunciation": "da dang"
+      },
+      "means": {
+        "en": "A collection containing a variety of sorts of things",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "vary",
+        "laos": "ແຕກຕ່າງ",
+        "jp": "変化する",
+        "vie": "thay đổi",
+        "en_pronunciation": "/ˈvɛri/",
+        "laos_pronunciation": "aetktang",
+        "jp_pronunciation": "henkasu ru",
+        "vie_pronunciation": "thay doi"
+      },
+      "means": {
+        "en": "Become different in some particular way, without permanently losing one's or its former characteristics or essence",
+        "zh": "-阿纳托尔·布罗亚尔；"
+      }
+    },
+    {
+      "word": {
+        "en": "variation",
+        "laos": "ສະຫນິດ",
+        "jp": "バリエーション",
+        "vie": "biến thể",
+        "en_pronunciation": "/ˌvɛriˈeɪʃən/",
+        "laos_pronunciation": "sanid",
+        "jp_pronunciation": "barieeshon",
+        "vie_pronunciation": "bien the"
+      },
+      "means": {
+        "en": "An instance of change; the rate or magnitude of change",
+        "zh": "——P.A.索罗金；"
+      }
+    },
+    {
+      "word": {
+        "en": "variable",
+        "laos": "ປ່ຽນແປງໄດ້",
+        "jp": "変数",
+        "vie": "biến",
+        "en_pronunciation": "/ˈvɛriəbəl/",
+        "laos_pronunciation": "pianaepngdai",
+        "jp_pronunciation": "hensuu",
+        "vie_pronunciation": "bien"
+      },
+      "means": {
+        "en": "Something that is likely to vary; something that is subject to variation",
+        "zh": "——约翰·洛克"
+      }
+    },
+    {
+      "word": {
+        "en": "variant",
+        "laos": "ເສິ",
+        "jp": "異形",
+        "vie": "biến thể",
+        "en_pronunciation": "/ˈvɛriənt/",
+        "laos_pronunciation": "soe",
+        "jp_pronunciation": "igyou",
+        "vie_pronunciation": "bien the"
+      },
+      "means": {
+        "en": "An event that departs from expectations",
+        "zh": "虚假骄傲的特征；"
+      }
+    },
+    {
+      "word": {
+        "en": "vast",
+        "laos": "ກວ້າງຂວາງ",
+        "jp": "広大な",
+        "vie": "rộng lớn",
+        "en_pronunciation": "/væst/",
+        "laos_pronunciation": "kvangkhuaang",
+        "jp_pronunciation": "koudai na",
+        "vie_pronunciation": "rong lon"
+      },
+      "means": {
+        "en": "Unusually great in size or amount or degree or especially extent or scope; ; ; ; ; ; ; ; ; - W.R.Inge",
+        "zh": "有过分的自我重要感"
+      }
+    },
+    {
+      "word": {
+        "en": "vegetable",
+        "laos": "ຜັກ",
+        "jp": "野菜",
+        "vie": "rau",
+        "en_pronunciation": "/ˈvɛʤtəbəl/",
+        "laos_pronunciation": "phak",
+        "jp_pronunciation": "yasai",
+        "vie_pronunciation": "rau"
+      },
+      "means": {
+        "en": "Edible seeds or roots or stems or leaves or bulbs or tubers or nonsweet fruits of any of numerous herbaceous plant",
+        "zh": "过度骄傲的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "vegetarian",
+        "laos": "ຜັກດາດາແລ້ວ",
+        "jp": "ベジタリアン",
+        "vie": "ăn chay",
+        "en_pronunciation": "/ˌvɛʤəˈtɛˌriən/",
+        "laos_pronunciation": "phak da daaelv",
+        "jp_pronunciation": "bejitarian",
+        "vie_pronunciation": "an chay"
+      },
+      "means": {
+        "en": "Eater of fruits and grains and nuts; someone who eats no meat or fish or (often) any animal products",
+        "zh": "有充分的逻辑或事实依据或具有法律效力"
+      }
+    },
+    {
+      "word": {
+        "en": "vegetation",
+        "laos": "ພືດພັນ",
+        "jp": "植生",
+        "vie": "thảm thực vật",
+        "en_pronunciation": "/ˌvɛʤəˈteɪʃən/",
+        "laos_pronunciation": "phudphan",
+        "jp_pronunciation": "shokusei",
+        "vie_pronunciation": "tham thuc vat"
+      },
+      "means": {
+        "en": "All the plant life in a particular region or period",
+        "zh": "声明或使其具有法律效力"
+      }
+    },
+    {
+      "word": {
+        "en": "vehicle",
+        "laos": "ຍານພາຫະນະ",
+        "jp": "車両",
+        "vie": "xe cộ",
+        "en_pronunciation": "/ˈviɪkəl/",
+        "laos_pronunciation": "nyanphahana",
+        "jp_pronunciation": "sharyou",
+        "vie_pronunciation": "xe co"
+      },
+      "means": {
+        "en": "A conveyance that transports people or objects",
+        "zh": "有效和严谨的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "veil",
+        "laos": "ຜ້າກັ້ງ",
+        "jp": "ベール",
+        "vie": "mạng che mặt",
+        "en_pronunciation": "/veɪl/",
+        "laos_pronunciation": "phakang",
+        "jp_pronunciation": "beeru",
+        "vie_pronunciation": "mang che mat"
+      },
+      "means": {
+        "en": "A garment that covers the head and face",
+        "zh": "地表的长洼地，通常有一条河流"
+      }
+    },
+    {
+      "word": {
+        "en": "vein",
+        "laos": "ເສ້ັນເລືອດ",
+        "jp": "静脈",
+        "vie": "tĩnh mạch",
+        "en_pronunciation": "/veɪn/",
+        "laos_pronunciation": "se anleuod",
+        "jp_pronunciation": "joumyaku",
+        "vie_pronunciation": "tinh mach"
+      },
+      "means": {
+        "en": "A blood vessel that carries blood from the capillaries toward the heart",
+        "zh": "测量、分配或计算的数值量"
+      }
+    },
+    {
+      "word": {
+        "en": "velocity",
+        "laos": "ຄວາມໄວ",
+        "jp": "速度",
+        "vie": "vận tốc",
+        "en_pronunciation": "/vəˈlɑsəti/",
+        "laos_pronunciation": "khuaamuaai",
+        "jp_pronunciation": "sokudo",
+        "vie_pronunciation": "van toc"
+      },
+      "means": {
+        "en": "Distance travelled per unit time",
+        "zh": "有价值的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "velvet",
+        "laos": "ໄວ",
+        "jp": "ベルベット",
+        "vie": "nhung",
+        "en_pronunciation": "/ˈvɛlvət/",
+        "laos_pronunciation": "vai",
+        "jp_pronunciation": "berubetto",
+        "vie_pronunciation": "nhung"
+      },
+      "means": {
+        "en": "A silky densely piled fabric with a plain back",
+        "zh": "中空器官（如心脏）中的一种结构，带有瓣以确保液体单向流过其中"
+      }
+    },
+    {
+      "word": {
+        "en": "vendor",
+        "laos": "ຜູ້ເສັຍຫາຍ",
+        "jp": "ベンダー",
+        "vie": "nhà cung cấp",
+        "en_pronunciation": "/ˈvɛndər/",
+        "laos_pronunciation": "phusenyhai",
+        "jp_pronunciation": "bendaa",
+        "vie_pronunciation": "nha cung cap"
+      },
+      "means": {
+        "en": "Someone who promotes or exchanges goods or services for money",
+        "zh": "任何在特定领域（尤其是艺术领域）积极创新和应用新概念和技术的创意团体"
+      }
+    },
+    {
+      "word": {
+        "en": "vent",
+        "laos": "ວິໄສ",
+        "jp": "通気口",
+        "vie": "trút giận",
+        "en_pronunciation": "/vɛnt/",
+        "laos_pronunciation": "visai",
+        "jp_pronunciation": "tsuukikou",
+        "vie_pronunciation": "trut gian"
+      },
+      "means": {
+        "en": "A hole for the escape of gas or air",
+        "zh": "在没有警告或解释的情况下迷路"
+      }
+    },
+    {
+      "word": {
+        "en": "ventilate",
+        "laos": "ລະບາຍອາກາດ",
+        "jp": "換気する",
+        "vie": "thông gió",
+        "en_pronunciation": "/ˈvɛntɪˌleɪt/",
+        "laos_pronunciation": "labaioakad",
+        "jp_pronunciation": "kanki suru",
+        "vie_pronunciation": "thong gio"
+      },
+      "means": {
+        "en": "Expose to cool or cold air so as to cool or freshen",
+        "zh": "空气中可见的某种物质颗粒的悬浮液"
+      }
+    },
+    {
+      "word": {
+        "en": "ventilation",
+        "laos": "ລະບາຍອາກາດ",
+        "jp": "換気",
+        "vie": "thông gió",
+        "en_pronunciation": "/ˌvɛntɪˈleɪʃən/",
+        "laos_pronunciation": "labaioakad",
+        "jp_pronunciation": "kanki",
+        "vie_pronunciation": "thong gio"
+      },
+      "means": {
+        "en": "The act of supplying fresh air and getting rid of foul air",
+        "zh": "空气中可见的某种物质颗粒的悬浮液"
+      }
+    },
+    {
+      "word": {
+        "en": "venture",
+        "laos": "ການຂຶ້ນທືນ",
+        "jp": "ベンチャー",
+        "vie": "mạo hiểm",
+        "en_pronunciation": "/ˈvɛnʧər/",
+        "laos_pronunciation": "kan khunthun",
+        "jp_pronunciation": "benchaa",
+        "vie_pronunciation": "mao hiem"
+      },
+      "means": {
+        "en": "Any venturesome undertaking especially one with an uncertain outcome",
+        "zh": "有目的地排列的许多不同种类，但缺乏统一性"
+      }
+    },
+    {
+      "word": {
+        "en": "venue",
+        "laos": "ສະຖານ",
+        "jp": "会場",
+        "vie": "địa điểm",
+        "en_pronunciation": "/ˈvɛnju/",
+        "laos_pronunciation": "sathan",
+        "jp_pronunciation": "kaijou",
+        "vie_pronunciation": "dia diem"
+      },
+      "means": {
+        "en": "The scene of any event or action (especially the place of a meeting)",
+        "zh": "包含各种事物的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "verb",
+        "laos": "verb",
+        "jp": "動詞",
+        "vie": "động từ",
+        "en_pronunciation": "/vərb/",
+        "laos_pronunciation": "verb",
+        "jp_pronunciation": "doushi",
+        "vie_pronunciation": "dong tu"
+      },
+      "means": {
+        "en": "The word class that serves as the predicate of a sentence",
+        "zh": "以某种特定方式变得不同，但不会永久失去一个人或它以前的特征或本质"
+      }
+    },
+    {
+      "word": {
+        "en": "verbal",
+        "laos": "ເປັນຄໍາ",
+        "jp": "口頭で",
+        "vie": "bằng lời nói",
+        "en_pronunciation": "/ˈvərbəl/",
+        "laos_pronunciation": "pen khoa",
+        "jp_pronunciation": "koutou de",
+        "vie_pronunciation": "bang loi noi"
+      },
+      "means": {
+        "en": "Communicated in the form of words",
+        "zh": "一个改变的例子；"
+      }
+    }
+  ]
+}

@@ -68,6 +68,14 @@ const ResourceInterceptor = require('./src/utils/download/ResourceInterceptor');
 const DomResourceMapper = require('./src/utils/download/DomResourceMapper');
 const EnhancedResourceCollector = require('./src/utils/download/EnhancedResourceCollector');
 const TampermonkeyServer = require('./src/utils/tampermonkey/TampermonkeyServer');
+const ScriptInjectionUtils = require('./src/utils/injection/ScriptInjectionUtils');
+const UnifiedRequestUtils = require('./src/utils/request/UnifiedRequestUtils');
+
+// Session persistence
+const SessionPersistence = require('./src/utils/session/SessionPersistence');
+
+// Real browser middleware (anti-detection)
+const RealBrowserMiddleware = require('./src/utils/browser/RealBrowserMiddleware');
 
 // Compatibility
 const { LegacyAdapter, MigrationTool } = require('./src/compat/LegacyAdapter');
@@ -183,6 +191,14 @@ module.exports = {
     DomResourceMapper,
     EnhancedResourceCollector,
     TampermonkeyServer,
+    ScriptInjectionUtils,
+    UnifiedRequestUtils,
+
+    // Session persistence
+    SessionPersistence,
+
+    // Real browser middleware (anti-detection)
+    RealBrowserMiddleware,
 
     // Compatibility
     LegacyAdapter,

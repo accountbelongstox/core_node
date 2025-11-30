@@ -33,7 +33,7 @@ $script:SCRIPTS_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:PROJECT_ROOT = Split-Path $script:SCRIPTS_DIR -Parent
 $script:PYTOOLS_DIR = Join-Path $script:SCRIPTS_DIR "pytools"
 $script:MANAGER_DIR = Join-Path $script:PYTOOLS_DIR "special_software_env_manager"
-$script:MAIN_SCRIPT = Join-Path $script:MANAGER_DIR "main.py"
+$script:MAIN_SCRIPT = Join-Path $script:MANAGER_DIR "special_software_env_manager.py"
 #endregion
 
 #region Main Execution

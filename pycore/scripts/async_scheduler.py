@@ -9,7 +9,7 @@ from ncore.pyutils.tray.tray_clicker import TrayClicker
 from ncore.pyutils.window.window_ops import WindowOps
 
 async def async_task_scheduler():
-    # 初始化服务
+    # Initialize services
     await WindowFinder.initialize()
     await ImageComparator.initialize()
     await ProcessManager.initialize()
@@ -19,13 +19,13 @@ async def async_task_scheduler():
     await TrayClicker.initialize()
     await WindowOps.initialize()
 
-    # 创建任务队列
+    # Create task queue
     task_queue = asyncio.Queue()
 
-    # 启动任务处理协程
+    # Start task processing coroutine
     asyncio.create_task(handle_tasks(task_queue))
 
-    # 示例任务添加
+    # Example task addition
     task_queue.put("window_finder")
     task_queue.put("image_comparator")
     task_queue.put("image_matcher")
@@ -51,6 +51,6 @@ async def handle_tasks(task_queue):
 
         task_queue.task_done()
 
-# 启动调度器
+# Start scheduler
 if __name__ == "__main__":
     asyncio.run(async_task_scheduler())

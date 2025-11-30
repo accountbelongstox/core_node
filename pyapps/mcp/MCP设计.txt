@@ -1,0 +1,6 @@
+先分析其中的mcp调用，其中有一个后端，该后端是为了保持单例的。现在。你再分析  python .\pycore_module_caller.py 查看其中的路由引入，
+1：将现在的 python .\pymain.py app=mcp 完全改为 proxy模式。之后，通过localhost访问 python .\pycore_module_caller.py 
+2：扩展python .\pycore_module_caller.py  让路由中包含一个 /mcp/xxx的路由，并将现在 python .\pymain.py app=mcp 中的全部编码过来。
+实际的功能就是，现在每个app启动一个 python .\pymain.py app=mcp  时将不再启动后台，之后，后台统一由 python .\pycore_module_caller.py  负责，因为都是在同一台机器上，所以传递的路径都是可以访问的。
+ 
+ 

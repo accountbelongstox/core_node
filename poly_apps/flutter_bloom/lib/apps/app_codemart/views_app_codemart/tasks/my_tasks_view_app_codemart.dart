@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/task_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class MyTasksViewAppCodemart extends StatefulWidget {
   const MyTasksViewAppCodemart({super.key});
@@ -76,7 +77,7 @@ class _MyTasksViewAppCodemartState extends State<MyTasksViewAppCodemart>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTasks)),
+        title: Text(LocalizationKeysAppCodemart.codemartTasks.tr(context)),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -118,7 +119,7 @@ class _MyTasksViewAppCodemartState extends State<MyTasksViewAppCodemart>
   Widget _buildTaskList(List<Task> tasks) {
     if (tasks.isEmpty) {
       return Center(
-        child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+        child: Text(LocalizationKeysAppCodemart.codemartNoData.tr(context)),
       );
     }
 

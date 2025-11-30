@@ -2,11 +2,14 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../../common/theme/app_theme.dart';
-import '../../../../../../../common/localization/localization_manager.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/buttons/primary_button.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../../../../../../../common/widgets/glassmorphism_card.dart';
+import '../data/word_book_data.dart';
 import '../models/word_models.dart';
 import 'word_item_card.dart';
 
@@ -48,139 +51,99 @@ class _WordListViewState extends State<WordListView> {
       _isLoading = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 250));
 
-    // Mock data based on search query and word type
-    List<WordItem> mockWords = _getMockWords();
+    final localization = LocalizationManager.of(context);
+    final query = widget.searchQuery.trim().toLowerCase();
 
-    // Filter by search query
-    if (widget.searchQuery.isNotEmpty) {
-      mockWords = mockWords.where((word) {
-        return word.word.toLowerCase().contains(widget.searchQuery.toLowerCase()) ||
-               word.meaning.toLowerCase().contains(widget.searchQuery.toLowerCase());
+    List<WordItem> filtered = WordBookData.words;
+
+    if (query.isNotEmpty) {
+      filtered = filtered.where((word) {
+        final meaning =
+            localization.translate(word.meaningKey)?.toLowerCase() ?? '';
+        return word.word.toLowerCase().contains(query) ||
+            meaning.contains(query);
       }).toList();
     }
 
-    // Filter by word type
     if (widget.wordType != WordType.all) {
-      mockWords = mockWords.where((word) => word.type == widget.wordType).toList();
+      filtered =
+          filtered.where((word) => word.type == widget.wordType).toList();
     }
 
     setState(() {
-      _words = mockWords;
+      _words = filtered;
       _isLoading = false;
     });
-  }
-
-  List<WordItem> _getMockWords() {
-    return [
-      WordItem(
-        word: 'resilient',
-        pronunciation: '/rɪˈzɪliənt/',
-        meaning: '有弹性的；能迅速恢复的',
-        example: 'She\'s a resilient person who bounces back from adversity.',
-        type: WordType.learning,
-        masteryLevel: 0.6,
-      ),
-      WordItem(
-        word: 'paradigm',
-        pronunciation: '/ˈpærədaɪm/',
-        meaning: '范式；模式',
-        example: 'The company is shifting its business paradigm.',
-        type: WordType.learning,
-        masteryLevel: 0.4,
-      ),
-      WordItem(
-        word: 'ephemeral',
-        pronunciation: '/ɪˈfemərəl/',
-        meaning: '短暂的；瞬息的',
-        example: 'The beauty of cherry blossoms is ephemeral.',
-        type: WordType.newWords,
-        masteryLevel: 0.1,
-      ),
-      WordItem(
-        word: 'ubiquitous',
-        pronunciation: '/juːˈbɪkwɪtəs/',
-        meaning: '无处不在的；普遍存在的',
-        example: 'Smartphones have become ubiquitous in modern society.',
-        type: WordType.mastered,
-        masteryLevel: 0.9,
-      ),
-      WordItem(
-        word: 'meticulous',
-        pronunciation: '/məˈtɪkjələs/',
-        meaning: '一丝不苟的；小心翼翼的',
-        example: 'She is meticulous in her research and documentation.',
-        type: WordType.mastered,
-        masteryLevel: 0.95,
-      ),
-      WordItem(
-        word: 'serendipity',
-        pronunciation: '/ˌserənˈdɪpəti/',
-        meaning: '意外发现珍奇事物的运气；机缘巧合',
-        example: 'It was pure serendipity that led to their discovery.',
-        type: WordType.newWords,
-        masteryLevel: 0.2,
-      ),
-    ];
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'wordBook.loadingWords'.tr,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 16,
+        child: GlassCard(
+          borderRadius: ThemeDimensions.borderRadiusL,
+          padding: EdgeInsets.all(ThemeDimensions.spacing24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(ColorsAppQy.qySecondary),
               ),
-            ),
-          ],
+              SizedBox(height: ThemeDimensions.spacing12),
+              Text(
+                QyAppLocalizationKeys.qyWordBookLoading.tr(context),
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (_words.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'wordBook.noWordsFound'.tr,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 18,
+        child: GlassCard(
+          borderRadius: ThemeDimensions.borderRadiusXL,
+          padding: EdgeInsets.all(ThemeDimensions.spacing24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_off,
+                size: ThemeDimensions.iconSizeXXL,
+                color: ColorsAppQy.qyBorderDark,
               ),
-            ),
-          ],
+              SizedBox(height: ThemeDimensions.spacing12),
+              Text(
+                QyAppLocalizationKeys.qyWordBookNoWords.tr(context),
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return RefreshIndicator(
       onRefresh: _loadWords,
-      color: AppTheme.primaryGreen,
+      color: ColorsAppQy.qyPrimary,
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: ThemeDimensions.spacing16,
+          vertical: ThemeDimensions.spacing12,
+        ),
         itemCount: _words.length,
         itemBuilder: (context, index) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: ThemeDimensions.spacing12),
             child: WordItemCard(
               word: _words[index],
               onTap: () => _showWordDetail(_words[index]),
@@ -198,116 +161,106 @@ class _WordListViewState extends State<WordListView> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
+        initialChildSize: 0.85,
         maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (context, scrollController) => GlassmorphismCard(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: ListView(
-              controller: scrollController,
-              children: [
-                Row(
+        minChildSize: 0.6,
+        builder: (context, controller) => GlassCard(
+          borderRadius: ThemeDimensions.borderRadiusXL,
+          padding: EdgeInsets.all(ThemeDimensions.spacing24),
+          child: ListView(
+            controller: controller,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      word.word,
+                      style: ThemeTextStyles.headlineMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: ColorsAppQy.qyTextPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              SizedBox(height: ThemeDimensions.spacing8),
+              Text(
+                word.pronunciation,
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              SizedBox(height: ThemeDimensions.spacing16),
+              Text(
+                word.meaningKey.tr(context),
+                style: ThemeTextStyles.headlineSmall.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                ),
+              ),
+              SizedBox(height: ThemeDimensions.spacing16),
+              Container(
+                padding: EdgeInsets.all(ThemeDimensions.spacing16),
+                decoration: BoxDecoration(
+                  color: ColorsAppQy.qyPrimary.withOpacity(0.08),
+                  borderRadius: ThemeDimensions.borderRadiusL,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        word.word,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                        ),
+                    Text(
+                      QyAppLocalizationKeys.qyWordBookExampleSentence
+                          .tr(context),
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: ColorsAppQy.qyPrimary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                Text(
-                  word.pronunciation,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  word.meaning,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        QyAppLocalizationKeys.qyWordBookExampleSentence.tr(context),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryGreen,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        word.example,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _playPronunciation(word);
-                        },
-                        icon: const Icon(Icons.volume_up),
-                        label: Text(QyAppLocalizationKeys.qyWordBookPronunciation.tr(context)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryGreen,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _markAsLearned(word);
-                        },
-                        icon: const Icon(Icons.check),
-                        label: Text(QyAppLocalizationKeys.qyWordBookMastered.tr(context)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accentGreen,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+                    SizedBox(height: ThemeDimensions.spacing8),
+                    Text(
+                      word.exampleKey.tr(context),
+                      style: ThemeTextStyles.bodyLarge.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              SizedBox(height: ThemeDimensions.spacing24),
+              Row(
+                children: [
+                  Expanded(
+                    child: PrimaryButton(
+                      text: QyAppLocalizationKeys.qyWordBookPronunciation
+                          .tr(context),
+                      icon: Icons.volume_up,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _playPronunciation(word);
+                      },
+                      backgroundColor: ColorsAppQy.qySecondary,
+                    ),
+                  ),
+                  SizedBox(width: ThemeDimensions.spacing12),
+                  Expanded(
+                    child: PrimaryButton(
+                      text:
+                          QyAppLocalizationKeys.qyWordBookMastered.tr(context),
+                      icon: Icons.check,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _markAsLearned(word);
+                      },
+                      backgroundColor: ColorsAppQy.qyPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -318,49 +271,72 @@ class _WordListViewState extends State<WordListView> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => GlassmorphismCard(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.add_circle_outline, color: AppTheme.primaryGreen),
-                title: Text('wordBook.addToNew'.tr),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _addToNewWords(word);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.school_outlined, color: AppTheme.secondaryGreen),
-                title: Text('wordBook.addToMastered'.tr),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _markAsLearned(word);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: Text('wordBook.removeFromBook'.tr),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _removeFromBook(word);
-                },
-              ),
-            ],
-          ),
+      builder: (context) => GlassCard(
+        borderRadius: ThemeDimensions.borderRadiusL,
+        padding: EdgeInsets.all(ThemeDimensions.spacing16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildActionTile(
+              icon: Icons.add_circle_outline,
+              color: ColorsAppQy.qySecondary,
+              label: QyAppLocalizationKeys.qyWordBookAddToNew.tr(context),
+              onTap: () {
+                Navigator.of(context).pop();
+                _addToNewWords(word);
+              },
+            ),
+            _buildActionTile(
+              icon: Icons.school_outlined,
+              color: ColorsAppQy.qyPrimary,
+              label: QyAppLocalizationKeys.qyWordBookAddToMastered.tr(context),
+              onTap: () {
+                Navigator.of(context).pop();
+                _markAsLearned(word);
+              },
+            ),
+            _buildActionTile(
+              icon: Icons.delete_outline,
+              color: ColorsAppQy.qyError,
+              label: QyAppLocalizationKeys.qyWordBookRemoveFromBook.tr(context),
+              onTap: () {
+                Navigator.of(context).pop();
+                _removeFromBook(word);
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildActionTile({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        label,
+        style: ThemeTextStyles.bodyMedium.copyWith(
+          color: ColorsAppQy.qyTextPrimary,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
   void _playPronunciation(WordItem word) {
-    // TODO: Implement text-to-speech
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Playing pronunciation for ${word.word}'),
-        backgroundColor: AppTheme.primaryGreen,
+        content: Text(
+          QyAppLocalizationKeys.qyWordBookSnackPlay
+              .tr(context)
+              .replaceAll('{word}', word.word),
+        ),
+        backgroundColor: ColorsAppQy.qySecondary,
       ),
     );
   }
@@ -372,8 +348,12 @@ class _WordListViewState extends State<WordListView> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${word.word} marked as learned'),
-        backgroundColor: AppTheme.accentGreen,
+        content: Text(
+          QyAppLocalizationKeys.qyWordBookSnackLearned
+              .tr(context)
+              .replaceAll('{word}', word.word),
+        ),
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -385,8 +365,12 @@ class _WordListViewState extends State<WordListView> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${word.word} added to new words'),
-        backgroundColor: Colors.orange,
+        content: Text(
+          QyAppLocalizationKeys.qyWordBookSnackAdded
+              .tr(context)
+              .replaceAll('{word}', word.word),
+        ),
+        backgroundColor: ColorsAppQy.qyAccent,
       ),
     );
   }
@@ -397,8 +381,12 @@ class _WordListViewState extends State<WordListView> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${word.word} removed from word book'),
-        backgroundColor: Colors.red,
+        content: Text(
+          QyAppLocalizationKeys.qyWordBookSnackRemoved
+              .tr(context)
+              .replaceAll('{word}', word.word),
+        ),
+        backgroundColor: ColorsAppQy.qyError,
       ),
     );
   }

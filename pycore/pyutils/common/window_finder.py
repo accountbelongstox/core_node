@@ -6,22 +6,14 @@ Provides centralized window searching with encyclopedia caching
 Used by window_screenshot, window_activator, and window_analyzer
 """
 
-import sys
-from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_win32gui
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
+win32gui = get_third_package_win32gui()
 
-import win32gui
-
-from pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 
 class WindowFinder:
@@ -190,7 +182,7 @@ class WindowFinder:
             True if window appears to be a browser window
         """
         import re
-        
+
         browser_indicators = [
             "Chrome", "Firefox", "Edge", "Safari", "Opera", "Brave",
             "Google Chrome", "Mozilla Firefox", "Microsoft Edge",
@@ -208,26 +200,3 @@ class WindowFinder:
             return True
 
         return False
-
-
-# Example usage
-if __name__ == "__main__":
-    # Test window finder
-    finder = WindowFinder()
-
-    # Search for windows
-    windows = finder.find_windows_by_titles(
-        titles=["Diablo III", "暗黑破坏神 III"],
-        match_mode="in",
-        use_cache=True
-    )
-
-    if windows:
-        print(f"\nFound {len(windows)} window(s):")
-        for window in windows:
-            print(f"  Title: {window['title']}")
-            print(f"  Handle: {window['hwnd']}")
-            print(f"  Size: {window['width']}x{window['height']}")
-            print(f"  Position: {window['rect']}")
-    else:
-        print("No windows found")

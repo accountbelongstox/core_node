@@ -2,14 +2,17 @@ import os
 import threading
 import time
 import subprocess
-import psutil
 from queue import Queue, Empty
 from typing import Callable, Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from pycore.pyfoundations.gvar.pyglobal_vars import (
+from pycore.pyfoundations.third_party import get_third_package_psutil
+
+psutil = get_third_package_psutil()
+
+from pycore.pygvar import (
     SEVEN_ZIP_EXECUTABLE,
     MAX_CONCURRENT_ZIP_TASKS,
     CPU_COUNT,

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.285657+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "crunch",
+        "laos": "ປັ້ນ",
+        "jp": "クランチ",
+        "vie": "lạo xạo",
+        "en_pronunciation": "/krənʧ/",
+        "laos_pronunciation": "pan",
+        "jp_pronunciation": "kuranchi",
+        "vie_pronunciation": "lao xao"
+      },
+      "means": {
+        "en": "The sound of something crunching",
+        "zh": "某物嘎吱嘎吱的声音"
+      }
+    },
+    {
+      "word": {
+        "en": "crush",
+        "laos": "ປວດ",
+        "jp": "クラッシュする",
+        "vie": "nghiền nát",
+        "en_pronunciation": "/krəʃ/",
+        "laos_pronunciation": "puad",
+        "jp_pronunciation": "kurasshu suru",
+        "vie_pronunciation": "nghien nat"
+      },
+      "means": {
+        "en": "Leather that has had its grain pattern accentuated",
+        "zh": "强调纹理图案的皮革"
+      }
+    },
+    {
+      "word": {
+        "en": "crust",
+        "laos": "ເປືອກ",
+        "jp": "地殻",
+        "vie": "lớp vỏ",
+        "en_pronunciation": "/krəst/",
+        "laos_pronunciation": "peuok",
+        "jp_pronunciation": "chikaku",
+        "vie_pronunciation": "lop vo"
+      },
+      "means": {
+        "en": "The outer layer of the Earth",
+        "zh": "地球的外层"
+      }
+    },
+    {
+      "word": {
+        "en": "cry",
+        "laos": "ໄຫ້",
+        "jp": "泣く",
+        "vie": "khóc",
+        "en_pronunciation": "/kraɪ/",
+        "laos_pronunciation": "hai",
+        "jp_pronunciation": "naku",
+        "vie_pronunciation": "khoc"
+      },
+      "means": {
+        "en": "A loud utterance; often in protest or opposition",
+        "zh": "大声说话；"
+      }
+    },
+    {
+      "word": {
+        "en": "crystal",
+        "laos": "ລຽງໄປເຊຍກັນ",
+        "jp": "クリスタル",
+        "vie": "pha lê",
+        "en_pronunciation": "/ˈkrɪstəl/",
+        "laos_pronunciation": "liang pai siakan",
+        "jp_pronunciation": "kurisutaru",
+        "vie_pronunciation": "pha le"
+      },
+      "means": {
+        "en": "A solid formed by the solidification of a chemical and having a highly regular atomic structure",
+        "zh": "经常表示抗议或反对"
+      }
+    },
+    {
+      "word": {
+        "en": "cub",
+        "laos": "ໂດນ",
+        "jp": "カブ",
+        "vie": "đàn con",
+        "en_pronunciation": "/kəb/",
+        "laos_pronunciation": "odn",
+        "jp_pronunciation": "kabu",
+        "vie_pronunciation": "dan con"
+      },
+      "means": {
+        "en": "An awkward and inexperienced youth",
+        "zh": "由化学品凝固形成的具有高度规则原子结构的固体"
+      }
+    },
+    {
+      "word": {
+        "en": "cube",
+        "laos": "ຄິວ",
+        "jp": "立方体",
+        "vie": "khối lập phương",
+        "en_pronunciation": "/kjub/",
+        "laos_pronunciation": "khiv",
+        "jp_pronunciation": "rippoutai",
+        "vie_pronunciation": "khoi lap phuong"
+      },
+      "means": {
+        "en": "A hexahedron with six equal squares as faces",
+        "zh": "一个笨拙且缺乏经验的年轻人"
+      }
+    },
+    {
+      "word": {
+        "en": "cubic",
+        "laos": "ກູໂກ",
+        "jp": "立方体",
+        "vie": "khối",
+        "en_pronunciation": "/ˈkjubɪk/",
+        "laos_pronunciation": "kuok",
+        "jp_pronunciation": "rippoutai",
+        "vie_pronunciation": "khoi"
+      },
+      "means": {
+        "en": "Having three dimensions",
+        "zh": "有六个相等的正方形作为面的六面体"
+      }
+    },
+    {
+      "word": {
+        "en": "cucumber",
+        "laos": "ແຕງ",
+        "jp": "キュウリ",
+        "vie": "dưa chuột",
+        "en_pronunciation": "/ˈkjukəmbər/",
+        "laos_pronunciation": "aetng",
+        "jp_pronunciation": "kyuuri",
+        "vie_pronunciation": "dua chuot"
+      },
+      "means": {
+        "en": "A melon vine of the genus Cucumis; cultivated from earliest times for its cylindrical green fruit",
+        "zh": "具有三个维度"
+      }
+    },
+    {
+      "word": {
+        "en": "cue",
+        "laos": "ສົມ",
+        "jp": "合図",
+        "vie": "tín hiệu",
+        "en_pronunciation": "/kju/",
+        "laos_pronunciation": "som",
+        "jp_pronunciation": "aizu",
+        "vie_pronunciation": "tin hieu"
+      },
+      "means": {
+        "en": "An actor's line that immediately precedes and serves as a reminder for some action or speech",
+        "zh": "黄瓜属的瓜藤；"
+      }
+    },
+    {
+      "word": {
+        "en": "cuisine",
+        "laos": "ຂະແຫນງອາຫານ",
+        "jp": "料理",
+        "vie": "ẩm thực",
+        "en_pronunciation": "/kwɪˈzin/",
+        "laos_pronunciation": "khaaenngoahan",
+        "jp_pronunciation": "ryouri",
+        "vie_pronunciation": "am thuc"
+      },
+      "means": {
+        "en": "The practice or manner of preparing food or the food so prepared",
+        "zh": "最早因其圆柱形绿色果实而被栽培"
+      }
+    },
+    {
+      "word": {
+        "en": "culminate",
+        "laos": "ບັງຄັບ",
+        "jp": "最高潮に達する",
+        "vie": "lên tới đỉnh điểm",
+        "en_pronunciation": "/ˈkəlmɪˌneɪt/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "saikouchou ni tassu ru",
+        "vie_pronunciation": "len toi dinh diem"
+      },
+      "means": {
+        "en": "End, especially to reach a final or climactic stage",
+        "zh": "紧接在某些动作或言语之前并作为某些动作或言语的提醒的演员台词"
+      }
+    },
+    {
+      "word": {
+        "en": "culmination",
+        "laos": "ສະນວນ",
+        "jp": "集大成",
+        "vie": "đỉnh cao",
+        "en_pronunciation": "/ˌkəlməˈneɪʃən/",
+        "laos_pronunciation": "sanuan",
+        "jp_pronunciation": "shuutaisei",
+        "vie_pronunciation": "dinh cao"
+      },
+      "means": {
+        "en": "A final climactic stage",
+        "zh": "准备食物或如此准备的食物的做法或方式"
+      }
+    },
+    {
+      "word": {
+        "en": "cult",
+        "laos": "ສົມ",
+        "jp": "カルト",
+        "vie": "giáo phái",
+        "en_pronunciation": "/kəlt/",
+        "laos_pronunciation": "som",
+        "jp_pronunciation": "karuto",
+        "vie_pronunciation": "giao phai"
+      },
+      "means": {
+        "en": "Followers of an exclusive system of religious beliefs and practices",
+        "zh": "结束，尤其是达到最后或高潮阶段"
+      }
+    },
+    {
+      "word": {
+        "en": "cultivate",
+        "laos": "ປູກຝັງ",
+        "jp": "栽培する",
+        "vie": "trồng trọt",
+        "en_pronunciation": "/ˈkəltəˌveɪt/",
+        "laos_pronunciation": "pukfang",
+        "jp_pronunciation": "saibai suru",
+        "vie_pronunciation": "trong trot"
+      },
+      "means": {
+        "en": "Foster the growth of",
+        "zh": "最后的高潮阶段"
+      }
+    },
+    {
+      "word": {
+        "en": "cultivation",
+        "laos": "ການປູກຝັງ",
+        "jp": "栽培",
+        "vie": "trồng trọt",
+        "en_pronunciation": "/ˌkəltɪˈveɪʃən/",
+        "laos_pronunciation": "kanpukfang",
+        "jp_pronunciation": "saibai",
+        "vie_pronunciation": "trong trot"
+      },
+      "means": {
+        "en": "Socialization through training and education to develop one's mind or manners",
+        "zh": "独特的宗教信仰和习俗体系的追随者"
+      }
+    },
+    {
+      "word": {
+        "en": "culture",
+        "laos": "ວັດທະນະທໍາ",
+        "jp": "文化",
+        "vie": "văn hóa",
+        "en_pronunciation": "/ˈkəlʧər/",
+        "laos_pronunciation": "vadthanathoa",
+        "jp_pronunciation": "bunka",
+        "vie_pronunciation": "van hoa"
+      },
+      "means": {
+        "en": "A particular society at a particular time and place",
+        "zh": "促进成长"
+      }
+    },
+    {
+      "word": {
+        "en": "cultural",
+        "laos": "ນະວັດ",
+        "jp": "文化的な",
+        "vie": "văn hóa",
+        "en_pronunciation": "/ˈkəlʧərəl/",
+        "laos_pronunciation": "navad",
+        "jp_pronunciation": "bunkateki na",
+        "vie_pronunciation": "van hoa"
+      },
+      "means": {
+        "en": "Of or relating to the arts and manners that a group favors",
+        "zh": "通过培训和教育来发展一个人的思想或礼仪的社会化"
+      }
+    },
+    {
+      "word": {
+        "en": "cumulative",
+        "laos": "ສະສົມ",
+        "jp": "累積",
+        "vie": "tích lũy",
+        "en_pronunciation": "/ˈkjumjələtɪv/",
+        "laos_pronunciation": "sasom",
+        "jp_pronunciation": "ruiseki",
+        "vie_pronunciation": "tich luy"
+      },
+      "means": {
+        "en": "Increasing by successive addition",
+        "zh": "特定时间、特定地点的特定社会"
+      }
+    },
+    {
+      "word": {
+        "en": "cunning",
+        "laos": "ສະຫມ່ວາ",
+        "jp": "狡猾な",
+        "vie": "xảo quyệt",
+        "en_pronunciation": "/ˈkənɪŋ/",
+        "laos_pronunciation": "samuaa",
+        "jp_pronunciation": "koukatsu na",
+        "vie_pronunciation": "xao quyet"
+      },
+      "means": {
+        "en": "Shrewdness as demonstrated by being skilled in deception",
+        "zh": "属于或与之相关的群体所喜爱的艺术和礼仪"
+      }
+    },
+    {
+      "word": {
+        "en": "cup",
+        "laos": "ປ່າງ",
+        "jp": "カップ",
+        "vie": "cốc",
+        "en_pronunciation": "/kəp/",
+        "laos_pronunciation": "pang",
+        "jp_pronunciation": "kappu",
+        "vie_pronunciation": "coc"
+      },
+      "means": {
+        "en": "A small open container usually used for drinking; usually has a handle",
+        "zh": "逐次加法递增"
+      }
+    },
+    {
+      "word": {
+        "en": "cupboard",
+        "laos": "ຕູ້",
+        "jp": "戸棚",
+        "vie": "tủ đựng đồ",
+        "en_pronunciation": "/ˈkəbərd/",
+        "laos_pronunciation": "tu",
+        "jp_pronunciation": "todana",
+        "vie_pronunciation": "tu dung do"
+      },
+      "means": {
+        "en": "A small room (or recess) or cabinet used for storage space",
+        "zh": "精明通过善于欺骗而表现出来"
+      }
+    },
+    {
+      "word": {
+        "en": "curb",
+        "laos": "ຂັດຂວາງ",
+        "jp": "縁石",
+        "vie": "lề đường",
+        "en_pronunciation": "/kərb/",
+        "laos_pronunciation": "khadkhuaang",
+        "jp_pronunciation": "enseki",
+        "vie_pronunciation": "le duong"
+      },
+      "means": {
+        "en": "An edge between a sidewalk and a roadway consisting of a line of curbstones (usually forming part of a gutter)",
+        "zh": "通常用于饮用的小型开口容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "cure",
+        "laos": "ການຮັກສາ",
+        "jp": "治す",
+        "vie": "chữa bệnh",
+        "en_pronunciation": "/kjʊr/",
+        "laos_pronunciation": "kanhaksa",
+        "jp_pronunciation": "naosu",
+        "vie_pronunciation": "chua benh"
+      },
+      "means": {
+        "en": "A medicine or therapy that cures disease or relieve pain",
+        "zh": "通常有一个手柄"
+      }
+    },
+    {
+      "word": {
+        "en": "curable",
+        "laos": "ຜູ້ທີ່ຮັກສາ",
+        "jp": "硬化可能な",
+        "vie": "có thể chữa được",
+        "en_pronunciation": "/ˈkjʊrəbəl/",
+        "laos_pronunciation": "phuthihaksa",
+        "jp_pronunciation": "kouka kanouna",
+        "vie_pronunciation": "co the chua duoc"
+      },
+      "means": {
+        "en": "Curing or healing is possible",
+        "zh": "用于存储空间的小房间（或凹处）或柜子"
+      }
+    },
+    {
+      "word": {
+        "en": "curfew",
+        "laos": "ຫ້າມ",
+        "jp": "門限",
+        "vie": "giờ giới nghiêm",
+        "en_pronunciation": "/ˈkərfju/",
+        "laos_pronunciation": "ham",
+        "jp_pronunciation": "mongen",
+        "vie_pronunciation": "gio gioi nghiem"
+      },
+      "means": {
+        "en": "The time that the curfew signal is sounded",
+        "zh": "人行道和车行道之间的边缘，由一排路缘石组成（通常构成排水沟的一部分）"
+      }
+    },
+    {
+      "word": {
+        "en": "curious",
+        "laos": "ຢາກຮູ້ຢາກເຫັນຢາກຮູ້ຢາກເຫັນ",
+        "jp": "好奇心旺盛",
+        "vie": "tò mò",
+        "en_pronunciation": "/ˈkjʊriəs/",
+        "laos_pronunciation": "yakhuyakhenyakhuyakhen",
+        "jp_pronunciation": "koukishin'ousei",
+        "vie_pronunciation": "to mo"
+      },
+      "means": {
+        "en": "Beyond or deviating from the usual or expected",
+        "zh": "治愈疾病或缓解疼痛的药物或疗法"
+      }
+    },
+    {
+      "word": {
+        "en": "curiosity",
+        "laos": "ຢາກຮູ້",
+        "jp": "好奇心",
+        "vie": "sự tò mò",
+        "en_pronunciation": "/ˌkjʊriˈɑsəti/",
+        "laos_pronunciation": "yakhu",
+        "jp_pronunciation": "koukishin",
+        "vie_pronunciation": "su to mo"
+      },
+      "means": {
+        "en": "A state in which you want to learn more about something",
+        "zh": "治愈或痊愈是可能的"
+      }
+    },
+    {
+      "word": {
+        "en": "curl",
+        "laos": "ປັ້ນ",
+        "jp": "カールする",
+        "vie": "cuộn tròn",
+        "en_pronunciation": "/kərl/",
+        "laos_pronunciation": "pan",
+        "jp_pronunciation": "kaaru suru",
+        "vie_pronunciation": "cuon tron"
+      },
+      "means": {
+        "en": "A round shape formed by a series of concentric circles (as formed by leaves or flower petals)",
+        "zh": "宵禁信号响起的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "currency",
+        "laos": "ເງິນຕາ",
+        "jp": "通貨",
+        "vie": "tiền tệ",
+        "en_pronunciation": "/ˈkərənsi/",
+        "laos_pronunciation": "ngoenta",
+        "jp_pronunciation": "tsuuka",
+        "vie_pronunciation": "tien te"
+      },
+      "means": {
+        "en": "The metal or paper medium of exchange that is presently used",
+        "zh": "超出或偏离通常或预期"
+      }
+    },
+    {
+      "word": {
+        "en": "current",
+        "laos": "ປະຈຸບັນ",
+        "jp": "現在の",
+        "vie": "hiện tại",
+        "en_pronunciation": "/ˈkɑrənt/",
+        "laos_pronunciation": "pachuban",
+        "jp_pronunciation": "genzai no",
+        "vie_pronunciation": "hien tai"
+      },
+      "means": {
+        "en": "A flow of electricity through a conductor",
+        "zh": "您想要了解更多某事的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "currently",
+        "laos": "ປະຈຸບັນ",
+        "jp": "現在",
+        "vie": "hiện tại",
+        "en_pronunciation": "/ˈkərəntli/",
+        "laos_pronunciation": "pachuban",
+        "jp_pronunciation": "genzai",
+        "vie_pronunciation": "hien tai"
+      },
+      "means": {
+        "en": "At this time or period; now",
+        "zh": "由一系列同心圆形成的圆形（由叶子或花瓣形成）"
+      }
+    },
+    {
+      "word": {
+        "en": "curriculum",
+        "laos": "ຫຼັກສູດ",
+        "jp": "カリキュラム",
+        "vie": "chương trình giảng dạy",
+        "en_pronunciation": "/kərˈɪkjələm/",
+        "laos_pronunciation": "raksud",
+        "jp_pronunciation": "karikyuramu",
+        "vie_pronunciation": "chuong trinh giang day"
+      },
+      "means": {
+        "en": "An integrated course of academic studies",
+        "zh": "目前使用的金属或纸质交换媒介"
+      }
+    },
+    {
+      "word": {
+        "en": "curse",
+        "laos": "ສາບແຊ່ງ",
+        "jp": "呪う",
+        "vie": "nguyền rủa",
+        "en_pronunciation": "/kərs/",
+        "laos_pronunciation": "sabaesng",
+        "jp_pronunciation": "norou",
+        "vie_pronunciation": "nguyen rua"
+      },
+      "means": {
+        "en": "Profane or obscene expression usually of surprise or anger",
+        "zh": "电流通过导体"
+      }
+    },
+    {
+      "word": {
+        "en": "curtail",
+        "laos": "ປາບປາມ",
+        "jp": "削減する",
+        "vie": "cắt bớt",
+        "en_pronunciation": "/kərˈteɪl/",
+        "laos_pronunciation": "pabpam",
+        "jp_pronunciation": "sakugen suru",
+        "vie_pronunciation": "cat bot"
+      },
+      "means": {
+        "en": "Place restrictions on",
+        "zh": "在这个时间或时期；"
+      }
+    },
+    {
+      "word": {
+        "en": "curtain",
+        "laos": "ຜ້າກັ້ງ",
+        "jp": "カーテン",
+        "vie": "rèm",
+        "en_pronunciation": "/ˈkərtən/",
+        "laos_pronunciation": "phakang",
+        "jp_pronunciation": "kaaten",
+        "vie_pronunciation": "rem"
+      },
+      "means": {
+        "en": "Hanging cloth used as a blind (especially for a window)",
+        "zh": "现在"
+      }
+    },
+    {
+      "word": {
+        "en": "curve",
+        "laos": "ໂຄ້ງ",
+        "jp": "曲線",
+        "vie": "đường cong",
+        "en_pronunciation": "/kərv/",
+        "laos_pronunciation": "okhng",
+        "jp_pronunciation": "kyokusen",
+        "vie_pronunciation": "duong cong"
+      },
+      "means": {
+        "en": "The trace of a point whose direction of motion changes",
+        "zh": "学术研究的综合课程"
+      }
+    },
+    {
+      "word": {
+        "en": "cushion",
+        "laos": "ເບາະ",
+        "jp": "クッション",
+        "vie": "đệm",
+        "en_pronunciation": "/ˈkʊʃən/",
+        "laos_pronunciation": "bo",
+        "jp_pronunciation": "kusshon",
+        "vie_pronunciation": "dem"
+      },
+      "means": {
+        "en": "A mechanical damper; absorbs energy of sudden impulses",
+        "zh": "亵渎或淫秽的表达，通常表示惊讶或愤怒"
+      }
+    },
+    {
+      "word": {
+        "en": "custody",
+        "laos": "ການຈັບກຸມ",
+        "jp": "監護権",
+        "vie": "quyền giám hộ",
+        "en_pronunciation": "/ˈkəstədi/",
+        "laos_pronunciation": "kanchabkum",
+        "jp_pronunciation": "kango ken",
+        "vie_pronunciation": "quyen giam ho"
+      },
+      "means": {
+        "en": "A state of being confined (usually for a short time)",
+        "zh": "施加限制"
+      }
+    },
+    {
+      "word": {
+        "en": "custom",
+        "laos": "ປະເພນີ",
+        "jp": "カスタム",
+        "vie": "tùy chỉnh",
+        "en_pronunciation": "/ˈkəstəm/",
+        "laos_pronunciation": "papheni",
+        "jp_pronunciation": "kasutamu",
+        "vie_pronunciation": "tuy chinh"
+      },
+      "means": {
+        "en": "Accepted or habitual practice",
+        "zh": "用作百叶窗的挂布（尤其是窗户）"
+      }
+    },
+    {
+      "word": {
+        "en": "customary",
+        "laos": "ທໍາມະດາ",
+        "jp": "習慣的な",
+        "vie": "phong tục",
+        "en_pronunciation": "/ˈkəstəˌmɛri/",
+        "laos_pronunciation": "thoamada",
+        "jp_pronunciation": "shuukanteki na",
+        "vie_pronunciation": "phong tuc"
+      },
+      "means": {
+        "en": "In accordance with convention or custom",
+        "zh": "运动方向改变的点的轨迹"
+      }
+    },
+    {
+      "word": {
+        "en": "customer",
+        "laos": "ລູກຄ້າ",
+        "jp": "顧客",
+        "vie": "khách hàng",
+        "en_pronunciation": "/ˈkəstəmər/",
+        "laos_pronunciation": "lukkha",
+        "jp_pronunciation": "kokyaku",
+        "vie_pronunciation": "khach hang"
+      },
+      "means": {
+        "en": "Someone who pays for goods or services",
+        "zh": "机械阻尼器；"
+      }
+    },
+    {
+      "word": {
+        "en": "customs",
+        "laos": "ພາສີ",
+        "jp": "税関",
+        "vie": "hải quan",
+        "en_pronunciation": "/ˈkəstəmz/",
+        "laos_pronunciation": "phasi",
+        "jp_pronunciation": "zeikan",
+        "vie_pronunciation": "hai quan"
+      },
+      "means": {
+        "en": "Money collected under a tariff",
+        "zh": "吸收突然冲动的能量"
+      }
+    },
+    {
+      "word": {
+        "en": "cut",
+        "laos": "ຕັດ",
+        "jp": "カット",
+        "vie": "cắt",
+        "en_pronunciation": "/kət/",
+        "laos_pronunciation": "tad",
+        "jp_pronunciation": "katto",
+        "vie_pronunciation": "cat"
+      },
+      "means": {
+        "en": "A share of the profits",
+        "zh": "一种被限制的状态（通常是很短的时间）"
+      }
+    },
+    {
+      "word": {
+        "en": "cute",
+        "laos": "ທີ່ງາມ",
+        "jp": "かわいい",
+        "vie": "dễ thương",
+        "en_pronunciation": "/kjut/",
+        "laos_pronunciation": "thingam",
+        "jp_pronunciation": "kawaii",
+        "vie_pronunciation": "de thuong"
+      },
+      "means": {
+        "en": "Attractive especially by means of smallness or prettiness or quaintness",
+        "zh": "公认的或习惯的做法"
+      }
+    },
+    {
+      "word": {
+        "en": "cyberspace",
+        "laos": "CyberSpace",
+        "jp": "サイバースペース",
+        "vie": "không gian mạng",
+        "en_pronunciation": "/ˈsaɪbərˌspeɪs/",
+        "laos_pronunciation": "CyberSpace",
+        "jp_pronunciation": "saibaasupeesu",
+        "vie_pronunciation": "khong gian mang"
+      },
+      "means": {
+        "en": "A computer network consisting of a worldwide network of computer networks that use the TCP/IP network protocols to facilitate data transmission and exchange",
+        "zh": "按照惯例或习惯"
+      }
+    },
+    {
+      "word": {
+        "en": "cycle",
+        "laos": "ວົງຈອນ",
+        "jp": "サイクル",
+        "vie": "chu kỳ",
+        "en_pronunciation": "/ˈsaɪkəl/",
+        "laos_pronunciation": "vongchon",
+        "jp_pronunciation": "saikuru",
+        "vie_pronunciation": "chu ky"
+      },
+      "means": {
+        "en": "An interval during which a recurring sequence of events occurs",
+        "zh": "为商品或服务付款的人"
+      }
+    },
+    {
+      "word": {
+        "en": "cycling",
+        "laos": "ຂີ່ຈັກຍານ",
+        "jp": "サイクリング",
+        "vie": "đi xe đạp",
+        "en_pronunciation": "/ˈsaɪkəlɪŋ/",
+        "laos_pronunciation": "khi chkaian",
+        "jp_pronunciation": "saikuringu",
+        "vie_pronunciation": "di xe dap"
+      },
+      "means": {
+        "en": "The sport of traveling on a bicycle or motorcycle",
+        "zh": "根据关税收取的钱款"
+      }
+    },
+    {
+      "word": {
+        "en": "cyclist",
+        "laos": "ຜູ້ຂີ່ລົດຖີບ",
+        "jp": "サイクリスト",
+        "vie": "người đi xe đạp",
+        "en_pronunciation": "/ˈsaɪkəlɪst/",
+        "laos_pronunciation": "phukhilodthib",
+        "jp_pronunciation": "saikurisuto",
+        "vie_pronunciation": "nguoi di xe dap"
+      },
+      "means": {
+        "en": "A person who rides a bicycle",
+        "zh": "利润的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "cylinder",
+        "laos": "ກະບອກ",
+        "jp": "シリンダー",
+        "vie": "xi lanh",
+        "en_pronunciation": "/ˈsɪlɪndər/",
+        "laos_pronunciation": "kabok",
+        "jp_pronunciation": "shirindaa",
+        "vie_pronunciation": "xi lanh"
+      },
+      "means": {
+        "en": "A solid bounded by a cylindrical surface and two parallel planes (the bases)",
+        "zh": "尤其是通过小巧、漂亮或古雅而有吸引力"
+      }
+    },
+    {
+      "word": {
+        "en": "cynical",
+        "laos": "ສະໄລ",
+        "jp": "シニカルな",
+        "vie": "hoài nghi",
+        "en_pronunciation": "/ˈsɪnɪkəl/",
+        "laos_pronunciation": "salai",
+        "jp_pronunciation": "shinikaru na",
+        "vie_pronunciation": "hoai nghi"
+      },
+      "means": {
+        "en": "Believing the worst of human nature and motives; having a sneering disbelief in e.g. selflessness of others",
+        "zh": "由全球计算机网络组成的计算机网络，使用 TCP/IP 网络协议来促进数据传输和交换"
+      }
+    },
+    {
+      "word": {
+        "en": "dad",
+        "laos": "ພໍ່",
+        "jp": "お父さん",
+        "vie": "bố",
+        "en_pronunciation": "/dæd/",
+        "laos_pronunciation": "pho",
+        "jp_pronunciation": "o tousan",
+        "vie_pronunciation": "bo"
+      },
+      "means": {
+        "en": "An informal term for a father; probably derived from baby talk",
+        "zh": "一系列事件重复发生的时间间隔"
+      }
+    },
+    {
+      "word": {
+        "en": "daddy",
+        "laos": "ພໍ່",
+        "jp": "パパ",
+        "vie": "bố",
+        "en_pronunciation": "/ˈdædi/",
+        "laos_pronunciation": "pho",
+        "jp_pronunciation": "papa",
+        "vie_pronunciation": "bo"
+      },
+      "means": {
+        "en": "An informal term for a father; probably derived from baby talk",
+        "zh": "骑自行车或摩托车旅行的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "daily",
+        "laos": "ປະຈໍາວັນ",
+        "jp": "毎日",
+        "vie": "hàng ngày",
+        "en_pronunciation": "/ˈdeɪli/",
+        "laos_pronunciation": "pachoavan",
+        "jp_pronunciation": "mainichi",
+        "vie_pronunciation": "hang ngay"
+      },
+      "means": {
+        "en": "A newspaper that is published every day",
+        "zh": "一个骑自行车的人"
+      }
+    },
+    {
+      "word": {
+        "en": "dairy",
+        "laos": "ນົມ",
+        "jp": "乳製品",
+        "vie": "sữa",
+        "en_pronunciation": "/ˈdɛri/",
+        "laos_pronunciation": "nom",
+        "jp_pronunciation": "nyuuseihin",
+        "vie_pronunciation": "sua"
+      },
+      "means": {
+        "en": "A farm where dairy products are produced",
+        "zh": "由圆柱面和两个平行平面（底面）界定的实体"
+      }
+    },
+    {
+      "word": {
+        "en": "dam",
+        "laos": "ເຂື່ອນ",
+        "jp": "ダム",
+        "vie": "con đập",
+        "en_pronunciation": "/dæm/",
+        "laos_pronunciation": "kheuon",
+        "jp_pronunciation": "damu",
+        "vie_pronunciation": "con dap"
+      },
+      "means": {
+        "en": "A barrier constructed to contain the flow of water or to keep out the sea",
+        "zh": "相信人性和动机中最坏的一面；"
+      }
+    },
+    {
+      "word": {
+        "en": "damage",
+        "laos": "ຄວາມເສັຽຫາຢ",
+        "jp": "ダメージ",
+        "vie": "thiệt hại",
+        "en_pronunciation": "/ˈdæmɪʤ/",
+        "laos_pronunciation": "khuaam seia hay",
+        "jp_pronunciation": "dameeji",
+        "vie_pronunciation": "thiet hai"
+      },
+      "means": {
+        "en": "The occurrence of a change for the worse",
+        "zh": "对例如有嘲笑的怀疑"
+      }
+    },
+    {
+      "word": {
+        "en": "damn",
+        "laos": "ອອກຄໍາຄິດເຫັນ",
+        "jp": "くそー",
+        "vie": "chết tiệt",
+        "en_pronunciation": "/dæm/",
+        "laos_pronunciation": "kkhoakhidhen",
+        "jp_pronunciation": "kusoo",
+        "vie_pronunciation": "chet tiet"
+      },
+      "means": {
+        "en": "Something of little value",
+        "zh": "他人的无私"
+      }
+    },
+    {
+      "word": {
+        "en": "cynicism",
+        "laos": "cynicism",
+        "jp": "皮肉",
+        "vie": "tính hoài nghi",
+        "en_pronunciation": "/ˈsɪnɪˌsɪzəm/",
+        "laos_pronunciation": "cynicism",
+        "jp_pronunciation": "hiniku",
+        "vie_pronunciation": "tinh hoai nghi"
+      },
+      "means": {
+        "en": "A cynical feeling of distrust",
+        "zh": "对父亲的非正式称呼；"
+      }
+    },
+    {
+      "word": {
+        "en": "damp",
+        "laos": "ປຽກ",
+        "jp": "湿った",
+        "vie": "ẩm ướt",
+        "en_pronunciation": "/dæmp/",
+        "laos_pronunciation": "piak",
+        "jp_pronunciation": "shimetsu ta",
+        "vie_pronunciation": "am uot"
+      },
+      "means": {
+        "en": "A slight wetness",
+        "zh": "可能源自儿语"
+      }
+    },
+    {
+      "word": {
+        "en": "dampen",
+        "laos": "Dampen",
+        "jp": "弱める",
+        "vie": "làm ẩm",
+        "en_pronunciation": "/ˈdæmpən/",
+        "laos_pronunciation": "Dampen",
+        "jp_pronunciation": "yowame ru",
+        "vie_pronunciation": "lam am"
+      },
+      "means": {
+        "en": "Smother or suppress",
+        "zh": "对父亲的非正式称呼；"
+      }
+    },
+    {
+      "word": {
+        "en": "dance",
+        "laos": "ການເຕັ້ນ",
+        "jp": "ダンス",
+        "vie": "khiêu vũ",
+        "en_pronunciation": "/dæns/",
+        "laos_pronunciation": "kanten",
+        "jp_pronunciation": "dansu",
+        "vie_pronunciation": "khieu vu"
+      },
+      "means": {
+        "en": "An artistic form of nonverbal communication",
+        "zh": "可能源自儿语"
+      }
+    },
+    {
+      "word": {
+        "en": "danger",
+        "laos": "ໄພອັນຕະລາຍ",
+        "jp": "危険",
+        "vie": "nguy hiểm",
+        "en_pronunciation": "/ˈdeɪnʤər/",
+        "laos_pronunciation": "phaiantalai",
+        "jp_pronunciation": "kiken",
+        "vie_pronunciation": "nguy hiem"
+      },
+      "means": {
+        "en": "The condition of being susceptible to harm or injury",
+        "zh": "每天出版的报纸"
+      }
+    },
+    {
+      "word": {
+        "en": "dangerous",
+        "laos": "ທີ່ເປັນອັນຕະລາ",
+        "jp": "危険な",
+        "vie": "nguy hiểm",
+        "en_pronunciation": "/ˈdeɪnʤərəs/",
+        "laos_pronunciation": "thipen antala",
+        "jp_pronunciation": "kiken na",
+        "vie_pronunciation": "nguy hiem"
+      },
+      "means": {
+        "en": "Involving or causing danger or risk; liable to hurt or harm",
+        "zh": "生产乳制品的农场"
+      }
+    },
+    {
+      "word": {
+        "en": "dare",
+        "laos": "ກ້າ",
+        "jp": "敢えて",
+        "vie": "dám",
+        "en_pronunciation": "/dɛr/",
+        "laos_pronunciation": "ka",
+        "jp_pronunciation": "ae te",
+        "vie_pronunciation": "dam"
+      },
+      "means": {
+        "en": "A challenge to do something dangerous or foolhardy",
+        "zh": "为遏制水流或阻挡海水而建造的屏障"
+      }
+    },
+    {
+      "word": {
+        "en": "daring",
+        "laos": "ທີ່ກ້າຫານ",
+        "jp": "大胆な",
+        "vie": "táo bạo",
+        "en_pronunciation": "/ˈdɛrɪŋ/",
+        "laos_pronunciation": "thikahan",
+        "jp_pronunciation": "daitan na",
+        "vie_pronunciation": "tao bao"
+      },
+      "means": {
+        "en": "A challenge to do something dangerous or foolhardy",
+        "zh": "发生更糟的变化"
+      }
+    },
+    {
+      "word": {
+        "en": "dark",
+        "laos": "ມືດ",
+        "jp": "暗い",
+        "vie": "tối",
+        "en_pronunciation": "/dɑrk/",
+        "laos_pronunciation": "mud",
+        "jp_pronunciation": "kurai",
+        "vie_pronunciation": "toi"
+      },
+      "means": {
+        "en": "Absence of light or illumination",
+        "zh": "价值不大的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "darkness",
+        "laos": "ຄວາມມືດ",
+        "jp": "暗闇",
+        "vie": "bóng tối",
+        "en_pronunciation": "/ˈdɑrknəs/",
+        "laos_pronunciation": "khuaammud",
+        "jp_pronunciation": "kurayami",
+        "vie_pronunciation": "bong toi"
+      },
+      "means": {
+        "en": "Absence of light or illumination",
+        "zh": "愤世嫉俗的不信任感"
+      }
+    },
+    {
+      "word": {
+        "en": "darken",
+        "laos": "ຊຸ້ມລ້າວ",
+        "jp": "暗くする",
+        "vie": "làm tối đi",
+        "en_pronunciation": "/ˈdɑrkən/",
+        "laos_pronunciation": "sum lav",
+        "jp_pronunciation": "kuraku suru",
+        "vie_pronunciation": "lam toi di"
+      },
+      "means": {
+        "en": "Become dark or darker",
+        "zh": "轻微的湿润"
+      }
+    },
+    {
+      "word": {
+        "en": "darling",
+        "laos": "ຫນ້າຮັກ",
+        "jp": "最愛の人",
+        "vie": "em yêu",
+        "en_pronunciation": "/ˈdɑrlɪŋ/",
+        "laos_pronunciation": "nahak",
+        "jp_pronunciation": "saiai no nin",
+        "vie_pronunciation": "em yeu"
+      },
+      "means": {
+        "en": "A special loved one",
+        "zh": "窒息或压制"
+      }
+    },
+    {
+      "word": {
+        "en": "dart",
+        "laos": "ໂດມອນ",
+        "jp": "ダーツ",
+        "vie": "phi tiêu",
+        "en_pronunciation": "/dɑrt/",
+        "laos_pronunciation": "odmon",
+        "jp_pronunciation": "daatsu",
+        "vie_pronunciation": "phi tieu"
+      },
+      "means": {
+        "en": "A small narrow pointed missile that is thrown or shot",
+        "zh": "非语言交流的艺术形式"
+      }
+    },
+    {
+      "word": {
+        "en": "dash",
+        "laos": "ຊ້ອງ",
+        "jp": "ダッシュ",
+        "vie": "dấu gạch ngang",
+        "en_pronunciation": "/dæʃ/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "dasshu",
+        "vie_pronunciation": "dau gach ngang"
+      },
+      "means": {
+        "en": "Distinctive and stylish elegance",
+        "zh": "容易受到伤害或受伤的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "data",
+        "laos": "ຂໍ້ມູນ",
+        "jp": "データ",
+        "vie": "dữ liệu",
+        "en_pronunciation": "/ˈdætə/",
+        "laos_pronunciation": "khomun",
+        "jp_pronunciation": "deeta",
+        "vie_pronunciation": "du lieu"
+      },
+      "means": {
+        "en": "A collection of facts from which conclusions may be drawn",
+        "zh": "涉及或造成危险或风险；"
+      }
+    },
+    {
+      "word": {
+        "en": "datum",
+        "laos": "ປະຫວັດຄວາມ",
+        "jp": "データム",
+        "vie": "mốc thời gian",
+        "en_pronunciation": "/ˈdætəm/",
+        "laos_pronunciation": "pavadkhuaam",
+        "jp_pronunciation": "deetamu",
+        "vie_pronunciation": "moc thoi gian"
+      },
+      "means": {
+        "en": "An item of factual information derived from measurement or research",
+        "zh": "容易受伤或伤害"
+      }
+    },
+    {
+      "word": {
+        "en": "database",
+        "laos": "ຖານຂໍ້ມູນ",
+        "jp": "データベース",
+        "vie": "cơ sở dữ liệu",
+        "en_pronunciation": "/ˈdætəˌbeɪs/",
+        "laos_pronunciation": "thankhomun",
+        "jp_pronunciation": "deetabeesu",
+        "vie_pronunciation": "co so du lieu"
+      },
+      "means": {
+        "en": "An organized body of related information",
+        "zh": "挑战做一些危险或鲁莽的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "date",
+        "laos": "ວັນທີ",
+        "jp": "日付",
+        "vie": "ngày",
+        "en_pronunciation": "/deɪt/",
+        "laos_pronunciation": "vanthi",
+        "jp_pronunciation": "hizuke",
+        "vie_pronunciation": "ngay"
+      },
+      "means": {
+        "en": "The specified day of the month",
+        "zh": "挑战做一些危险或鲁莽的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "dating",
+        "laos": "ຄົບ",
+        "jp": "デート",
+        "vie": "hẹn hò",
+        "en_pronunciation": "/ˈdeɪtɪŋ/",
+        "laos_pronunciation": "khob",
+        "jp_pronunciation": "deeto",
+        "vie_pronunciation": "hen ho"
+      },
+      "means": {
+        "en": "Use of chemical analysis to estimate the age of geological specimens",
+        "zh": "没有光或照明"
+      }
+    },
+    {
+      "word": {
+        "en": "daughter",
+        "laos": "ລູກສາວ",
+        "jp": "娘",
+        "vie": "con gái",
+        "en_pronunciation": "/ˈdɔtər/",
+        "laos_pronunciation": "luksav",
+        "jp_pronunciation": "musume",
+        "vie_pronunciation": "con gai"
+      },
+      "means": {
+        "en": "A female human offspring",
+        "zh": "没有光或照明"
+      }
+    },
+    {
+      "word": {
+        "en": "dawn",
+        "laos": "ຮຸ່ງເຊົ້າ",
+        "jp": "夜明け",
+        "vie": "bình minh",
+        "en_pronunciation": "/dɔn/",
+        "laos_pronunciation": "hungsao",
+        "jp_pronunciation": "yoake",
+        "vie_pronunciation": "binh minh"
+      },
+      "means": {
+        "en": "The first light of day",
+        "zh": "变得更暗或更暗"
+      }
+    },
+    {
+      "word": {
+        "en": "day",
+        "laos": "ວັນ",
+        "jp": "日",
+        "vie": "ngày",
+        "en_pronunciation": "/deɪ/",
+        "laos_pronunciation": "van",
+        "jp_pronunciation": "nichi",
+        "vie_pronunciation": "ngay"
+      },
+      "means": {
+        "en": "Time for Earth to make a complete rotation on its axis",
+        "zh": "一个特别爱的人"
+      }
+    },
+    {
+      "word": {
+        "en": "daily",
+        "laos": "ປະຈໍາວັນ",
+        "jp": "毎日",
+        "vie": "hàng ngày",
+        "en_pronunciation": "/ˈdeɪli/",
+        "laos_pronunciation": "pachoavan",
+        "jp_pronunciation": "mainichi",
+        "vie_pronunciation": "hang ngay"
+      },
+      "means": {
+        "en": "A newspaper that is published every day",
+        "zh": "投掷或射击的小型窄尖导弹"
+      }
+    },
+    {
+      "word": {
+        "en": "daylight",
+        "laos": "ເວລາກາງເວັນ",
+        "jp": "日光",
+        "vie": "ánh sáng ban ngày",
+        "en_pronunciation": "/ˈdeɪˌlaɪt/",
+        "laos_pronunciation": "velakanguaen",
+        "jp_pronunciation": "nikkou",
+        "vie_pronunciation": "anh sang ban ngay"
+      },
+      "means": {
+        "en": "The time after sunrise and before sunset while it is light outside",
+        "zh": "独特而时尚的优雅"
+      }
+    },
+    {
+      "word": {
+        "en": "dazzle",
+        "laos": "ເຮັດໃຫ້ມົວໆ",
+        "jp": "眩しい",
+        "vie": "làm lóa mắt",
+        "en_pronunciation": "/ˈdæzəl/",
+        "laos_pronunciation": "hedhaimua",
+        "jp_pronunciation": "mabushii",
+        "vie_pronunciation": "lam loa mat"
+      },
+      "means": {
+        "en": "Brightness enough to blind partially and temporarily",
+        "zh": "可以得出结论的事实集合"
+      }
+    },
+    {
+      "word": {
+        "en": "dead",
+        "laos": "ຕາຍແລ້ວ",
+        "jp": "死んだ",
+        "vie": "đã chết",
+        "en_pronunciation": "/dɛd/",
+        "laos_pronunciation": "taiaelv",
+        "jp_pronunciation": "shin da",
+        "vie_pronunciation": "da chet"
+      },
+      "means": {
+        "en": "People who are no longer living",
+        "zh": "来自测量或研究的事实信息项"
+      }
+    },
+    {
+      "word": {
+        "en": "deadline",
+        "laos": "ເສັ້ນຕາຍ",
+        "jp": "締め切り",
+        "vie": "thời hạn",
+        "en_pronunciation": "/ˈdɛˌdlaɪn/",
+        "laos_pronunciation": "sentai",
+        "jp_pronunciation": "shimekiri",
+        "vie_pronunciation": "thoi han"
+      },
+      "means": {
+        "en": "The point in time at which something must be completed",
+        "zh": "相关信息的组织机构"
+      }
+    },
+    {
+      "word": {
+        "en": "deadlock",
+        "laos": "ເກມອອນໄລນ໌ຟຣີ",
+        "jp": "デッドロック",
+        "vie": "sự bế tắc",
+        "en_pronunciation": "/ˈdɛˌdlɑk/",
+        "laos_pronunciation": "kem nlainfri",
+        "jp_pronunciation": "deddorokku",
+        "vie_pronunciation": "su be tac"
+      },
+      "means": {
+        "en": "A situation in which no progress can be made or no advancement is possible",
+        "zh": "该月的指定日期"
+      }
+    },
+    {
+      "word": {
+        "en": "deadly",
+        "laos": "ທີ່ຕາຍແລ້ວ",
+        "jp": "致命的な",
+        "vie": "chết người",
+        "en_pronunciation": "/ˈdɛdli/",
+        "laos_pronunciation": "thitaiaelv",
+        "jp_pronunciation": "chimeiteki na",
+        "vie_pronunciation": "chet nguoi"
+      },
+      "means": {
+        "en": "Causing or capable of causing death",
+        "zh": "使用化学分析来估计地质标本的年龄"
+      }
+    },
+    {
+      "word": {
+        "en": "deaf",
+        "laos": "ຫູຫນວກ",
+        "jp": "聴覚障害者",
+        "vie": "điếc",
+        "en_pronunciation": "/dɛf/",
+        "laos_pronunciation": "hunuak",
+        "jp_pronunciation": "choukakushougaisha",
+        "vie_pronunciation": "diec"
+      },
+      "means": {
+        "en": "People who have severe hearing impairments",
+        "zh": "女性人类后代"
+      }
+    },
+    {
+      "word": {
+        "en": "deal",
+        "laos": "ຈໍາຣີ",
+        "jp": "取引する",
+        "vie": "thỏa thuận",
+        "en_pronunciation": "/dil/",
+        "laos_pronunciation": "choari",
+        "jp_pronunciation": "torihiki suru",
+        "vie_pronunciation": "thoa thuan"
+      },
+      "means": {
+        "en": "A particular instance of buying or selling",
+        "zh": "天的第一缕曙光"
+      }
+    },
+    {
+      "word": {
+        "en": "dealer",
+        "laos": "ຜູ້ຄ້າຂາຍ",
+        "jp": "ディーラー",
+        "vie": "đại lý",
+        "en_pronunciation": "/ˈdilər/",
+        "laos_pronunciation": "phukhakhai",
+        "jp_pronunciation": "diiraa",
+        "vie_pronunciation": "dai ly"
+      },
+      "means": {
+        "en": "Someone who purchases and maintains an inventory of goods to be sold",
+        "zh": "地球绕其轴旋转一周的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "dealing",
+        "laos": "ການຈັດການ",
+        "jp": "取引する",
+        "vie": "giao dịch",
+        "en_pronunciation": "/ˈdilɪŋ/",
+        "laos_pronunciation": "kanchadkan",
+        "jp_pronunciation": "torihiki suru",
+        "vie_pronunciation": "giao dich"
+      },
+      "means": {
+        "en": "Method or manner of conduct in relation to others",
+        "zh": "每天出版的报纸"
+      }
+    },
+    {
+      "word": {
+        "en": "dean",
+        "laos": "ຄະນະບໍດີ",
+        "jp": "学部長",
+        "vie": "trưởng khoa",
+        "en_pronunciation": "/din/",
+        "laos_pronunciation": "khanabodi",
+        "jp_pronunciation": "gakubuchou",
+        "vie_pronunciation": "truong khoa"
+      },
+      "means": {
+        "en": "An administrator in charge of a division of a university or college",
+        "zh": "日出后、日落前室外光线充足的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "dear",
+        "laos": "ທີ່ຮັກແພງ",
+        "jp": "親愛なる",
+        "vie": "thân yêu",
+        "en_pronunciation": "/dɪr/",
+        "laos_pronunciation": "thihakaephng",
+        "jp_pronunciation": "shin'ai naru",
+        "vie_pronunciation": "than yeu"
+      },
+      "means": {
+        "en": "A beloved person; used as terms of endearment",
+        "zh": "亮度足以导致部分和暂时失明"
+      }
+    },
+    {
+      "word": {
+        "en": "death",
+        "laos": "ມໍຣະນາດ",
+        "jp": "死",
+        "vie": "cái chết",
+        "en_pronunciation": "/dɛθ/",
+        "laos_pronunciation": "moranad",
+        "jp_pronunciation": "shi",
+        "vie_pronunciation": "cai chet"
+      },
+      "means": {
+        "en": "The event of dying or departure from life",
+        "zh": "不再活着的人"
+      }
+    },
+    {
+      "word": {
+        "en": "debate",
+        "laos": "ການໂຕ້ວາທີ",
+        "jp": "討論",
+        "vie": "tranh luận",
+        "en_pronunciation": "/dəˈbeɪt/",
+        "laos_pronunciation": "kanotuaathi",
+        "jp_pronunciation": "touron",
+        "vie_pronunciation": "tranh luan"
+      },
+      "means": {
+        "en": "A discussion in which reasons are advanced for and against some proposition or proposal",
+        "zh": "必须完成某事的时间点"
+      }
+    },
+    {
+      "word": {
+        "en": "debris",
+        "laos": "ສິ່ງເສດເຫຼືອ",
+        "jp": "瓦礫",
+        "vie": "mảnh vụn",
+        "en_pronunciation": "/dəˈbri/",
+        "laos_pronunciation": "singsedheu",
+        "jp_pronunciation": "gareki",
+        "vie_pronunciation": "manh vun"
+      },
+      "means": {
+        "en": "The remains of something that has been destroyed or broken up",
+        "zh": "无法取得进展或不可能取得进展的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "debt",
+        "laos": "ຫນີ້ສິນ",
+        "jp": "借金",
+        "vie": "món nợ",
+        "en_pronunciation": "/dɛt/",
+        "laos_pronunciation": "nisin",
+        "jp_pronunciation": "shakkin",
+        "vie_pronunciation": "mon no"
+      },
+      "means": {
+        "en": "The state of owing something (especially money)",
+        "zh": "导致或能够导致死亡"
+      }
+    },
+    {
+      "word": {
+        "en": "debtor",
+        "laos": "ເຈົ້າຫນີ້",
+        "jp": "債務者",
+        "vie": "con nợ",
+        "en_pronunciation": "/ˈdɛtər/",
+        "laos_pronunciation": "chaoni",
+        "jp_pronunciation": "saimusha",
+        "vie_pronunciation": "con no"
+      },
+      "means": {
+        "en": "A person who owes a creditor; someone who has the obligation of paying a debt",
+        "zh": "有严重听力障碍的人"
+      }
+    },
+    {
+      "word": {
+        "en": "debut",
+        "laos": "ສະແດງ",
+        "jp": "デビュー",
+        "vie": "ra mắt",
+        "en_pronunciation": "/ˈdeɪbju/",
+        "laos_pronunciation": "saaedng",
+        "jp_pronunciation": "debyuu",
+        "vie_pronunciation": "ra mat"
+      },
+      "means": {
+        "en": "The act of beginning something new",
+        "zh": "购买或出售的特定实例"
+      }
+    },
+    {
+      "word": {
+        "en": "decade",
+        "laos": "ທົດສະຢົດ",
+        "jp": "10年",
+        "vie": "thập kỷ",
+        "en_pronunciation": "/ˈdɛkeɪd/",
+        "laos_pronunciation": "thodsa yod",
+        "jp_pronunciation": "10 nen",
+        "vie_pronunciation": "thap ky"
+      },
+      "means": {
+        "en": "A period of 10 years",
+        "zh": "购买并维护待售商品库存的人"
+      }
+    }
+  ]
+}

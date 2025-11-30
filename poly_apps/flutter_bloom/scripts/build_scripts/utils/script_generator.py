@@ -238,7 +238,7 @@ if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {{
         Write-Host "[CLEANUP] Cleaning Flutter build directories..." -ForegroundColor Yellow
         flutter clean
         {chr(10).join([f'if (Test-Path "{path}") {{ Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: {path}" -ForegroundColor Gray }}' for path in comprehensive_paths['flutter_paths']])}
-        {chr(10).join([f'if (Test-Path "android\\{path}") {{ Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: android\\{path}" -ForegroundColor Gray }}' for path in comprehensive_paths['android_paths']])}
+        {chr(10).join([f'if (Test-Path "{android_path}") {{ Remove-Item -Path "{android_path}" -Recurse -Force -ErrorAction SilentlyContinue; Write-Host "[CLEANUP]   Removed: {android_path}" -ForegroundColor Gray }}' for android_path in ['android' + chr(92) + path for path in comprehensive_paths['android_paths']]])}
     }}
 
     # Clean additional cache directories
@@ -350,7 +350,7 @@ if ($pubCacheOptimized) {{
     # Aggressive cleanup using Python-provided paths
     flutter clean
     {chr(10).join([f'Remove-Item -Path "{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['flutter_paths']])}
-    {chr(10).join([f'Remove-Item -Path "android\\{path}" -Recurse -Force -ErrorAction SilentlyContinue' for path in retry_paths['android_paths']])}
+    {chr(10).join([f'Remove-Item -Path "{android_path}" -Recurse -Force -ErrorAction SilentlyContinue' for android_path in ['android' + chr(92) + path for path in retry_paths['android_paths']]])}
 }}
 
 # Clean Gradle cache using dynamic paths

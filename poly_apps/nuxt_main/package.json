@@ -1,13 +1,13 @@
 {
   "private": true,
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0",
+    "pnpm": ">=10.0.0"
   },
   "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "switch-app": "node scripts/switch-app-entry.js",
+    "switch-app": "node scripts/switch-app.js",
     "build": "pnpm switch-app example && nuxt build",
     "build:example": "pnpm switch-app example && cross-env APP_ENTRY=example nuxt build",
     "build:codemart": "pnpm switch-app codemart && cross-env APP_ENTRY=codemart nuxt build",
@@ -54,7 +54,7 @@
     "@tailwindcss/line-clamp": "^0.4.2",
     "@tailwindcss/typography": "^0.5.7",
     "autoprefixer": "^10.4.12",
-    "cross-env": "^10.0.0",
+    "cross-env": "^10.1.0",
     "nuxt": "4.0.0",
     "postcss": "^8.4.17",
     "prettier": "^3.6.2",
@@ -80,8 +80,10 @@
     "@vueuse/core": "^13.5.0",
     "@vueuse/head": "^2.0.0",
     "apexcharts": "^5.2.0",
+    "chokidar": "^4.0.3",
     "easymde": "^2.20.0",
     "file-upload-with-preview": "^6.1.2",
+    "fs-extra": "^11.3.2",
     "highlight.js": "^11.11.1",
     "maska": "^3.2.0",
     "path": "^0.12.7",

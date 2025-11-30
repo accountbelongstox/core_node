@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.446147+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "verdict",
+        "laos": "ຄໍາຕັດສິນ",
+        "jp": "評決",
+        "vie": "phán quyết",
+        "en_pronunciation": "/ˈvərdɪkt/",
+        "laos_pronunciation": "khoatadsin",
+        "jp_pronunciation": "hyouketsu",
+        "vie_pronunciation": "phan quyet"
+      },
+      "means": {
+        "en": "(law) the findings of a jury on issues of fact submitted to it for decision; can be used in formulating a judgment",
+        "zh": "（法律）陪审团就提交给其作出决定的事实问题得出的结论；"
+      }
+    },
+    {
+      "word": {
+        "en": "verge",
+        "laos": "ກວະ",
+        "jp": "寸前",
+        "vie": "bờ vực",
+        "en_pronunciation": "/vərʤ/",
+        "laos_pronunciation": "kuaa",
+        "jp_pronunciation": "sunzen",
+        "vie_pronunciation": "bo vuc"
+      },
+      "means": {
+        "en": "A region marking a boundary",
+        "zh": "可用于制定判断"
+      }
+    },
+    {
+      "word": {
+        "en": "verify",
+        "laos": "ກວດສອບ",
+        "jp": "検証する",
+        "vie": "xác minh",
+        "en_pronunciation": "/ˈvɛrəˌfaɪ/",
+        "laos_pronunciation": "kuadsob",
+        "jp_pronunciation": "kenshou suru",
+        "vie_pronunciation": "xac minh"
+      },
+      "means": {
+        "en": "Confirm the truth of",
+        "zh": "标记边界的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "verification",
+        "laos": "ການຢັ້ງຢືນ",
+        "jp": "検証",
+        "vie": "xác minh",
+        "en_pronunciation": "/ˌvɛrəfəˈkeɪʃən/",
+        "laos_pronunciation": "kanyangyun",
+        "jp_pronunciation": "kenshou",
+        "vie_pronunciation": "xac minh"
+      },
+      "means": {
+        "en": "Additional proof that something that was believed (some fact or hypothesis or theory) is correct",
+        "zh": "确认真实性"
+      }
+    },
+    {
+      "word": {
+        "en": "versatile",
+        "laos": "ທີ່ສົດຊື່ນ",
+        "jp": "多用途",
+        "vie": "đa năng",
+        "en_pronunciation": "/ˈvərsətəl/",
+        "laos_pronunciation": "thisodsun",
+        "jp_pronunciation": "tayou to",
+        "vie_pronunciation": "da nang"
+      },
+      "means": {
+        "en": "Having great diversity or variety",
+        "zh": "额外证明所相信的事物（某些事实或假设或理论）是正确的"
+      }
+    },
+    {
+      "word": {
+        "en": "verse",
+        "laos": "ບົດ",
+        "jp": "詩",
+        "vie": "câu thơ",
+        "en_pronunciation": "/vərs/",
+        "laos_pronunciation": "bod",
+        "jp_pronunciation": "shi",
+        "vie_pronunciation": "cau tho"
+      },
+      "means": {
+        "en": "Literature in metrical form",
+        "zh": "具有极大的多样性或多样性"
+      }
+    },
+    {
+      "word": {
+        "en": "version",
+        "laos": "ສະບັບ",
+        "jp": "バージョン",
+        "vie": "phiên bản",
+        "en_pronunciation": "/ˈvərʒən/",
+        "laos_pronunciation": "sabab",
+        "jp_pronunciation": "baajon",
+        "vie_pronunciation": "phien ban"
+      },
+      "means": {
+        "en": "An interpretation of a matter from a particular viewpoint",
+        "zh": "格律形式的文学"
+      }
+    },
+    {
+      "word": {
+        "en": "versus",
+        "laos": "ທຽບກັບ",
+        "jp": "対",
+        "vie": "so với",
+        "en_pronunciation": "/ˈvərsəz/",
+        "laos_pronunciation": "thiabkab",
+        "jp_pronunciation": "tsui",
+        "vie_pronunciation": "so voi"
+      },
+      "means": {
+        "en": "Versus is an English word referring to 'versus'.",
+        "zh": "从特定观点对事物的解释"
+      }
+    },
+    {
+      "word": {
+        "en": "vertical",
+        "laos": "ຕັ້ງໄວ້",
+        "jp": "垂直",
+        "vie": "theo chiều dọc",
+        "en_pronunciation": "/ˈvərtɪkəl/",
+        "laos_pronunciation": "tanguaai",
+        "jp_pronunciation": "suichoku",
+        "vie_pronunciation": "theo chieu doc"
+      },
+      "means": {
+        "en": "Something that is oriented vertically",
+        "zh": "Versus 是一个英语单词，意为“对比”。"
+      }
+    },
+    {
+      "word": {
+        "en": "very",
+        "laos": "ທີ່ເຕີມ",
+        "jp": "とても",
+        "vie": "rất",
+        "en_pronunciation": "/ˈvɛri/",
+        "laos_pronunciation": "thitoem",
+        "jp_pronunciation": "totemo",
+        "vie_pronunciation": "rat"
+      },
+      "means": {
+        "en": "Precisely as stated",
+        "zh": "垂直方向的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "vessel",
+        "laos": "ເຮືອ",
+        "jp": "容器",
+        "vie": "tàu",
+        "en_pronunciation": "/ˈvɛsəl/",
+        "laos_pronunciation": "heu",
+        "jp_pronunciation": "youki",
+        "vie_pronunciation": "tau"
+      },
+      "means": {
+        "en": "A tube in which a body fluid circulates",
+        "zh": "正如所述"
+      }
+    },
+    {
+      "word": {
+        "en": "vest",
+        "laos": "ເອົານ້ໍາມັນ",
+        "jp": "ベスト",
+        "vie": "áo vest",
+        "en_pronunciation": "/vɛst/",
+        "laos_pronunciation": "aonoaman",
+        "jp_pronunciation": "besuto",
+        "vie_pronunciation": "ao vest"
+      },
+      "means": {
+        "en": "A man's sleeveless garment worn underneath a coat",
+        "zh": "体液在其中循环的管子"
+      }
+    },
+    {
+      "word": {
+        "en": "veteran",
+        "laos": "ນັກຮົບເກົ່າ",
+        "jp": "ベテラン",
+        "vie": "cựu chiến binh",
+        "en_pronunciation": "/ˈvɛtərən/",
+        "laos_pronunciation": "nakhobkeoa",
+        "jp_pronunciation": "beteran",
+        "vie_pronunciation": "cuu chien binh"
+      },
+      "means": {
+        "en": "A serviceman who has seen considerable active service",
+        "zh": "穿在外套下面的男士无袖衣服"
+      }
+    },
+    {
+      "word": {
+        "en": "veto",
+        "laos": "ວີດີ",
+        "jp": "拒否権",
+        "vie": "phủ quyết",
+        "en_pronunciation": "/ˈviˌtoʊ/",
+        "laos_pronunciation": "vidi",
+        "jp_pronunciation": "kyohiken",
+        "vie_pronunciation": "phu quyet"
+      },
+      "means": {
+        "en": "A vote that blocks a decision",
+        "zh": "经历过相当多的现役服役的军人"
+      }
+    },
+    {
+      "word": {
+        "en": "via",
+        "laos": "ໂດຍ",
+        "jp": "経由",
+        "vie": "qua",
+        "en_pronunciation": "/ˈviə/",
+        "laos_pronunciation": "odny",
+        "jp_pronunciation": "keiyu",
+        "vie_pronunciation": "qua"
+      },
+      "means": {
+        "en": "Via is an English word referring to 'via'.",
+        "zh": "阻止决定的投票"
+      }
+    },
+    {
+      "word": {
+        "en": "viable",
+        "laos": "ເປັນໄປໄດ້",
+        "jp": "実行可能な",
+        "vie": "khả thi",
+        "en_pronunciation": "/ˈvaɪəbəl/",
+        "laos_pronunciation": "penpaidai",
+        "jp_pronunciation": "jikkoukanou na",
+        "vie_pronunciation": "kha thi"
+      },
+      "means": {
+        "en": "Capable of being done with means at hand and circumstances as they are",
+        "zh": "Via是一个英文单词，指的是“via”。"
+      }
+    },
+    {
+      "word": {
+        "en": "vibrate",
+        "laos": "ສັ່ນສະເທືອນ",
+        "jp": "振動する",
+        "vie": "rung động",
+        "en_pronunciation": "/ˈvaɪbreɪt/",
+        "laos_pronunciation": "sansatheuon",
+        "jp_pronunciation": "shindou suru",
+        "vie_pronunciation": "rung dong"
+      },
+      "means": {
+        "en": "Shake, quiver, or throb; move back and forth rapidly, usually in an uncontrolled manner",
+        "zh": "能够利用现有的手段和现有的情况来完成"
+      }
+    },
+    {
+      "word": {
+        "en": "vibration",
+        "laos": "ການສັ່ນສະເທືອນ",
+        "jp": "振動",
+        "vie": "rung động",
+        "en_pronunciation": "/vaɪˈbreɪʃən/",
+        "laos_pronunciation": "kansansatheuon",
+        "jp_pronunciation": "shindou",
+        "vie_pronunciation": "rung dong"
+      },
+      "means": {
+        "en": "The act of vibrating",
+        "zh": "摇晃、颤抖或颤动；"
+      }
+    },
+    {
+      "word": {
+        "en": "vice",
+        "laos": "ຮອງ",
+        "jp": "副",
+        "vie": "phó",
+        "en_pronunciation": "/vaɪs/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "fuku",
+        "vie_pronunciation": "pho"
+      },
+      "means": {
+        "en": "Moral weakness",
+        "zh": "快速来回移动，通常以不受控制的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "vicinity",
+        "laos": "ບໍລິເວນໃກ້ຄຽງ",
+        "jp": "付近",
+        "vie": "vùng lân cận",
+        "en_pronunciation": "/vɪˈsɪnɪti/",
+        "laos_pronunciation": "boliuaenkaikhiang",
+        "jp_pronunciation": "fukin",
+        "vie_pronunciation": "vung lan can"
+      },
+      "means": {
+        "en": "A surrounding or nearby region",
+        "zh": "振动的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "vicious",
+        "laos": "ທີ່ໂຫດຮ້າຍ",
+        "jp": "悪質な",
+        "vie": "luẩn quẩn",
+        "en_pronunciation": "/ˈvɪʃəs/",
+        "laos_pronunciation": "thiohdhai",
+        "jp_pronunciation": "akushitsu na",
+        "vie_pronunciation": "luan quan"
+      },
+      "means": {
+        "en": "(of persons or their actions) able or disposed to inflict pain or suffering",
+        "zh": "道德弱点"
+      }
+    },
+    {
+      "word": {
+        "en": "victim",
+        "laos": "ຜູ້ຖືກເຄາະຮ້າຍ",
+        "jp": "被害者",
+        "vie": "nạn nhân",
+        "en_pronunciation": "/ˈvɪktɪm/",
+        "laos_pronunciation": "phuthukkhohai",
+        "jp_pronunciation": "higaisha",
+        "vie_pronunciation": "nan nhan"
+      },
+      "means": {
+        "en": "An unfortunate person who suffers from some adverse circumstance",
+        "zh": "周围或附近地区"
+      }
+    },
+    {
+      "word": {
+        "en": "victimize",
+        "laos": "ຜູ້ຖືກເຄາະຮ້າຍ",
+        "jp": "犠牲にする",
+        "vie": "biến thành nạn nhân",
+        "en_pronunciation": "/ˈvɪktəmaɪz/",
+        "laos_pronunciation": "phuthukkhohai",
+        "jp_pronunciation": "gisei nisuru",
+        "vie_pronunciation": "bien thanh nan nhan"
+      },
+      "means": {
+        "en": "Make a victim of",
+        "zh": "（人或其行为）能够或倾向于造成痛苦或痛苦"
+      }
+    },
+    {
+      "word": {
+        "en": "victory",
+        "laos": "ໄຊຊະນະ",
+        "jp": "勝利",
+        "vie": "chiến thắng",
+        "en_pronunciation": "/ˈvɪktəri/",
+        "laos_pronunciation": "saisana",
+        "jp_pronunciation": "shouri",
+        "vie_pronunciation": "chien thang"
+      },
+      "means": {
+        "en": "A successful ending of a struggle or contest",
+        "zh": "一个不幸的人，遭遇了一些不利的环境"
+      }
+    },
+    {
+      "word": {
+        "en": "victorious",
+        "laos": "ມີໄຊ",
+        "jp": "勝利した",
+        "vie": "chiến thắng",
+        "en_pronunciation": "/vɪkˈtɔriəs/",
+        "laos_pronunciation": "misai",
+        "jp_pronunciation": "shouri shita",
+        "vie_pronunciation": "chien thang"
+      },
+      "means": {
+        "en": "Having won",
+        "zh": "成为受害者"
+      }
+    },
+    {
+      "word": {
+        "en": "video",
+        "laos": "ວິດີໂອ",
+        "jp": "ビデオ",
+        "vie": "video",
+        "en_pronunciation": "/ˈvɪdioʊ/",
+        "laos_pronunciation": "vidio",
+        "jp_pronunciation": "bideo",
+        "vie_pronunciation": "video"
+      },
+      "means": {
+        "en": "The visible part of a television transmission",
+        "zh": "斗争或竞赛的成功结束"
+      }
+    },
+    {
+      "word": {
+        "en": "view",
+        "laos": "ທັດສະນະ",
+        "jp": "見る",
+        "vie": "lượt xem",
+        "en_pronunciation": "/vju/",
+        "laos_pronunciation": "thadsana",
+        "jp_pronunciation": "miru",
+        "vie_pronunciation": "luot xem"
+      },
+      "means": {
+        "en": "A way of regarding situations or topics etc.",
+        "zh": "获胜后"
+      }
+    },
+    {
+      "word": {
+        "en": "viewpoint",
+        "laos": "ແນວປາກ",
+        "jp": "視点",
+        "vie": "quan điểm",
+        "en_pronunciation": "/vˈjuˌpɔɪnt/",
+        "laos_pronunciation": "aenuapak",
+        "jp_pronunciation": "shiten",
+        "vie_pronunciation": "quan diem"
+      },
+      "means": {
+        "en": "A mental position from which things are viewed",
+        "zh": "电视传输的可见部分"
+      }
+    },
+    {
+      "word": {
+        "en": "vigor",
+        "laos": "ຢອງສານ",
+        "jp": "活力",
+        "vie": "sức sống",
+        "en_pronunciation": "/ˈvɪgər/",
+        "laos_pronunciation": "yongsan",
+        "jp_pronunciation": "katsuryoku",
+        "vie_pronunciation": "suc song"
+      },
+      "means": {
+        "en": "Forceful exertion",
+        "zh": "一种看待情境或话题等的方式。"
+      }
+    },
+    {
+      "word": {
+        "en": "vigorous",
+        "laos": "ຢ່າງແຂງແຮງ",
+        "jp": "活発な",
+        "vie": "mạnh mẽ",
+        "en_pronunciation": "/ˈvɪgərəs/",
+        "laos_pronunciation": "yangaekhngaehng",
+        "jp_pronunciation": "kappatsu na",
+        "vie_pronunciation": "manh me"
+      },
+      "means": {
+        "en": "Characterized by forceful and energetic action or activity",
+        "zh": "看待事物的心理位置"
+      }
+    },
+    {
+      "word": {
+        "en": "village",
+        "laos": "ບ້ານ",
+        "jp": "村",
+        "vie": "làng",
+        "en_pronunciation": "/ˈvɪlɪʤ/",
+        "laos_pronunciation": "ban",
+        "jp_pronunciation": "mura",
+        "vie_pronunciation": "lang"
+      },
+      "means": {
+        "en": "A community of people smaller than a town",
+        "zh": "用力用力"
+      }
+    },
+    {
+      "word": {
+        "en": "villager",
+        "laos": "ຊາວບ້ານ",
+        "jp": "村人",
+        "vie": "dân làng",
+        "en_pronunciation": "/ˈvɪlɪʤər/",
+        "laos_pronunciation": "sauaban",
+        "jp_pronunciation": "murabito",
+        "vie_pronunciation": "dan lang"
+      },
+      "means": {
+        "en": "One who has lived in a village most of their life",
+        "zh": "以有力且充满活力的动作或活动为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "vinegar",
+        "laos": "ນ້ໍາສົ້ມ",
+        "jp": "酢",
+        "vie": "giấm",
+        "en_pronunciation": "/ˈvɪnəgər/",
+        "laos_pronunciation": "noasom",
+        "jp_pronunciation": "su",
+        "vie_pronunciation": "giam"
+      },
+      "means": {
+        "en": "Sour-tasting liquid produced usually by oxidation of the alcohol in wine or cider and used as a condiment or food preservative",
+        "zh": "比城镇还小的人们组成的社区"
+      }
+    },
+    {
+      "word": {
+        "en": "violate",
+        "laos": "ລ່ວງລ້ໍາ",
+        "jp": "違反する",
+        "vie": "vi phạm",
+        "en_pronunciation": "/ˈvaɪəleɪt/",
+        "laos_pronunciation": "luang loa",
+        "jp_pronunciation": "ihan suru",
+        "vie_pronunciation": "vi pham"
+      },
+      "means": {
+        "en": "Fail to agree with; be in violation of; as of rules or patterns",
+        "zh": "一生大部分时间都生活在村庄里的人"
+      }
+    },
+    {
+      "word": {
+        "en": "violation",
+        "laos": "ການລະເມີດ",
+        "jp": "違反",
+        "vie": "vi phạm",
+        "en_pronunciation": "/vaɪəˈleɪʃən/",
+        "laos_pronunciation": "kanlamoed",
+        "jp_pronunciation": "ihan",
+        "vie_pronunciation": "vi pham"
+      },
+      "means": {
+        "en": "A crime less serious than a felony",
+        "zh": "通常由葡萄酒或苹果酒中的酒精氧化产生的酸味液体，用作调味品或食品防腐剂"
+      }
+    },
+    {
+      "word": {
+        "en": "violent",
+        "laos": "ຮົນແຮງ",
+        "jp": "暴力的な",
+        "vie": "bạo lực",
+        "en_pronunciation": "/ˈvaɪələnt/",
+        "laos_pronunciation": "honaehng",
+        "jp_pronunciation": "bouryokuteki na",
+        "vie_pronunciation": "bao luc"
+      },
+      "means": {
+        "en": "Acting with or marked by or resulting from great force or energy or emotional intensity",
+        "zh": "不同意；"
+      }
+    },
+    {
+      "word": {
+        "en": "violence",
+        "laos": "ຄວາມຮຸນແຮງ",
+        "jp": "暴力",
+        "vie": "bạo lực",
+        "en_pronunciation": "/ˈvaɪələns/",
+        "laos_pronunciation": "khuaamhunaehng",
+        "jp_pronunciation": "bouryoku",
+        "vie_pronunciation": "bao luc"
+      },
+      "means": {
+        "en": "An act of aggression (as one against a person who resists)",
+        "zh": "违反；"
+      }
+    },
+    {
+      "word": {
+        "en": "violin",
+        "laos": "ຊໍຝຮັ່ງ",
+        "jp": "ヴァイオリン",
+        "vie": "violon",
+        "en_pronunciation": "/vaɪəˈlɪn/",
+        "laos_pronunciation": "sofhang",
+        "jp_pronunciation": "vaiorin",
+        "vie_pronunciation": "violon"
+      },
+      "means": {
+        "en": "Bowed stringed instrument that is the highest member of the violin family; this instrument has four strings and a hollow body and an unfretted fingerboard and is played with a bow",
+        "zh": "作为规则或模式"
+      }
+    },
+    {
+      "word": {
+        "en": "violinist",
+        "laos": "ໄວໂອລິນ",
+        "jp": "ヴァイオリニスト",
+        "vie": "nghệ sĩ vĩ cầm",
+        "en_pronunciation": "/vaɪəˈlɪnəst/",
+        "laos_pronunciation": "vai oolin",
+        "jp_pronunciation": "vaiorinisuto",
+        "vie_pronunciation": "nghe si vi cam"
+      },
+      "means": {
+        "en": "A musician who plays the violin",
+        "zh": "比重罪轻的犯罪"
+      }
+    },
+    {
+      "word": {
+        "en": "virgin",
+        "laos": "ບໍລິສຸດ",
+        "jp": "処女",
+        "vie": "trinh nữ",
+        "en_pronunciation": "/ˈvərʤɪn/",
+        "laos_pronunciation": "bolisud",
+        "jp_pronunciation": "shojo",
+        "vie_pronunciation": "trinh nu"
+      },
+      "means": {
+        "en": "A person who has never had sex",
+        "zh": "以巨大的力量、能量或情绪强度来行动，或以巨大的力量、能量或情绪强度为标志，或由其产生"
+      }
+    },
+    {
+      "word": {
+        "en": "virginity",
+        "laos": "ພົມມະຈາລີ",
+        "jp": "処女",
+        "vie": "trinh tiết",
+        "en_pronunciation": "/vərˈʤɪnɪti/",
+        "laos_pronunciation": "phomma chali",
+        "jp_pronunciation": "shojo",
+        "vie_pronunciation": "trinh tiet"
+      },
+      "means": {
+        "en": "The condition or quality of being a virgin",
+        "zh": "一种侵略行为（针对抵抗者）"
+      }
+    },
+    {
+      "word": {
+        "en": "virtual",
+        "laos": "ເສີນ",
+        "jp": "仮想",
+        "vie": "ảo",
+        "en_pronunciation": "/ˈvərʧuəl/",
+        "laos_pronunciation": "soen",
+        "jp_pronunciation": "kasou",
+        "vie_pronunciation": "ao"
+      },
+      "means": {
+        "en": "Being actually such in almost every respect",
+        "zh": "弓弦乐器是小提琴家族中最高的成员；"
+      }
+    },
+    {
+      "word": {
+        "en": "virtue",
+        "laos": "ນ້ໍາຄຸນ",
+        "jp": "美徳",
+        "vie": "đức hạnh",
+        "en_pronunciation": "/ˈvərʧu/",
+        "laos_pronunciation": "noakhun",
+        "jp_pronunciation": "bitoku",
+        "vie_pronunciation": "duc hanh"
+      },
+      "means": {
+        "en": "The quality of doing what is right and avoiding what is wrong",
+        "zh": "该乐器有四根弦、一个空心琴体和一个无品指板，用弓演奏"
+      }
+    },
+    {
+      "word": {
+        "en": "virtually",
+        "laos": "ຢ່າງໃດກໍຕາມ",
+        "jp": "事実上",
+        "vie": "hầu như",
+        "en_pronunciation": "/ˈvərʧuəli/",
+        "laos_pronunciation": "yangdaikotam",
+        "jp_pronunciation": "jijitsujou",
+        "vie_pronunciation": "hau nhu"
+      },
+      "means": {
+        "en": "In essence or effect but not in fact",
+        "zh": "拉小提琴的音乐家"
+      }
+    },
+    {
+      "word": {
+        "en": "virtuous",
+        "laos": "ມີບຸນ",
+        "jp": "高潔な",
+        "vie": "đạo đức",
+        "en_pronunciation": "/ˈvərʧuəs/",
+        "laos_pronunciation": "mibun",
+        "jp_pronunciation": "kouketsu na",
+        "vie_pronunciation": "dao duc"
+      },
+      "means": {
+        "en": "Morally excellent",
+        "zh": "一个从未发生过性行为的人"
+      }
+    },
+    {
+      "word": {
+        "en": "virus",
+        "laos": "​ໄວ​ຣັ​ສ",
+        "jp": "ウイルス",
+        "vie": "virus",
+        "en_pronunciation": "/ˈvaɪrəs/",
+        "laos_pronunciation": "vai ras",
+        "jp_pronunciation": "uirusu",
+        "vie_pronunciation": "virus"
+      },
+      "means": {
+        "en": "(virology) ultramicroscopic infectious agent that replicates itself only within cells of living hosts; many are pathogenic; a piece of nucleic acid (DNA or RNA) wrapped in a thin coat of protein",
+        "zh": "处女的条件或品质"
+      }
+    },
+    {
+      "word": {
+        "en": "visa",
+        "laos": "ວີຊາ",
+        "jp": "ビザ",
+        "vie": "thị thực",
+        "en_pronunciation": "/ˈvizə/",
+        "laos_pronunciation": "visa",
+        "jp_pronunciation": "biza",
+        "vie_pronunciation": "thi thuc"
+      },
+      "means": {
+        "en": "An endorsement made in a passport that allows the bearer to enter the country issuing it",
+        "zh": "事实上几乎在每个方面都是如此"
+      }
+    },
+    {
+      "word": {
+        "en": "visible",
+        "laos": "ເບິ່ງເຫັນໄດ້",
+        "jp": "見える",
+        "vie": "có thể nhìn thấy",
+        "en_pronunciation": "/ˈvɪzəbəl/",
+        "laos_pronunciation": "boenghendai",
+        "jp_pronunciation": "mie ru",
+        "vie_pronunciation": "co the nhin thay"
+      },
+      "means": {
+        "en": "Capable of being seen; or open to easy view",
+        "zh": "做正确的事、避免错误的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "visibility",
+        "laos": "ເນດໂຄຈອນ",
+        "jp": "可視性",
+        "vie": "khả năng hiển thị",
+        "en_pronunciation": "/ˌvɪzəˈbɪlɪti/",
+        "laos_pronunciation": "ned okhchon",
+        "jp_pronunciation": "kashisei",
+        "vie_pronunciation": "kha nang hien thi"
+      },
+      "means": {
+        "en": "Quality or fact or degree of being visible; perceptible by the eye or obvious to the eye",
+        "zh": "本质上或效果上但实际上并非如此"
+      }
+    },
+    {
+      "word": {
+        "en": "vision",
+        "laos": "ຈັກຂຸສັມພັດ",
+        "jp": "ビジョン",
+        "vie": "tầm nhìn",
+        "en_pronunciation": "/ˈvɪʒən/",
+        "laos_pronunciation": "chakkhu samphad",
+        "jp_pronunciation": "bijon",
+        "vie_pronunciation": "tam nhin"
+      },
+      "means": {
+        "en": "A vivid mental image",
+        "zh": "品德优秀"
+      }
+    },
+    {
+      "word": {
+        "en": "visionary",
+        "laos": "ວິໄສທັດ",
+        "jp": "先見の明のある",
+        "vie": "có tầm nhìn xa trông rộng",
+        "en_pronunciation": "/ˈvɪʒəˌnɛri/",
+        "laos_pronunciation": "visaithad",
+        "jp_pronunciation": "senkennomei noaru",
+        "vie_pronunciation": "co tam nhin xa trong rong"
+      },
+      "means": {
+        "en": "A person given to fanciful speculations and enthusiasms with little regard for what is actually possible",
+        "zh": "（病毒学）仅在活宿主细胞内自我复制的超微观传染原；"
+      }
+    },
+    {
+      "word": {
+        "en": "visit",
+        "laos": "ຢ້ຽມຢາມ",
+        "jp": "訪問",
+        "vie": "chuyến thăm",
+        "en_pronunciation": "/ˈvɪzɪt/",
+        "laos_pronunciation": "yiamyam",
+        "jp_pronunciation": "houmon",
+        "vie_pronunciation": "chuyen tham"
+      },
+      "means": {
+        "en": "The act of going to see some person or place or thing for a short time",
+        "zh": "许多是致病性的；"
+      }
+    },
+    {
+      "word": {
+        "en": "visitor",
+        "laos": "ຜູ້ເຂົ້າມາ",
+        "jp": "訪問者",
+        "vie": "du khách",
+        "en_pronunciation": "/ˈvɪzɪtər/",
+        "laos_pronunciation": "phukhaoma",
+        "jp_pronunciation": "houmonsha",
+        "vie_pronunciation": "du khach"
+      },
+      "means": {
+        "en": "Someone who visits",
+        "zh": "包裹在薄薄的蛋白质外壳中的一段核酸（DNA 或 RNA）"
+      }
+    },
+    {
+      "word": {
+        "en": "visual",
+        "laos": "ທີ່ເບິ່ງເຫັນ",
+        "jp": "ビジュアル",
+        "vie": "trực quan",
+        "en_pronunciation": "/ˈvɪʒəwəl/",
+        "laos_pronunciation": "thi boenghen",
+        "jp_pronunciation": "bijuaru",
+        "vie_pronunciation": "truc quan"
+      },
+      "means": {
+        "en": "Relating to or using sight",
+        "zh": "护照上的背书，允许持有人进入签发护照的国家"
+      }
+    },
+    {
+      "word": {
+        "en": "visualize",
+        "laos": "ນຶກເຫັນ",
+        "jp": "視覚化する",
+        "vie": "hình dung",
+        "en_pronunciation": "/ˈvɪʒwəˌlaɪz/",
+        "laos_pronunciation": "nukhen",
+        "jp_pronunciation": "shikakuka suru",
+        "vie_pronunciation": "hinh dung"
+      },
+      "means": {
+        "en": "Imagine; conceive of; see in one's mind",
+        "zh": "能够被看见；"
+      }
+    },
+    {
+      "word": {
+        "en": "visualise",
+        "laos": "ນຶກເຫັນ",
+        "jp": "視覚化する",
+        "vie": "hình dung",
+        "en_pronunciation": "/visualise/",
+        "laos_pronunciation": "nukhen",
+        "jp_pronunciation": "shikakuka suru",
+        "vie_pronunciation": "hinh dung"
+      },
+      "means": {
+        "en": "View the outline of by means of an X-ray",
+        "zh": "或打开以方便查看"
+      }
+    },
+    {
+      "word": {
+        "en": "vital",
+        "laos": "ສໍາຄັນ",
+        "jp": "重要な",
+        "vie": "quan trọng",
+        "en_pronunciation": "/ˈvaɪtəl/",
+        "laos_pronunciation": "soakhan",
+        "jp_pronunciation": "juuyouna",
+        "vie_pronunciation": "quan trong"
+      },
+      "means": {
+        "en": "Urgently needed; absolutely necessary",
+        "zh": "可见的质量或事实或程度；"
+      }
+    },
+    {
+      "word": {
+        "en": "vitality",
+        "laos": "ຄວາມສໍາຄັນ",
+        "jp": "活力",
+        "vie": "sức sống",
+        "en_pronunciation": "/vaɪˈtæləti/",
+        "laos_pronunciation": "khuaamsoakhan",
+        "jp_pronunciation": "katsuryoku",
+        "vie_pronunciation": "suc song"
+      },
+      "means": {
+        "en": "An energetic style",
+        "zh": "肉眼可察觉的或肉眼明显的"
+      }
+    },
+    {
+      "word": {
+        "en": "vitamin",
+        "laos": "ວິຕາມິນ",
+        "jp": "ビタミン",
+        "vie": "vitamin",
+        "en_pronunciation": "/ˈvaɪtəmən/",
+        "laos_pronunciation": "vitamin",
+        "jp_pronunciation": "bitamin",
+        "vie_pronunciation": "vitamin"
+      },
+      "means": {
+        "en": "Any of a group of organic substances essential in small quantities to normal metabolism",
+        "zh": "生动的心理形象"
+      }
+    },
+    {
+      "word": {
+        "en": "vivid",
+        "laos": "ແຈ່ມໃສ",
+        "jp": "鮮やかな",
+        "vie": "sống động",
+        "en_pronunciation": "/ˈvɪvɪd/",
+        "laos_pronunciation": "aechmsai",
+        "jp_pronunciation": "sen yakana",
+        "vie_pronunciation": "song dong"
+      },
+      "means": {
+        "en": "Evoking lifelike images within the mind",
+        "zh": "热衷于异想天开的猜测和热情，很少考虑实际可能性的人"
+      }
+    },
+    {
+      "word": {
+        "en": "vocabulary",
+        "laos": "ຄໍາສັບ",
+        "jp": "語彙",
+        "vie": "từ vựng",
+        "en_pronunciation": "/voʊˈkæbjəˌlɛri/",
+        "laos_pronunciation": "khoasab",
+        "jp_pronunciation": "goi",
+        "vie_pronunciation": "tu vung"
+      },
+      "means": {
+        "en": "A listing of the words used in some enterprise",
+        "zh": "短期去看某人、某个地方或某件事的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "vocal",
+        "laos": "ສຽງຮ້ອງ",
+        "jp": "ボーカル",
+        "vie": "phát âm",
+        "en_pronunciation": "/ˈvoʊkəl/",
+        "laos_pronunciation": "sianghong",
+        "jp_pronunciation": "bookaru",
+        "vie_pronunciation": "phat am"
+      },
+      "means": {
+        "en": "Music intended to be performed by one or more singers, usually with instrumental accompaniment",
+        "zh": "来访的人"
+      }
+    },
+    {
+      "word": {
+        "en": "vocation",
+        "laos": "ອາຊີບ",
+        "jp": "職業",
+        "vie": "ơn gọi",
+        "en_pronunciation": "/voʊˈkeɪʃən/",
+        "laos_pronunciation": "asib",
+        "jp_pronunciation": "shokugyou",
+        "vie_pronunciation": "on goi"
+      },
+      "means": {
+        "en": "The particular occupation for which you are trained",
+        "zh": "与视觉有关或使用视觉"
+      }
+    },
+    {
+      "word": {
+        "en": "vocational",
+        "laos": "ວິຊາຊີບ",
+        "jp": "職業的な",
+        "vie": "nghề nghiệp",
+        "en_pronunciation": "/voʊˈkeɪʃənəl/",
+        "laos_pronunciation": "visasib",
+        "jp_pronunciation": "shokugyouteki na",
+        "vie_pronunciation": "nghe nghiep"
+      },
+      "means": {
+        "en": "Of or relating to a vocation or occupation; especially providing or undergoing training in special skills",
+        "zh": "想象一下；"
+      }
+    },
+    {
+      "word": {
+        "en": "vogue",
+        "laos": "ວາອາມະຈັນ",
+        "jp": "流行",
+        "vie": "thịnh hành",
+        "en_pronunciation": "/voʊg/",
+        "laos_pronunciation": "va amachan",
+        "jp_pronunciation": "ryuukou",
+        "vie_pronunciation": "thinh hanh"
+      },
+      "means": {
+        "en": "The popular taste at a given time",
+        "zh": "设想；"
+      }
+    },
+    {
+      "word": {
+        "en": "voice",
+        "laos": "ສຽງ",
+        "jp": "声",
+        "vie": "giọng nói",
+        "en_pronunciation": "/vɔɪs/",
+        "laos_pronunciation": "siang",
+        "jp_pronunciation": "koe",
+        "vie_pronunciation": "giong noi"
+      },
+      "means": {
+        "en": "The distinctive quality or pitch or condition of a person's speech",
+        "zh": "心中所见"
+      }
+    },
+    {
+      "word": {
+        "en": "void",
+        "laos": "ໂມຄະ",
+        "jp": "空虚",
+        "vie": "trống rỗng",
+        "en_pronunciation": "/vɔɪd/",
+        "laos_pronunciation": "omkha",
+        "jp_pronunciation": "kuukyo",
+        "vie_pronunciation": "trong rong"
+      },
+      "means": {
+        "en": "The state of nonexistence",
+        "zh": "通过 X 射线查看轮廓"
+      }
+    },
+    {
+      "word": {
+        "en": "volatile",
+        "laos": "ການຜັນຜວນ",
+        "jp": "揮発性の",
+        "vie": "dễ bay hơi",
+        "en_pronunciation": "/ˈvɑlətəl/",
+        "laos_pronunciation": "kan phan phuan",
+        "jp_pronunciation": "kihatsusei no",
+        "vie_pronunciation": "de bay hoi"
+      },
+      "means": {
+        "en": "A volatile substance; a substance that changes readily from solid or liquid to a vapor",
+        "zh": "急需；"
+      }
+    },
+    {
+      "word": {
+        "en": "volatility",
+        "laos": "ການເຫນັງຕີງ",
+        "jp": "ボラティリティ",
+        "vie": "sự biến động",
+        "en_pronunciation": "/ˌvɑləˈtɪləti/",
+        "laos_pronunciation": "kanhenangting",
+        "jp_pronunciation": "borateiritei",
+        "vie_pronunciation": "su bien dong"
+      },
+      "means": {
+        "en": "The property of changing readily from a solid or liquid to a vapor",
+        "zh": "绝对必要"
+      }
+    },
+    {
+      "word": {
+        "en": "volcano",
+        "laos": "ພູເຂົາໄຟ",
+        "jp": "火山",
+        "vie": "núi lửa",
+        "en_pronunciation": "/vɑlˈkeɪnoʊ/",
+        "laos_pronunciation": "phukhaofai",
+        "jp_pronunciation": "kazan",
+        "vie_pronunciation": "nui lua"
+      },
+      "means": {
+        "en": "A fissure in the earth's crust (or in the surface of some other planet) through which molten lava and gases erupt",
+        "zh": "充满活力的风格"
+      }
+    },
+    {
+      "word": {
+        "en": "volcanic",
+        "laos": "ພູເຂົາໄຟຟ້າ",
+        "jp": "火山性の",
+        "vie": "núi lửa",
+        "en_pronunciation": "/vɑlˈkænɪk/",
+        "laos_pronunciation": "phukhaofaifa",
+        "jp_pronunciation": "kazan sei no",
+        "vie_pronunciation": "nui lua"
+      },
+      "means": {
+        "en": "Relating to or produced by or consisting of volcanoes",
+        "zh": "正常新陈代谢所必需的少量有机物质中的任何一种"
+      }
+    },
+    {
+      "word": {
+        "en": "volleyball",
+        "laos": "ບານສົ່ງ",
+        "jp": "バレーボール",
+        "vie": "bóng chuyền",
+        "en_pronunciation": "/ˈvɑliˌbɔl/",
+        "laos_pronunciation": "bansong",
+        "jp_pronunciation": "bareebooru",
+        "vie_pronunciation": "bong chuyen"
+      },
+      "means": {
+        "en": "A game in which two teams hit an inflated ball over a high net using their hands",
+        "zh": "在脑海中唤起栩栩如生的图像"
+      }
+    },
+    {
+      "word": {
+        "en": "volt",
+        "laos": "ໂວລ",
+        "jp": "ボルト",
+        "vie": "vôn",
+        "en_pronunciation": "/voʊlt/",
+        "laos_pronunciation": "oual",
+        "jp_pronunciation": "boruto",
+        "vie_pronunciation": "von"
+      },
+      "means": {
+        "en": "A unit of potential equal to the potential difference between two points on a conductor carrying a current of 1 ampere when the power dissipated between the two points is 1 watt; equivalent to the potential difference across a resistance of 1 ohm when 1 ampere of current flows through it",
+        "zh": "某企业用词一览表"
+      }
+    },
+    {
+      "word": {
+        "en": "voltage",
+        "laos": "ແຮງຈິດໃຈ",
+        "jp": "電圧",
+        "vie": "điện áp",
+        "en_pronunciation": "/ˈvoʊltɪʤ/",
+        "laos_pronunciation": "aehngchidchai",
+        "jp_pronunciation": "den'atsu",
+        "vie_pronunciation": "dien ap"
+      },
+      "means": {
+        "en": "The rate at which energy is drawn from a source that produces a flow of electricity in a circuit; expressed in volts",
+        "zh": "由一名或多名歌手演奏的音乐，通常有乐器伴奏"
+      }
+    },
+    {
+      "word": {
+        "en": "volume",
+        "laos": "ປະລິມານ",
+        "jp": "ボリューム",
+        "vie": "khối lượng",
+        "en_pronunciation": "/ˈvɑljum/",
+        "laos_pronunciation": "paliman",
+        "jp_pronunciation": "boryuumu",
+        "vie_pronunciation": "khoi luong"
+      },
+      "means": {
+        "en": "The amount of 3-dimensional space occupied by an object",
+        "zh": "您接受培训的特定职业"
+      }
+    },
+    {
+      "word": {
+        "en": "voluminous",
+        "laos": "ແຮງກິງຕ່ໍາ",
+        "jp": "ボリュームのある",
+        "vie": "đồ sộ",
+        "en_pronunciation": "/vəˈlumənəs/",
+        "laos_pronunciation": "aehng kingtoa",
+        "jp_pronunciation": "boryuumu noaru",
+        "vie_pronunciation": "do so"
+      },
+      "means": {
+        "en": "Large in volume or bulk",
+        "zh": "属于或与职业或职业相关的；"
+      }
+    },
+    {
+      "word": {
+        "en": "volunteer",
+        "laos": "ອາສາສະຫມັກ",
+        "jp": "ボランティア",
+        "vie": "tình nguyện viên",
+        "en_pronunciation": "/ˌvɑlənˈtɪr/",
+        "laos_pronunciation": "asasamak",
+        "jp_pronunciation": "boranteia",
+        "vie_pronunciation": "tinh nguyen vien"
+      },
+      "means": {
+        "en": "(military) a person who freely enlists for service",
+        "zh": "特别是提供或接受特殊技能培训"
+      }
+    },
+    {
+      "word": {
+        "en": "voluntary",
+        "laos": "ຄວາມສະຫມັກໃຈ",
+        "jp": "自発的な",
+        "vie": "tự nguyện",
+        "en_pronunciation": "/ˈvɑləntɛri/",
+        "laos_pronunciation": "khuaam samakchai",
+        "jp_pronunciation": "jihatsuteki na",
+        "vie_pronunciation": "tu nguyen"
+      },
+      "means": {
+        "en": "(military) a person who freely enlists for service",
+        "zh": "特定时期流行的口味"
+      }
+    },
+    {
+      "word": {
+        "en": "vote",
+        "laos": "ລົງຄະແນນສຽງ",
+        "jp": "投票する",
+        "vie": "bỏ phiếu",
+        "en_pronunciation": "/voʊt/",
+        "laos_pronunciation": "longkhaaennsiang",
+        "jp_pronunciation": "touhyou suru",
+        "vie_pronunciation": "bo phieu"
+      },
+      "means": {
+        "en": "A choice that is made by counting the number of people in favor of each alternative",
+        "zh": "一个人讲话的独特品质、音调或状态"
+      }
+    },
+    {
+      "word": {
+        "en": "voter",
+        "laos": "ຜູ້ລົງຄະແນນ",
+        "jp": "有権者",
+        "vie": "cử tri",
+        "en_pronunciation": "/ˈvoʊtər/",
+        "laos_pronunciation": "phu longkhaaenn",
+        "jp_pronunciation": "yuukensha",
+        "vie_pronunciation": "cu tri"
+      },
+      "means": {
+        "en": "A citizen who has a legal right to vote",
+        "zh": "不存在的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "voucher",
+        "laos": "ຈ່າປ່ານ",
+        "jp": "バウチャー",
+        "vie": "chứng từ",
+        "en_pronunciation": "/ˈvaʊʧər/",
+        "laos_pronunciation": "chapan",
+        "jp_pronunciation": "bauchaa",
+        "vie_pronunciation": "chung tu"
+      },
+      "means": {
+        "en": "Someone who vouches for another or for the correctness of a statement",
+        "zh": "挥发性物质；"
+      }
+    },
+    {
+      "word": {
+        "en": "vow",
+        "laos": "ປະຕິສະຍາ",
+        "jp": "誓い",
+        "vie": "lời thề",
+        "en_pronunciation": "/vaʊ/",
+        "laos_pronunciation": "pati sanya",
+        "jp_pronunciation": "chikai",
+        "vie_pronunciation": "loi the"
+      },
+      "means": {
+        "en": "A solemn pledge (to oneself or to another or to a deity) to do something or to behave in a certain manner",
+        "zh": "容易从固体或液体转变为蒸气的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "voyage",
+        "laos": "ການເດີນທາງ",
+        "jp": "航海",
+        "vie": "chuyến đi",
+        "en_pronunciation": "/vɔɪəʤ/",
+        "laos_pronunciation": "kandoenthang",
+        "jp_pronunciation": "koukai",
+        "vie_pronunciation": "chuyen di"
+      },
+      "means": {
+        "en": "An act of traveling by water",
+        "zh": "容易从固体或液体转变为蒸气的性质"
+      }
+    },
+    {
+      "word": {
+        "en": "vulgar",
+        "laos": "ຫຢາບຄາຢ",
+        "jp": "下品な",
+        "vie": "thô tục",
+        "en_pronunciation": "/ˈvəlgər/",
+        "laos_pronunciation": "hyab khay",
+        "jp_pronunciation": "gehin na",
+        "vie_pronunciation": "tho tuc"
+      },
+      "means": {
+        "en": "Lacking refinement or cultivation or taste",
+        "zh": "地壳（或其他行星表面）的裂缝，熔岩和气体通过该裂缝喷发"
+      }
+    },
+    {
+      "word": {
+        "en": "vulnerable",
+        "laos": "ທີ່ມີຄວາມສ່ຽງ",
+        "jp": "脆弱な",
+        "vie": "dễ bị tổn thương",
+        "en_pronunciation": "/ˈvəlnərəbəl/",
+        "laos_pronunciation": "thimikhuaamsiang",
+        "jp_pronunciation": "zeijaku na",
+        "vie_pronunciation": "de bi ton thuong"
+      },
+      "means": {
+        "en": "Susceptible to attack",
+        "zh": "与火山有关、由火山产生或由火山组成"
+      }
+    },
+    {
+      "word": {
+        "en": "vulnerability",
+        "laos": "ຄວາມສ່ຽງ",
+        "jp": "脆弱性",
+        "vie": "tính dễ bị tổn thương",
+        "en_pronunciation": "/ˌvəlnərəˈbɪlɪti/",
+        "laos_pronunciation": "khuaamsiang",
+        "jp_pronunciation": "zeijaku sei",
+        "vie_pronunciation": "tinh de bi ton thuong"
+      },
+      "means": {
+        "en": "The state of being vulnerable or exposed",
+        "zh": "两队用手将充气球击过高网的比赛"
+      }
+    },
+    {
+      "word": {
+        "en": "wage",
+        "laos": "ຄ່າຈ້າງ",
+        "jp": "賃金",
+        "vie": "tiền lương",
+        "en_pronunciation": "/weɪʤ/",
+        "laos_pronunciation": "khachang",
+        "jp_pronunciation": "chingin",
+        "vie_pronunciation": "tien luong"
+      },
+      "means": {
+        "en": "Something that remunerates",
+        "zh": "电势单位，等于载有 1 安培电流的导体上两点之间的电势差，此时两点之间消耗的功率为 1 瓦；"
+      }
+    },
+    {
+      "word": {
+        "en": "wagon",
+        "laos": "ລົດກະບະ",
+        "jp": "ワゴン",
+        "vie": "toa xe",
+        "en_pronunciation": "/ˈwægən/",
+        "laos_pronunciation": "lodkaba",
+        "jp_pronunciation": "wagon",
+        "vie_pronunciation": "toa xe"
+      },
+      "means": {
+        "en": "Any of various kinds of wheeled vehicles drawn by an animal or a tractor",
+        "zh": "相当于1安培电流流过1欧姆电阻时的电位差"
+      }
+    },
+    {
+      "word": {
+        "en": "waggon",
+        "laos": "ວັງຈະ",
+        "jp": "ワゴン",
+        "vie": "xe chở hàng",
+        "en_pronunciation": "/waggon/",
+        "laos_pronunciation": "vangcha",
+        "jp_pronunciation": "wagon",
+        "vie_pronunciation": "xe cho hang"
+      },
+      "means": {
+        "en": "Any of various kinds of wheeled vehicles drawn by an animal or a tractor",
+        "zh": "从在电路中产生电流的源获取能量的速率；"
+      }
+    },
+    {
+      "word": {
+        "en": "waist",
+        "laos": "ແອວ",
+        "jp": "ウエスト",
+        "vie": "eo",
+        "en_pronunciation": "/weɪst/",
+        "laos_pronunciation": "aeov",
+        "jp_pronunciation": "uesuto",
+        "vie_pronunciation": "eo"
+      },
+      "means": {
+        "en": "The narrowing of the body between the ribs and hips",
+        "zh": "以伏特表示"
+      }
+    },
+    {
+      "word": {
+        "en": "wait",
+        "laos": "ລໍຖ້າ",
+        "jp": "待ってください",
+        "vie": "chờ đã",
+        "en_pronunciation": "/weɪt/",
+        "laos_pronunciation": "lotha",
+        "jp_pronunciation": "matsu tekudasai",
+        "vie_pronunciation": "cho da"
+      },
+      "means": {
+        "en": "Time during which some action is awaited",
+        "zh": "物体所占据的 3 维空间量"
+      }
+    },
+    {
+      "word": {
+        "en": "waiter",
+        "laos": "ຜູ້ຢິງອາໄສກິນເຂົ້າ",
+        "jp": "ウェイター",
+        "vie": "bồi bàn",
+        "en_pronunciation": "/ˈweɪtər/",
+        "laos_pronunciation": "phu ying asaikinkhao",
+        "jp_pronunciation": "ueitaa",
+        "vie_pronunciation": "boi ban"
+      },
+      "means": {
+        "en": "A person whose occupation is to serve at table (as in a restaurant)",
+        "zh": "体积大或体积大"
+      }
+    },
+    {
+      "word": {
+        "en": "waitress",
+        "laos": "ຜູ້ຢິງຮັບໃຊ້",
+        "jp": "ウェイトレス",
+        "vie": "cô hầu bàn",
+        "en_pronunciation": "/ˈweɪtrəs/",
+        "laos_pronunciation": "phu yinghabsai",
+        "jp_pronunciation": "ueitoresu",
+        "vie_pronunciation": "co hau ban"
+      },
+      "means": {
+        "en": "A woman waiter",
+        "zh": "（军事）自由入伍服役的人"
+      }
+    },
+    {
+      "word": {
+        "en": "waive",
+        "laos": "ຍົກ",
+        "jp": "放棄する",
+        "vie": "từ bỏ",
+        "en_pronunciation": "/weɪv/",
+        "laos_pronunciation": "nyok",
+        "jp_pronunciation": "houki suru",
+        "vie_pronunciation": "tu bo"
+      },
+      "means": {
+        "en": "Do without or cease to hold or adhere to",
+        "zh": "（军事）自由入伍服役的人"
+      }
+    },
+    {
+      "word": {
+        "en": "waiver",
+        "laos": "ການຍົກເວັ້ນ",
+        "jp": "権利放棄",
+        "vie": "sự từ bỏ",
+        "en_pronunciation": "/ˈweɪvər/",
+        "laos_pronunciation": "kannyokuaen",
+        "jp_pronunciation": "kenrihouki",
+        "vie_pronunciation": "su tu bo"
+      },
+      "means": {
+        "en": "A formal written statement of relinquishment",
+        "zh": "通过计算支持每个选项的人数来做出选择"
+      }
+    },
+    {
+      "word": {
+        "en": "wake",
+        "laos": "ຕື່ນ",
+        "jp": "目を覚ます",
+        "vie": "thức dậy",
+        "en_pronunciation": "/weɪk/",
+        "laos_pronunciation": "tun",
+        "jp_pronunciation": "me wo sama su",
+        "vie_pronunciation": "thuc day"
+      },
+      "means": {
+        "en": "The consequences of an event (especially a catastrophic event)",
+        "zh": "具有合法投票权的公民"
+      }
+    },
+    {
+      "word": {
+        "en": "waken",
+        "laos": "ຕື່ນ",
+        "jp": "目を覚ます",
+        "vie": "đánh thức",
+        "en_pronunciation": "/ˈweɪkən/",
+        "laos_pronunciation": "tun",
+        "jp_pronunciation": "me wo sama su",
+        "vie_pronunciation": "danh thuc"
+      },
+      "means": {
+        "en": "Cause to become awake or conscious",
+        "zh": "为他人或某项陈述的正确性提供担保的人"
+      }
+    },
+    {
+      "word": {
+        "en": "walk",
+        "laos": "ຍ່າງໄປ",
+        "jp": "歩く",
+        "vie": "đi bộ",
+        "en_pronunciation": "/wɔk/",
+        "laos_pronunciation": "nyangpai",
+        "jp_pronunciation": "aruku",
+        "vie_pronunciation": "di bo"
+      },
+      "means": {
+        "en": "The act of traveling by foot",
+        "zh": "（对自己、他人或神灵）做某事或以某种方式行事的庄严承诺"
+      }
+    },
+    {
+      "word": {
+        "en": "wall",
+        "laos": "ຝາ",
+        "jp": "壁",
+        "vie": "bức tường",
+        "en_pronunciation": "/wɔl/",
+        "laos_pronunciation": "fa",
+        "jp_pronunciation": "kabe",
+        "vie_pronunciation": "buc tuong"
+      },
+      "means": {
+        "en": "An architectural partition with a height and length greater than its thickness; used to divide or enclose an area or to support another structure",
+        "zh": "水上旅行的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "wallet",
+        "laos": "ກະເປົາເງິນ",
+        "jp": "財布",
+        "vie": "ví",
+        "en_pronunciation": "/ˈwɔlət/",
+        "laos_pronunciation": "kapaongoen",
+        "jp_pronunciation": "saifu",
+        "vie_pronunciation": "vi"
+      },
+      "means": {
+        "en": "A pocket-size case for holding papers and paper money",
+        "zh": "缺乏修养或修养或品味"
+      }
+    }
+  ]
+}
