@@ -192,12 +192,25 @@ configure_pnpm_global_dirs() {
         echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin"
     fi
 
+    # Save pnpm global bin directory to global variables
+    local pnpm_global_bin_final=$(pnpm config get global-bin-dir 2>/dev/null)
+    if [ -n "$pnpm_global_bin_final" ]; then
+        set_var "PNPM_GLOBAL_BIN_DIR" "$pnpm_global_bin_final"
+        echo "[$SCRIPT_INDEX] Saved PNPM_GLOBAL_BIN_DIR to global vars: $pnpm_global_bin_final"
+    fi
+
     # Ensure PATH is set (using common function)
     echo "[$SCRIPT_INDEX] Ensuring pnpm paths are in PATH..."
     if ensure_pnpm_path_from_common_functions; then
         echo "[$SCRIPT_INDEX] pnpm paths configured in PATH"
     else
         echo "[$SCRIPT_INDEX] Warning: Could not configure pnpm paths"
+    fi
+
+    # Export PATH for current session
+    if [ -n "$pnpm_global_bin_final" ]; then
+        export PATH="$pnpm_global_bin_final:$PATH"
+        echo "[$SCRIPT_INDEX] Added pnpm global bin to current session PATH"
     fi
 }
 
