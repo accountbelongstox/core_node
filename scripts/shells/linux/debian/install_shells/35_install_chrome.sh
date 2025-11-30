@@ -26,7 +26,7 @@ source "$PARENT_DIR_LEVEL_1/debian_com/repository_manager.sh"
 # Declare variables
 INSTALL_CHROME=$(get_var "INSTALL_CHROME")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
-CHROME_INSTALL_METHOD=$(get_var "CHROME_INSTALL_METHOD" "apt")
+CHROME_INSTALL_METHOD=$(get_var "CHROME_INSTALL_METHOD" "snap")  # Changed default to snap
 CHROME_INSTALL_DIR=""
 CHROME_BIN_PATH=""
 CHROME_VERSION=""
@@ -82,39 +82,62 @@ verify_chrome_repo_for_install() {
     return 1
 }
 
-# Function to install Chrome via APT
+# Function to install Chrome via APT (using .deb package from Downloads or direct download)
 install_chrome_apt() {
     echo "[$SCRIPT_INDEX] Installing Chrome via APT package manager..."
-    
-    # Add Google Chrome repository if not already added
-    if ! verify_chrome_repo_for_install; then
-        echo "[$SCRIPT_INDEX] Adding Google Chrome repository..."
-        
-        # Download and add Google Chrome signing key
-        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | $USE_SUDO apt-key add -
-        
-        # Add Google Chrome repository
-        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | $USE_SUDO tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
-        
-        # Update package list
-        $USE_SUDO apt update
+
+    # Try to find Chrome .deb in Downloads directories first
+    echo "[$SCRIPT_INDEX] Searching for Chrome .deb in Downloads directories..."
+    local chrome_deb=$(find_file_in_downloads_from_common_functions "google-chrome-stable*.deb" "newest")
+
+    if [[ -z "$chrome_deb" ]]; then
+        echo "[$SCRIPT_INDEX] No Chrome .deb found in Downloads, downloading directly..."
+
+        # Download Chrome package
+        local chrome_package="/tmp/google-chrome-stable_current_amd64.deb"
+        echo "[$SCRIPT_INDEX] Downloading Chrome package..."
+        if wget -q -O "$chrome_package" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
+            chrome_deb="$chrome_package"
+            echo "[$SCRIPT_INDEX] Chrome package downloaded to: $chrome_deb"
+        else
+            echo "[$SCRIPT_INDEX] Failed to download Chrome package automatically"
+            echo "[$SCRIPT_INDEX] Please download manually from: https://www.google.com/chrome/"
+
+            # Prompt user to download manually
+            chrome_deb=$(prompt_and_wait_for_download_from_common_functions \
+                "https://www.google.com/chrome/" \
+                "google-chrome-stable*.deb" \
+                0)
+
+            if [[ -z "$chrome_deb" ]]; then
+                echo "[$SCRIPT_INDEX] Failed to find Chrome package"
+                return 1
+            fi
+        fi
     else
-        echo "[$SCRIPT_INDEX] Installing Chrome from pre-configured repository..."
-        # Update package list
-        $USE_SUDO apt update
+        echo "[$SCRIPT_INDEX] Found Chrome .deb: $chrome_deb"
     fi
-    
-    # Install Chrome
-    $USE_SUDO apt install -y google-chrome-stable
-    
+
+    # Install the package
+    echo "[$SCRIPT_INDEX] Installing Chrome from: $chrome_deb"
+    $USE_SUDO dpkg -i "$chrome_deb"
+
+    # Fix any dependency issues
+    $USE_SUDO apt-get install -f -y
+
+    # Clean up temporary file if we downloaded it
+    if [[ "$chrome_deb" == "/tmp/google-chrome-stable_current_amd64.deb" ]]; then
+        rm -f "$chrome_deb"
+    fi
+
     # Verify installation
     if command -v google-chrome &> /dev/null; then
         CHROME_BIN_PATH=$(which google-chrome)
         CHROME_VERSION=$(google-chrome --version 2>/dev/null || echo "unknown")
-        echo "[$SCRIPT_INDEX] Chrome installed successfully via APT"
+        echo "[$SCRIPT_INDEX] Chrome installed successfully"
         return 0
     else
-        echo "[$SCRIPT_INDEX] Failed to install Chrome via APT"
+        echo "[$SCRIPT_INDEX] Failed to install Chrome"
         return 1
     fi
 }
@@ -302,13 +325,7 @@ kill_chrome_processes() {
 }
 
 # Main installation logic
-# Check repository status before proceeding (only when installing)
-if [ "$INSTALL_CHROME" = "true" ]; then
-    if ! verify_chrome_repo_for_install; then
-        echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
-        exit 1
-    fi
-fi
+# No longer need to check repository status as we download .deb directly
 
 if [ "$INSTALL_CHROME" = "false" ]; then
     echo "[$SCRIPT_INDEX] INSTALL_CHROME is false - Chrome should be removed"
@@ -386,10 +403,10 @@ else
             fi
             ;;
         "auto")
-            # Try all methods in order
-            if install_chrome_apt; then
+            # Try all methods in order (snap first as preferred)
+            if install_chrome_snap; then
                 installation_success=true
-            elif install_chrome_snap; then
+            elif install_chrome_apt; then
                 installation_success=true
             elif install_chrome_flatpak; then
                 installation_success=true
