@@ -11,6 +11,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Declare all variables at the beginning
+SCRIPT_CURRENT_DIR=""
+PARENT_DIR_LEVEL_1=""
+PARENT_DIR_LEVEL_2=""
+POETRY_VENV_DIR=""
+POETRY_BIN=""
+
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -22,231 +29,118 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Source shared Python setup function
 source "$PARENT_DIR_LEVEL_1/debian_com/shared_python_setup.sh"
 
-# Declare all variables at the beginning
-POETRY_HOME="/usr/local/poetry"
-POETRY_BINARY="$POETRY_HOME/bin/poetry"
-POETRY_LINK="/usr/local/bin/poetry"
+# Set poetry venv directory from COMPILE_DIR
+POETRY_VENV_DIR="$COMPILE_DIR/poetry_venv"
+POETRY_BIN="$POETRY_VENV_DIR/bin/poetry"
 
-echo "POETRY_HOME: $POETRY_HOME"
-echo "POETRY_BINARY: $POETRY_BINARY"
-echo "POETRY_LINK: $POETRY_LINK"
+echo "COMPILE_DIR: $COMPILE_DIR"
+echo "POETRY_VENV_DIR: $POETRY_VENV_DIR"
+echo "POETRY_BIN: $POETRY_BIN"
 
 # Function to check if poetry is installed and working
 check_poetry() {
-    if command -v poetry >/dev/null 2>&1; then
-        echo "Poetry is installed: $(poetry --version 2>/dev/null || echo 'version unknown')"
-        return 0
-    elif [ -x "$POETRY_BINARY" ]; then
-        echo "Poetry binary found at $POETRY_BINARY"
+    if [ -f "$POETRY_BIN" ] && [ -x "$POETRY_BIN" ]; then
+        echo "Poetry binary found at: $POETRY_BIN"
+        echo "Poetry version: $("$POETRY_BIN" --version 2>/dev/null || echo 'version unknown')"
         return 0
     fi
     echo "Poetry not found"
     return 1
 }
 
-# Function to install poetry using pipx (preferred method for Python 3.12+)
-install_poetry_via_pipx() {
-    echo "Installing Poetry using pipx (recommended for Python 3.12+)..."
+# Function to install poetry in uv venv
+install_poetry_in_uv_venv() {
+    echo "Installing Poetry in uv virtual environment..."
 
-    # Check if pipx is available
-    if ! command -v pipx >/dev/null 2>&1; then
-        echo "pipx not found, installing pipx first..."
-        if ! python3 -m pip install --user pipx 2>&1 | tail -20; then
-            echo "Failed to install pipx via pip"
+    # Check if uv is available
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "Error: uv not found. Please install uv first (script 18_install_uv.sh)"
+        return 1
+    fi
+
+    # Ensure COMPILE_DIR exists
+    if [ ! -d "$COMPILE_DIR" ]; then
+        echo "Creating compile directory: $COMPILE_DIR"
+        $USE_SUDO mkdir -p "$COMPILE_DIR"
+        $USE_SUDO chmod 755 "$COMPILE_DIR"
+    fi
+
+    # Create venv if it doesn't exist
+    if [ ! -d "$POETRY_VENV_DIR" ]; then
+        echo "Creating poetry virtual environment using uv: $POETRY_VENV_DIR"
+        if uv venv "$POETRY_VENV_DIR"; then
+            echo "Virtual environment created successfully"
+        else
+            echo "Failed to create virtual environment"
             return 1
         fi
-
-        # Ensure pipx is in PATH
-        python3 -m pipx ensurepath 2>/dev/null || true
-        export PATH="$HOME/.local/bin:$PATH"
-
-        # Verify pipx installation
-        if ! command -v pipx >/dev/null 2>&1; then
-            echo "pipx installed but not in PATH, trying direct python module invocation..."
-            if ! python3 -m pipx --version >/dev/null 2>&1; then
-                echo "Failed to verify pipx installation"
-                return 1
-            fi
-            # Use python3 -m pipx instead of pipx command
-            alias pipx='python3 -m pipx'
-        fi
-    fi
-
-    echo "Installing Poetry via pipx..."
-    if command -v pipx >/dev/null 2>&1; then
-        $USE_SUDO PIPX_HOME="$POETRY_HOME" PIPX_BIN_DIR="$POETRY_HOME/bin" pipx install poetry 2>&1 | tail -20
     else
-        $USE_SUDO PIPX_HOME="$POETRY_HOME" PIPX_BIN_DIR="$POETRY_HOME/bin" python3 -m pipx install poetry 2>&1 | tail -20
+        echo "Virtual environment already exists at: $POETRY_VENV_DIR"
     fi
 
-    if [ $? -eq 0 ]; then
-        echo "Poetry installed successfully via pipx"
-        return 0
+    # Install poetry in the venv using uv
+    echo "Installing poetry using uv..."
+    if uv pip install --python "$POETRY_VENV_DIR/bin/python3" poetry; then
+        echo "Poetry installed successfully in venv"
     else
-        echo "Failed to install Poetry via pipx"
+        echo "Failed to install poetry in venv"
         return 1
     fi
+
+    # Verify poetry binary exists
+    if [ ! -f "$POETRY_BIN" ]; then
+        echo "Error: poetry binary not found at: $POETRY_BIN"
+        return 1
+    fi
+
+    echo "Poetry installed successfully in uv venv"
+    return 0
 }
 
-# Function to install poetry using pip (fallback method)
-install_poetry_via_pip() {
-    echo "Installing Poetry using pip (fallback method)..."
+# Function to setup poetry symlink with correctness detection
+setup_poetry_symlink() {
+    echo "Setting up Poetry symlink..."
 
-    # Upgrade pip first to ensure compatibility with Python 3.12
-    echo "Upgrading pip to latest version..."
-    python3 -m pip install --upgrade pip 2>&1 | tail -10 || echo "pip upgrade completed with warnings"
+    if [ ! -f "$POETRY_BIN" ]; then
+        echo "Error: poetry binary not found at: $POETRY_BIN"
+        return 1
+    fi
 
-    # Install poetry using pip
-    echo "Installing Poetry..."
-    if $USE_SUDO python3 -m pip install --target="$POETRY_HOME" poetry 2>&1 | tail -20; then
-        echo "Poetry installed successfully via pip"
+    # Check if symlink exists and verify its correctness
+    if [ -e "/usr/local/bin/poetry" ]; then
+        local current_target=$(readlink -f "/usr/local/bin/poetry" 2>/dev/null || echo "")
+        local expected_target=$(readlink -f "$POETRY_BIN" 2>/dev/null || echo "$POETRY_BIN")
 
-        # Create wrapper script
-        $USE_SUDO mkdir -p "$POETRY_HOME/bin"
-        $USE_SUDO tee "$POETRY_BINARY" > /dev/null << 'EOF'
-#!/bin/bash
-export PYTHONPATH="/usr/local/poetry:$PYTHONPATH"
-exec python3 -m poetry "$@"
-EOF
-        $USE_SUDO chmod +x "$POETRY_BINARY"
-        return 0
+        if [ "$current_target" = "$expected_target" ]; then
+            echo "Symlink /usr/local/bin/poetry already points to correct location, skipping"
+        else
+            echo "Symlink exists but incorrect, updating to: $POETRY_BIN"
+            $USE_SUDO rm -f "/usr/local/bin/poetry"
+            $USE_SUDO ln -sf "$POETRY_BIN" "/usr/local/bin/poetry"
+            echo "Updated symlink: /usr/local/bin/poetry -> $POETRY_BIN"
+        fi
     else
-        echo "Failed to install Poetry via pip"
-        return 1
-    fi
-}
-
-# Function to install poetry using official installer with Python 3.12 compatibility
-install_poetry_via_installer() {
-    echo "Installing Poetry using official installer (with Python 3.12 fix)..."
-
-    # Ensure Python environment is set up first
-    if ! ensure_python_environment; then
-        echo "Failed to set up Python environment" >&2
-        return 1
-    fi
-
-    # Create POETRY_HOME directory if it doesn't exist
-    $USE_SUDO mkdir -p "$POETRY_HOME"
-    $USE_SUDO chown -R root:root "$POETRY_HOME"
-
-    # Create a temporary venv with compatible pip
-    local temp_venv="/tmp/poetry-install-venv-$$"
-    echo "Creating temporary venv with compatible pip..."
-
-    if python3 -m venv "$temp_venv" 2>/dev/null; then
-        # Upgrade pip in the venv
-        "$temp_venv/bin/pip" install --upgrade pip setuptools wheel 2>&1 | tail -10
-
-        # Use the venv python to install poetry
-        echo "Installing Poetry with upgraded pip..."
-        curl -sSL https://install.python-poetry.org | $USE_SUDO POETRY_HOME="$POETRY_HOME" "$temp_venv/bin/python3" - 2>&1 | tail -20
-
-        local result=$?
-        rm -rf "$temp_venv"
-
-        if [ $result -eq 0 ]; then
-            echo "Poetry installed successfully via official installer"
-            return 0
-        fi
-    fi
-
-    echo "Failed to install Poetry via official installer"
-    return 1
-}
-
-# Function to install poetry with multiple fallback methods
-install_poetry() {
-    echo "Starting Poetry installation..."
-    echo ""
-
-    # Method 1: Try pipx (best for Python 3.12+)
-    echo "=== Method 1: pipx (recommended) ==="
-    if install_poetry_via_pipx; then
-        echo "Poetry installed successfully via pipx"
-        return 0
-    fi
-    echo "pipx installation failed, trying next method..."
-    echo ""
-
-    # Method 2: Try pip directly
-    echo "=== Method 2: pip (fallback) ==="
-    if install_poetry_via_pip; then
-        echo "Poetry installed successfully via pip"
-        return 0
-    fi
-    echo "pip installation failed, trying next method..."
-    echo ""
-
-    # Method 3: Try official installer with fixes
-    echo "=== Method 3: Official installer (with fixes) ==="
-    if install_poetry_via_installer; then
-        echo "Poetry installed successfully via official installer"
-        return 0
-    fi
-    echo "Official installer failed"
-    echo ""
-
-    echo "All installation methods failed"
-    return 1
-}
-
-# Function to create symlink
-create_symlink() {
-    echo "Setting up Poetry symlinks..."
-
-    # Find Poetry binary location
-    local poetry_bin=""
-    if [ -f "$POETRY_BINARY" ]; then
-        poetry_bin="$POETRY_BINARY"
-    elif [ -f "$POETRY_HOME/bin/poetry" ]; then
-        poetry_bin="$POETRY_HOME/bin/poetry"
-    elif command -v poetry >/dev/null 2>&1; then
-        poetry_bin=$(command -v poetry)
-        echo "Poetry found at: $poetry_bin"
-        # Create symlink if not in standard location
-        if [ "$poetry_bin" != "$POETRY_LINK" ]; then
-            $USE_SUDO ln -sf "$poetry_bin" "$POETRY_LINK"
-            echo "Created symlink: $POETRY_LINK -> $poetry_bin"
-        fi
-        return 0
-    fi
-
-    if [ -z "$poetry_bin" ]; then
-        echo "Could not find Poetry binary"
-        return 1
+        $USE_SUDO ln -sf "$POETRY_BIN" "/usr/local/bin/poetry"
+        echo "Created symlink: /usr/local/bin/poetry -> $POETRY_BIN"
     fi
 
     # Make binary executable
-    $USE_SUDO chmod +x "$poetry_bin"
+    $USE_SUDO chmod +x "$POETRY_BIN"
 
-    # Create symlink to /usr/local/bin
-    if [ -L "$POETRY_LINK" ] || [ -f "$POETRY_LINK" ]; then
-        $USE_SUDO rm -f "$POETRY_LINK"
-    fi
-    $USE_SUDO ln -sf "$poetry_bin" "$POETRY_LINK"
-    echo "Created symlink: $POETRY_LINK -> $poetry_bin"
-
-    # Add to PATH if needed
-    if ! echo "$PATH" | grep -q "$POETRY_HOME/bin"; then
-        export PATH="$POETRY_HOME/bin:$PATH"
-        echo "Added $POETRY_HOME/bin to PATH"
-    fi
-
+    echo "Poetry symlink setup completed"
     return 0
 }
 
 # Main execution
-echo "Setting up Poetry..."
+echo "Poetry Installation and Configuration Script"
 echo ""
 
-# Check if poetry is already installed
+# Check if poetry is already installed in venv
 if check_poetry; then
     echo "Poetry is already installed"
-    poetry --version 2>/dev/null || echo "Poetry installed but version check failed"
 else
-    echo "Poetry not found. Installing..."
-    if ! install_poetry; then
+    echo "Installing poetry in uv venv..."
+    if ! install_poetry_in_uv_venv; then
         echo ""
         echo "=========================================="
         echo "Poetry installation failed"
@@ -257,9 +151,12 @@ else
     fi
 fi
 
-# Create symlink regardless of whether we just installed or it was already there
+# Setup symlink
 echo ""
-create_symlink
+if ! setup_poetry_symlink; then
+    echo "Error: Failed to setup poetry symlink"
+    exit 1
+fi
 
 # Verify installation
 echo ""
@@ -267,14 +164,16 @@ echo "Verifying Poetry installation..."
 if command -v poetry >/dev/null 2>&1; then
     echo "=========================================="
     echo "Poetry setup completed successfully"
-    poetry --version
+    echo "Version: $(poetry --version 2>/dev/null || echo 'unknown')"
+    echo "Location: $(which poetry)"
+    echo "Venv: $POETRY_VENV_DIR"
     echo "=========================================="
     exit 0
 else
     echo "=========================================="
-    echo "Poetry setup completed but poetry command not found in PATH"
-    echo "You may need to restart your shell or run:"
-    echo "  export PATH=\"$POETRY_HOME/bin:\$PATH\""
+    echo "Poetry installed but command not found in PATH"
+    echo "Binary location: $POETRY_BIN"
+    echo "Symlink should be at: /usr/local/bin/poetry"
     echo "=========================================="
     exit 0
 fi

@@ -1,0 +1,2005 @@
+{
+  "generated_at": "2025-11-22T22:15:17.343497+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "ironic",
+        "laos": "ທາດເຫຼັກ",
+        "jp": "皮肉な",
+        "vie": "mỉa mai",
+        "en_pronunciation": "/aɪˈrɑnɪk/",
+        "laos_pronunciation": "thadheak",
+        "jp_pronunciation": "hiniku na",
+        "vie_pronunciation": "mia mai",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/772997a33d2b2e5323010742ae1f1687.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/bda46e7565bc85b51b70396c571001c7.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/995dd4ef25c444a7ed6b309e0b08400a.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/f8cf1432f7f9c2fda84917d18a38ece4.mp3"
+      },
+      "means": {
+        "en": "Humorously sarcastic or mocking",
+        "zh": "幽默讽刺或嘲笑"
+      }
+    },
+    {
+      "word": {
+        "en": "ironical",
+        "laos": "ຜາງແຂງ",
+        "jp": "皮肉な",
+        "vie": "mỉa mai",
+        "en_pronunciation": "/aɪˈrɑnɪkəl/",
+        "laos_pronunciation": "phangaekhng",
+        "jp_pronunciation": "hiniku na",
+        "vie_pronunciation": "mia mai",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/89c921f995f452c6bf4dac5be719f648.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/bda46e7565bc85b51b70396c571001c7.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/d8f420acc30df49c0f44ddf395179361.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/f8cf1432f7f9c2fda84917d18a38ece4.mp3"
+      },
+      "means": {
+        "en": "Characterized by often poignant difference or incongruity between what is expected and what actually is",
+        "zh": "其特点是预期与实际之间经常存在严重差异或不一致"
+      }
+    },
+    {
+      "word": {
+        "en": "ironically",
+        "laos": "ກົງເມກີດ",
+        "jp": "皮肉なことに",
+        "vie": "trớ trêu thay",
+        "en_pronunciation": "/aɪˈrɑnɪkli/",
+        "laos_pronunciation": "kong mekid",
+        "jp_pronunciation": "hiniku nakotoni",
+        "vie_pronunciation": "tro treu thay",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/c35fa38996edb33dae49d6012fd05fe0.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/fadcebcc1c3d34eef4c72a84af9e0c7b.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/101409d05b506bfb51c8266385e24d59.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/3b48bce5c2cdfb1e0b88920c72caaca2.mp3"
+      },
+      "means": {
+        "en": "Contrary to plan or expectation",
+        "zh": "与计划或期望相反"
+      }
+    },
+    {
+      "word": {
+        "en": "irrational",
+        "laos": "ບໍ່ມີເຫດຜົນ",
+        "jp": "不合理な",
+        "vie": "phi lý",
+        "en_pronunciation": "/ˌɪˈræʃənəl/",
+        "laos_pronunciation": "bomihedphon",
+        "jp_pronunciation": "fugouri na",
+        "vie_pronunciation": "phi ly",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/36c51e04ea1e5bc9f65fdbc281c94885.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/173144242cd3c50b79b269dc462a259f.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/59e5171e63f744c5199242309e0848ac.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/7938c94ba057e2186526fd1be3f5d92b.mp3"
+      },
+      "means": {
+        "en": "A real number that cannot be expressed as a rational number",
+        "zh": "无法用有理数表示的实数"
+      }
+    },
+    {
+      "word": {
+        "en": "irregular",
+        "laos": "ບໍ່ສະຫມໍ່າສະເຫມີ",
+        "jp": "不規則な",
+        "vie": "không thường xuyên",
+        "en_pronunciation": "/ˌɪˈrɛgjələr/",
+        "laos_pronunciation": "bo sa moasahemi",
+        "jp_pronunciation": "fukisoku na",
+        "vie_pronunciation": "khong thuong xuyen",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/39d3202ec495577fd03ee14c24767dd9.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/1272e3e152bcef7e69b08437a89927b7.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/2ce4a54b3c1ec7b6cd23904b10706f27.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/203ef490c4066cdfe677c978e63f7419.mp3"
+      },
+      "means": {
+        "en": "A member of an irregular armed force that fights a stronger force by sabotage and harassment",
+        "zh": "通过破坏和骚扰与更强大的部队作战的非正规武装部队的成员"
+      }
+    },
+    {
+      "word": {
+        "en": "irrespective",
+        "laos": "ທ່ານໂດຍບໍ່ສົນເລື່ອງ",
+        "jp": "関係なく",
+        "vie": "không phân biệt",
+        "en_pronunciation": "/ˌɪrəˈspɛktɪv/",
+        "laos_pronunciation": "than odnybo sonleuong",
+        "jp_pronunciation": "kankei naku",
+        "vie_pronunciation": "khong phan biet",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/9ed893e8274bc2a1cb450bdbbb36173b.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/6be6d1d9f418b2c48ca39118188785b3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/29b3642092dcb6ffa26481e65041c0ad.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/24b28e0b9e4448effc8f6bea28202569.mp3"
+      },
+      "means": {
+        "en": "In spite of everything; without regard to drawbacks",
+        "zh": "不顾一切；"
+      }
+    },
+    {
+      "word": {
+        "en": "irrigate",
+        "laos": "ປ້ານນ້ໍາ",
+        "jp": "灌漑する",
+        "vie": "tưới nước",
+        "en_pronunciation": "/ˈɪrəˌgeɪt/",
+        "laos_pronunciation": "pannoa",
+        "jp_pronunciation": "kangai suru",
+        "vie_pronunciation": "tuoi nuoc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/18928eea3cf1d803eef2033afa051147.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/d70990da00c54e54a8d154f55cb61404.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e4a30cdcf42365d3f092ab79adf50972.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/56fe55c73712ba480cfe2bf3cf19c2a7.mp3"
+      },
+      "means": {
+        "en": "Supply with water, as with channels or ditches or streams",
+        "zh": "不考虑缺点"
+      }
+    },
+    {
+      "word": {
+        "en": "irrigation",
+        "laos": "ຊົນລະປະທານ",
+        "jp": "灌漑",
+        "vie": "tưới tiêu",
+        "en_pronunciation": "/ˌɪrəˈgeɪʃən/",
+        "laos_pronunciation": "sonlapathan",
+        "jp_pronunciation": "kangai",
+        "vie_pronunciation": "tuoi tieu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/538b1a3a2a9a124696eb5f197298d3e7.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/810a6370b43d977a9992415a3d448da2.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/0d0ec06b222dbf38759c26866b8cc1c6.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/a82ef4b1fc79968f79160bc313f9c7c3.mp3"
+      },
+      "means": {
+        "en": "Supplying dry land with water by means of ditches etc",
+        "zh": "供水，如渠道、沟渠或溪流"
+      }
+    },
+    {
+      "word": {
+        "en": "irritate",
+        "laos": "ເຮັດໃຫ້ໃຈຮ້າຢ",
+        "jp": "イライラする",
+        "vie": "chọc tức",
+        "en_pronunciation": "/ˈɪrɪˌteɪt/",
+        "laos_pronunciation": "hedhai chai hay",
+        "jp_pronunciation": "iraira suru",
+        "vie_pronunciation": "choc tuc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/454bb1a5f6c370d7a54f54bdc6f38f6a.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e09fec2178eec3fd7b4b23e1ededfc34.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/15a1e1d0a3beffc311e8d078a609491c.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/2e5ea2b70e510b3ba041004b2a5ad15c.mp3"
+      },
+      "means": {
+        "en": "Cause annoyance in; disturb, especially by minor irritations",
+        "zh": "通过沟渠等方式向旱地供水"
+      }
+    },
+    {
+      "word": {
+        "en": "irritation",
+        "laos": "ການເຮັດໃຫ້ລະຄາຍເຄືອງ",
+        "jp": "刺激",
+        "vie": "kích ứng",
+        "en_pronunciation": "/ˌɪrɪˈteɪʃən/",
+        "laos_pronunciation": "kanhedhai la khaikheuong",
+        "jp_pronunciation": "shigeki",
+        "vie_pronunciation": "kich ung",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/17c86772a9c9f0e1762a927c8981fc97.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/6a0dccd7b6e1ec7e4acd5293268f661c.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7b4b80203daa3d5debead284bc48e276.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/01f8dfee6114c7c844ac893c448ecd8c.mp3"
+      },
+      "means": {
+        "en": "The psychological state of being irritated or annoyed",
+        "zh": "造成烦恼；"
+      }
+    },
+    {
+      "word": {
+        "en": "irritating",
+        "laos": "ໂສຕະ",
+        "jp": "イライラする",
+        "vie": "khó chịu",
+        "en_pronunciation": "/ˈɪrəˌteɪtɪŋ/",
+        "laos_pronunciation": "osta",
+        "jp_pronunciation": "iraira suru",
+        "vie_pronunciation": "kho chiu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/b6e2a578c7e19943cfb53d7b67a30aa5.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e09fec2178eec3fd7b4b23e1ededfc34.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/21514306b6026d515288a0f4d55e58dd.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/4f3aff078e2ff90ff3879fc55bf99149.mp3"
+      },
+      "means": {
+        "en": "Cause annoyance in; disturb, especially by minor irritations",
+        "zh": "打扰，尤其是轻微的刺激"
+      }
+    },
+    {
+      "word": {
+        "en": "irritable",
+        "laos": "ທີ່ງຽບ",
+        "jp": "イライラする",
+        "vie": "cáu kỉnh",
+        "en_pronunciation": "/ˈɪrətəbəl/",
+        "laos_pronunciation": "thingiab",
+        "jp_pronunciation": "iraira suru",
+        "vie_pronunciation": "cau kinh",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/9ff75990bb7ba154f3802feb2694cd5c.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e09fec2178eec3fd7b4b23e1ededfc34.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/b15858b83cb6499b3c534d39529f09ce.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/f4e515ce5f3447806c1b71eb8feefe56.mp3"
+      },
+      "means": {
+        "en": "Easily irritated or annoyed",
+        "zh": "被激怒或恼怒的心理状态"
+      }
+    },
+    {
+      "word": {
+        "en": "island",
+        "laos": "ເກາະ",
+        "jp": "島",
+        "vie": "hòn đảo",
+        "en_pronunciation": "/ˈaɪlənd/",
+        "laos_pronunciation": "ko",
+        "jp_pronunciation": "shima",
+        "vie_pronunciation": "hon dao",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/3dbacfd76b0a040ccad1eacb20def4c8.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/1b33d22a11df24e51cc7b0c68bc917d4.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/93e2ec26f0ac39b4ee2e1079866a1ca9.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c89af62f72a01184bee25c48f76a5fc9.mp3"
+      },
+      "means": {
+        "en": "A land mass (smaller than a continent) that is surrounded by water",
+        "zh": "造成烦恼；"
+      }
+    },
+    {
+      "word": {
+        "en": "isle",
+        "laos": "isle",
+        "jp": "島",
+        "vie": "hòn đảo",
+        "en_pronunciation": "/aɪl/",
+        "laos_pronunciation": "isle",
+        "jp_pronunciation": "shima",
+        "vie_pronunciation": "hon dao",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/be0eab6a4a0ead94e2cc2369eb1141a9.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/1b33d22a11df24e51cc7b0c68bc917d4.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/be0eab6a4a0ead94e2cc2369eb1141a9.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c89af62f72a01184bee25c48f76a5fc9.mp3"
+      },
+      "means": {
+        "en": "A small island",
+        "zh": "打扰，尤其是轻微的刺激"
+      }
+    },
+    {
+      "word": {
+        "en": "isolate",
+        "laos": "ໂດດດ່ຽວ",
+        "jp": "隔離する",
+        "vie": "cô lập",
+        "en_pronunciation": "/ˈaɪsəˌleɪt/",
+        "laos_pronunciation": "odddiav",
+        "jp_pronunciation": "kakuri suru",
+        "vie_pronunciation": "co lap",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/15400d746f02adc8adba4300e6592817.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8df55c958d911fa602f20ff08ccfbfc9.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/9f13325b978311615e4124083605e332.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/15a0e695be178aa40e423ed0aafe3ec6.mp3"
+      },
+      "means": {
+        "en": "Place or set apart",
+        "zh": "容易被激怒或恼怒"
+      }
+    },
+    {
+      "word": {
+        "en": "isolation",
+        "laos": "​ການ​ແຍກ​ດ່ຽວ",
+        "jp": "隔離",
+        "vie": "sự cô lập",
+        "en_pronunciation": "/ˌaɪsəˈleɪʃən/",
+        "laos_pronunciation": "kan aenykdiav",
+        "jp_pronunciation": "kakuri",
+        "vie_pronunciation": "su co lap",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/4dd3b03fa4bcecf34c516ebfc43e7719.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/7cf220605ee08915ca51b9331a0dcabe.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/c18621ac2ab5142bf154a264f089b410.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/9de8bd9a7513aacee8e3e2a873dc8d6e.mp3"
+      },
+      "means": {
+        "en": "A state of separation between persons or groups",
+        "zh": "被水包围的陆地（小于大陆）"
+      }
+    },
+    {
+      "word": {
+        "en": "issue",
+        "laos": "ບັນຫາ",
+        "jp": "問題",
+        "vie": "vấn đề",
+        "en_pronunciation": "/ˈɪʃu/",
+        "laos_pronunciation": "banha",
+        "jp_pronunciation": "mondai",
+        "vie_pronunciation": "van de",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0aae4c8f3cc35693d0cbbe631f2e8b52.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/25486ad4e541ea9a04632f8c28ba14f8.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/4966ca3a274a32e75cdfbcc8e5450196.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/0a3158bab386c8dc1b91a901fb1d57cf.mp3"
+      },
+      "means": {
+        "en": "An important question that is in dispute and must be settled",
+        "zh": "一个小岛"
+      }
+    },
+    {
+      "word": {
+        "en": "it",
+        "laos": "ມັນ",
+        "jp": "それ",
+        "vie": "nó",
+        "en_pronunciation": "/ɪt/",
+        "laos_pronunciation": "man",
+        "jp_pronunciation": "sore",
+        "vie_pronunciation": "no",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0d149b90e7394297301c90191ae775f0.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/ced72bba3a01cef854696825e634eb64.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/64e56e113362ea1899b5864492b43540.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/a20a39ca7fab6778351e25b0972d74c3.mp3"
+      },
+      "means": {
+        "en": "The branch of engineering that deals with the use of computers and telecommunications to retrieve and store and transmit information",
+        "zh": "放置或分开"
+      }
+    },
+    {
+      "word": {
+        "en": "item",
+        "laos": "ລາຍການ",
+        "jp": "アイテム",
+        "vie": "mục",
+        "en_pronunciation": "/ˈaɪtəm/",
+        "laos_pronunciation": "laikan",
+        "jp_pronunciation": "aitemu",
+        "vie_pronunciation": "muc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/447b7147e84be512208dcc0995d67ebc.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/1769f68c5e033bb4d4b9befe61d2ab42.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/893af6ddeb23cd4439ae12290a8266e8.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/da595a8c1e1fd251328f7a93a5c86851.mp3"
+      },
+      "means": {
+        "en": "A distinct part that can be specified separately in a group of things that could be enumerated on a list",
+        "zh": "人或团体之间的分离状态"
+      }
+    },
+    {
+      "word": {
+        "en": "its",
+        "laos": "ຂອງມັນ",
+        "jp": "その",
+        "vie": "nó",
+        "en_pronunciation": "/ɪts/",
+        "laos_pronunciation": "khongman",
+        "jp_pronunciation": "sono",
+        "vie_pronunciation": "no",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/584826e70485130530f7f01a973d5637.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/caa28add236d00a8dc8505204bc2c842.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/a61bd8330d637e9dc329576c4c2accfb.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/a20a39ca7fab6778351e25b0972d74c3.mp3"
+      },
+      "means": {
+        "en": "The branch of engineering that deals with the use of computers and telecommunications to retrieve and store and transmit information",
+        "zh": "一个有争议且必须解决的重要问题"
+      }
+    },
+    {
+      "word": {
+        "en": "itself",
+        "laos": "ຕົວຂອງມັນເອງ",
+        "jp": "それ自体",
+        "vie": "chính nó",
+        "en_pronunciation": "/ˌɪtˈsɛlf/",
+        "laos_pronunciation": "tua khongmanoeng",
+        "jp_pronunciation": "sore jitai",
+        "vie_pronunciation": "chinh no",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/53d8f4d1e2b5be0d0abfde443f017359.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/867a6b4a0a92aa2949dff49e8d2e5a35.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/af0d01dbeeaed4faa751b1ac0a1f9eb0.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/0baf30aa7c613e02321245c3840027a8.mp3"
+      },
+      "means": {
+        "en": "Itself is an English word referring to 'itself'.",
+        "zh": "工程学的一个分支，涉及使用计算机和电信来检索、存储和传输信息"
+      }
+    },
+    {
+      "word": {
+        "en": "ivory",
+        "laos": "ງາຊ້າງ",
+        "jp": "アイボリー",
+        "vie": "ngà voi",
+        "en_pronunciation": "/ˈaɪvəri/",
+        "laos_pronunciation": "ngasang",
+        "jp_pronunciation": "aiborii",
+        "vie_pronunciation": "nga voi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/c55c68625ca1da0e1d4a922fc8cb373e.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/d5e25b5f0fcefad644d05d8faeb30436.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/c8b3cd4d2475eaeb89e732af66b9e851.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/9e78cf095b146aa3d63345d92ed747f6.mp3"
+      },
+      "means": {
+        "en": "A hard smooth ivory colored dentine that makes up most of the tusks of elephants and walruses",
+        "zh": "可以在列表中枚举的一组事物中单独指定的不同部分"
+      }
+    },
+    {
+      "word": {
+        "en": "jack",
+        "laos": "ແຈບ",
+        "jp": "ジャック",
+        "vie": "giắc cắm",
+        "en_pronunciation": "/ʤæk/",
+        "laos_pronunciation": "aechb",
+        "jp_pronunciation": "jakku",
+        "vie_pronunciation": "giac cam",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/4ff9fc6e4e5d5f590c4f2134a8cc96d1.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/50aeeb1da50de100f81f1f585cbd2cff.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/40c71aa926959b551edef7b01fb2d08d.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/869434bab0cc327e5a342310b893bd25.mp3"
+      },
+      "means": {
+        "en": "A small worthless amount",
+        "zh": "工程学的一个分支，涉及使用计算机和电信来检索、存储和传输信息"
+      }
+    },
+    {
+      "word": {
+        "en": "jacket",
+        "laos": "ເສື້ອກັນຫນາວ",
+        "jp": "ジャケット",
+        "vie": "áo khoác",
+        "en_pronunciation": "/ˈʤækɪt/",
+        "laos_pronunciation": "seu kannav",
+        "jp_pronunciation": "jaketto",
+        "vie_pronunciation": "ao khoac",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/f4ebf8a096b6deffc44d73b12989ef91.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/b9155f633d539d8d62a45bef29b75f59.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7778e39b1146aee49f0d3720157ee5a6.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/919266ac705bd3dbf3be80af648b92e9.mp3"
+      },
+      "means": {
+        "en": "A short coat",
+        "zh": "它本身是一个英语单词，指的是“它自己”。"
+      }
+    },
+    {
+      "word": {
+        "en": "jail",
+        "laos": "ຄົກ",
+        "jp": "刑務所",
+        "vie": "nhà tù",
+        "en_pronunciation": "/ʤeɪl/",
+        "laos_pronunciation": "khok",
+        "jp_pronunciation": "keimusho",
+        "vie_pronunciation": "nha tu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/fdecc4714b3be8aaeefbc93395861ce0.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/d4bb4505f47ec966421847a96b964635.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/f84700992e2825f6cc953255292e9208.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/532dabc7764b87af301a1f78773a7de7.mp3"
+      },
+      "means": {
+        "en": "A correctional institution used to detain persons who are in the lawful custody of the government (either accused persons awaiting trial or convicted persons serving a sentence)",
+        "zh": "坚硬光滑的象牙色牙本质，构成大象和海象的大部分象牙"
+      }
+    },
+    {
+      "word": {
+        "en": "gaol",
+        "laos": "gaol",
+        "jp": "刑務所",
+        "vie": "nhà tù",
+        "en_pronunciation": "/gaol/",
+        "laos_pronunciation": "gaol",
+        "jp_pronunciation": "keimusho",
+        "vie_pronunciation": "nha tu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/b7e4d5cebf72a255de86b204a5ade4c8.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/d4bb4505f47ec966421847a96b964635.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/b7e4d5cebf72a255de86b204a5ade4c8.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/532dabc7764b87af301a1f78773a7de7.mp3"
+      },
+      "means": {
+        "en": "A correctional institution used to detain persons who are in the lawful custody of the government (either accused persons awaiting trial or convicted persons serving a sentence)",
+        "zh": "少量无价值"
+      }
+    },
+    {
+      "word": {
+        "en": "jam",
+        "laos": "ຄວາມຫຢົ້ງ",
+        "jp": "ジャム",
+        "vie": "mứt",
+        "en_pronunciation": "/ʤæm/",
+        "laos_pronunciation": "khuaam hyong",
+        "jp_pronunciation": "jamu",
+        "vie_pronunciation": "mut",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5275cb415e5bc3948e8f2cd492859f26.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/c068abfd4722e1d596f64b190c210e63.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/68ea211d6a315f2078d00c4b3d77bbc3.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/92cf88141255eac4aff43cb580a2e97b.mp3"
+      },
+      "means": {
+        "en": "Preserve of crushed fruit",
+        "zh": "一件短外套"
+      }
+    },
+    {
+      "word": {
+        "en": "january",
+        "laos": "ເດືອນມັງກອນ",
+        "jp": "1月",
+        "vie": "tháng giêng",
+        "en_pronunciation": "/ˈʤænjuˌɛri/",
+        "laos_pronunciation": "deuonmangkon",
+        "jp_pronunciation": "1 gatsu",
+        "vie_pronunciation": "thang gieng",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/467b6140fe3bb958f2332983914de787.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/fccc2b4ac9cd71904395042cd0f3fd92.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/09d49f5370511dd4d1240eed631c38d5.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/342a6e46ee6b0ae6120ca284f34a42d9.mp3"
+      },
+      "means": {
+        "en": "The first month of the year; begins 10 days after the winter solstice",
+        "zh": "用于关押政府合法羁押人员（等待审判的被告或正在服刑的已定罪人员）的惩教机构"
+      }
+    },
+    {
+      "word": {
+        "en": "jar",
+        "laos": "ໄຫ",
+        "jp": "瓶",
+        "vie": "bình",
+        "en_pronunciation": "/ʤɑr/",
+        "laos_pronunciation": "hai",
+        "jp_pronunciation": "kame",
+        "vie_pronunciation": "binh",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/68995fcbf432492d15484d04a9d2ac40.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/0c88bfc874afbba17eeff5139390d2c4.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/f61edaa03f99e5a5366d09e505abfd89.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/27ab0b3df79f8ff1ded9ea30ec7e66ed.mp3"
+      },
+      "means": {
+        "en": "A vessel (usually cylindrical) with a wide mouth and without handles",
+        "zh": "用于关押政府合法羁押人员（等待审判的被告或正在服刑的已定罪人员）的惩教机构"
+      }
+    },
+    {
+      "word": {
+        "en": "jargon",
+        "laos": "ພາສາຕລາດ",
+        "jp": "専門用語",
+        "vie": "biệt ngữ",
+        "en_pronunciation": "/ˈʤɑrgən/",
+        "laos_pronunciation": "phasatlad",
+        "jp_pronunciation": "senmonyougo",
+        "vie_pronunciation": "biet ngu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/93fd31799572add89a43347b2edc5293.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/cb925f732bfe8cdc462fe83b512771f3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/ce91ac826e5e3a34e745dc9be26aa473.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/10de5c98f0e29a80c64b6790c67d4c20.mp3"
+      },
+      "means": {
+        "en": "A characteristic language of a particular group (as among thieves)",
+        "zh": "压碎水果的保存"
+      }
+    },
+    {
+      "word": {
+        "en": "jaw",
+        "laos": "ຄາງກະໄຕ",
+        "jp": "顎",
+        "vie": "hàm",
+        "en_pronunciation": "/ʤɔ/",
+        "laos_pronunciation": "khangkatai",
+        "jp_pronunciation": "ago",
+        "vie_pronunciation": "ham",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/272f3da8ea6283df73187baf02345637.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/09874aa2d95e15a4a5233e44000ef39c.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/363e997c6c951c3ad5450861a8d59e8e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/8b69f8691ba65fa3cdfac454c19501a9.mp3"
+      },
+      "means": {
+        "en": "The part of the skull of a vertebrate that frames the mouth and holds the teeth",
+        "zh": "一年中的第一个月；"
+      }
+    },
+    {
+      "word": {
+        "en": "jazz",
+        "laos": "ແຈບູ່",
+        "jp": "ジャズ",
+        "vie": "nhạc jazz",
+        "en_pronunciation": "/ʤæz/",
+        "laos_pronunciation": "aechbu",
+        "jp_pronunciation": "jazu",
+        "vie_pronunciation": "nhac jazz",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/2b21d9d8f81c6e564c84ef0bfa94aa5c.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/bf034c1a0c243fde5be6fc6b4ad5fe06.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/4611f5e80aa82d66e3cc539d4e045a01.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/81d2d05d1aff39e357192dd604a26f32.mp3"
+      },
+      "means": {
+        "en": "Empty rhetoric or insincere or exaggerated talk",
+        "zh": "冬至后10天开始"
+      }
+    },
+    {
+      "word": {
+        "en": "jealous",
+        "laos": "ອິດສາ",
+        "jp": "嫉妬深い",
+        "vie": "ghen tuông",
+        "en_pronunciation": "/ˈʤɛləs/",
+        "laos_pronunciation": "idsa",
+        "jp_pronunciation": "shittobukai",
+        "vie_pronunciation": "ghen tuong",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/1339103d98b821fde9c592d8cad3d51f.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e47c1044be6d69a440898cac5772e04c.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/118e2c5d20a14e7127d4deea8c44a894.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/182dcf3538f1c26bff8a47f09a07409b.mp3"
+      },
+      "means": {
+        "en": "Showing extreme cupidity; painfully desirous of another's advantages",
+        "zh": "宽口且无把手的容器（通常为圆柱形）"
+      }
+    },
+    {
+      "word": {
+        "en": "jealousy",
+        "laos": "ຄວາມອິດສາ",
+        "jp": "嫉妬",
+        "vie": "sự ghen tị",
+        "en_pronunciation": "/ˈʤɛləsi/",
+        "laos_pronunciation": "khuaamidsa",
+        "jp_pronunciation": "shitto",
+        "vie_pronunciation": "su ghen ti",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0829c97e93c2ce09264d559a8d33e6d8.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/0b7f5d117e4fcd214e32dd71e31bb831.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/ef1d1d9a7420f58568b458c56382475a.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/796377335ef12f18f07c273b05effbcd.mp3"
+      },
+      "means": {
+        "en": "A feeling of jealous envy (especially of a rival)",
+        "zh": "特定群体（如小偷之间）的特有语言"
+      }
+    },
+    {
+      "word": {
+        "en": "jeans",
+        "laos": "ເສື້ອກັນຫນາວ",
+        "jp": "ジーンズ",
+        "vie": "quần jean",
+        "en_pronunciation": "/ʤinz/",
+        "laos_pronunciation": "seu kannav",
+        "jp_pronunciation": "jiinzu",
+        "vie_pronunciation": "quan jean",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/a0f2589b1ced4decbf8878d0c3b7986f.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/9b10c4de86cd79f7a372fafb2bc7925f.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7778e39b1146aee49f0d3720157ee5a6.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/cbf67e1c9e5f2f0d58780dca00b261b3.mp3"
+      },
+      "means": {
+        "en": "(usually plural) close-fitting trousers of heavy denim for manual work or casual wear",
+        "zh": "脊椎动物头骨的一部分，构成嘴巴并容纳牙齿"
+      }
+    },
+    {
+      "word": {
+        "en": "jeep",
+        "laos": "ກະຫລີ່",
+        "jp": "ジープ",
+        "vie": "xe jeep",
+        "en_pronunciation": "/ʤip/",
+        "laos_pronunciation": "kali",
+        "jp_pronunciation": "jiipu",
+        "vie_pronunciation": "xe jeep",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/ee92098e8d8fb93a9ac3870c3e94e201.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8ea50f9c50b13df315e068420ec92b18.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/641cb95f9912dcb4e637aaa1e0f820b7.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/e145594b4851dc4e5836091008251aa5.mp3"
+      },
+      "means": {
+        "en": "A car suitable for traveling over rough terrain",
+        "zh": "空洞的言辞或不真诚或夸大的言论"
+      }
+    },
+    {
+      "word": {
+        "en": "jelly",
+        "laos": "ປາກ",
+        "jp": "ゼリー",
+        "vie": "thạch",
+        "en_pronunciation": "/ˈʤɛli/",
+        "laos_pronunciation": "pak",
+        "jp_pronunciation": "zerii",
+        "vie_pronunciation": "thach",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/328356824c8487cf314aa350d11ae145.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/63402d8a8a13df8ccd6444467cd2f89e.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/fe1d7565f0fd0d829ef137fa9de0c11e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/1d63bf96d5331c979eb9de8f033678bd.mp3"
+      },
+      "means": {
+        "en": "An edible jelly (sweet or pungent) made with gelatin and used as a dessert or salad base or a coating for foods",
+        "zh": "表现出极度的贪婪；"
+      }
+    },
+    {
+      "word": {
+        "en": "jeopardize",
+        "laos": "ສູ້ແຮງ",
+        "jp": "危険にさらす",
+        "vie": "gây nguy hiểm",
+        "en_pronunciation": "/ˈʤɛpərˌdaɪz/",
+        "laos_pronunciation": "suaehng",
+        "jp_pronunciation": "kiken nisarasu",
+        "vie_pronunciation": "gay nguy hiem",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/cac8119f7d3ef61026b275187a757118.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/927e8e20e150ae7dab82141071b69569.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e0059fad45170eb8bd458d89e29826bc.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/7f8faf3a4840b710bf5cf0c02aa4c9c8.mp3"
+      },
+      "means": {
+        "en": "Pose a threat to; present a danger to",
+        "zh": "极度渴望别人的优点"
+      }
+    },
+    {
+      "word": {
+        "en": "jeopardise",
+        "laos": "ສູ້ແຮງ",
+        "jp": "危険にさらす",
+        "vie": "gây nguy hiểm",
+        "en_pronunciation": "/jeopardise/",
+        "laos_pronunciation": "suaehng",
+        "jp_pronunciation": "kiken nisarasu",
+        "vie_pronunciation": "gay nguy hiem",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5b25e90afbe5b05a7ceeb087c47d60f0.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/927e8e20e150ae7dab82141071b69569.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e0059fad45170eb8bd458d89e29826bc.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/7f8faf3a4840b710bf5cf0c02aa4c9c8.mp3"
+      },
+      "means": {
+        "en": "Pose a threat to; present a danger to",
+        "zh": "嫉妒的感觉（尤其是对竞争对手）"
+      }
+    },
+    {
+      "word": {
+        "en": "jeopardy",
+        "laos": "ເຈົາ",
+        "jp": "危険にさらされる",
+        "vie": "nguy hiểm",
+        "en_pronunciation": "/ˈʤɛpərdi/",
+        "laos_pronunciation": "chao",
+        "jp_pronunciation": "kiken nisarasareru",
+        "vie_pronunciation": "nguy hiem",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/40089215576fc5ee87dae0415f2d6a7d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8272e5f61766033b37e9fff22d27a886.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/c9923cb54902e54bcf580692e7384671.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/b5499d09ac2073a27fcad0850ed7fabb.mp3"
+      },
+      "means": {
+        "en": "A source of danger; a possibility of incurring loss or misfortune",
+        "zh": "（通常为复数）适合体力劳动或休闲穿着的厚重牛仔布紧身裤"
+      }
+    },
+    {
+      "word": {
+        "en": "jerk",
+        "laos": "ຍິບໆ",
+        "jp": "ジャーク",
+        "vie": "thằng ngốc",
+        "en_pronunciation": "/ʤərk/",
+        "laos_pronunciation": "nyib",
+        "jp_pronunciation": "jaaku",
+        "vie_pronunciation": "thang ngoc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/1f9ffc11e36167dc758b59f346a69e0b.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/9b3d813d8f80dc0e07951665af25911d.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/9201e066eda58a00071192b16e579dff.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/84336f57c9fa375c5980bf8006fc97bb.mp3"
+      },
+      "means": {
+        "en": "A dull stupid fatuous person",
+        "zh": "适合在崎岖地形上行驶的汽车"
+      }
+    },
+    {
+      "word": {
+        "en": "jet",
+        "laos": "ຢົນໄອພົນ",
+        "jp": "ジェット",
+        "vie": "máy bay phản lực",
+        "en_pronunciation": "/ʤɛt/",
+        "laos_pronunciation": "yon aiphon",
+        "jp_pronunciation": "jietto",
+        "vie_pronunciation": "may bay phan luc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/564f60a2dd82ea24bfa3f2f615348f7c.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/20199515a3195e444e1c617639f3d4c0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7ad1198f9c8bee355c6b7f6039de3dde.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c92dd171dce64e3c5f4c767e081407be.mp3"
+      },
+      "means": {
+        "en": "An airplane powered by one or more jet engines",
+        "zh": "用明胶制成的可食用果冻（甜的或辛辣的），用作甜点或沙拉底料或食品涂层"
+      }
+    },
+    {
+      "word": {
+        "en": "jetlag",
+        "laos": "ເຄື່ອງຫລີ້ນນ້ໍາ",
+        "jp": "時差ぼけ",
+        "vie": "say máy bay",
+        "en_pronunciation": "/jetlag/",
+        "laos_pronunciation": "kheuong linnoa",
+        "jp_pronunciation": "jisa boke",
+        "vie_pronunciation": "say may bay",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5be7b0c5a434d81a74281deddfbfaa0d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/a5e5d5eedf83f4d4274c586ad53a4a43.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/033a476480004e4b9eab0d11dc2458a5.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/b0186fe8520bef6d5c71fb1511605160.mp3"
+      },
+      "means": {
+        "en": "Jetlag is an English word referring to 'jetlag'.",
+        "zh": "构成威胁；"
+      }
+    },
+    {
+      "word": {
+        "en": "jewel",
+        "laos": "ເຄື່ອງເພັດ",
+        "jp": "宝石",
+        "vie": "viên ngọc quý",
+        "en_pronunciation": "/ʤuəl/",
+        "laos_pronunciation": "kheuongphed",
+        "jp_pronunciation": "houseki",
+        "vie_pronunciation": "vien ngoc quy",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/29d233ae0b83eff6e5fbd67134b88717.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/10d15d4d4bccbfd019e7dbba6187540a.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/22ec920bb589ff48c1b19f2d9fe94d2a.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/bd9c44600b0c43daa1a6283baa021df2.mp3"
+      },
+      "means": {
+        "en": "A precious or semiprecious stone incorporated into a piece of jewelry",
+        "zh": "构成危险"
+      }
+    },
+    {
+      "word": {
+        "en": "jewelry",
+        "laos": "ສ້ອຍ",
+        "jp": "ジュエリー",
+        "vie": "đồ trang sức",
+        "en_pronunciation": "/ˈʤuəlri/",
+        "laos_pronunciation": "sony",
+        "jp_pronunciation": "juerii",
+        "vie_pronunciation": "do trang suc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/449de323485c7ad045f6af2e284cd81b.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e088541e7bd144b447a816410464edd3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/39675e3753f9b33a6128beaf5854b0c7.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/7481b37cd0f313a9dc512ef9d809cd4b.mp3"
+      },
+      "means": {
+        "en": "An adornment (as a bracelet or ring or necklace) made of precious metals and set with gems (or imitation gems)",
+        "zh": "构成威胁；"
+      }
+    },
+    {
+      "word": {
+        "en": "jewellery",
+        "laos": "ເຄື່ອງປະດັບຫລືນ",
+        "jp": "ジュエリー",
+        "vie": "đồ trang sức",
+        "en_pronunciation": "/jewellery/",
+        "laos_pronunciation": "kheuong padab lun",
+        "jp_pronunciation": "juerii",
+        "vie_pronunciation": "do trang suc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/a501e4d54e341225c320e0c5fe7d5ff1.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e088541e7bd144b447a816410464edd3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/10d860f7f58255298df9be60b8a07258.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/7481b37cd0f313a9dc512ef9d809cd4b.mp3"
+      },
+      "means": {
+        "en": "An adornment (as a bracelet or ring or necklace) made of precious metals and set with gems (or imitation gems)",
+        "zh": "构成危险"
+      }
+    },
+    {
+      "word": {
+        "en": "job",
+        "laos": "ວຽກ",
+        "jp": "仕事",
+        "vie": "công việc",
+        "en_pronunciation": "/ʤɑb/",
+        "laos_pronunciation": "viak",
+        "jp_pronunciation": "shigoto",
+        "vie_pronunciation": "cong viec",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/9dddd5ce1b1375bc497feeb871842d4b.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/cfc767a667a86a257df0ddaff6926909.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6c8940f09dd01250c8edda242e32a168.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/e258df650fc976c3d548c4fb918a5faa.mp3"
+      },
+      "means": {
+        "en": "The principal activity in your life that you do to earn money",
+        "zh": "危险源；"
+      }
+    },
+    {
+      "word": {
+        "en": "jockey",
+        "laos": "ໂຍນິກໍາ",
+        "jp": "騎手",
+        "vie": "nài ngựa",
+        "en_pronunciation": "/ˈʤɑki/",
+        "laos_pronunciation": "ony nikoa",
+        "jp_pronunciation": "kishu",
+        "vie_pronunciation": "nai ngua",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0101a1ce270213cc7a1bbfd2de2fb26b.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8a25bf52267023e114d475789d6de2b3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/5494726a94a0fd48cd881b90b2218982.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/b6f6e99cc82e233f63b811dad0baf966.mp3"
+      },
+      "means": {
+        "en": "Someone employed to ride horses in horse races",
+        "zh": "遭受损失或不幸的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "jog",
+        "laos": "ນິວ",
+        "jp": "ジョギング",
+        "vie": "chạy bộ",
+        "en_pronunciation": "/ʤɑg/",
+        "laos_pronunciation": "niv",
+        "jp_pronunciation": "jogingu",
+        "vie_pronunciation": "chay bo",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/c518790e0463f2b7db28d50df8dd6c4e.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/2e98cb4fc7fb417c8a6ad38afad62945.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/869ecf46a1155f2d99067147c78caa0a.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/80128444b61ad340dbb93621477d9287.mp3"
+      },
+      "means": {
+        "en": "A sharp change in direction",
+        "zh": "一个愚钝愚昧的人"
+      }
+    },
+    {
+      "word": {
+        "en": "join",
+        "laos": "ເຂົ້າຮ່ວມ",
+        "jp": "参加する",
+        "vie": "tham gia",
+        "en_pronunciation": "/ʤɔɪn/",
+        "laos_pronunciation": "khaohuam",
+        "jp_pronunciation": "sanka suru",
+        "vie_pronunciation": "tham gia",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/731b886d80d2ea138da54d30f43b2005.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/f8da0bc1c290e503050a591f50e05eb1.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e2341ea4381de9efed1ab34d6d65143c.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/a09e351b9d4285db9177bf7f5f4738ac.mp3"
+      },
+      "means": {
+        "en": "The shape or manner in which things come together and a connection is made",
+        "zh": "由一个或多个喷气发动机提供动力的飞机"
+      }
+    },
+    {
+      "word": {
+        "en": "joint",
+        "laos": "ພັນສາ",
+        "jp": "ジョイント",
+        "vie": "khớp",
+        "en_pronunciation": "/ʤɔɪnt/",
+        "laos_pronunciation": "phansa",
+        "jp_pronunciation": "jointo",
+        "vie_pronunciation": "khop",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/58fe895084037c202da7dae31e14fff4.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/7fce172ded2039c26e09c11bbd1e5e73.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/bfa313a25d365603990e5f85ab46baa9.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/80ca428174f186a053461bd9d95d837e.mp3"
+      },
+      "means": {
+        "en": "(anatomy) the point of connection between two bones or elements of a skeleton (especially if it allows motion)",
+        "zh": "Jetlag 是一个英文单词，指的是“时差”。"
+      }
+    },
+    {
+      "word": {
+        "en": "joke",
+        "laos": "ການເວົ້າເຍີ້ຍ",
+        "jp": "冗談",
+        "vie": "trò đùa",
+        "en_pronunciation": "/ʤoʊk/",
+        "laos_pronunciation": "kanuaaonyoeny",
+        "jp_pronunciation": "joudan",
+        "vie_pronunciation": "tro dua",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/e2ff3cfd4b43876adaa5767ce93bf7d3.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/fca90958f5f195b62eca7e88c4caddb8.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/f2c157a2a9b92e0f2de0b9076a447ee2.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/831297824c23ec7ace9aa6ece35aae3c.mp3"
+      },
+      "means": {
+        "en": "A humorous anecdote or remark intended to provoke laughter",
+        "zh": "镶嵌在珠宝中的宝石或半宝石"
+      }
+    },
+    {
+      "word": {
+        "en": "jolly",
+        "laos": "ອະກຸສົນ",
+        "jp": "陽気な",
+        "vie": "vui vẻ",
+        "en_pronunciation": "/ˈʤɑli/",
+        "laos_pronunciation": "akuson",
+        "jp_pronunciation": "youki na",
+        "vie_pronunciation": "vui ve",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/d64bc1eb577b062fa13ed20ddbc130f3.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/0198277eb8bca4d1b162a466907f921c.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/891c0bade82f0a0e48c19f795b5a1598.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c4af3b5fe5bc780bc430516975425b34.mp3"
+      },
+      "means": {
+        "en": "A happy party",
+        "zh": "由贵金属制成并镶有宝石（或人造宝石）的装饰品（如手镯、戒指或项链）"
+      }
+    },
+    {
+      "word": {
+        "en": "journal",
+        "laos": "ວາລະ",
+        "jp": "日記",
+        "vie": "tạp chí",
+        "en_pronunciation": "/ˈʤərnəl/",
+        "laos_pronunciation": "vala",
+        "jp_pronunciation": "nikki",
+        "vie_pronunciation": "tap chi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/fb9141b4efb6ddeaad336320b9adb552.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/570fd594db132fc5499418b476c63273.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/268965d417ba51b8d3ffa4a4ee218aef.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/8f0aa3fe5b2e98d4dbb38778b816b5a6.mp3"
+      },
+      "means": {
+        "en": "A daily written record of (usually personal) experiences and observations",
+        "zh": "由贵金属制成并镶有宝石（或人造宝石）的装饰品（如手镯、戒指或项链）"
+      }
+    },
+    {
+      "word": {
+        "en": "journalism",
+        "laos": "ນັກຂ່າວ",
+        "jp": "ジャーナリズム",
+        "vie": "báo chí",
+        "en_pronunciation": "/ˈʤərnəˌlɪzəm/",
+        "laos_pronunciation": "nakkhav",
+        "jp_pronunciation": "jaanarizumu",
+        "vie_pronunciation": "bao chi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/54aaa5bbe2673af8227f7c2e43aea8f3.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/f587f4882f81ae1de1908b154ad83034.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/9f5318c8427b7743d846d6724c3f73d1.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/fe96367198521b0e3db83af5146db7af.mp3"
+      },
+      "means": {
+        "en": "Newspapers and magazines collectively",
+        "zh": "您生活中的主要活动是为了赚钱"
+      }
+    },
+    {
+      "word": {
+        "en": "journalist",
+        "laos": "ນັກຂ່າວ",
+        "jp": "ジャーナリスト",
+        "vie": "nhà báo",
+        "en_pronunciation": "/ˈʤərnəlɪst/",
+        "laos_pronunciation": "nakkhav",
+        "jp_pronunciation": "jaanarisuto",
+        "vie_pronunciation": "nha bao",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/82ad21b5762c06c3eb611a807982ab76.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/492ee6ecd734b73c347080f02ced97b4.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/9f5318c8427b7743d846d6724c3f73d1.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/651e94ff1eaaf5a7a05b9b1e240feb0b.mp3"
+      },
+      "means": {
+        "en": "A writer for newspapers and magazines",
+        "zh": "有人受雇在赛马比赛中骑马"
+      }
+    },
+    {
+      "word": {
+        "en": "journey",
+        "laos": "ການເດີນທາງ",
+        "jp": "旅",
+        "vie": "cuộc hành trình",
+        "en_pronunciation": "/ˈʤərni/",
+        "laos_pronunciation": "kandoenthang",
+        "jp_pronunciation": "tabi",
+        "vie_pronunciation": "cuoc hanh trinh",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/98dc0157e90a9b28306967d14bdd2f4f.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/f76e884828bbf7294aac529657cb0024.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/32b03fce95e4a0f46ec9f5a3a886f234.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/90fd6e2f3174fb6aaa18d1726bcdad6b.mp3"
+      },
+      "means": {
+        "en": "The act of traveling from one place to another",
+        "zh": "方向急剧改变"
+      }
+    },
+    {
+      "word": {
+        "en": "joy",
+        "laos": "ຄວາມສຸກ",
+        "jp": "喜び",
+        "vie": "niềm vui",
+        "en_pronunciation": "/ʤɔɪ/",
+        "laos_pronunciation": "khuaamsuk",
+        "jp_pronunciation": "yorokobi",
+        "vie_pronunciation": "niem vui",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/c2c8e798aecbc26d86e4805114b03c51.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/598b181f87cfd68f825b0b4b0b1c9d5d.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/9d6d1e663eb2526f29cffe7b752181df.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/18a562aebe1e3414eaba98f9a74f660d.mp3"
+      },
+      "means": {
+        "en": "The emotion of great happiness",
+        "zh": "事物聚集在一起并建立联系的形状或方式"
+      }
+    },
+    {
+      "word": {
+        "en": "judge",
+        "laos": "ຕັດສິນ",
+        "jp": "裁判官",
+        "vie": "thẩm phán",
+        "en_pronunciation": "/ʤəʤ/",
+        "laos_pronunciation": "tadsin",
+        "jp_pronunciation": "saibankan",
+        "vie_pronunciation": "tham phan",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/1562eb3f6d9c5ac7e159c04a96ff4dfe.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/cf7a1500c15a50be6be62dbe97d45dd0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e67ac3216540dc0dacfcd6c5ffb8fb0f.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/57a5298452e791c295ab4fb70c41130e.mp3"
+      },
+      "means": {
+        "en": "A public official authorized to decide questions brought before a court of justice",
+        "zh": "（解剖学）两个骨头或骨架元素之间的连接点（特别是如果它允许运动）"
+      }
+    },
+    {
+      "word": {
+        "en": "judicial",
+        "laos": "ພະທັມ",
+        "jp": "司法",
+        "vie": "tư pháp",
+        "en_pronunciation": "/ʤuˈdɪʃəl/",
+        "laos_pronunciation": "phatham",
+        "jp_pronunciation": "shihou",
+        "vie_pronunciation": "tu phap",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5e3f93956d15bed678cee66ff0a609fb.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/14f9ea39145b7ceafd92e784959e28eb.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7c12390c75dee67ce4c3cf51febb3f62.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/e239018946ff82e4c03046082d3936e6.mp3"
+      },
+      "means": {
+        "en": "Decreed by or proceeding from a court of justice",
+        "zh": "旨在引起笑声的幽默轶事或言论"
+      }
+    },
+    {
+      "word": {
+        "en": "judiciary",
+        "laos": "ຕຸໄນນີ",
+        "jp": "司法",
+        "vie": "tư pháp",
+        "en_pronunciation": "/ʤuˈdɪʃiˌɛri/",
+        "laos_pronunciation": "tu naini",
+        "jp_pronunciation": "shihou",
+        "vie_pronunciation": "tu phap",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/1efa9898363bc3243fda0f783c8bf3af.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/14f9ea39145b7ceafd92e784959e28eb.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/24a47105c23e8511393335b42a31ab60.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/e239018946ff82e4c03046082d3936e6.mp3"
+      },
+      "means": {
+        "en": "Persons who administer justice",
+        "zh": "快乐的聚会"
+      }
+    },
+    {
+      "word": {
+        "en": "joyous",
+        "laos": "ເບີກບານ",
+        "jp": "楽しい",
+        "vie": "vui vẻ",
+        "en_pronunciation": "/ʤɔɪəs/",
+        "laos_pronunciation": "boekban",
+        "jp_pronunciation": "tanoshii",
+        "vie_pronunciation": "vui ve",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/bb5f6811b9056be16f22a793642ed583.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/474b7a91f4ab499a0bace599f53b5ec0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/38ea3f2fb210ceaf4babaa1f6f823c67.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c4af3b5fe5bc780bc430516975425b34.mp3"
+      },
+      "means": {
+        "en": "Full of or characterized by joy",
+        "zh": "（通常是个人）经验和观察的每日书面记录"
+      }
+    },
+    {
+      "word": {
+        "en": "judgment",
+        "laos": "ການຕັດສິນ",
+        "jp": "判断",
+        "vie": "sự phán xét",
+        "en_pronunciation": "/ˈʤəʤmənt/",
+        "laos_pronunciation": "kantadsin",
+        "jp_pronunciation": "handan",
+        "vie_pronunciation": "su phan xet",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/07e2659faa7ac3fc95deccaf12333d63.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e38bddc986ba00a2be935c6d78d762f8.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6230be97367074245fb21cc595751ee1.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/cf4fac3de63d8f29988ac62b4b3f35e1.mp3"
+      },
+      "means": {
+        "en": "An opinion formed by judging something",
+        "zh": "报纸和杂志的统称"
+      }
+    },
+    {
+      "word": {
+        "en": "judgement",
+        "laos": "ການຕັດສິນ",
+        "jp": "判断",
+        "vie": "sự phán xét",
+        "en_pronunciation": "/ˈʤəʤmənt/",
+        "laos_pronunciation": "kantadsin",
+        "jp_pronunciation": "handan",
+        "vie_pronunciation": "su phan xet",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/6244bb78bb92de8bf6adee64aa72c99e.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e38bddc986ba00a2be935c6d78d762f8.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6230be97367074245fb21cc595751ee1.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/cf4fac3de63d8f29988ac62b4b3f35e1.mp3"
+      },
+      "means": {
+        "en": "The legal document stating the reasons for a judicial decision",
+        "zh": "报纸和杂志撰稿人"
+      }
+    },
+    {
+      "word": {
+        "en": "joyful",
+        "laos": "ເບີກບານ",
+        "jp": "楽しい",
+        "vie": "vui vẻ",
+        "en_pronunciation": "/ˈʤɔɪfəl/",
+        "laos_pronunciation": "boekban",
+        "jp_pronunciation": "tanoshii",
+        "vie_pronunciation": "vui ve",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/6d6ea3c66479e5b2fe850819e09cb273.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/474b7a91f4ab499a0bace599f53b5ec0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/38ea3f2fb210ceaf4babaa1f6f823c67.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c4af3b5fe5bc780bc430516975425b34.mp3"
+      },
+      "means": {
+        "en": "Full of or producing joy",
+        "zh": "从一个地方到另一个地方旅行的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "juice",
+        "laos": "ນ້ໍາຫມາກໄມ້",
+        "jp": "ジュース",
+        "vie": "nước trái cây",
+        "en_pronunciation": "/ʤus/",
+        "laos_pronunciation": "noamakmai",
+        "jp_pronunciation": "juusu",
+        "vie_pronunciation": "nuoc trai cay",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/57f7e96f370e04546066ee921424c760.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e88c47a2195748ccbad8377f7307ac25.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/f13b41d1a769ae6d660f5b88da4a54f9.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/86980f78c5f3c82966fb27528a8eb6f9.mp3"
+      },
+      "means": {
+        "en": "The liquid part that can be extracted from plant or animal tissue by squeezing or cooking",
+        "zh": "巨大幸福的情感"
+      }
+    },
+    {
+      "word": {
+        "en": "juicy",
+        "laos": "ຕົ່ງ",
+        "jp": "ジューシーな",
+        "vie": "ngon ngọt",
+        "en_pronunciation": "/ˈʤusi/",
+        "laos_pronunciation": "tong",
+        "jp_pronunciation": "juushii na",
+        "vie_pronunciation": "ngon ngot",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/6881df49316d2067874117940143487a.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/44d65ea13da1bd651cd62595d20de128.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/162aa65e16e6a862d655d70351827531.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/a3ba67bf1e3471e8fafbd9b9ff618fdf.mp3"
+      },
+      "means": {
+        "en": "Full of juice",
+        "zh": "被授权决定向法院提出的问题的公职人员"
+      }
+    },
+    {
+      "word": {
+        "en": "july",
+        "laos": "ເດືອນກໍລະກົດ",
+        "jp": "7月",
+        "vie": "tháng bảy",
+        "en_pronunciation": "/ˌʤuˈlaɪ/",
+        "laos_pronunciation": "deuonkolakod",
+        "jp_pronunciation": "7 gatsu",
+        "vie_pronunciation": "thang bay",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/3785a4f12840727f9fc71676c104ac0d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/464bab7f82a4361e017a73dd6b958916.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/bab47f7b5412889b388308a452dafc30.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/eeb51069961530c253fd7c00f60bf4f9.mp3"
+      },
+      "means": {
+        "en": "The month following June and preceding August",
+        "zh": "由法院颁布或由法院审理"
+      }
+    },
+    {
+      "word": {
+        "en": "jump",
+        "laos": "ກະໂດດ",
+        "jp": "ジャンプ",
+        "vie": "nhảy",
+        "en_pronunciation": "/ʤəmp/",
+        "laos_pronunciation": "kaodd",
+        "jp_pronunciation": "janpu",
+        "vie_pronunciation": "nhay",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/ba535ef5a9f7b8bc875812bb081286bb.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e416b734dfa83bccdd4f39d9912e1fb4.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/8ce34d124fe4dcae0402af8a436d9976.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/fd41ab48d82ac83095fba812c25ab0d3.mp3"
+      },
+      "means": {
+        "en": "A sudden and decisive increase",
+        "zh": "执行司法的人"
+      }
+    },
+    {
+      "word": {
+        "en": "junction",
+        "laos": "ຈຸດທີສອງ",
+        "jp": "ジャンクション",
+        "vie": "ngã ba",
+        "en_pronunciation": "/ˈʤəŋkʃən/",
+        "laos_pronunciation": "chudthisong",
+        "jp_pronunciation": "jankushon",
+        "vie_pronunciation": "nga ba",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/4061fe5c578dc06e63537f552d632bb9.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/eee1a29377f94625e5666e934b9413ae.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/88b7a322232b4eef4be154641f30e384.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/b541cd3c11d72b102077dd06e877bf1b.mp3"
+      },
+      "means": {
+        "en": "The place where two or more things come together",
+        "zh": "充满欢乐或以欢乐为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "june",
+        "laos": "ມິຖຸນາ",
+        "jp": "6月",
+        "vie": "tháng sáu",
+        "en_pronunciation": "/ʤun/",
+        "laos_pronunciation": "mithuna",
+        "jp_pronunciation": "6 gatsu",
+        "vie_pronunciation": "thang sau",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/11501255f17710952e79563ddc090a4d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/f2422a6e4299609a1b1cf3b3fcaf9282.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/0d3981c89aa5c24eac3353e2718455a4.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/c55f70fd1d8779989fc8d34a54013258.mp3"
+      },
+      "means": {
+        "en": "The month following May and preceding July",
+        "zh": "通过判断某事而形成的意见"
+      }
+    },
+    {
+      "word": {
+        "en": "jungle",
+        "laos": "ພົງໄພ",
+        "jp": "ジャングル",
+        "vie": "rừng nhiệt đới",
+        "en_pronunciation": "/ˈʤəŋgəl/",
+        "laos_pronunciation": "phongphai",
+        "jp_pronunciation": "janguru",
+        "vie_pronunciation": "rung nhiet doi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5d991220a07e65eb7ab854341691ca7d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/dc3baf50b6829bd406f5c4b42925fc95.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/8070d9d23036db755b61c3fa1b32b7a0.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/e80504e132f88ba1d61fb6d1350c952c.mp3"
+      },
+      "means": {
+        "en": "A location marked by an intense competition and struggle for survival",
+        "zh": "说明司法决定理由的法律文件"
+      }
+    },
+    {
+      "word": {
+        "en": "junior",
+        "laos": "ຫນຸ່ມນ້ອຍ",
+        "jp": "ジュニア",
+        "vie": "đàn em",
+        "en_pronunciation": "/ˈʤunjər/",
+        "laos_pronunciation": "numnony",
+        "jp_pronunciation": "junia",
+        "vie_pronunciation": "dan em",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/b03e3fd2b3d22ff6df2796c412b09311.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/0404e7da460922d683cc65f72bf3c8ba.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7b067a6869beb7bd712203151db2b400.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/3121acd6a763cb501843d3c49569143d.mp3"
+      },
+      "means": {
+        "en": "Term of address for a disrespectful and annoying male",
+        "zh": "充满或产生快乐"
+      }
+    },
+    {
+      "word": {
+        "en": "junk",
+        "laos": "ເຄື່ອງເປົ່າ",
+        "jp": "ジャンク",
+        "vie": "rác rưởi",
+        "en_pronunciation": "/ʤəŋk/",
+        "laos_pronunciation": "kheuongpeoa",
+        "jp_pronunciation": "janku",
+        "vie_pronunciation": "rac ruoi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0c821f675f132d790b3f25e79da739a7.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/40bdc945d5d7d17a9a3a81f4e9ec78d7.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/14b7c27264af6e7bff4c849de9990d23.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/d2344fe034b7586406ed27c4f3caa8ee.mp3"
+      },
+      "means": {
+        "en": "The remains of something that has been destroyed or broken up",
+        "zh": "可通过压榨或蒸煮从植物或动物组织中提取的液体部分"
+      }
+    },
+    {
+      "word": {
+        "en": "jurisdiction",
+        "laos": "ອໍານາດ",
+        "jp": "管轄権",
+        "vie": "thẩm quyền",
+        "en_pronunciation": "/ˌʤʊrɪsˈdɪkʃən/",
+        "laos_pronunciation": "oanad",
+        "jp_pronunciation": "kankatsu ken",
+        "vie_pronunciation": "tham quyen",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/0c0f7464c6ba4063e913855a1d4041df.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/3219a058e3f61f39b11245b20ba941a1.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/0b8e7200d0c2b86c801573e39c2898fb.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/8940277da24418f0d93a79f48c1a6182.mp3"
+      },
+      "means": {
+        "en": "(law) the right and power to interpret and apply the law",
+        "zh": "满满的汁水"
+      }
+    },
+    {
+      "word": {
+        "en": "jury",
+        "laos": "ຄະນະກໍາມະການ",
+        "jp": "陪審員",
+        "vie": "bồi thẩm đoàn",
+        "en_pronunciation": "/ˈʤʊri/",
+        "laos_pronunciation": "khanakoamakan",
+        "jp_pronunciation": "baishin'in",
+        "vie_pronunciation": "boi tham doan",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/a47ddab7eecb364d7ddfd5ac2beeeed4.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/c8b1f90a0ef33ec6bea7570eb61ade25.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/571600a70326e2ebf257a70641ad9d9d.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/85df6420eb18c654aa5d27c4cef39261.mp3"
+      },
+      "means": {
+        "en": "A body of citizens sworn to give a true verdict according to the evidence presented in a court of law",
+        "zh": "六月之后和八月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "juror",
+        "laos": "ຜູ້ຕັດສິນໂທດ",
+        "jp": "陪審員",
+        "vie": "bồi thẩm đoàn",
+        "en_pronunciation": "/ˈʤʊrər/",
+        "laos_pronunciation": "phu tadsinothd",
+        "jp_pronunciation": "baishin'in",
+        "vie_pronunciation": "boi tham doan",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5ef147cefe67d0f34ed2843d945aeb1d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/c8b1f90a0ef33ec6bea7570eb61ade25.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/714784052dbcc1c585526f171cea8a76.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/85df6420eb18c654aa5d27c4cef39261.mp3"
+      },
+      "means": {
+        "en": "Someone who serves (or waits to be called to serve) on a jury",
+        "zh": "突然而决定性的增长"
+      }
+    },
+    {
+      "word": {
+        "en": "just",
+        "laos": "ພຽງແຕ່",
+        "jp": "ただ",
+        "vie": "chỉ",
+        "en_pronunciation": "/ʤɪst/",
+        "laos_pronunciation": "phiangaet",
+        "jp_pronunciation": "tada",
+        "vie_pronunciation": "chi",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/8134b84030cca5285ed0e0b31ba06f10.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/70df754a1d31ee0d84eb5ec5d701b2c2.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/374b08de9c08a8a83184d074c3c16187.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/eebabceb8144218ecfaeca4bcaaf6b74.mp3"
+      },
+      "means": {
+        "en": "Used especially of what is legally or ethically right or proper or fitting; - A.Lincoln",
+        "zh": "两个或多个事物聚集在一起的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "justice",
+        "laos": "ຍຸຕິທໍາ",
+        "jp": "正義",
+        "vie": "công lý",
+        "en_pronunciation": "/ˈʤəstɪs/",
+        "laos_pronunciation": "nyutithoa",
+        "jp_pronunciation": "seigi",
+        "vie_pronunciation": "cong ly",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/9345b4e983973212313e4c809b94f75d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/6d40d015f60ba0400f83bd44d40493d0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/394e4fe1679ca4c5ced2263366e20a6d.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/3fdb52f0e7182c193ae13bfbd9176090.mp3"
+      },
+      "means": {
+        "en": "The quality of being just or fair",
+        "zh": "5 月之后和 7 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "justify",
+        "laos": "ແກ້ຕົວ",
+        "jp": "正当化する",
+        "vie": "biện minh",
+        "en_pronunciation": "/ˈʤəstəˌfaɪ/",
+        "laos_pronunciation": "aektua",
+        "jp_pronunciation": "seitouka suru",
+        "vie_pronunciation": "bien minh",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/9e7ace81eb5d8c8e66d15edcaf439d42.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/4b344ef487f10fbf494a2bd632f3248d.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/5a7536c2051db26b816915f255d2ffc2.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/3edb1155b1a499a56f02462fa074a19c.mp3"
+      },
+      "means": {
+        "en": "Show to be reasonable or provide adequate ground for",
+        "zh": "一个充满激烈竞争和生存斗争的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "justification",
+        "laos": "ຄວາມສົມເຫດສົມຜົນ",
+        "jp": "正当化",
+        "vie": "sự biện minh",
+        "en_pronunciation": "/ˌʤəstəfəˈkeɪʃən/",
+        "laos_pronunciation": "khuaamsomhedsomphon",
+        "jp_pronunciation": "seitouka",
+        "vie_pronunciation": "su bien minh",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/6d3d45533e33b71bab6f3d77f1a25f5c.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/da2fce78dd13ac01b6b95411c463c742.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/c086678ba798cff777e5a03a939ebc55.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/55f35dfe4ca6331268a6df046e3b1ee3.mp3"
+      },
+      "means": {
+        "en": "Something (such as a fact or circumstance) that shows an action to be reasonable or necessary",
+        "zh": "对无礼且令人讨厌的男性的称呼"
+      }
+    },
+    {
+      "word": {
+        "en": "juvenile",
+        "laos": "ເຢົາໄວ",
+        "jp": "少年",
+        "vie": "vị thành niên",
+        "en_pronunciation": "/ˈʤuvəˌnaɪl/",
+        "laos_pronunciation": "yaouaai",
+        "jp_pronunciation": "shounen",
+        "vie_pronunciation": "vi thanh nien",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/cc468714d352a097fb04c4dd2c425524.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/cca2ea2923c40065988c8cc6404d3473.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/90407d689fec97451f8458ee9a5e21ee.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/5b5ba07e47aa3eac0f5a0d763581f57f.mp3"
+      },
+      "means": {
+        "en": "A young person, not fully developed",
+        "zh": "已被毁坏或破碎的物体的残骸"
+      }
+    },
+    {
+      "word": {
+        "en": "keen",
+        "laos": "ຄວາມກະຕືລືລົ້ນ",
+        "jp": "鋭い",
+        "vie": "quan tâm",
+        "en_pronunciation": "/kin/",
+        "laos_pronunciation": "khuaamkatululon",
+        "jp_pronunciation": "surudoi",
+        "vie_pronunciation": "quan tam",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/57f417b438b12da673e661e998e5bb92.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/4a525eeb96eaf28dc57fb10f77f07be7.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/61a9587434f8267bec195441663b0114.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/82125aa41332ef4ae766b65ca3fa5e1a.mp3"
+      },
+      "means": {
+        "en": "A funeral lament sung with loud wailing",
+        "zh": "（法律）解释和适用法律的权利和权力"
+      }
+    },
+    {
+      "word": {
+        "en": "keep",
+        "laos": "ຮັກສາໄວ້",
+        "jp": "保つ",
+        "vie": "giữ",
+        "en_pronunciation": "/kip/",
+        "laos_pronunciation": "haksauaai",
+        "jp_pronunciation": "tamotsu",
+        "vie_pronunciation": "giu",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/18ccf61d533b600bbf5a963359223fe4.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8f4f749768db14e9d6bd99844d10c090.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/ca21e924b9b595568593d3d9baa0c300.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/15924f913106bc35ad053a62343e62fd.mp3"
+      },
+      "means": {
+        "en": "The financial means whereby one lives",
+        "zh": "一群公民宣誓根据法庭上提供的证据做出真实的判决"
+      }
+    },
+    {
+      "word": {
+        "en": "kettle",
+        "laos": "Kettle",
+        "jp": "やかん",
+        "vie": "ấm đun nước",
+        "en_pronunciation": "/ˈkɛtəl/",
+        "laos_pronunciation": "Kettle",
+        "jp_pronunciation": "yakan",
+        "vie_pronunciation": "am dun nuoc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/a442b5469d33091d0d022b38181dd88f.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/d21dcf82fcc71c44b46e3c230eace3a2.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/a442b5469d33091d0d022b38181dd88f.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/50c188ab25d4dcb044288708b3dc7019.mp3"
+      },
+      "means": {
+        "en": "A metal pot for stewing or boiling; usually has a lid",
+        "zh": "担任陪审团成员（或等待被召唤担任陪审团成员）的人"
+      }
+    },
+    {
+      "word": {
+        "en": "key",
+        "laos": "ກຸນແຈ",
+        "jp": "キー",
+        "vie": "chìa khóa",
+        "en_pronunciation": "/ki/",
+        "laos_pronunciation": "kunaech",
+        "jp_pronunciation": "kii",
+        "vie_pronunciation": "chia khoa",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/3c6e0b8a9c15224a8228b9a98ca1531d.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/8cde9c0ec496566aba27be98508c48a0.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/0da6226ddc20446f4d644d50f3eb7e4c.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/08b0dc9b6255e8bda6c5f9c20cae934b.mp3"
+      },
+      "means": {
+        "en": "Metal device shaped in such a way that when it is inserted into the appropriate lock the lock's mechanism can be rotated",
+        "zh": "特别用于法律或道德上正确或适当或适当的事物；"
+      }
+    },
+    {
+      "word": {
+        "en": "keyboard",
+        "laos": "ແປ້ນພິມ",
+        "jp": "キーボード",
+        "vie": "bàn phím",
+        "en_pronunciation": "/ˈkiˌbɔrd/",
+        "laos_pronunciation": "aepnphim",
+        "jp_pronunciation": "kiiboodo",
+        "vie_pronunciation": "ban phim",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/388a56dbb62a010dc26a378981346247.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/2a64c1e8cdbf52bb7abd2df2c6674d7c.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e3ed0b5e423251945c422c6fcca8b6dd.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/68a4ee18f932899927f63027658a02a3.mp3"
+      },
+      "means": {
+        "en": "Device consisting of a set of keys on a piano or organ or typewriter or typesetting machine or computer or the like",
+        "zh": "——A·林肯"
+      }
+    },
+    {
+      "word": {
+        "en": "kick",
+        "laos": "ເຕະ",
+        "jp": "キック",
+        "vie": "cú đá",
+        "en_pronunciation": "/kɪk/",
+        "laos_pronunciation": "te",
+        "jp_pronunciation": "kikku",
+        "vie_pronunciation": "cu da",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/f175e09ccd29c70d6cfd9181256da4a7.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/6e57f97c2490e67655ae331337a9231b.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/863d3ffc9944280416f3fbea3e80df6f.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/8afb4e463d62799f4a490e84e2aad1b3.mp3"
+      },
+      "means": {
+        "en": "The act of delivering a blow with the foot",
+        "zh": "公正或公平的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "kid",
+        "laos": "ເດັກນ້ອຍ",
+        "jp": "子供",
+        "vie": "đứa trẻ",
+        "en_pronunciation": "/kɪd/",
+        "laos_pronunciation": "deknony",
+        "jp_pronunciation": "kodomo",
+        "vie_pronunciation": "dua tre",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/7de007e43f108e4b54b079f66e4285d8.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/3f89eb1ba21d133a8464d9435f6f3cdd.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/f5db4f72535c344022f716821597f89e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/f3a4c25c89c66d0f67e1957f05dc99d5.mp3"
+      },
+      "means": {
+        "en": "A young person of either sex",
+        "zh": "表现出合理性或提供充分的理由"
+      }
+    },
+    {
+      "word": {
+        "en": "kidnap",
+        "laos": "ລັກພາຕົວ",
+        "jp": "誘拐する",
+        "vie": "bắt cóc",
+        "en_pronunciation": "/ˈkɪdˌnæp/",
+        "laos_pronunciation": "lakphatua",
+        "jp_pronunciation": "yuukai suru",
+        "vie_pronunciation": "bat coc",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/5d8d0c8fa442eb984b07d585014810ca.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/fd0108413acb346a53986efba2551f25.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/0c1a93aad89f2d2a8cce26fde4d830cf.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/fa4faa6c8359146a34449692296bac4c.mp3"
+      },
+      "means": {
+        "en": "Take away to an undisclosed location against their will and usually in order to extract a ransom",
+        "zh": "表明某项行动合理或必要的事物（例如事实或情况）"
+      }
+    },
+    {
+      "word": {
+        "en": "kidney",
+        "laos": "ຫມາກໄຂ່ຫຼັງ",
+        "jp": "腎臓",
+        "vie": "thận",
+        "en_pronunciation": "/ˈkɪdni/",
+        "laos_pronunciation": "mak khairang",
+        "jp_pronunciation": "jinzou",
+        "vie_pronunciation": "than",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/4385738b1450a64b743b258c7c551701.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/c83e4985d14db63af53075243eb22ee3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/7975a128fe6be43612a447d4df053c64.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/0c48c162c22ba84ed6b9d943e758adc3.mp3"
+      },
+      "means": {
+        "en": "Either of two bean-shaped excretory organs that filter wastes (especially urea) from the blood and excrete them and water in urine",
+        "zh": "一个年轻人，还没有完全成熟"
+      }
+    },
+    {
+      "word": {
+        "en": "kill",
+        "laos": "ຂ້າ",
+        "jp": "殺す",
+        "vie": "giết",
+        "en_pronunciation": "/kɪl/",
+        "laos_pronunciation": "kha",
+        "jp_pronunciation": "korosu",
+        "vie_pronunciation": "giet",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/534735884d341071762ede7af01c53e8.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e89f143aa2138cc62fdc68f616cc4765.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/2f04e16a198d64086e67d1efeab025ed.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/f362a79198e862508998d050d1be0cb1.mp3"
+      },
+      "means": {
+        "en": "The act of terminating a life",
+        "zh": "哀嚎声中唱出哀歌"
+      }
+    },
+    {
+      "word": {
+        "en": "kilogram",
+        "laos": "ກິໂລ",
+        "jp": "キログラム",
+        "vie": "kg",
+        "en_pronunciation": "/ˈkɪləˌgræm/",
+        "laos_pronunciation": "kiol",
+        "jp_pronunciation": "kiroguramu",
+        "vie_pronunciation": "kg",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/f556aa88520e3180b396601ea5998e64.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/20e31175220f2809219d75542981b9c3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6aa2b24e00a1674993abe28b06ab8b9e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/ebe86682666f2ab3da0843ed3097e4b3.mp3"
+      },
+      "means": {
+        "en": "One thousand grams; the basic unit of mass adopted under the Systeme International d'Unites",
+        "zh": "一个人赖以生存的经济手段"
+      }
+    },
+    {
+      "word": {
+        "en": "kilogramme",
+        "laos": "ກິໂລ",
+        "jp": "キログラム",
+        "vie": "kilôgam",
+        "en_pronunciation": "/kilogramme/",
+        "laos_pronunciation": "kiol",
+        "jp_pronunciation": "kiroguramu",
+        "vie_pronunciation": "kilogam",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/83904139e5992a0d17ddc3d4fdf6db30.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/20e31175220f2809219d75542981b9c3.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6aa2b24e00a1674993abe28b06ab8b9e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/01d6eab82c03c2c005aa269cbfc19adf.mp3"
+      },
+      "means": {
+        "en": "Kilogramme is an English word referring to 'kilogramme'.",
+        "zh": "用于炖或煮的金属锅；"
+      }
+    },
+    {
+      "word": {
+        "en": "kilo",
+        "laos": "ກິໂລ",
+        "jp": "キロ",
+        "vie": "kg",
+        "en_pronunciation": "/ˈkɪˌloʊ/",
+        "laos_pronunciation": "kiol",
+        "jp_pronunciation": "kiro",
+        "vie_pronunciation": "kg",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/823df70fef5a629989e4987f955653cf.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/30329f02a14ebb70e4c47171d9fc7b49.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/6aa2b24e00a1674993abe28b06ab8b9e.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/ebe86682666f2ab3da0843ed3097e4b3.mp3"
+      },
+      "means": {
+        "en": "One thousand grams; the basic unit of mass adopted under the Systeme International d'Unites",
+        "zh": "通常有一个盖子"
+      }
+    },
+    {
+      "word": {
+        "en": "kilometer",
+        "laos": "ກິໂລແມັດ",
+        "jp": "キロメートル",
+        "vie": "cây số",
+        "en_pronunciation": "/ˈkɪləˌmitər/",
+        "laos_pronunciation": "kiolmaed",
+        "jp_pronunciation": "kiromeetoru",
+        "vie_pronunciation": "cay so",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/2317c05f8293fd9e0045cdcd22588c57.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/a0db2bf1ee3fd6a76ee123d8b1477602.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/d49764c8346e3fd5161ed1cde9c26726.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/325b28e6fa13c4fa18b9266f2bca7f86.mp3"
+      },
+      "means": {
+        "en": "A metric unit of length equal to 1000 meters (or 0.621371 miles)",
+        "zh": "金属装置的形状使得当它插入适当的锁时，锁的机构可以旋转"
+      }
+    },
+    {
+      "word": {
+        "en": "kilometre",
+        "laos": "ກິໂລແມັດ",
+        "jp": "キロメートル",
+        "vie": "cây số",
+        "en_pronunciation": "/ˌkɪˈlɔˌmətər/",
+        "laos_pronunciation": "kiolmaed",
+        "jp_pronunciation": "kiromeetoru",
+        "vie_pronunciation": "cay so",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/1921596d8e6f8748a326448d44fdb4ab.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/a0db2bf1ee3fd6a76ee123d8b1477602.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/d49764c8346e3fd5161ed1cde9c26726.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/325b28e6fa13c4fa18b9266f2bca7f86.mp3"
+      },
+      "means": {
+        "en": "A metric unit of length equal to 1000 meters (or 0.621371 miles)",
+        "zh": "由钢琴、风琴、打字机、排字机、计算机等上的一组按键组成的设备"
+      }
+    },
+    {
+      "word": {
+        "en": "kin",
+        "laos": "ກິນ",
+        "jp": "親族",
+        "vie": "họ hàng",
+        "en_pronunciation": "/kɪn/",
+        "laos_pronunciation": "kin",
+        "jp_pronunciation": "shinzoku",
+        "vie_pronunciation": "ho hang",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/ad910c248fbe85c146fd255292501007.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/50229ae71a2b8f11b5e2c034bff92855.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/efa4d9a1d1c5b61fe2e780b974d9fea7.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/993ad0c6e971da8b09450a8a989f1d0a.mp3"
+      },
+      "means": {
+        "en": "A person having kinship with another or others",
+        "zh": "用脚击打的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "kind",
+        "laos": "ປະເພດ",
+        "jp": "種類",
+        "vie": "loại",
+        "en_pronunciation": "/kaɪnd/",
+        "laos_pronunciation": "paphed",
+        "jp_pronunciation": "shurui",
+        "vie_pronunciation": "loai",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/d939aaf7d2291c6f69ceecee94880d7c.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/e84e1edfad01ebe9c3d3b859497bb55b.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/25b8f050ce062a531d932b593524b547.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/510cfecca4603d16bdde5f2a85629270.mp3"
+      },
+      "means": {
+        "en": "A category of things distinguished by some common characteristic or quality",
+        "zh": "年轻人，无论性别"
+      }
+    },
+    {
+      "word": {
+        "en": "kindness",
+        "laos": "ຄວາມກະລຸນາ",
+        "jp": "優しさ",
+        "vie": "lòng tốt",
+        "en_pronunciation": "/ˈkaɪndnəs/",
+        "laos_pronunciation": "khuaam kaluna",
+        "jp_pronunciation": "yasashi sa",
+        "vie_pronunciation": "long tot",
+        "en_audio": "D:/wwwroot/pycore_db/tts/en/e9d6bfefbe0f6e457a00f031ad45d3c6.mp3",
+        "jp_audio": "D:/wwwroot/pycore_db/tts/jp/067beafa3d46b980c6bac27052d19413.mp3",
+        "laos_audio": "D:/wwwroot/pycore_db/tts/laos/e4ba1095aecb937da0978fde62486d0c.mp3",
+        "vie_audio": "D:/wwwroot/pycore_db/tts/vie/5e75acaae77904f90076c48e58f5f078.mp3"
+      },
+      "means": {
+        "en": "The quality of being warmhearted and considerate and humane and sympathetic",
+        "zh": "违背他们的意愿，被带到一个秘密地点，通常是为了勒索赎金"
+      }
+    }
+  ]
+}

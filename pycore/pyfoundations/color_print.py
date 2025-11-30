@@ -12,9 +12,58 @@ import shutil
 import time
 import hashlib
 import re
+import inspect
+import platform
 from typing import List, Callable, Optional
 
 columns = shutil.get_terminal_size().columns
+
+# Auto-detect MCP mode from environment variable
+# This must be done at module import time, before ColorPrint class is defined
+_AUTO_MCP_MODE = os.environ.get('PYCORE_MCP_MODE', '').lower() in ('1', 'true', 'yes')
+
+# Enable ANSI color support on Windows
+# This must be done before any colored output
+def _enable_windows_ansi_support():
+    """Enable ANSI escape sequence support on Windows console"""
+    if platform.system() != 'Windows':
+        return True
+    
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        # Get stdout handle
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        if handle == -1:
+            return False
+        
+        # Get current console mode
+        mode = ctypes.c_ulong()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        
+        # Enable virtual terminal processing
+        new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        if not kernel32.SetConsoleMode(handle, new_mode):
+            return False
+        
+        # Also enable for stderr
+        STD_ERROR_HANDLE = -12
+        err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
+        if err_handle != -1:
+            err_mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(err_handle, ctypes.byref(err_mode)):
+                kernel32.SetConsoleMode(err_handle, err_mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        
+        return True
+    except Exception:
+        return False
+
+# Initialize Windows ANSI support at module load
+_WINDOWS_ANSI_ENABLED = _enable_windows_ansi_support()
 
 
 class ColorPrintCallback:
@@ -40,16 +89,16 @@ class ColorPrintCallback:
     def notify(self, message: str, color_type: str = "white", log_level: str = None):
         """Notify all registered callbacks"""
         for callback in self._callbacks:
-            try:
-                # Support both old and new callback signatures
-                import inspect
-                sig = inspect.signature(callback)
-                if len(sig.parameters) >= 3:
-                    callback(message, color_type, log_level)
-                else:
-                    callback(message, color_type)
-            except Exception:
-                pass  # Ignore callback errors
+            # Verify callback is callable
+            if not callable(callback):
+                continue
+
+            # Check callback signature - let errors expose naturally
+            sig = inspect.signature(callback)
+            if len(sig.parameters) >= 3:
+                callback(message, color_type, log_level)
+            else:
+                callback(message, color_type)
     
     def get_callback_count(self) -> int:
         """Get number of registered callbacks"""
@@ -68,7 +117,12 @@ class ColorPrint:
     GRAY = '\033[90m'
     WHITE = '\033[97m'
     BLUE = '\033[94m'
+    CYAN = '\033[96m'
     RESET = '\033[0m'
+    _output_stream = sys.stderr
+    # Auto-detect MCP mode from environment variable set by pymain.py
+    _disable_colors = _AUTO_MCP_MODE  # Automatically True if PYCORE_MCP_MODE=1
+    _mcp_mode = _AUTO_MCP_MODE  # MCP (Model Context Protocol) mode - disables colors for STDIO transport
 
     _printed_hashes = set()
     _last_print_times = {}
@@ -87,7 +141,51 @@ class ColorPrint:
     def clear_all_callbacks():
         """Clear all registered callbacks"""
         _color_print_callback.clear_all()
-    
+
+    @staticmethod
+    def set_output_stream(stream):
+        """Override default output stream (stdout by default)"""
+        if stream is not None:
+            ColorPrint._output_stream = stream
+
+    @staticmethod
+    def disable_colors(disable=True):
+        """Disable ANSI color codes (useful for log files or non-terminal outputs)"""
+        ColorPrint._disable_colors = disable
+
+    @staticmethod
+    def enable_colors():
+        """Enable ANSI color codes"""
+        ColorPrint._disable_colors = False
+
+    @staticmethod
+    def enable_mcp_mode():
+        """
+        Enable MCP (Model Context Protocol) mode.
+
+        This mode is designed for MCP servers using STDIO transport:
+        - Disables ANSI color codes (prevents escape sequences in MCP client logs)
+        - Sets output stream to stderr (stdout reserved for MCP JSON-RPC protocol)
+        - Optimized for clean, parseable log output
+
+        Usage:
+            ColorPrint.enable_mcp_mode()  # Call at MCP server startup
+        """
+        ColorPrint._mcp_mode = True
+        ColorPrint._disable_colors = True
+        ColorPrint._output_stream = sys.stderr
+
+    @staticmethod
+    def disable_mcp_mode():
+        """Disable MCP mode and restore normal ColorPrint behavior"""
+        ColorPrint._mcp_mode = False
+        ColorPrint._disable_colors = False
+
+    @staticmethod
+    def is_mcp_mode():
+        """Check if MCP mode is currently enabled"""
+        return ColorPrint._mcp_mode
+
     @staticmethod
     def get_callback_count():
         """Get number of registered callbacks"""
@@ -97,55 +195,135 @@ class ColorPrint:
     def _log_to_callback(message, color_type="white", log_level=None):
         """Send message to all registered callbacks"""
         _color_print_callback.notify(message, color_type, log_level)
+
+    @staticmethod
+    def _write(message, color, end='\n'):
+        """Write colored message to configured stream"""
+        # In MCP mode, suppress all output to avoid interfering with STDIO protocol
+        # MCP clients communicate via stdout JSON-RPC, any stderr output can cause "No server info found"
+        if ColorPrint._mcp_mode:
+            return  # Completely suppress output in MCP mode
+
+        if ColorPrint._disable_colors:
+            # Output plain text without ANSI codes
+            print(message, end=end, file=ColorPrint._output_stream)
+        else:
+            # Output with ANSI color codes
+            print(f"{color}{message}{ColorPrint.RESET}", end=end, file=ColorPrint._output_stream)
     
     @staticmethod
-    def green(message):
+    def green(message, end='\n'):
         """Print green text"""
-        print(f"{ColorPrint.GREEN}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.GREEN, end=end)
         ColorPrint._log_to_callback(message, "green", "SUCCESS")
 
     @staticmethod
-    def red(message):
+    def red(message, end='\n'):
         """Print red text"""
-        print(f"{ColorPrint.RED}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.RED, end=end)
         ColorPrint._log_to_callback(message, "red", "ERROR")
 
     @staticmethod
-    def yellow(message):
+    def yellow(message, end='\n'):
         """Print yellow text"""
-        print(f"{ColorPrint.YELLOW}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.YELLOW, end=end)
         ColorPrint._log_to_callback(message, "yellow", "WARNING")
 
     @staticmethod
-    def gray(message):
+    def gray(message, end='\n'):
         """Print gray text"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
-    def white(message):
+    def white(message, end='\n'):
         """Print white text"""
-        print(f"{ColorPrint.WHITE}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.WHITE, end=end)
         ColorPrint._log_to_callback(message, "white", "INFO")
 
     @staticmethod
-    def blue(message):
+    def blue(message, end='\n'):
         """Print blue text"""
-        print(f"{ColorPrint.BLUE}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.BLUE, end=end)
         ColorPrint._log_to_callback(message, "blue", "INFO")
-    
+
     @staticmethod
-    def debug(message):
+    def cyan(message, end='\n'):
+        """Print cyan text"""
+        ColorPrint._write(message, ColorPrint.CYAN, end=end)
+        ColorPrint._log_to_callback(message, "cyan", "INFO")
+
+    @staticmethod
+    def debug(message, end='\n'):
         """Print debug text (gray)"""
-        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
+        ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
+
+    # ========================================
+    # Semantic aliases for consistent API
+    # ========================================
+
+    @staticmethod
+    def print_info(message):
+        """Print info message (blue) - alias for blue()"""
+        ColorPrint.blue(message)
+
+    @staticmethod
+    def print_warn(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def print_warning(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def print_error(message):
+        """Print error message (red) - alias for red()"""
+        ColorPrint.red(message)
+
+    @staticmethod
+    def print_success(message):
+        """Print success message (green) - alias for green()"""
+        ColorPrint.green(message)
+
+    @staticmethod
+    def print_debug(message):
+        """Print debug message (gray) - alias for debug()"""
+        ColorPrint.debug(message)
+
+    @staticmethod
+    def info(message):
+        """Print info message (blue) - alias for blue()"""
+        ColorPrint.blue(message)
+
+    @staticmethod
+    def warn(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def warning(message):
+        """Print warning message (yellow) - alias for yellow()"""
+        ColorPrint.yellow(message)
+
+    @staticmethod
+    def error(message):
+        """Print error message (red) - alias for red()"""
+        ColorPrint.red(message)
+
+    @staticmethod
+    def success(message):
+        """Print success message (green) - alias for green()"""
+        ColorPrint.green(message)
 
     @staticmethod
     def print_separator(char='-', length=None):
         """Print a separator line"""
         if length is None:
             length = min(columns, 80)
-        print(char * length)
+        print(char * length, file=ColorPrint._output_stream)
 
     @staticmethod
     def print_header(title, char='=', length=None):
@@ -179,7 +357,7 @@ class ColorPrint:
         else:
             color = ColorPrint.BLUE
 
-        print(f"{color}[{status.upper()}]{ColorPrint.RESET} {message}")
+        print(f"{color}[{status.upper()}]{ColorPrint.RESET} {message}", file=ColorPrint._output_stream)
 
     @staticmethod
     def print_progress(current, total, message="", bar_length=30):
@@ -193,10 +371,10 @@ class ColorPrint:
         bar = '█' * filled_length + '-' * (bar_length - filled_length)
 
         progress_text = f"\r{ColorPrint.BLUE}[{bar}]{ColorPrint.RESET} {percentage:.1f}% {message}"
-        print(progress_text, end='', flush=True)
+        print(progress_text, end='', flush=True, file=ColorPrint._output_stream)
 
         if current >= total:
-            print()  # New line when complete
+            print(file=ColorPrint._output_stream)  # New line when complete
 
     @staticmethod
     def print_table_row(columns_data, widths=None, separator='|'):
@@ -209,7 +387,7 @@ class ColorPrint:
             width = widths[i] if i < len(widths) else 15
             row += f" {str(data):<{width}} {separator}"
 
-        print(row)
+        print(row, file=ColorPrint._output_stream)
 
     @staticmethod
     def print_table_header(headers, widths=None, separator='|'):
@@ -223,7 +401,7 @@ class ColorPrint:
         separator_line = separator
         for width in widths:
             separator_line += '-' * (width + 2) + separator
-        print(separator_line)
+        print(separator_line, file=ColorPrint._output_stream)
 
     @staticmethod
     def _hash_message(message):

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SearchViewAppCodemart extends StatefulWidget {
   final String? initialQuery;

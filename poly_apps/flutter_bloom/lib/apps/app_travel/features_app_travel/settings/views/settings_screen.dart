@@ -7,6 +7,7 @@ import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../localization_app_travel/localization_keys_app_travel.dart';
 import '../../../constants_app_travel/cities_app_travel.dart';
+import 'traveler_management_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -30,6 +31,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'iconColor': Color(0xFF00D0D8),
       'title': '账号安全',
       'subtitle': '修改登录密码、修改手机号码',
+    },
+    {
+      'icon': Icons.people_outline,
+      'iconColor': Color(0xFF00D0D8),
+      'title': '设置出行人',
+      'subtitle': '管理常用出行人信息',
     },
     {
       'icon': Icons.link,
@@ -407,6 +414,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         break;
       case '账号安全':
         _showSecurityDialog();
+        break;
+      case '设置出行人':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const TravelerManagementScreen(),
+          ),
+        );
         break;
       case '账号关联':
         _showComingSoonDialog('账号关联');

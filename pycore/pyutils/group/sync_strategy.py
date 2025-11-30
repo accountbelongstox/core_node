@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Set
-from .sync_event import SyncEvent
+from pycore.pyutils.group.sync_event import SyncEvent
 
 
 class SyncStrategy(ABC):

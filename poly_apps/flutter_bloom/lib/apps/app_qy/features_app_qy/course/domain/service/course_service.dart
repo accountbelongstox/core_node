@@ -14,7 +14,8 @@
 library;
 
 import '../model/course_model.dart';
-import '../../../../../services_app_qy/api_service_app_qy.dart';
+import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../data/course_plan_data.dart';
 
 class CourseService {
   final ApiServiceAppQy _apiService;
@@ -29,8 +30,10 @@ class CourseService {
         '/api/v1/courses',
         queryParameters: {'category': category},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['courses'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CourseModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -41,7 +44,8 @@ class CourseService {
   Future<CourseModel> getCourseById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/courses/$id');
-      return CourseModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return CourseModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }
@@ -53,8 +57,10 @@ class CourseService {
         '/api/v1/courses/plans',
         queryParameters: {'category': category},
       );
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['plans'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) => CoursePlanModel.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
@@ -111,25 +117,6 @@ class CourseService {
   }
 
   List<CoursePlanModel> _getMockPlans(String category) {
-    return [
-      const CoursePlanModel(
-        id: '1',
-        title: '7天英文原版入门计划',
-        subtitle: '精读原版经典',
-        description: '通过7天系统学习，掌握英文原版阅读技巧',
-        totalDays: 7,
-        participants: 31000,
-        category: 'reading',
-      ),
-      const CoursePlanModel(
-        id: '2',
-        title: '7天生活英语计划',
-        subtitle: '积累地道口语',
-        description: '学习日常英语对话和实用表达',
-        totalDays: 7,
-        participants: 12000,
-        category: 'speaking',
-      ),
-    ];
+    return CoursePlanData.getMockPlans(category);
   }
 }

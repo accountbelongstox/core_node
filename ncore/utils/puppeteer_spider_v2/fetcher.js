@@ -13,6 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
+const globalVars = require('#@global_vars');
 const SpiderEngine = require('./src/core/SpiderEngine');
 const IframeUtils = require('./src/utils/iframe/IframeUtils');
 
@@ -62,9 +63,13 @@ class Fetcher {
         try {
             logger.info('Fetching URL:', url);
 
+            const timeout = options.timeout || globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await this.currentPage.goto(url, {
                 waitUntil: options.waitUntil || 'networkidle2',
-                timeout: options.timeout || 30000
+                timeout: timeout
             });
 
             const content = await this.currentPage.content();
@@ -148,9 +153,13 @@ class Fetcher {
         try {
             logger.info('Fetching iframe content from URL:', url);
 
+            const timeout = options.timeout || globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await this.currentPage.goto(url, {
                 waitUntil: options.waitUntil || 'networkidle2',
-                timeout: options.timeout || 30000
+                timeout: timeout
             });
 
             const iframeUtils = new IframeUtils(this.currentPage);
@@ -182,9 +191,13 @@ class Fetcher {
         try {
             logger.info('[RECURSIVE] Fetching iframe content from URL:', url);
 
+            const timeout = options.timeout || globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`[RECURSIVE] Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await this.currentPage.goto(url, {
                 waitUntil: options.waitUntil || 'networkidle2',
-                timeout: options.timeout || 30000
+                timeout: timeout
             });
 
             const iframeUtils = new IframeUtils(this.currentPage);
@@ -220,9 +233,13 @@ class Fetcher {
         try {
             logger.info(`Fetching iframe ${iframeIndex} content from URL:`, url);
 
+            const timeout = options.timeout || globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await this.currentPage.goto(url, {
                 waitUntil: options.waitUntil || 'networkidle2',
-                timeout: options.timeout || 30000
+                timeout: timeout
             });
 
             const iframeUtils = new IframeUtils(this.currentPage);

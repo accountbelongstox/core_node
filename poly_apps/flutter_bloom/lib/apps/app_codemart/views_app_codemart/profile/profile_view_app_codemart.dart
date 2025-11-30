@@ -4,6 +4,7 @@ import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../models_app_codemart/user_model_app_codemart.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ProfileViewAppCodemart extends StatelessWidget {
   const ProfileViewAppCodemart({super.key});
@@ -17,7 +18,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartProfile)),
+        title: Text(LocalizationKeysAppCodemart.codemartProfile.tr(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -28,7 +29,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
         ],
       ),
       body: user == null
-          ? Center(child: Text(context.tr(LocalizationKeysAppCodemart.codemartUserNotLoggedIn)))
+          ? Center(child: Text(LocalizationKeysAppCodemart.codemartUserNotLoggedIn.tr(context)))
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -73,7 +74,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                 // Developer profile section
                 if (developer != null) ...[
                   Text(
-                    context.tr(LocalizationKeysAppCodemart.codemartDeveloper),
+                    LocalizationKeysAppCodemart.codemartDeveloper.tr(context),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -118,7 +119,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                 // Client profile section
                 if (client != null) ...[
                   Text(
-                    context.tr(LocalizationKeysAppCodemart.codemartClient),
+                    LocalizationKeysAppCodemart.codemartClient.tr(context),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -152,7 +153,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
 
                 // Settings section
                 Text(
-                  context.tr(LocalizationKeysAppCodemart.codemartSettings),
+                  LocalizationKeysAppCodemart.codemartSettings.tr(context),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
@@ -161,14 +162,14 @@ class ProfileViewAppCodemart extends StatelessWidget {
                     children: [
                       ListTile(
                         leading: const Icon(Icons.account_balance_wallet),
-                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartWallet)),
+                        title: Text(LocalizationKeysAppCodemart.codemartWallet.tr(context)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => RouterAppCodemart.goToWallet(context),
                       ),
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.notifications),
-                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartNotifications)),
+                        title: Text(LocalizationKeysAppCodemart.codemartNotifications.tr(context)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           // TODO: Navigate to notifications settings
@@ -177,7 +178,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.language),
-                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartLanguage)),
+                        title: Text(LocalizationKeysAppCodemart.codemartLanguage.tr(context)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           // TODO: Navigate to language settings
@@ -187,7 +188,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                       ListTile(
                         leading: const Icon(Icons.logout, color: Colors.red),
                         title: Text(
-                          context.tr(LocalizationKeysAppCodemart.codemartLogout),
+                          LocalizationKeysAppCodemart.codemartLogout.tr(context),
                           style: const TextStyle(color: Colors.red),
                         ),
                         onTap: () {

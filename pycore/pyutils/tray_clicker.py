@@ -14,16 +14,11 @@ import shutil
 import traceback
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_win32api, get_third_package_win32con, get_third_package_pywinauto
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import win32api
-import win32con
+win32api = get_third_package_win32api()
+win32con = get_third_package_win32con()
+pywinauto = get_third_package_pywinauto()
 from pywinauto import Desktop
 
 # --- Embedded ColorPrint Class for rich console output ---

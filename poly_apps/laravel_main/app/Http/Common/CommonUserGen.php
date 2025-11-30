@@ -15,6 +15,7 @@
 namespace App\Http\Common;
 
 use App\Models\User;
+use App\Services\UnifiedAuthService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -22,23 +23,31 @@ use App\Http\Common\CommonAvatarPublic;
 use App\Utils\StrTool;
 class CommonUserGen
 {
-    /**
-     * Handle an incoming registration request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public static function createUser($username, $password, $email="", $nickname="", $name="")
+    public static function createUser($username, $password, $email="", $nickname="", $name="", $subAppConnection = null)
     {
-        if (self::checkUsernameIsExist($username)) {
+        $credentials = [
+            'username' => $username,
+            'email' => !empty($email) ? $email : null,
+            'phone' => null,
+            'name' => !empty($name) ? $name : null,
+            'password' => $password,
+            'sub_app_data' => [
+                'nickname' => !empty($nickname) ? $nickname : null,
+                'credit' => 0,
+            ],
+        ];
+
+        $result = UnifiedAuthService::register($credentials, $subAppConnection);
+
+        if (!$result['success']) {
+            \Log::error('[CommonUserGen] User creation failed', [
+                'username' => $username,
+                'error' => $result['error'] ?? 'Unknown error'
+            ]);
             return null;
         }
-        $user = User::create([
-            'username' => $username,
-            'nickname' => $nickname,
-            'name' => $name,
-            'email' => $email,
-            'password' => Hash::make($password),
-        ]);
+        
+        $user = $result['user'];
         $user = CommonAvatarPublic::createAvatar($user);
         event(new Registered($user));
 

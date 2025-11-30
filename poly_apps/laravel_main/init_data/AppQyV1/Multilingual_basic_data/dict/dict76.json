@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.439460+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "trigger",
+        "laos": "ຜົນກະທົບຕໍ່",
+        "jp": "トリガー",
+        "vie": "cò súng",
+        "en_pronunciation": "/ˈtrɪgər/",
+        "laos_pronunciation": "phonkathobto",
+        "jp_pronunciation": "torigaa",
+        "vie_pronunciation": "co sung"
+      },
+      "means": {
+        "en": "Lever that activates the firing mechanism of a gun",
+        "zh": "启动枪的发射机构的杠杆"
+      }
+    },
+    {
+      "word": {
+        "en": "trillion",
+        "laos": "ໄຕພຽງ",
+        "jp": "兆",
+        "vie": "nghìn tỷ",
+        "en_pronunciation": "/ˈtrɪljən/",
+        "laos_pronunciation": "taiphiang",
+        "jp_pronunciation": "chou",
+        "vie_pronunciation": "nghin ty"
+      },
+      "means": {
+        "en": "A very large indefinite number (usually hyperbole)",
+        "zh": "非常大的不定数（通常是夸张的）"
+      }
+    },
+    {
+      "word": {
+        "en": "trim",
+        "laos": "ຖາກ",
+        "jp": "トリム",
+        "vie": "cắt tỉa",
+        "en_pronunciation": "/trɪm/",
+        "laos_pronunciation": "thak",
+        "jp_pronunciation": "torimu",
+        "vie_pronunciation": "cat tia"
+      },
+      "means": {
+        "en": "A state of arrangement or appearance",
+        "zh": "排列或外观的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "trip",
+        "laos": "ການເດີນທາງ",
+        "jp": "旅行",
+        "vie": "chuyến đi",
+        "en_pronunciation": "/trɪp/",
+        "laos_pronunciation": "kandoenthang",
+        "jp_pronunciation": "ryokou",
+        "vie_pronunciation": "chuyen di"
+      },
+      "means": {
+        "en": "A journey for some purpose (usually including the return)",
+        "zh": "出于某种目的的旅行（通常包括返程）"
+      }
+    },
+    {
+      "word": {
+        "en": "triple",
+        "laos": "ສາມເທົ້າ",
+        "jp": "トリプル",
+        "vie": "gấp ba",
+        "en_pronunciation": "/ˈtrɪpəl/",
+        "laos_pronunciation": "samthao",
+        "jp_pronunciation": "toripuru",
+        "vie_pronunciation": "gap ba"
+      },
+      "means": {
+        "en": "A base hit at which the batter stops safely at third base",
+        "zh": "击球手安全停在三垒的安打"
+      }
+    },
+    {
+      "word": {
+        "en": "triumph",
+        "laos": "ໄຊທ່ວງ",
+        "jp": "勝利",
+        "vie": "chiến thắng",
+        "en_pronunciation": "/traɪəmf/",
+        "laos_pronunciation": "saithuang",
+        "jp_pronunciation": "shouri",
+        "vie_pronunciation": "chien thang"
+      },
+      "means": {
+        "en": "A successful ending of a struggle or contest",
+        "zh": "斗争或竞赛的成功结束"
+      }
+    },
+    {
+      "word": {
+        "en": "trivial",
+        "laos": "ກະຈຸກກະຈິກ",
+        "jp": "つまらない",
+        "vie": "tầm thường",
+        "en_pronunciation": "/ˈtrɪviəl/",
+        "laos_pronunciation": "ka chuk kachik",
+        "jp_pronunciation": "tsumaranai",
+        "vie_pronunciation": "tam thuong"
+      },
+      "means": {
+        "en": "(informal) small and of little importance",
+        "zh": "（非正式）小且不重要的"
+      }
+    },
+    {
+      "word": {
+        "en": "triumphant",
+        "laos": "Triumphant",
+        "jp": "勝ち誇った",
+        "vie": "chiến thắng",
+        "en_pronunciation": "/traɪˈəmfənt/",
+        "laos_pronunciation": "Triumphant",
+        "jp_pronunciation": "kachi hokotsu ta",
+        "vie_pronunciation": "chien thang"
+      },
+      "means": {
+        "en": "Joyful and proud especially because of triumph or success",
+        "zh": "特别因为胜利或成功而感到高兴和自豪"
+      }
+    },
+    {
+      "word": {
+        "en": "trolley",
+        "laos": "ເຮືອແພ່ເຂົ້າ",
+        "jp": "トロリー",
+        "vie": "xe đẩy",
+        "en_pronunciation": "/ˈtrɑli/",
+        "laos_pronunciation": "heu aephkhao",
+        "jp_pronunciation": "tororii",
+        "vie_pronunciation": "xe day"
+      },
+      "means": {
+        "en": "A wheeled vehicle that runs on rails and is propelled by electricity",
+        "zh": "在轨道上运行并由电力驱动的轮式车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "troop",
+        "laos": "ລູກທະຫານ",
+        "jp": "軍隊",
+        "vie": "quân đội",
+        "en_pronunciation": "/trup/",
+        "laos_pronunciation": "lukthahan",
+        "jp_pronunciation": "guntai",
+        "vie_pronunciation": "quan doi"
+      },
+      "means": {
+        "en": "A group of soldiers",
+        "zh": "一群士兵"
+      }
+    },
+    {
+      "word": {
+        "en": "trophy",
+        "laos": "ລາງວັນໄຊຊະນະ",
+        "jp": "トロフィー",
+        "vie": "chiếc cúp",
+        "en_pronunciation": "/ˈtroʊfi/",
+        "laos_pronunciation": "langvansaisana",
+        "jp_pronunciation": "torofii",
+        "vie_pronunciation": "chiec cup"
+      },
+      "means": {
+        "en": "An award for success in war or hunting",
+        "zh": "在战争或狩猎中取得成功的奖励"
+      }
+    },
+    {
+      "word": {
+        "en": "tropic",
+        "laos": "ເຂດຮ້ອນ",
+        "jp": "熱帯",
+        "vie": "nhiệt đới",
+        "en_pronunciation": "/ˈtrɑpɪk/",
+        "laos_pronunciation": "khedhon",
+        "jp_pronunciation": "nettai",
+        "vie_pronunciation": "nhiet doi"
+      },
+      "means": {
+        "en": "Either of two parallels of latitude about 23.5 degrees to the north and south of the equator representing the points farthest north and south at which the sun can shine directly overhead and constituting the boundaries of the Torrid Zone or tropics",
+        "zh": "赤道南北约 23.5 度的两条纬线中的任意一条，代表太阳可以直接照射头顶的最北点和最南点，并构成热带地区或热带的边界"
+      }
+    },
+    {
+      "word": {
+        "en": "trouble",
+        "laos": "ຄວາມເດືອດຮ້ອນ",
+        "jp": "トラブル",
+        "vie": "rắc rối",
+        "en_pronunciation": "/ˈtrəbəl/",
+        "laos_pronunciation": "khuaamdeuodhon",
+        "jp_pronunciation": "toraburu",
+        "vie_pronunciation": "rac roi"
+      },
+      "means": {
+        "en": "A source of difficulty",
+        "zh": "困难的根源"
+      }
+    },
+    {
+      "word": {
+        "en": "tropical",
+        "laos": "ແສນພູມ",
+        "jp": "トロピカル",
+        "vie": "nhiệt đới",
+        "en_pronunciation": "/ˈtrɑpɪkəl/",
+        "laos_pronunciation": "aesnphum",
+        "jp_pronunciation": "toropikaru",
+        "vie_pronunciation": "nhiet doi"
+      },
+      "means": {
+        "en": "Relating to or situated in or characteristic of the tropics (the region on either side of the equator)",
+        "zh": "与热带（赤道两侧的地区）有关或位于热带或具有热带特征"
+      }
+    },
+    {
+      "word": {
+        "en": "troublesome",
+        "laos": "ລໍາລຽງ",
+        "jp": "面倒な",
+        "vie": "rắc rối",
+        "en_pronunciation": "/ˈtrəbəlsəm/",
+        "laos_pronunciation": "loaliang",
+        "jp_pronunciation": "mendou na",
+        "vie_pronunciation": "rac roi"
+      },
+      "means": {
+        "en": "Difficult to deal with",
+        "zh": "很难对付"
+      }
+    },
+    {
+      "word": {
+        "en": "trousers",
+        "laos": "ສົ້ງຂາຍາວ",
+        "jp": "ズボン",
+        "vie": "quần",
+        "en_pronunciation": "/ˈtraʊzərz/",
+        "laos_pronunciation": "song khaiav",
+        "jp_pronunciation": "zubon",
+        "vie_pronunciation": "quan"
+      },
+      "means": {
+        "en": "(usually in the plural) a garment extending from the waist to the knee or ankle, covering each leg separately",
+        "zh": "（通常为复数）从腰部延伸到膝盖或脚踝的衣服，分别覆盖每条腿"
+      }
+    },
+    {
+      "word": {
+        "en": "truck",
+        "laos": "ລົດບັນທຸກ",
+        "jp": "トラック",
+        "vie": "xe tải",
+        "en_pronunciation": "/trək/",
+        "laos_pronunciation": "lodbanthuk",
+        "jp_pronunciation": "torakku",
+        "vie_pronunciation": "xe tai"
+      },
+      "means": {
+        "en": "An automotive vehicle suitable for hauling",
+        "zh": "适合牵引的机动车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "true",
+        "laos": "ສັດ",
+        "jp": "本当の",
+        "vie": "đúng",
+        "en_pronunciation": "/tru/",
+        "laos_pronunciation": "sad",
+        "jp_pronunciation": "hontou no",
+        "vie_pronunciation": "dung"
+      },
+      "means": {
+        "en": "Proper alignment; the property possessed by something that is in correct or proper alignment",
+        "zh": "正确对齐；"
+      }
+    },
+    {
+      "word": {
+        "en": "truly",
+        "laos": "ທີ່ຈິງ",
+        "jp": "本当に",
+        "vie": "thực sự",
+        "en_pronunciation": "/ˈtruli/",
+        "laos_pronunciation": "thiching",
+        "jp_pronunciation": "hontou ni",
+        "vie_pronunciation": "thuc su"
+      },
+      "means": {
+        "en": "In accordance with truth or fact or reality",
+        "zh": "正确或适当对齐的事物所拥有的属性"
+      }
+    },
+    {
+      "word": {
+        "en": "trumpet",
+        "laos": "ແຜດ",
+        "jp": "トランペット",
+        "vie": "kèn",
+        "en_pronunciation": "/ˈtrəmpət/",
+        "laos_pronunciation": "aephd",
+        "jp_pronunciation": "toranpetto",
+        "vie_pronunciation": "ken"
+      },
+      "means": {
+        "en": "A brass musical instrument with a brilliant tone; has a narrow tube and a flared bell and is played by means of valves",
+        "zh": "根据真相或事实或现实"
+      }
+    },
+    {
+      "word": {
+        "en": "trunk",
+        "laos": "ງວງ",
+        "jp": "トランク",
+        "vie": "thân cây",
+        "en_pronunciation": "/trəŋk/",
+        "laos_pronunciation": "nguang",
+        "jp_pronunciation": "toranku",
+        "vie_pronunciation": "than cay"
+      },
+      "means": {
+        "en": "The main stem of a tree; usually covered with bark; the bole is usually the part that is commercially useful for lumber",
+        "zh": "音色绚丽的铜管乐器；"
+      }
+    },
+    {
+      "word": {
+        "en": "trust",
+        "laos": "ໄວ້ວາງໃຈ",
+        "jp": "信頼",
+        "vie": "tin tưởng",
+        "en_pronunciation": "/trəst/",
+        "laos_pronunciation": "vaiuaangchai",
+        "jp_pronunciation": "shinrai",
+        "vie_pronunciation": "tin tuong"
+      },
+      "means": {
+        "en": "Something (as property) held by one party (the trustee) for the benefit of another (the beneficiary)",
+        "zh": "有一个窄管和一个喇叭形喇叭，通过阀门演奏"
+      }
+    },
+    {
+      "word": {
+        "en": "trustee",
+        "laos": "ຜູ້ຢິງຮັບໃຊ້",
+        "jp": "管財人",
+        "vie": "người được ủy thác",
+        "en_pronunciation": "/ˌtrəˈsti/",
+        "laos_pronunciation": "phu yinghabsai",
+        "jp_pronunciation": "kanzainin",
+        "vie_pronunciation": "nguoi duoc uy thac"
+      },
+      "means": {
+        "en": "A person (or institution) to whom legal title to property is entrusted to use for another's benefit",
+        "zh": "树的主干；"
+      }
+    },
+    {
+      "word": {
+        "en": "truth",
+        "laos": "ຄວາມຈິງ",
+        "jp": "真実",
+        "vie": "sự thật",
+        "en_pronunciation": "/truθ/",
+        "laos_pronunciation": "khuaamching",
+        "jp_pronunciation": "shinjitsu",
+        "vie_pronunciation": "su that"
+      },
+      "means": {
+        "en": "A fact that has been verified",
+        "zh": "通常覆盖有树皮；"
+      }
+    },
+    {
+      "word": {
+        "en": "truthful",
+        "laos": "ຈິງ",
+        "jp": "正直な",
+        "vie": "trung thực",
+        "en_pronunciation": "/ˈtruθfəl/",
+        "laos_pronunciation": "ching",
+        "jp_pronunciation": "shoujiki na",
+        "vie_pronunciation": "trung thuc"
+      },
+      "means": {
+        "en": "Expressing or given to expressing the truth",
+        "zh": "树干通常是木材具有商业用途的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "try",
+        "laos": "ວິທີການ",
+        "jp": "試してみる",
+        "vie": "thử",
+        "en_pronunciation": "/traɪ/",
+        "laos_pronunciation": "vithikan",
+        "jp_pronunciation": "tameshi temiru",
+        "vie_pronunciation": "thu"
+      },
+      "means": {
+        "en": "Earnest and conscientious activity intended to do or accomplish something",
+        "zh": "一方（受托人）为了另一方（受益人）的利益而持有的东西（如财产）"
+      }
+    },
+    {
+      "word": {
+        "en": "trial",
+        "laos": "ການທົດລອງ",
+        "jp": "裁判",
+        "vie": "thử nghiệm",
+        "en_pronunciation": "/traɪəl/",
+        "laos_pronunciation": "kanthodlong",
+        "jp_pronunciation": "saiban",
+        "vie_pronunciation": "thu nghiem"
+      },
+      "means": {
+        "en": "The act of testing something",
+        "zh": "受委托将财产的合法所有权用于他人利益的个人（或机构）"
+      }
+    },
+    {
+      "word": {
+        "en": "trying",
+        "laos": "ການພະຍາຍາມ",
+        "jp": "試しています",
+        "vie": "cố gắng",
+        "en_pronunciation": "/traɪɪŋ/",
+        "laos_pronunciation": "kanphanyaiam",
+        "jp_pronunciation": "tameshi teimasu",
+        "vie_pronunciation": "co gang"
+      },
+      "means": {
+        "en": "Make an effort or attempt",
+        "zh": "已被证实的事实"
+      }
+    },
+    {
+      "word": {
+        "en": "tub",
+        "laos": "ອ່າງໃຫຢ່",
+        "jp": "浴槽",
+        "vie": "bồn tắm",
+        "en_pronunciation": "/təb/",
+        "laos_pronunciation": "ang haiy",
+        "jp_pronunciation": "yokusou",
+        "vie_pronunciation": "bon tam"
+      },
+      "means": {
+        "en": "A relatively large open container that you fill with water and use to wash the body",
+        "zh": "表达或致力于表达真相"
+      }
+    },
+    {
+      "word": {
+        "en": "tube",
+        "laos": "ທໍ່",
+        "jp": "チューブ",
+        "vie": "ống",
+        "en_pronunciation": "/tub/",
+        "laos_pronunciation": "tho",
+        "jp_pronunciation": "chuubu",
+        "vie_pronunciation": "ong"
+      },
+      "means": {
+        "en": "Conduit consisting of a long hollow object (usually cylindrical) used to hold and conduct objects or liquids or gases",
+        "zh": "旨在做或完成某事的认真和认真的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "tuck",
+        "laos": "ຢ້ໍາ",
+        "jp": "タック",
+        "vie": "nhét vào",
+        "en_pronunciation": "/tək/",
+        "laos_pronunciation": "yoa",
+        "jp_pronunciation": "takku",
+        "vie_pronunciation": "nhet vao"
+      },
+      "means": {
+        "en": "Eatables (especially sweets)",
+        "zh": "测试某事的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "tuesday",
+        "laos": "ວັນອັງຄານ",
+        "jp": "火曜日",
+        "vie": "thứ ba",
+        "en_pronunciation": "/ˈtuzˌdeɪ/",
+        "laos_pronunciation": "vnoangkhan",
+        "jp_pronunciation": "kayoubi",
+        "vie_pronunciation": "thu ba"
+      },
+      "means": {
+        "en": "The third day of the week; the second working day",
+        "zh": "做出努力或尝试"
+      }
+    },
+    {
+      "word": {
+        "en": "tug",
+        "laos": "ກ້ອຢ",
+        "jp": "引っ張る",
+        "vie": "kéo",
+        "en_pronunciation": "/təg/",
+        "laos_pronunciation": "koy",
+        "jp_pronunciation": "hipparu",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "A sudden abrupt pull",
+        "zh": "一个相对较大的开放容器，可以装满水并用来清洗身体"
+      }
+    },
+    {
+      "word": {
+        "en": "tuition",
+        "laos": "ຄ່າຮຽນ",
+        "jp": "授業料",
+        "vie": "học phí",
+        "en_pronunciation": "/tjuˈɪʃən/",
+        "laos_pronunciation": "khahian",
+        "jp_pronunciation": "jugyouryou",
+        "vie_pronunciation": "hoc phi"
+      },
+      "means": {
+        "en": "A fee paid for instruction (especially for higher education)",
+        "zh": "由长空心物体（通常是圆柱形）组成的导管，用于容纳和传导物体或液体或气体"
+      }
+    },
+    {
+      "word": {
+        "en": "tumble",
+        "laos": "ລົ້ມ",
+        "jp": "転ぶ",
+        "vie": "nhào lộn",
+        "en_pronunciation": "/ˈtəmbəl/",
+        "laos_pronunciation": "lom",
+        "jp_pronunciation": "korobu",
+        "vie_pronunciation": "nhao lon"
+      },
+      "means": {
+        "en": "An acrobatic feat of rolling or turning end over end",
+        "zh": "食物（尤其是甜食）"
+      }
+    },
+    {
+      "word": {
+        "en": "tumor",
+        "laos": "ເນື້ອນົມ",
+        "jp": "腫瘍",
+        "vie": "khối u",
+        "en_pronunciation": "/ˈtumər/",
+        "laos_pronunciation": "neuonom",
+        "jp_pronunciation": "shuyou",
+        "vie_pronunciation": "khoi u"
+      },
+      "means": {
+        "en": "An abnormal new mass of tissue that serves no purpose",
+        "zh": "一周的第三天；"
+      }
+    },
+    {
+      "word": {
+        "en": "tumour",
+        "laos": "ເນື້ອນົມ",
+        "jp": "腫瘍",
+        "vie": "khối u",
+        "en_pronunciation": "/tumour/",
+        "laos_pronunciation": "neuonom",
+        "jp_pronunciation": "shuyou",
+        "vie_pronunciation": "khoi u"
+      },
+      "means": {
+        "en": "An abnormal new mass of tissue that serves no purpose",
+        "zh": "第二个工作日"
+      }
+    },
+    {
+      "word": {
+        "en": "tune",
+        "laos": "ປບັ",
+        "jp": "曲調",
+        "vie": "điều chỉnh",
+        "en_pronunciation": "/tun/",
+        "laos_pronunciation": "pba",
+        "jp_pronunciation": "kyokuchou",
+        "vie_pronunciation": "dieu chinh"
+      },
+      "means": {
+        "en": "A succession of notes forming a distinctive sequence",
+        "zh": "突然猛烈的拉力"
+      }
+    },
+    {
+      "word": {
+        "en": "tunnel",
+        "laos": "ອຸໂມງ",
+        "jp": "トンネル",
+        "vie": "đường hầm",
+        "en_pronunciation": "/ˈtənəl/",
+        "laos_pronunciation": "uomng",
+        "jp_pronunciation": "tonneru",
+        "vie_pronunciation": "duong ham"
+      },
+      "means": {
+        "en": "A passageway through or under something, usually underground (especially one for trains or cars)",
+        "zh": "支付教学费用（尤其是高等教育）"
+      }
+    },
+    {
+      "word": {
+        "en": "turbulent",
+        "laos": "ຂີ້ມ້ອນ",
+        "jp": "乱暴な",
+        "vie": "hỗn loạn",
+        "en_pronunciation": "/ˈtərbjələnt/",
+        "laos_pronunciation": "khimon",
+        "jp_pronunciation": "ranbou na",
+        "vie_pronunciation": "hon loan"
+      },
+      "means": {
+        "en": "Characterized by unrest or disorder or insubordination",
+        "zh": "翻滚或翻转的杂技表演"
+      }
+    },
+    {
+      "word": {
+        "en": "turbulence",
+        "laos": "turbulence",
+        "jp": "乱気流",
+        "vie": "sự hỗn loạn",
+        "en_pronunciation": "/ˈtərbjələns/",
+        "laos_pronunciation": "turbulence",
+        "jp_pronunciation": "rankiryuu",
+        "vie_pronunciation": "su hon loan"
+      },
+      "means": {
+        "en": "Unstable flow of a liquid or gas",
+        "zh": "无用的异常新组织块"
+      }
+    },
+    {
+      "word": {
+        "en": "turkey",
+        "laos": "ໄກ່ງວງ",
+        "jp": "七面鳥",
+        "vie": "gà tây",
+        "en_pronunciation": "/ˈtərki/",
+        "laos_pronunciation": "kainguang",
+        "jp_pronunciation": "shichimenchou",
+        "vie_pronunciation": "ga tay"
+      },
+      "means": {
+        "en": "Large gallinaceous bird with fan-shaped tail; widely domesticated for food",
+        "zh": "无用的异常新组织块"
+      }
+    },
+    {
+      "word": {
+        "en": "turmoil",
+        "laos": "ໂກລາຫົນ",
+        "jp": "混乱",
+        "vie": "sự hỗn loạn",
+        "en_pronunciation": "/ˈtərˌmɔɪl/",
+        "laos_pronunciation": "ok lahon",
+        "jp_pronunciation": "konran",
+        "vie_pronunciation": "su hon loan"
+      },
+      "means": {
+        "en": "A violent disturbance",
+        "zh": "一系列音符形成独特的序列"
+      }
+    },
+    {
+      "word": {
+        "en": "turn",
+        "laos": "ຜຽນ",
+        "jp": "回す",
+        "vie": "rẽ",
+        "en_pronunciation": "/tərn/",
+        "laos_pronunciation": "phian",
+        "jp_pronunciation": "mawasu",
+        "vie_pronunciation": "re"
+      },
+      "means": {
+        "en": "A circular segment of a curve",
+        "zh": "穿过某物或在某物下方的通道，通常在地下（尤其是火车或汽车的通道）"
+      }
+    },
+    {
+      "word": {
+        "en": "turnout",
+        "laos": "ການໄປທ່ຽວ",
+        "jp": "投票率",
+        "vie": "số cử tri đi bỏ phiếu",
+        "en_pronunciation": "/ˈtərˌnaʊt/",
+        "laos_pronunciation": "kanpaithiav",
+        "jp_pronunciation": "touhyouritsu",
+        "vie_pronunciation": "so cu tri di bo phieu"
+      },
+      "means": {
+        "en": "The group that gathers together for a particular occasion",
+        "zh": "以不安定、混乱或不服从为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "turnover",
+        "laos": "ກໍ່ສ້າງ",
+        "jp": "売上高",
+        "vie": "doanh thu",
+        "en_pronunciation": "/ˈtərˌnoʊvər/",
+        "laos_pronunciation": "kosang",
+        "jp_pronunciation": "uriagedaka",
+        "vie_pronunciation": "doanh thu"
+      },
+      "means": {
+        "en": "The ratio of the number of workers that had to be replaced in a given time period to the average number of workers",
+        "zh": "液体或气体的不稳定流动"
+      }
+    },
+    {
+      "word": {
+        "en": "turtle",
+        "laos": "ເຕົ່າ",
+        "jp": "カメ",
+        "vie": "rùa",
+        "en_pronunciation": "/ˈtərtəl/",
+        "laos_pronunciation": "teoa",
+        "jp_pronunciation": "kame",
+        "vie_pronunciation": "rua"
+      },
+      "means": {
+        "en": "A sweater or jersey with a high close-fitting collar",
+        "zh": "具有扇形尾巴的大型鸡鸟；"
+      }
+    },
+    {
+      "word": {
+        "en": "tutor",
+        "laos": "ຄູສອນ",
+        "jp": "家庭教師",
+        "vie": "gia sư",
+        "en_pronunciation": "/ˈtutər/",
+        "laos_pronunciation": "khuson",
+        "jp_pronunciation": "kateikyoushi",
+        "vie_pronunciation": "gia su"
+      },
+      "means": {
+        "en": "A person who gives private instruction (as in singing, acting, etc.)",
+        "zh": "广泛驯化作为食物"
+      }
+    },
+    {
+      "word": {
+        "en": "tutorial",
+        "laos": "ຄໍາແນະນໍາ",
+        "jp": "チュートリアル",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/tuˈtɔriəl/",
+        "laos_pronunciation": "khoanaenoa",
+        "jp_pronunciation": "chuutoriaru",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "A session of intensive tuition given by a tutor to an individual or to a small number of students",
+        "zh": "剧烈骚乱"
+      }
+    },
+    {
+      "word": {
+        "en": "twelve",
+        "laos": "ສິບສອງ",
+        "jp": "12",
+        "vie": "mười hai",
+        "en_pronunciation": "/twɛlv/",
+        "laos_pronunciation": "sibsong",
+        "jp_pronunciation": "12",
+        "vie_pronunciation": "muoi hai"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of eleven and one",
+        "zh": "曲线的圆弧段"
+      }
+    },
+    {
+      "word": {
+        "en": "twelfth",
+        "laos": "ທີສອງ",
+        "jp": "12番目",
+        "vie": "thứ mười hai",
+        "en_pronunciation": "/twɛlfθ/",
+        "laos_pronunciation": "thisong",
+        "jp_pronunciation": "12 banme",
+        "vie_pronunciation": "thu muoi hai"
+      },
+      "means": {
+        "en": "Position 12 in a countable series of things",
+        "zh": "为特定场合聚集在一起的团体"
+      }
+    },
+    {
+      "word": {
+        "en": "twenty",
+        "laos": "ຊາວ",
+        "jp": "二十",
+        "vie": "hai mươi",
+        "en_pronunciation": "/tˈwɛnti/",
+        "laos_pronunciation": "sav",
+        "jp_pronunciation": "nijuu",
+        "vie_pronunciation": "hai muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of nineteen and one",
+        "zh": "一定时期内必须更换的工人数量与平均工人数量的比率"
+      }
+    },
+    {
+      "word": {
+        "en": "twentieth",
+        "laos": "ຊາວຄັນ",
+        "jp": "二十日",
+        "vie": "thứ hai mươi",
+        "en_pronunciation": "/tˈwɛnˌtiɛθ/",
+        "laos_pronunciation": "sauakhan",
+        "jp_pronunciation": "hatsuka",
+        "vie_pronunciation": "thu hai muoi"
+      },
+      "means": {
+        "en": "Position 20 in a countable series of things",
+        "zh": "高领贴身毛衣或针织衫"
+      }
+    },
+    {
+      "word": {
+        "en": "twice",
+        "laos": "ສອງສົ້ນ",
+        "jp": "二度",
+        "vie": "hai lần",
+        "en_pronunciation": "/twaɪs/",
+        "laos_pronunciation": "songson",
+        "jp_pronunciation": "nido",
+        "vie_pronunciation": "hai lan"
+      },
+      "means": {
+        "en": "Two times",
+        "zh": "进行私人指导的人（如歌唱、表演等）"
+      }
+    },
+    {
+      "word": {
+        "en": "twin",
+        "laos": "ຄູ່ແຝດ",
+        "jp": "双子",
+        "vie": "sinh đôi",
+        "en_pronunciation": "/twɪn/",
+        "laos_pronunciation": "khuaefd",
+        "jp_pronunciation": "futago",
+        "vie_pronunciation": "sinh doi"
+      },
+      "means": {
+        "en": "Either of two offspring born at the same time from the same pregnancy",
+        "zh": "由导师为个人或少数学生提供的强化辅导课程"
+      }
+    },
+    {
+      "word": {
+        "en": "twist",
+        "laos": "ບິດ",
+        "jp": "ひねる",
+        "vie": "xoắn",
+        "en_pronunciation": "/twɪst/",
+        "laos_pronunciation": "bid",
+        "jp_pronunciation": "hineru",
+        "vie_pronunciation": "xoan"
+      },
+      "means": {
+        "en": "An unforeseen development",
+        "zh": "十一加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "two",
+        "laos": "ສອງ",
+        "jp": "2つ",
+        "vie": "hai",
+        "en_pronunciation": "/tu/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "2 tsu",
+        "vie_pronunciation": "hai"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of one and one or a numeral representing this number",
+        "zh": "在一系列可数事物中的位置 12"
+      }
+    },
+    {
+      "word": {
+        "en": "type",
+        "laos": "ປະເພດ",
+        "jp": "タイプ",
+        "vie": "loại",
+        "en_pronunciation": "/taɪp/",
+        "laos_pronunciation": "paphed",
+        "jp_pronunciation": "taipu",
+        "vie_pronunciation": "loai"
+      },
+      "means": {
+        "en": "A subdivision of a particular kind of thing",
+        "zh": "十九加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "typist",
+        "laos": "ນັກພິມດີດ",
+        "jp": "タイピスト",
+        "vie": "người đánh máy",
+        "en_pronunciation": "/ˈtaɪpɪst/",
+        "laos_pronunciation": "nak phimdid",
+        "jp_pronunciation": "taipisuto",
+        "vie_pronunciation": "nguoi danh may"
+      },
+      "means": {
+        "en": "Someone paid to operate a typewriter",
+        "zh": "在一系列可数事物中的位置 20"
+      }
+    },
+    {
+      "word": {
+        "en": "typewriter",
+        "laos": "ພິມດີດ",
+        "jp": "タイプライター",
+        "vie": "máy đánh chữ",
+        "en_pronunciation": "/ˈtaɪˌpraɪtər/",
+        "laos_pronunciation": "phimdid",
+        "jp_pronunciation": "taipuraitaa",
+        "vie_pronunciation": "may danh chu"
+      },
+      "means": {
+        "en": "Hand-operated character printer for printing written messages one character at a time",
+        "zh": "两次"
+      }
+    },
+    {
+      "word": {
+        "en": "typical",
+        "laos": "ທໍາມະດາ",
+        "jp": "典型的な",
+        "vie": "điển hình",
+        "en_pronunciation": "/ˈtɪpɪkəl/",
+        "laos_pronunciation": "thoamada",
+        "jp_pronunciation": "tenkeiteki na",
+        "vie_pronunciation": "dien hinh"
+      },
+      "means": {
+        "en": "Exhibiting the qualities or characteristics that identify a group or kind or category",
+        "zh": "同一次怀孕同时出生的两个后代中的任何一个"
+      }
+    },
+    {
+      "word": {
+        "en": "tyre",
+        "laos": "ຢາງລົດ",
+        "jp": "タイヤ",
+        "vie": "lốp xe",
+        "en_pronunciation": "/taɪər/",
+        "laos_pronunciation": "yanglod",
+        "jp_pronunciation": "taiya",
+        "vie_pronunciation": "lop xe"
+      },
+      "means": {
+        "en": "A port in southern Lebanon on the Mediterranean Sea; formerly a major Phoenician seaport famous for silks",
+        "zh": "不可预见的发展"
+      }
+    },
+    {
+      "word": {
+        "en": "tire",
+        "laos": "ຢາງລົດ",
+        "jp": "タイヤ",
+        "vie": "lốp xe",
+        "en_pronunciation": "/taɪər/",
+        "laos_pronunciation": "yanglod",
+        "jp_pronunciation": "taiya",
+        "vie_pronunciation": "lop xe"
+      },
+      "means": {
+        "en": "Hoop that covers a wheel",
+        "zh": "基数，即一与一之和或代表该数字的数字"
+      }
+    },
+    {
+      "word": {
+        "en": "ugly",
+        "laos": "ຮ້າຢກາດ",
+        "jp": "醜い",
+        "vie": "xấu xí",
+        "en_pronunciation": "/ˈəgli/",
+        "laos_pronunciation": "ha ykad",
+        "jp_pronunciation": "minikui",
+        "vie_pronunciation": "xau xi"
+      },
+      "means": {
+        "en": "Displeasing to the senses",
+        "zh": "特定事物的细分"
+      }
+    },
+    {
+      "word": {
+        "en": "ugliness",
+        "laos": "ສະຫມຸກ",
+        "jp": "醜さ",
+        "vie": "sự xấu xí",
+        "en_pronunciation": "/ˈəglinəs/",
+        "laos_pronunciation": "sa muk",
+        "jp_pronunciation": "kitanasa",
+        "vie_pronunciation": "su xau xi"
+      },
+      "means": {
+        "en": "Qualities of appearance that do not give pleasure to the senses",
+        "zh": "有人付费操作打字机"
+      }
+    },
+    {
+      "word": {
+        "en": "ultimate",
+        "laos": "ສຸດຊ້ໍາໄຟຟ້າ",
+        "jp": "究極の",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/ˈəltəmət/",
+        "laos_pronunciation": "sud s oafaifa",
+        "jp_pronunciation": "kyuukyoku no",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "The finest or most superior quality of its kind",
+        "zh": "手动字符打印机，用于一次打印一个字符的书面信息"
+      }
+    },
+    {
+      "word": {
+        "en": "ultimately",
+        "laos": "ໃນທີ່ສຸດທີ່ສຸດ",
+        "jp": "結局のところ",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/ˈəltəmətli/",
+        "laos_pronunciation": "naithisudthisud",
+        "jp_pronunciation": "kekkyoku notokoro",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "As the end result of a succession or process",
+        "zh": "表现出识别群体、种类或类别的品质或特征"
+      }
+    },
+    {
+      "word": {
+        "en": "ultra",
+        "laos": "ເປັນທີ່ລ້ໍາ",
+        "jp": "ウルトラ",
+        "vie": "cực kỳ",
+        "en_pronunciation": "/ˈəltrə/",
+        "laos_pronunciation": "pen thi loa",
+        "jp_pronunciation": "urutora",
+        "vie_pronunciation": "cuc ky"
+      },
+      "means": {
+        "en": "(used of opinions and actions) far beyond the norm",
+        "zh": "黎巴嫩南部地中海的一个港口；"
+      }
+    },
+    {
+      "word": {
+        "en": "umbrella",
+        "laos": "ຄັນຮົ່ມ",
+        "jp": "傘",
+        "vie": "ô",
+        "en_pronunciation": "/ˈəmˌbrɛlə/",
+        "laos_pronunciation": "khanhom",
+        "jp_pronunciation": "kasa",
+        "vie_pronunciation": "o"
+      },
+      "means": {
+        "en": "A lightweight handheld collapsible canopy",
+        "zh": "曾经是腓尼基的主要海港，以丝绸而闻名"
+      }
+    },
+    {
+      "word": {
+        "en": "unanimous",
+        "laos": "ຜູ້ເປັນມິດ",
+        "jp": "全会一致の",
+        "vie": "nhất trí",
+        "en_pronunciation": "/juˈnænəməs/",
+        "laos_pronunciation": "phupenmid",
+        "jp_pronunciation": "zenkaiitchi no",
+        "vie_pronunciation": "nhat tri"
+      },
+      "means": {
+        "en": "In complete agreement",
+        "zh": "覆盖车轮的箍"
+      }
+    },
+    {
+      "word": {
+        "en": "uncertain",
+        "laos": "ອະນິດທີ",
+        "jp": "不確かな",
+        "vie": "không chắc chắn",
+        "en_pronunciation": "/ənˈsərtən/",
+        "laos_pronunciation": "anidthi",
+        "jp_pronunciation": "futashika na",
+        "vie_pronunciation": "khong chac chan"
+      },
+      "means": {
+        "en": "Lacking or indicating lack of confidence or assurance",
+        "zh": "令人不悦的感官"
+      }
+    },
+    {
+      "word": {
+        "en": "uncertainty",
+        "laos": "ຄວາມບໍ່ແນ່ນອນ",
+        "jp": "不確実性",
+        "vie": "sự không chắc chắn",
+        "en_pronunciation": "/ənˈsərtənti/",
+        "laos_pronunciation": "khuaamboaennon",
+        "jp_pronunciation": "fukakujitsusei",
+        "vie_pronunciation": "su khong chac chan"
+      },
+      "means": {
+        "en": "Being unsettled or in doubt or dependent on chance",
+        "zh": "不给感官带来愉悦的外观品质"
+      }
+    },
+    {
+      "word": {
+        "en": "uncle",
+        "laos": "ລຸງ",
+        "jp": "叔父さん",
+        "vie": "chú",
+        "en_pronunciation": "/ˈəŋkəl/",
+        "laos_pronunciation": "lung",
+        "jp_pronunciation": "oji san",
+        "vie_pronunciation": "chu"
+      },
+      "means": {
+        "en": "The brother of your father or mother; the husband of your aunt",
+        "zh": "同类产品中最好或最卓越的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "uncover",
+        "laos": "ເປີດເຜີຢ",
+        "jp": "明らかにする",
+        "vie": "khám phá",
+        "en_pronunciation": "/ənˈkəvər/",
+        "laos_pronunciation": "poed phoey",
+        "jp_pronunciation": "akiraka nisuru",
+        "vie_pronunciation": "kham pha"
+      },
+      "means": {
+        "en": "Make visible",
+        "zh": "作为连续或过程的最终结果"
+      }
+    },
+    {
+      "word": {
+        "en": "under",
+        "laos": "ໃຕ້",
+        "jp": "下",
+        "vie": "dưới",
+        "en_pronunciation": "/ˈəndər/",
+        "laos_pronunciation": "tai",
+        "jp_pronunciation": "shita",
+        "vie_pronunciation": "duoi"
+      },
+      "means": {
+        "en": "Located below or beneath something else",
+        "zh": "（用于意见和行动）远远超出常态"
+      }
+    },
+    {
+      "word": {
+        "en": "underdeveloped",
+        "laos": "ທີ່ດ້ອຍຍະທາງ",
+        "jp": "未発達な",
+        "vie": "kém phát triển",
+        "en_pronunciation": "/ˌəndərdɪˈvɛləpt/",
+        "laos_pronunciation": "thidony nyathang",
+        "jp_pronunciation": "mihattatsu na",
+        "vie_pronunciation": "kem phat trien"
+      },
+      "means": {
+        "en": "Process (a film or photographic plate) less than the required time or in an ineffective solution or at an insufficiently high temperature",
+        "zh": "轻型手持式可折叠顶篷"
+      }
+    },
+    {
+      "word": {
+        "en": "underestimate",
+        "laos": "ປະມານ",
+        "jp": "過小評価する",
+        "vie": "đánh giá thấp",
+        "en_pronunciation": "/ˈəndərˈɛstəˌmeɪt/",
+        "laos_pronunciation": "paman",
+        "jp_pronunciation": "kashouhyouka suru",
+        "vie_pronunciation": "danh gia thap"
+      },
+      "means": {
+        "en": "An estimation that is too low; an estimate that is less than the true or actual value",
+        "zh": "完全一致"
+      }
+    },
+    {
+      "word": {
+        "en": "undergo",
+        "laos": "undergo undergo",
+        "jp": "受ける",
+        "vie": "trải qua",
+        "en_pronunciation": "/ˌəndərˈgoʊ/",
+        "laos_pronunciation": "undergo undergo",
+        "jp_pronunciation": "ukeru",
+        "vie_pronunciation": "trai qua"
+      },
+      "means": {
+        "en": "Pass through",
+        "zh": "缺乏或表明缺乏信心或保证"
+      }
+    },
+    {
+      "word": {
+        "en": "undergraduate",
+        "laos": "ນິກາຍ",
+        "jp": "学部生",
+        "vie": "đại học",
+        "en_pronunciation": "/ˌəndərˈgræʤəwət/",
+        "laos_pronunciation": "nikai",
+        "jp_pronunciation": "gakubusei",
+        "vie_pronunciation": "dai hoc"
+      },
+      "means": {
+        "en": "A university student who has not yet received a first degree",
+        "zh": "不安、怀疑或依赖机会"
+      }
+    },
+    {
+      "word": {
+        "en": "underground",
+        "laos": "ໃຕ້ດິນ",
+        "jp": "地下",
+        "vie": "dưới lòng đất",
+        "en_pronunciation": "/ˈəndərˌgraʊnd/",
+        "laos_pronunciation": "taidin",
+        "jp_pronunciation": "chika",
+        "vie_pronunciation": "duoi long dat"
+      },
+      "means": {
+        "en": "A secret group organized to overthrow a government or occupation force",
+        "zh": "你父亲或母亲的兄弟；"
+      }
+    },
+    {
+      "word": {
+        "en": "underlie",
+        "laos": "Underlie",
+        "jp": "根底にある",
+        "vie": "làm nền tảng",
+        "en_pronunciation": "/ˌəndərˈlaɪ/",
+        "laos_pronunciation": "Underlie",
+        "jp_pronunciation": "kontei niaru",
+        "vie_pronunciation": "lam nen tang"
+      },
+      "means": {
+        "en": "Be or form the base for",
+        "zh": "你姨妈的丈夫"
+      }
+    },
+    {
+      "word": {
+        "en": "underlying",
+        "laos": "ທີ່ຕິດພັນ",
+        "jp": "根底にある",
+        "vie": "cơ bản",
+        "en_pronunciation": "/ˌəndərˈlaɪɪŋ/",
+        "laos_pronunciation": "thitidphan",
+        "jp_pronunciation": "kontei niaru",
+        "vie_pronunciation": "co ban"
+      },
+      "means": {
+        "en": "Be or form the base for",
+        "zh": "使可见"
+      }
+    },
+    {
+      "word": {
+        "en": "underline",
+        "laos": "ຂີດກ້ອງ",
+        "jp": "下線",
+        "vie": "gạch chân",
+        "en_pronunciation": "/ˈəndərˌlaɪn/",
+        "laos_pronunciation": "khidkong",
+        "jp_pronunciation": "kasen",
+        "vie_pronunciation": "gach chan"
+      },
+      "means": {
+        "en": "A line drawn underneath (especially under written matter)",
+        "zh": "位于其他物体下方或下方"
+      }
+    },
+    {
+      "word": {
+        "en": "undermine",
+        "laos": "ຂົດ",
+        "jp": "弱体化する",
+        "vie": "làm suy yếu",
+        "en_pronunciation": "/ˈəndərˌmaɪn/",
+        "laos_pronunciation": "khod",
+        "jp_pronunciation": "jakutaika suru",
+        "vie_pronunciation": "lam suy yeu"
+      },
+      "means": {
+        "en": "Destroy property or hinder normal operations",
+        "zh": "处理（胶片或照相底片）的时间少于所需时间，或者使用无效的溶液或温度不够高"
+      }
+    },
+    {
+      "word": {
+        "en": "underneath",
+        "laos": "ພາຍໃຕ້",
+        "jp": "下に",
+        "vie": "bên dưới",
+        "en_pronunciation": "/ˌəndərˈniθ/",
+        "laos_pronunciation": "phaitai",
+        "jp_pronunciation": "shitani",
+        "vie_pronunciation": "ben duoi"
+      },
+      "means": {
+        "en": "On the lower or downward side; on the underside of",
+        "zh": "估计值太低；"
+      }
+    },
+    {
+      "word": {
+        "en": "understand",
+        "laos": "ຕັ້ງເຂົ້າ",
+        "jp": "理解する",
+        "vie": "hiểu",
+        "en_pronunciation": "/ˌəndərˈstænd/",
+        "laos_pronunciation": "tangkhao",
+        "jp_pronunciation": "rikai suru",
+        "vie_pronunciation": "hieu"
+      },
+      "means": {
+        "en": "Know and comprehend the nature or meaning of",
+        "zh": "小于真实值或实际值的估计值"
+      }
+    },
+    {
+      "word": {
+        "en": "understanding",
+        "laos": "ພຸດທິ",
+        "jp": "理解する",
+        "vie": "sự hiểu biết",
+        "en_pronunciation": "/ˌəndərˈstændɪŋ/",
+        "laos_pronunciation": "phudthi",
+        "jp_pronunciation": "rikai suru",
+        "vie_pronunciation": "su hieu biet"
+      },
+      "means": {
+        "en": "The cognitive condition of someone who understands",
+        "zh": "通过"
+      }
+    },
+    {
+      "word": {
+        "en": "undertake",
+        "laos": "ຮັບຮອງ",
+        "jp": "引き受ける",
+        "vie": "đảm nhận",
+        "en_pronunciation": "/ˈəndərˌteɪk/",
+        "laos_pronunciation": "habhong",
+        "jp_pronunciation": "hikiuke ru",
+        "vie_pronunciation": "dam nhan"
+      },
+      "means": {
+        "en": "Enter upon an activity or enterprise",
+        "zh": "尚未获得第一学位的大学生"
+      }
+    },
+    {
+      "word": {
+        "en": "undertaking",
+        "laos": "ປະຕິບັດ",
+        "jp": "引き受ける",
+        "vie": "cam kết",
+        "en_pronunciation": "/ˈəndərˌteɪkɪŋ/",
+        "laos_pronunciation": "patibad",
+        "jp_pronunciation": "hikiuke ru",
+        "vie_pronunciation": "cam ket"
+      },
+      "means": {
+        "en": "Any piece of work that is undertaken or attempted",
+        "zh": "为推翻政府或占领军而组织的秘密组织"
+      }
+    },
+    {
+      "word": {
+        "en": "underwear",
+        "laos": "ເສື້ອຊ້ອນໃນ",
+        "jp": "下着",
+        "vie": "đồ lót",
+        "en_pronunciation": "/ˈəndərˌwɛr/",
+        "laos_pronunciation": "seu sonnai",
+        "jp_pronunciation": "shitagi",
+        "vie_pronunciation": "do lot"
+      },
+      "means": {
+        "en": "Undergarment worn next to the skin and under the outer garments",
+        "zh": "是或构成以下的基础"
+      }
+    },
+    {
+      "word": {
+        "en": "undo",
+        "laos": "ຮື້",
+        "jp": "元に戻す",
+        "vie": "hoàn tác",
+        "en_pronunciation": "/ənˈdu/",
+        "laos_pronunciation": "hu",
+        "jp_pronunciation": "motoni modosu",
+        "vie_pronunciation": "hoan tac"
+      },
+      "means": {
+        "en": "Cancel, annul, or reverse an action or its effect",
+        "zh": "是或构成以下的基础"
+      }
+    },
+    {
+      "word": {
+        "en": "undoubtedly",
+        "laos": "ໂດຍບໍ່ຕ້ອງສົງໃສ",
+        "jp": "間違いなく",
+        "vie": "chắc chắn",
+        "en_pronunciation": "/ənˈdaʊtɪdli/",
+        "laos_pronunciation": "odnybotongsongsai",
+        "jp_pronunciation": "machigai naku",
+        "vie_pronunciation": "chac chan"
+      },
+      "means": {
+        "en": "Without doubt; certainly",
+        "zh": "下面画一条线（尤其是在书面材料下面）"
+      }
+    },
+    {
+      "word": {
+        "en": "uneasy",
+        "laos": "ບໍ່ງ່າຢ",
+        "jp": "不安な",
+        "vie": "khó chịu",
+        "en_pronunciation": "/əˈnizi/",
+        "laos_pronunciation": "bo ngay",
+        "jp_pronunciation": "fuan na",
+        "vie_pronunciation": "kho chiu"
+      },
+      "means": {
+        "en": "Lacking a sense of security or affording no ease or reassurance",
+        "zh": "破坏财产或妨碍正常运作"
+      }
+    },
+    {
+      "word": {
+        "en": "unemployed",
+        "laos": "ທີ່ບໍ່ມີຄວາມສຸກ",
+        "jp": "失業者",
+        "vie": "thất nghiệp",
+        "en_pronunciation": "/ˌənɛmˈplɔɪd/",
+        "laos_pronunciation": "thibomikhuaamsuk",
+        "jp_pronunciation": "shitsugyousha",
+        "vie_pronunciation": "that nghiep"
+      },
+      "means": {
+        "en": "People who are involuntarily out of work (considered as a group)",
+        "zh": "在下方或下方；"
+      }
+    },
+    {
+      "word": {
+        "en": "unemployment",
+        "laos": "ການວ່າງງານ",
+        "jp": "失業",
+        "vie": "thất nghiệp",
+        "en_pronunciation": "/ˌənɪmˈplɔɪmənt/",
+        "laos_pronunciation": "kanvangngan",
+        "jp_pronunciation": "shitsugyou",
+        "vie_pronunciation": "that nghiep"
+      },
+      "means": {
+        "en": "The state of being unemployed or not having a job",
+        "zh": "在下面"
+      }
+    },
+    {
+      "word": {
+        "en": "unfold",
+        "laos": "ເປີດ",
+        "jp": "展開する",
+        "vie": "mở ra",
+        "en_pronunciation": "/ənˈfoʊld/",
+        "laos_pronunciation": "poed",
+        "jp_pronunciation": "tenkai suru",
+        "vie_pronunciation": "mo ra"
+      },
+      "means": {
+        "en": "Develop or come to a promising stage",
+        "zh": "知道并理解事物的本质或意义"
+      }
+    },
+    {
+      "word": {
+        "en": "uniform",
+        "laos": "ເຄື່ອງແບບ",
+        "jp": "ユニフォーム",
+        "vie": "đồng phục",
+        "en_pronunciation": "/ˈjunəˌfɔrm/",
+        "laos_pronunciation": "kheuongaebb",
+        "jp_pronunciation": "yunifoomu",
+        "vie_pronunciation": "dong phuc"
+      },
+      "means": {
+        "en": "Clothing of distinctive design worn by members of a particular group as a means of identification",
+        "zh": "理解者的认知状况"
+      }
+    },
+    {
+      "word": {
+        "en": "uniformity",
+        "laos": "ຄວາມເປັນເອກະພາບ",
+        "jp": "均一性",
+        "vie": "tính đồng nhất",
+        "en_pronunciation": "/ˌjunəˈfɔrməti/",
+        "laos_pronunciation": "khuaampenoekaphab",
+        "jp_pronunciation": "kin'itsusei",
+        "vie_pronunciation": "tinh dong nhat"
+      },
+      "means": {
+        "en": "A condition in which everything is regular and unvarying",
+        "zh": "参与一项活动或企业"
+      }
+    },
+    {
+      "word": {
+        "en": "unify",
+        "laos": "ເນຣະຄຸນ",
+        "jp": "統一する",
+        "vie": "thống nhất",
+        "en_pronunciation": "/ˈjunəˌfaɪ/",
+        "laos_pronunciation": "nerakhun",
+        "jp_pronunciation": "touitsu suru",
+        "vie_pronunciation": "thong nhat"
+      },
+      "means": {
+        "en": "Become one",
+        "zh": "任何已进行或尝试的工作"
+      }
+    },
+    {
+      "word": {
+        "en": "unification",
+        "laos": "ການໂຮມ",
+        "jp": "統一",
+        "vie": "sự thống nhất",
+        "en_pronunciation": "/ˌjunəfəˈkeɪʃən/",
+        "laos_pronunciation": "kan ohm",
+        "jp_pronunciation": "touitsu",
+        "vie_pronunciation": "su thong nhat"
+      },
+      "means": {
+        "en": "An occurrence that involves the production of a union",
+        "zh": "贴身穿在外衣下面的内衣"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.295903+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "disease",
+        "laos": "ພະຍາດ",
+        "jp": "病気",
+        "vie": "bệnh tật",
+        "en_pronunciation": "/dɪˈziz/",
+        "laos_pronunciation": "phanyad",
+        "jp_pronunciation": "byouki",
+        "vie_pronunciation": "benh tat"
+      },
+      "means": {
+        "en": "An impairment of health or a condition of abnormal functioning",
+        "zh": "健康受损或功能异常"
+      }
+    },
+    {
+      "word": {
+        "en": "disguise",
+        "laos": "ປອມຕົວ",
+        "jp": "変装",
+        "vie": "cải trang",
+        "en_pronunciation": "/dɪsˈgaɪz/",
+        "laos_pronunciation": "pomtua",
+        "jp_pronunciation": "hensou",
+        "vie_pronunciation": "cai trang"
+      },
+      "means": {
+        "en": "An outward semblance that misrepresents the true nature of something",
+        "zh": "歪曲事物真实本质的外表"
+      }
+    },
+    {
+      "word": {
+        "en": "disgust",
+        "laos": "ເຮັດໃຫ້ທໍ້ໃຈ",
+        "jp": "嫌悪感",
+        "vie": "ghê tởm",
+        "en_pronunciation": "/dɪsˈgəst/",
+        "laos_pronunciation": "hedhai thochai",
+        "jp_pronunciation": "ken'okan",
+        "vie_pronunciation": "ghe tom"
+      },
+      "means": {
+        "en": "Strong feelings of dislike",
+        "zh": "强烈的厌恶感"
+      }
+    },
+    {
+      "word": {
+        "en": "disgusting",
+        "laos": "ຜາງຫນ່າຍ",
+        "jp": "嫌な",
+        "vie": "kinh tởm",
+        "en_pronunciation": "/dɪsˈgəstɪŋ/",
+        "laos_pronunciation": "phangnai",
+        "jp_pronunciation": "iyana",
+        "vie_pronunciation": "kinh tom"
+      },
+      "means": {
+        "en": "Fill with distaste",
+        "zh": "充满厌恶"
+      }
+    },
+    {
+      "word": {
+        "en": "dish",
+        "laos": "ຈານ",
+        "jp": "皿",
+        "vie": "món ăn",
+        "en_pronunciation": "/dɪʃ/",
+        "laos_pronunciation": "chan",
+        "jp_pronunciation": "sara",
+        "vie_pronunciation": "mon an"
+      },
+      "means": {
+        "en": "A piece of dishware normally used as a container for holding or serving food",
+        "zh": "一块餐具，通常用作盛放或盛放食物的容器"
+      }
+    },
+    {
+      "word": {
+        "en": "disintegrate",
+        "laos": "ບອກບອກເບົາ",
+        "jp": "崩壊する",
+        "vie": "tan rã",
+        "en_pronunciation": "/dɪˈsɪntəˌgreɪt/",
+        "laos_pronunciation": "bok bokbao",
+        "jp_pronunciation": "houkai suru",
+        "vie_pronunciation": "tan ra"
+      },
+      "means": {
+        "en": "Break into parts or components or lose cohesion or unity",
+        "zh": "分解成零件或组件或失去凝聚力或统一性"
+      }
+    },
+    {
+      "word": {
+        "en": "disk",
+        "laos": "ແຜ່ນ",
+        "jp": "ディスク",
+        "vie": "đĩa",
+        "en_pronunciation": "/dɪsk/",
+        "laos_pronunciation": "aephn",
+        "jp_pronunciation": "disuku",
+        "vie_pronunciation": "dia"
+      },
+      "means": {
+        "en": "Something with a round shape resembling a flat circular plate",
+        "zh": "类似扁平圆盘的圆形物体"
+      }
+    },
+    {
+      "word": {
+        "en": "disc",
+        "laos": "ຈານ",
+        "jp": "ディスク",
+        "vie": "đĩa",
+        "en_pronunciation": "/dɪsk/",
+        "laos_pronunciation": "chan",
+        "jp_pronunciation": "disuku",
+        "vie_pronunciation": "dia"
+      },
+      "means": {
+        "en": "Sound recording consisting of a disk with a continuous groove; used to reproduce music by rotating while a phonograph needle tracks in the groove",
+        "zh": "由具有连续凹槽的光盘组成的声音记录；"
+      }
+    },
+    {
+      "word": {
+        "en": "dislike",
+        "laos": "ບໍ່ມັກ",
+        "jp": "嫌い",
+        "vie": "không thích",
+        "en_pronunciation": "/dɪsˈlaɪk/",
+        "laos_pronunciation": "bomak",
+        "jp_pronunciation": "kirai",
+        "vie_pronunciation": "khong thich"
+      },
+      "means": {
+        "en": "An inclination to withhold approval from some person or group",
+        "zh": "用于通过旋转来再现音乐，同时留声机针在凹槽中移动"
+      }
+    },
+    {
+      "word": {
+        "en": "dismantle",
+        "laos": "ທໍາລາຍ",
+        "jp": "解体する",
+        "vie": "tháo dỡ",
+        "en_pronunciation": "/dɪsˈmænəl/",
+        "laos_pronunciation": "thoalai",
+        "jp_pronunciation": "kaitai suru",
+        "vie_pronunciation": "thao do"
+      },
+      "means": {
+        "en": "Tear down so as to make flat with the ground",
+        "zh": "倾向于拒绝某些人或团体的批准"
+      }
+    },
+    {
+      "word": {
+        "en": "dismay",
+        "laos": "ຕົກໃຈ",
+        "jp": "がっかり",
+        "vie": "mất tinh thần",
+        "en_pronunciation": "/dɪsˈmeɪ/",
+        "laos_pronunciation": "tokchai",
+        "jp_pronunciation": "gakkari",
+        "vie_pronunciation": "mat tinh than"
+      },
+      "means": {
+        "en": "The feeling of despair in the face of obstacles",
+        "zh": "拆下来，使其与地面持平"
+      }
+    },
+    {
+      "word": {
+        "en": "disintegration",
+        "laos": "ການດືງດູດ",
+        "jp": "崩壊",
+        "vie": "sự tan rã",
+        "en_pronunciation": "/dɪˌsɪnəˈgreɪʃən/",
+        "laos_pronunciation": "kan dungdud",
+        "jp_pronunciation": "houkai",
+        "vie_pronunciation": "su tan ra"
+      },
+      "means": {
+        "en": "In a decomposed state",
+        "zh": "面对障碍时的绝望感"
+      }
+    },
+    {
+      "word": {
+        "en": "dismiss",
+        "laos": "ໄລ່ອອກ",
+        "jp": "解雇する",
+        "vie": "bác bỏ",
+        "en_pronunciation": "/dɪsˈmɪs/",
+        "laos_pronunciation": "laiook",
+        "jp_pronunciation": "kaiko suru",
+        "vie_pronunciation": "bac bo"
+      },
+      "means": {
+        "en": "Bar from attention or consideration",
+        "zh": "处于分解状态"
+      }
+    },
+    {
+      "word": {
+        "en": "dismissal",
+        "laos": "ການໄລ່ຜ່າ",
+        "jp": "解雇",
+        "vie": "sa thải",
+        "en_pronunciation": "/dɪsˈmɪsəl/",
+        "laos_pronunciation": "kan laipha",
+        "jp_pronunciation": "kaiko",
+        "vie_pronunciation": "sa thai"
+      },
+      "means": {
+        "en": "A judgment disposing of the matter without a trial",
+        "zh": "阻止关注或考虑"
+      }
+    },
+    {
+      "word": {
+        "en": "disorder",
+        "laos": "ຄວາມຜິດປົກກະຕິ",
+        "jp": "障害",
+        "vie": "rối loạn",
+        "en_pronunciation": "/dɪˈsɔrdər/",
+        "laos_pronunciation": "khuaamphidpokkati",
+        "jp_pronunciation": "shougai",
+        "vie_pronunciation": "roi loan"
+      },
+      "means": {
+        "en": "A physical condition in which there is a disturbance of normal functioning",
+        "zh": "未经审判就处理此事的判决"
+      }
+    },
+    {
+      "word": {
+        "en": "dispatch",
+        "laos": "ການສົ່ງສິນຄ້າ",
+        "jp": "派遣",
+        "vie": "công văn",
+        "en_pronunciation": "/dɪˈspæʧ/",
+        "laos_pronunciation": "kansongsinkha",
+        "jp_pronunciation": "haken",
+        "vie_pronunciation": "cong van"
+      },
+      "means": {
+        "en": "An official report (usually sent in haste)",
+        "zh": "正常功能受到干扰的身体状况"
+      }
+    },
+    {
+      "word": {
+        "en": "despatch",
+        "laos": "ໂດຢ",
+        "jp": "発送",
+        "vie": "gửi đi",
+        "en_pronunciation": "/despatch/",
+        "laos_pronunciation": "ody",
+        "jp_pronunciation": "hassou",
+        "vie_pronunciation": "gui di"
+      },
+      "means": {
+        "en": "An official report (usually sent in haste)",
+        "zh": "正式报告（通常匆忙发送）"
+      }
+    },
+    {
+      "word": {
+        "en": "dispense",
+        "laos": "ແຈກ",
+        "jp": "分配する",
+        "vie": "phân phát",
+        "en_pronunciation": "/dɪˈspɛns/",
+        "laos_pronunciation": "aechk",
+        "jp_pronunciation": "bunpai suru",
+        "vie_pronunciation": "phan phat"
+      },
+      "means": {
+        "en": "Administer or bestow, as in small portions",
+        "zh": "正式报告（通常匆忙发送）"
+      }
+    },
+    {
+      "word": {
+        "en": "disperse",
+        "laos": "ກະແຈກກະຈາຍ",
+        "jp": "分散させる",
+        "vie": "giải tán",
+        "en_pronunciation": "/dɪˈspərs/",
+        "laos_pronunciation": "kaaechkkachai",
+        "jp_pronunciation": "bunsan saseru",
+        "vie_pronunciation": "giai tan"
+      },
+      "means": {
+        "en": "Distribute loosely",
+        "zh": "管理或给予，如小部分"
+      }
+    },
+    {
+      "word": {
+        "en": "displace",
+        "laos": "ຢ້າຢທີ່",
+        "jp": "置き換える",
+        "vie": "thay thế",
+        "en_pronunciation": "/dɪˈspleɪs/",
+        "laos_pronunciation": "ya ythi",
+        "jp_pronunciation": "okikaeru",
+        "vie_pronunciation": "thay the"
+      },
+      "means": {
+        "en": "Cause to move, usually with force or pressure",
+        "zh": "松散分布"
+      }
+    },
+    {
+      "word": {
+        "en": "displacement",
+        "laos": "ການຍ້າຍຖິ່ນ",
+        "jp": "変位",
+        "vie": "sự dịch chuyển",
+        "en_pronunciation": "/dɪˈspleɪsmənt/",
+        "laos_pronunciation": "kan nyaithin",
+        "jp_pronunciation": "hen'i",
+        "vie_pronunciation": "su dich chuyen"
+      },
+      "means": {
+        "en": "Act of taking the place of another especially using underhanded tactics",
+        "zh": "导致移动，通常是用力或压力"
+      }
+    },
+    {
+      "word": {
+        "en": "display",
+        "laos": "ສະແດງ",
+        "jp": "ディスプレイ",
+        "vie": "trưng bày",
+        "en_pronunciation": "/dɪˈspleɪ/",
+        "laos_pronunciation": "saaedng",
+        "jp_pronunciation": "disupurei",
+        "vie_pronunciation": "trung bay"
+      },
+      "means": {
+        "en": "Something intended to communicate a particular impression",
+        "zh": "取代他人的行为，尤其是使用不正当手段的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "dispose",
+        "laos": "ປົດຖິ້ມ",
+        "jp": "処分する",
+        "vie": "vứt bỏ",
+        "en_pronunciation": "/dɪˈspoʊz/",
+        "laos_pronunciation": "podthim",
+        "jp_pronunciation": "shobun suru",
+        "vie_pronunciation": "vut bo"
+      },
+      "means": {
+        "en": "Give, sell, or transfer to another",
+        "zh": "旨在传达特定印象的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "disposal",
+        "laos": "ການກໍາຈັດສິ່ງ",
+        "jp": "廃棄",
+        "vie": "xử lý",
+        "en_pronunciation": "/dɪˈspoʊzəl/",
+        "laos_pronunciation": "kankoachadsing",
+        "jp_pronunciation": "haiki",
+        "vie_pronunciation": "xu ly"
+      },
+      "means": {
+        "en": "The power to use something or someone",
+        "zh": "给予、出售或转让给他人"
+      }
+    },
+    {
+      "word": {
+        "en": "disposition",
+        "laos": "ຄວາມສະອາດ",
+        "jp": "気質",
+        "vie": "bố trí",
+        "en_pronunciation": "/ˌdɪspəˈzɪʃən/",
+        "laos_pronunciation": "khuaamsaoad",
+        "jp_pronunciation": "kishitsu",
+        "vie_pronunciation": "bo tri"
+      },
+      "means": {
+        "en": "Your usual mood",
+        "zh": "使用某物或某人的权力"
+      }
+    },
+    {
+      "word": {
+        "en": "dispute",
+        "laos": "ການໂຕ້ຖຽງ",
+        "jp": "論争",
+        "vie": "tranh chấp",
+        "en_pronunciation": "/dɪˈspjut/",
+        "laos_pronunciation": "kanotthiang",
+        "jp_pronunciation": "ronsou",
+        "vie_pronunciation": "tranh chap"
+      },
+      "means": {
+        "en": "A disagreement or argument about something important",
+        "zh": "你平时的心情"
+      }
+    },
+    {
+      "word": {
+        "en": "disputable",
+        "laos": "ທີ່ຜິດຖຽງກັນ",
+        "jp": "議論の余地のある",
+        "vie": "có thể tranh cãi",
+        "en_pronunciation": "/dɪˈspjutəbəl/",
+        "laos_pronunciation": "thiphidthiangkan",
+        "jp_pronunciation": "giron no yochi noaru",
+        "vie_pronunciation": "co the tranh cai"
+      },
+      "means": {
+        "en": "Capable of being disproved",
+        "zh": "对重要事情的分歧或争论"
+      }
+    },
+    {
+      "word": {
+        "en": "disregard",
+        "laos": "ບໍ່ເອົາໃຈໃສ່",
+        "jp": "無視する",
+        "vie": "coi thường",
+        "en_pronunciation": "/ˌdɪsrɪˈgɑrd/",
+        "laos_pronunciation": "booaochaisai",
+        "jp_pronunciation": "mushisu ru",
+        "vie_pronunciation": "coi thuong"
+      },
+      "means": {
+        "en": "Lack of attention and due care",
+        "zh": "有能力被反驳"
+      }
+    },
+    {
+      "word": {
+        "en": "disrupt",
+        "laos": "ຈິ້ນດົມ",
+        "jp": "混乱させる",
+        "vie": "làm gián đoạn",
+        "en_pronunciation": "/dɪsˈrəpt/",
+        "laos_pronunciation": "chindom",
+        "jp_pronunciation": "konran saseru",
+        "vie_pronunciation": "lam gian doan"
+      },
+      "means": {
+        "en": "Make a break in",
+        "zh": "缺乏关注和应有的照顾"
+      }
+    },
+    {
+      "word": {
+        "en": "disruptive",
+        "laos": "ຈ້ອຍທ່ວນ",
+        "jp": "破壊的な",
+        "vie": "gây rối",
+        "en_pronunciation": "/dɪsˈrəptɪv/",
+        "laos_pronunciation": "chony thuan",
+        "jp_pronunciation": "hakaiteki na",
+        "vie_pronunciation": "gay roi"
+      },
+      "means": {
+        "en": "Characterized by unrest or disorder or insubordination",
+        "zh": "闯入"
+      }
+    },
+    {
+      "word": {
+        "en": "disruption",
+        "laos": "ການຜ່າຮ້າຍ",
+        "jp": "混乱",
+        "vie": "sự gián đoạn",
+        "en_pronunciation": "/dɪsˈrəpʃən/",
+        "laos_pronunciation": "kan phahai",
+        "jp_pronunciation": "konran",
+        "vie_pronunciation": "su gian doan"
+      },
+      "means": {
+        "en": "An act of delaying or interrupting the continuity",
+        "zh": "以不安定、混乱或不服从为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "dissent",
+        "laos": "ທີ່ດົ້ນ",
+        "jp": "反対する",
+        "vie": "bất đồng chính kiến",
+        "en_pronunciation": "/dɪˈsɛnt/",
+        "laos_pronunciation": "thi don",
+        "jp_pronunciation": "hantai suru",
+        "vie_pronunciation": "bat dong chinh kien"
+      },
+      "means": {
+        "en": "(law) the difference of one judge's opinion from that of the majority",
+        "zh": "延迟或中断连续性的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "dissertation",
+        "laos": "ການເຜີຍແຜ່",
+        "jp": "論文",
+        "vie": "luận văn",
+        "en_pronunciation": "/ˌdɪsərˈteɪʃən/",
+        "laos_pronunciation": "kanphoenyaeph",
+        "jp_pronunciation": "ronbun",
+        "vie_pronunciation": "luan van"
+      },
+      "means": {
+        "en": "A treatise advancing a new point of view resulting from research; usually a requirement for an advanced academic degree",
+        "zh": "（法律）一位法官的意见与多数人意见的差异"
+      }
+    },
+    {
+      "word": {
+        "en": "dissident",
+        "laos": "ຜູ້ກະທໍາ",
+        "jp": "反体制派",
+        "vie": "bất đồng chính kiến",
+        "en_pronunciation": "/ˈdɪsədɪnt/",
+        "laos_pronunciation": "phukathoa",
+        "jp_pronunciation": "hantaiseiha",
+        "vie_pronunciation": "bat dong chinh kien"
+      },
+      "means": {
+        "en": "A person who dissents from some established policy",
+        "zh": "一篇提出研究新观点的论文；"
+      }
+    },
+    {
+      "word": {
+        "en": "dissolve",
+        "laos": "ຍຸບລົງ",
+        "jp": "溶かす",
+        "vie": "hòa tan",
+        "en_pronunciation": "/dɪˈzɑlv/",
+        "laos_pronunciation": "nyublong",
+        "jp_pronunciation": "toka su",
+        "vie_pronunciation": "hoa tan"
+      },
+      "means": {
+        "en": "(film) a gradual transition from one scene to the next; the next scene is gradually superimposed as the former scene fades out",
+        "zh": "通常是高级学术学位的要求"
+      }
+    },
+    {
+      "word": {
+        "en": "distance",
+        "laos": "ໄລຍະທາງ",
+        "jp": "距離",
+        "vie": "khoảng cách",
+        "en_pronunciation": "/ˈdɪstəns/",
+        "laos_pronunciation": "lainyathang",
+        "jp_pronunciation": "kyori",
+        "vie_pronunciation": "khoang cach"
+      },
+      "means": {
+        "en": "The property created by the space between two objects or points",
+        "zh": "反对某些既定政策的人"
+      }
+    },
+    {
+      "word": {
+        "en": "distant",
+        "laos": "ທີ່ຢູ່ໃນຮີດ",
+        "jp": "遠い",
+        "vie": "xa xôi",
+        "en_pronunciation": "/ˈdɪstənt/",
+        "laos_pronunciation": "thiyunaihid",
+        "jp_pronunciation": "tooi",
+        "vie_pronunciation": "xa xoi"
+      },
+      "means": {
+        "en": "Separated in space or coming from or going to a distance",
+        "zh": "（电影）从一个场景到下一个场景的逐渐过渡；"
+      }
+    },
+    {
+      "word": {
+        "en": "distil",
+        "laos": "ກັ່ນນ້ໍາ",
+        "jp": "蒸留する",
+        "vie": "chưng cất",
+        "en_pronunciation": "/dɪˈstɪl/",
+        "laos_pronunciation": "kannoa",
+        "jp_pronunciation": "jouryuu suru",
+        "vie_pronunciation": "chung cat"
+      },
+      "means": {
+        "en": "Undergo condensation; change from a gaseous to a liquid state and fall in drops",
+        "zh": "随着前一个场景的淡出，下一个场景逐渐叠加"
+      }
+    },
+    {
+      "word": {
+        "en": "distill",
+        "laos": "ຕົ້ມກັ່ນ",
+        "jp": "蒸留する",
+        "vie": "chưng cất",
+        "en_pronunciation": "/dɪˈstɪl/",
+        "laos_pronunciation": "tomkan",
+        "jp_pronunciation": "jouryuu suru",
+        "vie_pronunciation": "chung cat"
+      },
+      "means": {
+        "en": "Remove impurities from, increase the concentration of, and separate through the process of distillation",
+        "zh": "由两个对象或点之间的空间创建的属性"
+      }
+    },
+    {
+      "word": {
+        "en": "distinct",
+        "laos": "ແຈ່ມ",
+        "jp": "独特の",
+        "vie": "khác biệt",
+        "en_pronunciation": "/dɪˈstɪŋkt/",
+        "laos_pronunciation": "aechm",
+        "jp_pronunciation": "dokutoku no",
+        "vie_pronunciation": "khac biet"
+      },
+      "means": {
+        "en": "(often followed by `from') not alike; different in nature or quality",
+        "zh": "在空间上分离或来自或去往很远的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "distinction",
+        "laos": "ຄວາມແຕກຕ່າງ",
+        "jp": "区別",
+        "vie": "sự phân biệt",
+        "en_pronunciation": "/dɪˈstɪŋkʃən/",
+        "laos_pronunciation": "khuaamaetktang",
+        "jp_pronunciation": "kubetsu",
+        "vie_pronunciation": "su phan biet"
+      },
+      "means": {
+        "en": "A discrimination between things as different and distinct",
+        "zh": "经历凝结；"
+      }
+    },
+    {
+      "word": {
+        "en": "distinctive",
+        "laos": "ທີ່ແຕກຕ່າງ",
+        "jp": "特徴的な",
+        "vie": "đặc biệt",
+        "en_pronunciation": "/dɪˈstɪŋktɪv/",
+        "laos_pronunciation": "thiaetktang",
+        "jp_pronunciation": "tokuchouteki na",
+        "vie_pronunciation": "dac biet"
+      },
+      "means": {
+        "en": "Of a feature that helps to distinguish a person or thing; - Curtis Wilkie",
+        "zh": "从气态变为液态并滴落"
+      }
+    },
+    {
+      "word": {
+        "en": "distinguish",
+        "laos": "ດັບ",
+        "jp": "区別する",
+        "vie": "phân biệt",
+        "en_pronunciation": "/dɪˈstɪŋgwɪʃ/",
+        "laos_pronunciation": "dab",
+        "jp_pronunciation": "kubetsu suru",
+        "vie_pronunciation": "phan biet"
+      },
+      "means": {
+        "en": "Mark as different",
+        "zh": "通过蒸馏除去杂质、提高浓度、分离"
+      }
+    },
+    {
+      "word": {
+        "en": "distinguishable",
+        "laos": "ແຍກອອກໄດ້",
+        "jp": "区別できる",
+        "vie": "có thể phân biệt được",
+        "en_pronunciation": "/dɪˈstɪŋgwɪʃəbəl/",
+        "laos_pronunciation": "aenykookdai",
+        "jp_pronunciation": "kubetsu dekiru",
+        "vie_pronunciation": "co the phan biet duoc"
+      },
+      "means": {
+        "en": "Capable of being perceived as different or distinct",
+        "zh": "（通常后跟“来自”）不相似；"
+      }
+    },
+    {
+      "word": {
+        "en": "distort",
+        "laos": "ບິດເບືອນຈາກຄວາມຈິງ",
+        "jp": "歪ませる",
+        "vie": "bóp méo",
+        "en_pronunciation": "/dɪˈstɔrt/",
+        "laos_pronunciation": "bidbeuon chakkhuaamching",
+        "jp_pronunciation": "hizuma seru",
+        "vie_pronunciation": "bop meo"
+      },
+      "means": {
+        "en": "Make false by mutilation or addition; as of a message or story",
+        "zh": "性质或质量不同"
+      }
+    },
+    {
+      "word": {
+        "en": "distortion",
+        "laos": "ການບິດເບືອນ",
+        "jp": "歪み",
+        "vie": "sự bóp méo",
+        "en_pronunciation": "/dɪˈstɔrʃən/",
+        "laos_pronunciation": "kanbidbeuon",
+        "jp_pronunciation": "hizumi",
+        "vie_pronunciation": "su bop meo"
+      },
+      "means": {
+        "en": "A change for the worse",
+        "zh": "对不同和独特的事物进行区分"
+      }
+    },
+    {
+      "word": {
+        "en": "distract",
+        "laos": "ລໍ້ໃຈ",
+        "jp": "気を散らす",
+        "vie": "đánh lạc hướng",
+        "en_pronunciation": "/dɪˈstrækt/",
+        "laos_pronunciation": "lochai",
+        "jp_pronunciation": "kiwo chira su",
+        "vie_pronunciation": "danh lac huong"
+      },
+      "means": {
+        "en": "Draw someone's attention away from something",
+        "zh": "有助于区分人或事物的特征；"
+      }
+    },
+    {
+      "word": {
+        "en": "distraction",
+        "laos": "ການລົບກວນ",
+        "jp": "気晴らし",
+        "vie": "xao lãng",
+        "en_pronunciation": "/dɪˈstrækʃən/",
+        "laos_pronunciation": "kanlobkuan",
+        "jp_pronunciation": "kibarashi",
+        "vie_pronunciation": "xao lang"
+      },
+      "means": {
+        "en": "Mental turmoil",
+        "zh": "——柯蒂斯·威尔基"
+      }
+    },
+    {
+      "word": {
+        "en": "distress",
+        "laos": "ວິບປະຕິສານ",
+        "jp": "苦痛",
+        "vie": "đau khổ",
+        "en_pronunciation": "/dɪˈstrɛs/",
+        "laos_pronunciation": "vib patisan",
+        "jp_pronunciation": "kutsuu",
+        "vie_pronunciation": "dau kho"
+      },
+      "means": {
+        "en": "Psychological suffering",
+        "zh": "标记为不同"
+      }
+    },
+    {
+      "word": {
+        "en": "distressful",
+        "laos": "ໂສກເສົ້າ",
+        "jp": "悲惨な",
+        "vie": "đau khổ",
+        "en_pronunciation": "/distressful/",
+        "laos_pronunciation": "osksao",
+        "jp_pronunciation": "hisan na",
+        "vie_pronunciation": "dau kho"
+      },
+      "means": {
+        "en": "Causing distress or worry or anxiety",
+        "zh": "能够被视为不同或独特的"
+      }
+    },
+    {
+      "word": {
+        "en": "distribute",
+        "laos": "ແຈກ",
+        "jp": "配布する",
+        "vie": "phân phối",
+        "en_pronunciation": "/dɪˈstrɪbjut/",
+        "laos_pronunciation": "aechk",
+        "jp_pronunciation": "haifu suru",
+        "vie_pronunciation": "phan phoi"
+      },
+      "means": {
+        "en": "Administer or bestow, as in small portions",
+        "zh": "通过毁损或添加造成虚假；"
+      }
+    },
+    {
+      "word": {
+        "en": "distribution",
+        "laos": "ການກະຈາຍ",
+        "jp": "配布",
+        "vie": "phân phối",
+        "en_pronunciation": "/ˌdɪstrəˈbjuʃən/",
+        "laos_pronunciation": "kankachai",
+        "jp_pronunciation": "haifu",
+        "vie_pronunciation": "phan phoi"
+      },
+      "means": {
+        "en": "(statistics) an arrangement of values of a variable showing their observed or theoretical frequency of occurrence",
+        "zh": "作为消息或故事"
+      }
+    },
+    {
+      "word": {
+        "en": "distributive",
+        "laos": "ຕົວແທນແຈກ",
+        "jp": "分配的な",
+        "vie": "phân phối",
+        "en_pronunciation": "/dɪˈstrɪbjutɪv/",
+        "laos_pronunciation": "tuaaethnaechk",
+        "jp_pronunciation": "bunpai tekina",
+        "vie_pronunciation": "phan phoi"
+      },
+      "means": {
+        "en": "Serving to distribute or allot or disperse",
+        "zh": "情况变得更糟"
+      }
+    },
+    {
+      "word": {
+        "en": "district",
+        "laos": "ເມືອງ",
+        "jp": "地区",
+        "vie": "huyện",
+        "en_pronunciation": "/ˈdɪstrɪkt/",
+        "laos_pronunciation": "meuong",
+        "jp_pronunciation": "chiku",
+        "vie_pronunciation": "huyen"
+      },
+      "means": {
+        "en": "A region marked off for administrative or other purposes",
+        "zh": "将某人的注意力从某事上转移开"
+      }
+    },
+    {
+      "word": {
+        "en": "disturb",
+        "laos": "ລົບກວນ",
+        "jp": "邪魔する",
+        "vie": "làm phiền",
+        "en_pronunciation": "/dɪˈstərb/",
+        "laos_pronunciation": "lobkuan",
+        "jp_pronunciation": "jama suru",
+        "vie_pronunciation": "lam phien"
+      },
+      "means": {
+        "en": "Move deeply",
+        "zh": "精神混乱"
+      }
+    },
+    {
+      "word": {
+        "en": "disturbance",
+        "laos": "ການລົບກວນ",
+        "jp": "妨害",
+        "vie": "sự xáo trộn",
+        "en_pronunciation": "/dɪˈstərbəns/",
+        "laos_pronunciation": "kanlobkuan",
+        "jp_pronunciation": "bougai",
+        "vie_pronunciation": "su xao tron"
+      },
+      "means": {
+        "en": "Activity that is a malfunction, intrusion, or interruption",
+        "zh": "心理痛苦"
+      }
+    },
+    {
+      "word": {
+        "en": "ditch",
+        "laos": "ຮ່ອງ",
+        "jp": "溝",
+        "vie": "mương",
+        "en_pronunciation": "/dɪʧ/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "mizo",
+        "vie_pronunciation": "muong"
+      },
+      "means": {
+        "en": "A long narrow excavation in the earth",
+        "zh": "引起痛苦、担忧或焦虑"
+      }
+    },
+    {
+      "word": {
+        "en": "dive",
+        "laos": "ດໍານ້ໍາ",
+        "jp": "ダイビング",
+        "vie": "lặn",
+        "en_pronunciation": "/daɪv/",
+        "laos_pronunciation": "doanoa",
+        "jp_pronunciation": "daibingu",
+        "vie_pronunciation": "lan"
+      },
+      "means": {
+        "en": "A cheap disreputable nightclub or dance hall",
+        "zh": "管理或给予，如小部分"
+      }
+    },
+    {
+      "word": {
+        "en": "diverse",
+        "laos": "ນານາ",
+        "jp": "多様な",
+        "vie": "đa dạng",
+        "en_pronunciation": "/dɪˈvərs/",
+        "laos_pronunciation": "nana",
+        "jp_pronunciation": "tayou na",
+        "vie_pronunciation": "da dang"
+      },
+      "means": {
+        "en": "Many and different",
+        "zh": "（统计）变量值的排列，显示其观察到的或理论的出现频率"
+      }
+    },
+    {
+      "word": {
+        "en": "diversify",
+        "laos": "ຜ່າຕັດ",
+        "jp": "多様化する",
+        "vie": "đa dạng hóa",
+        "en_pronunciation": "/dɪˈvərsəˌfaɪ/",
+        "laos_pronunciation": "phatad",
+        "jp_pronunciation": "tayouka suru",
+        "vie_pronunciation": "da dang hoa"
+      },
+      "means": {
+        "en": "Make (more) diverse",
+        "zh": "用于分配、分配或驱散"
+      }
+    },
+    {
+      "word": {
+        "en": "diversity",
+        "laos": "ຄວາມແຕກຕ່າງ",
+        "jp": "多様性",
+        "vie": "sự đa dạng",
+        "en_pronunciation": "/dɪˈvərsɪti/",
+        "laos_pronunciation": "khuaamaetktang",
+        "jp_pronunciation": "tayousei",
+        "vie_pronunciation": "su da dang"
+      },
+      "means": {
+        "en": "Noticeable heterogeneity",
+        "zh": "出于行政或其他目的划定的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "divert",
+        "laos": "ປ່ຽນແປງ",
+        "jp": "流用する",
+        "vie": "chuyển hướng",
+        "en_pronunciation": "/dɪˈvərt/",
+        "laos_pronunciation": "pianaepng",
+        "jp_pronunciation": "ryuuyou suru",
+        "vie_pronunciation": "chuyen huong"
+      },
+      "means": {
+        "en": "Turn aside; turn away from",
+        "zh": "深入移动"
+      }
+    },
+    {
+      "word": {
+        "en": "diversion",
+        "laos": "ຄວາມຫຼາກຫຼາຍຂອງ",
+        "jp": "流用",
+        "vie": "chuyển hướng",
+        "en_pronunciation": "/dɪˈvərʒən/",
+        "laos_pronunciation": "khuaamrakraikhong",
+        "jp_pronunciation": "ryuuyou",
+        "vie_pronunciation": "chuyen huong"
+      },
+      "means": {
+        "en": "An activity that diverts or amuses or stimulates",
+        "zh": "故障、入侵或中断的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "divide",
+        "laos": "ແຍກກັນ",
+        "jp": "割る",
+        "vie": "chia",
+        "en_pronunciation": "/dɪˈvaɪd/",
+        "laos_pronunciation": "aenykkan",
+        "jp_pronunciation": "waru",
+        "vie_pronunciation": "chia"
+      },
+      "means": {
+        "en": "A serious disagreement between two groups of people (typically producing tension or hostility)",
+        "zh": "地球上的一个狭长的挖掘"
+      }
+    },
+    {
+      "word": {
+        "en": "division",
+        "laos": "ການແບ່ງອອກ",
+        "jp": "部門",
+        "vie": "phép chia",
+        "en_pronunciation": "/dɪˈvɪʒən/",
+        "laos_pronunciation": "kan aebngook",
+        "jp_pronunciation": "bumon",
+        "vie_pronunciation": "phep chia"
+      },
+      "means": {
+        "en": "An army unit large enough to sustain combat",
+        "zh": "廉价、声名狼藉的夜总会或舞厅"
+      }
+    },
+    {
+      "word": {
+        "en": "divisive",
+        "laos": "ການແບ່ງແຢກດ້ວຍຄວາມສາມາດ",
+        "jp": "分裂的な",
+        "vie": "gây chia rẽ",
+        "en_pronunciation": "/dɪˈvaɪsɪv/",
+        "laos_pronunciation": "kan aebng aeyk duanykhuaamsamad",
+        "jp_pronunciation": "bunretsu tekina",
+        "vie_pronunciation": "gay chia re"
+      },
+      "means": {
+        "en": "Dissenting (especially dissenting with the majority opinion)",
+        "zh": "许多且不同"
+      }
+    },
+    {
+      "word": {
+        "en": "dividend",
+        "laos": "ຜົນບວກ",
+        "jp": "配当金",
+        "vie": "cổ tức",
+        "en_pronunciation": "/ˈdɪvɪˌdɛnd/",
+        "laos_pronunciation": "phonbuak",
+        "jp_pronunciation": "haitoukin",
+        "vie_pronunciation": "co tuc"
+      },
+      "means": {
+        "en": "That part of the earnings of a corporation that is distributed to its shareholders; usually paid quarterly",
+        "zh": "使（更加）多样化"
+      }
+    },
+    {
+      "word": {
+        "en": "divine",
+        "laos": "ພຣະ",
+        "jp": "神聖な",
+        "vie": "thần thánh",
+        "en_pronunciation": "/dɪˈvaɪn/",
+        "laos_pronunciation": "phra",
+        "jp_pronunciation": "shinsei na",
+        "vie_pronunciation": "than thanh"
+      },
+      "means": {
+        "en": "Terms referring to the Judeo-Christian God",
+        "zh": "明显的异质性"
+      }
+    },
+    {
+      "word": {
+        "en": "divorce",
+        "laos": "ການຢ່າຮ້າງ",
+        "jp": "離婚",
+        "vie": "ly hôn",
+        "en_pronunciation": "/dɪˈvɔrs/",
+        "laos_pronunciation": "kan yahang",
+        "jp_pronunciation": "rikon",
+        "vie_pronunciation": "ly hon"
+      },
+      "means": {
+        "en": "The legal dissolution of a marriage",
+        "zh": "转到一边；"
+      }
+    },
+    {
+      "word": {
+        "en": "dizzy",
+        "laos": "ວິນຫົວ",
+        "jp": "めまいがする",
+        "vie": "choáng váng",
+        "en_pronunciation": "/ˈdɪzi/",
+        "laos_pronunciation": "vinhua",
+        "jp_pronunciation": "memaigasuru",
+        "vie_pronunciation": "choang vang"
+      },
+      "means": {
+        "en": "Make dizzy or giddy",
+        "zh": "转身离开"
+      }
+    },
+    {
+      "word": {
+        "en": "do",
+        "laos": "ເຮັດ",
+        "jp": "する",
+        "vie": "làm",
+        "en_pronunciation": "/du/",
+        "laos_pronunciation": "hed",
+        "jp_pronunciation": "suru",
+        "vie_pronunciation": "lam"
+      },
+      "means": {
+        "en": "An uproarious party",
+        "zh": "转移、娱乐或刺激的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "dock",
+        "laos": "ທ່າເຮືອ",
+        "jp": "ドック",
+        "vie": "bến tàu",
+        "en_pronunciation": "/dɑk/",
+        "laos_pronunciation": "thaheu",
+        "jp_pronunciation": "dokku",
+        "vie_pronunciation": "ben tau"
+      },
+      "means": {
+        "en": "An enclosure in a court of law where the defendant sits during the trial",
+        "zh": "两组人之间的严重分歧（通常会产生紧张或敌意）"
+      }
+    },
+    {
+      "word": {
+        "en": "doctor",
+        "laos": "ທ່ານຫມໍ",
+        "jp": "医者",
+        "vie": "bác sĩ",
+        "en_pronunciation": "/ˈdɔktər/",
+        "laos_pronunciation": "thanmo",
+        "jp_pronunciation": "isha",
+        "vie_pronunciation": "bac si"
+      },
+      "means": {
+        "en": "A licensed medical practitioner",
+        "zh": "一支足以维持战斗的军队单位"
+      }
+    },
+    {
+      "word": {
+        "en": "doctorate",
+        "laos": "ປະຫມາດ",
+        "jp": "博士号",
+        "vie": "tiến sĩ",
+        "en_pronunciation": "/ˈdɑktərət/",
+        "laos_pronunciation": "pamad",
+        "jp_pronunciation": "hakushigou",
+        "vie_pronunciation": "tien si"
+      },
+      "means": {
+        "en": "One of the highest earned academic degrees conferred by a university",
+        "zh": "反对（尤其是反对多数意见）"
+      }
+    },
+    {
+      "word": {
+        "en": "doctoral",
+        "laos": "ປະລິນສັມພັດ",
+        "jp": "博士号",
+        "vie": "tiến sĩ",
+        "en_pronunciation": "/ˈdɑktərəl/",
+        "laos_pronunciation": "palin samphad",
+        "jp_pronunciation": "hakushigou",
+        "vie_pronunciation": "tien si"
+      },
+      "means": {
+        "en": "Of or relating to a doctor or doctorate",
+        "zh": "公司收益中分配给股东的部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "doctrine",
+        "laos": "ນາມ",
+        "jp": "教義",
+        "vie": "học thuyết",
+        "en_pronunciation": "/ˈdɔktərɪn/",
+        "laos_pronunciation": "nam",
+        "jp_pronunciation": "kyougi",
+        "vie_pronunciation": "hoc thuyet"
+      },
+      "means": {
+        "en": "A belief (or system of beliefs) accepted as authoritative by some group or school",
+        "zh": "通常按季度支付"
+      }
+    },
+    {
+      "word": {
+        "en": "document",
+        "laos": "ເອກກະສານ",
+        "jp": "文書",
+        "vie": "tài liệu",
+        "en_pronunciation": "/ˈdɑkjəmɛnt/",
+        "laos_pronunciation": "ekkasan",
+        "jp_pronunciation": "bunsho",
+        "vie_pronunciation": "tai lieu"
+      },
+      "means": {
+        "en": "Writing that provides information (especially information of an official nature)",
+        "zh": "涉及犹太基督教上帝的术语"
+      }
+    },
+    {
+      "word": {
+        "en": "documentary",
+        "laos": "ສາລະຄະດີ",
+        "jp": "ドキュメンタリー",
+        "vie": "phim tài liệu",
+        "en_pronunciation": "/ˌdɑkjəˈmɛnəri/",
+        "laos_pronunciation": "salakhadi",
+        "jp_pronunciation": "dokyumentarii",
+        "vie_pronunciation": "phim tai lieu"
+      },
+      "means": {
+        "en": "A film or TV program presenting the facts about a person or event",
+        "zh": "合法解除婚姻关系"
+      }
+    },
+    {
+      "word": {
+        "en": "dodge",
+        "laos": "ດົ້ນ",
+        "jp": "かわす",
+        "vie": "né tránh",
+        "en_pronunciation": "/dɑʤ/",
+        "laos_pronunciation": "don",
+        "jp_pronunciation": "kawasu",
+        "vie_pronunciation": "ne tranh"
+      },
+      "means": {
+        "en": "An elaborate or deceitful scheme contrived to deceive or evade",
+        "zh": "使人头晕或头晕"
+      }
+    },
+    {
+      "word": {
+        "en": "dog",
+        "laos": "ຫມາ",
+        "jp": "犬",
+        "vie": "con chó",
+        "en_pronunciation": "/dɔg/",
+        "laos_pronunciation": "ma",
+        "jp_pronunciation": "inu",
+        "vie_pronunciation": "con cho"
+      },
+      "means": {
+        "en": "A member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds",
+        "zh": "喧闹的聚会"
+      }
+    },
+    {
+      "word": {
+        "en": "dogma",
+        "laos": "ຫມາແດງ",
+        "jp": "教義",
+        "vie": "giáo điều",
+        "en_pronunciation": "/ˈdɑgmə/",
+        "laos_pronunciation": "maaedng",
+        "jp_pronunciation": "kyougi",
+        "vie_pronunciation": "giao dieu"
+      },
+      "means": {
+        "en": "A religious doctrine that is proclaimed as true without proof",
+        "zh": "法庭内被告在审判期间所坐的围场"
+      }
+    },
+    {
+      "word": {
+        "en": "dole",
+        "laos": "ຢົດ",
+        "jp": "ドール",
+        "vie": "sự chia sẻ",
+        "en_pronunciation": "/doʊl/",
+        "laos_pronunciation": "yod",
+        "jp_pronunciation": "dooru",
+        "vie_pronunciation": "su chia se"
+      },
+      "means": {
+        "en": "A share of money or food or clothing that has been charitably given",
+        "zh": "持有执照的医生"
+      }
+    },
+    {
+      "word": {
+        "en": "doll",
+        "laos": "ຕຸ",
+        "jp": "人形",
+        "vie": "búp bê",
+        "en_pronunciation": "/dɑl/",
+        "laos_pronunciation": "tu",
+        "jp_pronunciation": "ningyou",
+        "vie_pronunciation": "bup be"
+      },
+      "means": {
+        "en": "A small replica of a person; used as a toy",
+        "zh": "大学授予的最高学历之一"
+      }
+    },
+    {
+      "word": {
+        "en": "dollar",
+        "laos": "ໂດລາ",
+        "jp": "ドル",
+        "vie": "đô la",
+        "en_pronunciation": "/ˈdɔlər/",
+        "laos_pronunciation": "odla",
+        "jp_pronunciation": "doru",
+        "vie_pronunciation": "do la"
+      },
+      "means": {
+        "en": "The basic monetary unit in many countries; equal to 100 cents",
+        "zh": "属于或与医生或博士学位相关的"
+      }
+    },
+    {
+      "word": {
+        "en": "dolphin",
+        "laos": "ປາໂລມາ",
+        "jp": "イルカ",
+        "vie": "cá heo",
+        "en_pronunciation": "/ˈdɑlfən/",
+        "laos_pronunciation": "pa olma",
+        "jp_pronunciation": "iruka",
+        "vie_pronunciation": "ca heo"
+      },
+      "means": {
+        "en": "Large slender food and game fish widely distributed in warm seas (especially around Hawaii)",
+        "zh": "被某些团体或学校视为权威的信仰（或信仰体系）"
+      }
+    },
+    {
+      "word": {
+        "en": "domain",
+        "laos": "ໂດເມນ",
+        "jp": "ドメイン",
+        "vie": "miền",
+        "en_pronunciation": "/doʊˈmeɪn/",
+        "laos_pronunciation": "odmen",
+        "jp_pronunciation": "domein",
+        "vie_pronunciation": "mien"
+      },
+      "means": {
+        "en": "A particular environment or walk of life",
+        "zh": "提供信息的写作（尤其是官方性质的信息）"
+      }
+    },
+    {
+      "word": {
+        "en": "dome",
+        "laos": "ຫ້ອງ",
+        "jp": "ドーム",
+        "vie": "mái vòm",
+        "en_pronunciation": "/doʊm/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "doomu",
+        "vie_pronunciation": "mai vom"
+      },
+      "means": {
+        "en": "A concave shape whose distinguishing characteristic is that the concavity faces downward",
+        "zh": "呈现有关人或事件的事实的电影或电视节目"
+      }
+    },
+    {
+      "word": {
+        "en": "domestic",
+        "laos": "ສົບ",
+        "jp": "国内",
+        "vie": "trong nước",
+        "en_pronunciation": "/dəˈmɛstɪk/",
+        "laos_pronunciation": "sob",
+        "jp_pronunciation": "kokunai",
+        "vie_pronunciation": "trong nuoc"
+      },
+      "means": {
+        "en": "A servant who is paid to perform menial tasks around the household",
+        "zh": "为欺骗或逃避而精心设计或欺骗的计划"
+      }
+    },
+    {
+      "word": {
+        "en": "dominate",
+        "laos": "ຄອບຄອງ",
+        "jp": "支配する",
+        "vie": "thống trị",
+        "en_pronunciation": "/ˈdɑməˌneɪt/",
+        "laos_pronunciation": "khobkhong",
+        "jp_pronunciation": "shihai suru",
+        "vie_pronunciation": "thong tri"
+      },
+      "means": {
+        "en": "Be larger in number, quantity, power, status or importance",
+        "zh": "犬属的成员（可能是普通狼的后裔），自史前时代起就被人类驯化；"
+      }
+    },
+    {
+      "word": {
+        "en": "domination",
+        "laos": "ການເດັ່ນ",
+        "jp": "支配",
+        "vie": "sự thống trị",
+        "en_pronunciation": "/ˌdɑməˈneɪʃən/",
+        "laos_pronunciation": "kanden",
+        "jp_pronunciation": "shihai",
+        "vie_pronunciation": "su thong tri"
+      },
+      "means": {
+        "en": "Social control by dominating",
+        "zh": "发生在许多品种中"
+      }
+    },
+    {
+      "word": {
+        "en": "dominance",
+        "laos": "ເດັ່ນ",
+        "jp": "支配",
+        "vie": "sự thống trị",
+        "en_pronunciation": "/ˈdɑmənəns/",
+        "laos_pronunciation": "den",
+        "jp_pronunciation": "shihai",
+        "vie_pronunciation": "su thong tri"
+      },
+      "means": {
+        "en": "Superior development of one side of the body",
+        "zh": "未经证实而被宣称为真实的宗教教义"
+      }
+    },
+    {
+      "word": {
+        "en": "dominant",
+        "laos": "ທີ່ໂດດເດັ່ນ",
+        "jp": "支配的な",
+        "vie": "chiếm ưu thế",
+        "en_pronunciation": "/ˈdɑmənənt/",
+        "laos_pronunciation": "thioddden",
+        "jp_pronunciation": "shihaiteki na",
+        "vie_pronunciation": "chiem uu the"
+      },
+      "means": {
+        "en": "(music) the fifth note of the diatonic scale",
+        "zh": "慈善捐赠的金钱、食物或衣服的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "donate",
+        "laos": "ບໍລິຈາກ",
+        "jp": "寄付する",
+        "vie": "quyên góp",
+        "en_pronunciation": "/ˈdoʊˌneɪt/",
+        "laos_pronunciation": "bolichak",
+        "jp_pronunciation": "kifu suru",
+        "vie_pronunciation": "quyen gop"
+      },
+      "means": {
+        "en": "Give to a charity or good cause",
+        "zh": "一个人的小复制品；"
+      }
+    },
+    {
+      "word": {
+        "en": "donation",
+        "laos": "ການບໍລິຈາກ",
+        "jp": "寄付",
+        "vie": "quyên góp",
+        "en_pronunciation": "/doʊˈneɪʃən/",
+        "laos_pronunciation": "kanbolichak",
+        "jp_pronunciation": "kifu",
+        "vie_pronunciation": "quyen gop"
+      },
+      "means": {
+        "en": "A voluntary gift (as of money or service or ideas) made to some worthwhile cause",
+        "zh": "用作玩具"
+      }
+    },
+    {
+      "word": {
+        "en": "donor",
+        "laos": "ຜູ້ເຂົ້າ",
+        "jp": "ドナー",
+        "vie": "nhà tài trợ",
+        "en_pronunciation": "/ˈdoʊnər/",
+        "laos_pronunciation": "phukhao",
+        "jp_pronunciation": "donaa",
+        "vie_pronunciation": "nha tai tro"
+      },
+      "means": {
+        "en": "Person who makes a gift of property",
+        "zh": "许多国家的基本货币单位；"
+      }
+    },
+    {
+      "word": {
+        "en": "donkey",
+        "laos": "ມ້າ",
+        "jp": "ロバ",
+        "vie": "con lừa",
+        "en_pronunciation": "/ˈdɔŋki/",
+        "laos_pronunciation": "ma",
+        "jp_pronunciation": "roba",
+        "vie_pronunciation": "con lua"
+      },
+      "means": {
+        "en": "The symbol of the Democratic Party; introduced in cartoons by Thomas Nast in 1874",
+        "zh": "等于 100 美分"
+      }
+    },
+    {
+      "word": {
+        "en": "doom",
+        "laos": "ເພື່ອງ",
+        "jp": "運命",
+        "vie": "sự diệt vong",
+        "en_pronunciation": "/dum/",
+        "laos_pronunciation": "pheuong",
+        "jp_pronunciation": "unmei",
+        "vie_pronunciation": "su diet vong"
+      },
+      "means": {
+        "en": "An unpleasant or disastrous destiny",
+        "zh": "大型细长食用鱼和野味鱼，广泛分布在温暖的海洋中（尤其是夏威夷周围）"
+      }
+    },
+    {
+      "word": {
+        "en": "door",
+        "laos": "ປະຕູ",
+        "jp": "ドア",
+        "vie": "cửa",
+        "en_pronunciation": "/dɔr/",
+        "laos_pronunciation": "patu",
+        "jp_pronunciation": "doa",
+        "vie_pronunciation": "cua"
+      },
+      "means": {
+        "en": "A swinging or sliding barrier that will close the entrance to a room or building or vehicle",
+        "zh": "特定的环境或生活方式"
+      }
+    },
+    {
+      "word": {
+        "en": "dormitory",
+        "laos": "ຫໍພັກ",
+        "jp": "寮",
+        "vie": "ký túc xá",
+        "en_pronunciation": "/ˈdɔrməˌtɔri/",
+        "laos_pronunciation": "hophak",
+        "jp_pronunciation": "ryou",
+        "vie_pronunciation": "ky tuc xa"
+      },
+      "means": {
+        "en": "A college or university building containing living quarters for students",
+        "zh": "凹形，其显着特征是凹面朝下"
+      }
+    },
+    {
+      "word": {
+        "en": "dorm",
+        "laos": "ຫໍ",
+        "jp": "寮",
+        "vie": "ký túc xá",
+        "en_pronunciation": "/dɔrm/",
+        "laos_pronunciation": "ho",
+        "jp_pronunciation": "ryou",
+        "vie_pronunciation": "ky tuc xa"
+      },
+      "means": {
+        "en": "A college or university building containing living quarters for students",
+        "zh": "受雇从事家务劳动的仆人"
+      }
+    }
+  ]
+}

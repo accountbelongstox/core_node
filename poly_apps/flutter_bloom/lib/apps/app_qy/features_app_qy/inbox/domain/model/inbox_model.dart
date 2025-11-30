@@ -10,60 +10,34 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:qyflutter/common/assets/common_assets_images.dart';
+/// Inbox message model
+library;
 
-class InboxModel {
-  final String userImage;
-  final String userName;
-  final String dateTime;
-  final String message;
-
-  InboxModel(
-      {required this.userName,
-      required this.message,
-      required this.dateTime,
-      required this.userImage});
+enum InboxType {
+  personal,
+  group,
+  system,
+  notification,
 }
 
-List<InboxModel> inboxUsersList = [
-  InboxModel(
-      userName: "Dating",
-      message: "I Know a donation..",
-      dateTime: "09.10",
-      userImage: CommonAssetsImages.user1),
-  InboxModel(
-      userName: "Arrell Steward",
-      message: "Ai Dating App",
-      dateTime: "20.25",
-      userImage: CommonAssetsImages.user2),
-  InboxModel(
-      userName: "Jene Cooper",
-      message: "This is amazing",
-      dateTime: "8.30",
-      userImage: CommonAssetsImages.user3),
-  InboxModel(
-      userName: "Eleanor Pena",
-      message: "Ai Dating App",
-      dateTime: "05.55",
-      userImage: CommonAssetsImages.user1),
-  InboxModel(
-      userName: "Dating",
-      message: "I Know a donation..",
-      dateTime: "09.10",
-      userImage: CommonAssetsImages.user3),
-  InboxModel(
-      userName: "Arrell Steward",
-      message: "Ai Dating App",
-      dateTime: "20.25",
-      userImage: CommonAssetsImages.user2),
-  InboxModel(
-      userName: "Jene Cooper",
-      message: "This is amazing",
-      dateTime: "8.30",
-      userImage: CommonAssetsImages.user1),
-  InboxModel(
-      userName: "Eleanor Pena",
-      message: "Ai Dating App",
-      dateTime: "05.55",
-      userImage: CommonAssetsImages.user3),
-];
+class InboxModel {
+  final String id;
+  final String nameKey; // Localization key for name
+  final String avatar;
+  final String lastMessageKey; // Localization key for last message
+  final String timeKey; // Localization key for time
+  final int unreadCount;
+  final bool isOnline;
+  final InboxType messageType;
+
+  InboxModel({
+    required this.id,
+    required this.nameKey,
+    required this.avatar,
+    required this.lastMessageKey,
+    required this.timeKey,
+    required this.unreadCount,
+    required this.isOnline,
+    required this.messageType,
+  });
+}

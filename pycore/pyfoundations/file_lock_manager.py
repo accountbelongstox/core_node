@@ -191,11 +191,10 @@ class FileLockManager:
 
         # Sort by creation time (newest first), safely handling deleted files
         def safe_ctime(f: Path) -> float:
-            try:
-                return f.stat().st_ctime
-            except OSError:
-                # File was deleted between glob and stat, treat as oldest
+            # Check if file exists before getting stats
+            if not f.exists():
                 return 0.0
+            return f.stat().st_ctime
 
         lock_files.sort(key=safe_ctime, reverse=True)
 
@@ -214,15 +213,15 @@ class FileLockManager:
         Returns:
             True if lock is older than timeout threshold
         """
-        try:
-            stat = lock_file.stat()
-            # Use creation time on Windows, modification time on Unix
-            created_at = getattr(stat, 'st_ctime', stat.st_mtime)
-            age = time.time() - created_at
-            return age > self.lock_timeout
-        except OSError:
-            # Can't stat file, treat as stale
+        # Check if file exists first
+        if not lock_file.exists():
             return True
+
+        stat = lock_file.stat()
+        # Use creation time on Windows, modification time on Unix
+        created_at = getattr(stat, 'st_ctime', stat.st_mtime)
+        age = time.time() - created_at
+        return age > self.lock_timeout
 
     def _cleanup_stale_locks(self):
         """Remove all stale lock files"""
@@ -230,11 +229,8 @@ class FileLockManager:
 
         for lock_file in lock_files:
             if self._is_lock_stale(lock_file):
-                try:
-                    lock_file.unlink(missing_ok=True)
-                    self._log(f"  Removed stale lock: {lock_file.name}")
-                except OSError:
-                    pass
+                lock_file.unlink(missing_ok=True)
+                self._log(f"  Removed stale lock: {lock_file.name}")
 
     def _check_self_deadlock(self, lock_file: Path) -> bool:
         """
@@ -246,16 +242,17 @@ class FileLockManager:
         Returns:
             True if lock belongs to current process
         """
-        try:
-            # Lock filename format: {timestamp}.{pid}.lck
-            parts = lock_file.stem.split('.')
-            if len(parts) >= 2:
-                lock_pid = int(parts[-1])
-                return lock_pid == os.getpid()
-        except (ValueError, IndexError):
-            pass
+        # Lock filename format: {timestamp}.{pid}.lck
+        parts = lock_file.stem.split('.')
+        if len(parts) < 2:
+            return False
 
-        return False
+        # Check if last part is a valid PID number
+        if not parts[-1].isdigit():
+            return False
+
+        lock_pid = int(parts[-1])
+        return lock_pid == os.getpid()
 
     @contextmanager
     def lock(self):
@@ -302,18 +299,12 @@ class FileLockManager:
             active_locks = []
             for lock_file in lock_files:
                 if self._is_lock_stale(lock_file):
-                    try:
-                        lock_file.unlink(missing_ok=True)
-                        self._log(f"  Removed stale lock: {lock_file.name}")
-                    except OSError:
-                        pass
+                    lock_file.unlink(missing_ok=True)
+                    self._log(f"  Removed stale lock: {lock_file.name}")
                 elif self._check_self_deadlock(lock_file):
                     # Own stale lock, remove it
-                    try:
-                        lock_file.unlink(missing_ok=True)
-                        self._log(f"  Removed self-deadlock: {lock_file.name}")
-                    except OSError:
-                        pass
+                    lock_file.unlink(missing_ok=True)
+                    self._log(f"  Removed self-deadlock: {lock_file.name}")
                 else:
                     # Active lock held by another process
                     active_locks.append(lock_file)
@@ -321,24 +312,25 @@ class FileLockManager:
             # If no active locks, try to acquire
             if not active_locks:
                 print(f"[FileLockManager] No active locks, attempting to acquire...", flush=True)
-                try:
-                    # Create lock file: {timestamp}.{pid}.lck
-                    timestamp = int(time.time() * 1000000)  # microseconds
-                    lock_filename = f"{timestamp}.{current_pid}.lck"
-                    self._current_lock_file = self._lock_dir / lock_filename
 
-                    # Create empty lock file (exclusive creation)
-                    with self._current_lock_file.open('x') as f:
-                        pass  # Empty file
+                # Create lock file: {timestamp}.{pid}.lck
+                timestamp = int(time.time() * 1000000)  # microseconds
+                lock_filename = f"{timestamp}.{current_pid}.lck"
+                self._current_lock_file = self._lock_dir / lock_filename
 
-                    print(f"[FileLockManager] Lock acquired: {lock_filename}", flush=True)
-                    return  # Lock acquired successfully
-
-                except FileExistsError:
-                    # Another process created lock between scan and create, retry
+                # Check if file already exists (race condition check)
+                if self._current_lock_file.exists():
                     print(f"[FileLockManager] Race condition, retrying...", flush=True)
                     self._current_lock_file = None
-                    pass
+                    time.sleep(self.retry_interval)
+                    continue
+
+                # Create empty lock file
+                with self._current_lock_file.open('w') as f:
+                    pass  # Empty file
+
+                print(f"[FileLockManager] Lock acquired: {lock_filename}", flush=True)
+                return  # Lock acquired successfully
             else:
                 # Active locks exist, show waiting message
                 active_pids = [f.stem.split('.')[-1] for f in active_locks]
@@ -355,17 +347,13 @@ class FileLockManager:
         a fair chance to acquire the lock (prevents one process from monopolizing).
         """
         if self._current_lock_file is not None:
-            try:
-                self._current_lock_file.unlink(missing_ok=True)
-                self._log(f"Lock released: {self._current_lock_file.name}")
-            except OSError as e:
-                self._log(f"Warning: Failed to release lock: {e}")
-            finally:
-                self._current_lock_file = None
+            self._current_lock_file.unlink(missing_ok=True)
+            self._log(f"Lock released: {self._current_lock_file.name}")
+            self._current_lock_file = None
 
-                # Sleep to give other processes a chance to acquire the lock
-                # This prevents one process from monopolizing lock acquisition
-                time.sleep(0.5)
+            # Sleep to give other processes a chance to acquire the lock
+            # This prevents one process from monopolizing lock acquisition
+            time.sleep(0.5)
 
     def ensure_file_exists(self):
         """Ensure target file exists with default content"""
@@ -457,19 +445,18 @@ class FileLockManager:
             self._write_json_to_disk(data)
             return data
 
-        try:
-            with self.file_path.open('r', encoding='utf-8') as f:
-                data = json.load(f)
-            self._log(f"Loaded JSON: {len(str(data))} bytes")
-            return data
-        except json.JSONDecodeError as e:
-            self._log(f"Warning: JSON corrupted ({e}), recreating...")
+        # Check if file is readable
+        if not os.access(self.file_path, os.R_OK):
+            self._log(f"Warning: File not readable, creating default...")
             data = self.default_factory()
             self._write_json_to_disk(data)
             return data
-        except Exception as e:
-            self._log(f"Error reading file: {e}")
-            raise
+
+        # Read and parse JSON - let errors expose naturally
+        with self.file_path.open('r', encoding='utf-8') as f:
+            data = json.load(f)
+        self._log(f"Loaded JSON: {len(str(data))} bytes")
+        return data
 
     def _write_json_to_disk(self, data: JsonData):
         """
@@ -488,25 +475,15 @@ class FileLockManager:
         timestamp = int(time.time() * 1000000)
         tmp_path = self.file_path.parent / f".{self.file_path.name}.tmp.{pid}.{timestamp}"
 
-        try:
-            # Write to tmp file
-            with tmp_path.open('w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=self.json_indent)
-                f.flush()
-                os.fsync(f.fileno())
+        # Write to tmp file
+        with tmp_path.open('w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=self.json_indent)
+            f.flush()
+            os.fsync(f.fileno())
 
-            # Atomic replace
-            tmp_path.replace(self.file_path)
-            self._log(f"Wrote JSON: {len(str(data))} bytes")
-
-        except Exception as e:
-            # Clean up tmp file on error
-            if tmp_path.exists():
-                try:
-                    tmp_path.unlink()
-                except:
-                    pass
-            raise e
+        # Atomic replace
+        tmp_path.replace(self.file_path)
+        self._log(f"Wrote JSON: {len(str(data))} bytes")
 
     def get_lock_status(self) -> Dict[str, Any]:
         """
@@ -526,23 +503,24 @@ class FileLockManager:
         }
 
         for lock_file in lock_files:
-            try:
-                stat = lock_file.stat()
-                created_at = getattr(stat, 'st_ctime', stat.st_mtime)
-                age = time.time() - created_at
+            # Check if file exists
+            if not lock_file.exists():
+                continue
 
-                # Parse PID from filename
-                parts = lock_file.stem.split('.')
-                pid = int(parts[-1]) if len(parts) >= 2 else None
+            stat = lock_file.stat()
+            created_at = getattr(stat, 'st_ctime', stat.st_mtime)
+            age = time.time() - created_at
 
-                status['locks'].append({
-                    'filename': lock_file.name,
-                    'pid': pid,
-                    'age_seconds': round(age, 2),
-                    'is_stale': age > self.lock_timeout,
-                })
-            except Exception:
-                pass
+            # Parse PID from filename
+            parts = lock_file.stem.split('.')
+            pid = int(parts[-1]) if len(parts) >= 2 and parts[-1].isdigit() else None
+
+            status['locks'].append({
+                'filename': lock_file.name,
+                'pid': pid,
+                'age_seconds': round(age, 2),
+                'is_stale': age > self.lock_timeout,
+            })
 
         return status
 

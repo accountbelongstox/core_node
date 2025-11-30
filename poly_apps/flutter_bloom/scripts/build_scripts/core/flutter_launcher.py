@@ -84,33 +84,21 @@ class FlutterBloomLauncher:
             }
 
             if action.lower() == "debug":
-                # Get debug script path based on platform
-                from pathlib import Path
-                project_root = unified_vars._find_flutter_project_root()
-                dev_debug_root = project_root / "scripts" / "dev_debug"
+                # Use debug script generator to create platform-specific debug script
+                from shared.debug_script_generator import debug_script_generator
 
-                platform_scripts = {
-                    "web": dev_debug_root / "startDebugByWeb.ps1",
-                    "android": dev_debug_root / "startDebugByPhone.ps1",
-                    "phone": dev_debug_root / "startDebugByPhone.ps1",
-                    "ios": dev_debug_root / "startDebugByIOS.ps1",
-                    "windows": dev_debug_root / "startDebugByWindows.ps1"
-                }
+                debug_result = debug_script_generator.prepare_debug_script()
 
-                script_path = platform_scripts.get(platform.lower())
-                if script_path and script_path.exists():
+                if debug_result["success"]:
                     routing_result.update({
                         "success": True,
-                        "script_path": str(script_path),
+                        "script_path": debug_result["script_path"],
                         "mode": "debug"
                     })
-
-                    # Save script path to file variables
-                    unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, str(script_path))
-                    unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, str(script_path))
-                    print(f"[INFO] Debug script to execute: {script_path}")
+                    print(f"[INFO] Debug script generated and ready: {debug_result['script_path']}")
                 else:
-                    routing_result["error"] = f"No debug script found for platform: {platform}"
+                    error_msg = debug_result.get("error", "Unknown error")
+                    routing_result["error"] = f"Debug script generation failed: {error_msg}"
 
             elif action.lower() in ["build", "release"]:
                 routing_result.update({
@@ -123,6 +111,18 @@ class FlutterBloomLauncher:
                 unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, "")
                 unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, "")
                 print("[INFO] Build mode selected - will be handled by main.py")
+
+            elif action.lower() == "design_tool":
+                routing_result.update({
+                    "success": True,
+                    "script_path": "",  # No script for design tool mode
+                    "mode": "design_tool"
+                })
+
+                # Clear script path for design tool mode
+                unified_vars.set_file_variable(unified_vars.KEY_SCRIPT_PATH, "")
+                unified_vars.set_file_variable(unified_vars.KEY_DEBUG_SCRIPT_PATH, "")
+                print("[INFO] Design tool mode selected - will be handled by PowerShell")
 
             else:
                 routing_result["error"] = f"Unknown action: {action}"
@@ -193,6 +193,10 @@ class FlutterBloomLauncher:
                 print("[SUCCESS] Build mode configured")
                 print("[INFO] Python launcher will continue with build system")
                 return {"exit_code": 0, "mode": "build", "selection_data": selection_data}
+            elif routing_result["mode"] == "design_tool":
+                print("[SUCCESS] Design tool mode configured")
+                print("[INFO] Python launcher completed - passing control to PowerShell")
+                return {"exit_code": 0, "mode": "design_tool", "selection_data": selection_data}
 
             return {"exit_code": 0, "mode": routing_result["mode"], "selection_data": selection_data}
 

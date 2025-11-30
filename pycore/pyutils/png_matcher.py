@@ -7,21 +7,14 @@ Enhanced image matching specifically for PNG images with transparency (alpha cha
 
 import os
 import sys
-import numpy as np
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
 
-# Check and install dependencies before importing cv2
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import cv2
-
-from pyfoundations.color_print import ColorPrint
+numpy = get_third_package_numpy()
+cv2 = get_third_package_cv2()
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class PNGMatcher:

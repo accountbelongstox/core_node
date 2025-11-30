@@ -1,185 +1,122 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
-/// API endpoints configuration for app_qy
-/// Contains all API paths that will be combined with base URL
 class ApiEndpointsAppQy {
-  static const String authLogin = '/auth/login';
-  static const String authRegister = '/auth/register';
-  static const String authLogout = '/auth/logout';
-  static const String authRefresh = '/auth/refresh';
-  static const String authForgotPassword = '/auth/forgot-password';
-  static const String authResetPassword = '/auth/reset-password';
-  static const String authVerifyEmail = '/auth/verify-email';
-  static const String authChangePassword = '/auth/change-password';
-
-  static const String userProfile = '/user/profile';
-  static const String userUpdate = '/user/update';
-  static const String userSettings = '/user/settings';
-  static const String userPreferences = '/user/preferences';
-  static const String userAvatar = '/user/avatar';
-  static const String userNotifications = '/user/notifications';
-  static const String userSessions = '/user/sessions';
-  static const String userActivity = '/user/activity';
-
-  static const String contentList = '/content';
-  static const String contentDetail = '/content/{id}';
-  static const String contentCreate = '/content/create';
-  static const String contentUpdate = '/content/{id}/update';
-  static const String contentDelete = '/content/{id}/delete';
-  static const String contentSearch = '/content/search';
-  static const String contentCategories = '/content/categories';
-  static const String contentFavorites = '/content/favorites';
-
-  static const String publicNews = '/public/news';
-  static const String publicAnnouncements = '/public/announcements';
-  static const String publicFaq = '/public/faq';
-  static const String publicContact = '/public/contact';
-  static const String publicFeedback = '/public/feedback';
-  static const String publicHealth = '/public/health';
-  static const String publicVersion = '/public/version';
-  static const String publicConfig = '/public/config';
-
-  static const String fileUpload = '/files/upload';
-  static const String fileDownload = '/files/{id}/download';
-  static const String fileDelete = '/files/{id}/delete';
-  static const String fileList = '/files';
-  static const String fileInfo = '/files/{id}/info';
-
-  static const String notificationsList = '/notifications';
-  static const String notificationsMarkRead = '/notifications/{id}/read';
-  static const String notificationsMarkAllRead = '/notifications/read-all';
-  static const String notificationsSettings = '/notifications/settings';
-  static const String notificationsSubscribe = '/notifications/subscribe';
-  static const String notificationsUnsubscribe = '/notifications/unsubscribe';
-
-  static const String analyticsEvent = '/analytics/event';
-  static const String analyticsPageView = '/analytics/pageview';
-  static const String analyticsUserAction = '/analytics/action';
-  static const String analyticsSession = '/analytics/session';
-
-  static const String adminUsers = '/admin/users';
-  static const String adminUserDetail = '/admin/users/{id}';
-  static const String adminUserBlock = '/admin/users/{id}/block';
-  static const String adminUserUnblock = '/admin/users/{id}/unblock';
-  static const String adminStats = '/admin/stats';
-  static const String adminLogs = '/admin/logs';
-  static const String adminSettings = '/admin/settings';
-
   
-  /// Replace path parameters with actual values
-  /// Example: replacePathParams('/content/{id}', {'id': '123'}) -> '/content/123'
-  static String replacePathParams(String path, Map<String, String> params) {
-    String result = path;
-    params.forEach((key, value) {
-      result = result.replaceAll('{$key}', value);
-    });
-    return result;
-  }
+  static const String authLogin = '/api/dict/v1/login';
+  static const String authRegister = '/api/dict/v1/register';
+  static const String authLogout = '/api/dict/v1/logout';
+  static const String authRefresh = '/api/dict/v1/refresh';
+  static const String authSendCode = '/api/dict/v1/send-sms-code';
+  static const String authVerifyCode = '/api/dict/v1/verify-sms-code';
+  static const String authGetCurrentUser = '/api/dict/v1/user';
+  
+  static const String userProfile = '/api/dict/v1/user';
+  static const String userGetLanguages = '/api/dict/v1/learning/languages';
+  static const String userSetLanguages = '/api/dict/v1/learning/languages/set';
+  static const String userStats = '/api/dict/v1/learning/stats';
+  
+  static const String vocabularyLibraries = '/api/dict/v1/learning/libraries';
+  static const String vocabularySelect = '/api/dict/v1/learning/libraries/select';
+  static const String vocabularyWords = '/api/dict/v1/learning/words';
+  static const String vocabularyProgress = '/api/dict/v1/learning/progress';
+  static const String vocabularyRecommendations = '/api/dict/v1/learning/recommendations';
+  static const String vocabularyCollectionSelect = '/api/dict/v1/learning/collections/select';
+  static const String vocabularyCollectionSelected = '/api/dict/v1/learning/collections/selected';
+  
+  static const String publicLibraries = '/api/dict/v1/public/vocabulary-collections';
+  static const String publicWords = '/api/dict/v1/public/words';
+  
+  static const String ttsGenerate = '/api/app_qy_v1/ai_tools/tts/generate';
+  static const String ttsAudio = '/api/app_qy_v1/ai_tools/tts/audio';
+  static const String ttsBatch = '/api/app_qy_v1/ai_tools/tts/batch';
+  static const String ttsVoices = '/api/app_qy_v1/ai_tools/tts/voices';
+  
+  static const String translateText = '/api/app_qy_v1/ai_tools/translate';
+  static const String translateBatch = '/api/app_qy_v1/ai_tools/translate/batch';
+  
+  static const String systemLanguages = '/api/dict/v1/system/supported-languages';
+  static const String systemLanguageByCode = '/api/dict/v1/system/supported-languages/{code}';
+  static const String systemInit = '/api/dict/v1/system/initialize';
+  static const String systemPreValidate = '/api/dict/v1/system/pre-validate';
+  
+  static const String wordGroupList = '/api/dict/v1/word-groups';
+  static const String wordGroupCreate = '/api/dict/v1/word-groups/create';
+  static const String wordGroupDelete = '/api/dict/v1/word-groups/delete';
+  static const String wordGroupWords = '/api/dict/v1/word-groups/{id}/words';
+  
+  static const String dictionaryQuery = '/api/dict/v1/dictionary/query';
+  static const String dictionaryBatch = '/api/dict/v1/dictionary/batch';
+  static const String dictionarySearch = '/api/dict/v1/dictionary/search';
+  
+  // User Initialization
+  static const String userInitializationStatus = '/api/dict/v1/user/initialization-status';
+  static const String userInitialize = '/api/dict/v1/user/initialize';
+  static const String userProfileUpdate = '/api/dict/v1/user/profile';
+  
+  // Memory Bank
+  static const String memoryBank = '/api/dict/v1/memory/bank';
+  static const String memoryBankLibrary = '/api/dict/v1/memory/bank/library';
+  static const String memoryBankUploadFile = '/api/dict/v1/memory/bank/upload-file';
+  static const String memoryBankUploadText = '/api/dict/v1/memory/bank/upload-text';
+  static const String memoryBankStatus = '/api/dict/v1/memory/bank/status';
+  static const String memoryBankWordStatus = '/api/dict/v1/memory/bank/word';
+  
+  // Vocabulary Libraries (Public)
+  static const String vocabularyLibrariesRecommended = '/api/dict/v1/vocabulary/libraries/recommended';
+  static const String vocabularyLibrariesAll = '/api/dict/v1/vocabulary/libraries';
+  
+  // Reading Materials
+  static const String readingDailyRecommended = '/api/dict/v1/reading/daily/recommended';
+  static const String readingDailyAll = '/api/dict/v1/reading/daily';
+  static const String readingBooksRecommended = '/api/dict/v1/reading/books/recommended';
+  static const String readingBooksAll = '/api/dict/v1/reading/books';
+  static const String readingArticle = '/api/dict/v1/reading/article';
+  static const String readingBook = '/api/dict/v1/reading/book';
+  static const String readingBookChapter = '/api/dict/v1/reading/book';
+  
+  // AI Features
+  static const String aiUsageLimit = '/api/app_qy_v1/ai/usage-limit';
+  static const String aiWordExplanation = '/api/app_qy_v1/ai/word-explanation';
+  static const String aiLearningAssistant = '/api/app_qy_v1/ai/learning-assistant';
+  
+  // Word Search (Public)
+  static const String wordPublicLookup = '/api/words/public';
+  
+  // Enhanced Word Query
+  static const String wordEnhanced = '/api/dict/v1/word';
+}
 
-  /// Get endpoint with replaced parameters
-  static String getContentDetail(String id) => replacePathParams(contentDetail, {'id': id});
-  static String getContentUpdate(String id) => replacePathParams(contentUpdate, {'id': id});
-  static String getContentDelete(String id) => replacePathParams(contentDelete, {'id': id});
-  static String getFileDownload(String id) => replacePathParams(fileDownload, {'id': id});
-  static String getFileDelete(String id) => replacePathParams(fileDelete, {'id': id});
-  static String getFileInfo(String id) => replacePathParams(fileInfo, {'id': id});
-  static String getNotificationMarkRead(String id) => replacePathParams(notificationsMarkRead, {'id': id});
-  static String getAdminUserDetail(String id) => replacePathParams(adminUserDetail, {'id': id});
-  static String getAdminUserBlock(String id) => replacePathParams(adminUserBlock, {'id': id});
-  static String getAdminUserUnblock(String id) => replacePathParams(adminUserUnblock, {'id': id});
-
-  /// Get all endpoints as a map for debugging/documentation
-  static Map<String, String> getAllEndpoints() {
-    return {
-      // Authentication
-      'authLogin': authLogin,
-      'authRegister': authRegister,
-      'authLogout': authLogout,
-      'authRefresh': authRefresh,
-      'authForgotPassword': authForgotPassword,
-      'authResetPassword': authResetPassword,
-      'authVerifyEmail': authVerifyEmail,
-      'authChangePassword': authChangePassword,
-      
-      // User Management
-      'userProfile': userProfile,
-      'userUpdate': userUpdate,
-      'userSettings': userSettings,
-      'userPreferences': userPreferences,
-      'userAvatar': userAvatar,
-      'userNotifications': userNotifications,
-      'userSessions': userSessions,
-      'userActivity': userActivity,
-      
-      // Content
-      'contentList': contentList,
-      'contentDetail': contentDetail,
-      'contentCreate': contentCreate,
-      'contentUpdate': contentUpdate,
-      'contentDelete': contentDelete,
-      'contentSearch': contentSearch,
-      'contentCategories': contentCategories,
-      'contentFavorites': contentFavorites,
-      
-      // Public
-      'publicNews': publicNews,
-      'publicAnnouncements': publicAnnouncements,
-      'publicFaq': publicFaq,
-      'publicContact': publicContact,
-      'publicFeedback': publicFeedback,
-      'publicHealth': publicHealth,
-      'publicVersion': publicVersion,
-      'publicConfig': publicConfig,
-      
-      // File Management
-      'fileUpload': fileUpload,
-      'fileDownload': fileDownload,
-      'fileDelete': fileDelete,
-      'fileList': fileList,
-      'fileInfo': fileInfo,
-      
-      // Notifications
-      'notificationsList': notificationsList,
-      'notificationsMarkRead': notificationsMarkRead,
-      'notificationsMarkAllRead': notificationsMarkAllRead,
-      'notificationsSettings': notificationsSettings,
-      'notificationsSubscribe': notificationsSubscribe,
-      'notificationsUnsubscribe': notificationsUnsubscribe,
-      
-      // Analytics
-      'analyticsEvent': analyticsEvent,
-      'analyticsPageView': analyticsPageView,
-      'analyticsUserAction': analyticsUserAction,
-      'analyticsSession': analyticsSession,
-      
-      // Admin
-      'adminUsers': adminUsers,
-      'adminUserDetail': adminUserDetail,
-      'adminUserBlock': adminUserBlock,
-      'adminUserUnblock': adminUserUnblock,
-      'adminStats': adminStats,
-      'adminLogs': adminLogs,
-      'adminSettings': adminSettings,
-    };
-  }
-
-  /// Validate if endpoint exists
-  static bool isValidEndpoint(String endpoint) {
-    return getAllEndpoints().containsValue(endpoint);
-  }
-
-  /// Get endpoint by name
-  static String? getEndpointByName(String name) {
-    return getAllEndpoints()[name];
-  }
+class ApiEndpointMethods {
+  static const Map<String, String> methods = {
+    ApiEndpointsAppQy.authLogin: 'POST',
+    ApiEndpointsAppQy.authRegister: 'POST',
+    ApiEndpointsAppQy.authLogout: 'POST',
+    ApiEndpointsAppQy.authRefresh: 'POST',
+    ApiEndpointsAppQy.authSendCode: 'POST',
+    ApiEndpointsAppQy.authVerifyCode: 'POST',
+    ApiEndpointsAppQy.userProfile: 'GET',
+    ApiEndpointsAppQy.userGetLanguages: 'GET',
+    ApiEndpointsAppQy.userSetLanguages: 'POST',
+    ApiEndpointsAppQy.userStats: 'GET',
+    ApiEndpointsAppQy.vocabularyLibraries: 'GET',
+    ApiEndpointsAppQy.vocabularySelect: 'POST',
+    ApiEndpointsAppQy.vocabularyWords: 'GET',
+    ApiEndpointsAppQy.vocabularyProgress: 'POST',
+    ApiEndpointsAppQy.publicLibraries: 'GET',
+    ApiEndpointsAppQy.publicWords: 'GET',
+    ApiEndpointsAppQy.ttsGenerate: 'POST',
+    ApiEndpointsAppQy.ttsAudio: 'GET',
+    ApiEndpointsAppQy.ttsBatch: 'POST',
+    ApiEndpointsAppQy.ttsVoices: 'GET',
+    ApiEndpointsAppQy.translateText: 'POST',
+    ApiEndpointsAppQy.translateBatch: 'POST',
+    ApiEndpointsAppQy.systemLanguages: 'GET',
+    ApiEndpointsAppQy.systemInit: 'POST',
+    ApiEndpointsAppQy.systemPreValidate: 'POST',
+    ApiEndpointsAppQy.wordGroupList: 'GET',
+    ApiEndpointsAppQy.wordGroupCreate: 'POST',
+    ApiEndpointsAppQy.wordGroupDelete: 'DELETE',
+    ApiEndpointsAppQy.wordGroupWords: 'GET',
+    ApiEndpointsAppQy.dictionaryQuery: 'GET',
+    ApiEndpointsAppQy.dictionaryBatch: 'POST',
+    ApiEndpointsAppQy.dictionarySearch: 'GET',
+  };
 }

@@ -10,7 +10,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Image 001 Screen for QY App
 library;
 
 import 'package:flutter/material.dart';
@@ -20,63 +19,72 @@ import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
-class Image001ScreenAppQy extends StatefulWidget {
-  const Image001ScreenAppQy({super.key});
+class Image001ScreenRefactoredAppQy extends StatefulWidget {
+  const Image001ScreenRefactoredAppQy({super.key});
 
   @override
-  State<Image001ScreenAppQy> createState() => _Image001ScreenAppQyState();
+  State<Image001ScreenRefactoredAppQy> createState() =>
+      _Image001ScreenRefactoredAppQyState();
 }
 
-class _Image001ScreenAppQyState extends State<Image001ScreenAppQy> {
+class _Image001ScreenRefactoredAppQyState
+    extends State<Image001ScreenRefactoredAppQy> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          'Image 001',
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          QyAppLocalizationKeys.qyAppName.tr(context),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
+        ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildContent(),
-            ],
-          ),
+        child: Center(
+          child: _buildContent(),
         ),
       ),
     );
   }
 
   Widget _buildContent() {
-    return Center(
+    return Container(
+      margin: EdgeInsets.all(ThemeDimensions.paddingLarge),
+      padding: EdgeInsets.all(ThemeDimensions.paddingXLarge),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.construction,
-            size: 64,
-            color: ThemeColors.primary.withOpacity(0.5),
+            Icons.image,
+            size: 80,
+            color: ThemeColors.primary,
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingLarge),
           Text(
-            'Image 001 - Coming Soon',
-            style: TextStyles.body1.copyWith(
+            QyAppLocalizationKeys.qyImageView.tr(context),
+            style: ThemeTextStyles.h3.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacingMedium),
+          Text(
+            QyAppLocalizationKeys.qyImageViewDesc.tr(context),
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.textSecondary,
             ),
-          ),
-          SizedBox(height: Dimensions.spacingSmall),
-          Text(
-            'This page is under development',
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.textTertiary,
-            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),

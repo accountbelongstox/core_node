@@ -63,7 +63,7 @@ class WuyAboutScreen extends StatelessWidget {
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
-            onPressed: () => context.go(WuyAppRouter.routeProfile),
+            onPressed: () => context.pop(),
           ),
         ),
         body: SingleChildScrollView(

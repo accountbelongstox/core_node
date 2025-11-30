@@ -1,0 +1,259 @@
+#!/bin/bash
+# GNOME Remote Desktop Setup for Ubuntu 24.04+
+# Uses built-in gnome-remote-desktop instead of xrdp
+#
+# Usage:
+#   ./125_setup_gnome_rdp.sh                 # Setup for detected desktop user
+#   ./125_setup_gnome_rdp.sh --user ubuntu   # Setup for specific user
+#   ./125_setup_gnome_rdp.sh --disable       # Disable remote desktop
+#   ./125_setup_gnome_rdp.sh --status        # Check status
+
+# Script paths
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Default user - use detected desktop user
+TARGET_USER="${ACTUAL_DESKTOP_USER:-ubuntu}"
+ACTION="enable"
+RDP_PASSWORD=""
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --user)
+            TARGET_USER="$2"
+            shift 2
+            ;;
+        --password)
+            RDP_PASSWORD="$2"
+            shift 2
+            ;;
+        --disable)
+            ACTION="disable"
+            shift
+            ;;
+        --status)
+            ACTION="status"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--user USERNAME] [--password PASSWORD] [--disable] [--status]"
+            exit 1
+            ;;
+    esac
+done
+
+print_header_from_common_functions "GNOME Remote Desktop Setup"
+
+# Verify user exists
+if ! id "$TARGET_USER" &>/dev/null; then
+    print_error_from_common_functions "User $TARGET_USER does not exist"
+    exit 1
+fi
+
+print_info_from_common_functions "Target user: $TARGET_USER"
+
+# Check status
+check_status() {
+    print_step_from_common_functions "Checking GNOME Remote Desktop status for user: $TARGET_USER"
+
+    # Check if user is logged in
+    USER_UID=$(id -u "$TARGET_USER")
+    DBUS_SESSION=$(pgrep -u "$TARGET_USER" gnome-session | head -1)
+
+    if [ -z "$DBUS_SESSION" ]; then
+        print_warning_from_common_functions "User $TARGET_USER is not logged in to desktop"
+        echo "Cannot check RDP status without active desktop session"
+        return 1
+    fi
+
+    # Get D-Bus session address
+    DBUS_ADDRESS=$(tr '\0' '\n' < /proc/$DBUS_SESSION/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+
+    echo ""
+    echo "=== Desktop Session ==="
+    echo "User: $TARGET_USER (UID: $USER_UID)"
+    echo "Session PID: $DBUS_SESSION"
+    echo "D-Bus: ${DBUS_ADDRESS:0:50}..."
+
+    echo ""
+    echo "=== Service Status ==="
+    sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user status gnome-remote-desktop 2>/dev/null || echo "Service not running"
+
+    echo ""
+    echo "=== RDP Status ==="
+    sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" grdctl status 2>/dev/null || echo "RDP not configured"
+
+    echo ""
+    echo "=== Firewall Status ==="
+    sudo ufw status | grep 3389 || echo "Port 3389 not in firewall rules"
+}
+
+# Enable Remote Desktop
+enable_rdp() {
+    print_step_from_common_functions "Enabling GNOME Remote Desktop for user: $TARGET_USER"
+
+    # Install required packages
+    print_step_from_common_functions "Installing required packages..."
+    sudo apt-get update -qq
+    sudo apt-get install -y gnome-remote-desktop freerdp2-x11
+
+    # Prompt for password if not provided
+    if [[ -z "$RDP_PASSWORD" ]]; then
+        echo ""
+        echo -n "Enter RDP password for user $TARGET_USER: "
+        read -s RDP_PASSWORD
+        echo ""
+        echo -n "Confirm password: "
+        read -s RDP_PASSWORD_CONFIRM
+        echo ""
+
+        if [[ "$RDP_PASSWORD" != "$RDP_PASSWORD_CONFIRM" ]]; then
+            print_error_from_common_functions "Passwords do not match"
+            exit 1
+        fi
+    fi
+
+    # Check if user is logged in to desktop
+    print_step_from_common_functions "Checking desktop session..."
+    USER_UID=$(id -u "$TARGET_USER")
+    DBUS_SESSION=$(pgrep -u "$TARGET_USER" gnome-session | head -1)
+
+    if [ -z "$DBUS_SESSION" ]; then
+        print_warning_from_common_functions "User $TARGET_USER is not logged in to desktop!"
+        print_info_from_common_functions "GNOME Remote Desktop requires the user to be logged in first."
+        print_info_from_common_functions "Please log in to the desktop and run this script again."
+        echo ""
+        print_info_from_common_functions "Alternatively, consider using RustDesk (126_install_rustdesk.sh)"
+        print_info_from_common_functions "which does not require pre-login."
+        exit 1
+    fi
+
+    # Get D-Bus session address
+    DBUS_ADDRESS=$(tr '\0' '\n' < /proc/$DBUS_SESSION/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+
+    if [ -z "$DBUS_ADDRESS" ]; then
+        print_error_from_common_functions "Failed to detect D-Bus session address"
+        print_info_from_common_functions "Try logging out and back in, then run this script again."
+        exit 1
+    fi
+
+    print_info_from_common_functions "Desktop session detected (PID: $DBUS_SESSION)"
+
+    # Enable RDP via grdctl (as the target user with proper D-Bus environment)
+    print_step_from_common_functions "Configuring RDP..."
+
+    # Configure RDP using sudo with environment variables
+    if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        bash -c "grdctl rdp set-credentials '$TARGET_USER' '$RDP_PASSWORD'"; then
+        print_error_from_common_functions "Failed to set RDP credentials"
+        exit 1
+    fi
+
+    if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        grdctl rdp enable; then
+        print_error_from_common_functions "Failed to enable RDP"
+        exit 1
+    fi
+
+    # Disable view-only mode to allow remote control
+    print_step_from_common_functions "Enabling remote control..."
+    if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        grdctl rdp disable-view-only; then
+        print_warning_from_common_functions "Failed to disable view-only mode"
+    fi
+
+    # Enable and start service
+    if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        systemctl --user enable gnome-remote-desktop; then
+        print_warning_from_common_functions "Failed to enable gnome-remote-desktop service (it may already be enabled)"
+    fi
+
+    if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        systemctl --user restart gnome-remote-desktop; then
+        print_error_from_common_functions "Failed to restart gnome-remote-desktop service"
+        exit 1
+    fi
+    print_success_from_common_functions "RDP configuration completed"
+
+    # Configure firewall
+    print_step_from_common_functions "Configuring firewall..."
+    if command -v ufw &>/dev/null; then
+        sudo ufw allow 3389/tcp comment 'GNOME Remote Desktop'
+    fi
+
+    # Display connection info
+    echo ""
+    print_success_from_common_functions "GNOME Remote Desktop enabled successfully!"
+    echo ""
+    print_info_from_common_functions "Connection Information:"
+    echo "  Username: $TARGET_USER"
+    echo "  Password: (the one you just set)"
+    echo "  Port: 3389"
+    echo ""
+    echo "Available IP addresses:"
+    hostname -I | tr ' ' '\n' | grep -v '^$' | sed 's/^/  /'
+    echo ""
+    print_info_from_common_functions "Connect from Windows using:"
+    echo "  1. Press Win+R"
+    echo "  2. Type: mstsc"
+    echo "  3. Enter IP address above"
+    echo "  4. Use credentials: $TARGET_USER / (your password)"
+    echo ""
+    print_warning_from_common_functions "IMPORTANT: User must be logged in to the desktop for RDP to work!"
+    echo ""
+}
+
+# Disable Remote Desktop
+disable_rdp() {
+    print_step_from_common_functions "Disabling GNOME Remote Desktop for user: $TARGET_USER"
+
+    # Check if user is logged in
+    USER_UID=$(id -u "$TARGET_USER")
+    DBUS_SESSION=$(pgrep -u "$TARGET_USER" gnome-session | head -1)
+
+    if [ -z "$DBUS_SESSION" ]; then
+        print_warning_from_common_functions "User $TARGET_USER is not logged in to desktop"
+        print_info_from_common_functions "Will attempt to disable anyway using systemctl..."
+        sudo -u "$TARGET_USER" systemctl --user stop gnome-remote-desktop 2>/dev/null || true
+        sudo -u "$TARGET_USER" systemctl --user disable gnome-remote-desktop 2>/dev/null || true
+        print_success_from_common_functions "Service disabled (if it was running)"
+        return 0
+    fi
+
+    # Get D-Bus session address
+    DBUS_ADDRESS=$(tr '\0' '\n' < /proc/$DBUS_SESSION/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+
+    # Disable with proper environment
+    sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" grdctl rdp disable 2>/dev/null || true
+    sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user stop gnome-remote-desktop 2>/dev/null || true
+    sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" systemctl --user disable gnome-remote-desktop 2>/dev/null || true
+
+    print_success_from_common_functions "GNOME Remote Desktop disabled"
+}
+
+# Main execution
+case "$ACTION" in
+    enable)
+        enable_rdp
+        ;;
+    disable)
+        disable_rdp
+        ;;
+    status)
+        check_status
+        ;;
+esac

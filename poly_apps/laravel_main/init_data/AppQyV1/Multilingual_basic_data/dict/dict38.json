@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.335599+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "impact",
+        "laos": "ຜົນກະທົບ",
+        "jp": "影響",
+        "vie": "tác động",
+        "en_pronunciation": "/ˌɪmˈpækt/",
+        "laos_pronunciation": "phonkathob",
+        "jp_pronunciation": "eikyou",
+        "vie_pronunciation": "tac dong"
+      },
+      "means": {
+        "en": "The striking of one body against another",
+        "zh": "一个身体撞击另一个身体"
+      }
+    },
+    {
+      "word": {
+        "en": "impair",
+        "laos": "ກະການ",
+        "jp": "損なう",
+        "vie": "làm suy yếu",
+        "en_pronunciation": "/ˌɪmˈpɛr/",
+        "laos_pronunciation": "kakan",
+        "jp_pronunciation": "sokona u",
+        "vie_pronunciation": "lam suy yeu"
+      },
+      "means": {
+        "en": "Make worse or less effective",
+        "zh": "使情况变得更糟或效果更差"
+      }
+    },
+    {
+      "word": {
+        "en": "impart",
+        "laos": "ຂາດເຂີນ",
+        "jp": "与える",
+        "vie": "truyền đạt",
+        "en_pronunciation": "/ˌɪmˈpɑrt/",
+        "laos_pronunciation": "khadkhoen",
+        "jp_pronunciation": "atae ru",
+        "vie_pronunciation": "truyen dat"
+      },
+      "means": {
+        "en": "Transmit (knowledge or skills)",
+        "zh": "传播（知识或技能）"
+      }
+    },
+    {
+      "word": {
+        "en": "impatient",
+        "laos": "ຂາດຄວາມອົດທົນ",
+        "jp": "せっかちな",
+        "vie": "thiếu kiên nhẫn",
+        "en_pronunciation": "/ˌɪmˈpeɪʃənt/",
+        "laos_pronunciation": "khad khuaamodthon",
+        "jp_pronunciation": "sekkachina",
+        "vie_pronunciation": "thieu kien nhan"
+      },
+      "means": {
+        "en": "Restless or short-tempered under delay or opposition",
+        "zh": "在拖延或反对下焦躁不安或脾气暴躁"
+      }
+    },
+    {
+      "word": {
+        "en": "imperative",
+        "laos": "ຈົ່ງກະທໍາ",
+        "jp": "命令的な",
+        "vie": "mệnh lệnh",
+        "en_pronunciation": "/ˌɪmˈpɛrətɪv/",
+        "laos_pronunciation": "chongkathoa",
+        "jp_pronunciation": "meirei tekina",
+        "vie_pronunciation": "menh lenh"
+      },
+      "means": {
+        "en": "A mood that expresses an intention to influence the listener's behavior",
+        "zh": "表达影响听者行为意图的情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "imperial",
+        "laos": "ນິດຟນາ",
+        "jp": "帝国の",
+        "vie": "đế quốc",
+        "en_pronunciation": "/ˌɪmˈpɪriəl/",
+        "laos_pronunciation": "nid fna",
+        "jp_pronunciation": "teikoku no",
+        "vie_pronunciation": "de quoc"
+      },
+      "means": {
+        "en": "A small tufted beard worn by Emperor Napoleon III",
+        "zh": "拿破仑三世皇帝所留的小簇胡须"
+      }
+    },
+    {
+      "word": {
+        "en": "impetus",
+        "laos": "ແຮງຈູງໃຈ",
+        "jp": "推進力",
+        "vie": "sự thúc đẩy",
+        "en_pronunciation": "/ˈɪmpətəs/",
+        "laos_pronunciation": "aehng chungchai",
+        "jp_pronunciation": "suishinryoku",
+        "vie_pronunciation": "su thuc day"
+      },
+      "means": {
+        "en": "A force that moves something along",
+        "zh": "使某物向前移动的力"
+      }
+    },
+    {
+      "word": {
+        "en": "impatience",
+        "laos": "ຄວາມບໍ່ອົດທົນ",
+        "jp": "焦り",
+        "vie": "thiếu kiên nhẫn",
+        "en_pronunciation": "/ˌɪmˈpeɪʃəns/",
+        "laos_pronunciation": "khuaamboodthon",
+        "jp_pronunciation": "aseri",
+        "vie_pronunciation": "thieu kien nhan"
+      },
+      "means": {
+        "en": "A lack of patience; irritation with anything that causes delay",
+        "zh": "缺乏耐心；"
+      }
+    },
+    {
+      "word": {
+        "en": "imperialism",
+        "laos": "ຈັກກະພັດນິຍົມ",
+        "jp": "帝国主義",
+        "vie": "chủ nghĩa đế quốc",
+        "en_pronunciation": "/ˌɪmˈpɪriəˌlɪzəm/",
+        "laos_pronunciation": "chakkaphadninyom",
+        "jp_pronunciation": "teikokushugi",
+        "vie_pronunciation": "chu nghia de quoc"
+      },
+      "means": {
+        "en": "A policy of extending your rule over foreign countries",
+        "zh": "扩大对外国的统治的政策"
+      }
+    },
+    {
+      "word": {
+        "en": "imperialist",
+        "laos": "ຈັກກະສິກອນ",
+        "jp": "帝国主義者",
+        "vie": "đế quốc",
+        "en_pronunciation": "/ˌɪmˈpɪriəlɪst/",
+        "laos_pronunciation": "chakkasikon",
+        "jp_pronunciation": "teikokushugisha",
+        "vie_pronunciation": "de quoc"
+      },
+      "means": {
+        "en": "A believer in imperialism",
+        "zh": "帝国主义信徒"
+      }
+    },
+    {
+      "word": {
+        "en": "implement",
+        "laos": "ປະຕິບັດການ",
+        "jp": "実装する",
+        "vie": "thực hiện",
+        "en_pronunciation": "/ˈɪmpləmənt/",
+        "laos_pronunciation": "patibadkan",
+        "jp_pronunciation": "jissou suru",
+        "vie_pronunciation": "thuc hien"
+      },
+      "means": {
+        "en": "Instrumentation (a piece of equipment or tool) used to effect an end",
+        "zh": "用于实现目的的仪器（一件设备或工具）"
+      }
+    },
+    {
+      "word": {
+        "en": "implementation",
+        "laos": "ການຈັດຕັ້ງປະຕິບັດ",
+        "jp": "実装",
+        "vie": "thực hiện",
+        "en_pronunciation": "/ˌɪmpləmɛnˈteɪʃən/",
+        "laos_pronunciation": "kanchadtangpatibad",
+        "jp_pronunciation": "jissou",
+        "vie_pronunciation": "thuc hien"
+      },
+      "means": {
+        "en": "The act of accomplishing some aim or executing some order",
+        "zh": "完成某些目标或执行某些命令的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "implicit",
+        "laos": "impicit",
+        "jp": "暗黙的な",
+        "vie": "ngầm",
+        "en_pronunciation": "/ˌɪmˈplɪsət/",
+        "laos_pronunciation": "impicit",
+        "jp_pronunciation": "anmokuteki na",
+        "vie_pronunciation": "ngam"
+      },
+      "means": {
+        "en": "Implied though not directly expressed; inherent in the nature of something",
+        "zh": "暗示但不直接表达；"
+      }
+    },
+    {
+      "word": {
+        "en": "imply",
+        "laos": "ນຶກເຖິງ",
+        "jp": "暗示する",
+        "vie": "ngụ ý",
+        "en_pronunciation": "/ˌɪmˈplaɪ/",
+        "laos_pronunciation": "nukthoeng",
+        "jp_pronunciation": "anji suru",
+        "vie_pronunciation": "ngu y"
+      },
+      "means": {
+        "en": "Express or state indirectly",
+        "zh": "间接表达或陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "implication",
+        "laos": "impelication",
+        "jp": "含意",
+        "vie": "hàm ý",
+        "en_pronunciation": "/ˌɪmpləˈkeɪʃən/",
+        "laos_pronunciation": "impelication",
+        "jp_pronunciation": "gan'i",
+        "vie_pronunciation": "ham y"
+      },
+      "means": {
+        "en": "Something that is inferred (deduced or entailed or implied)",
+        "zh": "推断出来的东西（推断或必然或暗示）"
+      }
+    },
+    {
+      "word": {
+        "en": "import",
+        "laos": "ສ່ວຍສາອາກອນ",
+        "jp": "インポート",
+        "vie": "nhập khẩu",
+        "en_pronunciation": "/ˌɪmˈpɔrt/",
+        "laos_pronunciation": "suanysaoakon",
+        "jp_pronunciation": "inpooto",
+        "vie_pronunciation": "nhap khau"
+      },
+      "means": {
+        "en": "Commodities (goods or services) bought from a foreign country",
+        "zh": "从国外购买的商品（商品或服务）"
+      }
+    },
+    {
+      "word": {
+        "en": "importation",
+        "laos": "ການມອບສິດ",
+        "jp": "輸入",
+        "vie": "sự nhập khẩu",
+        "en_pronunciation": "/ˌɪmpɔrˈteɪʃən/",
+        "laos_pronunciation": "kan mobsid",
+        "jp_pronunciation": "yunyuu",
+        "vie_pronunciation": "su nhap khau"
+      },
+      "means": {
+        "en": "The commercial activity of buying and bringing in goods from a foreign country",
+        "zh": "从国外购买和带入货物的商业活动"
+      }
+    },
+    {
+      "word": {
+        "en": "important",
+        "laos": "ສໍາຄັນ",
+        "jp": "重要な",
+        "vie": "quan trọng",
+        "en_pronunciation": "/ˌɪmˈpɔrtənt/",
+        "laos_pronunciation": "soakhan",
+        "jp_pronunciation": "juuyouna",
+        "vie_pronunciation": "quan trong"
+      },
+      "means": {
+        "en": "Of great significance or value",
+        "zh": "具有重大意义或价值"
+      }
+    },
+    {
+      "word": {
+        "en": "importance",
+        "laos": "ຄວາມສໍາຄັນ",
+        "jp": "重要性",
+        "vie": "tầm quan trọng",
+        "en_pronunciation": "/ˌɪmˈpɔrtəns/",
+        "laos_pronunciation": "khuaamsoakhan",
+        "jp_pronunciation": "juuyousei",
+        "vie_pronunciation": "tam quan trong"
+      },
+      "means": {
+        "en": "The quality of being important and worthy of note",
+        "zh": "重要且值得注意的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "impose",
+        "laos": "ມັດບັງຄັບ",
+        "jp": "押し付ける",
+        "vie": "áp đặt",
+        "en_pronunciation": "/ˌɪmˈpoʊz/",
+        "laos_pronunciation": "madbangkhab",
+        "jp_pronunciation": "oshitsuke ru",
+        "vie_pronunciation": "ap dat"
+      },
+      "means": {
+        "en": "Compel to behave in a certain way",
+        "zh": "强迫以某种方式行事"
+      }
+    },
+    {
+      "word": {
+        "en": "imposition",
+        "laos": "ການບັງຄັບ",
+        "jp": "押しつけ",
+        "vie": "sự áp đặt",
+        "en_pronunciation": "/ˌɪmpəˈzɪʃən/",
+        "laos_pronunciation": "kanbangkhab",
+        "jp_pronunciation": "oshi tsuke",
+        "vie_pronunciation": "su ap dat"
+      },
+      "means": {
+        "en": "The act of imposing something (as a tax or an embargo)",
+        "zh": "征收某物的行为（如税收或禁运）"
+      }
+    },
+    {
+      "word": {
+        "en": "imposing",
+        "laos": "ທີ່ກໍານົດໄວ້",
+        "jp": "堂々とした",
+        "vie": "áp đặt",
+        "en_pronunciation": "/ˌɪmˈpoʊzɪŋ/",
+        "laos_pronunciation": "thikoanoduaai",
+        "jp_pronunciation": "doudou toshita",
+        "vie_pronunciation": "ap dat"
+      },
+      "means": {
+        "en": "Compel to behave in a certain way",
+        "zh": "强迫以某种方式行事"
+      }
+    },
+    {
+      "word": {
+        "en": "impossible",
+        "laos": "ເປັນໄປບໍ່ໄດ້",
+        "jp": "不可能",
+        "vie": "không thể",
+        "en_pronunciation": "/ˌɪmˈpɑsəbəl/",
+        "laos_pronunciation": "penpaibodai",
+        "jp_pronunciation": "fukanou",
+        "vie_pronunciation": "khong the"
+      },
+      "means": {
+        "en": "Something that cannot be done",
+        "zh": "做不到的事"
+      }
+    },
+    {
+      "word": {
+        "en": "impossibility",
+        "laos": "ອະເຮົາະ",
+        "jp": "不可能",
+        "vie": "không thể được",
+        "en_pronunciation": "/ˌɪmˌpɔsɪˈbɪlɪti/",
+        "laos_pronunciation": "a haoa",
+        "jp_pronunciation": "fukanou",
+        "vie_pronunciation": "khong the duoc"
+      },
+      "means": {
+        "en": "Incapability of existing or occurring",
+        "zh": "无法存在或发生"
+      }
+    },
+    {
+      "word": {
+        "en": "impress",
+        "laos": "ປະທັບໃຈ",
+        "jp": "印象づける",
+        "vie": "gây ấn tượng",
+        "en_pronunciation": "/ˌɪmˈprɛs/",
+        "laos_pronunciation": "pathabchai",
+        "jp_pronunciation": "inshou zukeru",
+        "vie_pronunciation": "gay an tuong"
+      },
+      "means": {
+        "en": "The act of coercing someone into government service",
+        "zh": "强迫某人进入政府服务的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "impression",
+        "laos": "ການປະທັບໃຈ",
+        "jp": "印象",
+        "vie": "ấn tượng",
+        "en_pronunciation": "/ˌɪmˈprɛʃən/",
+        "laos_pronunciation": "kanpathabchai",
+        "jp_pronunciation": "inshou",
+        "vie_pronunciation": "an tuong"
+      },
+      "means": {
+        "en": "A vague idea in which some confidence is placed",
+        "zh": "一个模糊的想法，但有一定的信心"
+      }
+    },
+    {
+      "word": {
+        "en": "impressive",
+        "laos": "ທີ່ເຮັດໃຫ້ຕື້ນຕັນໃຈ",
+        "jp": "印象的な",
+        "vie": "ấn tượng",
+        "en_pronunciation": "/ˌɪmˈprɛsɪv/",
+        "laos_pronunciation": "thihedhai tuntanchai",
+        "jp_pronunciation": "inshouteki na",
+        "vie_pronunciation": "an tuong"
+      },
+      "means": {
+        "en": "Making a strong or vivid impression",
+        "zh": "给人留下强烈或生动的印象"
+      }
+    },
+    {
+      "word": {
+        "en": "imprison",
+        "laos": "ຈໍາຄຸກ",
+        "jp": "投獄する",
+        "vie": "bỏ tù",
+        "en_pronunciation": "/ˌɪmˈprɪzən/",
+        "laos_pronunciation": "choakhuk",
+        "jp_pronunciation": "tougoku suru",
+        "vie_pronunciation": "bo tu"
+      },
+      "means": {
+        "en": "Lock up or confine, in or as in a jail",
+        "zh": "锁起来或限制在监狱里或像在监狱里一样"
+      }
+    },
+    {
+      "word": {
+        "en": "imprisonment",
+        "laos": "ການຍູ່ຄົກ",
+        "jp": "投獄",
+        "vie": "bỏ tù",
+        "en_pronunciation": "/ˌɪmˈprɪzənmənt/",
+        "laos_pronunciation": "kan nyukhok",
+        "jp_pronunciation": "tougoku",
+        "vie_pronunciation": "bo tu"
+      },
+      "means": {
+        "en": "Putting someone in prison or in jail as lawful punishment",
+        "zh": "将某人关进监狱或作为合法惩罚入狱"
+      }
+    },
+    {
+      "word": {
+        "en": "impromptu",
+        "laos": "ທີ່ຂຸ້ນ",
+        "jp": "即興",
+        "vie": "ngẫu hứng",
+        "en_pronunciation": "/ˌɪmˈprɑmptu/",
+        "laos_pronunciation": "thikhun",
+        "jp_pronunciation": "sokkyou",
+        "vie_pronunciation": "ngau hung"
+      },
+      "means": {
+        "en": "An extemporaneous speech or remark",
+        "zh": "即席演讲或评论"
+      }
+    },
+    {
+      "word": {
+        "en": "improve",
+        "laos": "ປັບປຸງ",
+        "jp": "改善する",
+        "vie": "cải thiện",
+        "en_pronunciation": "/ˌɪmˈpruv/",
+        "laos_pronunciation": "pabpung",
+        "jp_pronunciation": "kaizen suru",
+        "vie_pronunciation": "cai thien"
+      },
+      "means": {
+        "en": "To make better",
+        "zh": "为了做得更好"
+      }
+    },
+    {
+      "word": {
+        "en": "improvement",
+        "laos": "ການປັບປຸງ",
+        "jp": "改善",
+        "vie": "cải tiến",
+        "en_pronunciation": "/ˌɪmˈpruvmənt/",
+        "laos_pronunciation": "kanpabpung",
+        "jp_pronunciation": "kaizen",
+        "vie_pronunciation": "cai tien"
+      },
+      "means": {
+        "en": "A change for the better; progress in development",
+        "zh": "向好的方向改变；"
+      }
+    },
+    {
+      "word": {
+        "en": "impulse",
+        "laos": "ກະຕຸ້ນ",
+        "jp": "衝動",
+        "vie": "xung lực",
+        "en_pronunciation": "/ˌɪmˈpəls/",
+        "laos_pronunciation": "katun",
+        "jp_pronunciation": "shoudou",
+        "vie_pronunciation": "xung luc"
+      },
+      "means": {
+        "en": "An instinctive motive",
+        "zh": "本能的动机"
+      }
+    },
+    {
+      "word": {
+        "en": "impulsive",
+        "laos": "ສູບມຶນ",
+        "jp": "衝動的な",
+        "vie": "bốc đồng",
+        "en_pronunciation": "/ˌɪmˈpəlsɪv/",
+        "laos_pronunciation": "sub mun",
+        "jp_pronunciation": "shoudouteki na",
+        "vie_pronunciation": "boc dong"
+      },
+      "means": {
+        "en": "Proceeding from natural feeling or impulse without external stimulus",
+        "zh": "在没有外界刺激的情况下，从自然感觉或冲动出发"
+      }
+    },
+    {
+      "word": {
+        "en": "in",
+        "laos": "ໃນ",
+        "jp": "で",
+        "vie": "trong",
+        "en_pronunciation": "/ɪn/",
+        "laos_pronunciation": "nai",
+        "jp_pronunciation": "de",
+        "vie_pronunciation": "trong"
+      },
+      "means": {
+        "en": "A unit of length equal to one twelfth of a foot",
+        "zh": "等于十二分之一英尺的长度单位"
+      }
+    },
+    {
+      "word": {
+        "en": "inaugurate",
+        "laos": "ເປີດພິທີ",
+        "jp": "就任する",
+        "vie": "khánh thành",
+        "en_pronunciation": "/ˌɪˈnɔgjəˌreɪt/",
+        "laos_pronunciation": "poedphithi",
+        "jp_pronunciation": "shuunin suru",
+        "vie_pronunciation": "khanh thanh"
+      },
+      "means": {
+        "en": "Commence officially",
+        "zh": "正式开始"
+      }
+    },
+    {
+      "word": {
+        "en": "inauguration",
+        "laos": "ການເປີດພິທີ",
+        "jp": "就任式",
+        "vie": "khánh thành",
+        "en_pronunciation": "/ˌɪˌnɔgjəˈreɪʃən/",
+        "laos_pronunciation": "kanpoedphithi",
+        "jp_pronunciation": "shuunin shiki",
+        "vie_pronunciation": "khanh thanh"
+      },
+      "means": {
+        "en": "The act of starting a new operation or practice",
+        "zh": "开始新的操作或实践的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "inborn",
+        "laos": "ເຂົ້າສູ່ຮາກ",
+        "jp": "生まれつきの",
+        "vie": "bẩm sinh",
+        "en_pronunciation": "/ˈɪnˌbɔrn/",
+        "laos_pronunciation": "khaosuhak",
+        "jp_pronunciation": "umaretsuki no",
+        "vie_pronunciation": "bam sinh"
+      },
+      "means": {
+        "en": "Present at birth but not necessarily hereditary; acquired during fetal development",
+        "zh": "出生时就存在，但不一定是遗传性的；"
+      }
+    },
+    {
+      "word": {
+        "en": "incentive",
+        "laos": "ແຮງຈູງໃຈ",
+        "jp": "インセンティブ",
+        "vie": "khuyến khích",
+        "en_pronunciation": "/ˌɪnˈsɛnɪv/",
+        "laos_pronunciation": "aehng chungchai",
+        "jp_pronunciation": "insenteibu",
+        "vie_pronunciation": "khuyen khich"
+      },
+      "means": {
+        "en": "A positive motivational influence",
+        "zh": "积极的激励影响"
+      }
+    },
+    {
+      "word": {
+        "en": "inch",
+        "laos": "ນິ້ວ",
+        "jp": "インチ",
+        "vie": "inch",
+        "en_pronunciation": "/ɪnʧ/",
+        "laos_pronunciation": "niv",
+        "jp_pronunciation": "inchi",
+        "vie_pronunciation": "inch"
+      },
+      "means": {
+        "en": "A unit of length equal to one twelfth of a foot",
+        "zh": "等于十二分之一英尺的长度单位"
+      }
+    },
+    {
+      "word": {
+        "en": "incidence",
+        "laos": "ການເກີດ",
+        "jp": "発生率",
+        "vie": "sự xuất hiện",
+        "en_pronunciation": "/ˈɪnsɪdəns/",
+        "laos_pronunciation": "kankoed",
+        "jp_pronunciation": "hasseiritsu",
+        "vie_pronunciation": "su xuat hien"
+      },
+      "means": {
+        "en": "The relative frequency of occurrence of something",
+        "zh": "某事物发生的相对频率"
+      }
+    },
+    {
+      "word": {
+        "en": "incident",
+        "laos": "ເຫດເຫດ",
+        "jp": "事件",
+        "vie": "sự cố",
+        "en_pronunciation": "/ˈɪnsədənt/",
+        "laos_pronunciation": "hedhed",
+        "jp_pronunciation": "jiken",
+        "vie_pronunciation": "su co"
+      },
+      "means": {
+        "en": "A single distinct event",
+        "zh": "单个不同的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "incidental",
+        "laos": "ໂດຍບັງເອີນ",
+        "jp": "付随的な",
+        "vie": "ngẫu nhiên",
+        "en_pronunciation": "/ˌɪnsɪˈdɛntəl/",
+        "laos_pronunciation": "odnybangooen",
+        "jp_pronunciation": "fuzuiteki na",
+        "vie_pronunciation": "ngau nhien"
+      },
+      "means": {
+        "en": "(frequently plural) an expense not budgeted or not specified",
+        "zh": "（通常为复数）未列入预算或未指定的费用"
+      }
+    },
+    {
+      "word": {
+        "en": "incidentally",
+        "laos": "ໂດຍບັງເອີນ",
+        "jp": "ちなみに",
+        "vie": "tình cờ",
+        "en_pronunciation": "/ˌɪnsɪˈdɛntəli/",
+        "laos_pronunciation": "odnybangooen",
+        "jp_pronunciation": "chinamini",
+        "vie_pronunciation": "tinh co"
+      },
+      "means": {
+        "en": "Introducing a different topic; in point of fact",
+        "zh": "引入不同的主题；"
+      }
+    },
+    {
+      "word": {
+        "en": "incline",
+        "laos": "ອຽງລົງ",
+        "jp": "傾く",
+        "vie": "nghiêng",
+        "en_pronunciation": "/ˌɪnˈklaɪn/",
+        "laos_pronunciation": "ianglong",
+        "jp_pronunciation": "katamuku",
+        "vie_pronunciation": "nghieng"
+      },
+      "means": {
+        "en": "An elevated geological formation",
+        "zh": "高架地质构造"
+      }
+    },
+    {
+      "word": {
+        "en": "inclined",
+        "laos": "ດໍານ້ໍາ",
+        "jp": "傾いた",
+        "vie": "nghiêng",
+        "en_pronunciation": "/ˌɪnˈklaɪnd/",
+        "laos_pronunciation": "doanoa",
+        "jp_pronunciation": "katamui ta",
+        "vie_pronunciation": "nghieng"
+      },
+      "means": {
+        "en": "Have a tendency or disposition to do or be something; be inclined",
+        "zh": "有做某事或成为某事的倾向或倾向；"
+      }
+    },
+    {
+      "word": {
+        "en": "inclination",
+        "laos": "ແນວໂນ້ມ",
+        "jp": "傾き",
+        "vie": "độ nghiêng",
+        "en_pronunciation": "/ˌɪnkləˈneɪʃən/",
+        "laos_pronunciation": "aenuaonm",
+        "jp_pronunciation": "katamuki",
+        "vie_pronunciation": "do nghieng"
+      },
+      "means": {
+        "en": "An attitude of mind especially one that favors one alternative over others",
+        "zh": "一种心态，尤其是倾向于一种选择而不是其他选择的态度"
+      }
+    },
+    {
+      "word": {
+        "en": "include",
+        "laos": "ປະກອບມີ",
+        "jp": "含む",
+        "vie": "bao gồm",
+        "en_pronunciation": "/ˌɪnˈklud/",
+        "laos_pronunciation": "pakobmi",
+        "jp_pronunciation": "fukumu",
+        "vie_pronunciation": "bao gom"
+      },
+      "means": {
+        "en": "Have as a part, be made up out of",
+        "zh": "作为一部分，由...组成"
+      }
+    },
+    {
+      "word": {
+        "en": "inclusion",
+        "laos": "ລວມ",
+        "jp": "包含",
+        "vie": "bao gồm",
+        "en_pronunciation": "/ˌɪnˈkluʒən/",
+        "laos_pronunciation": "luam",
+        "jp_pronunciation": "hougan",
+        "vie_pronunciation": "bao gom"
+      },
+      "means": {
+        "en": "The state of being included",
+        "zh": "被收录状态"
+      }
+    },
+    {
+      "word": {
+        "en": "inclusive",
+        "laos": "ຮິ່ນເກດ",
+        "jp": "包括的",
+        "vie": "bao gồm",
+        "en_pronunciation": "/ˌɪnˈklusɪv/",
+        "laos_pronunciation": "hin ked",
+        "jp_pronunciation": "houkatsuteki",
+        "vie_pronunciation": "bao gom"
+      },
+      "means": {
+        "en": "Including much or everything; and especially including stated limits",
+        "zh": "包括很多或一切；"
+      }
+    },
+    {
+      "word": {
+        "en": "including",
+        "laos": "ລວມທັງ",
+        "jp": "含む",
+        "vie": "bao gồm cả",
+        "en_pronunciation": "/ˌɪnˈkludɪŋ/",
+        "laos_pronunciation": "luamthang",
+        "jp_pronunciation": "fukumu",
+        "vie_pronunciation": "bao gom ca"
+      },
+      "means": {
+        "en": "Have as a part, be made up out of",
+        "zh": "作为一部分，由...组成"
+      }
+    },
+    {
+      "word": {
+        "en": "income",
+        "laos": "ລາຍໄດ້",
+        "jp": "収入",
+        "vie": "thu nhập",
+        "en_pronunciation": "/ˈɪnˌkəm/",
+        "laos_pronunciation": "laidai",
+        "jp_pronunciation": "shuunyuu",
+        "vie_pronunciation": "thu nhap"
+      },
+      "means": {
+        "en": "The financial gain (earned or unearned) accruing over a given period of time",
+        "zh": "在给定时间内产生的经济收益（赚取的或非赚取的）"
+      }
+    },
+    {
+      "word": {
+        "en": "incorporate",
+        "laos": "ປະກອບ",
+        "jp": "組み込む",
+        "vie": "kết hợp",
+        "en_pronunciation": "/ˌɪnˈkɔrpərˌeɪt/",
+        "laos_pronunciation": "pakob",
+        "jp_pronunciation": "kumikomu",
+        "vie_pronunciation": "ket hop"
+      },
+      "means": {
+        "en": "Make into a whole or make part of a whole",
+        "zh": "成为整体或成为整体的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "incorporation",
+        "laos": "ການເຂົ້າ",
+        "jp": "法人化",
+        "vie": "sự hợp nhất",
+        "en_pronunciation": "/ˌɪnˌkɔrpərˈeɪʃən/",
+        "laos_pronunciation": "kankhao",
+        "jp_pronunciation": "houjin ka",
+        "vie_pronunciation": "su hop nhat"
+      },
+      "means": {
+        "en": "Consolidating two or more things; union in (or into) one body",
+        "zh": "合并两个或多个事物；"
+      }
+    },
+    {
+      "word": {
+        "en": "increase",
+        "laos": "ເພີ່ມຂຶ້ນ",
+        "jp": "増加する",
+        "vie": "tăng lên",
+        "en_pronunciation": "/ˌɪnˈkris/",
+        "laos_pronunciation": "phoemkhun",
+        "jp_pronunciation": "zouka suru",
+        "vie_pronunciation": "tang len"
+      },
+      "means": {
+        "en": "A quantity that is added",
+        "zh": "添加的数量"
+      }
+    },
+    {
+      "word": {
+        "en": "increasingly",
+        "laos": "ທີ່ນັບມື້ນັບຂຶ້ນ",
+        "jp": "ますます",
+        "vie": "ngày càng",
+        "en_pronunciation": "/ˌɪnˈkrisɪŋgli/",
+        "laos_pronunciation": "thinabmunabkhun",
+        "jp_pronunciation": "masumasu",
+        "vie_pronunciation": "ngay cang"
+      },
+      "means": {
+        "en": "Advancing in amount or intensity",
+        "zh": "数量或强度的进步"
+      }
+    },
+    {
+      "word": {
+        "en": "incredible",
+        "laos": "ເຊື່ອຍາກທີ່ສຸດ",
+        "jp": "信じられないほど",
+        "vie": "không thể tin được",
+        "en_pronunciation": "/ˌɪnˈkrɛdəbəl/",
+        "laos_pronunciation": "seu nyakthisud",
+        "jp_pronunciation": "shinji rarenaihodo",
+        "vie_pronunciation": "khong the tin duoc"
+      },
+      "means": {
+        "en": "Beyond belief or understanding",
+        "zh": "超越信仰或理解"
+      }
+    },
+    {
+      "word": {
+        "en": "incredibly",
+        "laos": "ຢ່າງບໍ່ຫນ້າເຊື່ອ",
+        "jp": "信じられないほど",
+        "vie": "vô cùng",
+        "en_pronunciation": "/ˌɪnˈkrɛdəbli/",
+        "laos_pronunciation": "yangbonaseu",
+        "jp_pronunciation": "shinji rarenaihodo",
+        "vie_pronunciation": "vo cung"
+      },
+      "means": {
+        "en": "Not easy to believe",
+        "zh": "不容易相信"
+      }
+    },
+    {
+      "word": {
+        "en": "incumbent",
+        "laos": "Incumbent",
+        "jp": "現職",
+        "vie": "đương nhiệm",
+        "en_pronunciation": "/ˌɪnˈkəmbənt/",
+        "laos_pronunciation": "Incumbent",
+        "jp_pronunciation": "genshoku",
+        "vie_pronunciation": "duong nhiem"
+      },
+      "means": {
+        "en": "The official who holds an office",
+        "zh": "担任职务的官员"
+      }
+    },
+    {
+      "word": {
+        "en": "incur",
+        "laos": "ປອດຫມັ້ນຍູ່",
+        "jp": "被る",
+        "vie": "gánh chịu",
+        "en_pronunciation": "/ˌɪnˈkər/",
+        "laos_pronunciation": "pod man nyu",
+        "jp_pronunciation": "koumuru",
+        "vie_pronunciation": "ganh chiu"
+      },
+      "means": {
+        "en": "Make oneself subject to; bring upon oneself; become liable to",
+        "zh": "让自己服从；"
+      }
+    },
+    {
+      "word": {
+        "en": "indebted",
+        "laos": "ອະພິເນ",
+        "jp": "恩義がある",
+        "vie": "mắc nợ",
+        "en_pronunciation": "/ˌɪnˈdɛtɪd/",
+        "laos_pronunciation": "aphine",
+        "jp_pronunciation": "ongi gaaru",
+        "vie_pronunciation": "mac no"
+      },
+      "means": {
+        "en": "Owing gratitude or recognition to another for help or favors etc",
+        "zh": "对他人的帮助或恩惠等表示感谢或认可"
+      }
+    },
+    {
+      "word": {
+        "en": "indeed",
+        "laos": "ຢ່າງແທ້ຈິງ",
+        "jp": "確かに",
+        "vie": "thực sự",
+        "en_pronunciation": "/ˌɪnˈdid/",
+        "laos_pronunciation": "yangaethching",
+        "jp_pronunciation": "tashikani",
+        "vie_pronunciation": "thuc su"
+      },
+      "means": {
+        "en": "In truth (often tends to intensify)",
+        "zh": "事实上（往往会加剧）"
+      }
+    },
+    {
+      "word": {
+        "en": "indefinite",
+        "laos": "ບໍ່ສະຫມໍ່າສະເຫມີ",
+        "jp": "無期限",
+        "vie": "không xác định",
+        "en_pronunciation": "/ˌɪnˈdɛfənət/",
+        "laos_pronunciation": "bo sa moasahemi",
+        "jp_pronunciation": "mukigen",
+        "vie_pronunciation": "khong xac dinh"
+      },
+      "means": {
+        "en": "Vague or not clearly defined or stated",
+        "zh": "含糊或未明确定义或说明"
+      }
+    },
+    {
+      "word": {
+        "en": "independent",
+        "laos": "ເປັນເອກະລາດ",
+        "jp": "独立した",
+        "vie": "độc lập",
+        "en_pronunciation": "/ˌɪndɪˈpɛndənt/",
+        "laos_pronunciation": "penoekalad",
+        "jp_pronunciation": "dokuritsu shita",
+        "vie_pronunciation": "doc lap"
+      },
+      "means": {
+        "en": "A neutral or uncommitted person (especially in politics)",
+        "zh": "中立或不坚定的人（尤其是在政治领域）"
+      }
+    },
+    {
+      "word": {
+        "en": "independence",
+        "laos": "ເສຣີພາບ",
+        "jp": "独立",
+        "vie": "độc lập",
+        "en_pronunciation": "/ˌɪndɪˈpɛndəns/",
+        "laos_pronunciation": "seriphab",
+        "jp_pronunciation": "dokuritsu",
+        "vie_pronunciation": "doc lap"
+      },
+      "means": {
+        "en": "Freedom from control or influence of another or others",
+        "zh": "不受他人控制或影响的自由"
+      }
+    },
+    {
+      "word": {
+        "en": "index",
+        "laos": "ສາລະບານ",
+        "jp": "インデックス",
+        "vie": "chỉ mục",
+        "en_pronunciation": "/ˈɪndɛks/",
+        "laos_pronunciation": "salaban",
+        "jp_pronunciation": "indekkusu",
+        "vie_pronunciation": "chi muc"
+      },
+      "means": {
+        "en": "A numerical scale used to compare variables with one another or with some reference number",
+        "zh": "一种数字标度，用于将变量相互比较或与某个参考数字进行比较"
+      }
+    },
+    {
+      "word": {
+        "en": "indicate",
+        "laos": "ຊີ້ໃຫ້ເຫັນ",
+        "jp": "示す",
+        "vie": "chỉ ra",
+        "en_pronunciation": "/ˈɪndəˌkeɪt/",
+        "laos_pronunciation": "sihaihen",
+        "jp_pronunciation": "shimesu",
+        "vie_pronunciation": "chi ra"
+      },
+      "means": {
+        "en": "Be a signal for or a symptom of",
+        "zh": "是以下情况的信号或症状"
+      }
+    },
+    {
+      "word": {
+        "en": "indication",
+        "laos": "ການຊີ້ບອກ",
+        "jp": "指示",
+        "vie": "chỉ dẫn",
+        "en_pronunciation": "/ˌɪndəˈkeɪʃən/",
+        "laos_pronunciation": "kan sibok",
+        "jp_pronunciation": "shiji",
+        "vie_pronunciation": "chi dan"
+      },
+      "means": {
+        "en": "Something that serves to indicate or suggest",
+        "zh": "用于指示或建议的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "indicative",
+        "laos": "ສະແດງໃຫ້ເຫັນໄດ້",
+        "jp": "示唆的な",
+        "vie": "biểu thị",
+        "en_pronunciation": "/ˌɪnˈdɪkətɪv/",
+        "laos_pronunciation": "saaednghaihendai",
+        "jp_pronunciation": "shisateki na",
+        "vie_pronunciation": "bieu thi"
+      },
+      "means": {
+        "en": "A mood (grammatically unmarked) that represents the act or state as an objective fact",
+        "zh": "将行为或状态表示为客观事实的情绪（语法上未标记）"
+      }
+    },
+    {
+      "word": {
+        "en": "indicator",
+        "laos": "ຕົວຊີ້ວັດ",
+        "jp": "インジケーター",
+        "vie": "chỉ báo",
+        "en_pronunciation": "/ˈɪndəˌkeɪtər/",
+        "laos_pronunciation": "tua sivad",
+        "jp_pronunciation": "injikeetaa",
+        "vie_pronunciation": "chi bao"
+      },
+      "means": {
+        "en": "A number or ratio (a value on a scale of measurement) derived from a series of observed facts; can reveal relative changes as a function of time",
+        "zh": "从一系列观察到的事实得出的数字或比率（测量尺度上的值）；"
+      }
+    },
+    {
+      "word": {
+        "en": "indict",
+        "laos": "ກ່າວຫາ",
+        "jp": "起訴する",
+        "vie": "buộc tội",
+        "en_pronunciation": "/ˌɪnˈdaɪt/",
+        "laos_pronunciation": "kauaha",
+        "jp_pronunciation": "kiso suru",
+        "vie_pronunciation": "buoc toi"
+      },
+      "means": {
+        "en": "Accuse formally of a crime",
+        "zh": "正式指控犯罪"
+      }
+    },
+    {
+      "word": {
+        "en": "indictment",
+        "laos": "ການກ່າວຫາ",
+        "jp": "起訴",
+        "vie": "bản cáo trạng",
+        "en_pronunciation": "/ˌɪnˈdaɪtmənt/",
+        "laos_pronunciation": "kankauaha",
+        "jp_pronunciation": "kiso",
+        "vie_pronunciation": "ban cao trang"
+      },
+      "means": {
+        "en": "A formal document written for a prosecuting attorney charging a person with some offense",
+        "zh": "为检察官指控某人犯有某种罪行而撰写的正式文件"
+      }
+    },
+    {
+      "word": {
+        "en": "indifferent",
+        "laos": "ບໍ່ອົກເຫັນໃຈ",
+        "jp": "無関心",
+        "vie": "thờ ơ",
+        "en_pronunciation": "/ˌɪnˈdɪfərənt/",
+        "laos_pronunciation": "bo okhenchai",
+        "jp_pronunciation": "mukanshin",
+        "vie_pronunciation": "tho o"
+      },
+      "means": {
+        "en": "Marked by a lack of interest",
+        "zh": "以缺乏兴趣为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "indifference",
+        "laos": "ຄວາມແຕກຕ່າງກັນ",
+        "jp": "無関心",
+        "vie": "sự thờ ơ",
+        "en_pronunciation": "/ˌɪnˈdɪfərəns/",
+        "laos_pronunciation": "khuaamaetktangkan",
+        "jp_pronunciation": "mukanshin",
+        "vie_pronunciation": "su tho o"
+      },
+      "means": {
+        "en": "Unbiased impartial unconcern",
+        "zh": "不偏不倚 不偏不倚 不关心"
+      }
+    },
+    {
+      "word": {
+        "en": "indigenous",
+        "laos": "ຊົນພື້ນເມືອງ",
+        "jp": "先住民族の",
+        "vie": "bản địa",
+        "en_pronunciation": "/ˌɪnˈdɪʤənəs/",
+        "laos_pronunciation": "son phunmeuong",
+        "jp_pronunciation": "senjuumin zoku no",
+        "vie_pronunciation": "ban dia"
+      },
+      "means": {
+        "en": "Originating where it is found",
+        "zh": "起源于发现地"
+      }
+    },
+    {
+      "word": {
+        "en": "indignant",
+        "laos": "ໃຈຮ້າຍ",
+        "jp": "憤慨している",
+        "vie": "phẫn nộ",
+        "en_pronunciation": "/ˌɪnˈdɪgnənt/",
+        "laos_pronunciation": "chaihai",
+        "jp_pronunciation": "fungai shiteiru",
+        "vie_pronunciation": "phan no"
+      },
+      "means": {
+        "en": "Angered at something unjust or wrong",
+        "zh": "对不公正或错误的事情感到愤怒"
+      }
+    },
+    {
+      "word": {
+        "en": "indignation",
+        "laos": "ຄວາມຄຽດແຄ້ນ",
+        "jp": "憤り",
+        "vie": "sự phẫn nộ",
+        "en_pronunciation": "/ˌɪndɪgˈneɪʃən/",
+        "laos_pronunciation": "khuaamkhiadaekhn",
+        "jp_pronunciation": "ikidoori",
+        "vie_pronunciation": "su phan no"
+      },
+      "means": {
+        "en": "A feeling of righteous anger",
+        "zh": "一种正义的愤怒的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "indispensable",
+        "laos": "ທີ່ຂາດບໍ່ໄດ້",
+        "jp": "不可欠な",
+        "vie": "không thể thiếu",
+        "en_pronunciation": "/ˌɪndɪˈspɛnsəbəl/",
+        "laos_pronunciation": "thikhadbodai",
+        "jp_pronunciation": "fukaketsu na",
+        "vie_pronunciation": "khong the thieu"
+      },
+      "means": {
+        "en": "Not to be dispensed with; essential",
+        "zh": "不可省略；"
+      }
+    },
+    {
+      "word": {
+        "en": "individual",
+        "laos": "ສ່ວນບຸກຄົນ",
+        "jp": "個人的な",
+        "vie": "cá nhân",
+        "en_pronunciation": "/ˌɪndəˈvɪʤəwəl/",
+        "laos_pronunciation": "suanbukkhon",
+        "jp_pronunciation": "kojintekina",
+        "vie_pronunciation": "ca nhan"
+      },
+      "means": {
+        "en": "A human being",
+        "zh": "一个人"
+      }
+    },
+    {
+      "word": {
+        "en": "individualism",
+        "laos": "ການເປັນສ່ວນຕົວ",
+        "jp": "個人主義",
+        "vie": "chủ nghĩa cá nhân",
+        "en_pronunciation": "/ˌɪndɪvɪˈduəˌlɪzəm/",
+        "laos_pronunciation": "kan pensuantua",
+        "jp_pronunciation": "kojinshugi",
+        "vie_pronunciation": "chu nghia ca nhan"
+      },
+      "means": {
+        "en": "The quality of being individual",
+        "zh": "个体的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "indoor",
+        "laos": "ຊົ້ນ",
+        "jp": "屋内",
+        "vie": "trong nhà",
+        "en_pronunciation": "/ˈɪnˌdɔr/",
+        "laos_pronunciation": "son",
+        "jp_pronunciation": "okunai",
+        "vie_pronunciation": "trong nha"
+      },
+      "means": {
+        "en": "Located, suited for, or taking place within a building",
+        "zh": "位于、适合于或发生在建筑物内"
+      }
+    },
+    {
+      "word": {
+        "en": "indoors",
+        "laos": "ຂ້າງໃນ",
+        "jp": "屋内で",
+        "vie": "trong nhà",
+        "en_pronunciation": "/ˈɪnˌdɔrz/",
+        "laos_pronunciation": "khangnai",
+        "jp_pronunciation": "okunai de",
+        "vie_pronunciation": "trong nha"
+      },
+      "means": {
+        "en": "Within a building",
+        "zh": "建筑物内"
+      }
+    },
+    {
+      "word": {
+        "en": "induce",
+        "laos": "ຈູງໃຈ",
+        "jp": "誘発する",
+        "vie": "xúi giục",
+        "en_pronunciation": "/ˌɪnˈdus/",
+        "laos_pronunciation": "chungchai",
+        "jp_pronunciation": "yuuhatsu suru",
+        "vie_pronunciation": "xui giuc"
+      },
+      "means": {
+        "en": "Cause to arise",
+        "zh": "产生的原因"
+      }
+    },
+    {
+      "word": {
+        "en": "inducement",
+        "laos": "ການກະຕຸ້ນ",
+        "jp": "誘導",
+        "vie": "sự xúi giục",
+        "en_pronunciation": "/ˌɪnˈdusmənt/",
+        "laos_pronunciation": "kankatun",
+        "jp_pronunciation": "yuudou",
+        "vie_pronunciation": "su xui giuc"
+      },
+      "means": {
+        "en": "A positive motivational influence",
+        "zh": "积极的激励影响"
+      }
+    },
+    {
+      "word": {
+        "en": "indulge",
+        "laos": "ຮ່ໍາ",
+        "jp": "ふける",
+        "vie": "thưởng thức",
+        "en_pronunciation": "/ˌɪnˈdəlʤ/",
+        "laos_pronunciation": "hoa",
+        "jp_pronunciation": "fukeru",
+        "vie_pronunciation": "thuong thuc"
+      },
+      "means": {
+        "en": "Give free rein to",
+        "zh": "放开手脚"
+      }
+    },
+    {
+      "word": {
+        "en": "industry",
+        "laos": "ອຸດສາຫະກໍາ",
+        "jp": "産業",
+        "vie": "ngành công nghiệp",
+        "en_pronunciation": "/ˈɪndəstri/",
+        "laos_pronunciation": "udsahakoa",
+        "jp_pronunciation": "sangyou",
+        "vie_pronunciation": "nganh cong nghiep"
+      },
+      "means": {
+        "en": "The people or companies engaged in a particular kind of commercial enterprise",
+        "zh": "从事特定类型商业企业的个人或公司"
+      }
+    },
+    {
+      "word": {
+        "en": "inertia",
+        "laos": "ບໍ່ມີປະໂຫຢດ",
+        "jp": "慣性",
+        "vie": "quán tính",
+        "en_pronunciation": "/ˌɪˈnərʃə/",
+        "laos_pronunciation": "bomi pa ohyd",
+        "jp_pronunciation": "kansei",
+        "vie_pronunciation": "quan tinh"
+      },
+      "means": {
+        "en": "A disposition to remain inactive or inert",
+        "zh": "保持不活跃或惰性的倾向"
+      }
+    },
+    {
+      "word": {
+        "en": "inevitable",
+        "laos": "ທີ່ຫລີກລ່ຽງໄດ້",
+        "jp": "避けられない",
+        "vie": "không thể tránh khỏi",
+        "en_pronunciation": "/ˌɪˈnɛvətəbəl/",
+        "laos_pronunciation": "thi lik liangdai",
+        "jp_pronunciation": "sake rarenai",
+        "vie_pronunciation": "khong the tranh khoi"
+      },
+      "means": {
+        "en": "An unavoidable event",
+        "zh": "不可避免的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "infant",
+        "laos": "ເດັກທາຣົກ",
+        "jp": "幼児",
+        "vie": "trẻ sơ sinh",
+        "en_pronunciation": "/ˈɪnfənt/",
+        "laos_pronunciation": "dektharok",
+        "jp_pronunciation": "youji",
+        "vie_pronunciation": "tre so sinh"
+      },
+      "means": {
+        "en": "A very young child (birth to 1 year) who has not yet begun to walk or talk",
+        "zh": "尚未开始走路或说话的非常年幼的孩子（出生至 1 岁）"
+      }
+    },
+    {
+      "word": {
+        "en": "indulgence",
+        "laos": "ຄວາມອຸກອັ່ງ",
+        "jp": "贅沢",
+        "vie": "sự nuông chiều",
+        "en_pronunciation": "/ˌɪnˈdəlʤəns/",
+        "laos_pronunciation": "khuaamukang",
+        "jp_pronunciation": "zeitaku",
+        "vie_pronunciation": "su nuong chieu"
+      },
+      "means": {
+        "en": "An inability to resist the gratification of whims and desires",
+        "zh": "无法抗拒突发奇想和欲望的满足"
+      }
+    },
+    {
+      "word": {
+        "en": "industrial",
+        "laos": "ອຸດສາຫະກໍາ",
+        "jp": "工業用",
+        "vie": "công nghiệp",
+        "en_pronunciation": "/ˌɪnˈdəstriəl/",
+        "laos_pronunciation": "udsahakoa",
+        "jp_pronunciation": "kougyouyou",
+        "vie_pronunciation": "cong nghiep"
+      },
+      "means": {
+        "en": "Of or relating to or resulting from industry",
+        "zh": "属于工业或与工业有关或由工业产生的"
+      }
+    },
+    {
+      "word": {
+        "en": "indulgent",
+        "laos": "ທີ່ອ່ອນລົງ",
+        "jp": "贅沢な",
+        "vie": "chiều chuộng",
+        "en_pronunciation": "/ˌɪnˈdəlʤənt/",
+        "laos_pronunciation": "thi nlong",
+        "jp_pronunciation": "zeitaku na",
+        "vie_pronunciation": "chieu chuong"
+      },
+      "means": {
+        "en": "Characterized by or given to yielding to the wishes of someone",
+        "zh": "以屈服于某人的愿望为特征或倾向于屈服于某人的愿望"
+      }
+    },
+    {
+      "word": {
+        "en": "industrialize",
+        "laos": "ນະຣຶກໍາ",
+        "jp": "工業化する",
+        "vie": "công nghiệp hóa",
+        "en_pronunciation": "/ˌɪnˈdəstriəˌlaɪz/",
+        "laos_pronunciation": "na rukoa",
+        "jp_pronunciation": "kougyou kasu ru",
+        "vie_pronunciation": "cong nghiep hoa"
+      },
+      "means": {
+        "en": "Organize (the production of something) into an industry",
+        "zh": "将（某物的生产）组织成一个产业"
+      }
+    },
+    {
+      "word": {
+        "en": "industrialise",
+        "laos": "ອຸດສາຫະກໍາ",
+        "jp": "工業化する",
+        "vie": "công nghiệp hóa",
+        "en_pronunciation": "/industrialise/",
+        "laos_pronunciation": "udsahakoa",
+        "jp_pronunciation": "kougyou kasu ru",
+        "vie_pronunciation": "cong nghiep hoa"
+      },
+      "means": {
+        "en": "Organize (the production of something) into an industry",
+        "zh": "将（某物的生产）组织成一个行业"
+      }
+    },
+    {
+      "word": {
+        "en": "industrious",
+        "laos": "ດຸຫມັ່ນ",
+        "jp": "勤勉な",
+        "vie": "cần cù",
+        "en_pronunciation": "/ˌɪnˈdəstriəs/",
+        "laos_pronunciation": "duman",
+        "jp_pronunciation": "kinben na",
+        "vie_pronunciation": "can cu"
+      },
+      "means": {
+        "en": "Characterized by hard work and perseverance",
+        "zh": "特点是努力工作和坚持不懈"
+      }
+    },
+    {
+      "word": {
+        "en": "infect",
+        "laos": "ຕິດຕ່ໍ",
+        "jp": "感染する",
+        "vie": "lây nhiễm",
+        "en_pronunciation": "/ˌɪnˈfɛkt/",
+        "laos_pronunciation": "tidto",
+        "jp_pronunciation": "kansen suru",
+        "vie_pronunciation": "lay nhiem"
+      },
+      "means": {
+        "en": "Communicate a disease to",
+        "zh": "将疾病传达给"
+      }
+    },
+    {
+      "word": {
+        "en": "infection",
+        "laos": "ການຕິດແປດ",
+        "jp": "感染症",
+        "vie": "nhiễm trùng",
+        "en_pronunciation": "/ˌɪnˈfɛkʃən/",
+        "laos_pronunciation": "kan tidaepd",
+        "jp_pronunciation": "kansenshou",
+        "vie_pronunciation": "nhiem trung"
+      },
+      "means": {
+        "en": "The pathological state resulting from the invasion of the body by pathogenic microorganisms",
+        "zh": "病原微生物侵入机体而产生的病理状态"
+      }
+    },
+    {
+      "word": {
+        "en": "infectious",
+        "laos": "ທີ່ຕິດເຊື້ອ",
+        "jp": "感染性のある",
+        "vie": "truyền nhiễm",
+        "en_pronunciation": "/ˌɪnˈfɛkʃəs/",
+        "laos_pronunciation": "thitidseu",
+        "jp_pronunciation": "kansensei noaru",
+        "vie_pronunciation": "truyen nhiem"
+      },
+      "means": {
+        "en": "Caused by infection or capable of causing infection",
+        "zh": "由感染引起或能够引起感染"
+      }
+    },
+    {
+      "word": {
+        "en": "infer",
+        "laos": "ບຶກ",
+        "jp": "推測する",
+        "vie": "suy ra",
+        "en_pronunciation": "/ˌɪnˈfər/",
+        "laos_pronunciation": "buk",
+        "jp_pronunciation": "suisoku suru",
+        "vie_pronunciation": "suy ra"
+      },
+      "means": {
+        "en": "Reason by deduction; establish by deduction",
+        "zh": "演绎推理；"
+      }
+    },
+    {
+      "word": {
+        "en": "inference",
+        "laos": "ອະນຸມົນຕີ",
+        "jp": "推論",
+        "vie": "suy luận",
+        "en_pronunciation": "/ˈɪnfərəns/",
+        "laos_pronunciation": "anu monti",
+        "jp_pronunciation": "suiron",
+        "vie_pronunciation": "suy luan"
+      },
+      "means": {
+        "en": "The reasoning involved in drawing a conclusion or making a logical judgment on the basis of circumstantial evidence and prior conclusions rather than on the basis of direct observation",
+        "zh": "根据间接证据和先前的结论而不是直接观察得出结论或做出逻辑判断所涉及的推理"
+      }
+    }
+  ]
+}

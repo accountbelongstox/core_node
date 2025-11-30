@@ -1,0 +1,171 @@
+先更新，稍候我们将测试。
+
+
+_prompt\mcpLinuxTemplate.json _prompt\mcpUbuntoDesktopTemplate.json
+_prompt\mcpWindowsTemplate.json _prompt\mcpWSLTemplate.json 更新文档冲突，表示
+ 开发任何MCP服务都要更新上面几个文件  development-guides\MCPSERVER_GUIDE.md
+之后你根据规范更新。同是现只不再需要AlibabaDataworks FeedbackEnhanced
+AICollaboration 等服务。只需要刚刚的，也不需要指定 "autoApprove": [
+
+
+CoinProvider] Fetched 698 tickers
+[PriceMonitor] Tick #15 complete: 3 tickers, 0 saved to DB
+
+
+] [Step 84] Step 7: Handling WSL installation/upgrade...
+[!] [Step 84] WSL is not installed. Installing...
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 84] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[*] [Step 84] Installing WSL2 (system supports it)...
+--install: unrecognized option: no-distribution
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Usage: wsl.exe [Argument] [Options...] [CommandLine]
+
+Arguments for running Linux binaries:
+
+    If no command line is provided, wsl.exe launches the default shell.
+
+    --exec, -e <CommandLine>
+        Execute the specified command without using the default Linux shell.
+
+    --
+        Pass the remaining command line as is.
+
+Options:
+    --cd <Directory>
+        Sets the specified directory as the current working directory.
+        If ~ is used the Linux user's home path will be used. If the path begins
+        with a / character, it will be interpreted as an absolute Linux path.
+        Otherwise, the value must be an absolute Windows path.
+
+    --distribution, -d <Distro>
+        Run the specified distribution.
+
+    --user, -u <UserName>
+        Run as the specified user.
+
+Arguments for managing Windows Subsystem for Linux:
+
+    --help
+        Display usage information.
+
+    --install [Options]
+        Install additional Windows Subsystem for Linux distributions.
+        For a list of valid distributions, use 'wsl --list --online'.
+
+        Options:
+            --distribution, -d [Argument]
+                Downloads and installs a distribution by name.
+
+                Arguments:
+                    A valid distribution name (not case sensitive).
+
+                Examples:
+                    wsl --install -d Ubuntu
+                    wsl --install --distribution Debian
+
+    --set-default-version <Version>
+        Changes the default install version for new distributions.
+
+    --shutdown
+        Immediately terminates all running distributions and the WSL 2
+        lightweight utility virtual machine.
+
+    --status
+        Show the status of Windows Subsystem for Linux.
+
+    --update [Options]
+        If no options are specified, the WSL 2 kernel will be updated
+        to the latest version.
+
+        Options:
+            --rollback
+                Revert to the previous version of the WSL 2 kernel.
+
+            --inbox
+                Only update the inbox WSL 2 kernel. Do not install WSL from the Microsoft Store.
+
+            --web-download
+                Download the most recent version of WSL from the internet instead of the Microsoft Store.
+
+Arguments for managing distributions in Windows Subsystem for Linux:
+
+    --export <Distro> <FileName>
+        Exports the distribution to a tar file.
+        The filename can be - for standard output.
+
+    --import <Distro> <InstallLocation> <FileName> [Options]
+        Imports the specified tar file as a new distribution.
+        The filename can be - for standard input.
+
+        Options:
+            --version <Version>
+                Specifies the version to use for the new distribution.
+
+    --list, -l [Options]
+        Lists distributions.
+
+        Options:
+            --all
+                List all distributions, including distributions that are
+                currently being installed or uninstalled.
+
+            --running
+                List only distributions that are currently running.
+
+            --quiet, -q
+                Only show distribution names.
+
+            --verbose, -v
+                Show detailed information about all distributions.
+
+            --online, -o
+                Displays a list of available distributions for install with 'wsl --install'.
+
+    --set-default, -s <Distro>
+        Sets the distribution as the default.
+
+    --set-version <Distro> <Version>
+        Changes the version of the specified distribution.
+
+    --terminate, -t <Distro>
+        Terminates the specified distribution.
+
+    --unregister <Distro>
+        Unregisters the distribution and deletes the root filesystem.
+[!] [Step 84] WSL2 installation failed, trying legacy method...
+
+Deployment Image Servicing and Management tool
+Version: 10.0.19041.3636
+
+Image Version: 10.0.19045.3803
+
+Enabling feature(s)
+[==========================100.0%==========================]
+The operation completed successfully.
+
+kipping download for: shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
+Executing script: D:\programing\core_node\scripts\shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
+[Step 80] Starting WSL Ubuntu 24 action: Global
+[Step 80] Invalid action: Global. Valid actions: install, reinstall, restart
+[Step 80] WSL Ubuntu 24 action 'Global' failed
+Checking script: Step86_SetRootLoginWSLUbuntuDebian.ps1
+Script is running from BASE_DIR subdirectory and file exists at: D:\programing\core_node\scripts\shells\win\install_powershells\Step86_SetRootLoginWSLUbuntuDebian.ps1
+
+解决这个自动按Y/n的问题，

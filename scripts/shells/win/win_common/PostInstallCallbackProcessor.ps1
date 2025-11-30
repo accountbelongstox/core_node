@@ -1356,6 +1356,64 @@ function Invoke-PostInstallCallbacks {
                         Write-Host "$LogPrefix Context menu callback failed" -ForegroundColor Red
                     }
                 }
+                "pnpm_config_separator" {
+                    Write-Host "$LogPrefix Processing pnpm config separator callback for $PackageName" -ForegroundColor Cyan
+                    $description = if ($callback.ContainsKey("Description")) { $callback.Description } else { "Create .pnpmrc to separate pnpm from npm configuration" }
+                    Write-Host "$LogPrefix $description" -ForegroundColor Cyan
+
+                    # Create .pnpmrc in the project root to separate pnpm-specific configuration from npm
+                    # This prevents npm from showing warnings about unknown pnpm configuration options
+                    $projectRoot = $Global:PROJECT_DIR
+                    if (-not [string]::IsNullOrWhiteSpace($projectRoot) -and (Test-Path $projectRoot)) {
+                        $pnpmrcPath = Join-Path $projectRoot ".pnpmrc"
+
+                        # Create .pnpmrc with pnpm-specific configuration
+                        $pnpmrcContent = @"
+# pnpm configuration for Electron project
+
+# Use hoisted node_modules structure (better for Electron)
+node-linker=hoisted
+
+# Auto install peer dependencies
+auto-install-peers=true
+
+# Hoist Electron and native modules to root
+public-hoist-pattern[]=*electron*
+public-hoist-pattern[]=*sqlite3*
+public-hoist-pattern[]=*better-sqlite3*
+public-hoist-pattern[]=*puppeteer*
+public-hoist-pattern[]=@electron/*
+
+# Ignore workspace (we don't use workspace mode)
+# This ensures pnpm only manages root project
+recursive-install=false
+"@
+
+                        try {
+                            # Write the .pnpmrc file
+                            $pnpmrcContent | Out-File -FilePath $pnpmrcPath -Encoding UTF8 -Force
+                            Write-Host "$LogPrefix Successfully created .pnpmrc at: $pnpmrcPath" -ForegroundColor Green
+
+                            # Also ensure .npmrc contains only npm-specific settings
+                            $npmrcPath = Join-Path $projectRoot ".npmrc"
+                            $npmrcContent = @"
+# npm configuration for Node.js packages
+
+# Auto install peer dependencies
+auto-install-peers=true
+"@
+
+                            $npmrcContent | Out-File -FilePath $npmrcPath -Encoding UTF8 -Force
+                            Write-Host "$LogPrefix Successfully updated .npmrc at: $npmrcPath" -ForegroundColor Green
+                            Write-Host "$LogPrefix Configuration separation completed - npm will no longer warn about pnpm settings" -ForegroundColor Green
+                        }
+                        catch {
+                            Write-Host "$LogPrefix Error creating .pnpmrc: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    } else {
+                        Write-Host "$LogPrefix Error: PROJECT_DIR not set or does not exist" -ForegroundColor Red
+                    }
+                }
                 default {
                     # Generic processor lookup mechanism
                     Write-Host "$LogPrefix Processing $callbackType callback for $PackageName" -ForegroundColor Cyan

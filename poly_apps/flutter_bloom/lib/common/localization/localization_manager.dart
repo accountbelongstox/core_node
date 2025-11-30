@@ -22,21 +22,53 @@ extension StringTranslationExtension on String {
       if (args != null && args.isNotEmpty) {
         return context.formatString(this, args);
       }
-      
-      // Get current language code with fallback
-      final languageCode = FlutterLocalization.instance.currentLocale?.languageCode;
-      
-      // If language code is null or not supported, default to English
-      if (languageCode == null || (languageCode != 'en' && languageCode != 'zh')) {
-        return AppLocale.EN[this] ?? this;
+
+      // Use Localizations.of(context) to establish dependency on locale changes
+      // This ensures widgets rebuild when locale changes
+      try {
+        final locale = Localizations.localeOf(context);
+        final languageCode = locale.languageCode;
+
+        // Return translation based on language code
+        if (languageCode == 'en') {
+          return AppLocale.EN[this] ?? this;
+        } else if (languageCode == 'zh') {
+          return AppLocale.ZH[this] ?? this;
+        } else {
+          // Fallback to English for unsupported languages
+          return AppLocale.EN[this] ?? this;
+        }
+      } catch (e) {
+        // If Localizations is not available, fallback to cached language
+        String? languageCode =
+            FlutterLocalization.instance.currentLocale?.languageCode;
+
+        if (languageCode == null) {
+          languageCode = _AppLocaleCache.currentLanguage;
+        }
+
+        if (languageCode == null ||
+            (languageCode != 'en' && languageCode != 'zh')) {
+          return AppLocale.EN[this] ?? this;
+        }
+
+        return languageCode == 'en'
+            ? AppLocale.EN[this] ?? this
+            : AppLocale.ZH[this] ?? this;
       }
-      
-      // Return translation based on language code
-      return languageCode == 'en'
-          ? AppLocale.EN[this] ?? this
-          : AppLocale.ZH[this] ?? this;
     }
     return this;
+  }
+}
+
+/// Internal cache for current language to ensure immediate updates
+class _AppLocaleCache {
+  static String? _currentLanguage;
+
+  static String? get currentLanguage => _currentLanguage;
+
+  static void setLanguage(String language) {
+    _currentLanguage = language;
   }
 }
 
@@ -64,5 +96,10 @@ mixin AppLocale {
 
     EN = mergedEN;
     ZH = mergedZH;
+  }
+
+  /// Update current language cache for immediate translation updates
+  static void updateCurrentLanguage(String languageCode) {
+    _AppLocaleCache.setLanguage(languageCode);
   }
 }

@@ -3,9 +3,12 @@ GPU-accelerated image processing utilities
 Provides GPU acceleration for image operations during training data generation
 """
 
-import cv2
-import numpy as np
 from typing import Optional, Tuple
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 
@@ -42,7 +45,6 @@ class GPUImageProcessor:
 
         # Check PyTorch CUDA availability first (most common)
         try:
-            import torch
             self.pytorch_cuda_available = torch.cuda.is_available()
             if self.pytorch_cuda_available and not self.device_name:
                 self.device_name = torch.cuda.get_device_name(0)

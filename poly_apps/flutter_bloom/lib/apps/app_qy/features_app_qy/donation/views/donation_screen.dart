@@ -14,15 +14,17 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/donation/domain/model/doantion_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/donation/data/donation_data.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
 // AI: Claude Code - Replaced app-specific HomeBottomNavigationBar with common EnhancedBottomNavigation
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class DonationScreenView extends StatelessWidget {
   const DonationScreenView({super.key});
@@ -30,13 +32,13 @@ class DonationScreenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: const CustomAppBar(
+        appBar: CustomAppBar(
           regularAppbar: true,
-          title: "My Donation",
+          title: QyAppLocalizationKeys.qyMyDonations.tr(context),
         ),
         body: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultSize),
+          padding: const EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.defaultSize),
           child: Column(
             children: [
               Container(
@@ -58,24 +60,26 @@ class DonationScreenView extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: ThemeDimensions.sizeTwenty),
+                padding: const EdgeInsets.symmetric(
+                    vertical: ThemeDimensions.sizeTwenty),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "My donation (${donationModelList.length.toString()})",
+                      '${QyAppLocalizationKeys.qyMyDonations.tr(context)} (${DonationData.getDonations().length.toString()})',
                       style: ThemeTextStyles.textBold.copyWith(fontSize: 18),
                     ),
                     InkWell(
-                        onTap: () {
-                          Get.toNamed(QyAppRoutesProvider.routeAlldonation);
-                        },
-                        child: Text(
-                          "See All",
-                          style: ThemeTextStyles.textMedium.copyWith(
-                              color: Theme.of(context).colorScheme.surfaceTint),
-                        ))
+                      onTap: () {
+                        context.push(QyAppRoutesProvider.routeAlldonation);
+                      },
+                      child: Text(
+                        QyAppLocalizationKeys.qyViewAll.tr(context),
+                        style: ThemeTextStyles.textMedium.copyWith(
+                          color: Theme.of(context).colorScheme.surfaceTint,
+                        ),
+                      ),
+                    )
                   ],
                 ),
               ),
@@ -84,7 +88,7 @@ class DonationScreenView extends StatelessWidget {
               ),
               Expanded(
                   flex: 2,
-                  child: donationModelList.isEmpty
+                  child: DonationData.getDonations().isEmpty
                       ? Column(
                           children: [
                             CircleAvatar(
@@ -103,22 +107,27 @@ class DonationScreenView extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   vertical: ThemeDimensions.defaultSize),
                               child: Text(
-                                "You have not a donation",
-                                style: ThemeTextStyles.textMedium.copyWith(fontSize: 16),
+                                QyAppLocalizationKeys.qyDonationNoDonation
+                                    .tr(context),
+                                style: ThemeTextStyles.textMedium
+                                    .copyWith(fontSize: 16),
                               ),
                             ),
                             CustomButton(
                               radius: ThemeDimensions.radiusBig,
                               backgroundColor:
                                   Theme.of(context).colorScheme.surfaceTint,
-                              buttonText: "Make a Donation Now",
+                              buttonText: QyAppLocalizationKeys
+                                  .qyDonationMakeNow
+                                  .tr(context),
                             )
                           ],
                         )
                       : ListView.builder(
                           //physics: const NeverScrollableScrollPhysics(),
-                          itemCount: donationModelList.length,
+                          itemCount: DonationData.getDonations().length,
                           itemBuilder: (_, index) {
+                            final donation = DonationData.getDonations()[index];
                             return Padding(
                               padding: const EdgeInsets.symmetric(
                                   vertical: ThemeDimensions.defaultSize),
@@ -139,8 +148,10 @@ class DonationScreenView extends StatelessWidget {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Container(
-                                              height: ThemeDimensions.sizeOneTwenty,
-                                              width: ThemeDimensions.sizeOneTwenty,
+                                              height:
+                                                  ThemeDimensions.sizeOneTwenty,
+                                              width:
+                                                  ThemeDimensions.sizeOneTwenty,
                                               decoration: const BoxDecoration(
                                                   color: Colors.grey,
                                                   borderRadius: BorderRadius.only(
@@ -155,18 +166,17 @@ class DonationScreenView extends StatelessWidget {
                                                       topLeft: Radius.circular(
                                                           ThemeDimensions
                                                               .radiusLarge),
-                                                      bottomLeft: Radius.circular(
-                                                          ThemeDimensions
-                                                              .radiusLarge)),
+                                                      bottomLeft:
+                                                          Radius.circular(ThemeDimensions.radiusLarge)),
                                                   child: Image(
                                                     image: AssetImage(
-                                                      "${donationModelList[index].image}",
+                                                      "${donation.image}",
                                                     ),
                                                     fit: BoxFit.cover,
                                                   ))),
                                           const SizedBox(
-                                            width:
-                                                ThemeDimensions.paddingSizeDefault,
+                                            width: ThemeDimensions
+                                                .paddingSizeDefault,
                                           ),
                                           Expanded(
                                             child: Column(
@@ -174,8 +184,9 @@ class DonationScreenView extends StatelessWidget {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  "${donationModelList[index].title}",
-                                                  style: ThemeTextStyles.textBold,
+                                                  "${donation.title}",
+                                                  style:
+                                                      ThemeTextStyles.textBold,
                                                 ),
                                                 const SizedBox(
                                                   height: 10,
@@ -183,13 +194,17 @@ class DonationScreenView extends StatelessWidget {
                                                 Row(
                                                   children: [
                                                     Text(
-                                                      "\$ ${donationModelList[index].found}",
-                                                      style: ThemeTextStyles.textBold.copyWith(
-                                                          color: Colors.green),
+                                                      "\$ ${donation.found}",
+                                                      style: ThemeTextStyles
+                                                          .textBold
+                                                          .copyWith(
+                                                              color:
+                                                                  Colors.green),
                                                     ),
-                                                    const Text(
-                                                      " fund raising from the ",
-                                                      style: ThemeTextStyles.textMedium,
+                                                    Text(
+                                                      " ${QyAppLocalizationKeys.qyDonationFundRaising.tr(context)} ",
+                                                      style: ThemeTextStyles
+                                                          .textMedium,
                                                     ),
                                                   ],
                                                 ),
@@ -219,28 +234,31 @@ class DonationScreenView extends StatelessWidget {
                                                     Row(
                                                       children: [
                                                         Text(
-                                                            "${donationModelList[index].donators}",
-                                                            style: ThemeTextStyles.textBold
+                                                            "${donation.donators}",
+                                                            style: ThemeTextStyles
+                                                                .textBold
                                                                 .copyWith(
                                                                     color: Colors
                                                                         .green)),
-                                                        const Text(
-                                                          " Donations",
-                                                          style: ThemeTextStyles.textSemiBold,
+                                                        Text(
+                                                          " ${QyAppLocalizationKeys.qyDonationDonations.tr(context)}",
+                                                          style: ThemeTextStyles
+                                                              .textSemiBold,
                                                         ),
                                                       ],
                                                     ),
                                                     Row(
                                                       children: [
                                                         Text(
-                                                          "${donationModelList[index].days}",
-                                                          style:
-                                                              ThemeTextStyles.textBold.copyWith(
+                                                          "${donation.days}",
+                                                          style: ThemeTextStyles
+                                                              .textBold
+                                                              .copyWith(
                                                                   color: Colors
                                                                       .green),
                                                         ),
-                                                        const Text(
-                                                            " days left"),
+                                                        Text(
+                                                            " ${QyAppLocalizationKeys.qyDonationDaysLeft.tr(context)}"),
                                                       ],
                                                     )
                                                   ],
@@ -259,13 +277,17 @@ class DonationScreenView extends StatelessWidget {
                                         children: [
                                           Row(children: [
                                             Text(
-                                              "You have donated ",
-                                              style: ThemeTextStyles.donationDescription,
+                                              QyAppLocalizationKeys
+                                                  .qyDonationNoDonation
+                                                  .tr(context),
+                                              style: ThemeTextStyles
+                                                  .donationDescription,
                                             ),
                                             Text(
-                                              "${donationModelList[index].donators}",
-                                              style: ThemeTextStyles.donationAmount.copyWith(
-                                                  fontSize: 16),
+                                              donation.donators ?? '',
+                                              style: ThemeTextStyles
+                                                  .donationAmount
+                                                  .copyWith(fontSize: 16),
                                             ),
                                           ]),
                                           CustomCircular(
@@ -278,10 +300,11 @@ class DonationScreenView extends StatelessWidget {
                                                   .symmetric(
                                                   vertical: ThemeDimensions
                                                       .paddingSizeExtraSmall,
-                                                  horizontal:
-                                                      ThemeDimensions.defaultSize),
+                                                  horizontal: ThemeDimensions
+                                                      .defaultSize),
                                               child: Text("Donate Again",
-                                                  style: ThemeTextStyles.primaryButton),
+                                                  style: ThemeTextStyles
+                                                      .primaryButton),
                                             ),
                                           ),
                                         ],

@@ -1,12 +1,21 @@
 /// Word Listening Sleep Mode screen
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism, dynamic gradients
 library;
 
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../localization_app_qy/localization_manager.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_animations.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import '../models/word_category_model.dart';
+import '../data/word_category_data.dart';
 
 class WordListeningSleepScreen extends StatefulWidget {
   const WordListeningSleepScreen({super.key});
@@ -29,25 +38,14 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
   Timer? _timer;
   Timer? _sleepTimer;
 
-  List<String> get _wordCategories => [
-    QyAppLocalizationKeys.qyListeningSleepCategorySoothing.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryNature.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryStory.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryPoetry.tr(context),
-    QyAppLocalizationKeys.qyListeningSleepCategoryMeditation.tr(context),
-  ];
+  List<WordSleepCategoryModel> get _wordCategories => WordSleepCategoryData.getSleepCategories();
 
   int _selectedCategoryIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _setupAnimations();
-  }
 
   void _setupAnimations() {
     _fadeController = AnimationController(
-      duration: ComponentStyles.normalDuration,
+      duration: Duration(milliseconds: ThemeDimensions.animationDurationNormal),
       vsync: this,
     );
     _pulseController = AnimationController(
@@ -56,15 +54,43 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: ComponentStyles.primaryCurve),
+      CurvedAnimation(parent: _fadeController, curve: ThemeAnimations.easeInOut),
     );
 
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: ComponentStyles.springCurve),
+      CurvedAnimation(parent: _pulseController, curve: ThemeAnimations.spring),
     );
 
     _fadeController.forward();
     _pulseController.repeat(reverse: true);
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    _setupAnimations();
+    _loadSettings();
+  }
+  
+  Future<void> _loadSettings() async {
+    final storage = StorageAppQy.instance;
+    final settings = await storage.getApp<Map<String, dynamic>>('word_listening_sleep_settings');
+    if (mounted && settings != null) {
+      setState(() {
+        if (settings['darkMode'] != null) _isDarkMode = settings['darkMode'] as bool;
+        if (settings['duration'] != null) _selectedDuration = settings['duration'] as int;
+        if (settings['categoryIndex'] != null) _selectedCategoryIndex = settings['categoryIndex'] as int;
+      });
+    }
+  }
+  
+  Future<void> _saveSettings() async {
+    final storage = StorageAppQy.instance;
+    await storage.setApp<Map<String, dynamic>>('word_listening_sleep_settings', {
+      'darkMode': _isDarkMode,
+      'duration': _selectedDuration,
+      'categoryIndex': _selectedCategoryIndex,
+    });
   }
 
   @override
@@ -79,56 +105,47 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        decoration: BoxDecoration(
-          gradient: _isDarkMode
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppTheme.midnightGradient.colors[0].withOpacity(0.9),
-                    AppTheme.midnightGradient.colors[1].withOpacity(0.8),
-                    AppTheme.backgroundDark,
-                  ],
-                )
-              : LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppTheme.oceanGradient.colors[0].withOpacity(0.2),
-                    AppTheme.oceanGradient.colors[1].withOpacity(0.1),
-                    Colors.white,
-                  ],
-                ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              children: [
-                _buildAppBar(),
-                Expanded(
-                  child: _isPlaying ? _buildPlayingState() : _buildSetupState(),
-                ),
-              ],
+      body: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: _isDarkMode
+                  ? ColorsAppQy.qyDynamicShimmerGradient(_pulseAnimation.value * 0.5)
+                  : ColorsAppQy.qyHolographicGradient,
             ),
-          ),
-        ),
+            child: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  children: [
+                    _buildAppBar(),
+                    Expanded(
+                      child: _isPlaying ? _buildPlayingState() : _buildSetupState(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.spacing16,
+        vertical: ThemeDimensions.spacing12,
+      ),
       child: Row(
         children: [
           BouncingButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Icon(
               Icons.arrow_back,
-              color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+              color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
               size: 24,
             ),
           ),
@@ -137,15 +154,15 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               children: [
                 Text(
                   QyAppLocalizationKeys.qyListeningSleepTitle.tr(context),
-                  style: AppTextStyles.headline4.copyWith(
-                    color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+                  style: ThemeTextStyles.headlineMedium.copyWith(
+                    color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   QyAppLocalizationKeys.qyListeningSleepSubtitle.tr(context),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7) : ColorsAppQy.qyTextSecondary,
                   ),
                 ),
               ],
@@ -155,7 +172,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             onPressed: _toggleDarkMode,
             child: Icon(
               _isDarkMode ? Icons.light_mode : Icons.dark_mode,
-              color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+              color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
               size: 24,
             ),
           ),
@@ -166,7 +183,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
 
   Widget _buildSetupState() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
         children: [
           _buildSleepIllustration(),
@@ -200,12 +217,12 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                       height: 120,
                       decoration: BoxDecoration(
                         gradient: _isDarkMode
-                            ? AppTheme.midnightGradient
-                            : AppTheme.oceanGradient,
-                        borderRadius: BorderRadius.circular(60),
+                            ? ColorsAppQy.qyPrimaryGradient
+                            : ColorsAppQy.qySecondaryGradient,
+                        borderRadius: ThemeDimensions.borderRadiusXL,
                         boxShadow: [
                           BoxShadow(
-                            color: (_isDarkMode ? Colors.white : AppTheme.primaryGreen)
+                            color: (_isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyPrimary)
                                 .withOpacity(0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
@@ -224,16 +241,16 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               const SizedBox(height: 32),
               Text(
                 QyAppLocalizationKeys.qyListeningSleepPlaying.tr(context),
-                style: AppTextStyles.headline4.copyWith(
-                  color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+                style: ThemeTextStyles.headlineMedium.copyWith(
+                  color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.w300,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
                 QyAppLocalizationKeys.qyListeningSleepRemainingTime.tr(context).replaceAll('{time}', _formatTime(_remainingTime)),
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
+                  style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7) : ColorsAppQy.qyTextSecondary,
                 ),
               ),
               const SizedBox(height: 48),
@@ -247,14 +264,14 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
   }
 
   Widget _buildSleepIllustration() {
-    return AnimationUtils.fadeInWithSlide(
+    return ThemeAnimations.fadeSlideIn(
       child: Container(
         height: 200,
         decoration: BoxDecoration(
           gradient: _isDarkMode
-              ? AppTheme.midnightGradient
-              : AppTheme.oceanGradient,
-          borderRadius: BorderRadius.circular(20),
+              ? ColorsAppQy.qyPrimaryGradient
+              : ColorsAppQy.qySecondaryGradient,
+            borderRadius: ThemeDimensions.borderRadiusL,
         ),
         child: Stack(
           children: [
@@ -302,16 +319,17 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
 
   Widget _buildCategorySelector() {
     return Container(
-      decoration: ComponentStyles.primaryCardDecoration,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      child: GlassCard(
+        borderRadius: ThemeDimensions.borderRadiusL,
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               QyAppLocalizationKeys.qyListeningSleepSelectCategory.tr(context),
-              style: AppTextStyles.headline5.copyWith(
-                color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+              style: ThemeTextStyles.headlineSmall.copyWith(
+                color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -324,34 +342,40 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                 final category = entry.value;
                 final isSelected = index == _selectedCategoryIndex;
                 return BouncingButton(
-                  onPressed: () => setState(() => _selectedCategoryIndex = index),
+                  onPressed: () {
+                    setState(() => _selectedCategoryIndex = index);
+                    _saveSettings();
+                  },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ThemeDimensions.spacing16,
+                      vertical: ThemeDimensions.spacing8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? _isDarkMode
-                              ? AppTheme.midnightGradient
-                              : AppTheme.oceanGradient
+                              ? ColorsAppQy.qyPrimaryGradient
+                              : ColorsAppQy.qySecondaryGradient
                           : null,
-                      color: isSelected ? null : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      color: isSelected ? null : ColorsAppQy.qyFrostWhite,
+                      borderRadius: ThemeDimensions.borderRadiusM,
                       border: Border.all(
                         color: isSelected
                             ? Colors.transparent
                             : _isDarkMode
-                                ? Colors.white24
-                                : AppTheme.borderLight,
+                                ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.24)
+                                : ColorsAppQy.qyBorderLight,
                         width: isSelected ? 0 : 1,
                       ),
                     ),
                     child: Text(
-                      category,
-                      style: AppTextStyles.bodyMedium.copyWith(
+                      category.nameKey.tr(context),
+                      style: ThemeTextStyles.bodyMedium.copyWith(
                         color: isSelected
                             ? Colors.white
                             : _isDarkMode
-                                ? Colors.white70
-                                : AppTheme.textPrimary,
+                                ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7)
+                                : ColorsAppQy.qyTextPrimary,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
@@ -362,21 +386,23 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           ],
         ),
       ),
+      ),
     );
   }
 
   Widget _buildDurationSelector() {
     return Container(
-      decoration: ComponentStyles.primaryCardDecoration,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      child: GlassCard(
+        borderRadius: ThemeDimensions.borderRadiusL,
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               QyAppLocalizationKeys.qyListeningSleepDuration.tr(context),
-              style: AppTextStyles.headline5.copyWith(
-                color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+              style: ThemeTextStyles.headlineSmall.copyWith(
+                color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -395,6 +421,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -403,34 +430,37 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
 
     return Expanded(
       child: BouncingButton(
-        onPressed: () => setState(() => _selectedDuration = minutes),
+        onPressed: () {
+          setState(() => _selectedDuration = minutes);
+          _saveSettings();
+        },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? (_isDarkMode
-                    ? AppTheme.midnightGradient
-                    : AppTheme.oceanGradient)
+                    ? ColorsAppQy.qyPrimaryGradient
+                    : ColorsAppQy.qySecondaryGradient)
                 : null,
             color: isSelected ? null : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: ThemeDimensions.borderRadiusM,
             border: Border.all(
               color: isSelected
                   ? Colors.transparent
                   : _isDarkMode
                       ? Colors.white24
-                      : AppTheme.borderLight,
+                      : ColorsAppQy.qyBorderLight,
               width: isSelected ? 0 : 1,
             ),
           ),
           child: Text(
             QyAppLocalizationKeys.qyListeningSleepMinutes.tr(context).replaceAll('{minutes}', minutes.toString()),
-            style: AppTextStyles.bodyMedium.copyWith(
+            style: ThemeTextStyles.bodyMedium.copyWith(
               color: isSelected
                   ? Colors.white
                   : _isDarkMode
                       ? Colors.white70
-                      : AppTheme.textPrimary,
+                                : ColorsAppQy.qyTextPrimary,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -441,24 +471,25 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
 
   Widget _buildSleepTips() {
     return Container(
-      decoration: ComponentStyles.primaryCardDecoration,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      child: GlassCard(
+        borderRadius: ThemeDimensions.borderRadiusL,
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.spacing20),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(
                   Icons.lightbulb,
-                  color: AppTheme.warning,
+                  color: ColorsAppQy.qyWarning,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   QyAppLocalizationKeys.qyListeningSleepTipsTitle.tr(context),
-                  style: AppTextStyles.headline5.copyWith(
-                    color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+                  style: ThemeTextStyles.headlineSmall.copyWith(
+                    color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -474,13 +505,14 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
                 tip,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7) : ColorsAppQy.qyTextSecondary,
                 ),
               ),
             )),
           ],
         ),
+      ),
       ),
     );
   }
@@ -490,13 +522,13 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
       onPressed: _startSleepMode,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing20),
         decoration: BoxDecoration(
-          gradient: _isDarkMode ? AppTheme.midnightGradient : AppTheme.oceanGradient,
-          borderRadius: BorderRadius.circular(20),
+          gradient: _isDarkMode ? ColorsAppQy.qyPrimaryGradient : ColorsAppQy.qySecondaryGradient,
+            borderRadius: ThemeDimensions.borderRadiusL,
           boxShadow: [
             BoxShadow(
-              color: (_isDarkMode ? Colors.white : AppTheme.primaryGreen)
+              color: (_isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyPrimary)
                   .withOpacity(0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
@@ -514,7 +546,10 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             const SizedBox(width: 12),
             Text(
               QyAppLocalizationKeys.qyListeningSleepStart.tr(context),
-              style: AppTextStyles.buttonText,
+                  style: ThemeTextStyles.bodyLarge.copyWith(
+                    color: ColorsAppQy.qyTextOnPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
           ],
         ),
@@ -529,7 +564,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
         BouncingButton(
           onPressed: _previousWord,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(ThemeDimensions.spacing16),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(30),
@@ -544,7 +579,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
         BouncingButton(
           onPressed: _togglePlayPause,
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(ThemeDimensions.spacing20),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.3),
               borderRadius: BorderRadius.circular(35),
@@ -559,7 +594,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
         BouncingButton(
           onPressed: _nextWord,
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(ThemeDimensions.spacing16),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(30),
@@ -577,13 +612,13 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
 
   Widget _buildSleepProgress() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.all(ThemeDimensions.spacing16),
+      padding: EdgeInsets.all(ThemeDimensions.spacing20),
       decoration: BoxDecoration(
-        color: _isDarkMode ? Colors.white.withOpacity(0.1) : AppTheme.surfaceLight,
-        borderRadius: BorderRadius.circular(20),
+        color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.1) : ColorsAppQy.qyFrostWhite,
+            borderRadius: ThemeDimensions.borderRadiusL,
         border: Border.all(
-          color: _isDarkMode ? Colors.white24 : AppTheme.borderLight,
+          color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.24) : ColorsAppQy.qyBorderLight,
         ),
       ),
       child: Column(
@@ -593,14 +628,14 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             children: [
               Text(
                 QyAppLocalizationKeys.qyListeningSleepProgress.tr(context),
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7) : ColorsAppQy.qyTextSecondary,
                 ),
               ),
               Text(
                 _formatTime(_remainingTime),
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -610,8 +645,8 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           Container(
             height: 6,
             decoration: BoxDecoration(
-              color: _isDarkMode ? Colors.white24 : AppTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(3),
+              color: _isDarkMode ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.24) : ColorsAppQy.qyFrostWhite,
+              borderRadius: ThemeDimensions.borderRadiusS,
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
@@ -619,9 +654,9 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               child: Container(
                 decoration: BoxDecoration(
                   gradient: _isDarkMode
-                      ? AppTheme.midnightGradient
-                      : AppTheme.oceanGradient,
-                  borderRadius: BorderRadius.circular(3),
+                      ? ColorsAppQy.qyPrimaryGradient
+                      : ColorsAppQy.qySecondaryGradient,
+                  borderRadius: ThemeDimensions.borderRadiusS,
                 ),
               ),
             ),
@@ -631,19 +666,22 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             onPressed: _stopSleepMode,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
               decoration: BoxDecoration(
-                color: AppTheme.error.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
+                  color: ColorsAppQy.qyError.withOpacity(0.2),
+                borderRadius: ThemeDimensions.borderRadiusM,
                 border: Border.all(
-                  color: AppTheme.error,
+                  color: ColorsAppQy.qyError,
                   width: 2,
                 ),
               ),
               child: Text(
                 QyAppLocalizationKeys.qyListeningSleepEnd.tr(context),
-                style: AppTextStyles.buttonText.copyWith(
-                  color: AppTheme.error,
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: ColorsAppQy.qyTextOnPrimary,
+                  fontWeight: FontWeight.bold,
+                ).copyWith(
+                  color: ColorsAppQy.qyError,
                 ),
               ),
             ),
@@ -657,6 +695,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     setState(() {
       _isDarkMode = !_isDarkMode;
     });
+    _saveSettings();
   }
 
   void _startSleepMode() {
@@ -694,7 +733,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(QyAppLocalizationKeys.qyListeningSleepPrevious.tr(context)),
-        backgroundColor: AppTheme.primaryGreen,
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -704,7 +743,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(QyAppLocalizationKeys.qyListeningSleepNext.tr(context)),
-        backgroundColor: AppTheme.primaryGreen,
+        backgroundColor: ColorsAppQy.qyPrimary,
       ),
     );
   }
@@ -720,31 +759,37 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+            borderRadius: ThemeDimensions.borderRadiusL,
         ),
         title: Text(
           QyAppLocalizationKeys.qyListeningSleepEndTitle.tr(context),
-          style: AppTextStyles.headline5.copyWith(
-            color: AppTheme.textPrimary,
+          style: ThemeTextStyles.headlineSmall.copyWith(
+            color: ColorsAppQy.qyTextPrimary,
           ),
         ),
         content: Text(
           QyAppLocalizationKeys.qyListeningSleepEndMessage.tr(context).replaceAll('{minutes}', _selectedDuration.toString()),
-          style: AppTextStyles.bodyMedium,
+          style: ThemeTextStyles.bodyMedium,
           textAlign: TextAlign.center,
         ),
         actions: [
           BouncingButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: EdgeInsets.symmetric(
+          horizontal: ThemeDimensions.spacing24,
+          vertical: ThemeDimensions.spacing12,
+        ),
               decoration: BoxDecoration(
-                color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(12),
+                  color: ColorsAppQy.qyPrimary,
+                borderRadius: ThemeDimensions.borderRadiusM,
               ),
               child: Text(
                 QyAppLocalizationKeys.qyCommonOk.tr(context),
-                style: AppTextStyles.buttonText,
+                  style: ThemeTextStyles.bodyLarge.copyWith(
+                    color: ColorsAppQy.qyTextOnPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
               ),
             ),
           ),

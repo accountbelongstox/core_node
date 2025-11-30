@@ -10,6 +10,8 @@ LAN_INTERFACE=""
 SYSTEM_SHARING="no"
 CORE_NODE_DATA_DIR="/var/_core_node"
 CONFIG_FILE="/var/_core_node/natgateway/interface_cache.conf"
+DNS_DETECTION_SOURCE=""
+declare -a DEFAULT_DNS_SERVERS=("8.8.8.8" "1.1.1.1")
 
 # Colors
 RED='\033[0;31m'
@@ -176,6 +178,148 @@ configure_lan_interface() {
         # Verify interface is up
         ip link set "$lan_if" up 2>/dev/null || true
         return 0
+    fi
+}
+
+# Determine DNS servers that should be applied to the WAN interface
+detect_dns_servers() {
+    local interface="$1"
+    DNS_DETECTION_SOURCE=""
+    local -a servers=()
+
+    if command -v nmcli >/dev/null 2>&1; then
+        while IFS= read -r line; do
+            local dns_value="${line#*:}"
+            dns_value=$(echo "$dns_value" | tr -d '[:space:]')
+            if [[ -n "$dns_value" ]]; then
+                servers+=("$dns_value")
+            fi
+        done < <(nmcli -t -f IP4.DNS device show "$interface" 2>/dev/null || true)
+
+        if [[ ${#servers[@]} -gt 0 ]]; then
+            DNS_DETECTION_SOURCE="networkmanager-device"
+        fi
+    fi
+
+    if [[ ${#servers[@]} -eq 0 ]] && command -v resolvectl >/dev/null 2>&1; then
+        local dns_line
+        dns_line=$(LC_ALL=C resolvectl dns "$interface" 2>/dev/null | tail -n 1)
+        if [[ -n "$dns_line" && "$dns_line" == *":"* ]]; then
+            dns_line="${dns_line##*: }"
+            read -ra servers <<< "$dns_line"
+        fi
+
+        if [[ ${#servers[@]} -gt 0 ]]; then
+            DNS_DETECTION_SOURCE="resolvectl"
+        fi
+    fi
+
+    if [[ ${#servers[@]} -eq 0 ]]; then
+        DNS_DETECTION_SOURCE="default"
+        servers=("${DEFAULT_DNS_SERVERS[@]}")
+    fi
+
+    printf '%s\n' "${servers[@]}"
+}
+
+# Apply DNS configuration automatically for Desktop environments (Ubuntu 24+)
+configure_dns() {
+    local wan_if="$1"
+
+    if [[ -z "$wan_if" ]]; then
+        log_error "DNS configuration skipped - WAN interface is undefined"
+        return 1
+    fi
+
+    if [[ "$SYSTEM_SHARING" != "yes" ]]; then
+        log_service "DNS configuration skipped for $wan_if (system sharing disabled)"
+        return 0
+    fi
+
+    local -a dns_servers=()
+    while IFS= read -r dns_value; do
+        [[ -n "$dns_value" ]] && dns_servers+=("$dns_value")
+    done < <(detect_dns_servers "$wan_if")
+
+    if [[ ${#dns_servers[@]} -eq 0 ]]; then
+        dns_servers=("${DEFAULT_DNS_SERVERS[@]}")
+    fi
+
+    local dns_space="${dns_servers[*]}"
+    local dns_csv
+    dns_csv=$(IFS=','; echo "${dns_servers[*]}")
+    local configured_method=""
+    local connection_name=""
+
+    if command -v nmcli >/dev/null 2>&1; then
+        connection_name=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$wan_if" '$2==dev {print $1; exit}')
+        if [[ -z "$connection_name" ]]; then
+            connection_name=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null | awk -F: -v dev="$wan_if" '$2==dev {print $1; exit}')
+        fi
+
+        if [[ -n "$connection_name" ]]; then
+            local current_dns
+            current_dns=$(nmcli -g ipv4.dns connection show "$connection_name" 2>/dev/null | tr -d '[:space:]')
+            local desired_dns
+            desired_dns=$(echo "$dns_csv" | tr -d '[:space:]')
+            local ignore_auto
+            ignore_auto=$(nmcli -g ipv4.ignore-auto-dns connection show "$connection_name" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+
+            if [[ "$current_dns" == "$desired_dns" && "$ignore_auto" == "yes" ]]; then
+                configured_method="NetworkManager profile '$connection_name' (already set)"
+                log_service "DNS already configured via NetworkManager profile '$connection_name': $dns_space"
+            else
+                log_service "Applying DNS via NetworkManager profile '$connection_name' (source: ${DNS_DETECTION_SOURCE:-default}) -> $dns_space"
+                if nmcli connection modify "$connection_name" ipv4.ignore-auto-dns yes ipv4.dns "$dns_csv" >/dev/null 2>&1; then
+                    if nmcli device reapply "$wan_if" >/dev/null 2>&1; then
+                        log_success "NetworkManager DNS updated for $wan_if via '$connection_name'"
+                    else
+                        log_service "Reapply command did not report success. If DNS does not refresh automatically, reconnect the profile manually."
+                    fi
+                    configured_method="NetworkManager profile '$connection_name'"
+                else
+                    log_error "Failed to update NetworkManager DNS for profile '$connection_name'"
+                fi
+            fi
+        else
+            log_service "No NetworkManager profile associated with $wan_if"
+        fi
+    fi
+
+    if [[ -z "$configured_method" ]] && command -v resolvectl >/dev/null 2>&1; then
+        log_service "Applying DNS via systemd-resolved for $wan_if (source: ${DNS_DETECTION_SOURCE:-default}) -> $dns_space"
+        if resolvectl dns "$wan_if" "${dns_servers[@]}" >/dev/null 2>&1; then
+            resolvectl domain "$wan_if" "~." >/dev/null 2>&1 || true
+            configured_method="systemd-resolved"
+            log_success "systemd-resolved DNS updated for $wan_if"
+        else
+            log_error "resolvectl dns failed for $wan_if"
+        fi
+    fi
+
+    if [[ -z "$configured_method" ]]; then
+        local resolv_conf="/etc/resolv.conf"
+        if [[ -L "$resolv_conf" ]]; then
+            log_service "Cannot modify $resolv_conf because it is a symbolic link (managed by another resolver)"
+        elif [[ -w "$resolv_conf" ]]; then
+            log_service "Applying fallback DNS by writing to $resolv_conf -> $dns_space"
+            {
+                echo "# Managed by NAT Gateway - $(date '+%Y-%m-%d %H:%M:%S')"
+                for dns in "${dns_servers[@]}"; do
+                    echo "nameserver $dns"
+                done
+            } > "$resolv_conf"
+            configured_method="$resolv_conf"
+            log_success "Fallback DNS file updated"
+        else
+            log_error "Unable to update DNS: insufficient permissions for $resolv_conf"
+        fi
+    fi
+
+    if [[ -n "$configured_method" ]]; then
+        log_service "DNS configuration method in use: $configured_method"
+    else
+        log_error "DNS configuration could not be applied for $wan_if"
     fi
 }
 
@@ -405,11 +549,7 @@ setup_routing() {
                 fi
             fi
 
-            # Set DNS if available (try to use WAN's DNS)
-            local wan_dns=$(resolvectl status "$wan_if" 2>/dev/null | grep -oP 'DNS Servers: \K[\d.]+' | head -1)
-            if [[ -n "$wan_dns" ]]; then
-                log_service "Using DNS from WAN interface: $wan_dns"
-            fi
+            configure_dns "$wan_if"
 
             log_success "System sharing enabled - system can now use WAN ($wan_if) for internet"
         else
@@ -456,18 +596,18 @@ setup_routing() {
         log_service "1. Connect router/device to: $lan_if"
         log_service ""
         log_service "2. Configure router WAN settings:"
-        log_service "   �?WAN Gateway: $lan_ip"
-        log_service "   �?WAN IP: Use DHCP or set manually in ${lan_subnet}.0/$lan_cidr range"
-        log_service "   �?Subnet Mask: 255.255.255.0 (for /24)"
-        log_service "   �?DNS: Use your preferred DNS (e.g., 8.8.8.8, 1.1.1.1)"
+        log_service "   -> WAN Gateway: $lan_ip"
+        log_service "   -> WAN IP: Use DHCP or set manually in ${lan_subnet}.0/$lan_cidr range"
+        log_service "   -> Subnet Mask: 255.255.255.0 (for /24)"
+        log_service "   -> DNS: Use your preferred DNS (e.g., 8.8.8.8, 1.1.1.1)"
         log_service ""
         log_service "3. For devices (non-router):"
-        log_service "   �?Default Gateway: $lan_ip"
-        log_service "   �?IP Address: ${lan_subnet}.X/24 (X = 2-254)"
-        log_service "   �?DNS: Same as router"
+        log_service "   -> Default Gateway: $lan_ip"
+        log_service "   -> IP Address: ${lan_subnet}.X/24 (X = 2-254)"
+        log_service "   -> DNS: Same as router"
         log_service ""
         log_service "4. Traffic Flow:"
-        log_service "   �?LAN devices -> $lan_if ($lan_ip) -> NAT -> $wan_if (${wan_ip:-WAN}) -> Internet"
+        log_service "   -> LAN devices -> $lan_if ($lan_ip) -> NAT -> $wan_if (${wan_ip:-WAN}) -> Internet"
         log_service ""
         log_service "Note: All LAN traffic will be NAT'd through WAN IP: ${wan_ip:-N/A}"
         log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -599,4 +739,3 @@ fi
 # Start monitoring
 log_service "Starting interface monitoring..."
 monitor_interfaces
-

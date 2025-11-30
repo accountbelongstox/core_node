@@ -14,8 +14,8 @@
 use Illuminate\Support\Facades\Route;
 
 # -----------------------------Dict-------------------------------
-use App\Apps\AppQyV1\Controllers\AppQyV1Ploymerization\AppQyV1GroupPolymerizationController as GPDController;
-// use App\Apps\AppQyV1\Controllers\AppQyV1Ploymerization\GPQController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Ploymerization\AppQyV1GroupPolymerizationController as GPDController;
+// use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Ploymerization\GPQController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/'.$version;

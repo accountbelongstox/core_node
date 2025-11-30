@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.306377+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "envoy",
+        "laos": "ຮໍ",
+        "jp": "使者",
+        "vie": "sứ giả",
+        "en_pronunciation": "/ˈɛnvɔɪ/",
+        "laos_pronunciation": "ho",
+        "jp_pronunciation": "shisha",
+        "vie_pronunciation": "su gia"
+      },
+      "means": {
+        "en": "A diplomat having less authority than an ambassador",
+        "zh": "外交官的权力低于大使"
+      }
+    },
+    {
+      "word": {
+        "en": "envy",
+        "laos": "ຄວາມອິດສາ",
+        "jp": "羨望の",
+        "vie": "ghen tị",
+        "en_pronunciation": "/ˈɛnvi/",
+        "laos_pronunciation": "khuaamidsa",
+        "jp_pronunciation": "senbou no",
+        "vie_pronunciation": "ghen ti"
+      },
+      "means": {
+        "en": "A feeling of grudging admiration and desire to have something that is possessed by another",
+        "zh": "一种勉强的钦佩感和渴望拥有他人所拥有的东西的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "envious",
+        "laos": "ລ່ໍາ",
+        "jp": "羨ましい",
+        "vie": "ghen tị",
+        "en_pronunciation": "/ˈɛnviəs/",
+        "laos_pronunciation": "loa",
+        "jp_pronunciation": "urayamashii",
+        "vie_pronunciation": "ghen ti"
+      },
+      "means": {
+        "en": "Showing extreme cupidity; painfully desirous of another's advantages",
+        "zh": "表现出极度的贪婪；"
+      }
+    },
+    {
+      "word": {
+        "en": "epic",
+        "laos": "ປາງ",
+        "jp": "壮大な",
+        "vie": "sử thi",
+        "en_pronunciation": "/ˈɛpɪk/",
+        "laos_pronunciation": "pang",
+        "jp_pronunciation": "soudai na",
+        "vie_pronunciation": "su thi"
+      },
+      "means": {
+        "en": "A long narrative poem telling of a hero's deeds",
+        "zh": "极度渴望别人的优点"
+      }
+    },
+    {
+      "word": {
+        "en": "epidemic",
+        "laos": "ໂຣກ​ແຜ່​ລະ​ບາດ",
+        "jp": "流行病",
+        "vie": "dịch bệnh",
+        "en_pronunciation": "/ˌɛpɪˈdɛmɪk/",
+        "laos_pronunciation": "ork aeph labad",
+        "jp_pronunciation": "ryuukou byou",
+        "vie_pronunciation": "dich benh"
+      },
+      "means": {
+        "en": "A widespread outbreak of an infectious disease; many people are infected at the same time",
+        "zh": "一首讲述英雄事迹的长篇叙事诗"
+      }
+    },
+    {
+      "word": {
+        "en": "episode",
+        "laos": "ອາການ",
+        "jp": "エピソード",
+        "vie": "tập phim",
+        "en_pronunciation": "/ˈɛpɪˌsoʊd/",
+        "laos_pronunciation": "akan",
+        "jp_pronunciation": "episoodo",
+        "vie_pronunciation": "tap phim"
+      },
+      "means": {
+        "en": "A happening that is distinctive in a series of related events",
+        "zh": "传染病大范围爆发；"
+      }
+    },
+    {
+      "word": {
+        "en": "epoch",
+        "laos": "ປາງ",
+        "jp": "エポック",
+        "vie": "kỷ nguyên",
+        "en_pronunciation": "/ˈɛpək/",
+        "laos_pronunciation": "pang",
+        "jp_pronunciation": "epokku",
+        "vie_pronunciation": "ky nguyen"
+      },
+      "means": {
+        "en": "A period marked by distinctive character or reckoned from a fixed point or event",
+        "zh": "很多人同时被感染"
+      }
+    },
+    {
+      "word": {
+        "en": "equal",
+        "laos": "ເທົ່າກັນ",
+        "jp": "等しい",
+        "vie": "bằng nhau",
+        "en_pronunciation": "/ˈikwəl/",
+        "laos_pronunciation": "theoakan",
+        "jp_pronunciation": "hitoshii",
+        "vie_pronunciation": "bang nhau"
+      },
+      "means": {
+        "en": "A person who is of equal standing with another in a group",
+        "zh": "在一系列相关事件中独特的发生"
+      }
+    },
+    {
+      "word": {
+        "en": "equally",
+        "laos": "ຄຽງກັນ",
+        "jp": "平等に",
+        "vie": "bằng nhau",
+        "en_pronunciation": "/ˈikwəli/",
+        "laos_pronunciation": "khiangkan",
+        "jp_pronunciation": "byoudou ni",
+        "vie_pronunciation": "bang nhau"
+      },
+      "means": {
+        "en": "To the same degree (often followed by `as')",
+        "zh": "具有独特特征的时期或从固定点或事件计算的时期"
+      }
+    },
+    {
+      "word": {
+        "en": "equality",
+        "laos": "ຄວາມສະເຫມີພາບ",
+        "jp": "平等",
+        "vie": "bình đẳng",
+        "en_pronunciation": "/ɪkˈwɑləti/",
+        "laos_pronunciation": "khuaamsahemiphab",
+        "jp_pronunciation": "byoudou",
+        "vie_pronunciation": "binh dang"
+      },
+      "means": {
+        "en": "The quality of being the same in quantity or measure or value or status",
+        "zh": "在群体中与另一个人地位平等的人"
+      }
+    },
+    {
+      "word": {
+        "en": "equate",
+        "laos": "ສົມທຽບ",
+        "jp": "同等にする",
+        "vie": "đánh đồng",
+        "en_pronunciation": "/ɪkˈweɪt/",
+        "laos_pronunciation": "somthiab",
+        "jp_pronunciation": "doutou nisuru",
+        "vie_pronunciation": "danh dong"
+      },
+      "means": {
+        "en": "Consider or describe as similar, equal, or analogous",
+        "zh": "达到相同程度（通常后跟“as”）"
+      }
+    },
+    {
+      "word": {
+        "en": "equation",
+        "laos": "ສົມຜົນ",
+        "jp": "方程式",
+        "vie": "phương trình",
+        "en_pronunciation": "/ɪkˈweɪʒən/",
+        "laos_pronunciation": "somphon",
+        "jp_pronunciation": "houteishiki",
+        "vie_pronunciation": "phuong trinh"
+      },
+      "means": {
+        "en": "A mathematical statement that two expressions are equal",
+        "zh": "数量、度量、价值或状态相同的质量"
+      }
+    },
+    {
+      "word": {
+        "en": "equator",
+        "laos": "ສູນສູດ",
+        "jp": "赤道",
+        "vie": "đường xích đạo",
+        "en_pronunciation": "/ɪkˈweɪtər/",
+        "laos_pronunciation": "sunsud",
+        "jp_pronunciation": "sekidou",
+        "vie_pronunciation": "duong xich dao"
+      },
+      "means": {
+        "en": "An imaginary line around the Earth forming the great circle that is equidistant from the north and south poles",
+        "zh": "考虑或描述为相似、相等或类似"
+      }
+    },
+    {
+      "word": {
+        "en": "equip",
+        "laos": "ອຸປະກອນ",
+        "jp": "装備する",
+        "vie": "trang bị",
+        "en_pronunciation": "/ɪkˈwɪp/",
+        "laos_pronunciation": "upakon",
+        "jp_pronunciation": "soubi suru",
+        "vie_pronunciation": "trang bi"
+      },
+      "means": {
+        "en": "Provide with (something) usually for a specific purpose",
+        "zh": "两个表达式相等的数学陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "equipment",
+        "laos": "ເຄື່ອງອຸປະກອນ",
+        "jp": "装備",
+        "vie": "thiết bị",
+        "en_pronunciation": "/ɪkˈwɪpmənt/",
+        "laos_pronunciation": "kheuongupakon",
+        "jp_pronunciation": "soubi",
+        "vie_pronunciation": "thiet bi"
+      },
+      "means": {
+        "en": "An instrumentality needed for an undertaking or to perform a service",
+        "zh": "围绕地球形成大圆的假想线，与北极和南极等距"
+      }
+    },
+    {
+      "word": {
+        "en": "equity",
+        "laos": "ຄວາມທ່ຽງທໍາ",
+        "jp": "資本",
+        "vie": "vốn chủ sở hữu",
+        "en_pronunciation": "/ˈɛkwəti/",
+        "laos_pronunciation": "khuaam thiangthoa",
+        "jp_pronunciation": "shihon",
+        "vie_pronunciation": "von chu so huu"
+      },
+      "means": {
+        "en": "The difference between the market value of a property and the claims held against it",
+        "zh": "通常为了特定目的而提供（某物）"
+      }
+    },
+    {
+      "word": {
+        "en": "equitable",
+        "laos": "ທີ່ເທົ່າກັນໄດ້",
+        "jp": "公平な",
+        "vie": "công bằng",
+        "en_pronunciation": "/ˈɛkwɪtəbəl/",
+        "laos_pronunciation": "thi theoakandai",
+        "jp_pronunciation": "kouhei na",
+        "vie_pronunciation": "cong bang"
+      },
+      "means": {
+        "en": "Fair to all parties as dictated by reason and conscience",
+        "zh": "一项事业或执行服务所需的工具"
+      }
+    },
+    {
+      "word": {
+        "en": "equivalent",
+        "laos": "ສະມານະ",
+        "jp": "同等の",
+        "vie": "tương đương",
+        "en_pronunciation": "/ɪkˈwɪvələnt/",
+        "laos_pronunciation": "samana",
+        "jp_pronunciation": "doutou no",
+        "vie_pronunciation": "tuong duong"
+      },
+      "means": {
+        "en": "A person or thing equal to another in value or measure or force or effect or significance etc",
+        "zh": "财产的市场价值与对其提出的索赔之间的差异"
+      }
+    },
+    {
+      "word": {
+        "en": "equivalence",
+        "laos": "ອະເຈລະຈາ",
+        "jp": "等価性",
+        "vie": "sự tương đương",
+        "en_pronunciation": "/ɪkˈwɪvələns/",
+        "laos_pronunciation": "achelacha",
+        "jp_pronunciation": "toukasei",
+        "vie_pronunciation": "su tuong duong"
+      },
+      "means": {
+        "en": "A state of being essentially equal or equivalent; equally balanced",
+        "zh": "根据理性和良心对各方公平"
+      }
+    },
+    {
+      "word": {
+        "en": "era",
+        "laos": "ຍຸກ",
+        "jp": "時代",
+        "vie": "thời đại",
+        "en_pronunciation": "/ˈɪrə/",
+        "laos_pronunciation": "nyuk",
+        "jp_pronunciation": "jidai",
+        "vie_pronunciation": "thoi dai"
+      },
+      "means": {
+        "en": "A period marked by distinctive character or reckoned from a fixed point or event",
+        "zh": "一个人或事物在价值、尺度、力量、效果或重要性等方面与另一个人或事物相等"
+      }
+    },
+    {
+      "word": {
+        "en": "eradicate",
+        "laos": "ການທໍາຫຼົ່ນລົງ",
+        "jp": "根絶する",
+        "vie": "diệt trừ",
+        "en_pronunciation": "/ɪˈrædəˌkeɪt/",
+        "laos_pronunciation": "kan thoa ronlong",
+        "jp_pronunciation": "konzetsu suru",
+        "vie_pronunciation": "diet tru"
+      },
+      "means": {
+        "en": "Kill in large numbers",
+        "zh": "本质上平等或相当的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "eradication",
+        "laos": "ການກໍາຄາວ",
+        "jp": "根絶",
+        "vie": "sự diệt trừ",
+        "en_pronunciation": "/ɪˌrædəˈkeɪʃən/",
+        "laos_pronunciation": "kan koakhav",
+        "jp_pronunciation": "konzetsu",
+        "vie_pronunciation": "su diet tru"
+      },
+      "means": {
+        "en": "The complete destruction of every trace of something",
+        "zh": "同等平衡"
+      }
+    },
+    {
+      "word": {
+        "en": "erase",
+        "laos": "ລົບລ້າງ",
+        "jp": "消す",
+        "vie": "xóa",
+        "en_pronunciation": "/ɪˈreɪs/",
+        "laos_pronunciation": "loblang",
+        "jp_pronunciation": "kesu",
+        "vie_pronunciation": "xoa"
+      },
+      "means": {
+        "en": "Remove from memory or existence",
+        "zh": "具有独特特征的时期或从固定点或事件计算的时期"
+      }
+    },
+    {
+      "word": {
+        "en": "eraser",
+        "laos": "ເຄື່ອງພຢາງ",
+        "jp": "消しゴム",
+        "vie": "cục tẩy",
+        "en_pronunciation": "/ɪˈreɪsər/",
+        "laos_pronunciation": "kheuong phyang",
+        "jp_pronunciation": "keshigomu",
+        "vie_pronunciation": "cuc tay"
+      },
+      "means": {
+        "en": "An implement used to erase something",
+        "zh": "大量杀戮"
+      }
+    },
+    {
+      "word": {
+        "en": "erect",
+        "laos": "ພອງ",
+        "jp": "直立した",
+        "vie": "dựng lên",
+        "en_pronunciation": "/ɪˈrɛkt/",
+        "laos_pronunciation": "phong",
+        "jp_pronunciation": "chokuritsu shita",
+        "vie_pronunciation": "dung len"
+      },
+      "means": {
+        "en": "Construct, build, or erect",
+        "zh": "彻底摧毁某物的每一个痕迹"
+      }
+    },
+    {
+      "word": {
+        "en": "erection",
+        "laos": "ການຕັ້ງຊື່",
+        "jp": "勃起",
+        "vie": "cương cứng",
+        "en_pronunciation": "/ɪˈrɛkʃən/",
+        "laos_pronunciation": "kantangsu",
+        "jp_pronunciation": "bokki",
+        "vie_pronunciation": "cuong cung"
+      },
+      "means": {
+        "en": "An erect penis",
+        "zh": "从记忆或存在中删除"
+      }
+    },
+    {
+      "word": {
+        "en": "erode",
+        "laos": "ເຟື່ອ",
+        "jp": "浸食する",
+        "vie": "ăn mòn",
+        "en_pronunciation": "/ˈiroʊd/",
+        "laos_pronunciation": "feu",
+        "jp_pronunciation": "shinshoku suru",
+        "vie_pronunciation": "an mon"
+      },
+      "means": {
+        "en": "Become ground down or deteriorate",
+        "zh": "用来擦除某物的工具"
+      }
+    },
+    {
+      "word": {
+        "en": "erosion",
+        "laos": "ການເຊາະເຈື່ອນ",
+        "jp": "侵食",
+        "vie": "xói mòn",
+        "en_pronunciation": "/ɪˈroʊʒən/",
+        "laos_pronunciation": "kansocheuon",
+        "jp_pronunciation": "shinshoku",
+        "vie_pronunciation": "xoi mon"
+      },
+      "means": {
+        "en": "(geology) the mechanical process of wearing or grinding something down (as by particles washing over it)",
+        "zh": "建造、建造或架设"
+      }
+    },
+    {
+      "word": {
+        "en": "erosive",
+        "laos": "ການເຊາະເຈື່ອນ",
+        "jp": "浸食性の",
+        "vie": "ăn mòn",
+        "en_pronunciation": "/ɪˈroʊsɪv/",
+        "laos_pronunciation": "kansocheuon",
+        "jp_pronunciation": "shinshoku sei no",
+        "vie_pronunciation": "an mon"
+      },
+      "means": {
+        "en": "Wearing away by friction",
+        "zh": "勃起的阴茎"
+      }
+    },
+    {
+      "word": {
+        "en": "err",
+        "laos": "ເຮັດຜິດ",
+        "jp": "エラー",
+        "vie": "lỗi",
+        "en_pronunciation": "/ɛr/",
+        "laos_pronunciation": "hedphid",
+        "jp_pronunciation": "eraa",
+        "vie_pronunciation": "loi"
+      },
+      "means": {
+        "en": "To make a mistake or be incorrect",
+        "zh": "被碾碎或恶化"
+      }
+    },
+    {
+      "word": {
+        "en": "error",
+        "laos": "ຜິດ",
+        "jp": "エラー",
+        "vie": "lỗi",
+        "en_pronunciation": "/ˈɛrər/",
+        "laos_pronunciation": "phid",
+        "jp_pronunciation": "eraa",
+        "vie_pronunciation": "loi"
+      },
+      "means": {
+        "en": "A wrong action attributable to bad judgment or ignorance or inattention",
+        "zh": "（地质学）磨损或磨削某物的机械过程（如通过颗粒冲刷其上）"
+      }
+    },
+    {
+      "word": {
+        "en": "erroneous",
+        "laos": "ຂີ້ຮ້າຍ",
+        "jp": "間違っている",
+        "vie": "sai lầm",
+        "en_pronunciation": "/ɛˈroʊniəs/",
+        "laos_pronunciation": "khihai",
+        "jp_pronunciation": "machigatsu teiru",
+        "vie_pronunciation": "sai lam"
+      },
+      "means": {
+        "en": "Containing or characterized by error",
+        "zh": "因摩擦而磨损"
+      }
+    },
+    {
+      "word": {
+        "en": "errand",
+        "laos": "ເຮັດຜິດ",
+        "jp": "用事",
+        "vie": "việc vặt",
+        "en_pronunciation": "/ˈɛrənd/",
+        "laos_pronunciation": "hedphid",
+        "jp_pronunciation": "youji",
+        "vie_pronunciation": "viec vat"
+      },
+      "means": {
+        "en": "A short trip that is taken in the performance of a necessary task or mission",
+        "zh": "犯错误或不正确"
+      }
+    },
+    {
+      "word": {
+        "en": "erupt",
+        "laos": "ລະເບີດ",
+        "jp": "噴火する",
+        "vie": "phun trào",
+        "en_pronunciation": "/ˈirəpt/",
+        "laos_pronunciation": "laboed",
+        "jp_pronunciation": "funka suru",
+        "vie_pronunciation": "phun trao"
+      },
+      "means": {
+        "en": "Start abruptly",
+        "zh": "由于错误判断、无知或疏忽而采取的错误行动"
+      }
+    },
+    {
+      "word": {
+        "en": "eruption",
+        "laos": "ການພັ້ງພາດ",
+        "jp": "噴火",
+        "vie": "phun trào",
+        "en_pronunciation": "/ˌɪˈrəpʃən/",
+        "laos_pronunciation": "kan phangphad",
+        "jp_pronunciation": "funka",
+        "vie_pronunciation": "phun trao"
+      },
+      "means": {
+        "en": "The sudden occurrence of a violent discharge of steam and volcanic material",
+        "zh": "包含错误或具有错误特征"
+      }
+    },
+    {
+      "word": {
+        "en": "escalate",
+        "laos": "ຢົກໃຫ້ສູງຂຶ້ນ",
+        "jp": "エスカレートする",
+        "vie": "leo thang",
+        "en_pronunciation": "/ˈɛskəˌleɪt/",
+        "laos_pronunciation": "yokhaisungkhun",
+        "jp_pronunciation": "esukareeto suru",
+        "vie_pronunciation": "leo thang"
+      },
+      "means": {
+        "en": "Increase in extent or intensity",
+        "zh": "为执行必要的任务或使命而进行的短途旅行"
+      }
+    },
+    {
+      "word": {
+        "en": "escalation",
+        "laos": "ການຍົກສູງ",
+        "jp": "エスカレーション",
+        "vie": "leo thang",
+        "en_pronunciation": "/ˌɛskəˈleɪʃən/",
+        "laos_pronunciation": "kannyoksung",
+        "jp_pronunciation": "esukareeshon",
+        "vie_pronunciation": "leo thang"
+      },
+      "means": {
+        "en": "An increase to counteract a perceived discrepancy",
+        "zh": "突然开始"
+      }
+    },
+    {
+      "word": {
+        "en": "escalator",
+        "laos": "escalator",
+        "jp": "エスカレーター",
+        "vie": "thang cuốn",
+        "en_pronunciation": "/ˈɛskəˌleɪtər/",
+        "laos_pronunciation": "escalator",
+        "jp_pronunciation": "esukareetaa",
+        "vie_pronunciation": "thang cuon"
+      },
+      "means": {
+        "en": "A clause in a contract that provides for an increase or a decrease in wages or prices or benefits etc. depending on certain conditions (as a change in the cost of living index)",
+        "zh": "突然发生猛烈的蒸汽和火山物质喷发"
+      }
+    },
+    {
+      "word": {
+        "en": "escape",
+        "laos": "ຫນີ",
+        "jp": "逃げる",
+        "vie": "trốn thoát",
+        "en_pronunciation": "/ɪˈskeɪp/",
+        "laos_pronunciation": "ni",
+        "jp_pronunciation": "nige ru",
+        "vie_pronunciation": "tron thoat"
+      },
+      "means": {
+        "en": "The act of escaping physically",
+        "zh": "程度或强度增加"
+      }
+    },
+    {
+      "word": {
+        "en": "escort",
+        "laos": "escort",
+        "jp": "護衛",
+        "vie": "hộ tống",
+        "en_pronunciation": "/ˈɛskɔrt/",
+        "laos_pronunciation": "escort",
+        "jp_pronunciation": "goei",
+        "vie_pronunciation": "ho tong"
+      },
+      "means": {
+        "en": "Someone who escorts and protects a prominent person",
+        "zh": "增加以抵消感知到的差异"
+      }
+    },
+    {
+      "word": {
+        "en": "especially",
+        "laos": "ໂດຍສະເພາະ",
+        "jp": "特に",
+        "vie": "đặc biệt",
+        "en_pronunciation": "/əˈspɛʃəli/",
+        "laos_pronunciation": "odnysapho",
+        "jp_pronunciation": "tokuni",
+        "vie_pronunciation": "dac biet"
+      },
+      "means": {
+        "en": "To a distinctly greater extent or degree than is common",
+        "zh": "合同中规定根据某些条件（如生活成本指数的变化）增加或减少工资或价格或福利等的条款"
+      }
+    },
+    {
+      "word": {
+        "en": "essay",
+        "laos": "ຊ່າງ",
+        "jp": "エッセイ",
+        "vie": "tiểu luận",
+        "en_pronunciation": "/ˈɛˌseɪ/",
+        "laos_pronunciation": "sang",
+        "jp_pronunciation": "essei",
+        "vie_pronunciation": "tieu luan"
+      },
+      "means": {
+        "en": "An analytic or interpretive literary composition",
+        "zh": "身体逃离的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "essayist",
+        "laos": "Esayayist",
+        "jp": "エッセイスト",
+        "vie": "người viết tiểu luận",
+        "en_pronunciation": "/ˈɛˌseɪɪst/",
+        "laos_pronunciation": "Esayayist",
+        "jp_pronunciation": "esseisuto",
+        "vie_pronunciation": "nguoi viet tieu luan"
+      },
+      "means": {
+        "en": "A writer of literary works",
+        "zh": "护送和保护显赫人物的人"
+      }
+    },
+    {
+      "word": {
+        "en": "essence",
+        "laos": "ໂດຍເນື້ອແທ້ແລ້ວ",
+        "jp": "本質",
+        "vie": "bản chất",
+        "en_pronunciation": "/ˈɛsəns/",
+        "laos_pronunciation": "odny neuoaethaelv",
+        "jp_pronunciation": "honshitsu",
+        "vie_pronunciation": "ban chat"
+      },
+      "means": {
+        "en": "The choicest or most essential or most vital part of some idea or experience",
+        "zh": "比一般情况明显更大的范围或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "essential",
+        "laos": "ຈໍາເປັນຈໍາເປັນ",
+        "jp": "不可欠な",
+        "vie": "thiết yếu",
+        "en_pronunciation": "/ɛˈsɛnʃəl/",
+        "laos_pronunciation": "choapenchoapen",
+        "jp_pronunciation": "fukaketsu na",
+        "vie_pronunciation": "thiet yeu"
+      },
+      "means": {
+        "en": "Anything indispensable",
+        "zh": "分析性或解释性文学作品"
+      }
+    },
+    {
+      "word": {
+        "en": "establish",
+        "laos": "ຈັດຂຶ້ນ",
+        "jp": "確立する",
+        "vie": "thành lập",
+        "en_pronunciation": "/ɪˈstæblɪʃ/",
+        "laos_pronunciation": "chadkhun",
+        "jp_pronunciation": "kakuritsu suru",
+        "vie_pronunciation": "thanh lap"
+      },
+      "means": {
+        "en": "Set up or found",
+        "zh": "文学作品作家"
+      }
+    },
+    {
+      "word": {
+        "en": "establishment",
+        "laos": "ການສ້າງຕັ້ງ",
+        "jp": "設立",
+        "vie": "thành lập",
+        "en_pronunciation": "/ɪˈstæblɪʃmənt/",
+        "laos_pronunciation": "kansangtang",
+        "jp_pronunciation": "setsuritsu",
+        "vie_pronunciation": "thanh lap"
+      },
+      "means": {
+        "en": "The act of forming or establishing something",
+        "zh": "某些想法或经验中最精选的或最重要的或最重要的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "estate",
+        "laos": "ອະສັງຫາລິມະສັບ",
+        "jp": "不動産",
+        "vie": "bất động sản",
+        "en_pronunciation": "/ɛˈsteɪt/",
+        "laos_pronunciation": "a sang ha li masab",
+        "jp_pronunciation": "fudousan",
+        "vie_pronunciation": "bat dong san"
+      },
+      "means": {
+        "en": "Everything you own; all of your assets (whether real property or personal property) and liabilities",
+        "zh": "任何事物都不可或缺"
+      }
+    },
+    {
+      "word": {
+        "en": "esteem",
+        "laos": "ຈໍາໃຫ້",
+        "jp": "尊敬する",
+        "vie": "quý trọng",
+        "en_pronunciation": "/ɛˈstim/",
+        "laos_pronunciation": "choahai",
+        "jp_pronunciation": "sonkei suru",
+        "vie_pronunciation": "quy trong"
+      },
+      "means": {
+        "en": "The condition of being honored (esteemed or respected or well regarded)",
+        "zh": "设置或发现"
+      }
+    },
+    {
+      "word": {
+        "en": "esthetic",
+        "laos": "ອະພິໄນຢະພອຍ",
+        "jp": "エステティック",
+        "vie": "thẩm mỹ",
+        "en_pronunciation": "/ɛsˈθɛtɪk/",
+        "laos_pronunciation": "aphi nai yaphony",
+        "jp_pronunciation": "esuteteikku",
+        "vie_pronunciation": "tham my"
+      },
+      "means": {
+        "en": "(philosophy) a philosophical theory as to what is beautiful",
+        "zh": "形成或建立某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "aesthetic",
+        "laos": "ກ່ຽວກັບຄວາມງາມ",
+        "jp": "美的",
+        "vie": "tính thẩm mỹ",
+        "en_pronunciation": "/ɛsˈθɛtɪk/",
+        "laos_pronunciation": "kiauakabkhuaamngam",
+        "jp_pronunciation": "biteki",
+        "vie_pronunciation": "tinh tham my"
+      },
+      "means": {
+        "en": "(philosophy) a philosophical theory as to what is beautiful",
+        "zh": "你拥有的一切；"
+      }
+    },
+    {
+      "word": {
+        "en": "esthetics",
+        "laos": "ອະພິຈານ",
+        "jp": "エステティック",
+        "vie": "thẩm mỹ",
+        "en_pronunciation": "/ɛsˈθɛtɪks/",
+        "laos_pronunciation": "aphichan",
+        "jp_pronunciation": "esuteteikku",
+        "vie_pronunciation": "tham my"
+      },
+      "means": {
+        "en": "(art) the branch of philosophy dealing with beauty and taste (emphasizing the evaluative criteria that are applied to art)",
+        "zh": "您的所有资产（无论是不动产还是动产）和负债"
+      }
+    },
+    {
+      "word": {
+        "en": "aesthetics",
+        "laos": "ຄວາມງາມ",
+        "jp": "美学",
+        "vie": "tính thẩm mỹ",
+        "en_pronunciation": "/ɛsˈθɛtɪks/",
+        "laos_pronunciation": "khuaamngam",
+        "jp_pronunciation": "bigaku",
+        "vie_pronunciation": "tinh tham my"
+      },
+      "means": {
+        "en": "(art) the branch of philosophy dealing with beauty and taste (emphasizing the evaluative criteria that are applied to art)",
+        "zh": "受到尊重的条件（受尊敬或受尊重或受到良好尊重）"
+      }
+    },
+    {
+      "word": {
+        "en": "estimate",
+        "laos": "ການຄາດຄະເນ",
+        "jp": "見積もり",
+        "vie": "ước tính",
+        "en_pronunciation": "/ˈɛstəˌmeɪt/",
+        "laos_pronunciation": "kankhadkhane",
+        "jp_pronunciation": "mitsumori",
+        "vie_pronunciation": "uoc tinh"
+      },
+      "means": {
+        "en": "An approximate calculation of quantity or degree or worth",
+        "zh": "（哲学）关于什么是美的哲学理论"
+      }
+    },
+    {
+      "word": {
+        "en": "estimation",
+        "laos": "ການຄາດຄະເນ",
+        "jp": "推定",
+        "vie": "ước tính",
+        "en_pronunciation": "/ˌɛstəˈmeɪʃən/",
+        "laos_pronunciation": "kankhadkhane",
+        "jp_pronunciation": "suitei",
+        "vie_pronunciation": "uoc tinh"
+      },
+      "means": {
+        "en": "A document appraising the value of something (as for insurance or taxation)",
+        "zh": "（哲学）关于什么是美的哲学理论"
+      }
+    },
+    {
+      "word": {
+        "en": "eternal",
+        "laos": "ນິຣັນດອນ",
+        "jp": "永遠の",
+        "vie": "vĩnh cửu",
+        "en_pronunciation": "/ɪˈtərnəl/",
+        "laos_pronunciation": "nirandon",
+        "jp_pronunciation": "eien no",
+        "vie_pronunciation": "vinh cuu"
+      },
+      "means": {
+        "en": "Continuing forever or indefinitely",
+        "zh": "（艺术）涉及美和品味的哲学分支（强调应用于艺术的评价标准）"
+      }
+    },
+    {
+      "word": {
+        "en": "eternity",
+        "laos": "ຂອງນິລັນດອນ",
+        "jp": "永遠",
+        "vie": "vĩnh cửu",
+        "en_pronunciation": "/ɪˈtərnəti/",
+        "laos_pronunciation": "khong ni landon",
+        "jp_pronunciation": "eien",
+        "vie_pronunciation": "vinh cuu"
+      },
+      "means": {
+        "en": "Time without end",
+        "zh": "（艺术）涉及美和品味的哲学分支（强调应用于艺术的评价标准）"
+      }
+    },
+    {
+      "word": {
+        "en": "ethic",
+        "laos": "ມີຈັນຍາບັນ",
+        "jp": "倫理",
+        "vie": "đạo đức",
+        "en_pronunciation": "/ˈɛθɪk/",
+        "laos_pronunciation": "michnaiaban",
+        "jp_pronunciation": "rinri",
+        "vie_pronunciation": "dao duc"
+      },
+      "means": {
+        "en": "The principles of right and wrong that are accepted by an individual or a social group",
+        "zh": "数量、程度或价值的近似计算"
+      }
+    },
+    {
+      "word": {
+        "en": "ethics",
+        "laos": "ຈັນບາດ",
+        "jp": "倫理",
+        "vie": "đạo đức",
+        "en_pronunciation": "/ˈɛθɪks/",
+        "laos_pronunciation": "chanbad",
+        "jp_pronunciation": "rinri",
+        "vie_pronunciation": "dao duc"
+      },
+      "means": {
+        "en": "Motivation based on ideas of right and wrong",
+        "zh": "评估某物价值的文件（如保险或税收）"
+      }
+    },
+    {
+      "word": {
+        "en": "ethnic",
+        "laos": "ຊົນເຜົ່າ",
+        "jp": "民族的",
+        "vie": "dân tộc",
+        "en_pronunciation": "/ˈɛθnɪk/",
+        "laos_pronunciation": "sonpheoa",
+        "jp_pronunciation": "minzokuteki",
+        "vie_pronunciation": "dan toc"
+      },
+      "means": {
+        "en": "A person who is a member of an ethnic group",
+        "zh": "永远持续或无限期持续"
+      }
+    },
+    {
+      "word": {
+        "en": "etiquette",
+        "laos": "ຈັນພິດ",
+        "jp": "エチケット",
+        "vie": "nghi thức",
+        "en_pronunciation": "/ˈɛtəkət/",
+        "laos_pronunciation": "chanphid",
+        "jp_pronunciation": "echiketto",
+        "vie_pronunciation": "nghi thuc"
+      },
+      "means": {
+        "en": "Rules governing socially acceptable behavior",
+        "zh": "时间没有尽头"
+      }
+    },
+    {
+      "word": {
+        "en": "euro",
+        "laos": "ເອີໂຣ",
+        "jp": "ユーロ",
+        "vie": "đồng euro",
+        "en_pronunciation": "/ˈjʊrə/",
+        "laos_pronunciation": "oeor",
+        "jp_pronunciation": "yuuro",
+        "vie_pronunciation": "dong euro"
+      },
+      "means": {
+        "en": "The basic monetary unit of most members of the European Union (introduced in 1999); in 2002 twelve European nations (Germany, France, Belgium, Luxembourg, the Netherlands, Italy, Spain, Portugal, Ireland, Greece, Austria, Finland) adopted the euro as their basic unit of money and abandoned their traditional currencies",
+        "zh": "个人或社会群体所接受的是非原则"
+      }
+    },
+    {
+      "word": {
+        "en": "evacuate",
+        "laos": "ອົບ​ພະ​ຍົບ",
+        "jp": "避難する",
+        "vie": "sơ tán",
+        "en_pronunciation": "/ɪˈvækjəˌeɪt/",
+        "laos_pronunciation": "ob phanyob",
+        "jp_pronunciation": "hinan suru",
+        "vie_pronunciation": "so tan"
+      },
+      "means": {
+        "en": "Move out of an unsafe location into safety",
+        "zh": "基于对错观念的动机"
+      }
+    },
+    {
+      "word": {
+        "en": "evacuation",
+        "laos": "ການຍົກຍ້າຍ",
+        "jp": "避難",
+        "vie": "sơ tán",
+        "en_pronunciation": "/ɪˌvækjəˈweɪʃən/",
+        "laos_pronunciation": "kannyoknyai",
+        "jp_pronunciation": "hinan",
+        "vie_pronunciation": "so tan"
+      },
+      "means": {
+        "en": "The act of removing the contents of something",
+        "zh": "一个民族的成员"
+      }
+    },
+    {
+      "word": {
+        "en": "evade",
+        "laos": "ຫລີກເວັ້ນ",
+        "jp": "回避する",
+        "vie": "trốn tránh",
+        "en_pronunciation": "/ɪˈveɪd/",
+        "laos_pronunciation": "likuaen",
+        "jp_pronunciation": "kaihi suru",
+        "vie_pronunciation": "tron tranh"
+      },
+      "means": {
+        "en": "Avoid or try to avoid fulfilling, answering, or performing (duties, questions, or issues)",
+        "zh": "规范社会可接受行为的规则"
+      }
+    },
+    {
+      "word": {
+        "en": "evasive",
+        "laos": "ລອດ",
+        "jp": "回避的な",
+        "vie": "lảng tránh",
+        "en_pronunciation": "/ɪˈveɪzɪv/",
+        "laos_pronunciation": "lod",
+        "jp_pronunciation": "kaihi tekina",
+        "vie_pronunciation": "lang tranh"
+      },
+      "means": {
+        "en": "Deliberately vague or ambiguous",
+        "zh": "欧盟大多数成员国的基本货币单位（1999年引入）；"
+      }
+    },
+    {
+      "word": {
+        "en": "evasion",
+        "laos": "ການຫລີກເວັ້ນ",
+        "jp": "回避",
+        "vie": "trốn tránh",
+        "en_pronunciation": "/ɪˈveɪʒən/",
+        "laos_pronunciation": "kanlikuaen",
+        "jp_pronunciation": "kaihi",
+        "vie_pronunciation": "tron tranh"
+      },
+      "means": {
+        "en": "A statement that is not literally false but that cleverly avoids an unpleasant truth",
+        "zh": "2002年，12个欧洲国家（德国、法国、比利时、卢森堡、荷兰、意大利、西班牙、葡萄牙、爱尔兰、希腊、奥地利、芬兰）采用欧元作为基本货币单位，放弃了传统货币"
+      }
+    },
+    {
+      "word": {
+        "en": "evaluate",
+        "laos": "ຕີລາຄາ",
+        "jp": "評価する",
+        "vie": "đánh giá",
+        "en_pronunciation": "/ɪˈvæljuˌeɪt/",
+        "laos_pronunciation": "tilakha",
+        "jp_pronunciation": "hyouka suru",
+        "vie_pronunciation": "danh gia"
+      },
+      "means": {
+        "en": "Evaluate or estimate the nature, quality, ability, extent, or significance of",
+        "zh": "从不安全的地方转移到安全的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "evaluation",
+        "laos": "ການປະເມີນຜົນ",
+        "jp": "評価",
+        "vie": "đánh giá",
+        "en_pronunciation": "/ɪˌvæljuˈeɪʃən/",
+        "laos_pronunciation": "kanpamoenphon",
+        "jp_pronunciation": "hyouka",
+        "vie_pronunciation": "danh gia"
+      },
+      "means": {
+        "en": "Act of ascertaining or fixing the value or worth of",
+        "zh": "删除某物内容的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "evaporate",
+        "laos": "ຜິ່ວ",
+        "jp": "蒸発する",
+        "vie": "bay hơi",
+        "en_pronunciation": "/ɪˈvæpərˌeɪt/",
+        "laos_pronunciation": "phiv",
+        "jp_pronunciation": "jouhatsu suru",
+        "vie_pronunciation": "bay hoi"
+      },
+      "means": {
+        "en": "Lose or cause to lose liquid by vaporization leaving a more concentrated residue",
+        "zh": "避免或试图避免履行、回答或执行（职责、问题或问题）"
+      }
+    },
+    {
+      "word": {
+        "en": "evaporation",
+        "laos": "ການລະນຶກ",
+        "jp": "蒸発",
+        "vie": "sự bay hơi",
+        "en_pronunciation": "/ɪˌvæpərˈeɪʃən/",
+        "laos_pronunciation": "kanlanuk",
+        "jp_pronunciation": "jouhatsu",
+        "vie_pronunciation": "su bay hoi"
+      },
+      "means": {
+        "en": "The process of becoming a vapor",
+        "zh": "故意含糊或含糊不清"
+      }
+    },
+    {
+      "word": {
+        "en": "eve",
+        "laos": "ເປເປນ",
+        "jp": "イブ",
+        "vie": "đêm trước",
+        "en_pronunciation": "/iv/",
+        "laos_pronunciation": "pepen",
+        "jp_pronunciation": "ibu",
+        "vie_pronunciation": "dem truoc"
+      },
+      "means": {
+        "en": "(Old Testament) Adam's wife in Judeo-Christian mythology: the first woman and mother of the human race; God created Eve from Adam's rib and placed Adam and Eve in the Garden of Eden",
+        "zh": "这种说法并非字面意义上的错误，而是巧妙地避免了令人不快的事实"
+      }
+    },
+    {
+      "word": {
+        "en": "even",
+        "laos": "ແມ້",
+        "jp": "さえ",
+        "vie": "thậm chí",
+        "en_pronunciation": "/ˈivɪn/",
+        "laos_pronunciation": "aem",
+        "jp_pronunciation": "sae",
+        "vie_pronunciation": "tham chi"
+      },
+      "means": {
+        "en": "The latter part of the day (the period of decreasing daylight from late afternoon until nightfall)",
+        "zh": "评估或估计事物的性质、质量、能力、范围或重要性"
+      }
+    },
+    {
+      "word": {
+        "en": "evenly",
+        "laos": "ສ່ອງເປັນ",
+        "jp": "均等に",
+        "vie": "đồng đều",
+        "en_pronunciation": "/ˈivənli/",
+        "laos_pronunciation": "songpen",
+        "jp_pronunciation": "kintou ni",
+        "vie_pronunciation": "dong deu"
+      },
+      "means": {
+        "en": "In equal amounts or shares; in a balanced or impartial way",
+        "zh": "确定或固定物品的价值或价值的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "evening",
+        "laos": "ຕອນແລງ",
+        "jp": "夕方",
+        "vie": "buổi tối",
+        "en_pronunciation": "/ˈivnɪŋ/",
+        "laos_pronunciation": "tonaelng",
+        "jp_pronunciation": "yuugata",
+        "vie_pronunciation": "buoi toi"
+      },
+      "means": {
+        "en": "The latter part of the day (the period of decreasing daylight from late afternoon until nightfall)",
+        "zh": "通过蒸发而损失或导致液体损失，留下更浓缩的残留物"
+      }
+    },
+    {
+      "word": {
+        "en": "event",
+        "laos": "ເຫດການ",
+        "jp": "イベント",
+        "vie": "sự kiện",
+        "en_pronunciation": "/ɪˈvɛnt/",
+        "laos_pronunciation": "hedkan",
+        "jp_pronunciation": "ibento",
+        "vie_pronunciation": "su kien"
+      },
+      "means": {
+        "en": "Something that happens at a given place and time",
+        "zh": "变成水蒸气的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "eventful",
+        "laos": "ທີ່ມີເຫດການ",
+        "jp": "波瀾万丈",
+        "vie": "đầy sự kiện",
+        "en_pronunciation": "/ɪˈvɛntfəl/",
+        "laos_pronunciation": "thimihedkan",
+        "jp_pronunciation": "haran banjou",
+        "vie_pronunciation": "day su kien"
+      },
+      "means": {
+        "en": "Full of events or incidents",
+        "zh": "（旧约）犹太基督教神话中亚当的妻子：人类第一个女人和母亲；"
+      }
+    },
+    {
+      "word": {
+        "en": "eventually",
+        "laos": "ໃນທີ່ທີ່ສຸດ",
+        "jp": "結局のところ",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/ɪˈvɛnʧəwəli/",
+        "laos_pronunciation": "nai thithisud",
+        "jp_pronunciation": "kekkyoku notokoro",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "After an unspecified period of time or an especially long delay",
+        "zh": "上帝用亚当的肋骨创造了夏娃，并将亚当和夏娃安置在伊甸园里"
+      }
+    },
+    {
+      "word": {
+        "en": "eventual",
+        "laos": "ໃນທີ່ສຸດ",
+        "jp": "最終的な",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/əˈvɛnʧuəl/",
+        "laos_pronunciation": "naithisud",
+        "jp_pronunciation": "saishuuteki na",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "Expected to follow in the indefinite future from causes already operating",
+        "zh": "一天的后半段（从下午晚些时候到夜幕降临，日照逐渐减弱的时期）"
+      }
+    },
+    {
+      "word": {
+        "en": "eventuality",
+        "laos": "ເວລາເກີດເຫດ",
+        "jp": "偶発性",
+        "vie": "tình huống cuối cùng",
+        "en_pronunciation": "/əˌvɛnʧuˈælɪti/",
+        "laos_pronunciation": "velakoedhed",
+        "jp_pronunciation": "guuhatsu sei",
+        "vie_pronunciation": "tinh huong cuoi cung"
+      },
+      "means": {
+        "en": "A possible event or occurrence or result",
+        "zh": "等额或份额；"
+      }
+    },
+    {
+      "word": {
+        "en": "ever",
+        "laos": "ລວງມາ",
+        "jp": "今まで",
+        "vie": "bao giờ hết",
+        "en_pronunciation": "/ˈɛvər/",
+        "laos_pronunciation": "luangma",
+        "jp_pronunciation": "imamade",
+        "vie_pronunciation": "bao gio het"
+      },
+      "means": {
+        "en": "At any time",
+        "zh": "以平衡或公正的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "every",
+        "laos": "ທັງຫມົດ",
+        "jp": "ごとに",
+        "vie": "mỗi",
+        "en_pronunciation": "/ˈɛvəri/",
+        "laos_pronunciation": "thangmod",
+        "jp_pronunciation": "gotoni",
+        "vie_pronunciation": "moi"
+      },
+      "means": {
+        "en": "(used of count nouns) each and all of the members of a group considered singly and without exception",
+        "zh": "一天的后半段（从下午晚些时候到夜幕降临，日照逐渐减弱的时期）"
+      }
+    },
+    {
+      "word": {
+        "en": "everybody",
+        "laos": "ທຸກໆຄົນ",
+        "jp": "みんな",
+        "vie": "mọi người",
+        "en_pronunciation": "/ˈɛvriˌbɑdi/",
+        "laos_pronunciation": "thukkhon",
+        "jp_pronunciation": "minna",
+        "vie_pronunciation": "moi nguoi"
+      },
+      "means": {
+        "en": "Everybody is an English word referring to 'everybody'.",
+        "zh": "在特定地点和时间发生的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "everyday",
+        "laos": "ທຸກໆມື້",
+        "jp": "毎日",
+        "vie": "hàng ngày",
+        "en_pronunciation": "/ˈɛvriˈdeɪ/",
+        "laos_pronunciation": "thukmu",
+        "jp_pronunciation": "mainichi",
+        "vie_pronunciation": "hang ngay"
+      },
+      "means": {
+        "en": "Found in the ordinary course of events; ; ; - Anita Diamant",
+        "zh": "充满事件或事件"
+      }
+    },
+    {
+      "word": {
+        "en": "everyone",
+        "laos": "ບຸກຄົນທຸກຄົນ",
+        "jp": "みんな",
+        "vie": "mọi người",
+        "en_pronunciation": "/ˈɛvriˌwən/",
+        "laos_pronunciation": "bukkhonthukkhon",
+        "jp_pronunciation": "minna",
+        "vie_pronunciation": "moi nguoi"
+      },
+      "means": {
+        "en": "Everyone is an English word referring to 'everyone'.",
+        "zh": "经过一段未指定的时间或特别长的延迟后"
+      }
+    },
+    {
+      "word": {
+        "en": "everything",
+        "laos": "ທຸກສິ່ງທຸກຢ່າງ",
+        "jp": "すべて",
+        "vie": "mọi thứ",
+        "en_pronunciation": "/ˈɛvriˌθɪŋ/",
+        "laos_pronunciation": "thuksingthukyang",
+        "jp_pronunciation": "subete",
+        "vie_pronunciation": "moi thu"
+      },
+      "means": {
+        "en": "Everything is an English word referring to 'everything'.",
+        "zh": "预计将在无限期的未来因已经发生的原因而发生"
+      }
+    },
+    {
+      "word": {
+        "en": "everywhere",
+        "laos": "ທັງຊານ",
+        "jp": "どこでも",
+        "vie": "ở khắp mọi nơi",
+        "en_pronunciation": "/ˈɛvriˌwɛr/",
+        "laos_pronunciation": "thangsan",
+        "jp_pronunciation": "dokodemo",
+        "vie_pronunciation": "o khap moi noi"
+      },
+      "means": {
+        "en": "To or in any or all places; ; ; ; ; (`everyplace' is used informally for `everywhere')",
+        "zh": "可能的事件或发生或结果"
+      }
+    },
+    {
+      "word": {
+        "en": "evident",
+        "laos": "ເຫັນໄດ້",
+        "jp": "明らかな",
+        "vie": "hiển nhiên",
+        "en_pronunciation": "/ˈɛvədənt/",
+        "laos_pronunciation": "hendai",
+        "jp_pronunciation": "akiraka na",
+        "vie_pronunciation": "hien nhien"
+      },
+      "means": {
+        "en": "Clearly revealed to the mind or the senses or judgment",
+        "zh": "随时"
+      }
+    },
+    {
+      "word": {
+        "en": "evidence",
+        "laos": "ຫລັກຖານ",
+        "jp": "証拠",
+        "vie": "bằng chứng",
+        "en_pronunciation": "/ˈɛvədəns/",
+        "laos_pronunciation": "lakthan",
+        "jp_pronunciation": "shouko",
+        "vie_pronunciation": "bang chung"
+      },
+      "means": {
+        "en": "Your basis for belief or disbelief; knowledge on which to base belief",
+        "zh": "（用于可数名词）一个群体中的每个和所有成员都被单独考虑，无一例外"
+      }
+    },
+    {
+      "word": {
+        "en": "evil",
+        "laos": "ຄວາມຊົ່ວ",
+        "jp": "邪悪な",
+        "vie": "tà ác",
+        "en_pronunciation": "/ˈivəl/",
+        "laos_pronunciation": "khuaamsov",
+        "jp_pronunciation": "jaaku na",
+        "vie_pronunciation": "ta ac"
+      },
+      "means": {
+        "en": "Morally objectionable behavior",
+        "zh": "每个人都是一个英语单词，指的是“每个人”。"
+      }
+    },
+    {
+      "word": {
+        "en": "evoke",
+        "laos": "evoke",
+        "jp": "呼び起こす",
+        "vie": "gợi lên",
+        "en_pronunciation": "/ɪˈvoʊk/",
+        "laos_pronunciation": "evoke",
+        "jp_pronunciation": "yobi oko su",
+        "vie_pronunciation": "goi len"
+      },
+      "means": {
+        "en": "Call forth (emotions, feelings, and responses)",
+        "zh": "在正常的事件过程中发现；"
+      }
+    },
+    {
+      "word": {
+        "en": "evolve",
+        "laos": "ພັດທະນາ",
+        "jp": "進化する",
+        "vie": "tiến hóa",
+        "en_pronunciation": "/ɪˈvɑlv/",
+        "laos_pronunciation": "phadthana",
+        "jp_pronunciation": "shinka suru",
+        "vie_pronunciation": "tien hoa"
+      },
+      "means": {
+        "en": "Work out",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "evolution",
+        "laos": "ວິວັດທະນາການ",
+        "jp": "進化",
+        "vie": "sự tiến hóa",
+        "en_pronunciation": "/ˌɛvəˈluʃən/",
+        "laos_pronunciation": "vivadthanakan",
+        "jp_pronunciation": "shinka",
+        "vie_pronunciation": "su tien hoa"
+      },
+      "means": {
+        "en": "A process in which something passes by degrees to a different stage (especially a more advanced or mature stage)",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "evolutionary",
+        "laos": "ວິວັດທະນາການ",
+        "jp": "進化的な",
+        "vie": "tiến hóa",
+        "en_pronunciation": "/ˌɛvəˈluʃəˌnɛri/",
+        "laos_pronunciation": "vivadthanakan",
+        "jp_pronunciation": "shinkateki na",
+        "vie_pronunciation": "tien hoa"
+      },
+      "means": {
+        "en": "Of or relating to or produced by evolution",
+        "zh": "- 安妮塔·迪亚曼特"
+      }
+    },
+    {
+      "word": {
+        "en": "exact",
+        "laos": "ແນ່ຕ້ອງ",
+        "jp": "正確な",
+        "vie": "chính xác",
+        "en_pronunciation": "/ɪgˈzækt/",
+        "laos_pronunciation": "aentong",
+        "jp_pronunciation": "seikaku na",
+        "vie_pronunciation": "chinh xac"
+      },
+      "means": {
+        "en": "Claim as due or just",
+        "zh": "每个人都是一个英语单词，指的是“每个人”。"
+      }
+    },
+    {
+      "word": {
+        "en": "exaggerate",
+        "laos": "ເກີນຄວາມຈິງ",
+        "jp": "誇張する",
+        "vie": "phóng đại",
+        "en_pronunciation": "/ɪgˈzæʤərˌeɪt/",
+        "laos_pronunciation": "koenkhuaamching",
+        "jp_pronunciation": "kochou suru",
+        "vie_pronunciation": "phong dai"
+      },
+      "means": {
+        "en": "To enlarge beyond bounds or the truth",
+        "zh": "Everything是一个英语单词，意为“一切”。"
+      }
+    },
+    {
+      "word": {
+        "en": "examine",
+        "laos": "ກວດສອບ",
+        "jp": "調べる",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ɪgˈzæmɪn/",
+        "laos_pronunciation": "kuadsob",
+        "jp_pronunciation": "shirabe ru",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "Consider in detail and subject to an analysis in order to discover essential features or meaning",
+        "zh": "前往或在任何或所有地点；"
+      }
+    },
+    {
+      "word": {
+        "en": "exaggeration",
+        "laos": "ຄວາມເກີນສ້ວນ",
+        "jp": "誇張",
+        "vie": "cường điệu",
+        "en_pronunciation": "/ɪgˌzæʤərˈeɪʃən/",
+        "laos_pronunciation": "khuaam koen suan",
+        "jp_pronunciation": "kochou",
+        "vie_pronunciation": "cuong dieu"
+      },
+      "means": {
+        "en": "Extravagant exaggeration",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "exam",
+        "laos": "ການສອບເສັງ",
+        "jp": "試験",
+        "vie": "kỳ thi",
+        "en_pronunciation": "/ɪgˈzæm/",
+        "laos_pronunciation": "kansobseng",
+        "jp_pronunciation": "shiken",
+        "vie_pronunciation": "ky thi"
+      },
+      "means": {
+        "en": "A set of questions or exercises evaluating skill or knowledge",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "examination",
+        "laos": "ການສອບເສັງ",
+        "jp": "試験",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ɪgˌzæməˈneɪʃən/",
+        "laos_pronunciation": "kansobseng",
+        "jp_pronunciation": "shiken",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "The act of examining something closely (as for mistakes)",
+        "zh": ";"
+      }
+    }
+  ]
+}

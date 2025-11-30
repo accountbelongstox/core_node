@@ -122,7 +122,7 @@ function New-CommandContent {
     - PowerShell Command: $PsCommand
     - File Number: $FileNumber
     - File Name: $FileName
-    - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #>
 
 Set-StrictMode -Version Latest
@@ -437,15 +437,13 @@ if (`$upgradeChoice -eq "y" -or `$upgradeChoice -eq "Y") {
     }
 
     $syncSection = @"
-`$currentWorkingDir = Get-Location
 Write-Host ""
 Write-Host "Syncing MCP Server Configurations..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "[INFO] Executing: python -u ```"${syncScriptPath}```" --target ${TargetName} --working-dir ```"`$currentWorkingDir```"" -ForegroundColor Cyan
-Write-Host "[INFO] Working Directory: `$currentWorkingDir" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: python ${ToolType}_sync_mcp_servers.py" -ForegroundColor Cyan
 Write-Host ""
 
-python -u "${syncScriptPath}" --target ${TargetName} --working-dir "`$currentWorkingDir"
+python "${syncScriptPath}"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -532,6 +530,11 @@ function Get-ToolConfiguration {
         "claude" = @{
             DisplayName = "Claude Code"
             TargetName = "claude"
+            SupportUpgrade = $true
+        }
+        "codex" = @{
+            DisplayName = "Codex CLI"
+            TargetName = "codex"
             SupportUpgrade = $true
         }
         "droid" = @{
@@ -938,7 +941,7 @@ function New-SSHCommandContent {
     - SSH Connection: $sshConnection
     - File Number: $FileNumber
     - File Name: $FileName
-    - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #>
 
 Set-StrictMode -Version Latest
@@ -1134,7 +1137,7 @@ function New-LinuxCommandContent {
 #     - Command: $PsCommand
 #     - File Number: $FileNumber
 #     - File Name: $FileName
-#     - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 #
 # Environment Variables:
 #     Environment variables are managed by linux_path_function.sh
@@ -1263,7 +1266,7 @@ function New-LinuxSSHCommandContent {
 #     - SSH Connection: $sshConnection
 #     - File Number: $FileNumber
 #     - File Name: $FileName
-#     - Generation Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
 # =============================================================================
 
 set -e
@@ -1338,10 +1341,10 @@ $connectionSection
 
 <#
 .SYNOPSIS
-    Write Linux script to liunxenvs directory
+    Write Linux script to linuxenvs directory
 
 .DESCRIPTION
-    Write generated Linux bash script to scripts/liunxenvs directory
+    Write generated Linux bash script to scripts/linuxenvs directory
     Makes script executable and creates symlink via linux_path_function.sh
 
 .PARAMETER Content
@@ -1371,15 +1374,15 @@ function Write-LinuxScript {
     $scriptParentDir = Split-Path $PSScriptRoot -Parent
     $shellsDir = Split-Path $scriptParentDir -Parent
     $scriptsDir = Split-Path $shellsDir -Parent
-    $liunxenvsDir = Join-Path $scriptsDir "liunxenvs"
+    $linuxenvsDir = Join-Path $scriptsDir "linuxenvs"
 
-    if (-not (Test-Path $liunxenvsDir)) {
-        New-Item -ItemType Directory -Path $liunxenvsDir -Force | Out-Null
-        Write-ColorMessage -Message "Created liunxenvs directory: $liunxenvsDir" -Type "Success"
+    if (-not (Test-Path $linuxenvsDir)) {
+        New-Item -ItemType Directory -Path $linuxenvsDir -Force | Out-Null
+        Write-ColorMessage -Message "Created linuxenvs directory: $linuxenvsDir" -Type "Success"
     }
 
     $fileName = "${CommandPrefix}${FileNumber}.sh"
-    $targetPath = Join-Path $liunxenvsDir $fileName
+    $targetPath = Join-Path $linuxenvsDir $fileName
 
     try {
         $Content | Out-File -FilePath $targetPath -Encoding UTF8 -Force
@@ -1429,7 +1432,7 @@ function Write-LinuxScript {
 # Linux Script Generation Functions:
 # - New-LinuxCommandContent      : Generate Linux bash script for AI tools
 # - New-LinuxSSHCommandContent   : Generate Linux SSH connection bash script
-# - Write-LinuxScript            : Write Linux script to liunxenvs directory
+# - Write-LinuxScript            : Write Linux script to linuxenvs directory
 #
 # UI/Helper Functions:
 # - Show-CommandPreview          : Preview generated command content
@@ -1440,7 +1443,7 @@ function Write-LinuxScript {
 # - Pre-launch scripts: {toolname}_pre_launch.ps1 in pytools\ai_tools\
 # - Update scripts: {toolname}_update.bat in pytools\ai_tools\
 # - Windows scripts: {commandprefix}{number}.ps1 in scripts\winenvs\
-# - Linux scripts: {commandprefix}{number}.sh in scripts\liunxenvs\
+# - Linux scripts: {commandprefix}{number}.sh in scripts\linuxenvs\
 #
 # Cross-Platform Script Generation:
 # When New-CompleteCommandContent is called, it automatically generates both:

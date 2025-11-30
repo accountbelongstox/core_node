@@ -1,0 +1,45 @@
+<?php
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class DownloadTask extends Model
+{
+    protected $fillable = [
+        'url',
+        'save_path',
+        'filename',
+        'status',
+        'progress',
+        'total_size',
+        'downloaded_size',
+        'error_message'
+    ];
+
+    protected $casts = [
+        'total_size' => 'integer',
+        'downloaded_size' => 'integer',
+        'progress' => 'integer',
+    ];
+
+    public function getProgressPercentageAttribute()
+    {
+        if ($this->total_size > 0) {
+            return round(($this->downloaded_size / $this->total_size) * 100);
+        }
+        return 0;
+    }
+} 

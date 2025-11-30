@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class NotificationsViewAppCodemart extends StatefulWidget {
   const NotificationsViewAppCodemart({super.key});
@@ -136,7 +137,7 @@ class _NotificationsViewAppCodemartState extends State<NotificationsViewAppCodem
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    context.tr(LocalizationKeysAppCodemart.codemartNoData),
+                    LocalizationKeysAppCodemart.codemartNoData.tr(context),
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                 ],

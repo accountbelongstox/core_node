@@ -5,7 +5,7 @@
 // 3. Never create or update documentation (*.md).
 // 4. Never write summaries during development or thinking process.
 // 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
@@ -14,16 +14,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
-import '../../../models_app_wuy/search_filter_model_app_wuy.dart';
+import '../../../models_app_wuy/search_history_model_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../services_app_wuy/wuy_unified_service.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
-import '../../../widgets_app_wuy/wuy_gradient_button.dart';
-import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
 
 class WuySearchScreen extends StatefulWidget {
   const WuySearchScreen({super.key});
@@ -33,48 +33,106 @@ class WuySearchScreen extends StatefulWidget {
 }
 
 class _WuySearchScreenState extends State<WuySearchScreen> {
+  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _signatureController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
+  List<SearchHistoryModelAppWuy> _searchHistory = [];
+  List<FriendModelAppWuy> _recentlyViewedFriends = [];
+  List<FriendModelAppWuy> _recommendedFriends = [];
+  List<FriendModelAppWuy> _searchResults = [];
   SearchFilterModelAppWuy _searchFilter = const SearchFilterModelAppWuy();
   String? _selectedGender;
-  String? _activeQuickFilter;
+  bool _showSearchHistory = false;
   bool _isSearching = false;
-  List<FriendModelAppWuy> _searchResults = [];
 
-  static const List<_QuickFilterOption> _quickFilterOptions = [
-    _QuickFilterOption(
-      key: 'online',
-      label: 'Online now',
-      description: 'Show friends who are currently active',
-      icon: Icons.flash_on_rounded,
-    ),
-    _QuickFilterOption(
-      key: 'favorites',
-      label: 'Favorites',
-      description: 'People you marked as important',
-      icon: Icons.star_rounded,
-    ),
-    _QuickFilterOption(
-      key: 'monitoring',
-      label: 'Device monitoring',
-      description: 'Devices with monitoring enabled',
-      icon: Icons.shield_moon_rounded,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+    _searchFocusNode.addListener(_handleSearchFocusChange);
+  }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _nameController.dispose();
     _signatureController.dispose();
     _phoneController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleSearchFocusChange() {
+    if (_searchFocusNode.hasFocus) {
+      setState(() {
+        _showSearchHistory = true;
+      });
+    }
+  }
+
+  Future<void> _loadData() async {
+    await _loadRecentlyViewedFriends();
+    await _loadRecommendedFriends();
+    _loadSearchHistory();
+  }
+
+  Future<void> _loadRecentlyViewedFriends() async {
+    try {
+      final service = WuyUnifiedService();
+      final response = await service.getFriends();
+      if (response.data != null && mounted) {
+        setState(() {
+          _recentlyViewedFriends = response.data!.take(4).toList();
+        });
+      }
+    } catch (error) {
+      debugPrint('Error loading recently viewed friends: $error');
+    }
+  }
+
+  Future<void> _loadRecommendedFriends() async {
+    try {
+      final service = WuyUnifiedService();
+      final response = await service.getFriends();
+      if (response.data != null && mounted) {
+        setState(() {
+          _recommendedFriends = response.data!.skip(4).take(6).toList();
+        });
+      }
+    } catch (error) {
+      debugPrint('Error loading recommended friends: $error');
+    }
+  }
+
+  void _loadSearchHistory() {
+    setState(() {
+      _searchHistory = [
+        SearchHistoryModelAppWuy(
+          id: '1',
+          searchText: 'Zhang Wei',
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+        ),
+        SearchHistoryModelAppWuy(
+          id: '2',
+          searchText: 'Li Ming',
+          timestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+        SearchHistoryModelAppWuy(
+          id: '3',
+          searchText: 'Wang Fang',
+          timestamp: DateTime.now().subtract(const Duration(days: 3)),
+        ),
+      ];
+    });
   }
 
   void _performSearch() async {
     setState(() {
       _isSearching = true;
+      _showSearchHistory = false;
     });
 
     _searchFilter = _searchFilter.copyWith(
@@ -89,6 +147,24 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           : _phoneController.text.trim(),
       gender: _selectedGender,
     );
+
+    final searchText = _searchController.text.trim();
+    if (searchText.isNotEmpty) {
+      setState(() {
+        _searchHistory.insert(
+          0,
+          SearchHistoryModelAppWuy(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            searchText: searchText,
+            timestamp: DateTime.now(),
+            filter: _searchFilter,
+          ),
+        );
+        if (_searchHistory.length > 10) {
+          _searchHistory.removeLast();
+        }
+      });
+    }
 
     try {
       final service = WuyUnifiedService();
@@ -127,18 +203,9 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           return false;
         }
 
-        if (_activeQuickFilter != null) {
-          switch (_activeQuickFilter) {
-            case 'online':
-              if (!friend.isOnline) return false;
-              break;
-            case 'favorites':
-              if (!friend.isFavorite) return false;
-              break;
-            case 'monitoring':
-              if (!friend.isMonitoring) return false;
-              break;
-          }
+        if (searchText.isNotEmpty &&
+            !friend.displayName.toLowerCase().contains(searchText.toLowerCase())) {
+          return false;
         }
 
         return true;
@@ -159,53 +226,67 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     }
   }
 
-  void _resetFilters() {
-    _nameController.clear();
-    _signatureController.clear();
-    _phoneController.clear();
-
+  void _clearSearchHistory() {
     setState(() {
-      _selectedGender = null;
-      _activeQuickFilter = null;
-      _searchFilter = const SearchFilterModelAppWuy();
-      _searchResults = [];
+      _searchHistory.clear();
     });
+  }
+
+  void _selectHistoryItem(SearchHistoryModelAppWuy history) {
+    _searchController.text = history.searchText;
+    if (history.filter != null) {
+      _searchFilter = history.filter!;
+      _nameController.text = history.filter!.name ?? '';
+      _signatureController.text = history.filter!.signature ?? '';
+      _phoneController.text = history.filter!.phone ?? '';
+      _selectedGender = history.filter!.gender;
+    }
+    setState(() {
+      _showSearchHistory = false;
+    });
+    _performSearch();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: WuyAppThemeConfig.wuyBackgroundColor,
-      appBar: _buildPageAppBar(context),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final bool isWide = constraints.maxWidth >= 960;
-          final double maxContentWidth = isWide ? 1080 : constraints.maxWidth;
-
-          return Center(
-            child: SingleChildScrollView(
+      appBar: _buildCustomAppBar(context),
+      body: GestureDetector(
+        onTap: () {
+          setState(() {
+            _showSearchHistory = false;
+          });
+          FocusScope.of(context).unfocus();
+        },
+        child: Stack(
+          children: [
+            SingleChildScrollView(
               padding: EdgeInsets.symmetric(
-                horizontal: isWide ? 48 : 20,
-                vertical: 32,
+                horizontal: ThemeDimensions.paddingMedium,
+                vertical: ThemeDimensions.paddingMedium,
               ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxContentWidth),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeaderSection(context, isWide),
-                    const SizedBox(height: 28),
-                    _buildSearchForm(context, maxContentWidth),
-                    const SizedBox(height: 24),
-                    _buildQuickSuggestions(context),
-                    const SizedBox(height: 28),
-                    _buildSearchResultsSection(context, maxContentWidth),
-                  ],
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSearchCriteriaSection(context),
+                  SizedBox(height: ThemeDimensions.paddingMedium),
+                  _buildSearchBarSection(context),
+                  SizedBox(height: ThemeDimensions.paddingLarge),
+                  if (_searchResults.isEmpty && !_isSearching) ...[
+                    _buildRecentlyViewedSection(context),
+                    SizedBox(height: ThemeDimensions.paddingLarge),
+                    _buildRecommendedSection(context),
+                  ] else if (_isSearching)
+                    _buildLoadingState(context)
+                  else
+                    _buildSearchResultsSection(context),
+                ],
               ),
             ),
-          );
-        },
+            if (_showSearchHistory) _buildSearchHistoryOverlay(context),
+          ],
+        ),
       ),
       bottomNavigationBar: WuyBottomNavigation(
         currentIndex: 2,
@@ -228,12 +309,14 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     );
   }
 
-  PreferredSizeWidget _buildPageAppBar(BuildContext context) {
+  PreferredSizeWidget _buildCustomAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-      foregroundColor: Colors.white,
       elevation: 0,
-      centerTitle: true,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => context.pop(),
+      ),
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -246,725 +329,595 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           ),
         ),
       ),
-      title: Text(
-        LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-        style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 22,
-          letterSpacing: -0.5,
-        ),
-      ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => context.pop(),
-      ),
-    );
-  }
-
-  Widget _buildHeaderSection(BuildContext context, bool isWide) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isWide ? 40 : 24,
-        vertical: isWide ? 36 : 28,
-      ),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            WuyAppThemeConfig.wuyPrimaryColor,
-            ThemeColors.blue80,
-            ThemeColors.accent,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.15),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Row(
         children: [
+          Icon(
+            Icons.location_on,
+            color: Colors.white,
+            size: 32,
+          ),
+          SizedBox(width: ThemeDimensions.paddingSmall),
           Text(
-            'Discover new people and stay connected',
-            style: textTheme.headlineSmall?.copyWith(
+            LocalizationKeysAppWuy.wuySearchTitle.tr(context),
+            style: ThemeTextStyles.headline6.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
-              height: 1.2,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Use rich filters, quick suggestions and live status to find the right teammate or reconnect with close friends.',
-            style: textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withOpacity(0.85),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 16,
-            runSpacing: 12,
-            children: [
-              _buildMetricTile('132', 'Active today', Icons.flash_on_rounded),
-              _buildMetricTile('58', 'Near your city', Icons.location_on_rounded),
-              _buildMetricTile('24', 'Mutual interests', Icons.groups_rounded),
-            ],
-          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMetricTile(String value, String label, IconData icon) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.share, color: Colors.white),
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(LocalizationKeysAppWuy.wuySearchShareIcon.tr(context)),
               ),
-              Text(
-                label,
-                style: textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchForm(BuildContext context, double maxWidth) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final bool isWide = maxWidth >= 760;
-    final double fieldWidth = isWide ? (maxWidth - 32) / 2 : maxWidth;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isWide ? 32 : 24,
-        vertical: isWide ? 32 : 24,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: ThemeColors.black.withOpacity(0.03)),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Search filters',
-            style: textTheme.titleMedium?.copyWith(
-              color: WuyAppThemeConfig.wuyTextPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              SizedBox(
-                width: fieldWidth,
-                child: _buildTextFieldCard(
-                  title: LocalizationKeysAppWuy.wuySearchName.tr(context),
-                  controller: _nameController,
-                  hintText:
-                      LocalizationKeysAppWuy.wuySearchNameHint.tr(context),
-                ),
-              ),
-              SizedBox(
-                width: fieldWidth,
-                child: _buildTextFieldCard(
-                  title:
-                      LocalizationKeysAppWuy.wuySearchSignature.tr(context),
-                  controller: _signatureController,
-                  hintText:
-                      LocalizationKeysAppWuy.wuySearchSignatureHint.tr(context),
-                  maxLines: 3,
-                ),
-              ),
-              SizedBox(
-                width: fieldWidth,
-                child: _buildTextFieldCard(
-                  title: LocalizationKeysAppWuy.wuySearchPhone.tr(context),
-                  controller: _phoneController,
-                  hintText:
-                      LocalizationKeysAppWuy.wuySearchPhoneHint.tr(context),
-                  keyboardType: TextInputType.phone,
-                ),
-              ),
-              SizedBox(
-                width: fieldWidth,
-                child: _buildGenderSelector(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-                    side: BorderSide(
-                      color:
-                          WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.4),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                  ),
-                  onPressed: _resetFilters,
-                  child: Text(
-                    LocalizationKeysAppWuy.wuySearchReset.tr(context),
-                    style: textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: WuyGradientButton(
-                  text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-                  onPressed: _performSearch,
-                  height: 52,
-                  borderRadius: 26.0,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextFieldCard({
-    required String title,
-    required TextEditingController controller,
-    required String hintText,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ThemeColors.black.withOpacity(0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: WuyAppThemeConfig.wuyTextPrimary,
-                ),
-          ),
-          const SizedBox(height: 12),
-          WuyModernInputField(
-            controller: controller,
-            keyboardType: keyboardType ?? TextInputType.text,
-            hintText: hintText,
-            maxLines: maxLines,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenderSelector(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final List<_GenderOption> options = [
-      _GenderOption(
-        label: LocalizationKeysAppWuy.wuySearchMale.tr(context),
-        value: 'male',
-      ),
-      _GenderOption(
-        label: LocalizationKeysAppWuy.wuySearchFemale.tr(context),
-        value: 'female',
-      ),
-      const _GenderOption(label: 'Any gender', value: null),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ThemeColors.black.withOpacity(0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            LocalizationKeysAppWuy.wuySearchGender.tr(context),
-            style: textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: WuyAppThemeConfig.wuyTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: options.map((option) {
-              final bool isSelected = option.value == null
-                  ? _selectedGender == null
-                  : _selectedGender == option.value;
-
-              return ChoiceChip(
-                label: Text(option.label),
-                selected: isSelected,
-                onSelected: (_) {
-                  setState(() {
-                    _selectedGender = option.value;
-                  });
-                },
-                selectedColor:
-                    WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.18),
-                backgroundColor: Colors.grey[100],
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? WuyAppThemeConfig.wuyPrimaryColor
-                      : WuyAppThemeConfig.wuyTextSecondary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: isSelected
-                        ? WuyAppThemeConfig.wuyPrimaryColor
-                        : WuyAppThemeConfig.wuyTextSecondary
-                            .withOpacity(0.18),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickSuggestions(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: ThemeColors.black.withOpacity(0.03)),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.05),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick filters',
-            style: textTheme.titleMedium?.copyWith(
-              color: WuyAppThemeConfig.wuyTextPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: _quickFilterOptions.map((option) {
-              final bool isSelected = _activeQuickFilter == option.key;
-              return Tooltip(
-                message: option.description,
-                child: FilterChip(
-                  avatar: Icon(
-                    option.icon,
-                    size: 18,
-                    color: isSelected
-                        ? WuyAppThemeConfig.wuyPrimaryColor
-                        : WuyAppThemeConfig.wuyTextSecondary,
-                  ),
-                  label: Text(option.label),
-                  selected: isSelected,
-                  onSelected: (_) => _toggleQuickFilter(option.key),
-                  backgroundColor: Colors.grey[100],
-                  selectedColor:
-                      WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.18),
-                  checkmarkColor: WuyAppThemeConfig.wuyPrimaryColor,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? WuyAppThemeConfig.wuyPrimaryColor
-                        : WuyAppThemeConfig.wuyTextSecondary,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: isSelected
-                          ? WuyAppThemeConfig.wuyPrimaryColor
-                          : WuyAppThemeConfig.wuyTextSecondary
-                              .withOpacity(0.2),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _toggleQuickFilter(String key) {
-    setState(() {
-      _activeQuickFilter = _activeQuickFilter == key ? null : key;
-    });
-    _performSearch();
-  }
-
-  Widget _buildSearchResultsSection(
-      BuildContext context, double contentWidth) {
-    if (_isSearching) {
-      return _buildLoadingState(context);
-    }
-
-    if (_searchResults.isEmpty) {
-      return _buildEmptyState(context);
-    }
-
-    final int columns = contentWidth >= 960
-        ? 3
-        : contentWidth >= 680
-            ? 2
-            : 1;
-    const double spacing = 20;
-    final double cardWidth = columns == 1
-        ? contentWidth
-        : (contentWidth - (columns - 1) * spacing) / columns;
-
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+            );
+          },
+          tooltip: LocalizationKeysAppWuy.wuySearchShareIcon.tr(context),
+        ),
+        Stack(
           children: [
-            Text(
-              'Search results',
-              style: textTheme.titleMedium?.copyWith(
-                color: WuyAppThemeConfig.wuyTextPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            IconButton(
+              icon: Icon(Icons.notifications, color: Colors.white),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(LocalizationKeysAppWuy.wuySearchNotificationIcon.tr(context)),
+                  ),
+                );
+              },
+              tooltip: LocalizationKeysAppWuy.wuySearchNotificationIcon.tr(context),
             ),
-            const SizedBox(width: 12),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: ThemeColors.blue05,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                '${_searchResults.length} matches',
-                style: textTheme.labelMedium?.copyWith(
-                  color: WuyAppThemeConfig.wuyPrimaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (_activeQuickFilter != null) ...[
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            Positioned(
+              right: 8,
+              top: 8,
+              child: Container(
+                padding: EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.red,
+                  shape: BoxShape.circle,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _quickFilterOptions
-                          .firstWhere((option) => option.key == _activeQuickFilter)
-                          .icon,
-                      size: 16,
-                      color: WuyAppThemeConfig.wuyPrimaryColor,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _quickFilterOptions
-                          .firstWhere((option) => option.key == _activeQuickFilter)
-                          .label,
-                      style: textTheme.labelMedium?.copyWith(
-                        color: WuyAppThemeConfig.wuyPrimaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                constraints: BoxConstraints(
+                  minWidth: 16,
+                  minHeight: 16,
+                ),
+                child: Text(
+                  '3',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ],
+            ),
           ],
         ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: _searchResults
-              .map(
-                (friend) => SizedBox(
-                  width: columns == 1 ? contentWidth : cardWidth,
-                  child: _buildFriendCard(context, friend),
-                ),
-              )
-              .toList(),
+        Padding(
+          padding: EdgeInsets.only(right: ThemeDimensions.paddingMedium),
+          child: GestureDetector(
+            onTap: () {
+              context.go(WuyAppRouter.routeProfile);
+            },
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white,
+              child: Icon(
+                Icons.person,
+                color: WuyAppThemeConfig.wuyPrimaryColor,
+                size: 22,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildFriendCard(BuildContext context, FriendModelAppWuy friend) {
-    final bool isOnline = friend.isOnline;
-    final Color statusColor = isOnline
-        ? WuyAppThemeConfig.wuyOnlineColor
-        : WuyAppThemeConfig.wuyTextSecondary;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: () => context.go(
-        WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id),
+  Widget _buildSearchCriteriaSection(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: ThemeColors.black.withOpacity(0.04)),
-          boxShadow: [
-            BoxShadow(
-              color: ThemeColors.black.withOpacity(0.08),
-              blurRadius: 24,
-              offset: const Offset(0, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Search Filters',
+            style: ThemeTextStyles.subtitle1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: WuyAppThemeConfig.wuyTextPrimary,
             ),
-          ],
+          ),
+          SizedBox(height: ThemeDimensions.paddingMedium),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildCompactFilterField(
+                  controller: _nameController,
+                  label: LocalizationKeysAppWuy.wuySearchName.tr(context),
+                  icon: Icons.person_outline,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.paddingSmall),
+              Expanded(
+                flex: 2,
+                child: _buildCompactFilterField(
+                  controller: _signatureController,
+                  label: LocalizationKeysAppWuy.wuySearchSignature.tr(context),
+                  icon: Icons.edit_outlined,
+                ),
+              ),
+              SizedBox(width: ThemeDimensions.paddingSmall),
+              Expanded(
+                flex: 1,
+                child: _buildGenderDropdown(context),
+              ),
+              SizedBox(width: ThemeDimensions.paddingSmall),
+              Expanded(
+                flex: 2,
+                child: _buildCompactFilterField(
+                  controller: _phoneController,
+                  label: LocalizationKeysAppWuy.wuySearchPhone.tr(context),
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactFilterField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: ThemeTextStyles.bodyText2,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, size: 18, color: WuyAppThemeConfig.wuyTextSecondary),
+        hintText: label,
+        hintStyle: ThemeTextStyles.caption.copyWith(
+          color: ThemeColors.grey400,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor:
-                          WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.12),
-                      backgroundImage: friend.avatarUrl != null &&
-                              friend.avatarUrl!.isNotEmpty
-                          ? NetworkImage(friend.avatarUrl!)
-                          : null,
-                      child: friend.avatarUrl == null ||
-                              friend.avatarUrl!.isEmpty
-                          ? Text(
-                              friend.displayName.isNotEmpty
-                                  ? friend.displayName[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                color: WuyAppThemeConfig.wuyPrimaryColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            )
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 2,
-                      right: 2,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: isOnline
-                              ? WuyAppThemeConfig.wuyOnlineColor
-                              : Colors.grey[400],
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+        filled: true,
+        fillColor: ThemeColors.grey05,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide(color: ThemeColors.grey200, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 1.5),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ThemeDimensions.paddingSmall,
+          vertical: 10,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenderDropdown(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: _selectedGender,
+      style: ThemeTextStyles.bodyText2.copyWith(
+        color: WuyAppThemeConfig.wuyTextPrimary,
+      ),
+      decoration: InputDecoration(
+        prefixIcon: Icon(Icons.wc, size: 18, color: WuyAppThemeConfig.wuyTextSecondary),
+        filled: true,
+        fillColor: ThemeColors.grey05,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide(color: ThemeColors.grey200, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 1.5),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ThemeDimensions.paddingSmall,
+          vertical: 10,
+        ),
+      ),
+      items: [
+        DropdownMenuItem(
+          value: null,
+          child: Text(
+            LocalizationKeysAppWuy.wuySearchAllGender.tr(context),
+            style: ThemeTextStyles.bodyText2,
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'male',
+          child: Text(
+            LocalizationKeysAppWuy.wuySearchMale.tr(context),
+            style: ThemeTextStyles.bodyText2,
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'female',
+          child: Text(
+            LocalizationKeysAppWuy.wuySearchFemale.tr(context),
+            style: ThemeTextStyles.bodyText2,
+          ),
+        ),
+      ],
+      onChanged: (value) {
+        setState(() {
+          _selectedGender = value;
+        });
+      },
+    );
+  }
+
+  Widget _buildSearchBarSection(BuildContext context) {
+    return Container(
+      key: ValueKey('search_bar_container'),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        border: Border.all(
+          color: _searchFocusNode.hasFocus
+              ? WuyAppThemeConfig.wuyPrimaryColor
+              : ThemeColors.grey300,
+          width: _searchFocusNode.hasFocus ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: ThemeDimensions.paddingMedium),
+            child: Icon(
+              Icons.search,
+              color: WuyAppThemeConfig.wuyPrimaryColor,
+              size: 22,
+            ),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              style: ThemeTextStyles.bodyText1,
+              decoration: InputDecoration(
+                hintText: LocalizationKeysAppWuy.wuySearchPlaceholder.tr(context),
+                hintStyle: ThemeTextStyles.bodyText2.copyWith(
+                  color: ThemeColors.grey400,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: ThemeDimensions.paddingMedium,
+                  vertical: 14,
+                ),
+              ),
+              onSubmitted: (_) => _performSearch(),
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.all(6),
+            child: ElevatedButton(
+              onPressed: _performSearch,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: ThemeDimensions.paddingLarge,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                LocalizationKeysAppWuy.wuySearchTitle.tr(context),
+                style: ThemeTextStyles.button.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchHistoryOverlay(BuildContext context) {
+    return Positioned(
+      left: ThemeDimensions.paddingMedium,
+      right: ThemeDimensions.paddingMedium,
+      top: 184,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(ThemeDimensions.radiusLarge),
+          bottomRight: Radius.circular(ThemeDimensions.radiusLarge),
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: 300,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(ThemeDimensions.radiusLarge),
+              bottomRight: Radius.circular(ThemeDimensions.radiusLarge),
+            ),
+            border: Border(
+              left: BorderSide(
+                color: _searchFocusNode.hasFocus
+                    ? WuyAppThemeConfig.wuyPrimaryColor
+                    : ThemeColors.grey300,
+                width: _searchFocusNode.hasFocus ? 2 : 1,
+              ),
+              right: BorderSide(
+                color: _searchFocusNode.hasFocus
+                    ? WuyAppThemeConfig.wuyPrimaryColor
+                    : ThemeColors.grey300,
+                width: _searchFocusNode.hasFocus ? 2 : 1,
+              ),
+              bottom: BorderSide(
+                color: _searchFocusNode.hasFocus
+                    ? WuyAppThemeConfig.wuyPrimaryColor
+                    : ThemeColors.grey300,
+                width: _searchFocusNode.hasFocus ? 2 : 1,
+              ),
+            ),
+          ),
+          child: _searchHistory.isEmpty
+              ? Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history, color: ThemeColors.grey400, size: 20),
+                      SizedBox(width: ThemeDimensions.paddingSmall),
+                      Text(
+                        'No search history',
+                        style: ThemeTextStyles.bodyText2.copyWith(
+                          color: ThemeColors.grey400,
                         ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ThemeDimensions.paddingMedium,
+                        vertical: ThemeDimensions.paddingSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(ThemeDimensions.radiusMedium),
+                          topRight: Radius.circular(ThemeDimensions.radiusMedium),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.history,
+                                size: 16,
+                                color: WuyAppThemeConfig.wuyPrimaryColor,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                LocalizationKeysAppWuy.wuySearchHistory.tr(context),
+                                style: ThemeTextStyles.subtitle2.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: WuyAppThemeConfig.wuyPrimaryColor,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                          InkWell(
+                            onTap: _clearSearchHistory,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                LocalizationKeysAppWuy.wuySearchClearHistory.tr(context),
+                                style: ThemeTextStyles.caption.copyWith(
+                                  color: WuyAppThemeConfig.wuyPrimaryColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: _searchHistory.length > 5 ? 5 : _searchHistory.length,
+                        separatorBuilder: (context, index) => Divider(
+                          height: 1,
+                          indent: 48,
+                          color: ThemeColors.grey200,
+                        ),
+                        itemBuilder: (context, index) {
+                          final history = _searchHistory[index];
+                          return InkWell(
+                            onTap: () => _selectHistoryItem(history),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: ThemeDimensions.paddingMedium,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    color: ThemeColors.grey400,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: ThemeDimensions.paddingMedium),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          history.searchText,
+                                          style: ThemeTextStyles.bodyText2.copyWith(
+                                            color: WuyAppThemeConfig.wuyTextPrimary,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          _formatHistoryTime(history.timestamp),
+                                          style: ThemeTextStyles.caption.copyWith(
+                                            color: ThemeColors.grey400,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.north_west,
+                                    color: ThemeColors.grey400,
+                                    size: 16,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              friend.displayNameOrUsername,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    color: WuyAppThemeConfig.wuyTextPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                          ),
-                          if (friend.isFavorite)
-                            Icon(
-                              Icons.star_rounded,
-                              size: 20,
-                              color: WuyAppThemeConfig.wuySecondaryColor,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        friend.bio?.isNotEmpty == true
-                            ? friend.bio!
-                            : 'No bio shared yet',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: WuyAppThemeConfig.wuyTextSecondary,
-                              height: 1.4,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentlyViewedSection(BuildContext context) {
+    if (_recentlyViewedFriends.isEmpty) return SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          LocalizationKeysAppWuy.wuySearchRecentlyViewed.tr(context),
+          style: ThemeTextStyles.subtitle1.copyWith(
+            fontWeight: FontWeight.w600,
+            color: WuyAppThemeConfig.wuyTextPrimary,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.paddingMedium),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _recentlyViewedFriends.length,
+            separatorBuilder: (context, index) => SizedBox(width: ThemeDimensions.paddingMedium),
+            itemBuilder: (context, index) {
+              final friend = _recentlyViewedFriends[index];
+              return _buildRecentlyViewedCard(context, friend);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentlyViewedCard(BuildContext context, FriendModelAppWuy friend) {
+    return GestureDetector(
+      onTap: () {
+        context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
+      },
+      child: Container(
+        width: 80,
+        padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _buildInfoChip(
-                  icon: Icons.circle,
-                  iconSize: 10,
-                  iconColor: statusColor,
-                  text: friend.statusText,
-                  textColor: statusColor,
-                ),
-                if (friend.phoneNumber != null &&
-                    friend.phoneNumber!.isNotEmpty)
-                  _buildInfoChip(
-                    icon: Icons.phone_rounded,
-                    text: friend.phoneNumber!,
-                  ),
-                if (friend.relationship != null &&
-                    friend.relationship!.isNotEmpty)
-                  _buildInfoChip(
-                    icon: Icons.favorite_border_rounded,
-                    text: friend.relationship!,
-                  ),
-                if (friend.daysTogether != null)
-                  _buildInfoChip(
-                    icon: Icons.calendar_today_rounded,
-                    text: '${friend.daysTogether} days connected',
-                  ),
-                if (friend.isMonitoring)
-                  _buildInfoChip(
-                    icon: Icons.shield_outlined,
-                    text: 'Monitoring enabled',
-                    iconColor: WuyAppThemeConfig.wuySecondaryColor,
-                    textColor: WuyAppThemeConfig.wuySecondaryColor,
-                  ),
-              ],
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.12),
+              backgroundImage: friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty
+                  ? NetworkImage(friend.avatarUrl!)
+                  : null,
+              child: friend.avatarUrl == null || friend.avatarUrl!.isEmpty
+                  ? Text(
+                      friend.displayName.isNotEmpty ? friend.displayName[0].toUpperCase() : '?',
+                      style: TextStyle(
+                        color: WuyAppThemeConfig.wuyPrimaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () => context.go(
-                    WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-                  ),
-                  icon: const Icon(Icons.person_search_rounded),
-                  label: const Text('View profile'),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Start chat',
-                  icon: Icon(
-                    Icons.chat_bubble_rounded,
-                    color: WuyAppThemeConfig.wuyPrimaryColor,
-                  ),
-                  onPressed: () {
-                    context.go(
-                      WuyAppRouter.routeChat.replaceAll(':id', friend.id),
-                    );
-                  },
-                ),
-              ],
+            SizedBox(height: ThemeDimensions.paddingSmall),
+            Text(
+              friend.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: ThemeTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -972,134 +925,212 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     );
   }
 
-  Widget _buildInfoChip({
-    required IconData icon,
-    required String text,
-    double iconSize = 14,
-    Color? iconColor,
-    Color? textColor,
-  }) {
-    final Color effectiveIconColor =
-        iconColor ?? WuyAppThemeConfig.wuyTextSecondary;
-    final Color effectiveTextColor =
-        textColor ?? WuyAppThemeConfig.wuyTextSecondary;
+  Widget _buildRecommendedSection(BuildContext context) {
+    if (_recommendedFriends.isEmpty) return SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: effectiveTextColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          LocalizationKeysAppWuy.wuySearchRecommended.tr(context),
+          style: ThemeTextStyles.subtitle1.copyWith(
+            fontWeight: FontWeight.w600,
+            color: WuyAppThemeConfig.wuyTextPrimary,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.paddingMedium),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: _recommendedFriends.length,
+          separatorBuilder: (context, index) => SizedBox(height: ThemeDimensions.paddingSmall),
+          itemBuilder: (context, index) {
+            final friend = _recommendedFriends[index];
+            return _buildRecommendedFriendCard(context, friend);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedFriendCard(BuildContext context, FriendModelAppWuy friend) {
+    return GestureDetector(
+      onTap: () {
+        context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
+      },
+      child: Container(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.12),
+                  backgroundImage: friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty
+                      ? NetworkImage(friend.avatarUrl!)
+                      : null,
+                  child: friend.avatarUrl == null || friend.avatarUrl!.isEmpty
+                      ? Text(
+                          friend.displayName.isNotEmpty ? friend.displayName[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            color: WuyAppThemeConfig.wuyPrimaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        )
+                      : null,
+                ),
+                if (friend.isOnline)
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: WuyAppThemeConfig.wuyOnlineColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            SizedBox(width: ThemeDimensions.paddingMedium),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    friend.displayNameOrUsername,
+                    style: ThemeTextStyles.subtitle2.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: WuyAppThemeConfig.wuyTextPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    friend.bio?.isNotEmpty == true ? friend.bio! : 'No bio',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: WuyAppThemeConfig.wuyTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.person_add_outlined,
+                color: WuyAppThemeConfig.wuyPrimaryColor,
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Add ${friend.displayName}')),
+                );
+              },
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: iconSize, color: effectiveIconColor),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: effectiveTextColor,
+    );
+  }
+
+  Widget _buildSearchResultsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Search Results',
+              style: ThemeTextStyles.subtitle1.copyWith(
+                fontWeight: FontWeight.w600,
+                color: WuyAppThemeConfig.wuyTextPrimary,
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: ThemeDimensions.paddingSmall,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+              ),
+              child: Text(
+                '${_searchResults.length} found',
+                style: ThemeTextStyles.caption.copyWith(
+                  color: WuyAppThemeConfig.wuyPrimaryColor,
                   fontWeight: FontWeight.w600,
                 ),
-          ),
-        ],
-      ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: ThemeDimensions.paddingMedium),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: _searchResults.length,
+          separatorBuilder: (context, index) => SizedBox(height: ThemeDimensions.paddingSmall),
+          itemBuilder: (context, index) {
+            final friend = _searchResults[index];
+            return _buildRecommendedFriendCard(context, friend);
+          },
+        ),
+      ],
     );
   }
 
   Widget _buildLoadingState(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 60),
+      padding: EdgeInsets.symmetric(vertical: 40),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(
-            'Searching friends...',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: WuyAppThemeConfig.wuyTextSecondary,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 56),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: ThemeColors.black.withOpacity(0.04)),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.travel_explore_rounded,
-            size: 56,
-            color: WuyAppThemeConfig.wuyPrimaryColor,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            LocalizationKeysAppWuy.wuySearchNoResults.tr(context),
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: WuyAppThemeConfig.wuyTextPrimary,
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              WuyAppThemeConfig.wuyPrimaryColor,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: ThemeDimensions.paddingMedium),
           Text(
-            'Try adjusting the filters or invite new friends to join the network.',
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(
+            'Searching...',
+            style: ThemeTextStyles.bodyText2.copyWith(
               color: WuyAppThemeConfig.wuyTextSecondary,
-              height: 1.5,
             ),
-          ),
-          const SizedBox(height: 24),
-          WuyGradientButton(
-            text: LocalizationKeysAppWuy.wuySearchReset.tr(context),
-            onPressed: _resetFilters,
-            height: 50,
-            borderRadius: 26.0,
-            fontWeight: FontWeight.w700,
           ),
         ],
       ),
     );
   }
-}
 
-class _QuickFilterOption {
-  final String key;
-  final String label;
-  final String description;
-  final IconData icon;
+  String _formatHistoryTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
 
-  const _QuickFilterOption({
-    required this.key,
-    required this.label,
-    required this.description,
-    required this.icon,
-  });
-}
-
-class _GenderOption {
-  final String label;
-  final String? value;
-
-  const _GenderOption({required this.label, required this.value});
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
 }

@@ -11,7 +11,7 @@ class HomeSubnav extends StatelessWidget {
   });
 
   Widget _buildSubnavIcon(int index) {
-    const iconSize = 144.0;
+    const iconSize = 120.0;
     final iconPath = index < AssetsImagesAppTravel.travelSubnavIcons.length
         ? AssetsImagesAppTravel.travelSubnavIcons[index]
         : null;
@@ -24,7 +24,7 @@ class HomeSubnav extends StatelessWidget {
           color: Colors.grey[300],
           child: const Icon(
             Icons.image_not_supported,
-            size: 72,
+            size: 60,
             color: Colors.grey,
           ),
         ),
@@ -44,7 +44,7 @@ class HomeSubnav extends StatelessWidget {
             color: Colors.grey[300],
             child: const Icon(
               Icons.image_not_supported,
-              size: 72,
+              size: 60,
               color: Colors.grey,
             ),
           );
@@ -57,9 +57,7 @@ class HomeSubnav extends StatelessWidget {
   Widget build(BuildContext context) {
     final displaySubnavs = subnavs.length > 10 ? subnavs.sublist(0, 10) : subnavs;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0),
-      child: Column(
+    return Column(
         children: [
           Row(
             children: List.generate(5, (index) {
@@ -70,30 +68,24 @@ class HomeSubnav extends StatelessWidget {
                   onTap: () {
                     debugPrint('Subnav tapped: ${subnav.title}');
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildSubnavIcon(index),
-                        const SizedBox(height: 6.0),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                          child: Text(
-                            subnav.title,
-                            style: const TextStyle(
-                              fontSize: 11.0,
-                              color: Colors.black87,
-                              height: 1.2,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildSubnavIcon(index),
+                      const SizedBox(height: 2.0),
+                      Text(
+                        subnav.title,
+                        style: const TextStyle(
+                          fontSize: 11.0,
+                          color: Colors.black87,
+                          height: 1.0,
                         ),
-                      ],
-                    ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -110,37 +102,30 @@ class HomeSubnav extends StatelessWidget {
                     onTap: () {
                       debugPrint('Subnav tapped: ${subnav.title}');
                     },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildSubnavIcon(actualIndex),
-                          const SizedBox(height: 6.0),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                            child: Text(
-                              subnav.title,
-                              style: const TextStyle(
-                                fontSize: 11.0,
-                                color: Colors.black87,
-                                height: 1.2,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildSubnavIcon(actualIndex),
+                        const SizedBox(height: 2.0),
+                        Text(
+                          subnav.title,
+                          style: const TextStyle(
+                            fontSize: 11.0,
+                            color: Colors.black87,
+                            height: 1.0,
                           ),
-                        ],
-                      ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 );
               }),
             ),
         ],
-      ),
-    );
+      );
   }
 }

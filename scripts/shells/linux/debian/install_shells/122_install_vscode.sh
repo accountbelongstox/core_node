@@ -2,19 +2,14 @@
 # Visual Studio Code Installation Script
 #
 # Usage:
-#   ./122_install_vscode.sh                    # Normal installation
+#   ./122_install_vscode.sh                    # Normal installation (root mode with pkexec)
 #   ./122_install_vscode.sh --force           # Force reinstallation
 #   ./122_install_vscode.sh --cleanup         # Remove VS Code installation
+#   ./122_install_vscode.sh --no-root         # Install in normal mode (no pkexec)
 #
-# This script installs Visual Studio Code from .deb files found in ~/Downloads
-# If no .deb is found, it opens the download page and waits for manual download
+# This script installs Visual Studio Code from .deb files found in /home/<username>/Downloads
+# If no .deb is found, it opens the download page and waits for manual download confirmation
 #
-# Source simple download manager
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEBIAN_COM_DIR="$(dirname "$SCRIPT_DIR")/debian_com"
-source "$DEBIAN_COM_DIR/simple_download_manager.sh"
-
-
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -36,7 +31,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Initialize global variables
 init_global_vars
@@ -45,12 +40,24 @@ init_global_vars
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
+USE_ROOT_MODE=true  # Default to root mode (pkexec)
+USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
 # Set up VSCode directories using new applications_dir mapping
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
 VSCODE_INSTALL_DIR="$APPLICATIONS_DIR/vscode"
 VSCODE_DEB_DIR="$VSCODE_INSTALL_DIR/deb"
 VSCODE_INSTALLED_FLAG="$VSCODE_INSTALL_DIR/.installed"
+VSCODE_DOWNLOAD_URL="https://code.visualstudio.com/Download"
+DESKTOP_MANAGER_SCRIPT="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
+DESKTOP_MANAGER_USER="${SUDO_USER:-$USER}"
+DESKTOP_MANAGER_HOME="$(getent passwd "$DESKTOP_MANAGER_USER" | cut -d: -f6)"
+if [[ -z "$DESKTOP_MANAGER_HOME" ]] || [[ ! -d "$DESKTOP_MANAGER_HOME" ]]; then
+    DESKTOP_MANAGER_HOME="$HOME"
+fi
+DESKTOP_MANAGER_APPS_DIR="$DESKTOP_MANAGER_HOME/.local/share/applications"
+SYSTEM_DESKTOP_FILE="/usr/share/applications/code.desktop"
+LAUNCH_DIR="/var/_core_node/scripts_launch_dir"
 
 # Ensure sudo is available and set USE_SUDO
 if command -v sudo >/dev/null 2>&1; then
@@ -59,14 +66,55 @@ else
     USE_SUDO=""
 fi
 
-# Note: VSCODE_* variables are now exported by export_legacy_config "vscode"
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Detect desktop user for userdata directory
+detect_vscode_desktop_user() {
+    local detected_user=""
+    local detected_home=""
+
+    # Try SUDO_USER first (if running with sudo)
+    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+        detected_user="$SUDO_USER"
+        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+        if [[ -n "$detected_home" ]] && [[ -d "$detected_home" ]]; then
+            echo "$detected_user:$detected_home"
+            return 0
+        fi
+    fi
+
+    # Try finding user with active desktop session
+    for user_home in /home/*; do
+        if [[ -d "$user_home" ]]; then
+            detected_user="$(basename "$user_home")"
+            if [[ -n "$(pgrep -u "$detected_user" 2>/dev/null)" ]] && \
+               [[ -d "$user_home/.config" ]]; then
+                echo "$detected_user:$user_home"
+                return 0
+            fi
+        fi
+    done
+
+    # Fallback: first non-root user in /home with UID >= 1000
+    for user_home in /home/*; do
+        if [[ -d "$user_home" ]]; then
+            detected_user="$(basename "$user_home")"
+            local user_uid="$(id -u "$detected_user" 2>/dev/null || echo 0)"
+            if [[ $user_uid -ge 1000 ]] && [[ $user_uid -lt 60000 ]]; then
+                echo "$detected_user:$user_home"
+                return 0
+            fi
+        fi
+    done
+
+    # Last resort fallback
+    echo "$USER:$HOME"
+}
 
 # Parse command line arguments
 parse_arguments() {
@@ -80,9 +128,14 @@ parse_arguments() {
                 CLEANUP_MODE=true
                 shift
                 ;;
+            --no-root)
+                USE_ROOT_MODE=false
+                USE_ROOT_MODE_SPECIFIED=true
+                shift
+                ;;
             *)
                 echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup]"
+                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
                 exit 1
                 ;;
         esac
@@ -132,69 +185,57 @@ is_vscode_installed() {
     return 1  # Not installed
 }
 
-# Find VS Code .deb files
-find_vscode_deb() {
-    # Use the function from simple_download_manager if available
-    if type find_vscode_file &>/dev/null; then
-        find_vscode_file
-        return $?
-    fi
-
-    # Fallback: search in multiple locations
+# Find VS Code .deb files inside /home/*/Downloads
+find_vscode_file() {
     local search_dirs=()
+    local latest_file=""
+    local latest_mtime=0
 
-    # Add global shared download directory first (highest priority)
-    if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ] && [ -d "$CORE_NODE_SHARED_DOWNLOADS" ]; then
-        search_dirs+=("$CORE_NODE_SHARED_DOWNLOADS")
-    fi
-
-    # Add current user's Downloads
-    if [ -d "$HOME/Downloads" ]; then
-        search_dirs+=("$HOME/Downloads")
-    fi
-
-    # Add all other users' Downloads directories
-    if [ -d "/home" ]; then
+    if [[ -d "/home" ]]; then
         for user_home in /home/*; do
-            if [ -d "$user_home/Downloads" ]; then
+            [[ -d "$user_home" ]] || continue
+            if [[ -d "$user_home/Downloads" ]]; then
                 search_dirs+=("$user_home/Downloads")
             fi
         done
     fi
 
-    # Add root's Downloads
-    if [ -d "/root/Downloads" ]; then
-        search_dirs+=("/root/Downloads")
-    fi
-
-    # Search in all directories
     for dir in "${search_dirs[@]}"; do
-        local found_file=$(find "$dir" -name "*code*.deb" -type f 2>/dev/null | head -1)
-        if [ -n "$found_file" ]; then
-            echo "$found_file"
-            return 0
-        fi
+        while IFS= read -r -d '' candidate; do
+            local basename_file=$(basename "$candidate")
+
+            local file_mtime=$(stat -c %Y "$candidate" 2>/dev/null || echo 0)
+            if (( file_mtime > latest_mtime )); then
+                latest_mtime=$file_mtime
+                latest_file="$candidate"
+            fi
+        done < <(find "$dir" -maxdepth 1 -type f -iname "code*.deb" -print0 2>/dev/null)
     done
+
+    if [[ -n "$latest_file" ]]; then
+        echo "$latest_file"
+        return 0
+    fi
 
     return 1
 }
 
-# Simple automated download - downloads both VSCode and Cursor
-vscode_automated_download() {
-    print_step_from_common_functions "Downloading VSCode and Cursor via core_node_init..."
-    
-    # Download both applications
-    if download_both; then
-        local vscode_file=$(find_vscode_file)
-        if [[ -n "$vscode_file" ]] && [[ -f "$vscode_file" ]]; then
-            print_success_from_common_functions "Found downloaded VSCode: $(basename "$vscode_file")"
-            echo "$vscode_file"
-            return 0
+filter_self_processes() {
+    local pids_list="$1"
+    local filtered=()
+    local script_pid=$$
+    local shell_pid=${BASHPID:-$script_pid}
+    local parent_pid=$PPID
+
+    for pid in $pids_list; do
+        [[ -z "$pid" ]] && continue
+        if [[ "$pid" == "$script_pid" ]] || [[ "$pid" == "$shell_pid" ]] || [[ "$pid" == "$parent_pid" ]]; then
+            continue
         fi
-    fi
-    
-    print_warning_from_common_functions "VSCode download failed"
-    return 1
+        filtered+=("$pid")
+    done
+
+    echo "${filtered[*]}"
 }
 
 # Safe process kill function
@@ -203,6 +244,7 @@ safe_kill_processes() {
     local use_sudo="${2:-false}"
 
     local pids=$(pgrep -f "$process_name" 2>/dev/null)
+    pids=$(filter_self_processes "$pids")
 
     if [[ -z "$pids" ]]; then
         print_info_from_common_functions "No $process_name processes found"
@@ -224,6 +266,7 @@ safe_kill_processes() {
     local waited=0
     while [[ $waited -lt 5 ]]; do
         pids=$(pgrep -f "$process_name" 2>/dev/null)
+        pids=$(filter_self_processes "$pids")
         if [[ -z "$pids" ]]; then
             print_success_from_common_functions "$process_name processes terminated gracefully"
             return 0
@@ -234,6 +277,7 @@ safe_kill_processes() {
 
     # Force kill if still running (SIGKILL)
     pids=$(pgrep -f "$process_name" 2>/dev/null)
+    pids=$(filter_self_processes "$pids")
     if [[ -n "$pids" ]]; then
         print_warning_from_common_functions "Force killing remaining $process_name processes: $pids"
         for pid in $pids; do
@@ -248,6 +292,7 @@ safe_kill_processes() {
 
     # Verify all processes are gone
     pids=$(pgrep -f "$process_name" 2>/dev/null)
+    pids=$(filter_self_processes "$pids")
     if [[ -z "$pids" ]]; then
         print_success_from_common_functions "All $process_name processes terminated"
         return 0
@@ -259,26 +304,42 @@ safe_kill_processes() {
 
 # Manual download fallback
 vscode_manual_download() {
-    print_step_from_common_functions "Falling back to manual download..."
+    local confirmation=""
+    local downloaded_file=""
 
-    # Open VSCode download page
+    print_step_from_common_functions "Manual VS Code download required"
+    print_info_from_common_functions "Place the VS Code .deb file under /home/<username>/Downloads (any user)"
+    print_info_from_common_functions "Download page: $VSCODE_DOWNLOAD_URL"
+
     if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "https://code.visualstudio.com/" >/dev/null 2>&1 &
-    fi
-
-    print_info_from_common_functions "Please download VSCode .deb file to Downloads directory"
-    print_info_from_common_functions "Waiting for download to complete..."
-
-    # Wait for file to appear
-    local downloaded_file=$(find_vscode_deb)
-    if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-        print_success_from_common_functions "Found VSCode file: $(basename "$downloaded_file")"
-        echo "$downloaded_file"
-        return 0
+        xdg-open "$VSCODE_DOWNLOAD_URL" >/dev/null 2>&1 &
     else
-        print_error_from_common_functions "Timeout waiting for VSCode file download"
-        return 1
+        print_warning_from_common_functions "xdg-open not available. Please open $VSCODE_DOWNLOAD_URL manually"
     fi
+
+    while true; do
+        echo -n "Type 'yes' after the VS Code .deb is in /home/<username>/Downloads (any user, or 'quit' to stop): "
+        read -r confirmation
+
+        case "$confirmation" in
+            [yY]|[yY][eE][sS])
+                downloaded_file=$(find_vscode_file)
+                if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
+                    print_success_from_common_functions "Found VS Code installer: $(basename "$downloaded_file")"
+                    echo "$downloaded_file"
+                    return 0
+                fi
+                print_warning_from_common_functions "No VS Code .deb detected yet in /home/*/Downloads"
+                ;;
+            [qQ]|[qQ][uU][iI][tT])
+                print_warning_from_common_functions "Manual download aborted by user"
+                return 1
+                ;;
+            *)
+                print_info_from_common_functions "Waiting for manual confirmation..."
+                ;;
+        esac
+    done
 }
 
 # Install .deb package
@@ -320,8 +381,8 @@ install_deb_package() {
 
     if ! check_deb_integrity "$deb_file"; then
         print_error_from_common_functions ".deb file integrity check failed"
-        print_step_from_common_functions "Removing corrupted file: $deb_file"
-        rm -f "$deb_file"
+        print_step_from_common_functions "Corrupted file left in place: $deb_file"
+        print_info_from_common_functions "Please remove it manually from /home/<username>/Downloads"
         return 2
     fi
 
@@ -355,42 +416,67 @@ install_deb_package() {
     return 0
 }
 
-# Create super scripts launcher
-create_super_scripts_launcher() {
-    print_step_from_common_functions "Creating super scripts launcher..."
-    
-    if command -v sudo >/dev/null 2>&1; then
-        sudo mkdir -p "/usr/local/super_scripts"
+# Remove system desktop entries to avoid duplicates
+remove_system_desktop_entries() {
+    print_step_from_common_functions "Removing system desktop entries to avoid duplicates..."
 
-        # Create the super_scripts launcher
-        local super_launcher_content='#!/bin/bash
-# VS Code Super Launcher Script
-# This script is called from desktop entries and provides enhanced launching
+    if [[ -f "$SYSTEM_DESKTOP_FILE" ]]; then
+        $USE_SUDO mv "$SYSTEM_DESKTOP_FILE" "${SYSTEM_DESKTOP_FILE}.disabled" 2>/dev/null || true
+        print_success_from_common_functions "System desktop entry disabled"
+    fi
 
-if ! command -v code >/dev/null 2>&1; then
-    echo "Error: VS Code (code) not found in PATH"
-    exit 1
-fi
+    return 0
+}
 
-# Launch VS Code
-exec code "$@"
-'
 
-        echo "$super_launcher_content" | sudo tee "/usr/local/super_scripts/code.sh" > /dev/null
-        sudo chmod +x "/usr/local/super_scripts/code.sh"
+# Create desktop entry via desktop_entry_manager
+create_vscode_desktop_shortcut() {
+    if [[ ! -x "$DESKTOP_MANAGER_SCRIPT" ]]; then
+        print_warning_from_common_functions "desktop_entry_manager.sh not found or not executable"
+        return 0
+    fi
 
-        # Create symlink in /usr/local/bin for global access (if not already exists)
-        if [[ ! -L "/usr/local/bin/vscode" ]]; then
-            sudo ln -sf "/usr/local/super_scripts/code.sh" "/usr/local/bin/vscode"
+    print_step_from_common_functions "Creating desktop entry via desktop_entry_manager.sh"
+
+    # Detect desktop user
+    local desktop_user_info="$(detect_vscode_desktop_user)"
+    local desktop_manager_user="${desktop_user_info%%:*}"
+    local desktop_manager_home="${desktop_user_info##*:}"
+    local desktop_manager_apps_dir="$desktop_manager_home/.local/share/applications"
+
+    print_info_from_common_functions "Detected desktop user: $desktop_manager_user ($desktop_manager_home)"
+
+    # Detect icon path (fallback to app name if not found)
+    local vscode_icon="/usr/share/pixmaps/vscode.png"
+    if [[ ! -f "$vscode_icon" ]]; then
+        print_step_from_common_functions "VSCode icon not found at $vscode_icon, will use intelligent search"
+        vscode_icon="vscode"  # Let desktop_entry_manager.sh search for it
+    fi
+
+    # Build user data directory path for VSCode
+    local vscode_userdata_dir="$desktop_manager_home/.config/Code"
+    print_info_from_common_functions "VSCode user data directory: $vscode_userdata_dir"
+
+    # Create user data directory if it doesn't exist
+    if [[ ! -d "$vscode_userdata_dir" ]]; then
+        mkdir -p "$vscode_userdata_dir" 2>/dev/null || true
+        # Set ownership to desktop user if running as root
+        if [[ "$EUID" -eq 0 ]] && [[ "$desktop_manager_user" != "root" ]] && [[ -d "$vscode_userdata_dir" ]]; then
+            chown -R "$desktop_manager_user:$desktop_manager_user" "$vscode_userdata_dir" 2>/dev/null || true
+        fi
+    fi
+
+    # Use --create-app to generate launcher and desktop entry
+    # Arguments: name display_name binary icon category description wm_class userdata_dir use_root_mode
+    if bash "$DESKTOP_MANAGER_SCRIPT" --create-app vscode "Visual Studio Code" /usr/bin/code "$vscode_icon" Development "Code editor for developers" "Code" "$vscode_userdata_dir" "$USE_ROOT_MODE" 2>&1; then
+        local expected_entry="$desktop_manager_apps_dir/core_node_vscode.desktop"
+        if [[ -f "$expected_entry" ]]; then
+            print_success_from_common_functions "Desktop entry created for VS Code"
+        else
+            print_warning_from_common_functions "Desktop entry not found after creation: $expected_entry"
         fi
     else
-        mkdir -p "/usr/local/super_scripts"
-        echo "$super_launcher_content" | tee "/usr/local/super_scripts/code.sh" > /dev/null
-        chmod +x "/usr/local/super_scripts/code.sh"
-
-        if [[ ! -L "/usr/local/bin/vscode" ]]; then
-            ln -sf "/usr/local/super_scripts/code.sh" "/usr/local/bin/vscode"
-        fi
+        print_warning_from_common_functions "desktop_entry_manager.sh --create-app encountered an error"
     fi
 
     return 0
@@ -424,34 +510,42 @@ cleanup_vscode() {
     print_step_from_common_functions "Terminating VS Code processes..."
     safe_kill_processes "vscode" true
 
-    # Remove VS Code package
+    # Remove VS Code packages
     if dpkg -l | grep -q "code"; then
         print_step_from_common_functions "Removing VS Code package..."
         $USE_SUDO apt-get remove --purge -y code
     fi
 
-    # Remove installation directory using robust removal
+    # Remove installation directory
     if [[ -d "$VSCODE_INSTALL_DIR" ]]; then
         print_step_from_common_functions "Removing installation directory: $VSCODE_INSTALL_DIR"
-        robust_remove_directory "$VSCODE_INSTALL_DIR"
-    fi
-
-    # Remove super scripts launcher
-    if [[ -f "/usr/local/super_scripts/code.sh" ]]; then
-        print_step_from_common_functions "Removing super scripts launcher"
-        $USE_SUDO rm -f "/usr/local/super_scripts/code.sh"
-    fi
-
-    # Remove symlink
-    if [[ -L "/usr/local/bin/vscode" ]]; then
-        print_step_from_common_functions "Removing symlink: /usr/local/bin/vscode"
-        $USE_SUDO rm -f "/usr/local/bin/vscode"
+        $USE_SUDO rm -rf "$VSCODE_INSTALL_DIR"
     fi
 
     # Remove installation flag
     if [[ -f "$VSCODE_INSTALLED_FLAG" ]]; then
         print_step_from_common_functions "Removing installation flag: $VSCODE_INSTALLED_FLAG"
         $USE_SUDO rm -f "$VSCODE_INSTALLED_FLAG"
+    fi
+
+    # Remove launcher script (auto-generated by desktop_entry_manager)
+    local launcher_script="$LAUNCH_DIR/vscode_launcher.sh"
+    if [[ -e "$launcher_script" ]] || [[ -L "$launcher_script" ]]; then
+        print_step_from_common_functions "Removing launcher script: $launcher_script"
+        $USE_SUDO rm -f "$launcher_script"
+    fi
+
+    # Remove desktop entry (auto-generated by desktop_entry_manager)
+    local desktop_entry="$DESKTOP_MANAGER_APPS_DIR/core_node_vscode.desktop"
+    if [[ -f "$desktop_entry" ]]; then
+        print_step_from_common_functions "Removing desktop entry: $desktop_entry"
+        rm -f "$desktop_entry"
+    fi
+
+    # Restore system desktop entry
+    if [[ -f "${SYSTEM_DESKTOP_FILE}.disabled" ]]; then
+        print_step_from_common_functions "Restoring system desktop entry"
+        $USE_SUDO mv "${SYSTEM_DESKTOP_FILE}.disabled" "$SYSTEM_DESKTOP_FILE" 2>/dev/null || true
     fi
 
     print_success_from_common_functions "VS Code cleanup completed"
@@ -462,42 +556,45 @@ cleanup_vscode() {
 install_vscode() {
     print_header_from_common_functions "Installing Visual Studio Code"
 
+    # Prompt for root mode if not already specified via command line
+    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
+        echo ""
+        echo -n "Do you want to install VS Code with root privileges (pkexec)? (Y/n): "
+        read -r response
+        case "$response" in
+            [nN]|[nN][oO])
+                USE_ROOT_MODE=false
+                print_info_from_common_functions "Installing in normal mode (no root)"
+                ;;
+            *)
+                USE_ROOT_MODE=true
+                print_info_from_common_functions "Installing in root mode (with pkexec)"
+                ;;
+        esac
+        echo ""
+    fi
+
     # Install dependencies
     install_dependencies
 
-    # Use simple download manager workflow
-    print_step_from_common_functions "Starting VS Code download workflow..."
+    print_step_from_common_functions "Searching for VS Code installer in /home/*/Downloads..."
 
-    # Check if already downloaded
     local deb_file=$(find_vscode_file)
 
-    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]] || [[ "$FORCE_INSTALL" == true ]]; then
-        print_step_from_common_functions "Downloading VS Code via core_node_init..."
-
-        # Download using core_node_init
-        if download_vscode; then
-            print_success_from_common_functions "Download completed"
-
-            # Find the downloaded file
-            sleep 2  # Wait for file to be fully written
-            deb_file=$(find_vscode_file)
-        else
-            print_warning_from_common_functions "Automated download failed"
-        fi
+    if [[ -n "$deb_file" ]] && [[ -f "$deb_file" ]] && [[ "$FORCE_INSTALL" != true ]]; then
+        print_info_from_common_functions "Using existing VS Code file: $(basename "$deb_file")"
     else
-        print_info_from_common_functions "Found existing VS Code file: $(basename "$deb_file")"
-    fi
+        if [[ "$FORCE_INSTALL" == true ]]; then
+            print_warning_from_common_functions "Force install requested. Waiting for manual confirmation before proceeding"
+        else
+            print_warning_from_common_functions "No VS Code .deb found under /home/*/Downloads"
+        fi
 
-    # Validate the result
-    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-        print_warning_from_common_functions "Download failed, trying manual download..."
-
-        # Try manual download as final fallback
         deb_file=$(vscode_manual_download)
         local manual_result=$?
 
         if [[ $manual_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-            print_error_from_common_functions "Failed to find or download VS Code .deb"
+            print_error_from_common_functions "Manual download not completed. Cannot continue installation"
             return 1
         fi
     fi
@@ -522,22 +619,16 @@ install_vscode() {
                 print_step_from_common_functions "Removing corrupted backup file..."
                 $USE_SUDO rm -f "$VSCODE_DEB_DIR/$(basename "$deb_file")" 2>/dev/null || true
 
-                print_step_from_common_functions "Re-downloading VS Code..."
+                print_step_from_common_functions "Please download a fresh VS Code .deb file and confirm with 'yes'"
+                deb_file=$(vscode_manual_download)
+                local manual_retry_result=$?
 
-                if download_vscode; then
-                    sleep 2  # Wait for file to be fully written
-                    deb_file=$(find_vscode_file)
-
-                    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-                        print_error_from_common_functions "Re-download failed - file not found"
-                        return 1
-                    fi
-
-                    print_info_from_common_functions "Using re-downloaded file: $(basename "$deb_file")"
-                else
-                    print_error_from_common_functions "Re-download failed"
+                if [[ $manual_retry_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+                    print_error_from_common_functions "Manual re-download not completed"
                     return 1
                 fi
+
+                print_info_from_common_functions "Using manually re-downloaded file: $(basename "$deb_file")"
             fi
 
             retry_count=$((retry_count + 1))
@@ -552,11 +643,9 @@ install_vscode() {
         return 1
     fi
 
-    # Create super scripts launcher
-    if ! create_super_scripts_launcher; then
-        print_error_from_common_functions "Failed to create super scripts launcher"
-        return 1
-    fi
+    # Remove system desktop entry and create custom one via desktop_entry_manager
+    remove_system_desktop_entries
+    create_vscode_desktop_shortcut
 
     # Save installation info with version
     print_step_from_common_functions "Saving installation info..."
@@ -569,11 +658,15 @@ install_vscode() {
         echo "$(date): VS Code installed successfully" | $USE_SUDO tee "$VSCODE_INSTALLED_FLAG" > /dev/null
     fi
 
+    # Display post-install artifacts for verification
+    local launcher_script="$LAUNCH_DIR/vscode_launcher.sh"
+    local desktop_entry="$DESKTOP_MANAGER_APPS_DIR/core_node_vscode.desktop"
+    show_post_install_artifacts_from_common_functions "$launcher_script" "$desktop_entry" "${SYSTEM_DESKTOP_FILE}.disabled"
+
     print_success_from_common_functions "Visual Studio Code installation completed successfully!"
     print_info_from_common_functions "You can now launch VS Code from:"
-    print_info_from_common_functions "  - Applications menu"
-    print_info_from_common_functions "  - Command line: code"
-    print_info_from_common_functions "  - Alternative command: vscode"
+    print_info_from_common_functions "  - Applications menu (Visual Studio Code (Core Node))"
+    print_info_from_common_functions "  - This will launch VS Code with sudo and --no-sandbox automatically"
 
     return 0
 }
@@ -590,99 +683,28 @@ prompt_cleanup_reinstall() {
             print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        print_step_from_common_functions "Downloading latest version to check for updates..."
+        local available_file=$(find_vscode_file)
+        if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
+            print_info_from_common_functions "Detected manual installer: $(basename "$available_file")"
+            local available_version=$(extract_version_from_filename "$available_file")
 
-        if download_vscode; then
-            sleep 2
+            if [[ -n "$available_version" ]]; then
+                print_info_from_common_functions "Manual installer version: $available_version"
 
-            local available_file=$(find_vscode_file)
-            if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
-                local available_version=$(extract_version_from_filename "$available_file")
-                print_info_from_common_functions "Downloaded: $(basename "$available_file")"
-
-                if [[ -n "$available_version" ]]; then
-                    print_info_from_common_functions "Downloaded version: $available_version"
-
-                    if [[ -z "$installed_version" ]]; then
-                        print_info_from_common_functions "No version metadata, proceeding with upgrade..."
-                        cleanup_vscode
-                        return 0
-                    elif [[ "$available_version" != "$installed_version" ]]; then
-                        echo -n "Upgrade to version $available_version? (Y/n): "
-                        read -r response
-                        case "$response" in
-                            [nN]|[nN][oO])
-                                print_info_from_common_functions "Keeping current installation"
-                                return 1
-                                ;;
-                            *)
-                                print_info_from_common_functions "Upgrading VS Code..."
-                                cleanup_vscode
-                                return 0
-                                ;;
-                        esac
+                if [[ -n "$installed_version" ]]; then
+                    if [[ "$available_version" != "$installed_version" ]]; then
+                        print_info_from_common_functions "A different version is available in /home/*/Downloads"
                     else
-                        print_info_from_common_functions "Downloaded version matches installed version"
-                        print_info_from_common_functions "You can reinstall to fix potential issues"
-                        echo -n "Reinstall VS Code? (y/N): "
-                        read -r response
-                        case "$response" in
-                            [yY]|[yY][eE][sS])
-                                print_info_from_common_functions "Reinstalling VS Code..."
-                                cleanup_vscode
-                                return 0
-                                ;;
-                            *)
-                                print_info_from_common_functions "Keeping existing installation"
-                                return 1
-                                ;;
-                        esac
+                        print_info_from_common_functions "Manual installer matches the installed version"
                     fi
                 fi
             fi
         else
-            print_warning_from_common_functions "Failed to download latest version"
+            print_warning_from_common_functions "No VS Code installer found under /home/*/Downloads"
+            print_info_from_common_functions "Download the desired version manually after cleanup"
         fi
 
-        local available_file=$(find_vscode_file)
-        if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
-            print_info_from_common_functions "Found existing download: $(basename "$available_file")"
-            local available_version=$(extract_version_from_filename "$available_file")
-
-            if [[ -n "$available_version" ]] && [[ -n "$installed_version" ]]; then
-                if [[ "$available_version" != "$installed_version" ]]; then
-                    echo -n "Upgrade to version $available_version? (Y/n): "
-                    read -r response
-                    case "$response" in
-                        [nN]|[nN][oO])
-                            print_info_from_common_functions "Keeping current installation"
-                            return 1
-                            ;;
-                        *)
-                            print_info_from_common_functions "Upgrading VS Code..."
-                            cleanup_vscode
-                            return 0
-                            ;;
-                    esac
-                else
-                    echo -n "Reinstall VS Code? (y/N): "
-                    read -r response
-                    case "$response" in
-                        [yY]|[yY][eE][sS])
-                            print_info_from_common_functions "Reinstalling VS Code..."
-                            cleanup_vscode
-                            return 0
-                            ;;
-                        *)
-                            print_info_from_common_functions "Keeping existing installation"
-                            return 1
-                            ;;
-                    esac
-                fi
-            fi
-        fi
-
-        echo -n "Do you want to clean up and reinstall? (y/N): "
+        echo -n "Do you want to clean up and reinstall using a manual download? (y/N): "
         read -r response
         case "$response" in
             [yY]|[yY][eE][sS])

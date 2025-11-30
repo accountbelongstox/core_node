@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.233702+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "a",
+        "laos": "ເອກ",
+        "jp": "一つの",
+        "vie": "một",
+        "en_pronunciation": "/ə/ or /eɪ/",
+        "laos_pronunciation": "eek",
+        "jp_pronunciation": "hitotsu no",
+        "vie_pronunciation": "một"
+      },
+      "means": {
+        "en": "indefinite article, one",
+        "zh": "一个，不定冠词"
+      }
+    },
+    {
+      "word": {
+        "en": "an",
+        "laos": "ເອກ",
+        "jp": "一つの",
+        "vie": "một",
+        "en_pronunciation": "/ən/ or /æn/",
+        "laos_pronunciation": "eek",
+        "jp_pronunciation": "hitotsu no",
+        "vie_pronunciation": "một"
+      },
+      "means": {
+        "en": "indefinite article used before vowel sounds",
+        "zh": "一个（用于元音前）"
+      }
+    },
+    {
+      "word": {
+        "en": "abandon",
+        "laos": "ປະຖິ້ມ",
+        "jp": "放棄する",
+        "vie": "từ bỏ",
+        "en_pronunciation": "/əˈbændən/",
+        "laos_pronunciation": "pa thim",
+        "jp_pronunciation": "hōki suru",
+        "vie_pronunciation": "từ bỏ"
+      },
+      "means": {
+        "en": "to give up completely, to desert",
+        "zh": "放弃，抛弃"
+      }
+    },
+    {
+      "word": {
+        "en": "abbreviation",
+        "laos": "ຄຳຫຍໍ້",
+        "jp": "略語",
+        "vie": "viết tắt",
+        "en_pronunciation": "/əˌbriːviˈeɪʃən/",
+        "laos_pronunciation": "kham nyo",
+        "jp_pronunciation": "ryakugo",
+        "vie_pronunciation": "viết tắt"
+      },
+      "means": {
+        "en": "a shortened form of a word or phrase",
+        "zh": "缩写，简写"
+      }
+    },
+    {
+      "word": {
+        "en": "abide",
+        "laos": "ປະຕິບັດຕາມ",
+        "jp": "従う",
+        "vie": "tuân theo",
+        "en_pronunciation": "/əˈbaɪd/",
+        "laos_pronunciation": "pa ti bat tam",
+        "jp_pronunciation": "shitagau",
+        "vie_pronunciation": "tuân theo"
+      },
+      "means": {
+        "en": "to accept or act in accordance with",
+        "zh": "遵守，遵循"
+      }
+    },
+    {
+      "word": {
+        "en": "able",
+        "laos": "ສາມາດ",
+        "jp": "できる",
+        "vie": "có thể",
+        "en_pronunciation": "/ˈeɪbəl/",
+        "laos_pronunciation": "sa mat",
+        "jp_pronunciation": "dekiru",
+        "vie_pronunciation": "có thể"
+      },
+      "means": {
+        "en": "having the power, skill, or means to do something",
+        "zh": "能够，有能力的"
+      }
+    },
+    {
+      "word": {
+        "en": "ability",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "能力",
+        "vie": "khả năng",
+        "en_pronunciation": "/əˈbɪlɪti/",
+        "laos_pronunciation": "khwam sa mat",
+        "jp_pronunciation": "nōryoku",
+        "vie_pronunciation": "khả năng"
+      },
+      "means": {
+        "en": "the power or skill to do something",
+        "zh": "能力，才能"
+      }
+    },
+    {
+      "word": {
+        "en": "abnormal",
+        "laos": "ຜິດປົກກະຕິ",
+        "jp": "異常な",
+        "vie": "bất thường",
+        "en_pronunciation": "/æbˈnɔːrməl/",
+        "laos_pronunciation": "phit pok ka ti",
+        "jp_pronunciation": "ijō na",
+        "vie_pronunciation": "bất thường"
+      },
+      "means": {
+        "en": "deviating from what is normal or usual",
+        "zh": "异常的，不正常的"
+      }
+    },
+    {
+      "word": {
+        "en": "aboard",
+        "laos": "ຢູ່ເທິງ",
+        "jp": "乗って",
+        "vie": "trên tàu",
+        "en_pronunciation": "/əˈbɔːrd/",
+        "laos_pronunciation": "yu theng",
+        "jp_pronunciation": "notte",
+        "vie_pronunciation": "trên tàu"
+      },
+      "means": {
+        "en": "on or into a ship, aircraft, train, or other vehicle",
+        "zh": "在船上/飞机上/车上"
+      }
+    },
+    {
+      "word": {
+        "en": "abolish",
+        "laos": "ຍົກເລີກ",
+        "jp": "廃止する",
+        "vie": "bãi bỏ",
+        "en_pronunciation": "/əˈbɒlɪʃ/",
+        "laos_pronunciation": "nyok loek",
+        "jp_pronunciation": "haishi suru",
+        "vie_pronunciation": "bãi bỏ"
+      },
+      "means": {
+        "en": "to formally put an end to a system, practice, or institution",
+        "zh": "废除，取消"
+      }
+    },
+    {
+      "word": {
+        "en": "abolition",
+        "laos": "ການຍົກເລີກ",
+        "jp": "廃止",
+        "vie": "sự bãi bỏ",
+        "en_pronunciation": "/ˌæbəˈlɪʃən/",
+        "laos_pronunciation": "kan nyok loek",
+        "jp_pronunciation": "haishi",
+        "vie_pronunciation": "sự bãi bỏ"
+      },
+      "means": {
+        "en": "the action of abolishing a system, practice, or institution",
+        "zh": "废除，废止"
+      }
+    },
+    {
+      "word": {
+        "en": "abort",
+        "laos": "ຍົກເລີກ",
+        "jp": "中止する",
+        "vie": "hủy bỏ",
+        "en_pronunciation": "/əˈbɔːrt/",
+        "laos_pronunciation": "nyok loek",
+        "jp_pronunciation": "chūshi suru",
+        "vie_pronunciation": "hủy bỏ"
+      },
+      "means": {
+        "en": "to terminate a process or operation before completion",
+        "zh": "中止，终止"
+      }
+    },
+    {
+      "word": {
+        "en": "abortion",
+        "laos": "ການເອົາລູກອອກ",
+        "jp": "中絶",
+        "vie": "phá thai",
+        "en_pronunciation": "/əˈbɔːrʃən/",
+        "laos_pronunciation": "kan ao luk ok",
+        "jp_pronunciation": "chūzetsu",
+        "vie_pronunciation": "phá thai"
+      },
+      "means": {
+        "en": "the deliberate termination of a human pregnancy",
+        "zh": "堕胎，人工流产"
+      }
+    },
+    {
+      "word": {
+        "en": "about",
+        "laos": "ກ່ຽວກັບ",
+        "jp": "について",
+        "vie": "về",
+        "en_pronunciation": "/əˈbaʊt/",
+        "laos_pronunciation": "kiak kap",
+        "jp_pronunciation": "ni tsuite",
+        "vie_pronunciation": "về"
+      },
+      "means": {
+        "en": "on the subject of, concerning",
+        "zh": "关于，大约"
+      }
+    },
+    {
+      "word": {
+        "en": "above",
+        "laos": "ເທິງ",
+        "jp": "上に",
+        "vie": "trên",
+        "en_pronunciation": "/əˈbʌv/",
+        "laos_pronunciation": "theng",
+        "jp_pronunciation": "ue ni",
+        "vie_pronunciation": "trên"
+      },
+      "means": {
+        "en": "at a higher level or layer than",
+        "zh": "在...之上，超过"
+      }
+    },
+    {
+      "word": {
+        "en": "abreast",
+        "laos": "ຂ້າງຄຽງ",
+        "jp": "並んで",
+        "vie": "song song",
+        "en_pronunciation": "/əˈbrest/",
+        "laos_pronunciation": "khang khiang",
+        "jp_pronunciation": "naran de",
+        "vie_pronunciation": "song song"
+      },
+      "means": {
+        "en": "side by side and facing the same way",
+        "zh": "并排，并肩"
+      }
+    },
+    {
+      "word": {
+        "en": "abroad",
+        "laos": "ຕ່າງປະເທດ",
+        "jp": "海外で",
+        "vie": "ở nước ngoài",
+        "en_pronunciation": "/əˈbrɔːd/",
+        "laos_pronunciation": "tang pa thet",
+        "jp_pronunciation": "kaigai de",
+        "vie_pronunciation": "ở nước ngoài"
+      },
+      "means": {
+        "en": "in or to a foreign country or countries",
+        "zh": "在国外，海外"
+      }
+    },
+    {
+      "word": {
+        "en": "abrupt",
+        "laos": "ກະທັນຫັນ",
+        "jp": "突然の",
+        "vie": "đột ngột",
+        "en_pronunciation": "/əˈbrʌpt/",
+        "laos_pronunciation": "ka than han",
+        "jp_pronunciation": "totsuzen no",
+        "vie_pronunciation": "đột ngột"
+      },
+      "means": {
+        "en": "sudden and unexpected",
+        "zh": "突然的，意外的"
+      }
+    },
+    {
+      "word": {
+        "en": "absent",
+        "laos": "ບໍ່ມີ",
+        "jp": "不在の",
+        "vie": "vắng mặt",
+        "en_pronunciation": "/ˈæbsənt/",
+        "laos_pronunciation": "bo mi",
+        "jp_pronunciation": "fuzai no",
+        "vie_pronunciation": "vắng mặt"
+      },
+      "means": {
+        "en": "not present in a place, at an occasion, or as part of something",
+        "zh": "缺席的，不在的"
+      }
+    },
+    {
+      "word": {
+        "en": "absence",
+        "laos": "ການບໍ່ມີ",
+        "jp": "不在",
+        "vie": "sự vắng mặt",
+        "en_pronunciation": "/ˈæbsəns/",
+        "laos_pronunciation": "kan bo mi",
+        "jp_pronunciation": "fuzai",
+        "vie_pronunciation": "sự vắng mặt"
+      },
+      "means": {
+        "en": "the state of being away from a place or person",
+        "zh": "缺席，不在"
+      }
+    },
+    {
+      "word": {
+        "en": "absolute",
+        "laos": "ສົມບູນ",
+        "jp": "絶対的な",
+        "vie": "tuyệt đối",
+        "en_pronunciation": "/ˈæbsəluːt/",
+        "laos_pronunciation": "som bun",
+        "jp_pronunciation": "zettaiteki na",
+        "vie_pronunciation": "tuyệt đối"
+      },
+      "means": {
+        "en": "not qualified or diminished in any way, total",
+        "zh": "绝对的，完全的"
+      }
+    },
+    {
+      "word": {
+        "en": "absorb",
+        "laos": "ດູດຊຶມ",
+        "jp": "吸収する",
+        "vie": "hấp thụ",
+        "en_pronunciation": "/əbˈsɔːrb/",
+        "laos_pronunciation": "dut sum",
+        "jp_pronunciation": "kyūshū suru",
+        "vie_pronunciation": "hấp thụ"
+      },
+      "means": {
+        "en": "to take in or soak up by chemical or physical action",
+        "zh": "吸收，吸取"
+      }
+    },
+    {
+      "word": {
+        "en": "abstract",
+        "laos": "ນາມະທຳ",
+        "jp": "抽象的な",
+        "vie": "trừu tượng",
+        "en_pronunciation": "/ˈæbstrækt/",
+        "laos_pronunciation": "nam tham",
+        "jp_pronunciation": "chūshōteki na",
+        "vie_pronunciation": "trừu tượng"
+      },
+      "means": {
+        "en": "existing in thought or as an idea but not having a physical or concrete existence",
+        "zh": "抽象的，理论的"
+      }
+    },
+    {
+      "word": {
+        "en": "absorption",
+        "laos": "ການດູດຊຶມ",
+        "jp": "吸収",
+        "vie": "sự hấp thụ",
+        "en_pronunciation": "/əbˈsɔːrpʃən/",
+        "laos_pronunciation": "kan dut sum",
+        "jp_pronunciation": "kyūshū",
+        "vie_pronunciation": "sự hấp thụ"
+      },
+      "means": {
+        "en": "the process of taking in or soaking up",
+        "zh": "吸收，吸收作用"
+      }
+    },
+    {
+      "word": {
+        "en": "absurd",
+        "laos": "ບໍ່ສົມບູນ",
+        "jp": "ばかげた",
+        "vie": "vô lý",
+        "en_pronunciation": "/əbˈsɜːrd/",
+        "laos_pronunciation": "bo som bun",
+        "jp_pronunciation": "bakageta",
+        "vie_pronunciation": "vô lý"
+      },
+      "means": {
+        "en": "wildly unreasonable, illogical, or inappropriate",
+        "zh": "荒谬的，荒唐的"
+      }
+    },
+    {
+      "word": {
+        "en": "abundant",
+        "laos": "ອຸດົມສົມບູນ",
+        "jp": "豊富な",
+        "vie": "dồi dào",
+        "en_pronunciation": "/əˈbʌndənt/",
+        "laos_pronunciation": "udom som bun",
+        "jp_pronunciation": "hōfu na",
+        "vie_pronunciation": "dồi dào"
+      },
+      "means": {
+        "en": "existing in large quantities, plentiful",
+        "zh": "丰富的，充裕的"
+      }
+    },
+    {
+      "word": {
+        "en": "absurdity",
+        "laos": "ຄວາມບໍ່ສົມບູນ",
+        "jp": "ばかげたこと",
+        "vie": "sự vô lý",
+        "en_pronunciation": "/əbˈsɜːrdɪti/",
+        "laos_pronunciation": "khwam bo som bun",
+        "jp_pronunciation": "bakageta koto",
+        "vie_pronunciation": "sự vô lý"
+      },
+      "means": {
+        "en": "the quality or state of being absurd",
+        "zh": "荒谬，荒唐"
+      }
+    },
+    {
+      "word": {
+        "en": "abundance",
+        "laos": "ຄວາມອຸດົມສົມບູນ",
+        "jp": "豊富",
+        "vie": "sự dồi dào",
+        "en_pronunciation": "/əˈbʌndəns/",
+        "laos_pronunciation": "khwam udom som bun",
+        "jp_pronunciation": "hōfu",
+        "vie_pronunciation": "sự dồi dào"
+      },
+      "means": {
+        "en": "a very large quantity of something",
+        "zh": "丰富，充裕"
+      }
+    },
+    {
+      "word": {
+        "en": "abuse",
+        "laos": "ການລ່ວງລະເມີດ",
+        "jp": "虐待",
+        "vie": "lạm dụng",
+        "en_pronunciation": "/əˈbjuːs/",
+        "laos_pronunciation": "kan luang la met",
+        "jp_pronunciation": "gyakutai",
+        "vie_pronunciation": "lạm dụng"
+      },
+      "means": {
+        "en": "to use something to bad effect or for a bad purpose",
+        "zh": "滥用，虐待"
+      }
+    },
+    {
+      "word": {
+        "en": "abusive",
+        "laos": "ລ່ວງລະເມີດ",
+        "jp": "虐待的な",
+        "vie": "lạm dụng",
+        "en_pronunciation": "/əˈbjuːsɪv/",
+        "laos_pronunciation": "luang la met",
+        "jp_pronunciation": "gyakutaiteki na",
+        "vie_pronunciation": "lạm dụng"
+      },
+      "means": {
+        "en": "extremely offensive and insulting",
+        "zh": "辱骂的，虐待的"
+      }
+    },
+    {
+      "word": {
+        "en": "academy",
+        "laos": "ສະຖາບັນ",
+        "jp": "アカデミー",
+        "vie": "học viện",
+        "en_pronunciation": "/əˈkædəmi/",
+        "laos_pronunciation": "sa tha ban",
+        "jp_pronunciation": "akademī",
+        "vie_pronunciation": "học viện"
+      },
+      "means": {
+        "en": "a place of study or training in a special field",
+        "zh": "学院，研究院"
+      }
+    },
+    {
+      "word": {
+        "en": "accelerate",
+        "laos": "ເລັ່ງ",
+        "jp": "加速する",
+        "vie": "tăng tốc",
+        "en_pronunciation": "/əkˈseləreɪt/",
+        "laos_pronunciation": "leng",
+        "jp_pronunciation": "kasoku suru",
+        "vie_pronunciation": "tăng tốc"
+      },
+      "means": {
+        "en": "to increase in rate, amount, or extent",
+        "zh": "加速，加快"
+      }
+    },
+    {
+      "word": {
+        "en": "academic",
+        "laos": "ທາງວິຊາການ",
+        "jp": "学術的な",
+        "vie": "học thuật",
+        "en_pronunciation": "/ˌækəˈdemɪk/",
+        "laos_pronunciation": "thang vi sa kan",
+        "jp_pronunciation": "gakujutsuteki na",
+        "vie_pronunciation": "học thuật"
+      },
+      "means": {
+        "en": "relating to education and scholarship",
+        "zh": "学术的，学院的"
+      }
+    },
+    {
+      "word": {
+        "en": "acceleration",
+        "laos": "ການເລັ່ງ",
+        "jp": "加速",
+        "vie": "gia tốc",
+        "en_pronunciation": "/əkˌseləˈreɪʃən/",
+        "laos_pronunciation": "kan leng",
+        "jp_pronunciation": "kasoku",
+        "vie_pronunciation": "gia tốc"
+      },
+      "means": {
+        "en": "the rate of change of velocity per unit of time",
+        "zh": "加速，加速度"
+      }
+    },
+    {
+      "word": {
+        "en": "academician",
+        "laos": "ນັກວິຊາການ",
+        "jp": "学士院会員",
+        "vie": "viện sĩ",
+        "en_pronunciation": "/əˌkædəˈmɪʃən/",
+        "laos_pronunciation": "nak vi sa kan",
+        "jp_pronunciation": "gakushiin kaiin",
+        "vie_pronunciation": "viện sĩ"
+      },
+      "means": {
+        "en": "a member of an academy, especially the Royal Academy of Arts",
+        "zh": "院士，学会会员"
+      }
+    },
+    {
+      "word": {
+        "en": "accent",
+        "laos": "ສຽງ",
+        "jp": "アクセント",
+        "vie": "dấu nhấn",
+        "en_pronunciation": "/ˈæksent/",
+        "laos_pronunciation": "siang",
+        "jp_pronunciation": "akusento",
+        "vie_pronunciation": "dấu nhấn"
+      },
+      "means": {
+        "en": "a distinctive way of pronouncing a language",
+        "zh": "口音，重音"
+      }
+    },
+    {
+      "word": {
+        "en": "accept",
+        "laos": "ຍອມຮັບ",
+        "jp": "受け入れる",
+        "vie": "chấp nhận",
+        "en_pronunciation": "/əkˈsept/",
+        "laos_pronunciation": "nyom rap",
+        "jp_pronunciation": "ukeireru",
+        "vie_pronunciation": "chấp nhận"
+      },
+      "means": {
+        "en": "to consent to receive or undertake something offered",
+        "zh": "接受，承认"
+      }
+    },
+    {
+      "word": {
+        "en": "access",
+        "laos": "ການເຂົ້າເຖິງ",
+        "jp": "アクセス",
+        "vie": "truy cập",
+        "en_pronunciation": "/ˈækses/",
+        "laos_pronunciation": "kan khao theng",
+        "jp_pronunciation": "akusesu",
+        "vie_pronunciation": "truy cập"
+      },
+      "means": {
+        "en": "the means or opportunity to approach or enter a place",
+        "zh": "进入，访问"
+      }
+    },
+    {
+      "word": {
+        "en": "acceptance",
+        "laos": "ການຍອມຮັບ",
+        "jp": "受諾",
+        "vie": "sự chấp nhận",
+        "en_pronunciation": "/əkˈseptəns/",
+        "laos_pronunciation": "kan nyom rap",
+        "jp_pronunciation": "judaku",
+        "vie_pronunciation": "sự chấp nhận"
+      },
+      "means": {
+        "en": "the action of consenting to receive or undertake something",
+        "zh": "接受，承认"
+      }
+    },
+    {
+      "word": {
+        "en": "accessible",
+        "laos": "ເຂົ້າເຖິງໄດ້",
+        "jp": "アクセス可能な",
+        "vie": "có thể truy cập",
+        "en_pronunciation": "/əkˈsesəbəl/",
+        "laos_pronunciation": "khao theng dai",
+        "jp_pronunciation": "akusesu kanō na",
+        "vie_pronunciation": "có thể truy cập"
+      },
+      "means": {
+        "en": "able to be reached or entered",
+        "zh": "可进入的，可访问的"
+      }
+    },
+    {
+      "word": {
+        "en": "acceptable",
+        "laos": "ຍອມຮັບໄດ້",
+        "jp": "受け入れられる",
+        "vie": "chấp nhận được",
+        "en_pronunciation": "/əkˈseptəbəl/",
+        "laos_pronunciation": "nyom rap dai",
+        "jp_pronunciation": "ukeirerareru",
+        "vie_pronunciation": "chấp nhận được"
+      },
+      "means": {
+        "en": "able to be agreed on, suitable",
+        "zh": "可接受的，合适的"
+      }
+    },
+    {
+      "word": {
+        "en": "accessory",
+        "laos": "ອຸປະກອນ",
+        "jp": "アクセサリー",
+        "vie": "phụ kiện",
+        "en_pronunciation": "/əkˈsesəri/",
+        "laos_pronunciation": "u pa kon",
+        "jp_pronunciation": "akusesarī",
+        "vie_pronunciation": "phụ kiện"
+      },
+      "means": {
+        "en": "a thing which can be added to something else to make it more useful or attractive",
+        "zh": "附件，配件"
+      }
+    },
+    {
+      "word": {
+        "en": "accident",
+        "laos": "ອຸບັດເຫດ",
+        "jp": "事故",
+        "vie": "tai nạn",
+        "en_pronunciation": "/ˈæksɪdənt/",
+        "laos_pronunciation": "u bat het",
+        "jp_pronunciation": "jiko",
+        "vie_pronunciation": "tai nạn"
+      },
+      "means": {
+        "en": "an unfortunate incident that happens unexpectedly",
+        "zh": "事故，意外"
+      }
+    },
+    {
+      "word": {
+        "en": "accidental",
+        "laos": "ບັງເອີນ",
+        "jp": "偶然の",
+        "vie": "tình cờ",
+        "en_pronunciation": "/ˌæksɪˈdentəl/",
+        "laos_pronunciation": "bang eun",
+        "jp_pronunciation": "gūzen no",
+        "vie_pronunciation": "tình cờ"
+      },
+      "means": {
+        "en": "happening by chance or unintentionally",
+        "zh": "偶然的，意外的"
+      }
+    },
+    {
+      "word": {
+        "en": "acclaim",
+        "laos": "ສັນລະເສີນ",
+        "jp": "称賛",
+        "vie": "ca ngợi",
+        "en_pronunciation": "/əˈkleɪm/",
+        "laos_pronunciation": "san la sen",
+        "jp_pronunciation": "shōsan",
+        "vie_pronunciation": "ca ngợi"
+      },
+      "means": {
+        "en": "to praise enthusiastically and publicly",
+        "zh": "称赞，赞扬"
+      }
+    },
+    {
+      "word": {
+        "en": "accommodate",
+        "laos": "ຈັດຫາ",
+        "jp": "収容する",
+        "vie": "chỗ ở",
+        "en_pronunciation": "/əˈkɒmədeɪt/",
+        "laos_pronunciation": "chat ha",
+        "jp_pronunciation": "shūyō suru",
+        "vie_pronunciation": "chỗ ở"
+      },
+      "means": {
+        "en": "to provide lodging or sufficient space for",
+        "zh": "容纳，提供住宿"
+      }
+    },
+    {
+      "word": {
+        "en": "accommodation",
+        "laos": "ທີ່ພັກ",
+        "jp": "宿泊施設",
+        "vie": "chỗ ở",
+        "en_pronunciation": "/əˌkɒməˈdeɪʃən/",
+        "laos_pronunciation": "thi phak",
+        "jp_pronunciation": "shukuhaku shisetsu",
+        "vie_pronunciation": "chỗ ở"
+      },
+      "means": {
+        "en": "a room, group of rooms, or building in which someone may live or stay",
+        "zh": "住宿，住所"
+      }
+    },
+    {
+      "word": {
+        "en": "accompany",
+        "laos": "ຕາມ",
+        "jp": "同行する",
+        "vie": "đi cùng",
+        "en_pronunciation": "/əˈkʌmpəni/",
+        "laos_pronunciation": "tam",
+        "jp_pronunciation": "dōkō suru",
+        "vie_pronunciation": "đi cùng"
+      },
+      "means": {
+        "en": "to go somewhere with someone as a companion",
+        "zh": "陪伴，伴随"
+      }
+    },
+    {
+      "word": {
+        "en": "accomplish",
+        "laos": "ສຳເລັດ",
+        "jp": "達成する",
+        "vie": "hoàn thành",
+        "en_pronunciation": "/əˈkʌmplɪʃ/",
+        "laos_pronunciation": "sam let",
+        "jp_pronunciation": "tassei suru",
+        "vie_pronunciation": "hoàn thành"
+      },
+      "means": {
+        "en": "to achieve or complete successfully",
+        "zh": "完成，实现"
+      }
+    },
+    {
+      "word": {
+        "en": "accord",
+        "laos": "ຕົກລົງ",
+        "jp": "一致",
+        "vie": "thỏa thuận",
+        "en_pronunciation": "/əˈkɔːrd/",
+        "laos_pronunciation": "tok long",
+        "jp_pronunciation": "itchi",
+        "vie_pronunciation": "thỏa thuận"
+      },
+      "means": {
+        "en": "an official agreement or treaty",
+        "zh": "协议，一致"
+      }
+    },
+    {
+      "word": {
+        "en": "accomplishment",
+        "laos": "ການສຳເລັດ",
+        "jp": "達成",
+        "vie": "thành tựu",
+        "en_pronunciation": "/əˈkʌmplɪʃmənt/",
+        "laos_pronunciation": "kan sam let",
+        "jp_pronunciation": "tassei",
+        "vie_pronunciation": "thành tựu"
+      },
+      "means": {
+        "en": "something that has been achieved successfully",
+        "zh": "成就，完成"
+      }
+    },
+    {
+      "word": {
+        "en": "accordance",
+        "laos": "ຕາມ",
+        "jp": "一致",
+        "vie": "theo",
+        "en_pronunciation": "/əˈkɔːrdəns/",
+        "laos_pronunciation": "tam",
+        "jp_pronunciation": "itchi",
+        "vie_pronunciation": "theo"
+      },
+      "means": {
+        "en": "in agreement or harmony with",
+        "zh": "一致，符合"
+      }
+    },
+    {
+      "word": {
+        "en": "according to",
+        "laos": "ຕາມ",
+        "jp": "によると",
+        "vie": "theo",
+        "en_pronunciation": "/əˈkɔːrdɪŋ tuː/",
+        "laos_pronunciation": "tam",
+        "jp_pronunciation": "ni yoru to",
+        "vie_pronunciation": "theo"
+      },
+      "means": {
+        "en": "as stated by or in",
+        "zh": "根据，按照"
+      }
+    },
+    {
+      "word": {
+        "en": "accordingly",
+        "laos": "ຕາມນັ້ນ",
+        "jp": "それに応じて",
+        "vie": "theo đó",
+        "en_pronunciation": "/əˈkɔːrdɪŋli/",
+        "laos_pronunciation": "tam nan",
+        "jp_pronunciation": "sore ni ōjite",
+        "vie_pronunciation": "theo đó"
+      },
+      "means": {
+        "en": "in a way that is appropriate to the particular circumstances",
+        "zh": "因此，相应地"
+      }
+    },
+    {
+      "word": {
+        "en": "account",
+        "laos": "ບັນຊີ",
+        "jp": "口座",
+        "vie": "tài khoản",
+        "en_pronunciation": "/əˈkaʊnt/",
+        "laos_pronunciation": "ban si",
+        "jp_pronunciation": "kōza",
+        "vie_pronunciation": "tài khoản"
+      },
+      "means": {
+        "en": "a record of financial expenditure and receipts",
+        "zh": "账户，账目"
+      }
+    },
+    {
+      "word": {
+        "en": "accounting",
+        "laos": "ການບັນຊີ",
+        "jp": "会計",
+        "vie": "kế toán",
+        "en_pronunciation": "/əˈkaʊntɪŋ/",
+        "laos_pronunciation": "kan ban si",
+        "jp_pronunciation": "kaikei",
+        "vie_pronunciation": "kế toán"
+      },
+      "means": {
+        "en": "the process of keeping financial accounts",
+        "zh": "会计，记账"
+      }
+    },
+    {
+      "word": {
+        "en": "accountant",
+        "laos": "ນັກບັນຊີ",
+        "jp": "会計士",
+        "vie": "kế toán viên",
+        "en_pronunciation": "/əˈkaʊntənt/",
+        "laos_pronunciation": "nak ban si",
+        "jp_pronunciation": "kaikeishi",
+        "vie_pronunciation": "kế toán viên"
+      },
+      "means": {
+        "en": "a person whose job is to keep or inspect financial accounts",
+        "zh": "会计师"
+      }
+    },
+    {
+      "word": {
+        "en": "accountancy",
+        "laos": "ວິຊາການບັນຊີ",
+        "jp": "会計学",
+        "vie": "kế toán học",
+        "en_pronunciation": "/əˈkaʊntənsi/",
+        "laos_pronunciation": "vi sa kan ban si",
+        "jp_pronunciation": "kaikeigaku",
+        "vie_pronunciation": "kế toán học"
+      },
+      "means": {
+        "en": "the profession or duties of an accountant",
+        "zh": "会计学，会计职业"
+      }
+    },
+    {
+      "word": {
+        "en": "accountable",
+        "laos": "ຮັບຜິດຊອບ",
+        "jp": "責任がある",
+        "vie": "chịu trách nhiệm",
+        "en_pronunciation": "/əˈkaʊntəbəl/",
+        "laos_pronunciation": "rap phit sop",
+        "jp_pronunciation": "sekinin ga aru",
+        "vie_pronunciation": "chịu trách nhiệm"
+      },
+      "means": {
+        "en": "required or expected to justify actions or decisions",
+        "zh": "有责任的，应负责的"
+      }
+    },
+    {
+      "word": {
+        "en": "accumulate",
+        "laos": "ສະສົມ",
+        "jp": "蓄積する",
+        "vie": "tích lũy",
+        "en_pronunciation": "/əˈkjuːmjəleɪt/",
+        "laos_pronunciation": "sa som",
+        "jp_pronunciation": "chikuseki suru",
+        "vie_pronunciation": "tích lũy"
+      },
+      "means": {
+        "en": "to gather together or acquire an increasing number or quantity of",
+        "zh": "积累，累积"
+      }
+    },
+    {
+      "word": {
+        "en": "accountability",
+        "laos": "ຄວາມຮັບຜິດຊອບ",
+        "jp": "説明責任",
+        "vie": "trách nhiệm giải trình",
+        "en_pronunciation": "/əˌkaʊntəˈbɪlɪti/",
+        "laos_pronunciation": "khwam rap phit sop",
+        "jp_pronunciation": "setsumei sekinin",
+        "vie_pronunciation": "trách nhiệm giải trình"
+      },
+      "means": {
+        "en": "the fact or condition of being accountable",
+        "zh": "责任，问责"
+      }
+    },
+    {
+      "word": {
+        "en": "accumulation",
+        "laos": "ການສະສົມ",
+        "jp": "蓄積",
+        "vie": "sự tích lũy",
+        "en_pronunciation": "/əˌkjuːmjəˈleɪʃən/",
+        "laos_pronunciation": "kan sa som",
+        "jp_pronunciation": "chikuseki",
+        "vie_pronunciation": "sự tích lũy"
+      },
+      "means": {
+        "en": "the acquisition or gradual gathering of something",
+        "zh": "积累，累积"
+      }
+    },
+    {
+      "word": {
+        "en": "accumulative",
+        "laos": "ສະສົມ",
+        "jp": "累積的な",
+        "vie": "tích lũy",
+        "en_pronunciation": "/əˈkjuːmjələtɪv/",
+        "laos_pronunciation": "sa som",
+        "jp_pronunciation": "ruisekiteki na",
+        "vie_pronunciation": "tích lũy"
+      },
+      "means": {
+        "en": "gathering or growing by gradual increases",
+        "zh": "累积的，积累的"
+      }
+    },
+    {
+      "word": {
+        "en": "accurate",
+        "laos": "ຖືກຕ້ອງ",
+        "jp": "正確な",
+        "vie": "chính xác",
+        "en_pronunciation": "/ˈækjərət/",
+        "laos_pronunciation": "thuok tong",
+        "jp_pronunciation": "seikaku na",
+        "vie_pronunciation": "chính xác"
+      },
+      "means": {
+        "en": "correct in all details, exact",
+        "zh": "准确的，精确的"
+      }
+    },
+    {
+      "word": {
+        "en": "accuse",
+        "laos": "ກ່າວຫາ",
+        "jp": "非難する",
+        "vie": "buộc tội",
+        "en_pronunciation": "/əˈkjuːz/",
+        "laos_pronunciation": "kao ha",
+        "jp_pronunciation": "hinan suru",
+        "vie_pronunciation": "buộc tội"
+      },
+      "means": {
+        "en": "to charge someone with an offense or crime",
+        "zh": "指控，控告"
+      }
+    },
+    {
+      "word": {
+        "en": "accuracy",
+        "laos": "ຄວາມຖືກຕ້ອງ",
+        "jp": "正確さ",
+        "vie": "độ chính xác",
+        "en_pronunciation": "/ˈækjərəsi/",
+        "laos_pronunciation": "khwam thuok tong",
+        "jp_pronunciation": "seikasusa",
+        "vie_pronunciation": "độ chính xác"
+      },
+      "means": {
+        "en": "the quality or state of being correct or precise",
+        "zh": "准确性，精确度"
+      }
+    },
+    {
+      "word": {
+        "en": "accusation",
+        "laos": "ການກ່າວຫາ",
+        "jp": "非難",
+        "vie": "lời buộc tội",
+        "en_pronunciation": "/ˌækjəˈzeɪʃən/",
+        "laos_pronunciation": "kan kao ha",
+        "jp_pronunciation": "hinan",
+        "vie_pronunciation": "lời buộc tội"
+      },
+      "means": {
+        "en": "a charge or claim that someone has done something illegal or wrong",
+        "zh": "指控，控告"
+      }
+    },
+    {
+      "word": {
+        "en": "accustom",
+        "laos": "ເຮັດໃຫ້ຄຸ້ນເຄີຍ",
+        "jp": "慣れさせる",
+        "vie": "làm quen",
+        "en_pronunciation": "/əˈkʌstəm/",
+        "laos_pronunciation": "het hai khun kheuy",
+        "jp_pronunciation": "nare saseru",
+        "vie_pronunciation": "làm quen"
+      },
+      "means": {
+        "en": "to make someone or something accept something as normal or usual",
+        "zh": "使习惯，使适应"
+      }
+    },
+    {
+      "word": {
+        "en": "accustomed",
+        "laos": "ຄຸ້ນເຄີຍ",
+        "jp": "慣れた",
+        "vie": "quen thuộc",
+        "en_pronunciation": "/əˈkʌstəmd/",
+        "laos_pronunciation": "khun kheuy",
+        "jp_pronunciation": "nareta",
+        "vie_pronunciation": "quen thuộc"
+      },
+      "means": {
+        "en": "customary, usual",
+        "zh": "习惯的，通常的"
+      }
+    },
+    {
+      "word": {
+        "en": "ace",
+        "laos": "ເອດ",
+        "jp": "エース",
+        "vie": "át",
+        "en_pronunciation": "/eɪs/",
+        "laos_pronunciation": "et",
+        "jp_pronunciation": "ēsu",
+        "vie_pronunciation": "át"
+      },
+      "means": {
+        "en": "a playing card with a single spot on it, ranked as the highest card",
+        "zh": "A牌，王牌"
+      }
+    },
+    {
+      "word": {
+        "en": "ache",
+        "laos": "ເຈັບ",
+        "jp": "痛み",
+        "vie": "đau",
+        "en_pronunciation": "/eɪk/",
+        "laos_pronunciation": "chep",
+        "jp_pronunciation": "itami",
+        "vie_pronunciation": "đau"
+      },
+      "means": {
+        "en": "a continuous dull pain",
+        "zh": "疼痛，酸痛"
+      }
+    },
+    {
+      "word": {
+        "en": "achieve",
+        "laos": "ບັນລຸ",
+        "jp": "達成する",
+        "vie": "đạt được",
+        "en_pronunciation": "/əˈtʃiːv/",
+        "laos_pronunciation": "ban lu",
+        "jp_pronunciation": "tassei suru",
+        "vie_pronunciation": "đạt được"
+      },
+      "means": {
+        "en": "to successfully bring about or reach a desired objective or result",
+        "zh": "达到，实现"
+      }
+    },
+    {
+      "word": {
+        "en": "achievement",
+        "laos": "ການບັນລຸ",
+        "jp": "達成",
+        "vie": "thành tựu",
+        "en_pronunciation": "/əˈtʃiːvmənt/",
+        "laos_pronunciation": "kan ban lu",
+        "jp_pronunciation": "tassei",
+        "vie_pronunciation": "thành tựu"
+      },
+      "means": {
+        "en": "a thing done successfully with effort, skill, or courage",
+        "zh": "成就，成绩"
+      }
+    },
+    {
+      "word": {
+        "en": "acid",
+        "laos": "ກົດ",
+        "jp": "酸",
+        "vie": "axit",
+        "en_pronunciation": "/ˈæsɪd/",
+        "laos_pronunciation": "kot",
+        "jp_pronunciation": "san",
+        "vie_pronunciation": "axit"
+      },
+      "means": {
+        "en": "a chemical substance that neutralizes alkalis, dissolves some metals",
+        "zh": "酸，酸性物质"
+      }
+    },
+    {
+      "word": {
+        "en": "acidity",
+        "laos": "ຄວາມເປັນກົດ",
+        "jp": "酸性",
+        "vie": "độ axit",
+        "en_pronunciation": "/əˈsɪdɪti/",
+        "laos_pronunciation": "khwam pen kot",
+        "jp_pronunciation": "sansei",
+        "vie_pronunciation": "độ axit"
+      },
+      "means": {
+        "en": "the level of acid in substances such as water, soil, or wine",
+        "zh": "酸度，酸性"
+      }
+    },
+    {
+      "word": {
+        "en": "acknowledge",
+        "laos": "ຍອມຮັບ",
+        "jp": "認める",
+        "vie": "thừa nhận",
+        "en_pronunciation": "/əkˈnɒlɪdʒ/",
+        "laos_pronunciation": "nyom rap",
+        "jp_pronunciation": "mitomeru",
+        "vie_pronunciation": "thừa nhận"
+      },
+      "means": {
+        "en": "to accept or admit the existence or truth of",
+        "zh": "承认，确认"
+      }
+    },
+    {
+      "word": {
+        "en": "acknowledgement",
+        "laos": "ການຍອມຮັບ",
+        "jp": "承認",
+        "vie": "sự thừa nhận",
+        "en_pronunciation": "/əkˈnɒlɪdʒmənt/",
+        "laos_pronunciation": "kan nyom rap",
+        "jp_pronunciation": "shōnin",
+        "vie_pronunciation": "sự thừa nhận"
+      },
+      "means": {
+        "en": "acceptance of the truth or existence of something",
+        "zh": "承认，确认"
+      }
+    },
+    {
+      "word": {
+        "en": "acquaint",
+        "laos": "ເຮັດໃຫ້ຮູ້ຈັກ",
+        "jp": "知らせる",
+        "vie": "làm quen",
+        "en_pronunciation": "/əˈkweɪnt/",
+        "laos_pronunciation": "het hai hu chak",
+        "jp_pronunciation": "shiraseru",
+        "vie_pronunciation": "làm quen"
+      },
+      "means": {
+        "en": "to make someone aware of or familiar with",
+        "zh": "使熟悉，使了解"
+      }
+    },
+    {
+      "word": {
+        "en": "acquaintance",
+        "laos": "ຄົນຮູ້ຈັກ",
+        "jp": "知人",
+        "vie": "người quen",
+        "en_pronunciation": "/əˈkweɪntəns/",
+        "laos_pronunciation": "khon hu chak",
+        "jp_pronunciation": "chijin",
+        "vie_pronunciation": "người quen"
+      },
+      "means": {
+        "en": "a person one knows slightly, but who is not a close friend",
+        "zh": "熟人，相识"
+      }
+    },
+    {
+      "word": {
+        "en": "acquire",
+        "laos": "ໄດ້ຮັບ",
+        "jp": "獲得する",
+        "vie": "có được",
+        "en_pronunciation": "/əˈkwaɪər/",
+        "laos_pronunciation": "dai rap",
+        "jp_pronunciation": "kakutoku suru",
+        "vie_pronunciation": "có được"
+      },
+      "means": {
+        "en": "to buy or obtain an asset or object for oneself",
+        "zh": "获得，取得"
+      }
+    },
+    {
+      "word": {
+        "en": "acquisition",
+        "laos": "ການໄດ້ຮັບ",
+        "jp": "獲得",
+        "vie": "sự có được",
+        "en_pronunciation": "/ˌækwɪˈzɪʃən/",
+        "laos_pronunciation": "kan dai rap",
+        "jp_pronunciation": "kakutoku",
+        "vie_pronunciation": "sự có được"
+      },
+      "means": {
+        "en": "an asset or object bought or obtained",
+        "zh": "获得，收购"
+      }
+    },
+    {
+      "word": {
+        "en": "acre",
+        "laos": "ເອເກີ",
+        "jp": "エーカー",
+        "vie": "mẫu Anh",
+        "en_pronunciation": "/ˈeɪkər/",
+        "laos_pronunciation": "e ke",
+        "jp_pronunciation": "ēkā",
+        "vie_pronunciation": "mẫu Anh"
+      },
+      "means": {
+        "en": "a unit of land area equal to 4,840 square yards",
+        "zh": "英亩"
+      }
+    },
+    {
+      "word": {
+        "en": "across",
+        "laos": "ຂ້າມ",
+        "jp": "横切って",
+        "vie": "qua",
+        "en_pronunciation": "/əˈkrɒs/",
+        "laos_pronunciation": "kham",
+        "jp_pronunciation": "yokogitte",
+        "vie_pronunciation": "qua"
+      },
+      "means": {
+        "en": "from one side to the other of",
+        "zh": "横过，穿过"
+      }
+    },
+    {
+      "word": {
+        "en": "act",
+        "laos": "ກິດຈະກຳ",
+        "jp": "行動する",
+        "vie": "hành động",
+        "en_pronunciation": "/ækt/",
+        "laos_pronunciation": "kit cha kam",
+        "jp_pronunciation": "kōdō suru",
+        "vie_pronunciation": "hành động"
+      },
+      "means": {
+        "en": "to take action, do something",
+        "zh": "行动，表演"
+      }
+    },
+    {
+      "word": {
+        "en": "action",
+        "laos": "ການກະທຳ",
+        "jp": "行動",
+        "vie": "hành động",
+        "en_pronunciation": "/ˈækʃən/",
+        "laos_pronunciation": "kan ka tham",
+        "jp_pronunciation": "kōdō",
+        "vie_pronunciation": "hành động"
+      },
+      "means": {
+        "en": "the fact or process of doing something",
+        "zh": "行动，行为"
+      }
+    },
+    {
+      "word": {
+        "en": "acting",
+        "laos": "ການສະແດງ",
+        "jp": "演技",
+        "vie": "diễn xuất",
+        "en_pronunciation": "/ˈæktɪŋ/",
+        "laos_pronunciation": "kan sa daeng",
+        "jp_pronunciation": "engi",
+        "vie_pronunciation": "diễn xuất"
+      },
+      "means": {
+        "en": "the art or occupation of performing in plays, movies, or television productions",
+        "zh": "表演，演技"
+      }
+    },
+    {
+      "word": {
+        "en": "activate",
+        "laos": "ເປີດໃຊ້",
+        "jp": "活性化する",
+        "vie": "kích hoạt",
+        "en_pronunciation": "/ˈæktɪveɪt/",
+        "laos_pronunciation": "poet sai",
+        "jp_pronunciation": "kasseika suru",
+        "vie_pronunciation": "kích hoạt"
+      },
+      "means": {
+        "en": "to make something active or operative",
+        "zh": "激活，启动"
+      }
+    },
+    {
+      "word": {
+        "en": "active",
+        "laos": "ມີກິດຈະກຳ",
+        "jp": "活動的な",
+        "vie": "tích cực",
+        "en_pronunciation": "/ˈæktɪv/",
+        "laos_pronunciation": "mi kit cha kam",
+        "jp_pronunciation": "katsudōteki na",
+        "vie_pronunciation": "tích cực"
+      },
+      "means": {
+        "en": "engaging or ready to engage in physically energetic pursuits",
+        "zh": "活跃的，积极的"
+      }
+    },
+    {
+      "word": {
+        "en": "activity",
+        "laos": "ກິດຈະກຳ",
+        "jp": "活動",
+        "vie": "hoạt động",
+        "en_pronunciation": "/ækˈtɪvɪti/",
+        "laos_pronunciation": "kit cha kam",
+        "jp_pronunciation": "katsudō",
+        "vie_pronunciation": "hoạt động"
+      },
+      "means": {
+        "en": "the condition in which things are happening or being done",
+        "zh": "活动，行动"
+      }
+    },
+    {
+      "word": {
+        "en": "activist",
+        "laos": "ນັກກິດຈະກຳ",
+        "jp": "活動家",
+        "vie": "nhà hoạt động",
+        "en_pronunciation": "/ˈæktɪvɪst/",
+        "laos_pronunciation": "nak kit cha kam",
+        "jp_pronunciation": "katsudōka",
+        "vie_pronunciation": "nhà hoạt động"
+      },
+      "means": {
+        "en": "a person who campaigns to bring about political or social change",
+        "zh": "活动家，积极分子"
+      }
+    },
+    {
+      "word": {
+        "en": "actor",
+        "laos": "ນັກສະແດງ",
+        "jp": "俳優",
+        "vie": "diễn viên",
+        "en_pronunciation": "/ˈæktər/",
+        "laos_pronunciation": "nak sa daeng",
+        "jp_pronunciation": "haiyū",
+        "vie_pronunciation": "diễn viên"
+      },
+      "means": {
+        "en": "a person whose profession is acting on the stage, in movies, or on television",
+        "zh": "演员"
+      }
+    },
+    {
+      "word": {
+        "en": "actress",
+        "laos": "ນັກສະແດງຍິງ",
+        "jp": "女優",
+        "vie": "nữ diễn viên",
+        "en_pronunciation": "/ˈæktrəs/",
+        "laos_pronunciation": "nak sa daeng nying",
+        "jp_pronunciation": "joyū",
+        "vie_pronunciation": "nữ diễn viên"
+      },
+      "means": {
+        "en": "a female actor",
+        "zh": "女演员"
+      }
+    },
+    {
+      "word": {
+        "en": "actual",
+        "laos": "ຈິງ",
+        "jp": "実際の",
+        "vie": "thực tế",
+        "en_pronunciation": "/ˈæktʃuəl/",
+        "laos_pronunciation": "ching",
+        "jp_pronunciation": "jissai no",
+        "vie_pronunciation": "thực tế"
+      },
+      "means": {
+        "en": "existing in fact, real",
+        "zh": "实际的，真实的"
+      }
+    },
+    {
+      "word": {
+        "en": "actually",
+        "laos": "ຕົວຈິງ",
+        "jp": "実際に",
+        "vie": "thực ra",
+        "en_pronunciation": "/ˈæktʃuəli/",
+        "laos_pronunciation": "tua ching",
+        "jp_pronunciation": "jissai ni",
+        "vie_pronunciation": "thực ra"
+      },
+      "means": {
+        "en": "as the truth or facts of a situation, really",
+        "zh": "实际上，事实上"
+      }
+    },
+    {
+      "word": {
+        "en": "acupuncture",
+        "laos": "ການປີ້ນເຂັມ",
+        "jp": "鍼治療",
+        "vie": "châm cứu",
+        "en_pronunciation": "/ˈækjʊpʌŋktʃər/",
+        "laos_pronunciation": "kan pin khem",
+        "jp_pronunciation": "hari chiryō",
+        "vie_pronunciation": "châm cứu"
+      },
+      "means": {
+        "en": "a system of complementary medicine in which fine needles are inserted in the skin",
+        "zh": "针灸，针刺疗法"
+      }
+    },
+    {
+      "word": {
+        "en": "acute",
+        "laos": "ແຫຼມ",
+        "jp": "鋭い",
+        "vie": "cấp tính",
+        "en_pronunciation": "/əˈkjuːt/",
+        "laos_pronunciation": "laem",
+        "jp_pronunciation": "surudoi",
+        "vie_pronunciation": "cấp tính"
+      },
+      "means": {
+        "en": "present or experienced to a severe or intense degree",
+        "zh": "急性的，尖锐的"
+      }
+    },
+    {
+      "word": {
+        "en": "adapt",
+        "laos": "ປັບຕົວ",
+        "jp": "適応する",
+        "vie": "thích ứng",
+        "en_pronunciation": "/əˈdæpt/",
+        "laos_pronunciation": "pap tua",
+        "jp_pronunciation": "tekiō suru",
+        "vie_pronunciation": "thích ứng"
+      },
+      "means": {
+        "en": "to make something suitable for a new use or purpose",
+        "zh": "适应，调整"
+      }
+    },
+    {
+      "word": {
+        "en": "adaptation",
+        "laos": "ການປັບຕົວ",
+        "jp": "適応",
+        "vie": "sự thích ứng",
+        "en_pronunciation": "/ˌædæpˈteɪʃən/",
+        "laos_pronunciation": "kan pap tua",
+        "jp_pronunciation": "tekiō",
+        "vie_pronunciation": "sự thích ứng"
+      },
+      "means": {
+        "en": "the action or process of adapting or being adapted",
+        "zh": "适应，改编"
+      }
+    },
+    {
+      "word": {
+        "en": "adaptive",
+        "laos": "ປັບຕົວ",
+        "jp": "適応的な",
+        "vie": "thích ứng",
+        "en_pronunciation": "/əˈdæptɪv/",
+        "laos_pronunciation": "pap tua",
+        "jp_pronunciation": "tekiōteki na",
+        "vie_pronunciation": "thích ứng"
+      },
+      "means": {
+        "en": "having an ability to change to suit different conditions",
+        "zh": "适应的，有适应能力的"
+      }
+    },
+    {
+      "word": {
+        "en": "add",
+        "laos": "ເພີ່ມ",
+        "jp": "加える",
+        "vie": "thêm",
+        "en_pronunciation": "/æd/",
+        "laos_pronunciation": "phoem",
+        "jp_pronunciation": "kuwaeru",
+        "vie_pronunciation": "thêm"
+      },
+      "means": {
+        "en": "to join something to something else so as to increase the size, number, or amount",
+        "zh": "添加，增加"
+      }
+    }
+  ]
+}

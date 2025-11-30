@@ -43,19 +43,14 @@ class HomeRecommend extends StatelessWidget {
   }
 
   Widget _buildRecommendCard(BuildContext context, Map<String, dynamic> card) {
-    const iconSize = 86.4;
-    return Container(
-      width: iconSize + 8.0,
-      margin: const EdgeInsets.only(right: 10.0),
-      child: Column(
+    return Column(
         mainAxisSize: MainAxisSize.max,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: SizedBox(
-              width: iconSize,
-              height: iconSize,
+            padding: const EdgeInsets.only(bottom: 0.0),
+            child: AspectRatio(
+              aspectRatio: 1.0,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12.0),
                 child: Image.asset(
@@ -67,7 +62,7 @@ class HomeRecommend extends StatelessWidget {
                       child: const Icon(
                         Icons.image,
                         color: Colors.grey,
-                        size: 43.2,
+                        size: 40.0,
                       ),
                     );
                   },
@@ -76,7 +71,6 @@ class HomeRecommend extends StatelessWidget {
             ),
           ),
         ],
-      ),
     );
   }
 
@@ -85,29 +79,41 @@ class HomeRecommend extends StatelessWidget {
     final recommendCards = _getRecommendCards(context);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 0.0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12.0),
         child: Container(
           height: 216.0,
           child: Stack(
             children: [
-              Positioned.fill(
+              Positioned(
+                left: -80,
+                top: -216.0 * 0.1,
+                bottom: -216.0 * 0.1,
+                right: 0,
                 child: Transform.scale(
-                  scale: 1.5,
+                  scale: 1.0,
                   child: Image.asset(
                     AssetsIconsAppTravel.travelRecommendBg1,
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
-              ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(right: 4.0),
-                itemCount: 5,
-                itemBuilder: (context, index) {
-                  return _buildRecommendCard(context, recommendCards[index]);
-                },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Row(
+                  children: [
+                    Expanded(child: _buildRecommendCard(context, recommendCards[0])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[1])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[2])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[3])),
+                    const SizedBox(width: 10.0),
+                    Expanded(child: _buildRecommendCard(context, recommendCards[4])),
+                  ],
+                ),
               ),
             ],
           ),

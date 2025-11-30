@@ -1,0 +1,410 @@
+MODULAR DOMAIN SETUP SCRIPTS - USAGE GUIDE
+===========================================
+
+Date: 2025-11-14
+Purpose: Guide for using the new modular domain setup scripts
+
+OVERVIEW
+--------
+
+The original 130_setup_domains.sh script has been refactored into 4 modular scripts:
+
+1. 131_prepare_domain_setup.sh    - Environment preparation
+2. 132_setup_domain_ssl.sh         - SSL certificate configuration
+3. 133_setup_api_domains.sh        - API domains (Laravel poly type)
+4. 134_setup_html_domains.sh       - HTML domains (static content)
+
+Original script preserved as: 130_setup_domains_original.sh
+
+BENEFITS
+--------
+
+Modular Design:
+- Each script has a single, focused responsibility
+- Easier to understand and maintain
+- Can be run independently or sequentially
+- Allows partial setup (e.g., SSL only, API only)
+
+State Management:
+- Scripts share state through ~/.domain_setup_state/
+- Run preparation once, then run specific setup scripts as needed
+- Can restart from any point in the process
+
+Flexibility:
+- Run all scripts in sequence for full setup
+- Run individual scripts for specific tasks
+- Skip steps if not needed (e.g., skip SSL for local development)
+
+SCRIPT DETAILS
+--------------
+
+131_prepare_domain_setup.sh
+---------------------------
+Purpose: Prepare environment for domain setup
+
+What it does:
+- Initialize system directories (nginx config, ssl, www root)
+- Install certbot-dns-dnspod plugin
+- Load and decrypt secrets (DNSPod credentials, domain list)
+- Select domain prefixes (local, si, sz, sh, api)
+- Save configuration state for other scripts
+
+When to run:
+- First script to run
+- Run again to change prefix selection
+- Run with "start fresh" to clear previous state
+
+State saved:
+- SELECTED_PREFIXES
+- DOMAINS_LISTS_CONTENT
+- DNSPOD_EMAIL
+- DNSPOD_API_TOKEN
+- PHP_VERSION
+
+Example:
+```bash
+cd /www/programing/core_node/scripts/shells/linux/debian/install_shells
+bash 131_prepare_domain_setup.sh
+```
+
+132_setup_domain_ssl.sh
+-----------------------
+Purpose: Add SSL certificates for all domains
+
+What it does:
+- Load configuration from state
+- For each domain in domain list:
+  - Call: php artisan servermanager:certificate add <domain> --prefixes=<prefixes> --provider=dnspod
+- Display certificate summary
+
+When to run:
+- After 131_prepare_domain_setup.sh
+- When SSL certificates are needed
+- Can be skipped for HTTP-only local development
+
+Dependencies:
+- 131_prepare_domain_setup.sh must be run first
+- DNSPod credentials must be configured
+- Certbot and certbot-dns-dnspod must be installed
+
+Example:
+```bash
+bash 132_setup_domain_ssl.sh
+```
+
+Note: SSL setup can fail without breaking the process. Websites can still be added as HTTP-only.
+
+133_setup_api_domains.sh
+------------------------
+Purpose: Setup all API domains (Laravel poly type)
+
+What it does:
+- Load configuration from state
+- For each domain, for each prefix:
+  - If prefix is "api": add api.domain.com (poly type)
+  - If prefix is not "api": add prefix.api.domain.com (poly type)
+- All API domains point to Laravel main project (poly_apps/laravel_main/public)
+
+Websites created per domain:
+- api.domain.com → /core_node/poly_apps/laravel_main/public (if "api" prefix selected)
+- local.api.domain.com → /core_node/poly_apps/laravel_main/public
+- si.api.domain.com → /core_node/poly_apps/laravel_main/public
+- sz.api.domain.com → /core_node/poly_apps/laravel_main/public
+- sh.api.domain.com → /core_node/poly_apps/laravel_main/public
+
+When to run:
+- After 131_prepare_domain_setup.sh
+- Can be run independently of 132 (SSL) and 134 (HTML)
+- Run whenever you need to add/update API domains
+
+Dependencies:
+- 131_prepare_domain_setup.sh must be run first
+- Laravel must be installed and functional
+
+Example:
+```bash
+bash 133_setup_api_domains.sh
+```
+
+134_setup_html_domains.sh
+-------------------------
+Purpose: Setup all HTML domains (static content)
+
+What it does:
+- Load configuration from state
+- For each domain, for each non-api prefix:
+  - Add prefix.domain.com (html type)
+  - Create directory at /www/wwwroot/domain/
+  - Create index.html file
+
+Websites created per domain:
+- local.domain.com → /www/wwwroot/domain/ (static HTML)
+- si.domain.com → /www/wwwroot/si.domain.com/ (static HTML)
+- sz.domain.com → /www/wwwroot/sz.domain.com/ (static HTML)
+- sh.domain.com → /www/wwwroot/sh.domain.com/ (static HTML)
+
+Note: "api" prefix is skipped as it's handled by 133_setup_api_domains.sh
+
+When to run:
+- After 131_prepare_domain_setup.sh
+- Can be run independently of 132 (SSL) and 133 (API)
+- Run whenever you need to add/update HTML domains
+
+Dependencies:
+- 131_prepare_domain_setup.sh must be run first
+- Laravel must be installed and functional
+
+Example:
+```bash
+bash 134_setup_html_domains.sh
+```
+
+USAGE SCENARIOS
+---------------
+
+Scenario 1: Full Setup (All domains, SSL, API, HTML)
+----------------------------------------------------
+```bash
+cd /www/programing/core_node/scripts/shells/linux/debian/install_shells
+
+# Step 1: Prepare environment
+bash 131_prepare_domain_setup.sh
+# - Select prefixes when prompted
+# - Enter DNSPod credentials if needed
+
+# Step 2: Add SSL certificates
+bash 132_setup_domain_ssl.sh
+# - Review domain list
+# - Confirm to proceed
+
+# Step 3: Add API domains
+bash 133_setup_api_domains.sh
+# - Review API domains to be created
+# - Confirm to proceed
+
+# Step 4: Add HTML domains
+bash 134_setup_html_domains.sh
+# - Review HTML domains to be created
+# - Confirm to proceed
+
+# Step 5: Apply nginx configuration
+sudo nginx -t
+sudo systemctl restart nginx
+sudo systemctl status nginx
+```
+
+Scenario 2: API Domains Only (No SSL, No HTML)
+-----------------------------------------------
+```bash
+cd /www/programing/core_node/scripts/shells/linux/debian/install_shells
+
+# Step 1: Prepare environment
+bash 131_prepare_domain_setup.sh
+
+# Step 2: Skip SSL (132)
+
+# Step 3: Add API domains
+bash 133_setup_api_domains.sh
+
+# Step 4: Skip HTML (134)
+
+# Step 5: Apply nginx configuration
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+Scenario 3: Local Development (Local prefix only, No SSL)
+----------------------------------------------------------
+```bash
+cd /www/programing/core_node/scripts/shells/linux/debian/install_shells
+
+# Step 1: Prepare environment
+bash 131_prepare_domain_setup.sh
+# - When prompted for prefixes, enter: local
+
+# Step 2: Skip SSL (132)
+
+# Step 3: Add API domains
+bash 133_setup_api_domains.sh
+# - Only local.api.domain.com will be created
+
+# Step 4: Add HTML domains
+bash 134_setup_html_domains.sh
+# - Only local.domain.com will be created
+
+# Step 5: Apply nginx configuration
+sudo nginx -t
+sudo systemctl restart nginx
+
+# Step 6: Update hosts file
+# Add to /etc/hosts (Linux) or C:\Windows\System32\drivers\etc\hosts (Windows):
+# 127.0.0.1 local.domain.com
+# 127.0.0.1 local.api.domain.com
+```
+
+Scenario 4: Re-run with Different Prefixes
+-------------------------------------------
+```bash
+# Clear previous state and start fresh
+bash 131_prepare_domain_setup.sh
+# - Choose "y" when asked to start fresh
+# - Select different prefixes (e.g., local,si only)
+
+# Then run other scripts as needed
+bash 133_setup_api_domains.sh
+bash 134_setup_html_domains.sh
+```
+
+Scenario 5: Add SSL After Initial Setup
+----------------------------------------
+```bash
+# If you initially skipped SSL (132), you can add it later
+bash 132_setup_domain_ssl.sh
+
+# Then regenerate website configs to use SSL
+# Option 1: Remove and re-add domains
+bash 133_setup_api_domains.sh
+bash 134_setup_html_domains.sh
+
+# Option 2: Manually update configs in Laravel
+cd /www/programing/core_node/poly_apps/laravel_main
+php artisan servermanager:website list
+# Then remove and re-add specific domains with --ssl=true
+```
+
+STATE MANAGEMENT
+----------------
+
+State Directory: ~/.domain_setup_state/
+
+Files stored:
+- SELECTED_PREFIXES: Comma-separated list (e.g., "local,si,sz,sh,api")
+- DOMAINS_LISTS_CONTENT: List of domains (one per line)
+- DNSPOD_EMAIL: DNSPod account email
+- DNSPOD_API_TOKEN: DNSPod API token
+- PHP_VERSION: PHP version to use (e.g., "8.4")
+
+To view current state:
+```bash
+ls -la ~/.domain_setup_state/
+cat ~/.domain_setup_state/SELECTED_PREFIXES
+cat ~/.domain_setup_state/PHP_VERSION
+```
+
+To clear state:
+```bash
+rm -rf ~/.domain_setup_state/
+# Or run 131_prepare_domain_setup.sh and choose "y" for "start fresh"
+```
+
+TROUBLESHOOTING
+---------------
+
+Problem: "Setup state not found" error
+Solution: Run 131_prepare_domain_setup.sh first
+
+Problem: SSL certificate fails
+Solution:
+- Check DNSPod credentials
+- Verify domain DNS is configured
+- Check certbot-dns-dnspod is installed
+- Continue anyway - websites can work without SSL
+
+Problem: Laravel artisan command fails
+Solution:
+- Check Laravel is installed
+- Run: cd /core_node/poly_apps/laravel_main && composer install
+- Check permissions on storage/ and bootstrap/cache/
+- Verify .env file exists and APP_KEY is set
+
+Problem: nginx configuration test fails
+Solution:
+- Check nginx logs: sudo tail -f /var/log/nginx/error.log
+- Test config: sudo nginx -t
+- Check generated configs in /www/nginxconfig/sites-available/
+
+Problem: Websites not accessible
+Solution:
+- Verify nginx is running: sudo systemctl status nginx
+- Check nginx error log: sudo tail -f /var/log/nginx/error.log
+- Verify DNS or hosts file configuration
+- Check firewall allows ports 80 and 443
+
+VERIFICATION
+------------
+
+After running all scripts:
+
+1. Check Laravel database:
+```bash
+cd /www/programing/core_node/poly_apps/laravel_main
+php artisan servermanager:website list
+php artisan servermanager:website summary
+php artisan servermanager:certificate summary
+```
+
+2. Check nginx configurations:
+```bash
+ls -la /www/nginxconfig/sites-available/
+ls -la /www/nginxconfig/sites-enabled/
+```
+
+3. Test nginx configuration:
+```bash
+sudo nginx -t
+```
+
+4. Check nginx status:
+```bash
+sudo systemctl status nginx
+```
+
+5. Test website access:
+```bash
+curl -I http://local.domain.com
+curl -I http://local.api.domain.com
+```
+
+MIGRATION FROM ORIGINAL SCRIPT
+-------------------------------
+
+If you were using 130_setup_domains.sh:
+
+The original script has been preserved as:
+/www/programing/core_node/scripts/shells/linux/debian/install_shells/130_setup_domains_original.sh
+
+To migrate to new modular scripts:
+
+1. Review your existing setup:
+```bash
+php artisan servermanager:website list
+```
+
+2. If you want to start fresh:
+```bash
+# Remove existing domains
+php artisan servermanager:website remove <domain>
+```
+
+3. Run new modular scripts:
+```bash
+bash 131_prepare_domain_setup.sh
+bash 132_setup_domain_ssl.sh
+bash 133_setup_api_domains.sh
+bash 134_setup_html_domains.sh
+```
+
+4. Or continue using original script:
+```bash
+bash 130_setup_domains_original.sh
+```
+
+SUPPORT
+-------
+
+For issues or questions:
+1. Check this documentation
+2. Review script output for error messages
+3. Check Laravel logs: /core_node/poly_apps/laravel_main/storage/logs/
+4. Check nginx logs: /var/log/nginx/error.log
+5. Refer to analysis documents in /core_node/doc/nginx_shell_with_laravel/

@@ -1,0 +1,12 @@
+# PyAudio-based programs (mic_test.py, loopback_capture.py)
+pyaudio>=0.2.11
+pyaudiowpatch>=0.2.12.5
+
+# SoundCard-based programs (soundcard_mic.py, soundcard_loopback.py) - RECOMMENDED
+soundcard>=0.4.2
+
+# Common dependencies
+numpy>=1.19.0
+
+# Azure Speech SDK (for realtime_speech_to_text.py)
+azure-cognitiveservices-speech>=1.31.0

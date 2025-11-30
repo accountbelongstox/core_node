@@ -13,6 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
+const globalVars = require('#@global_vars');
 const IframeRecursiveCrawler = require('./IframeRecursiveCrawler');
 
 class IframeUtils {
@@ -112,9 +113,13 @@ class IframeUtils {
             }
 
             if (options.waitForNavigation !== false) {
+                const timeout = options.navigationTimeout || globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+                const timeoutMinutes = Math.round(timeout / 60000);
+                logger.info(`Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
                 await frame.waitForNavigation({
                     waitUntil: options.waitUntil || 'networkidle2',
-                    timeout: options.navigationTimeout || 30000
+                    timeout: timeout
                 }).catch(() => {
                     logger.warn('Navigation timeout or no navigation occurred');
                 });
@@ -170,10 +175,14 @@ class IframeUtils {
                 }
 
                 try {
+                    const navigationTimeout = globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+                    const timeoutMinutes = Math.round(navigationTimeout / 60000);
+                    logger.info(`Navigation will timeout after ${timeoutMinutes} minute(s) (${navigationTimeout}ms)`);
+
                     const clicked = await this.clickLinkByIndex(frame, link.index, {
                         waitForNavigation: true,
                         waitUntil: 'networkidle2',
-                        navigationTimeout: 30000,
+                        navigationTimeout: navigationTimeout,
                         delay: delay
                     });
 

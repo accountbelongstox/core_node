@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.322721+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "genius",
+        "laos": "ຜູ້ສັງເກດ",
+        "jp": "天才",
+        "vie": "thiên tài",
+        "en_pronunciation": "/ˈʤinjəs/",
+        "laos_pronunciation": "phusangked",
+        "jp_pronunciation": "tensai",
+        "vie_pronunciation": "thien tai"
+      },
+      "means": {
+        "en": "Someone who has exceptional intellectual ability and originality",
+        "zh": "具有非凡智力和独创性的人"
+      }
+    },
+    {
+      "word": {
+        "en": "genre",
+        "laos": "ປະເພດ",
+        "jp": "ジャンル",
+        "vie": "thể loại",
+        "en_pronunciation": "/ˈʒɑnrə/",
+        "laos_pronunciation": "paphed",
+        "jp_pronunciation": "janru",
+        "vie_pronunciation": "the loai"
+      },
+      "means": {
+        "en": "A kind of literary or artistic work",
+        "zh": "一种文学或艺术作品"
+      }
+    },
+    {
+      "word": {
+        "en": "gentle",
+        "laos": "ອ່ອນຫວານ",
+        "jp": "優しい",
+        "vie": "nhẹ nhàng",
+        "en_pronunciation": "/ˈʤɛnəl/",
+        "laos_pronunciation": "nvan",
+        "jp_pronunciation": "yasashii",
+        "vie_pronunciation": "nhe nhang"
+      },
+      "means": {
+        "en": "Cause to be more favorably inclined; gain the good will of",
+        "zh": "导致更有利的倾向；"
+      }
+    },
+    {
+      "word": {
+        "en": "gentleman",
+        "laos": "ສຸພາບບຸຣຸດ",
+        "jp": "紳士",
+        "vie": "quý ông",
+        "en_pronunciation": "/ˈʤɛnəlmən/",
+        "laos_pronunciation": "suphabburud",
+        "jp_pronunciation": "shinshi",
+        "vie_pronunciation": "quy ong"
+      },
+      "means": {
+        "en": "A man of refinement",
+        "zh": "一个精致的人"
+      }
+    },
+    {
+      "word": {
+        "en": "genuine",
+        "laos": "ຂອງແທ້",
+        "jp": "本物の",
+        "vie": "chính hãng",
+        "en_pronunciation": "/ˈʤɛnjuˌaɪn/",
+        "laos_pronunciation": "khongaeth",
+        "jp_pronunciation": "honmono no",
+        "vie_pronunciation": "chinh hang"
+      },
+      "means": {
+        "en": "Not fake or counterfeit",
+        "zh": "不是假货或仿冒品"
+      }
+    },
+    {
+      "word": {
+        "en": "geography",
+        "laos": "ພູມສາດ",
+        "jp": "地理",
+        "vie": "địa lý",
+        "en_pronunciation": "/ʤiˈɑgrəfi/",
+        "laos_pronunciation": "phumsad",
+        "jp_pronunciation": "chiri",
+        "vie_pronunciation": "dia ly"
+      },
+      "means": {
+        "en": "Study of the earth's surface; includes people's responses to topography and climate and soil and vegetation",
+        "zh": "研究地球表面；"
+      }
+    },
+    {
+      "word": {
+        "en": "geology",
+        "laos": "ທໍລະນີສາດ",
+        "jp": "地質学",
+        "vie": "địa chất",
+        "en_pronunciation": "/ʤiˈɑləʤi/",
+        "laos_pronunciation": "tholanisad",
+        "jp_pronunciation": "chishitsugaku",
+        "vie_pronunciation": "dia chat"
+      },
+      "means": {
+        "en": "A science that deals with the history of the earth as recorded in rocks",
+        "zh": "一门研究岩石中记录的地球历史的科学"
+      }
+    },
+    {
+      "word": {
+        "en": "geometry",
+        "laos": "ເລຂາຄະນິດ",
+        "jp": "幾何学",
+        "vie": "hình học",
+        "en_pronunciation": "/ʤiˈɑmətri/",
+        "laos_pronunciation": "lekhakhanid",
+        "jp_pronunciation": "kikagaku",
+        "vie_pronunciation": "hinh hoc"
+      },
+      "means": {
+        "en": "The pure mathematics of points and lines and curves and surfaces",
+        "zh": "点、线、曲线、曲面的纯数学"
+      }
+    },
+    {
+      "word": {
+        "en": "germ",
+        "laos": "ໂລກພະຍາດ",
+        "jp": "細菌",
+        "vie": "mầm bệnh",
+        "en_pronunciation": "/ʤərm/",
+        "laos_pronunciation": "olkphanyad",
+        "jp_pronunciation": "saikin",
+        "vie_pronunciation": "mam benh"
+      },
+      "means": {
+        "en": "Anything that provides inspiration for later work",
+        "zh": "任何能为以后的工作提供灵感的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "gesture",
+        "laos": "ການສູດ",
+        "jp": "ジェスチャー",
+        "vie": "cử chỉ",
+        "en_pronunciation": "/ˈʤɛsʧər/",
+        "laos_pronunciation": "kansud",
+        "jp_pronunciation": "jiesuchaa",
+        "vie_pronunciation": "cu chi"
+      },
+      "means": {
+        "en": "Motion of hands or body to emphasize or help to express a thought or feeling",
+        "zh": "用手或身体的动作来强调或帮助表达想法或感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "get",
+        "laos": "ໄດ້",
+        "jp": "得る",
+        "vie": "nhận được",
+        "en_pronunciation": "/gɪt/",
+        "laos_pronunciation": "dai",
+        "jp_pronunciation": "eru",
+        "vie_pronunciation": "nhan duoc"
+      },
+      "means": {
+        "en": "A return on a shot that seemed impossible to reach and would normally have resulted in a point for the opponent",
+        "zh": "回击似乎不可能达到的击球，通常会为对手带来一分"
+      }
+    },
+    {
+      "word": {
+        "en": "ghost",
+        "laos": "ຜີ",
+        "jp": "幽霊",
+        "vie": "ma",
+        "en_pronunciation": "/goʊst/",
+        "laos_pronunciation": "phi",
+        "jp_pronunciation": "yuurei",
+        "vie_pronunciation": "ma"
+      },
+      "means": {
+        "en": "A mental representation of some haunting experience",
+        "zh": "一些令人难以忘怀的经历的心理表征"
+      }
+    },
+    {
+      "word": {
+        "en": "giant",
+        "laos": "ຍັກໆ",
+        "jp": "巨人",
+        "vie": "khổng lồ",
+        "en_pronunciation": "/ʤaɪənt/",
+        "laos_pronunciation": "nyak",
+        "jp_pronunciation": "kyojin",
+        "vie_pronunciation": "khong lo"
+      },
+      "means": {
+        "en": "Any creature of exceptional size",
+        "zh": "任何体型特殊的生物"
+      }
+    },
+    {
+      "word": {
+        "en": "gift",
+        "laos": "ຂອງຂອງຂວັນ",
+        "jp": "ギフト",
+        "vie": "quà tặng",
+        "en_pronunciation": "/gɪft/",
+        "laos_pronunciation": "khongkhongkhvan",
+        "jp_pronunciation": "gifuto",
+        "vie_pronunciation": "qua tang"
+      },
+      "means": {
+        "en": "Something acquired without compensation",
+        "zh": "无偿获得的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "giggle",
+        "laos": "ຂວັນໃຈ",
+        "jp": "くすくす笑う",
+        "vie": "cười khúc khích",
+        "en_pronunciation": "/ˈgɪgəl/",
+        "laos_pronunciation": "khvanchai",
+        "jp_pronunciation": "kusukusu warau",
+        "vie_pronunciation": "cuoi khuc khich"
+      },
+      "means": {
+        "en": "A foolish or nervous laugh",
+        "zh": "愚蠢或紧张的笑声"
+      }
+    },
+    {
+      "word": {
+        "en": "girl",
+        "laos": "ສາວ",
+        "jp": "女の子",
+        "vie": "cô gái",
+        "en_pronunciation": "/gərl/",
+        "laos_pronunciation": "sav",
+        "jp_pronunciation": "onnanoko",
+        "vie_pronunciation": "co gai"
+      },
+      "means": {
+        "en": "A young woman",
+        "zh": "一名年轻女子"
+      }
+    },
+    {
+      "word": {
+        "en": "give",
+        "laos": "ໃຫ້",
+        "jp": "与える",
+        "vie": "cho",
+        "en_pronunciation": "/gɪv/",
+        "laos_pronunciation": "hai",
+        "jp_pronunciation": "atae ru",
+        "vie_pronunciation": "cho"
+      },
+      "means": {
+        "en": "The elasticity of something that can be stretched and returns to its original length",
+        "zh": "物体的弹性，可以拉伸并恢复到原来的长度"
+      }
+    },
+    {
+      "word": {
+        "en": "given",
+        "laos": "ໃຫ້ໄດ້",
+        "jp": "与えられた",
+        "vie": "đưa ra",
+        "en_pronunciation": "/ˈgɪvɪn/",
+        "laos_pronunciation": "haidai",
+        "jp_pronunciation": "atae rareta",
+        "vie_pronunciation": "dua ra"
+      },
+      "means": {
+        "en": "An assumption that is taken for granted",
+        "zh": "被视为理所当然的假设"
+      }
+    },
+    {
+      "word": {
+        "en": "glacier",
+        "laos": "ກ້ວາງ",
+        "jp": "氷河",
+        "vie": "sông băng",
+        "en_pronunciation": "/ˈgleɪʃər/",
+        "laos_pronunciation": "kuaang",
+        "jp_pronunciation": "hyouga",
+        "vie_pronunciation": "song bang"
+      },
+      "means": {
+        "en": "A slowly moving mass of ice",
+        "zh": "缓慢移动的冰块"
+      }
+    },
+    {
+      "word": {
+        "en": "glad",
+        "laos": "ດີໃຈ",
+        "jp": "嬉しい",
+        "vie": "vui mừng",
+        "en_pronunciation": "/glæd/",
+        "laos_pronunciation": "dichai",
+        "jp_pronunciation": "ureshii",
+        "vie_pronunciation": "vui mung"
+      },
+      "means": {
+        "en": "Any of numerous plants of the genus Gladiolus native chiefly to tropical and South Africa having sword-shaped leaves and one-sided spikes of brightly colored funnel-shaped flowers; widely cultivated",
+        "zh": "唐菖蒲属众多植物中的一种，主要原产于热带和南非，具有剑形叶子和单侧穗状花序，花朵颜色鲜艳；"
+      }
+    },
+    {
+      "word": {
+        "en": "geographic",
+        "laos": "ພູມອາຄານ",
+        "jp": "地理的な",
+        "vie": "địa lý",
+        "en_pronunciation": "/ˌʤiəˈgræfɪk/",
+        "laos_pronunciation": "phumoakhan",
+        "jp_pronunciation": "chiriteki na",
+        "vie_pronunciation": "dia ly"
+      },
+      "means": {
+        "en": "Of or relating to the science of geography",
+        "zh": "地理学的或与之相关的"
+      }
+    },
+    {
+      "word": {
+        "en": "geological",
+        "laos": "ທໍລະວັນ",
+        "jp": "地質学的",
+        "vie": "địa chất",
+        "en_pronunciation": "/ˌʤiəˈlɑʤɪkəl/",
+        "laos_pronunciation": "tholavan",
+        "jp_pronunciation": "chishitsugakuteki",
+        "vie_pronunciation": "dia chat"
+      },
+      "means": {
+        "en": "Of or relating to or based on geology",
+        "zh": "属于地质学或与地质学有关或基于地质学"
+      }
+    },
+    {
+      "word": {
+        "en": "geometric",
+        "laos": "ເລຂາຄະນິດ",
+        "jp": "幾何学的な",
+        "vie": "hình học",
+        "en_pronunciation": "/ˌʤiəˈmɛtrɪk/",
+        "laos_pronunciation": "lekhakhanid",
+        "jp_pronunciation": "kikagakuteki na",
+        "vie_pronunciation": "hinh hoc"
+      },
+      "means": {
+        "en": "Characterized by simple geometric forms in design and decoration",
+        "zh": "设计和装饰以简单的几何形式为特点"
+      }
+    },
+    {
+      "word": {
+        "en": "gigantic",
+        "laos": "ມະທຸມະ",
+        "jp": "巨大な",
+        "vie": "khổng lồ",
+        "en_pronunciation": "/ʤaɪˈgænɪk/",
+        "laos_pronunciation": "ma thuma",
+        "jp_pronunciation": "kyodai na",
+        "vie_pronunciation": "khong lo"
+      },
+      "means": {
+        "en": "So exceedingly large or extensive as to suggest a giant or mammoth",
+        "zh": "如此巨大或广泛以致于暗示巨人或猛犸象"
+      }
+    },
+    {
+      "word": {
+        "en": "gifted",
+        "laos": "ຂາກ",
+        "jp": "才能のある",
+        "vie": "có năng khiếu",
+        "en_pronunciation": "/ˈgɪftɪd/",
+        "laos_pronunciation": "khak",
+        "jp_pronunciation": "sainou noaru",
+        "vie_pronunciation": "co nang khieu"
+      },
+      "means": {
+        "en": "Give qualities or abilities to",
+        "zh": "赋予品质或能力"
+      }
+    },
+    {
+      "word": {
+        "en": "geographically",
+        "laos": "ມິດສາພູມສັນຖານ",
+        "jp": "地理的に",
+        "vie": "về mặt địa lý",
+        "en_pronunciation": "/ˌʤiəˈgræfɪkəli/",
+        "laos_pronunciation": "mid saphumsanthan",
+        "jp_pronunciation": "chiriteki ni",
+        "vie_pronunciation": "ve mat dia ly"
+      },
+      "means": {
+        "en": "With respect to geography",
+        "zh": "就地理而言"
+      }
+    },
+    {
+      "word": {
+        "en": "geologically",
+        "laos": "ທາງພູມສັນຖານ",
+        "jp": "地質学的に",
+        "vie": "về mặt địa chất",
+        "en_pronunciation": "/geologically/",
+        "laos_pronunciation": "thangphumsanthan",
+        "jp_pronunciation": "chishitsugakuteki ni",
+        "vie_pronunciation": "ve mat dia chat"
+      },
+      "means": {
+        "en": "With respect to geology",
+        "zh": "关于地质学"
+      }
+    },
+    {
+      "word": {
+        "en": "geometrically",
+        "laos": "ເລື້ອetrically",
+        "jp": "幾何学的に",
+        "vie": "về mặt hình học",
+        "en_pronunciation": "/ˌʤiəˈmɛtrɪkli/",
+        "laos_pronunciation": "leuoetrically",
+        "jp_pronunciation": "kikagakuteki ni",
+        "vie_pronunciation": "ve mat hinh hoc"
+      },
+      "means": {
+        "en": "With respect to geometry",
+        "zh": "关于几何"
+      }
+    },
+    {
+      "word": {
+        "en": "glamor",
+        "laos": "ຄວາມສະຫງ່າງາມ",
+        "jp": "グラマー",
+        "vie": "sự quyến rũ",
+        "en_pronunciation": "/ˈglæmər/",
+        "laos_pronunciation": "khuaam sa ngangam",
+        "jp_pronunciation": "guramaa",
+        "vie_pronunciation": "su quyen ru"
+      },
+      "means": {
+        "en": "Alluring beauty or charm (often with sex-appeal)",
+        "zh": "诱人的美丽或魅力（通常具有性感）"
+      }
+    },
+    {
+      "word": {
+        "en": "glamour",
+        "laos": "ຄວາມສະຫງ່າງາມ",
+        "jp": "グラマー",
+        "vie": "sự quyến rũ",
+        "en_pronunciation": "/ˈglæmər/",
+        "laos_pronunciation": "khuaam sa ngangam",
+        "jp_pronunciation": "guramaa",
+        "vie_pronunciation": "su quyen ru"
+      },
+      "means": {
+        "en": "Alluring beauty or charm (often with sex-appeal)",
+        "zh": "诱人的美丽或魅力（通常具有性感）"
+      }
+    },
+    {
+      "word": {
+        "en": "glamorous",
+        "laos": "ທີ່ງົດງາມ",
+        "jp": "グラマラス",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/ˈglæmərəs/",
+        "laos_pronunciation": "thingodngam",
+        "jp_pronunciation": "guramarasu",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Having an air of allure, romance and excitement",
+        "zh": "充满诱惑、浪漫和兴奋的气息"
+      }
+    },
+    {
+      "word": {
+        "en": "glamourous",
+        "laos": "ກະແລ້ມ",
+        "jp": "華やかな",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/glamourous/",
+        "laos_pronunciation": "ka aelm",
+        "jp_pronunciation": "hanaya kana",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Having an air of allure, romance and excitement",
+        "zh": "充满诱惑、浪漫和兴奋的气息"
+      }
+    },
+    {
+      "word": {
+        "en": "glance",
+        "laos": "ເບັຽ",
+        "jp": "一目見る",
+        "vie": "liếc nhìn",
+        "en_pronunciation": "/glæns/",
+        "laos_pronunciation": "beia",
+        "jp_pronunciation": "ichimoku miru",
+        "vie_pronunciation": "liec nhin"
+      },
+      "means": {
+        "en": "A quick look",
+        "zh": "快速浏览一下"
+      }
+    },
+    {
+      "word": {
+        "en": "gland",
+        "laos": "ຕ່ອມ",
+        "jp": "腺",
+        "vie": "tuyến",
+        "en_pronunciation": "/glænd/",
+        "laos_pronunciation": "tom",
+        "jp_pronunciation": "sen",
+        "vie_pronunciation": "tuyen"
+      },
+      "means": {
+        "en": "Any of various organs that synthesize substances needed by the body and release it through ducts or directly into the bloodstream",
+        "zh": "合成身体所需物质并通过导管或直接释放到血液中的各种器官"
+      }
+    },
+    {
+      "word": {
+        "en": "glare",
+        "laos": "ແສງໄດ້",
+        "jp": "まぶしさ",
+        "vie": "ánh sáng chói",
+        "en_pronunciation": "/glɛr/",
+        "laos_pronunciation": "aesngdai",
+        "jp_pronunciation": "mabushisa",
+        "vie_pronunciation": "anh sang choi"
+      },
+      "means": {
+        "en": "A light within the field of vision that is brighter than the brightness to which the eyes are adapted",
+        "zh": "视野内的光比眼睛适应的亮度更亮"
+      }
+    },
+    {
+      "word": {
+        "en": "glass",
+        "laos": "ແກ້ວ",
+        "jp": "ガラス",
+        "vie": "kính",
+        "en_pronunciation": "/glæs/",
+        "laos_pronunciation": "aekv",
+        "jp_pronunciation": "garasu",
+        "vie_pronunciation": "kinh"
+      },
+      "means": {
+        "en": "A brittle transparent solid with irregular atomic structure",
+        "zh": "具有不规则原子结构的脆性透明固体"
+      }
+    },
+    {
+      "word": {
+        "en": "gleam",
+        "laos": "ສະມຸ",
+        "jp": "光る",
+        "vie": "lấp lánh",
+        "en_pronunciation": "/glim/",
+        "laos_pronunciation": "samu",
+        "jp_pronunciation": "hikaru",
+        "vie_pronunciation": "lap lanh"
+      },
+      "means": {
+        "en": "An appearance of reflected light",
+        "zh": "反射光的出现"
+      }
+    },
+    {
+      "word": {
+        "en": "glide",
+        "laos": "ປຸ້ມລ້າຍ",
+        "jp": "滑る",
+        "vie": "lướt đi",
+        "en_pronunciation": "/glaɪd/",
+        "laos_pronunciation": "pumlai",
+        "jp_pronunciation": "suberu",
+        "vie_pronunciation": "luot di"
+      },
+      "means": {
+        "en": "A vowellike sound that serves as a consonant",
+        "zh": "充当辅音的类似元音的声音"
+      }
+    },
+    {
+      "word": {
+        "en": "glider",
+        "laos": "ທ່າເຮືອ",
+        "jp": "グライダー",
+        "vie": "tàu lượn",
+        "en_pronunciation": "/ˈglaɪdər/",
+        "laos_pronunciation": "thaheu",
+        "jp_pronunciation": "guraidaa",
+        "vie_pronunciation": "tau luon"
+      },
+      "means": {
+        "en": "Aircraft supported only by the dynamic action of air against its surfaces",
+        "zh": "飞机仅由空气对其表面的动态作用支撑"
+      }
+    },
+    {
+      "word": {
+        "en": "glimpse",
+        "laos": "ຊີ້",
+        "jp": "垣間見る",
+        "vie": "thoáng qua",
+        "en_pronunciation": "/glɪmps/",
+        "laos_pronunciation": "si",
+        "jp_pronunciation": "kaimamiru",
+        "vie_pronunciation": "thoang qua"
+      },
+      "means": {
+        "en": "A quick look",
+        "zh": "快速浏览一下"
+      }
+    },
+    {
+      "word": {
+        "en": "glitter",
+        "laos": "ສ່ອງແສງ",
+        "jp": "キラキラ",
+        "vie": "long lanh",
+        "en_pronunciation": "/ˈglɪtər/",
+        "laos_pronunciation": "songaesng",
+        "jp_pronunciation": "kirakira",
+        "vie_pronunciation": "long lanh"
+      },
+      "means": {
+        "en": "The quality of shining with a bright reflected light",
+        "zh": "明亮的反射光闪耀的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "globe",
+        "laos": "ສູລີ",
+        "jp": "地球儀",
+        "vie": "quả địa cầu",
+        "en_pronunciation": "/gloʊb/",
+        "laos_pronunciation": "suli",
+        "jp_pronunciation": "chikyuugi",
+        "vie_pronunciation": "qua dia cau"
+      },
+      "means": {
+        "en": "The 3rd planet from the sun; the planet we live on",
+        "zh": "从太阳算起的第三颗行星；"
+      }
+    },
+    {
+      "word": {
+        "en": "global",
+        "laos": "ທົ່ວໂລກ",
+        "jp": "グローバル",
+        "vie": "toàn cầu",
+        "en_pronunciation": "/ˈgloʊbəl/",
+        "laos_pronunciation": "thouaolk",
+        "jp_pronunciation": "guroobaru",
+        "vie_pronunciation": "toan cau"
+      },
+      "means": {
+        "en": "Involving the entire earth; not limited or provincial in scope",
+        "zh": "涉及整个地球；"
+      }
+    },
+    {
+      "word": {
+        "en": "globalize",
+        "laos": "ອະທິການ",
+        "jp": "グローバル化する",
+        "vie": "toàn cầu hóa",
+        "en_pronunciation": "/ˈgloʊbəˌlaɪz/",
+        "laos_pronunciation": "athikan",
+        "jp_pronunciation": "guroobaru kasu ru",
+        "vie_pronunciation": "toan cau hoa"
+      },
+      "means": {
+        "en": "Make world-wide in scope or application",
+        "zh": "使范围或应用遍及世界"
+      }
+    },
+    {
+      "word": {
+        "en": "globalise",
+        "laos": "ອະທິການ",
+        "jp": "グローバル化する",
+        "vie": "toàn cầu hóa",
+        "en_pronunciation": "/globalise/",
+        "laos_pronunciation": "athikan",
+        "jp_pronunciation": "guroobaru kasu ru",
+        "vie_pronunciation": "toan cau hoa"
+      },
+      "means": {
+        "en": "Make world-wide in scope or application",
+        "zh": "使范围或应用遍及世界"
+      }
+    },
+    {
+      "word": {
+        "en": "gloom",
+        "laos": "ຂວງ",
+        "jp": "暗い",
+        "vie": "sự u ám",
+        "en_pronunciation": "/glum/",
+        "laos_pronunciation": "khuang",
+        "jp_pronunciation": "kurai",
+        "vie_pronunciation": "su u am"
+      },
+      "means": {
+        "en": "A state of partial or total darkness",
+        "zh": "部分或完全黑暗的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "gloomy",
+        "laos": "ມືດມົວ",
+        "jp": "暗い",
+        "vie": "ảm đạm",
+        "en_pronunciation": "/ˈglumi/",
+        "laos_pronunciation": "mudmua",
+        "jp_pronunciation": "kurai",
+        "vie_pronunciation": "am dam"
+      },
+      "means": {
+        "en": "Depressingly dark",
+        "zh": "阴暗压抑"
+      }
+    },
+    {
+      "word": {
+        "en": "glory",
+        "laos": "ກາເຟືອຍ",
+        "jp": "栄光",
+        "vie": "vinh quang",
+        "en_pronunciation": "/ˈglɔri/",
+        "laos_pronunciation": "ka feuony",
+        "jp_pronunciation": "eikou",
+        "vie_pronunciation": "vinh quang"
+      },
+      "means": {
+        "en": "A state of high honor",
+        "zh": "崇高荣誉的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "glorious",
+        "laos": "ຮຸ່ງເຮືອງເຫລືອງເຫລື້ອມ",
+        "jp": "素晴らしい",
+        "vie": "huy hoàng",
+        "en_pronunciation": "/ˈglɔriəs/",
+        "laos_pronunciation": "hungheuong heluongheluom",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "huy hoang"
+      },
+      "means": {
+        "en": "Having or deserving or conferring glory",
+        "zh": "拥有或值得或授予荣耀"
+      }
+    },
+    {
+      "word": {
+        "en": "glossary",
+        "laos": "ສະກຸນ",
+        "jp": "用語集",
+        "vie": "bảng thuật ngữ",
+        "en_pronunciation": "/ˈglɔsəri/",
+        "laos_pronunciation": "sakun",
+        "jp_pronunciation": "yougoshuu",
+        "vie_pronunciation": "bang thuat ngu"
+      },
+      "means": {
+        "en": "An alphabetical list of technical terms in some specialized field of knowledge; usually published as an appendix to a text on that field",
+        "zh": "某些专业知识领域的技术术语按字母顺序排列的列表；"
+      }
+    },
+    {
+      "word": {
+        "en": "glove",
+        "laos": "ຖົງມື",
+        "jp": "手袋",
+        "vie": "găng tay",
+        "en_pronunciation": "/gləv/",
+        "laos_pronunciation": "thongmu",
+        "jp_pronunciation": "tebukuro",
+        "vie_pronunciation": "gang tay"
+      },
+      "means": {
+        "en": "The handwear used by fielders in playing baseball",
+        "zh": "棒球比赛中外野手使用的手套"
+      }
+    },
+    {
+      "word": {
+        "en": "glow",
+        "laos": "ສ່ອງ",
+        "jp": "輝き",
+        "vie": "phát sáng",
+        "en_pronunciation": "/gloʊ/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "kagayaki",
+        "vie_pronunciation": "phat sang"
+      },
+      "means": {
+        "en": "An alert and refreshed state",
+        "zh": "警报和刷新状态"
+      }
+    },
+    {
+      "word": {
+        "en": "glue",
+        "laos": "ຕິດກາວ",
+        "jp": "接着剤",
+        "vie": "keo dán",
+        "en_pronunciation": "/glu/",
+        "laos_pronunciation": "tidkav",
+        "jp_pronunciation": "setchakuzai",
+        "vie_pronunciation": "keo dan"
+      },
+      "means": {
+        "en": "Cement consisting of a sticky substance that is used as an adhesive",
+        "zh": "水泥由用作粘合剂的粘性物质组成"
+      }
+    },
+    {
+      "word": {
+        "en": "go",
+        "laos": "ໄປ",
+        "jp": "行きます",
+        "vie": "đi",
+        "en_pronunciation": "/goʊ/",
+        "laos_pronunciation": "pai",
+        "jp_pronunciation": "iki masu",
+        "vie_pronunciation": "di"
+      },
+      "means": {
+        "en": "A time for working (after which you will be relieved by someone else)",
+        "zh": "工作时间（之后你会被别人接替）"
+      }
+    },
+    {
+      "word": {
+        "en": "goal",
+        "laos": "ເປົ້າຫມາຍ",
+        "jp": "目標",
+        "vie": "mục tiêu",
+        "en_pronunciation": "/goʊl/",
+        "laos_pronunciation": "paomai",
+        "jp_pronunciation": "mokuhyou",
+        "vie_pronunciation": "muc tieu"
+      },
+      "means": {
+        "en": "The state of affairs that a plan is intended to achieve and that (when achieved) terminates behavior intended to achieve it",
+        "zh": "计划旨在实现的事态，并且（当实现时）终止旨在实现它的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "goat",
+        "laos": "ແບ້",
+        "jp": "ヤギ",
+        "vie": "con dê",
+        "en_pronunciation": "/goʊt/",
+        "laos_pronunciation": "aeb",
+        "jp_pronunciation": "yagi",
+        "vie_pronunciation": "con de"
+      },
+      "means": {
+        "en": "Any of numerous agile ruminants related to sheep but having a beard and straight horns",
+        "zh": "众多与羊有亲缘关系的敏捷反刍动物之一，但有胡须和直角"
+      }
+    },
+    {
+      "word": {
+        "en": "god",
+        "laos": "ພຣະເຈົ້າ",
+        "jp": "神",
+        "vie": "chúa ơi",
+        "en_pronunciation": "/gɑd/",
+        "laos_pronunciation": "phrachao",
+        "jp_pronunciation": "kami",
+        "vie_pronunciation": "chua oi"
+      },
+      "means": {
+        "en": "The supernatural being conceived as the perfect and omnipotent and omniscient originator and ruler of the universe; the object of worship in monotheistic religions",
+        "zh": "超自然的存在被认为是宇宙的完美、全能、全知的创造者和统治者；"
+      }
+    },
+    {
+      "word": {
+        "en": "gold",
+        "laos": "ສຸວັນ",
+        "jp": "ゴールド",
+        "vie": "vàng",
+        "en_pronunciation": "/goʊld/",
+        "laos_pronunciation": "suvan",
+        "jp_pronunciation": "goorudo",
+        "vie_pronunciation": "vang"
+      },
+      "means": {
+        "en": "Coins made of gold",
+        "zh": "金币"
+      }
+    },
+    {
+      "word": {
+        "en": "golden",
+        "laos": "ສີທອງ",
+        "jp": "黄金の",
+        "vie": "vàng",
+        "en_pronunciation": "/ˈgoʊldən/",
+        "laos_pronunciation": "sithong",
+        "jp_pronunciation": "ougon no",
+        "vie_pronunciation": "vang"
+      },
+      "means": {
+        "en": "Having the deep slightly brownish color of gold",
+        "zh": "具有金色的深浅褐色"
+      }
+    },
+    {
+      "word": {
+        "en": "golf",
+        "laos": "ກອຟ",
+        "jp": "ゴルフ",
+        "vie": "chơi gôn",
+        "en_pronunciation": "/gɔlf/",
+        "laos_pronunciation": "kof",
+        "jp_pronunciation": "gorufu",
+        "vie_pronunciation": "choi gon"
+      },
+      "means": {
+        "en": "A game played on a large open course with 9 or 18 holes; the object is use as few strokes as possible in playing all the holes",
+        "zh": "在 9 洞或 18 洞大型开放球场上进行的比赛；"
+      }
+    },
+    {
+      "word": {
+        "en": "good",
+        "laos": "ດີ",
+        "jp": "良い",
+        "vie": "tốt",
+        "en_pronunciation": "/gʊd/",
+        "laos_pronunciation": "di",
+        "jp_pronunciation": "yoi",
+        "vie_pronunciation": "tot"
+      },
+      "means": {
+        "en": "Benefit",
+        "zh": "益处"
+      }
+    },
+    {
+      "word": {
+        "en": "goodbye",
+        "laos": "ລາກ່ອນ",
+        "jp": "さようなら",
+        "vie": "tạm biệt",
+        "en_pronunciation": "/ˌgʊdˈbaɪ/",
+        "laos_pronunciation": "lakon",
+        "jp_pronunciation": "sayounara",
+        "vie_pronunciation": "tam biet"
+      },
+      "means": {
+        "en": "A farewell remark",
+        "zh": "告别辞"
+      }
+    },
+    {
+      "word": {
+        "en": "goodness",
+        "laos": "ສະວັດ",
+        "jp": "善良さ",
+        "vie": "lòng tốt",
+        "en_pronunciation": "/ˈgʊdnɪs/",
+        "laos_pronunciation": "savad",
+        "jp_pronunciation": "zenryou sa",
+        "vie_pronunciation": "long tot"
+      },
+      "means": {
+        "en": "That which is pleasing or valuable or useful",
+        "zh": "令人愉悦的、有价值的或有用的"
+      }
+    },
+    {
+      "word": {
+        "en": "goods",
+        "laos": "ສິນ",
+        "jp": "商品",
+        "vie": "hàng hóa",
+        "en_pronunciation": "/gʊdz/",
+        "laos_pronunciation": "sin",
+        "jp_pronunciation": "shouhin",
+        "vie_pronunciation": "hang hoa"
+      },
+      "means": {
+        "en": "Benefit",
+        "zh": "益处"
+      }
+    },
+    {
+      "word": {
+        "en": "goose",
+        "laos": "ນ້າວ",
+        "jp": "ガチョウ",
+        "vie": "ngỗng",
+        "en_pronunciation": "/gus/",
+        "laos_pronunciation": "nav",
+        "jp_pronunciation": "gachou",
+        "vie_pronunciation": "ngong"
+      },
+      "means": {
+        "en": "Web-footed long-necked typically gregarious migratory aquatic birds usually larger and less aquatic than ducks",
+        "zh": "蹼足长颈典型群居性迁徙水禽，通常比鸭子大，但水生性较差"
+      }
+    },
+    {
+      "word": {
+        "en": "gorge",
+        "laos": "ຮ່ອມພູ",
+        "jp": "峡谷",
+        "vie": "hẻm núi",
+        "en_pronunciation": "/gɔrʤ/",
+        "laos_pronunciation": "homphu",
+        "jp_pronunciation": "kyoukoku",
+        "vie_pronunciation": "hem nui"
+      },
+      "means": {
+        "en": "A deep ravine (usually with a river running through it)",
+        "zh": "深谷（通常有河流穿过）"
+      }
+    },
+    {
+      "word": {
+        "en": "gorgeous",
+        "laos": "ງາມ",
+        "jp": "ゴージャスな",
+        "vie": "tuyệt đẹp",
+        "en_pronunciation": "/ˈgɔrʤəs/",
+        "laos_pronunciation": "ngam",
+        "jp_pronunciation": "goojasu na",
+        "vie_pronunciation": "tuyet dep"
+      },
+      "means": {
+        "en": "Dazzlingly beautiful",
+        "zh": "美得耀眼"
+      }
+    },
+    {
+      "word": {
+        "en": "gospel",
+        "laos": "ພຣະກິດຕິຄຸນ",
+        "jp": "福音",
+        "vie": "phúc âm",
+        "en_pronunciation": "/ˈgɔspəl/",
+        "laos_pronunciation": "phra kid tikhun",
+        "jp_pronunciation": "fukuin",
+        "vie_pronunciation": "phuc am"
+      },
+      "means": {
+        "en": "The four books in the New Testament (Matthew, Mark, Luke, and John) that tell the story of Christ's life and teachings",
+        "zh": "新约中的四本书（马太福音、马可福音、路加福音和约翰福音）讲述了基督的生平和教导的故事"
+      }
+    },
+    {
+      "word": {
+        "en": "gossip",
+        "laos": "ການນິນທາ",
+        "jp": "うわさ話",
+        "vie": "tin đồn",
+        "en_pronunciation": "/ˈgɑsəp/",
+        "laos_pronunciation": "kan nintha",
+        "jp_pronunciation": "uwasa hanashi",
+        "vie_pronunciation": "tin don"
+      },
+      "means": {
+        "en": "Light informal conversation for social occasions",
+        "zh": "社交场合的轻松非正式对话"
+      }
+    },
+    {
+      "word": {
+        "en": "govern",
+        "laos": "ປົກຄອງ",
+        "jp": "統治する",
+        "vie": "cai trị",
+        "en_pronunciation": "/ˈgəvərn/",
+        "laos_pronunciation": "pokkhong",
+        "jp_pronunciation": "touchi suru",
+        "vie_pronunciation": "cai tri"
+      },
+      "means": {
+        "en": "Bring into conformity with rules or principles or usage; impose regulations",
+        "zh": "遵守规则、原则或用法；"
+      }
+    },
+    {
+      "word": {
+        "en": "gown",
+        "laos": "gown",
+        "jp": "ガウン",
+        "vie": "áo choàng",
+        "en_pronunciation": "/gaʊn/",
+        "laos_pronunciation": "gown",
+        "jp_pronunciation": "gaun",
+        "vie_pronunciation": "ao choang"
+      },
+      "means": {
+        "en": "A woman's dress, usually with a close-fitting bodice and a long flared skirt, often worn on formal occasions",
+        "zh": "女人的裙子，通常有紧身胸衣和长喇叭裙，常在正式场合穿着"
+      }
+    },
+    {
+      "word": {
+        "en": "grab",
+        "laos": "ຈັບ",
+        "jp": "掴む",
+        "vie": "chộp lấy",
+        "en_pronunciation": "/græb/",
+        "laos_pronunciation": "chab",
+        "jp_pronunciation": "tsukamu",
+        "vie_pronunciation": "chop lay"
+      },
+      "means": {
+        "en": "A mechanical device for gripping an object",
+        "zh": "用于抓取物体的机械装置"
+      }
+    },
+    {
+      "word": {
+        "en": "grace",
+        "laos": "ຄວາມງາມ",
+        "jp": "恵み",
+        "vie": "ân sủng",
+        "en_pronunciation": "/greɪs/",
+        "laos_pronunciation": "khuaamngam",
+        "jp_pronunciation": "megumi",
+        "vie_pronunciation": "an sung"
+      },
+      "means": {
+        "en": "(Christian theology) a state of sanctification by God; the state of one who is under such divine influence",
+        "zh": "（基督教神学）上帝成圣的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "grade",
+        "laos": "ຊັ້ນ",
+        "jp": "グレード",
+        "vie": "lớp",
+        "en_pronunciation": "/greɪd/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "gureedo",
+        "vie_pronunciation": "lop"
+      },
+      "means": {
+        "en": "A body of students who are taught together",
+        "zh": "一群一起学习的学生"
+      }
+    },
+    {
+      "word": {
+        "en": "gradual",
+        "laos": "ເທື່ອລະບາຍ",
+        "jp": "徐々に",
+        "vie": "dần dần",
+        "en_pronunciation": "/ˈgræʤuəl/",
+        "laos_pronunciation": "theu labai",
+        "jp_pronunciation": "jojo ni",
+        "vie_pronunciation": "dan dan"
+      },
+      "means": {
+        "en": "(Roman Catholic Church) an antiphon (usually from the Book of Psalms) immediately after the epistle at Mass",
+        "zh": "（罗马天主教会）弥撒中紧接着书信之后的对经（通常来自《诗篇》）"
+      }
+    },
+    {
+      "word": {
+        "en": "graduate",
+        "laos": "ຈົບການສຶກສາ",
+        "jp": "卒業生",
+        "vie": "tốt nghiệp",
+        "en_pronunciation": "/ˈgræʤəˌweɪt/",
+        "laos_pronunciation": "chobkansuksa",
+        "jp_pronunciation": "sotsugyousei",
+        "vie_pronunciation": "tot nghiep"
+      },
+      "means": {
+        "en": "A person who has received a degree from a school (high school or college or university)",
+        "zh": "已从学校（高中、学院或大学）获得学位的人"
+      }
+    },
+    {
+      "word": {
+        "en": "grain",
+        "laos": "ເມັດ",
+        "jp": "穀物",
+        "vie": "ngũ cốc",
+        "en_pronunciation": "/greɪn/",
+        "laos_pronunciation": "med",
+        "jp_pronunciation": "kokumotsu",
+        "vie_pronunciation": "ngu coc"
+      },
+      "means": {
+        "en": "A relatively small granular particle of a substance",
+        "zh": "物质的相对较小的颗粒"
+      }
+    },
+    {
+      "word": {
+        "en": "government",
+        "laos": "ລັດຖະບານ",
+        "jp": "政府",
+        "vie": "chính phủ",
+        "en_pronunciation": "/ˈgəvərnmənt/",
+        "laos_pronunciation": "ladthaban",
+        "jp_pronunciation": "seifu",
+        "vie_pronunciation": "chinh phu"
+      },
+      "means": {
+        "en": "The organization that is the governing authority of a political unit",
+        "zh": "作为政治单位的管理机构的组织"
+      }
+    },
+    {
+      "word": {
+        "en": "graceful",
+        "laos": "ງາມງອນ",
+        "jp": "優雅な",
+        "vie": "duyên dáng",
+        "en_pronunciation": "/ˈgreɪsfəl/",
+        "laos_pronunciation": "ngamngon",
+        "jp_pronunciation": "yuuga na",
+        "vie_pronunciation": "duyen dang"
+      },
+      "means": {
+        "en": "Characterized by beauty of movement, style, form, or execution",
+        "zh": "以动作、风格、形式或执行之美为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "gradually",
+        "laos": "ເທື່ອລະ",
+        "jp": "徐々に",
+        "vie": "dần dần",
+        "en_pronunciation": "/ˈgræʤuəli/",
+        "laos_pronunciation": "theuola",
+        "jp_pronunciation": "jojo ni",
+        "vie_pronunciation": "dan dan"
+      },
+      "means": {
+        "en": "In a gradual manner",
+        "zh": "循序渐进"
+      }
+    },
+    {
+      "word": {
+        "en": "graduation",
+        "laos": "ຈົບການສຶກສາ",
+        "jp": "卒業",
+        "vie": "tốt nghiệp",
+        "en_pronunciation": "/ˌgræʤəˈweɪʃən/",
+        "laos_pronunciation": "chobkansuksa",
+        "jp_pronunciation": "sotsugyou",
+        "vie_pronunciation": "tot nghiep"
+      },
+      "means": {
+        "en": "The successful completion of a program of study",
+        "zh": "成功完成学习计划"
+      }
+    },
+    {
+      "word": {
+        "en": "governor",
+        "laos": "ຜູ້ປົກຄອງ",
+        "jp": "知事",
+        "vie": "thống đốc",
+        "en_pronunciation": "/ˈgəvərnər/",
+        "laos_pronunciation": "phupokkhong",
+        "jp_pronunciation": "chiji",
+        "vie_pronunciation": "thong doc"
+      },
+      "means": {
+        "en": "The head of a state government",
+        "zh": "州政府首脑"
+      }
+    },
+    {
+      "word": {
+        "en": "gracious",
+        "laos": "ສຸດເບັ້ຍ",
+        "jp": "親切な",
+        "vie": "duyên dáng",
+        "en_pronunciation": "/ˈgreɪʃəs/",
+        "laos_pronunciation": "sudbeny",
+        "jp_pronunciation": "shinsetsu na",
+        "vie_pronunciation": "duyen dang"
+      },
+      "means": {
+        "en": "Characterized by charm, good taste, and generosity of spirit",
+        "zh": "具有魅力、品味和慷慨的精神"
+      }
+    },
+    {
+      "word": {
+        "en": "gram",
+        "laos": "ກຣາມ",
+        "jp": "グラム",
+        "vie": "gam",
+        "en_pronunciation": "/græm/",
+        "laos_pronunciation": "kram",
+        "jp_pronunciation": "guramu",
+        "vie_pronunciation": "gam"
+      },
+      "means": {
+        "en": "A metric unit of weight equal to one thousandth of a kilogram",
+        "zh": "公制重量单位，等于千分之一千克"
+      }
+    },
+    {
+      "word": {
+        "en": "gramme",
+        "laos": "ຈ່າ",
+        "jp": "グラム",
+        "vie": "ngữ pháp",
+        "en_pronunciation": "/gramme/",
+        "laos_pronunciation": "cha",
+        "jp_pronunciation": "guramu",
+        "vie_pronunciation": "ngu phap"
+      },
+      "means": {
+        "en": "A metric unit of weight equal to one thousandth of a kilogram",
+        "zh": "公制重量单位，等于千分之一千克"
+      }
+    },
+    {
+      "word": {
+        "en": "grammar",
+        "laos": "ໄວຢະກອນ",
+        "jp": "文法",
+        "vie": "ngữ pháp",
+        "en_pronunciation": "/ˈgræmər/",
+        "laos_pronunciation": "vai yakon",
+        "jp_pronunciation": "bunpou",
+        "vie_pronunciation": "ngu phap"
+      },
+      "means": {
+        "en": "The branch of linguistics that deals with syntax and morphology (and sometimes also deals with semantics)",
+        "zh": "语言学的一个分支，研究句法和词法（有时也研究语义）"
+      }
+    },
+    {
+      "word": {
+        "en": "grammatical",
+        "laos": "ໄວຢະກອນ",
+        "jp": "文法的な",
+        "vie": "ngữ pháp",
+        "en_pronunciation": "/grəˈmætɪkəl/",
+        "laos_pronunciation": "vai yakon",
+        "jp_pronunciation": "bunpouteki na",
+        "vie_pronunciation": "ngu phap"
+      },
+      "means": {
+        "en": "Of or pertaining to grammar",
+        "zh": "属于或关于语法的"
+      }
+    },
+    {
+      "word": {
+        "en": "grand",
+        "laos": "ພາກພູມ",
+        "jp": "壮大な",
+        "vie": "vĩ đại",
+        "en_pronunciation": "/grænd/",
+        "laos_pronunciation": "phakphum",
+        "jp_pronunciation": "soudai na",
+        "vie_pronunciation": "vi dai"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of 10 and 100",
+        "zh": "10 和 100 的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "grandchild",
+        "laos": "ຫລານ",
+        "jp": "孫",
+        "vie": "cháu nội",
+        "en_pronunciation": "/ˈgrænˌʧaɪld/",
+        "laos_pronunciation": "lan",
+        "jp_pronunciation": "mago",
+        "vie_pronunciation": "chau noi"
+      },
+      "means": {
+        "en": "A child of your son or daughter",
+        "zh": "您儿子或女儿的孩子"
+      }
+    },
+    {
+      "word": {
+        "en": "grandchildren",
+        "laos": "ມະຫາຈານ",
+        "jp": "孫",
+        "vie": "cháu",
+        "en_pronunciation": "/ˈgrænˌʧɪldrən/",
+        "laos_pronunciation": "mahachan",
+        "jp_pronunciation": "mago",
+        "vie_pronunciation": "chau"
+      },
+      "means": {
+        "en": "A child of your son or daughter",
+        "zh": "您儿子或女儿的孩子"
+      }
+    },
+    {
+      "word": {
+        "en": "grandson",
+        "laos": "ຫລານຊາຍ",
+        "jp": "孫",
+        "vie": "cháu trai",
+        "en_pronunciation": "/ˈgrændˌsən/",
+        "laos_pronunciation": "lansai",
+        "jp_pronunciation": "mago",
+        "vie_pronunciation": "chau trai"
+      },
+      "means": {
+        "en": "A male grandchild",
+        "zh": "一个男孙子"
+      }
+    },
+    {
+      "word": {
+        "en": "granddaughter",
+        "laos": "ຫລານຟ້າ",
+        "jp": "孫娘",
+        "vie": "cháu gái",
+        "en_pronunciation": "/ˈgrænˌdɔtər/",
+        "laos_pronunciation": "lanfa",
+        "jp_pronunciation": "magomusume",
+        "vie_pronunciation": "chau gai"
+      },
+      "means": {
+        "en": "A female grandchild",
+        "zh": "一个女孙子"
+      }
+    },
+    {
+      "word": {
+        "en": "grandparent",
+        "laos": "ນ້ໍາຕາ",
+        "jp": "祖父母",
+        "vie": "ông bà",
+        "en_pronunciation": "/ˈgrændˌpɛrənt/",
+        "laos_pronunciation": "noata",
+        "jp_pronunciation": "sofubo",
+        "vie_pronunciation": "ong ba"
+      },
+      "means": {
+        "en": "A parent of your father or mother",
+        "zh": "你父亲或母亲的父母"
+      }
+    },
+    {
+      "word": {
+        "en": "grandfather",
+        "laos": "ແມ່ຕູ້",
+        "jp": "祖父",
+        "vie": "ông nội",
+        "en_pronunciation": "/ˈgrænˌfɑðər/",
+        "laos_pronunciation": "aemtu",
+        "jp_pronunciation": "sofu",
+        "vie_pronunciation": "ong noi"
+      },
+      "means": {
+        "en": "The father of your father or mother",
+        "zh": "你父亲或母亲的父亲"
+      }
+    },
+    {
+      "word": {
+        "en": "grandmother",
+        "laos": "ແມ່ຕູ້",
+        "jp": "祖母",
+        "vie": "bà ngoại",
+        "en_pronunciation": "/ˈgrændˌməðər/",
+        "laos_pronunciation": "aemtu",
+        "jp_pronunciation": "sobo",
+        "vie_pronunciation": "ba ngoai"
+      },
+      "means": {
+        "en": "The mother of your father or mother",
+        "zh": "你父亲或母亲的母亲"
+      }
+    },
+    {
+      "word": {
+        "en": "grant",
+        "laos": "ອະນຸສາ",
+        "jp": "助成金",
+        "vie": "cấp",
+        "en_pronunciation": "/grænt/",
+        "laos_pronunciation": "anusa",
+        "jp_pronunciation": "joseikin",
+        "vie_pronunciation": "cap"
+      },
+      "means": {
+        "en": "Any monetary aid",
+        "zh": "任何金钱援助"
+      }
+    },
+    {
+      "word": {
+        "en": "granted",
+        "laos": "ໄດ້ຮັບອະນຸຍາດ",
+        "jp": "許可された",
+        "vie": "được cấp",
+        "en_pronunciation": "/ˈgrænɪd/",
+        "laos_pronunciation": "daihboanunyad",
+        "jp_pronunciation": "kyoka sareta",
+        "vie_pronunciation": "duoc cap"
+      },
+      "means": {
+        "en": "Let have",
+        "zh": "让有"
+      }
+    },
+    {
+      "word": {
+        "en": "grape",
+        "laos": "ອະງຸ່ນ",
+        "jp": "ブドウ",
+        "vie": "nho",
+        "en_pronunciation": "/greɪp/",
+        "laos_pronunciation": "a ngun",
+        "jp_pronunciation": "budou",
+        "vie_pronunciation": "nho"
+      },
+      "means": {
+        "en": "Any of various juicy fruit of the genus Vitis with green or purple skins; grow in clusters",
+        "zh": "葡萄属的各种多汁水果，果皮呈绿色或紫色；"
+      }
+    },
+    {
+      "word": {
+        "en": "graph",
+        "laos": "ເສ້ັນສະແດງ",
+        "jp": "グラフ",
+        "vie": "đồ thị",
+        "en_pronunciation": "/græf/",
+        "laos_pronunciation": "se ansaaedng",
+        "jp_pronunciation": "gurafu",
+        "vie_pronunciation": "do thi"
+      },
+      "means": {
+        "en": "A visual representation of the relations between certain quantities plotted with reference to a set of axes",
+        "zh": "参考一组轴绘制的某些量之间关系的直观表示"
+      }
+    },
+    {
+      "word": {
+        "en": "graphic",
+        "laos": "ຮູບພາບ",
+        "jp": "グラフィック",
+        "vie": "đồ họa",
+        "en_pronunciation": "/ˈgræfɪk/",
+        "laos_pronunciation": "hubphab",
+        "jp_pronunciation": "gurafikku",
+        "vie_pronunciation": "do hoa"
+      },
+      "means": {
+        "en": "An image that is generated by a computer",
+        "zh": "由计算机生成的图像"
+      }
+    }
+  ]
+}

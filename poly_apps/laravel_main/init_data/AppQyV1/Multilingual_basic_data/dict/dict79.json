@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.449444+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "wander",
+        "laos": "ຈໍລະເມ",
+        "jp": "放浪する",
+        "vie": "đi lang thang",
+        "en_pronunciation": "/ˈwɑndər/",
+        "laos_pronunciation": "cho lame",
+        "jp_pronunciation": "hourou suru",
+        "vie_pronunciation": "di lang thang"
+      },
+      "means": {
+        "en": "Move about aimlessly or without any destination, often in search of food or employment",
+        "zh": "漫无目的地或没有任何目的地地移动，通常是为了寻找食物或工作"
+      }
+    },
+    {
+      "word": {
+        "en": "want",
+        "laos": "ຕ້ອງການ",
+        "jp": "欲しい",
+        "vie": "muốn",
+        "en_pronunciation": "/wɔnt/",
+        "laos_pronunciation": "tongkan",
+        "jp_pronunciation": "hoshii",
+        "vie_pronunciation": "muon"
+      },
+      "means": {
+        "en": "A state of extreme poverty",
+        "zh": "赤贫状态"
+      }
+    },
+    {
+      "word": {
+        "en": "war",
+        "laos": "ເສິກ",
+        "jp": "戦争",
+        "vie": "chiến tranh",
+        "en_pronunciation": "/wɔr/",
+        "laos_pronunciation": "soek",
+        "jp_pronunciation": "sensou",
+        "vie_pronunciation": "chien tranh"
+      },
+      "means": {
+        "en": "The waging of armed conflict against an enemy",
+        "zh": "对敌人发动武装冲突"
+      }
+    },
+    {
+      "word": {
+        "en": "ward",
+        "laos": "ຕູ້ມື",
+        "jp": "区",
+        "vie": "phường",
+        "en_pronunciation": "/wɔrd/",
+        "laos_pronunciation": "tumu",
+        "jp_pronunciation": "ku",
+        "vie_pronunciation": "phuong"
+      },
+      "means": {
+        "en": "A person who is under the protection or in the custody of another",
+        "zh": "受他人保护或监管的人"
+      }
+    },
+    {
+      "word": {
+        "en": "wardrobe",
+        "laos": "ຕູ້ເສື້ອຜ້າ",
+        "jp": "ワードローブ",
+        "vie": "tủ quần áo",
+        "en_pronunciation": "/ˈwɔrˌdroʊb/",
+        "laos_pronunciation": "tuseuopha",
+        "jp_pronunciation": "waadoroobu",
+        "vie_pronunciation": "tu quan ao"
+      },
+      "means": {
+        "en": "A tall piece of furniture that provides storage space for clothes; has a door and rails or hooks for hanging clothes",
+        "zh": "一件高大的家具，可以提供衣物的存储空间；"
+      }
+    },
+    {
+      "word": {
+        "en": "ware",
+        "laos": "ຂາຍ",
+        "jp": "ウェア",
+        "vie": "đồ dùng",
+        "en_pronunciation": "/wɛr/",
+        "laos_pronunciation": "khai",
+        "jp_pronunciation": "uea",
+        "vie_pronunciation": "do dung"
+      },
+      "means": {
+        "en": "Articles of the same kind or material; usually used in combination: `silverware', `software'",
+        "zh": "有门和挂衣服的栏杆或挂钩"
+      }
+    },
+    {
+      "word": {
+        "en": "warehouse",
+        "laos": "ສາງ",
+        "jp": "倉庫",
+        "vie": "nhà kho",
+        "en_pronunciation": "/ˈwɛˌrhaʊs/",
+        "laos_pronunciation": "sang",
+        "jp_pronunciation": "souko",
+        "vie_pronunciation": "nha kho"
+      },
+      "means": {
+        "en": "A storehouse for goods and merchandise",
+        "zh": "同类或同材质的物品；"
+      }
+    },
+    {
+      "word": {
+        "en": "warfare",
+        "laos": "ສົງຄາມ",
+        "jp": "戦争",
+        "vie": "chiến tranh",
+        "en_pronunciation": "/ˈwɔrˌfɛr/",
+        "laos_pronunciation": "songkham",
+        "jp_pronunciation": "sensou",
+        "vie_pronunciation": "chien tranh"
+      },
+      "means": {
+        "en": "The waging of armed conflict against an enemy",
+        "zh": "通常组合使用：“银器”、“软件”"
+      }
+    },
+    {
+      "word": {
+        "en": "warm",
+        "laos": "ອົບາຢ",
+        "jp": "暖かい",
+        "vie": "ấm áp",
+        "en_pronunciation": "/wɔrm/",
+        "laos_pronunciation": "ob ay",
+        "jp_pronunciation": "atatakai",
+        "vie_pronunciation": "am ap"
+      },
+      "means": {
+        "en": "Get warm or warmer",
+        "zh": "货物和商品的仓库"
+      }
+    },
+    {
+      "word": {
+        "en": "warn",
+        "laos": "ບອກເລົ່າ",
+        "jp": "警告する",
+        "vie": "cảnh báo",
+        "en_pronunciation": "/wɔrn/",
+        "laos_pronunciation": "bokleoa",
+        "jp_pronunciation": "keikokusu ru",
+        "vie_pronunciation": "canh bao"
+      },
+      "means": {
+        "en": "Notify of danger, potential harm, or risk",
+        "zh": "对敌人发动武装冲突"
+      }
+    },
+    {
+      "word": {
+        "en": "warmth",
+        "laos": "ຄວາມອົບະ",
+        "jp": "暖かさ",
+        "vie": "sự ấm áp",
+        "en_pronunciation": "/wɔrmθ/",
+        "laos_pronunciation": "khuaam oba",
+        "jp_pronunciation": "atatakasa",
+        "vie_pronunciation": "su am ap"
+      },
+      "means": {
+        "en": "The sensation caused by heat energy",
+        "zh": "变得温暖或者更温暖"
+      }
+    },
+    {
+      "word": {
+        "en": "warning",
+        "laos": "ຄໍາເຕືອນ",
+        "jp": "警告",
+        "vie": "cảnh báo",
+        "en_pronunciation": "/ˈwɔrnɪŋ/",
+        "laos_pronunciation": "khoateuon",
+        "jp_pronunciation": "keikoku",
+        "vie_pronunciation": "canh bao"
+      },
+      "means": {
+        "en": "A message informing of danger",
+        "zh": "通知危险、潜在伤害或风险"
+      }
+    },
+    {
+      "word": {
+        "en": "warrant",
+        "laos": "ການຮັບປະກັນ",
+        "jp": "令状",
+        "vie": "lệnh bảo đảm",
+        "en_pronunciation": "/ˈwɔrənt/",
+        "laos_pronunciation": "kanhabpakan",
+        "jp_pronunciation": "reijou",
+        "vie_pronunciation": "lenh bao dam"
+      },
+      "means": {
+        "en": "A writ from a court commanding police to perform specified acts",
+        "zh": "由热能引起的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "warranty",
+        "laos": "ການຮັບປະກັນ",
+        "jp": "保証",
+        "vie": "bảo hành",
+        "en_pronunciation": "/ˈwɔrənti/",
+        "laos_pronunciation": "kanhabpakan",
+        "jp_pronunciation": "hoshou",
+        "vie_pronunciation": "bao hanh"
+      },
+      "means": {
+        "en": "A written assurance that some product or service will be provided or will meet certain specifications",
+        "zh": "通知危险的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "warrior",
+        "laos": "ນັກຮົບ",
+        "jp": "戦士",
+        "vie": "chiến binh",
+        "en_pronunciation": "/ˈwɔrjər/",
+        "laos_pronunciation": "nakhob",
+        "jp_pronunciation": "senshi",
+        "vie_pronunciation": "chien binh"
+      },
+      "means": {
+        "en": "Someone engaged in or experienced in warfare",
+        "zh": "法院发出的命令警察执行特定行为的令状"
+      }
+    },
+    {
+      "word": {
+        "en": "wary",
+        "laos": "ສອດທອນ",
+        "jp": "警戒している",
+        "vie": "cảnh giác",
+        "en_pronunciation": "/ˈwɛri/",
+        "laos_pronunciation": "sodthon",
+        "jp_pronunciation": "keikai shiteiru",
+        "vie_pronunciation": "canh giac"
+      },
+      "means": {
+        "en": "Marked by keen caution and watchful prudence",
+        "zh": "将提供某些产品或服务或将满足某些规格的书面保证"
+      }
+    },
+    {
+      "word": {
+        "en": "wash",
+        "laos": "ລ້າງ",
+        "jp": "洗う",
+        "vie": "rửa",
+        "en_pronunciation": "/wɑʃ/",
+        "laos_pronunciation": "lang",
+        "jp_pronunciation": "arau",
+        "vie_pronunciation": "rua"
+      },
+      "means": {
+        "en": "A thin coat of water-base paint",
+        "zh": "参与过战争或经历过战争的人"
+      }
+    },
+    {
+      "word": {
+        "en": "washing",
+        "laos": "ໄລນີ",
+        "jp": "洗濯",
+        "vie": "rửa",
+        "en_pronunciation": "/ˈwɑʃɪŋ/",
+        "laos_pronunciation": "laini",
+        "jp_pronunciation": "sentaku",
+        "vie_pronunciation": "rua"
+      },
+      "means": {
+        "en": "The work of cleansing (usually with soap and water)",
+        "zh": "以敏锐的谨慎和警惕的谨慎为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "waste",
+        "laos": "ເປືອງ",
+        "jp": "無駄",
+        "vie": "chất thải",
+        "en_pronunciation": "/weɪst/",
+        "laos_pronunciation": "peuong",
+        "jp_pronunciation": "muda",
+        "vie_pronunciation": "chat thai"
+      },
+      "means": {
+        "en": "Any materials unused and rejected as worthless or unwanted",
+        "zh": "一层薄薄的水性涂料"
+      }
+    },
+    {
+      "word": {
+        "en": "wasteful",
+        "laos": "ທີ່ຈ່າຢຫຼາຢ",
+        "jp": "無駄な",
+        "vie": "lãng phí",
+        "en_pronunciation": "/ˈweɪstfəl/",
+        "laos_pronunciation": "thi cha y ray",
+        "jp_pronunciation": "muda na",
+        "vie_pronunciation": "lang phi"
+      },
+      "means": {
+        "en": "Inefficient in use of time and effort and materials",
+        "zh": "清洁工作（通常用肥皂和水）"
+      }
+    },
+    {
+      "word": {
+        "en": "watch",
+        "laos": "ຜົກ",
+        "jp": "時計",
+        "vie": "xem",
+        "en_pronunciation": "/wɔʧ/",
+        "laos_pronunciation": "phok",
+        "jp_pronunciation": "tokei",
+        "vie_pronunciation": "xem"
+      },
+      "means": {
+        "en": "A small portable timepiece",
+        "zh": "任何未使用并被视为无价值或不需要而被拒绝的材料"
+      }
+    },
+    {
+      "word": {
+        "en": "watchful",
+        "laos": "ທີ່ລະມັດລະວັງ",
+        "jp": "用心深い",
+        "vie": "thận trọng",
+        "en_pronunciation": "/ˈwɑʧfəl/",
+        "laos_pronunciation": "thilamadlavang",
+        "jp_pronunciation": "youjinbukai",
+        "vie_pronunciation": "than trong"
+      },
+      "means": {
+        "en": "Engaged in or accustomed to close observation",
+        "zh": "时间、精力和材料的使用效率低下"
+      }
+    },
+    {
+      "word": {
+        "en": "water",
+        "laos": "ນ້ໍາ",
+        "jp": "水",
+        "vie": "nước",
+        "en_pronunciation": "/ˈwɔtər/",
+        "laos_pronunciation": "noa",
+        "jp_pronunciation": "mizu",
+        "vie_pronunciation": "nuoc"
+      },
+      "means": {
+        "en": "Binary compound that occurs at room temperature as a clear colorless odorless tasteless liquid; freezes into ice below 0 degrees centigrade and boils above 100 degrees centigrade; widely used as a solvent",
+        "zh": "一款小型便携式时计"
+      }
+    },
+    {
+      "word": {
+        "en": "waterproof",
+        "laos": "ນ້ໍາ",
+        "jp": "防水",
+        "vie": "không thấm nước",
+        "en_pronunciation": "/ˈwɔtərˌpruf/",
+        "laos_pronunciation": "noa",
+        "jp_pronunciation": "bousui",
+        "vie_pronunciation": "khong tham nuoc"
+      },
+      "means": {
+        "en": "Any fabric impervious to water",
+        "zh": "从事或习惯于密切观察"
+      }
+    },
+    {
+      "word": {
+        "en": "watertight",
+        "laos": "ອ່າງນ້ໍາ",
+        "jp": "防水",
+        "vie": "kín nước",
+        "en_pronunciation": "/ˈwɔtərˌtaɪt/",
+        "laos_pronunciation": "angnoa",
+        "jp_pronunciation": "bousui",
+        "vie_pronunciation": "kin nuoc"
+      },
+      "means": {
+        "en": "Not allowing water to pass in or out",
+        "zh": "二元化合物，在室温下为透明无色无臭无味液体；"
+      }
+    },
+    {
+      "word": {
+        "en": "watt",
+        "laos": "ເບົ້າ",
+        "jp": "ワット",
+        "vie": "oát",
+        "en_pronunciation": "/wɑt/",
+        "laos_pronunciation": "bao",
+        "jp_pronunciation": "watto",
+        "vie_pronunciation": "oat"
+      },
+      "means": {
+        "en": "A unit of power equal to 1 joule per second; the power dissipated by a current of 1 ampere flowing across a resistance of 1 ohm",
+        "zh": "0℃以下冻结成冰，100℃以上沸腾；"
+      }
+    },
+    {
+      "word": {
+        "en": "wave",
+        "laos": "ຟອງ",
+        "jp": "波",
+        "vie": "làn sóng",
+        "en_pronunciation": "/weɪv/",
+        "laos_pronunciation": "fong",
+        "jp_pronunciation": "nami",
+        "vie_pronunciation": "lan song"
+      },
+      "means": {
+        "en": "One of a series of ridges that moves across the surface of a liquid (especially across a large body of water)",
+        "zh": "广泛用作溶剂"
+      }
+    },
+    {
+      "word": {
+        "en": "wax",
+        "laos": "ຂີ້ເຜີ້ງ",
+        "jp": "ワックス",
+        "vie": "sáp",
+        "en_pronunciation": "/wæks/",
+        "laos_pronunciation": "khiphoeng",
+        "jp_pronunciation": "wakkusu",
+        "vie_pronunciation": "sap"
+      },
+      "means": {
+        "en": "Any of various substances of either mineral origin or plant or animal origin; they are solid at normal temperatures and insoluble in water",
+        "zh": "任何不透水的织物"
+      }
+    },
+    {
+      "word": {
+        "en": "wavy",
+        "laos": "ງ້າ",
+        "jp": "波状の",
+        "vie": "lượn sóng",
+        "en_pronunciation": "/ˈweɪvi/",
+        "laos_pronunciation": "nga",
+        "jp_pronunciation": "hajou no",
+        "vie_pronunciation": "luon song"
+      },
+      "means": {
+        "en": "(of hair) having waves",
+        "zh": "不允许水进出"
+      }
+    },
+    {
+      "word": {
+        "en": "way",
+        "laos": "ທາງ",
+        "jp": "方法",
+        "vie": "đường",
+        "en_pronunciation": "/weɪ/",
+        "laos_pronunciation": "thang",
+        "jp_pronunciation": "houhou",
+        "vie_pronunciation": "duong"
+      },
+      "means": {
+        "en": "How something is done or how it happens",
+        "zh": "功率单位，等于每秒 1 焦耳；"
+      }
+    },
+    {
+      "word": {
+        "en": "we",
+        "laos": "ພວກເຮົາ",
+        "jp": "私たち",
+        "vie": "chúng tôi",
+        "en_pronunciation": "/wi/",
+        "laos_pronunciation": "phuakhao",
+        "jp_pronunciation": "watashitachi",
+        "vie_pronunciation": "chung toi"
+      },
+      "means": {
+        "en": "We is an English word referring to 'we'.",
+        "zh": "1 安培电流流过 1 欧姆电阻所消耗的功率"
+      }
+    },
+    {
+      "word": {
+        "en": "weak",
+        "laos": "ອ່ອນແອ",
+        "jp": "弱い",
+        "vie": "yếu đuối",
+        "en_pronunciation": "/wik/",
+        "laos_pronunciation": "nae",
+        "jp_pronunciation": "yowai",
+        "vie_pronunciation": "yeu duoi"
+      },
+      "means": {
+        "en": "Wanting in physical strength",
+        "zh": "穿过液体表面（尤其是穿过大片水体）的一系列脊之一"
+      }
+    },
+    {
+      "word": {
+        "en": "weaken",
+        "laos": "ເຮັດໃຫ້ອ່ອນລົງ",
+        "jp": "弱める",
+        "vie": "suy yếu",
+        "en_pronunciation": "/ˈwikən/",
+        "laos_pronunciation": "hedhai nlong",
+        "jp_pronunciation": "yowame ru",
+        "vie_pronunciation": "suy yeu"
+      },
+      "means": {
+        "en": "Lessen the strength of",
+        "zh": "任何矿物来源或植物或动物来源的各种物质；"
+      }
+    },
+    {
+      "word": {
+        "en": "weakness",
+        "laos": "ທຸບພົນລະພາບ",
+        "jp": "弱さ",
+        "vie": "điểm yếu",
+        "en_pronunciation": "/ˈwiknəs/",
+        "laos_pronunciation": "thub phonlaphab",
+        "jp_pronunciation": "yowasa",
+        "vie_pronunciation": "diem yeu"
+      },
+      "means": {
+        "en": "A flaw or weak point",
+        "zh": "它们在常温下是固体，不溶于水"
+      }
+    },
+    {
+      "word": {
+        "en": "wealth",
+        "laos": "ຄວາມຊັບ",
+        "jp": "富",
+        "vie": "sự giàu có",
+        "en_pronunciation": "/wɛlθ/",
+        "laos_pronunciation": "khuaamsab",
+        "jp_pronunciation": "tomi",
+        "vie_pronunciation": "su giau co"
+      },
+      "means": {
+        "en": "The state of being rich and affluent; having a plentiful supply of material goods and money",
+        "zh": "（头发）有波浪的"
+      }
+    },
+    {
+      "word": {
+        "en": "weapon",
+        "laos": "ອາວຸດ",
+        "jp": "武器",
+        "vie": "vũ khí",
+        "en_pronunciation": "/ˈwɛpən/",
+        "laos_pronunciation": "avud",
+        "jp_pronunciation": "buki",
+        "vie_pronunciation": "vu khi"
+      },
+      "means": {
+        "en": "Any instrument or instrumentality used in fighting or hunting",
+        "zh": "某事如何完成或如何发生"
+      }
+    },
+    {
+      "word": {
+        "en": "wear",
+        "laos": "ໃສ່",
+        "jp": "着る",
+        "vie": "mặc",
+        "en_pronunciation": "/wɛr/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "kiru",
+        "vie_pronunciation": "mac"
+      },
+      "means": {
+        "en": "Impairment resulting from long use",
+        "zh": "我们是一个英语单词，指的是“我们”。"
+      }
+    },
+    {
+      "word": {
+        "en": "wealthy",
+        "laos": "ມັ່ງມີສຸກ",
+        "jp": "裕福な",
+        "vie": "giàu có",
+        "en_pronunciation": "/ˈwɛlθi/",
+        "laos_pronunciation": "mang misuk",
+        "jp_pronunciation": "yuufuku na",
+        "vie_pronunciation": "giau co"
+      },
+      "means": {
+        "en": "Having an abundant supply of money or possessions of value",
+        "zh": "缺乏体力"
+      }
+    },
+    {
+      "word": {
+        "en": "weary",
+        "laos": "ເມື່ອຍມ້າງ",
+        "jp": "疲れた",
+        "vie": "mệt mỏi",
+        "en_pronunciation": "/ˈwɪri/",
+        "laos_pronunciation": "meuonymang",
+        "jp_pronunciation": "tsukare ta",
+        "vie_pronunciation": "met moi"
+      },
+      "means": {
+        "en": "Exhaust or get tired through overuse or great strain or stress",
+        "zh": "减弱强度"
+      }
+    },
+    {
+      "word": {
+        "en": "weather",
+        "laos": "ສະພາບອາກາດ",
+        "jp": "天気",
+        "vie": "thời tiết",
+        "en_pronunciation": "/ˈwɛðər/",
+        "laos_pronunciation": "saphaboakad",
+        "jp_pronunciation": "tenki",
+        "vie_pronunciation": "thoi tiet"
+      },
+      "means": {
+        "en": "The atmospheric conditions that comprise the state of the atmosphere in terms of temperature and wind and clouds and precipitation",
+        "zh": "缺陷或弱点"
+      }
+    },
+    {
+      "word": {
+        "en": "weariness",
+        "laos": "ຄວາມອິດເມື່ອຍ",
+        "jp": "倦怠感",
+        "vie": "sự mệt mỏi",
+        "en_pronunciation": "/ˈwɪrinəs/",
+        "laos_pronunciation": "khuaam idmeuony",
+        "jp_pronunciation": "kentaikan",
+        "vie_pronunciation": "su met moi"
+      },
+      "means": {
+        "en": "Temporary loss of strength and energy resulting from hard physical or mental work",
+        "zh": "富有、富裕的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "weave",
+        "laos": "ທໍຜ້າ",
+        "jp": "織ります",
+        "vie": "dệt",
+        "en_pronunciation": "/wiv/",
+        "laos_pronunciation": "thopha",
+        "jp_pronunciation": "ori masu",
+        "vie_pronunciation": "det"
+      },
+      "means": {
+        "en": "Pattern of weaving or structure of a fabric",
+        "zh": "拥有充足的物质商品和金钱供应"
+      }
+    },
+    {
+      "word": {
+        "en": "web",
+        "laos": "ເວັບໄຊຕ໌",
+        "jp": "ウェブ",
+        "vie": "mạng lưới",
+        "en_pronunciation": "/wɛb/",
+        "laos_pronunciation": "vebsait",
+        "jp_pronunciation": "uebu",
+        "vie_pronunciation": "mang luoi"
+      },
+      "means": {
+        "en": "An intricate network suggesting something that was formed by weaving or interweaving",
+        "zh": "用于战斗或狩猎的任何器具"
+      }
+    },
+    {
+      "word": {
+        "en": "webcast",
+        "laos": "Webcast",
+        "jp": "ウェブキャスト",
+        "vie": "truyền hình trực tuyến",
+        "en_pronunciation": "/webcast/",
+        "laos_pronunciation": "Webcast",
+        "jp_pronunciation": "uebukyasuto",
+        "vie_pronunciation": "truyen hinh truc tuyen"
+      },
+      "means": {
+        "en": "Webcast is an English word referring to 'webcast'.",
+        "zh": "长期使用造成的损伤"
+      }
+    },
+    {
+      "word": {
+        "en": "website",
+        "laos": "ເວັບໄຊທ໌",
+        "jp": "ウェブサイト",
+        "vie": "trang web",
+        "en_pronunciation": "/ˈwɛbˌsaɪt/",
+        "laos_pronunciation": "vebsaith",
+        "jp_pronunciation": "uebusaito",
+        "vie_pronunciation": "trang web"
+      },
+      "means": {
+        "en": "A computer connected to the internet that maintains a series of web pages on the World Wide Web",
+        "zh": "拥有充足的货币或有价值的财产"
+      }
+    },
+    {
+      "word": {
+        "en": "wed",
+        "laos": "ແຕ່ງກິນ",
+        "jp": "水",
+        "vie": "đám cưới",
+        "en_pronunciation": "/wɛd/",
+        "laos_pronunciation": "aetngkin",
+        "jp_pronunciation": "mizu",
+        "vie_pronunciation": "dam cuoi"
+      },
+      "means": {
+        "en": "The fourth day of the week; the third working day",
+        "zh": "由于过度使用或巨大的压力或压力而精疲力尽或疲倦"
+      }
+    },
+    {
+      "word": {
+        "en": "wedge",
+        "laos": "ໄມ້ຫລິ້ມ",
+        "jp": "くさび",
+        "vie": "cái nêm",
+        "en_pronunciation": "/wɛʤ/",
+        "laos_pronunciation": "mai lim",
+        "jp_pronunciation": "kusabi",
+        "vie_pronunciation": "cai nem"
+      },
+      "means": {
+        "en": "Any shape that is triangular in cross section",
+        "zh": "大气条件，包括温度、风、云和降水等大气状态"
+      }
+    },
+    {
+      "word": {
+        "en": "wednesday",
+        "laos": "ວັນພຸດ",
+        "jp": "水曜日",
+        "vie": "thứ tư",
+        "en_pronunciation": "/ˈwɛnzˌdeɪ/",
+        "laos_pronunciation": "vanphud",
+        "jp_pronunciation": "suiyoubi",
+        "vie_pronunciation": "thu tu"
+      },
+      "means": {
+        "en": "The fourth day of the week; the third working day",
+        "zh": "由于体力或脑力劳动而暂时丧失体力和精力"
+      }
+    },
+    {
+      "word": {
+        "en": "weed",
+        "laos": "ຫຢ້າຮົກ",
+        "jp": "雑草",
+        "vie": "cỏ dại",
+        "en_pronunciation": "/wid/",
+        "laos_pronunciation": "hyahok",
+        "jp_pronunciation": "zassou",
+        "vie_pronunciation": "co dai"
+      },
+      "means": {
+        "en": "Any plant that crowds out cultivated plants",
+        "zh": "织物的编织图案或结构"
+      }
+    },
+    {
+      "word": {
+        "en": "wedding",
+        "laos": "ງານແຕ່ງດອງ",
+        "jp": "結婚式",
+        "vie": "lễ cưới",
+        "en_pronunciation": "/ˈwɛdɪŋ/",
+        "laos_pronunciation": "nganaetngdong",
+        "jp_pronunciation": "kekkonshiki",
+        "vie_pronunciation": "le cuoi"
+      },
+      "means": {
+        "en": "The social event at which the ceremony of marriage is performed",
+        "zh": "错综复杂的网络，表明某种东西是通过编织或交织而形成的"
+      }
+    },
+    {
+      "word": {
+        "en": "week",
+        "laos": "ອາທິດ",
+        "jp": "週",
+        "vie": "tuần",
+        "en_pronunciation": "/wik/",
+        "laos_pronunciation": "athid",
+        "jp_pronunciation": "shuu",
+        "vie_pronunciation": "tuan"
+      },
+      "means": {
+        "en": "Any period of seven consecutive days",
+        "zh": "Webcast 是一个英文单词，意为“网络广播”。"
+      }
+    },
+    {
+      "word": {
+        "en": "weekday",
+        "laos": "ວັນອາທິດ",
+        "jp": "平日",
+        "vie": "ngày trong tuần",
+        "en_pronunciation": "/ˈwikˌdeɪ/",
+        "laos_pronunciation": "vnoathid",
+        "jp_pronunciation": "heijitsu",
+        "vie_pronunciation": "ngay trong tuan"
+      },
+      "means": {
+        "en": "Any day except Sunday (and sometimes except Saturday)",
+        "zh": "连接到互联网的计算机，用于维护万维网上的一系列网页"
+      }
+    },
+    {
+      "word": {
+        "en": "weekend",
+        "laos": "ຢອາທິດ",
+        "jp": "週末",
+        "vie": "cuối tuần",
+        "en_pronunciation": "/ˈwiˌkɪnd/",
+        "laos_pronunciation": "yoathid",
+        "jp_pronunciation": "shuumatsu",
+        "vie_pronunciation": "cuoi tuan"
+      },
+      "means": {
+        "en": "A time period usually extending from Friday night through Sunday; more loosely defined as any period of successive days including one and only one Sunday",
+        "zh": "一周的第四天；"
+      }
+    },
+    {
+      "word": {
+        "en": "weekly",
+        "laos": "ປະຈໍາອາທິດ",
+        "jp": "毎週",
+        "vie": "hàng tuần",
+        "en_pronunciation": "/ˈwikli/",
+        "laos_pronunciation": "pachoaoathid",
+        "jp_pronunciation": "maishuu",
+        "vie_pronunciation": "hang tuan"
+      },
+      "means": {
+        "en": "A periodical that is published every week (or 52 issues per year)",
+        "zh": "第三个工作日"
+      }
+    },
+    {
+      "word": {
+        "en": "weep",
+        "laos": "ຮ້ອງໄຫ້",
+        "jp": "泣く",
+        "vie": "khóc",
+        "en_pronunciation": "/wip/",
+        "laos_pronunciation": "honghai",
+        "jp_pronunciation": "naku",
+        "vie_pronunciation": "khoc"
+      },
+      "means": {
+        "en": "Shed tears because of sadness, rage, or pain",
+        "zh": "任何横截面为三角形的形状"
+      }
+    },
+    {
+      "word": {
+        "en": "weigh",
+        "laos": "ຊັ່ງນ້ໍາຫນັກ",
+        "jp": "重さを量る",
+        "vie": "cân",
+        "en_pronunciation": "/weɪ/",
+        "laos_pronunciation": "sangnoanak",
+        "jp_pronunciation": "omosa wo hakaru",
+        "vie_pronunciation": "can"
+      },
+      "means": {
+        "en": "Have a certain weight",
+        "zh": "一周的第四天；"
+      }
+    },
+    {
+      "word": {
+        "en": "weird",
+        "laos": "ທີ່ແປກ",
+        "jp": "奇妙な",
+        "vie": "kỳ lạ",
+        "en_pronunciation": "/wɪrd/",
+        "laos_pronunciation": "thiaepk",
+        "jp_pronunciation": "kimyou na",
+        "vie_pronunciation": "ky la"
+      },
+      "means": {
+        "en": "Fate personified; any one of the three Weird Sisters",
+        "zh": "第三个工作日"
+      }
+    },
+    {
+      "word": {
+        "en": "weight",
+        "laos": "ນ້ໍາຫນັກ",
+        "jp": "重量",
+        "vie": "trọng lượng",
+        "en_pronunciation": "/weɪt/",
+        "laos_pronunciation": "noanak",
+        "jp_pronunciation": "juuryou",
+        "vie_pronunciation": "trong luong"
+      },
+      "means": {
+        "en": "The vertical force exerted by a mass as a result of gravity",
+        "zh": "任何排挤栽培植物的植物"
+      }
+    },
+    {
+      "word": {
+        "en": "welcome",
+        "laos": "ຕ້ອນ",
+        "jp": "ようこそ",
+        "vie": "chào mừng",
+        "en_pronunciation": "/ˈwɛlkəm/",
+        "laos_pronunciation": "ton",
+        "jp_pronunciation": "youkoso",
+        "vie_pronunciation": "chao mung"
+      },
+      "means": {
+        "en": "The state of being welcome",
+        "zh": "举行结婚典礼的社交活动"
+      }
+    },
+    {
+      "word": {
+        "en": "welfare",
+        "laos": "ສະຫວັດດີການ",
+        "jp": "福利厚生",
+        "vie": "phúc lợi",
+        "en_pronunciation": "/ˈwɛlˌfɛr/",
+        "laos_pronunciation": "savaddikan",
+        "jp_pronunciation": "fukurikousei",
+        "vie_pronunciation": "phuc loi"
+      },
+      "means": {
+        "en": "Governmental provision of economic assistance to persons in need",
+        "zh": "任意连续 7 天的时间段"
+      }
+    },
+    {
+      "word": {
+        "en": "well",
+        "laos": "ສະພັງ",
+        "jp": "まあ",
+        "vie": "à",
+        "en_pronunciation": "/wɛl/",
+        "laos_pronunciation": "saphang",
+        "jp_pronunciation": "maa",
+        "vie_pronunciation": "a"
+      },
+      "means": {
+        "en": "A deep hole or shaft dug or drilled to obtain water or oil or gas or brine",
+        "zh": "除周日外的任何一天（有时周六除外）"
+      }
+    },
+    {
+      "word": {
+        "en": "well-being",
+        "laos": "ສະບາຍດີ",
+        "jp": "幸福",
+        "vie": "hạnh phúc",
+        "en_pronunciation": "/ˌwɛlˈbiɪŋ/",
+        "laos_pronunciation": "sabaidi",
+        "jp_pronunciation": "koufuku",
+        "vie_pronunciation": "hanh phuc"
+      },
+      "means": {
+        "en": "A contented state of being happy and healthy and prosperous",
+        "zh": "通常从周五晚上到周日的一段时间；"
+      }
+    },
+    {
+      "word": {
+        "en": "well-known",
+        "laos": "ເປັນທີ່ຮູ້ຈັກກັນ",
+        "jp": "よく知られている",
+        "vie": "nổi tiếng",
+        "en_pronunciation": "/ˈwɛlˈnoʊn/",
+        "laos_pronunciation": "pen thihuchakkan",
+        "jp_pronunciation": "yoku shira reteiru",
+        "vie_pronunciation": "noi tieng"
+      },
+      "means": {
+        "en": "Widely or fully known",
+        "zh": "更宽松地定义为连续几天的任何一段时间，包括一个且仅一个星期日"
+      }
+    },
+    {
+      "word": {
+        "en": "well-off",
+        "laos": "ສະບາຍ",
+        "jp": "裕福な",
+        "vie": "khá giả",
+        "en_pronunciation": "/well-off/",
+        "laos_pronunciation": "sabai",
+        "jp_pronunciation": "yuufuku na",
+        "vie_pronunciation": "kha gia"
+      },
+      "means": {
+        "en": "In fortunate circumstances financially; moderately rich",
+        "zh": "每周出版的期刊（或每年 52 期）"
+      }
+    },
+    {
+      "word": {
+        "en": "west",
+        "laos": "ຕາເວັນຕົກ",
+        "jp": "西",
+        "vie": "hướng Tây",
+        "en_pronunciation": "/wɛst/",
+        "laos_pronunciation": "tauaentok",
+        "jp_pronunciation": "nishi",
+        "vie_pronunciation": "huong Tay"
+      },
+      "means": {
+        "en": "The countries of (originally) Europe and (now including) North America and South America",
+        "zh": "因悲伤、愤怒或痛苦而流泪"
+      }
+    },
+    {
+      "word": {
+        "en": "western",
+        "laos": "ປາຕາເວັນຕົກ",
+        "jp": "西洋の",
+        "vie": "phương Tây",
+        "en_pronunciation": "/ˈwɛstərn/",
+        "laos_pronunciation": "patauaentok",
+        "jp_pronunciation": "seiyou no",
+        "vie_pronunciation": "phuong Tay"
+      },
+      "means": {
+        "en": "A film about life in the western United States during the period of exploration and development",
+        "zh": "有一定的重量"
+      }
+    },
+    {
+      "word": {
+        "en": "westerner",
+        "laos": "ພວກເຮົາ Wosterner",
+        "jp": "西洋人",
+        "vie": "người phương Tây",
+        "en_pronunciation": "/ˈwɛstərnər/",
+        "laos_pronunciation": "phuakhao Wosterner",
+        "jp_pronunciation": "seiyoujin",
+        "vie_pronunciation": "nguoi phuong Tay"
+      },
+      "means": {
+        "en": "An inhabitant of a western area; especially of the U.S.",
+        "zh": "命运的化身；"
+      }
+    },
+    {
+      "word": {
+        "en": "wet",
+        "laos": "ປຽກ",
+        "jp": "濡れた",
+        "vie": "ướt",
+        "en_pronunciation": "/wɛt/",
+        "laos_pronunciation": "piak",
+        "jp_pronunciation": "nure ta",
+        "vie_pronunciation": "uot"
+      },
+      "means": {
+        "en": "Wetness caused by water",
+        "zh": "奇怪三姐妹中的任何一个"
+      }
+    },
+    {
+      "word": {
+        "en": "whale",
+        "laos": "ປາວານ",
+        "jp": "クジラ",
+        "vie": "cá voi",
+        "en_pronunciation": "/weɪl/",
+        "laos_pronunciation": "pauaan",
+        "jp_pronunciation": "kujira",
+        "vie_pronunciation": "ca voi"
+      },
+      "means": {
+        "en": "A very large person; impressive in size or qualities",
+        "zh": "由于重力而由质量施加的垂直力"
+      }
+    },
+    {
+      "word": {
+        "en": "wharf",
+        "laos": "Wharf",
+        "jp": "埠頭",
+        "vie": "bến tàu",
+        "en_pronunciation": "/wɔrf/",
+        "laos_pronunciation": "Wharf",
+        "jp_pronunciation": "futou",
+        "vie_pronunciation": "ben tau"
+      },
+      "means": {
+        "en": "A platform built out from the shore into the water and supported by piles; provides access to ships and boats",
+        "zh": "受到欢迎的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "what",
+        "laos": "ອັນໃດ",
+        "jp": "何",
+        "vie": "cái gì",
+        "en_pronunciation": "/wət/",
+        "laos_pronunciation": "andai",
+        "jp_pronunciation": "nani",
+        "vie_pronunciation": "cai gi"
+      },
+      "means": {
+        "en": "What is an English word referring to 'what'.",
+        "zh": "政府向有需要的人提供经济援助"
+      }
+    },
+    {
+      "word": {
+        "en": "whatever",
+        "laos": "ຢ່າງໃດກໍ່ຕາມ",
+        "jp": "何でも",
+        "vie": "sao cũng được",
+        "en_pronunciation": "/ˌwəˈtɛvər/",
+        "laos_pronunciation": "yangdaikotam",
+        "jp_pronunciation": "nande mo",
+        "vie_pronunciation": "sao cung duoc"
+      },
+      "means": {
+        "en": "One or some or every or all without specification",
+        "zh": "为获取水、石油、天然气或盐水而挖或钻的深孔或竖井"
+      }
+    },
+    {
+      "word": {
+        "en": "whatsoever",
+        "laos": "ສິ່ງໃດກໍ່ຕາມ",
+        "jp": "何でも",
+        "vie": "bất cứ điều gì",
+        "en_pronunciation": "/ˌwətsoʊˈɛvər/",
+        "laos_pronunciation": "singdaikotam",
+        "jp_pronunciation": "nande mo",
+        "vie_pronunciation": "bat cu dieu gi"
+      },
+      "means": {
+        "en": "One or some or every or all without specification",
+        "zh": "幸福、健康、繁荣的满足状态"
+      }
+    },
+    {
+      "word": {
+        "en": "wheat",
+        "laos": "ເຂົ້າສາລີ",
+        "jp": "小麦",
+        "vie": "lúa mì",
+        "en_pronunciation": "/wit/",
+        "laos_pronunciation": "khaosali",
+        "jp_pronunciation": "komugi",
+        "vie_pronunciation": "lua mi"
+      },
+      "means": {
+        "en": "Annual or biennial grass having erect flower spikes and light brown grains",
+        "zh": "广泛或完全众所周知"
+      }
+    },
+    {
+      "word": {
+        "en": "wheel",
+        "laos": "ລໍ້",
+        "jp": "ホイール",
+        "vie": "bánh xe",
+        "en_pronunciation": "/wil/",
+        "laos_pronunciation": "lo",
+        "jp_pronunciation": "hoiiru",
+        "vie_pronunciation": "banh xe"
+      },
+      "means": {
+        "en": "A simple machine consisting of a circular frame with spokes (or a solid disc) that can rotate on a shaft or axle (as in vehicles or other machines)",
+        "zh": "在经济上幸运的情况下；"
+      }
+    },
+    {
+      "word": {
+        "en": "when",
+        "laos": "ເມື່ອໃດ",
+        "jp": "いつ",
+        "vie": "khi nào",
+        "en_pronunciation": "/wɪn/",
+        "laos_pronunciation": "meuodai",
+        "jp_pronunciation": "itsu",
+        "vie_pronunciation": "khi nao"
+      },
+      "means": {
+        "en": "When is an English word referring to 'when'.",
+        "zh": "中等富裕"
+      }
+    },
+    {
+      "word": {
+        "en": "whenever",
+        "laos": "ເມື່ອໃດກໍຕາມ",
+        "jp": "いつでも",
+        "vie": "bất cứ khi nào",
+        "en_pronunciation": "/wɛˈnɛvər/",
+        "laos_pronunciation": "meuodaikotam",
+        "jp_pronunciation": "itsudemo",
+        "vie_pronunciation": "bat cu khi nao"
+      },
+      "means": {
+        "en": "Whenever is an English word referring to 'whenever'.",
+        "zh": "（原来）欧洲国家和（现在包括）北美和南美洲国家"
+      }
+    },
+    {
+      "word": {
+        "en": "where",
+        "laos": "ບ່ອນໃດ",
+        "jp": "どこで",
+        "vie": "ở đâu",
+        "en_pronunciation": "/wɛr/",
+        "laos_pronunciation": "bondai",
+        "jp_pronunciation": "dokode",
+        "vie_pronunciation": "o dau"
+      },
+      "means": {
+        "en": "Where is an English word referring to 'where'.",
+        "zh": "一部关于美国西部探索开发时期生活的电影"
+      }
+    },
+    {
+      "word": {
+        "en": "wherever",
+        "laos": "ບ່ອນໃດທີ່",
+        "jp": "どこでも",
+        "vie": "bất cứ nơi nào",
+        "en_pronunciation": "/wɛˈrɛvər/",
+        "laos_pronunciation": "bondaithi",
+        "jp_pronunciation": "dokodemo",
+        "vie_pronunciation": "bat cu noi nao"
+      },
+      "means": {
+        "en": "Where in the world",
+        "zh": "西部地区的居民；"
+      }
+    },
+    {
+      "word": {
+        "en": "whereabouts",
+        "laos": "ບ່ອນຢູ່ໃສ",
+        "jp": "居場所",
+        "vie": "nơi ở",
+        "en_pronunciation": "/ˈwɛrəˌbaʊts/",
+        "laos_pronunciation": "bonyusai",
+        "jp_pronunciation": "ibasho",
+        "vie_pronunciation": "noi o"
+      },
+      "means": {
+        "en": "The general location where something is",
+        "zh": "尤其是美国"
+      }
+    },
+    {
+      "word": {
+        "en": "whereas",
+        "laos": "ໃນຂະນະທີ່",
+        "jp": "一方",
+        "vie": "trong khi đó",
+        "en_pronunciation": "/wɛˈræz/",
+        "laos_pronunciation": "naikhanathi",
+        "jp_pronunciation": "ippou",
+        "vie_pronunciation": "trong khi do"
+      },
+      "means": {
+        "en": "Whereas is an English word referring to 'whereas'.",
+        "zh": "水引起的潮湿"
+      }
+    },
+    {
+      "word": {
+        "en": "whereby",
+        "laos": "ບ່ອນທີ່",
+        "jp": "それによって",
+        "vie": "theo đó",
+        "en_pronunciation": "/wɛrˈbaɪ/",
+        "laos_pronunciation": "bonthi",
+        "jp_pronunciation": "soreniyotte",
+        "vie_pronunciation": "theo do"
+      },
+      "means": {
+        "en": "Whereby is an English word referring to 'whereby'.",
+        "zh": "一个非常大的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "whether",
+        "laos": "ບໍ່ວ່າຈະ",
+        "jp": "かどうか",
+        "vie": "liệu",
+        "en_pronunciation": "/ˈwɛðər/",
+        "laos_pronunciation": "bovacha",
+        "jp_pronunciation": "kadouka",
+        "vie_pronunciation": "lieu"
+      },
+      "means": {
+        "en": "Whether is an English word referring to 'whether'.",
+        "zh": "尺寸或品质令人印象深刻"
+      }
+    },
+    {
+      "word": {
+        "en": "which",
+        "laos": "ອັນໃດ",
+        "jp": "どの",
+        "vie": "cái nào",
+        "en_pronunciation": "/wɪʧ/",
+        "laos_pronunciation": "andai",
+        "jp_pronunciation": "dono",
+        "vie_pronunciation": "cai nao"
+      },
+      "means": {
+        "en": "Which is an English word referring to 'which'.",
+        "zh": "从岸边伸入水中并由桩支撑的平台；"
+      }
+    },
+    {
+      "word": {
+        "en": "while",
+        "laos": "ໃນຂະນະທີ່",
+        "jp": "その間",
+        "vie": "trong khi",
+        "en_pronunciation": "/waɪl/",
+        "laos_pronunciation": "naikhanathi",
+        "jp_pronunciation": "sono kan",
+        "vie_pronunciation": "trong khi"
+      },
+      "means": {
+        "en": "A period of indeterminate length (usually short) marked by some action or condition",
+        "zh": "提供船只和船只的通道"
+      }
+    },
+    {
+      "word": {
+        "en": "whilst",
+        "laos": "ໃນຂະນະທີ່",
+        "jp": "一方",
+        "vie": "trong khi",
+        "en_pronunciation": "/waɪlst/",
+        "laos_pronunciation": "naikhanathi",
+        "jp_pronunciation": "ippou",
+        "vie_pronunciation": "trong khi"
+      },
+      "means": {
+        "en": "Whilst is an English word referring to 'whilst'.",
+        "zh": "表示“什么”的英语单词是什么。"
+      }
+    },
+    {
+      "word": {
+        "en": "whichever",
+        "laos": "ຜູ້ໃດ",
+        "jp": "どちらでも",
+        "vie": "cái nào cũng được",
+        "en_pronunciation": "/wɪˈʧɛvər/",
+        "laos_pronunciation": "phudai",
+        "jp_pronunciation": "dochirademo",
+        "vie_pronunciation": "cai nao cung duoc"
+      },
+      "means": {
+        "en": "Whichever is an English word referring to 'whichever'.",
+        "zh": "一项或部分或全部或全部无指定"
+      }
+    },
+    {
+      "word": {
+        "en": "whip",
+        "laos": "ແສ້",
+        "jp": "鞭",
+        "vie": "roi da",
+        "en_pronunciation": "/wɪp/",
+        "laos_pronunciation": "aes",
+        "jp_pronunciation": "muchi",
+        "vie_pronunciation": "roi da"
+      },
+      "means": {
+        "en": "An instrument with a handle and a flexible lash that is used for whipping",
+        "zh": "一项或部分或全部或全部无指定"
+      }
+    },
+    {
+      "word": {
+        "en": "whirl",
+        "laos": "ຮ່ອມລົດ",
+        "jp": "渦巻く",
+        "vie": "quay cuồng",
+        "en_pronunciation": "/wərl/",
+        "laos_pronunciation": "homlod",
+        "jp_pronunciation": "uzumaki ku",
+        "vie_pronunciation": "quay cuong"
+      },
+      "means": {
+        "en": "Confused movement",
+        "zh": "一年生或二年生草，有直立的花穗和浅棕色的谷物"
+      }
+    },
+    {
+      "word": {
+        "en": "whisky",
+        "laos": "ເຫຼົ້າຂາວ",
+        "jp": "ウィスキー",
+        "vie": "rượu whisky",
+        "en_pronunciation": "/ˈwɪski/",
+        "laos_pronunciation": "heoakhav",
+        "jp_pronunciation": "uisukii",
+        "vie_pronunciation": "ruou whisky"
+      },
+      "means": {
+        "en": "A liquor made from fermented mash of grain",
+        "zh": "一种简单的机器，由带有辐条（或实心圆盘）的圆形框架组成，可以在轴或轴上旋转（如在车辆或其他机器中）"
+      }
+    },
+    {
+      "word": {
+        "en": "whisper",
+        "laos": "ກະຊິບ",
+        "jp": "ささやき声",
+        "vie": "thì thầm",
+        "en_pronunciation": "/ˈwɪspər/",
+        "laos_pronunciation": "kasib",
+        "jp_pronunciation": "sasayaki koe",
+        "vie_pronunciation": "thi tham"
+      },
+      "means": {
+        "en": "Speaking softly without vibration of the vocal cords",
+        "zh": "When 是一个英语单词，指的是“何时”。"
+      }
+    },
+    {
+      "word": {
+        "en": "whistle",
+        "laos": "ຈືງ",
+        "jp": "口笛を吹く",
+        "vie": "còi",
+        "en_pronunciation": "/ˈwɪsəl/",
+        "laos_pronunciation": "chung",
+        "jp_pronunciation": "kuchibue wo fuku",
+        "vie_pronunciation": "coi"
+      },
+      "means": {
+        "en": "The sound made by something moving rapidly or by steam coming out of a small aperture",
+        "zh": "每当是一个英语单词，指的是“每当”。"
+      }
+    },
+    {
+      "word": {
+        "en": "white",
+        "laos": "ຂາວ",
+        "jp": "白",
+        "vie": "trắng",
+        "en_pronunciation": "/waɪt/",
+        "laos_pronunciation": "khav",
+        "jp_pronunciation": "shiro",
+        "vie_pronunciation": "trang"
+      },
+      "means": {
+        "en": "A member of the Caucasoid race",
+        "zh": "哪里是一个英语单词，指的是“哪里”。"
+      }
+    },
+    {
+      "word": {
+        "en": "who",
+        "laos": "WHO",
+        "jp": "誰",
+        "vie": "ai",
+        "en_pronunciation": "/hu/",
+        "laos_pronunciation": "WHO",
+        "jp_pronunciation": "dare",
+        "vie_pronunciation": "ai"
+      },
+      "means": {
+        "en": "A United Nations agency to coordinate international health activities and to help governments improve health services",
+        "zh": "在世界的哪个地方"
+      }
+    },
+    {
+      "word": {
+        "en": "whoever",
+        "laos": "ໃຜກໍ່ຕາມ",
+        "jp": "誰でも",
+        "vie": "bất cứ ai",
+        "en_pronunciation": "/huˈɛvər/",
+        "laos_pronunciation": "phaikotam",
+        "jp_pronunciation": "dare demo",
+        "vie_pronunciation": "bat cu ai"
+      },
+      "means": {
+        "en": "Whoever is an English word referring to 'whoever'.",
+        "zh": "某物所在的大致位置"
+      }
+    },
+    {
+      "word": {
+        "en": "whole",
+        "laos": "ທັງຫມົດ",
+        "jp": "全体",
+        "vie": "toàn bộ",
+        "en_pronunciation": "/hoʊl/",
+        "laos_pronunciation": "thangmod",
+        "jp_pronunciation": "zentai",
+        "vie_pronunciation": "toan bo"
+      },
+      "means": {
+        "en": "All of something including all its component elements or parts",
+        "zh": "while是一个英语单词，指的是“而”。"
+      }
+    },
+    {
+      "word": {
+        "en": "wholly",
+        "laos": "ລ່ໍາ",
+        "jp": "完全に",
+        "vie": "hoàn toàn",
+        "en_pronunciation": "/ˈhoʊli/",
+        "laos_pronunciation": "loa",
+        "jp_pronunciation": "kanzen ni",
+        "vie_pronunciation": "hoan toan"
+      },
+      "means": {
+        "en": "To a complete degree or to the full or entire extent (`whole' is often used informally for `wholly')",
+        "zh": "whereby是一个英语单词，指的是“whereby”。"
+      }
+    },
+    {
+      "word": {
+        "en": "wholesale",
+        "laos": "ຂາຍສົ່ງ",
+        "jp": "卸売",
+        "vie": "bán buôn",
+        "en_pronunciation": "/ˈhoʊlˌseɪl/",
+        "laos_pronunciation": "khaisong",
+        "jp_pronunciation": "oroshiuri",
+        "vie_pronunciation": "ban buon"
+      },
+      "means": {
+        "en": "The selling of goods to merchants; usually in large quantities for resale to consumers",
+        "zh": "是否是一个英语单词，指的是“是否”。"
+      }
+    },
+    {
+      "word": {
+        "en": "wholesome",
+        "laos": "ທີ່ດີ",
+        "jp": "健全な",
+        "vie": "lành mạnh",
+        "en_pronunciation": "/ˈhoʊlsəm/",
+        "laos_pronunciation": "thidi",
+        "jp_pronunciation": "kenzen na",
+        "vie_pronunciation": "lanh manh"
+      },
+      "means": {
+        "en": "Conducive to or characteristic of physical or moral well-being",
+        "zh": "这是一个英语单词，指的是“which”。"
+      }
+    },
+    {
+      "word": {
+        "en": "whom",
+        "laos": "ໃຜ",
+        "jp": "誰",
+        "vie": "ai",
+        "en_pronunciation": "/hum/",
+        "laos_pronunciation": "phai",
+        "jp_pronunciation": "dare",
+        "vie_pronunciation": "ai"
+      },
+      "means": {
+        "en": "Whom is an English word referring to 'whom'.",
+        "zh": "以某种行动或条件为标志的不确定长度（通常很短）的时期"
+      }
+    }
+  ]
+}
