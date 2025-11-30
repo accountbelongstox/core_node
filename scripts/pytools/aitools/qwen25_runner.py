@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Qwen2.5-0.5B-Instruct Model Tester
-Reusable testing script for Qwen2.5 model
+Qwen2.5-0.5B-Instruct Model Runner
+Reusable script for Qwen2.5 model validation and interactive chat
 """
 
 import os
@@ -12,20 +12,20 @@ from pathlib import Path
 
 def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
     """
-    Test Qwen2.5 model loading and generation
+    Validate Qwen2.5 model loading and generation
 
     Args:
         model_name: HuggingFace model name
         test_prompt: Optional test prompt (defaults to a simple introduction)
 
     Returns:
-        bool: True if test succeeded, False otherwise
+        bool: True if validation succeeded, False otherwise
     """
     try:
         os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
-        print('[TEST] Importing transformers...')
+        print('[RUN] Importing transformers...')
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         print(f'[INFO] Model: {model_name}')
@@ -34,11 +34,11 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         print('[INFO] This may take a few minutes...')
         print()
 
-        print('[TEST] Loading tokenizer...')
+        print('[RUN] Loading tokenizer...')
         tokenizer = AutoTokenizer.from_pretrained(model_name, resume_download=True)
         print('[OK] Tokenizer loaded successfully')
 
-        print('[TEST] Loading model...')
+        print('[RUN] Loading model...')
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype='auto',
@@ -51,7 +51,7 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         if test_prompt is None:
             test_prompt = 'Hello! Please introduce yourself briefly.'
 
-        print('[TEST] Testing generation...')
+        print('[RUN] Validating generation...')
         messages = [
             {'role': 'system', 'content': 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.'},
             {'role': 'user', 'content': test_prompt}
@@ -72,7 +72,7 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         ]
 
         response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        print('[OK] Generation test successful')
+        print('[OK] Generation validation successful')
         print()
         print('[User]', test_prompt)
         print('[Qwen]', response)
@@ -85,7 +85,7 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         return True
 
     except Exception as e:
-        print(f'[ERROR] Test failed: {e}')
+        print(f'[ERROR] Validation failed: {e}')
         import traceback
         traceback.print_exc()
         return False
@@ -179,10 +179,10 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Qwen2.5-0.5B-Instruct Model Tester')
+    parser = argparse.ArgumentParser(description='Qwen2.5-0.5B-Instruct Model Runner')
     parser.add_argument('--model', default='Qwen/Qwen2.5-0.5B-Instruct', help='Model name')
     parser.add_argument('--chat', action='store_true', help='Start interactive chat')
-    parser.add_argument('--prompt', default=None, help='Test prompt')
+    parser.add_argument('--prompt', default=None, help='Validation prompt')
 
     args = parser.parse_args()
 
@@ -195,3 +195,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
