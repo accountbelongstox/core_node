@@ -21,7 +21,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 SCRIPT_NAME="[95_install_deepseek]"
 MODEL_NAME="DeepSeek-VL"
 REPO_URL="https://github.com/deepseek-ai/DeepSeek-VL.git"
-MODEL_PATH="deepseek-ai/deepseek-vl-1.3b-chat"
+MODEL_PATH="deepseek-ai/deepseek-vl-7b-chat"
 
 print_info() {
     echo -e "\033[0;36m$SCRIPT_NAME $1\033[0m"
@@ -172,10 +172,6 @@ check_installation() {
         return 1
     fi
 
-    if [ ! -f "$install_dir/requirements.txt" ]; then
-        return 1
-    fi
-
     local file_count=$(find "$install_dir" -type f 2>/dev/null | wc -l)
     if [ "$file_count" -lt 10 ]; then
         return 1
@@ -220,46 +216,18 @@ install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
 
-    local requirements_file="$install_dir/requirements.txt"
-
-    if [ ! -f "$requirements_file" ]; then
-        print_error "requirements.txt not found at: $requirements_file"
-        return 1
-    fi
-
-    print_info "Installing Python dependencies (editable install)..."
+    print_info "Installing Python dependencies..."
     print_info "Using Python command: $python_cmd"
-    print_info "Requirements file: $requirements_file"
-    print_info "Note: Using pip install -e . for editable install"
 
     cd "$install_dir"
-    print_info "Running: $python_cmd -m pip install -e ."
+    print_info "Installing core dependencies..."
     echo ""
-    $python_cmd -m pip install -e .
+    $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate
     echo ""
-
     cd - > /dev/null
 
-    # Verify installation
-    print_info "Verifying installation..."
-    local verify_result=$($python_cmd -c "import deepseek_vl; print('[OK] deepseek_vl package installed')" 2>&1)
-
-    if [[ "$verify_result" == *"[OK]"* ]]; then
-        print_success "Dependencies installed successfully"
-        return 0
-    else
-        print_warning "Editable install verification failed, trying direct install..."
-
-        cd "$install_dir"
-        print_info "Installing core dependencies..."
-        echo ""
-        $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate
-        echo ""
-        cd - > /dev/null
-
-        print_success "Core dependencies installed"
-        return 0
-    fi
+    print_success "Dependencies installed successfully"
+    return 0
 }
 
 test_model_load() {
@@ -276,7 +244,7 @@ os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '.cache')
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor
 
-model_path = 'deepseek-ai/deepseek-vl-1.3b-chat'
+model_path = 'deepseek-ai/deepseek-vl-7b-chat'
 print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
 
@@ -298,7 +266,7 @@ print('[OK] Conversation structure is valid')
 
 print('')
 print('[SUCCESS] ========================================')
-print('[SUCCESS]   DeepSeek-VL 1.3B is ready!')
+print('[SUCCESS]   DeepSeek-VL 7B is ready!')
 print('[SUCCESS] ========================================')
 PYTHON_EOF
 
@@ -343,7 +311,7 @@ echo ""
 BASH_EOF
 
     echo "cd \"$install_dir\"" >> "$test_script"
-    echo "$python_cmd cli_chat.py --model_path \"deepseek-ai/deepseek-vl-1.3b-chat\"" >> "$test_script"
+    echo "$python_cmd cli_chat.py --model_path \"deepseek-ai/deepseek-vl-7b-chat\"" >> "$test_script"
     echo "" >> "$test_script"
     echo "echo \"\"" >> "$test_script"
     echo "echo \"========================================\"" >> "$test_script"

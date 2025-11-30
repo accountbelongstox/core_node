@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.387363+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "propaganda",
+        "laos": "ການໂຄສະນາ",
+        "jp": "プロパガンダ",
+        "vie": "tuyên truyền",
+        "en_pronunciation": "/ˌprɑpəˈgændə/",
+        "laos_pronunciation": "kanokhsana",
+        "jp_pronunciation": "puropaganda",
+        "vie_pronunciation": "tuyen truyen"
+      },
+      "means": {
+        "en": "Information that is spread for the purpose of promoting some cause",
+        "zh": "为促进某种事业而传播的信息"
+      }
+    },
+    {
+      "word": {
+        "en": "propagate",
+        "laos": "ແຜງຜາຍ",
+        "jp": "伝播する",
+        "vie": "tuyên truyền",
+        "en_pronunciation": "/ˈprɑpəˌgeɪt/",
+        "laos_pronunciation": "aephngphai",
+        "jp_pronunciation": "denpa suru",
+        "vie_pronunciation": "tuyen truyen"
+      },
+      "means": {
+        "en": "Transmit from one generation to the next",
+        "zh": "从一代传给下一代"
+      }
+    },
+    {
+      "word": {
+        "en": "propagation",
+        "laos": "ການຂະສ່ວນ",
+        "jp": "伝播",
+        "vie": "sự truyền bá",
+        "en_pronunciation": "/ˌprɑpəˈgeɪʃən/",
+        "laos_pronunciation": "kan khasuan",
+        "jp_pronunciation": "denpa",
+        "vie_pronunciation": "su truyen ba"
+      },
+      "means": {
+        "en": "The spreading of something (a belief or practice) into new regions",
+        "zh": "将某种事物（信仰或实践）传播到新的地区"
+      }
+    },
+    {
+      "word": {
+        "en": "propel",
+        "laos": "ຜິ່ວ",
+        "jp": "推進する",
+        "vie": "đẩy",
+        "en_pronunciation": "/prəˈpɛl/",
+        "laos_pronunciation": "phiv",
+        "jp_pronunciation": "suishin suru",
+        "vie_pronunciation": "day"
+      },
+      "means": {
+        "en": "Cause to move forward with force",
+        "zh": "致力前行"
+      }
+    },
+    {
+      "word": {
+        "en": "propeller",
+        "laos": "ໃບຮັບຮອງ",
+        "jp": "プロペラ",
+        "vie": "cánh quạt",
+        "en_pronunciation": "/prəˈpɛlər/",
+        "laos_pronunciation": "baihabhong",
+        "jp_pronunciation": "puropera",
+        "vie_pronunciation": "canh quat"
+      },
+      "means": {
+        "en": "A mechanical device that rotates to push against air or water",
+        "zh": "旋转以推动空气或水的机械装置"
+      }
+    },
+    {
+      "word": {
+        "en": "proper",
+        "laos": "ທີ່ເຫມາະສົມ",
+        "jp": "適切な",
+        "vie": "thích hợp",
+        "en_pronunciation": "/ˈprɑpər/",
+        "laos_pronunciation": "thihemaasom",
+        "jp_pronunciation": "tekisetsu na",
+        "vie_pronunciation": "thich hop"
+      },
+      "means": {
+        "en": "Marked by suitability or rightness or appropriateness",
+        "zh": "以适合性、正确性或适当性为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "property",
+        "laos": "ຊັບສິນ",
+        "jp": "財産",
+        "vie": "tài sản",
+        "en_pronunciation": "/ˈprɑpərti/",
+        "laos_pronunciation": "sabsin",
+        "jp_pronunciation": "zaisan",
+        "vie_pronunciation": "tai san"
+      },
+      "means": {
+        "en": "Something owned; any tangible or intangible possession that is owned by someone",
+        "zh": "拥有的东西；"
+      }
+    },
+    {
+      "word": {
+        "en": "proportion",
+        "laos": "ອັດຕາສ່ວນ",
+        "jp": "割合",
+        "vie": "tỷ lệ",
+        "en_pronunciation": "/prəˈpɔrʃən/",
+        "laos_pronunciation": "adtasuan",
+        "jp_pronunciation": "wariai",
+        "vie_pronunciation": "ty le"
+      },
+      "means": {
+        "en": "The quotient obtained when the magnitude of a part is divided by the magnitude of the whole",
+        "zh": "某人拥有的任何有形或无形财产"
+      }
+    },
+    {
+      "word": {
+        "en": "proportional",
+        "laos": "ສັດສ່ວນ",
+        "jp": "比例",
+        "vie": "tỷ lệ thuận",
+        "en_pronunciation": "/prəˈpɔrʃənəl/",
+        "laos_pronunciation": "sadsuan",
+        "jp_pronunciation": "hirei",
+        "vie_pronunciation": "ty le thuan"
+      },
+      "means": {
+        "en": "One of the quantities in a mathematical proportion",
+        "zh": "部分的大小除以整体的大小得到的商"
+      }
+    },
+    {
+      "word": {
+        "en": "propose",
+        "laos": "ສະເຫນີ",
+        "jp": "提案する",
+        "vie": "đề nghị",
+        "en_pronunciation": "/prəˈpoʊz/",
+        "laos_pronunciation": "saheni",
+        "jp_pronunciation": "teian suru",
+        "vie_pronunciation": "de nghi"
+      },
+      "means": {
+        "en": "Make a proposal, declare a plan for something",
+        "zh": "数学比例中的数量之一"
+      }
+    },
+    {
+      "word": {
+        "en": "proposal",
+        "laos": "ການສະເຫນີ",
+        "jp": "提案",
+        "vie": "đề nghị",
+        "en_pronunciation": "/prəˈpoʊzəl/",
+        "laos_pronunciation": "kansaheni",
+        "jp_pronunciation": "teian",
+        "vie_pronunciation": "de nghi"
+      },
+      "means": {
+        "en": "Something proposed (such as a plan or assumption)",
+        "zh": "提出建议，宣布某事的计划"
+      }
+    },
+    {
+      "word": {
+        "en": "proposition",
+        "laos": "ການສະເຫນີ",
+        "jp": "提案",
+        "vie": "lời đề nghị",
+        "en_pronunciation": "/ˌprɑpəˈzɪʃən/",
+        "laos_pronunciation": "kansaheni",
+        "jp_pronunciation": "teian",
+        "vie_pronunciation": "loi de nghi"
+      },
+      "means": {
+        "en": "(logic) a statement that affirms or denies something and is either true or false",
+        "zh": "提议的东西（例如计划或假设）"
+      }
+    },
+    {
+      "word": {
+        "en": "prose",
+        "laos": "ບຸ້ມ",
+        "jp": "散文",
+        "vie": "văn xuôi",
+        "en_pronunciation": "/proʊz/",
+        "laos_pronunciation": "bum",
+        "jp_pronunciation": "sanbun",
+        "vie_pronunciation": "van xuoi"
+      },
+      "means": {
+        "en": "Ordinary writing as distinguished from verse",
+        "zh": "（逻辑）肯定或否定某事并且是真或假的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "prosecute",
+        "laos": "ຟ້ອງສານ",
+        "jp": "起訴する",
+        "vie": "truy tố",
+        "en_pronunciation": "/ˈprɑsəˌkjut/",
+        "laos_pronunciation": "fongsan",
+        "jp_pronunciation": "kiso suru",
+        "vie_pronunciation": "truy to"
+      },
+      "means": {
+        "en": "Conduct a prosecution in a court of law",
+        "zh": "普通写作与诗歌的区别"
+      }
+    },
+    {
+      "word": {
+        "en": "prosecution",
+        "laos": "ການດໍາເນີນຄະດີ",
+        "jp": "訴追",
+        "vie": "truy tố",
+        "en_pronunciation": "/ˌprɑsəˈkjuʃən/",
+        "laos_pronunciation": "kandoanoenkhadi",
+        "jp_pronunciation": "sotsui",
+        "vie_pronunciation": "truy to"
+      },
+      "means": {
+        "en": "The institution and conduct of legal proceedings against a defendant for criminal behavior",
+        "zh": "向法院提出起诉"
+      }
+    },
+    {
+      "word": {
+        "en": "prospect",
+        "laos": "ຄວາມຫວັງ",
+        "jp": "見通し",
+        "vie": "triển vọng",
+        "en_pronunciation": "/ˈprɑspɛkt/",
+        "laos_pronunciation": "khuaamvang",
+        "jp_pronunciation": "mitooshi",
+        "vie_pronunciation": "trien vong"
+      },
+      "means": {
+        "en": "The possibility of future success",
+        "zh": "针对被告的犯罪行为提起和进行法律诉讼"
+      }
+    },
+    {
+      "word": {
+        "en": "prospective",
+        "laos": "ຈະເລີນກໍານົດ",
+        "jp": "将来性のある",
+        "vie": "triển vọng",
+        "en_pronunciation": "/prəˈspɛktɪv/",
+        "laos_pronunciation": "chaloenkoanod",
+        "jp_pronunciation": "shouraisei noaru",
+        "vie_pronunciation": "trien vong"
+      },
+      "means": {
+        "en": "Of or concerned with or related to the future",
+        "zh": "未来成功的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "prosper",
+        "laos": "ລຸຍ",
+        "jp": "繁栄する",
+        "vie": "thịnh vượng",
+        "en_pronunciation": "/ˈprɑspər/",
+        "laos_pronunciation": "luny",
+        "jp_pronunciation": "han'ei suru",
+        "vie_pronunciation": "thinh vuong"
+      },
+      "means": {
+        "en": "Make steady progress; be at the high point in one's career or reach a high point in historical significance or importance",
+        "zh": "属于未来或与未来有关或与未来有关"
+      }
+    },
+    {
+      "word": {
+        "en": "prosperity",
+        "laos": "ຄວາມຈະເລີນ",
+        "jp": "繁栄",
+        "vie": "sự thịnh vượng",
+        "en_pronunciation": "/prɑˈspɛrəti/",
+        "laos_pronunciation": "khuaamchaloen",
+        "jp_pronunciation": "han'ei",
+        "vie_pronunciation": "su thinh vuong"
+      },
+      "means": {
+        "en": "An economic state of growth with rising profits and full employment",
+        "zh": "稳步前进；"
+      }
+    },
+    {
+      "word": {
+        "en": "prosperous",
+        "laos": "ຈະເລີນຮຸ່ງເຮືອງ",
+        "jp": "裕福な",
+        "vie": "thịnh vượng",
+        "en_pronunciation": "/ˈprɑspərəs/",
+        "laos_pronunciation": "chaloenhungheuong",
+        "jp_pronunciation": "yuufuku na",
+        "vie_pronunciation": "thinh vuong"
+      },
+      "means": {
+        "en": "In fortunate circumstances financially; moderately rich",
+        "zh": "处于职业生涯的高峰或达到历史意义或重要性的高峰"
+      }
+    },
+    {
+      "word": {
+        "en": "protect",
+        "laos": "ປົກປ້ອງ",
+        "jp": "守る",
+        "vie": "bảo vệ",
+        "en_pronunciation": "/prəˈtɛkt/",
+        "laos_pronunciation": "pokpong",
+        "jp_pronunciation": "mamoru",
+        "vie_pronunciation": "bao ve"
+      },
+      "means": {
+        "en": "Shield from danger, injury, destruction, or damage",
+        "zh": "利润增加和充分就业的经济增长状态"
+      }
+    },
+    {
+      "word": {
+        "en": "protection",
+        "laos": "ການປ້ອງກັນ",
+        "jp": "保護",
+        "vie": "bảo vệ",
+        "en_pronunciation": "/prəˈtɛkʃən/",
+        "laos_pronunciation": "kanpongkan",
+        "jp_pronunciation": "hogo",
+        "vie_pronunciation": "bao ve"
+      },
+      "means": {
+        "en": "The activity of protecting someone or something",
+        "zh": "在经济上幸运的情况下；"
+      }
+    },
+    {
+      "word": {
+        "en": "protective",
+        "laos": "ຮັກສາໄວ້",
+        "jp": "保護的な",
+        "vie": "bảo vệ",
+        "en_pronunciation": "/prəˈtɛktɪv/",
+        "laos_pronunciation": "haksauaai",
+        "jp_pronunciation": "hogo tekina",
+        "vie_pronunciation": "bao ve"
+      },
+      "means": {
+        "en": "Intended or adapted to afford protection of some kind",
+        "zh": "中等富裕"
+      }
+    },
+    {
+      "word": {
+        "en": "protein",
+        "laos": "ທາດນອີນເຕີ",
+        "jp": "タンパク質",
+        "vie": "chất đạm",
+        "en_pronunciation": "/ˈproʊˌtin/",
+        "laos_pronunciation": "thad nintoe",
+        "jp_pronunciation": "tanpaku shitsu",
+        "vie_pronunciation": "chat dam"
+      },
+      "means": {
+        "en": "Any of a large group of nitrogenous organic compounds that are essential constituents of living cells; consist of polymers of amino acids; essential in the diet of animals for growth and for repair of tissues; can be obtained from meat and eggs and milk and legumes",
+        "zh": "避免危险、伤害、破坏或损坏"
+      }
+    },
+    {
+      "word": {
+        "en": "protest",
+        "laos": "ການປະທ້ວງ",
+        "jp": "抗議",
+        "vie": "phản đối",
+        "en_pronunciation": "/ˈproʊˌtɛst/",
+        "laos_pronunciation": "kanpathuang",
+        "jp_pronunciation": "kougi",
+        "vie_pronunciation": "phan doi"
+      },
+      "means": {
+        "en": "A formal and solemn declaration of objection",
+        "zh": "保护某人或某物的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "protocol",
+        "laos": "ອະນຸສັນຍາ",
+        "jp": "プロトコル",
+        "vie": "giao thức",
+        "en_pronunciation": "/ˈproʊtəˌkɔl/",
+        "laos_pronunciation": "anusnaia",
+        "jp_pronunciation": "purotokoru",
+        "vie_pronunciation": "giao thuc"
+      },
+      "means": {
+        "en": "(computer science) rules determining the format and transmission of data",
+        "zh": "旨在或适应提供某种保护"
+      }
+    },
+    {
+      "word": {
+        "en": "prototype",
+        "laos": "ຕົ້ນແບບ",
+        "jp": "プロトタイプ",
+        "vie": "nguyên mẫu",
+        "en_pronunciation": "/ˈproʊtoʊˌtaɪp/",
+        "laos_pronunciation": "tonaebb",
+        "jp_pronunciation": "purototaipu",
+        "vie_pronunciation": "nguyen mau"
+      },
+      "means": {
+        "en": "A standard or typical example",
+        "zh": "任何一大类含氮有机化合物，是活细胞的重要组成部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "prove",
+        "laos": "ພິສູດ",
+        "jp": "証明する",
+        "vie": "chứng minh",
+        "en_pronunciation": "/pruv/",
+        "laos_pronunciation": "phisud",
+        "jp_pronunciation": "shoumeisu ru",
+        "vie_pronunciation": "chung minh"
+      },
+      "means": {
+        "en": "Be shown or be found to be",
+        "zh": "由氨基酸聚合物组成；"
+      }
+    },
+    {
+      "word": {
+        "en": "proverb",
+        "laos": "ຄໍາສຸພາສິດ",
+        "jp": "ことわざ",
+        "vie": "câu tục ngữ",
+        "en_pronunciation": "/ˈprɑvərb/",
+        "laos_pronunciation": "khoasuphasid",
+        "jp_pronunciation": "kotowaza",
+        "vie_pronunciation": "cau tuc ngu"
+      },
+      "means": {
+        "en": "A condensed but memorable saying embodying some important fact of experience that is taken as true by many people",
+        "zh": "在动物饮食中对于生长和组织修复至关重要；"
+      }
+    },
+    {
+      "word": {
+        "en": "proverbial",
+        "laos": "ສຸພາສິດ",
+        "jp": "ことわざ",
+        "vie": "tục ngữ",
+        "en_pronunciation": "/prəˈvərbiəl/",
+        "laos_pronunciation": "suphasid",
+        "jp_pronunciation": "kotowaza",
+        "vie_pronunciation": "tuc ngu"
+      },
+      "means": {
+        "en": "Of or relating to or resembling or expressed in a proverb",
+        "zh": "可以从肉、蛋、奶和豆类中获取"
+      }
+    },
+    {
+      "word": {
+        "en": "provide",
+        "laos": "ໃຫ້",
+        "jp": "提供する",
+        "vie": "cung cấp",
+        "en_pronunciation": "/prəˈvaɪd/",
+        "laos_pronunciation": "hai",
+        "jp_pronunciation": "teikyou suru",
+        "vie_pronunciation": "cung cap"
+      },
+      "means": {
+        "en": "Give something useful or necessary to",
+        "zh": "正式、庄严的反对声明"
+      }
+    },
+    {
+      "word": {
+        "en": "provision",
+        "laos": "ການຈັດຫາ",
+        "jp": "規定",
+        "vie": "cung cấp",
+        "en_pronunciation": "/prəˈvɪʒən/",
+        "laos_pronunciation": "kanchadha",
+        "jp_pronunciation": "kitei",
+        "vie_pronunciation": "cung cap"
+      },
+      "means": {
+        "en": "A stipulated condition",
+        "zh": "（计算机科学）确定数据格式和传输的规则"
+      }
+    },
+    {
+      "word": {
+        "en": "provided",
+        "laos": "ໃຫ້",
+        "jp": "提供される",
+        "vie": "cung cấp",
+        "en_pronunciation": "/prəˈvaɪdɪd/",
+        "laos_pronunciation": "hai",
+        "jp_pronunciation": "teikyou sareru",
+        "vie_pronunciation": "cung cap"
+      },
+      "means": {
+        "en": "Give something useful or necessary to",
+        "zh": "标准或典型示例"
+      }
+    },
+    {
+      "word": {
+        "en": "province",
+        "laos": "ແຂວງ",
+        "jp": "州",
+        "vie": "tỉnh",
+        "en_pronunciation": "/ˈprɑvɪns/",
+        "laos_pronunciation": "aekhuang",
+        "jp_pronunciation": "shuu",
+        "vie_pronunciation": "tinh"
+      },
+      "means": {
+        "en": "The territory occupied by one of the constituent administrative districts of a nation",
+        "zh": "被证明或被发现"
+      }
+    },
+    {
+      "word": {
+        "en": "provincial",
+        "laos": "ພາກ :: ແຂວງ",
+        "jp": "地方の",
+        "vie": "tỉnh",
+        "en_pronunciation": "/prəˈvɪnʃəl/",
+        "laos_pronunciation": "phak  aekhuang",
+        "jp_pronunciation": "chihou no",
+        "vie_pronunciation": "tinh"
+      },
+      "means": {
+        "en": "(Roman Catholic Church) an official in charge of an ecclesiastical province acting under the superior general of a religious order",
+        "zh": "一句简洁但令人难忘的谚语，体现了许多人认为是真实的一些重要的经验事实"
+      }
+    },
+    {
+      "word": {
+        "en": "provoke",
+        "laos": "ຢົວະ",
+        "jp": "挑発する",
+        "vie": "khiêu khích",
+        "en_pronunciation": "/prəˈvoʊk/",
+        "laos_pronunciation": "yuaa",
+        "jp_pronunciation": "chouhatsu suru",
+        "vie_pronunciation": "khieu khich"
+      },
+      "means": {
+        "en": "Call forth (emotions, feelings, and responses)",
+        "zh": "属于谚语的、与谚语相关的、类似的或用谚语表达的"
+      }
+    },
+    {
+      "word": {
+        "en": "provocation",
+        "laos": "ການຢົກຢົບ",
+        "jp": "挑発",
+        "vie": "sự khiêu khích",
+        "en_pronunciation": "/ˌprɑvəˈkeɪʃən/",
+        "laos_pronunciation": "kan yok yob",
+        "jp_pronunciation": "chouhatsu",
+        "vie_pronunciation": "su khieu khich"
+      },
+      "means": {
+        "en": "Unfriendly behavior that causes anger or resentment",
+        "zh": "给予一些有用或必要的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "provocative",
+        "laos": "ທີ່ຢຶດໄວ້",
+        "jp": "挑発的な",
+        "vie": "khiêu khích",
+        "en_pronunciation": "/proʊˈvɑkətɪv/",
+        "laos_pronunciation": "thi yuduaai",
+        "jp_pronunciation": "chouhatsuteki na",
+        "vie_pronunciation": "khieu khich"
+      },
+      "means": {
+        "en": "Serving or tending to provoke, excite, or stimulate; stimulating discussion or exciting controversy; ; ; - Anthony Trollope",
+        "zh": "规定条件"
+      }
+    },
+    {
+      "word": {
+        "en": "proximate",
+        "laos": "ໃກ້ຄຽງ",
+        "jp": "近くの",
+        "vie": "gần",
+        "en_pronunciation": "/ˈprɑksəmət/",
+        "laos_pronunciation": "kaikhiang",
+        "jp_pronunciation": "chikaku no",
+        "vie_pronunciation": "gan"
+      },
+      "means": {
+        "en": "Closest in degree or order (space or time) especially in a chain of causes and effects",
+        "zh": "给予一些有用或必要的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "proximity",
+        "laos": "ທີ່ໃກ້ຄຽງ",
+        "jp": "近接性",
+        "vie": "sự gần gũi",
+        "en_pronunciation": "/prɑkˈsɪməti/",
+        "laos_pronunciation": "thikaikhiang",
+        "jp_pronunciation": "kinsetsu sei",
+        "vie_pronunciation": "su gan gui"
+      },
+      "means": {
+        "en": "The property of being close together",
+        "zh": "一个国家的行政区之一所占据的领土"
+      }
+    },
+    {
+      "word": {
+        "en": "psychiatry",
+        "laos": "psychiatry",
+        "jp": "精神科",
+        "vie": "tâm thần học",
+        "en_pronunciation": "/sɪˈkaɪətri/",
+        "laos_pronunciation": "psychiatry",
+        "jp_pronunciation": "seishinka",
+        "vie_pronunciation": "tam than hoc"
+      },
+      "means": {
+        "en": "The branch of medicine dealing with the diagnosis and treatment of mental disorders",
+        "zh": "（罗马天主教会）在宗教团体最高统帅领导下负责教会省份的官员"
+      }
+    },
+    {
+      "word": {
+        "en": "psychiatric",
+        "laos": "ຈິດຕະວິທະຍາ",
+        "jp": "精神科の",
+        "vie": "tâm thần",
+        "en_pronunciation": "/ˌsaɪkiˈætrɪk/",
+        "laos_pronunciation": "chidtavithanya",
+        "jp_pronunciation": "seishinka no",
+        "vie_pronunciation": "tam than"
+      },
+      "means": {
+        "en": "Relating to or used in or engaged in the practice of psychiatry",
+        "zh": "唤起（情绪、感受和反应）"
+      }
+    },
+    {
+      "word": {
+        "en": "psychiatrist",
+        "laos": "psychiatrist ໄດ້",
+        "jp": "精神科医",
+        "vie": "bác sĩ tâm thần",
+        "en_pronunciation": "/səˈkaɪətrəst/",
+        "laos_pronunciation": "psychiatrist dai",
+        "jp_pronunciation": "seishinkai",
+        "vie_pronunciation": "bac si tam than"
+      },
+      "means": {
+        "en": "A physician who specializes in psychiatry",
+        "zh": "引起愤怒或怨恨的不友好行为"
+      }
+    },
+    {
+      "word": {
+        "en": "psychology",
+        "laos": "ຈິດຕະວິທະຍາ",
+        "jp": "心理学",
+        "vie": "tâm lý học",
+        "en_pronunciation": "/saɪˈkɑləʤi/",
+        "laos_pronunciation": "chidtavithanya",
+        "jp_pronunciation": "shinrigaku",
+        "vie_pronunciation": "tam ly hoc"
+      },
+      "means": {
+        "en": "The science of mental life",
+        "zh": "提供或倾向于挑衅、兴奋或刺激；"
+      }
+    },
+    {
+      "word": {
+        "en": "psychological",
+        "laos": "ທາງຈິດໃຈ",
+        "jp": "心理的",
+        "vie": "tâm lý",
+        "en_pronunciation": "/ˌsaɪkəˈlɑʤɪkəl/",
+        "laos_pronunciation": "thangchidchai",
+        "jp_pronunciation": "shinriteki",
+        "vie_pronunciation": "tam ly"
+      },
+      "means": {
+        "en": "Mental or emotional as opposed to physical in nature",
+        "zh": "激发讨论或激动人心的争议；"
+      }
+    },
+    {
+      "word": {
+        "en": "psychologist",
+        "laos": "ນັກຈິດຕະວິທະຍາ",
+        "jp": "心理学者",
+        "vie": "nhà tâm lý học",
+        "en_pronunciation": "/saɪˈkɑləʤəst/",
+        "laos_pronunciation": "nak chidtavithanya",
+        "jp_pronunciation": "shinrigakusha",
+        "vie_pronunciation": "nha tam ly hoc"
+      },
+      "means": {
+        "en": "A scientist trained in psychology",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "pub",
+        "laos": "ຮ້ານກິນດື່ມ",
+        "jp": "パブ",
+        "vie": "quán rượu",
+        "en_pronunciation": "/pəb/",
+        "laos_pronunciation": "han kindum",
+        "jp_pronunciation": "pabu",
+        "vie_pronunciation": "quan ruou"
+      },
+      "means": {
+        "en": "Tavern consisting of a building with a bar and public rooms; often provides light meals",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "public",
+        "laos": "ສາທາລະນະ",
+        "jp": "公共の",
+        "vie": "công khai",
+        "en_pronunciation": "/ˈpəblɪk/",
+        "laos_pronunciation": "sathalana",
+        "jp_pronunciation": "koukyou no",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "People in general considered as a whole",
+        "zh": "——安东尼·特罗洛普"
+      }
+    },
+    {
+      "word": {
+        "en": "publicize",
+        "laos": "ປ່າວເຕືອນ",
+        "jp": "宣伝する",
+        "vie": "công khai",
+        "en_pronunciation": "/ˈpəblɪˌsaɪz/",
+        "laos_pronunciation": "pauateuon",
+        "jp_pronunciation": "senden suru",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "Make public",
+        "zh": "在程度或顺序（空间或时间）上最接近，尤其是在因果链中"
+      }
+    },
+    {
+      "word": {
+        "en": "publicise",
+        "laos": "ປ່າວເຕືອນ",
+        "jp": "宣伝する",
+        "vie": "công khai",
+        "en_pronunciation": "/publicise/",
+        "laos_pronunciation": "pauateuon",
+        "jp_pronunciation": "senden suru",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "Call attention to",
+        "zh": "靠近的特性"
+      }
+    },
+    {
+      "word": {
+        "en": "publicity",
+        "laos": "ການໂຄສະນາ",
+        "jp": "宣伝",
+        "vie": "công khai",
+        "en_pronunciation": "/pəˈblɪsɪti/",
+        "laos_pronunciation": "kanokhsana",
+        "jp_pronunciation": "senden",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "A message issued in behalf of some product or cause or idea or person or institution",
+        "zh": "处理精神障碍的诊断和治疗的医学分支"
+      }
+    },
+    {
+      "word": {
+        "en": "publicly",
+        "laos": "ສາທາຣະນະ",
+        "jp": "公に",
+        "vie": "công khai",
+        "en_pronunciation": "/ˈpəblɪkli/",
+        "laos_pronunciation": "satharana",
+        "jp_pronunciation": "kou ni",
+        "vie_pronunciation": "cong khai"
+      },
+      "means": {
+        "en": "In a manner accessible to or observable by the public; openly",
+        "zh": "与精神病学实践有关或用于或从事精神病学实践"
+      }
+    },
+    {
+      "word": {
+        "en": "publish",
+        "laos": "ເຜີຍແຜ່",
+        "jp": "公開する",
+        "vie": "xuất bản",
+        "en_pronunciation": "/ˈpəblɪʃ/",
+        "laos_pronunciation": "phoenyaeph",
+        "jp_pronunciation": "koukai suru",
+        "vie_pronunciation": "xuat ban"
+      },
+      "means": {
+        "en": "Put into print",
+        "zh": "专门从事精神病学的医生"
+      }
+    },
+    {
+      "word": {
+        "en": "publication",
+        "laos": "ການເຜີຍແຜ່",
+        "jp": "出版物",
+        "vie": "công bố",
+        "en_pronunciation": "/ˌpəblɪˈkeɪʃən/",
+        "laos_pronunciation": "kanphoenyaeph",
+        "jp_pronunciation": "shuppanbutsu",
+        "vie_pronunciation": "cong bo"
+      },
+      "means": {
+        "en": "A copy of a printed work offered for distribution",
+        "zh": "心理生活的科学"
+      }
+    },
+    {
+      "word": {
+        "en": "pudding",
+        "laos": "ເຂົ້າປຸ້ນ",
+        "jp": "プリン",
+        "vie": "bánh pudding",
+        "en_pronunciation": "/ˈpʊdɪŋ/",
+        "laos_pronunciation": "khaopun",
+        "jp_pronunciation": "purin",
+        "vie_pronunciation": "banh pudding"
+      },
+      "means": {
+        "en": "Any of various soft thick unsweetened baked dishes",
+        "zh": "本质上是精神或情感上的，而不是身体上的"
+      }
+    },
+    {
+      "word": {
+        "en": "pull",
+        "laos": "ດຶງ",
+        "jp": "引っ張る",
+        "vie": "kéo",
+        "en_pronunciation": "/pʊl/",
+        "laos_pronunciation": "dung",
+        "jp_pronunciation": "hipparu",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "The act of pulling; applying force to move something toward or with you",
+        "zh": "受过心理学训练的科学家"
+      }
+    },
+    {
+      "word": {
+        "en": "pulse",
+        "laos": "ກໍາມະຈອນ",
+        "jp": "パルス",
+        "vie": "mạch đập",
+        "en_pronunciation": "/pəls/",
+        "laos_pronunciation": "koa machon",
+        "jp_pronunciation": "parusu",
+        "vie_pronunciation": "mach dap"
+      },
+      "means": {
+        "en": "(electronics) a sharp transient wave in the normal electrical state (or a series of such transients)",
+        "zh": "小酒馆由一座带酒吧和公共房间的建筑组成；"
+      }
+    },
+    {
+      "word": {
+        "en": "pump",
+        "laos": "ສູບ",
+        "jp": "ポンプ",
+        "vie": "máy bơm",
+        "en_pronunciation": "/pəmp/",
+        "laos_pronunciation": "sub",
+        "jp_pronunciation": "ponpu",
+        "vie_pronunciation": "may bom"
+      },
+      "means": {
+        "en": "A mechanical device that moves fluid or gas by pressure or suction",
+        "zh": "经常提供便餐"
+      }
+    },
+    {
+      "word": {
+        "en": "pumpkin",
+        "laos": "ຜັກບົ້ງ",
+        "jp": "かぼちゃ",
+        "vie": "bí ngô",
+        "en_pronunciation": "/ˈpəmpkɪn/",
+        "laos_pronunciation": "phakbong",
+        "jp_pronunciation": "kabocha",
+        "vie_pronunciation": "bi ngo"
+      },
+      "means": {
+        "en": "A coarse vine widely cultivated for its large pulpy round orange fruit with firm orange skin and numerous seeds; subspecies of Cucurbita pepo include the summer squashes and a few autumn squashes",
+        "zh": "一般人被视为一个整体"
+      }
+    },
+    {
+      "word": {
+        "en": "punch",
+        "laos": "ຕ່ອຍ",
+        "jp": "パンチ",
+        "vie": "cú đấm",
+        "en_pronunciation": "/pənʧ/",
+        "laos_pronunciation": "tony",
+        "jp_pronunciation": "panchi",
+        "vie_pronunciation": "cu dam"
+      },
+      "means": {
+        "en": "(boxing) a blow with the fist",
+        "zh": "公开"
+      }
+    },
+    {
+      "word": {
+        "en": "punctual",
+        "laos": "ກົງຕ່ໍເວລາ",
+        "jp": "時間厳守",
+        "vie": "đúng giờ",
+        "en_pronunciation": "/ˈpəŋkʧuəl/",
+        "laos_pronunciation": "kong touaela",
+        "jp_pronunciation": "jikangenshu",
+        "vie_pronunciation": "dung gio"
+      },
+      "means": {
+        "en": "Acting or arriving or performed exactly at the time appointed",
+        "zh": "提请注意"
+      }
+    },
+    {
+      "word": {
+        "en": "punctuality",
+        "laos": "ການເປັນກຸນລະໄປ",
+        "jp": "時間厳守",
+        "vie": "sự đúng giờ",
+        "en_pronunciation": "/ˌpəŋkʧuˈælɪti/",
+        "laos_pronunciation": "kan pen kun lapai",
+        "jp_pronunciation": "jikangenshu",
+        "vie_pronunciation": "su dung gio"
+      },
+      "means": {
+        "en": "The quality or habit of adhering to an appointed time",
+        "zh": "代表某些产品、事业、想法、个人或机构发出的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "punish",
+        "laos": "ລົງໂທດ",
+        "jp": "罰する",
+        "vie": "trừng phạt",
+        "en_pronunciation": "/ˈpənɪʃ/",
+        "laos_pronunciation": "longothd",
+        "jp_pronunciation": "batsu suru",
+        "vie_pronunciation": "trung phat"
+      },
+      "means": {
+        "en": "Impose a penalty on; inflict punishment on",
+        "zh": "以公众可访问或可观察的方式；"
+      }
+    },
+    {
+      "word": {
+        "en": "punishment",
+        "laos": "ການລົງໂທດ",
+        "jp": "罰",
+        "vie": "hình phạt",
+        "en_pronunciation": "/ˈpənɪʃmənt/",
+        "laos_pronunciation": "kanlongothd",
+        "jp_pronunciation": "batsu",
+        "vie_pronunciation": "hinh phat"
+      },
+      "means": {
+        "en": "The act of punishing",
+        "zh": "公开地"
+      }
+    },
+    {
+      "word": {
+        "en": "pupil",
+        "laos": "ສາວະກະ",
+        "jp": "生徒",
+        "vie": "học sinh",
+        "en_pronunciation": "/ˈpjupəl/",
+        "laos_pronunciation": "sauaaka",
+        "jp_pronunciation": "seito",
+        "vie_pronunciation": "hoc sinh"
+      },
+      "means": {
+        "en": "A learner who is enrolled in an educational institution",
+        "zh": "付诸印刷"
+      }
+    },
+    {
+      "word": {
+        "en": "purchase",
+        "laos": "ການຊື້",
+        "jp": "購入する",
+        "vie": "mua hàng",
+        "en_pronunciation": "/ˈpərʧəs/",
+        "laos_pronunciation": "kansu",
+        "jp_pronunciation": "kounyuu suru",
+        "vie_pronunciation": "mua hang"
+      },
+      "means": {
+        "en": "The acquisition of something for payment",
+        "zh": "供分发的印刷作品的副本"
+      }
+    },
+    {
+      "word": {
+        "en": "pure",
+        "laos": "ບໍລິສຸດ",
+        "jp": "純粋な",
+        "vie": "tinh khiết",
+        "en_pronunciation": "/pjʊr/",
+        "laos_pronunciation": "bolisud",
+        "jp_pronunciation": "junsui na",
+        "vie_pronunciation": "tinh khiet"
+      },
+      "means": {
+        "en": "Free of extraneous elements of any kind",
+        "zh": "各种软厚不加糖的烘焙菜肴中的任何一种"
+      }
+    },
+    {
+      "word": {
+        "en": "purity",
+        "laos": "ອັດຊາຍະ",
+        "jp": "純粋さ",
+        "vie": "sự tinh khiết",
+        "en_pronunciation": "/ˈpjʊrɪti/",
+        "laos_pronunciation": "ad saia",
+        "jp_pronunciation": "junsui sa",
+        "vie_pronunciation": "su tinh khiet"
+      },
+      "means": {
+        "en": "Being undiluted or unmixed with extraneous material",
+        "zh": "拉动的动作；"
+      }
+    },
+    {
+      "word": {
+        "en": "purify",
+        "laos": "ສະໄລ",
+        "jp": "浄化する",
+        "vie": "thanh lọc",
+        "en_pronunciation": "/ˈpjʊrəˌfaɪ/",
+        "laos_pronunciation": "salai",
+        "jp_pronunciation": "jouka suru",
+        "vie_pronunciation": "thanh loc"
+      },
+      "means": {
+        "en": "Remove impurities from, increase the concentration of, and separate through the process of distillation",
+        "zh": "施加力量使某物朝您移动或与您一起移动"
+      }
+    },
+    {
+      "word": {
+        "en": "purple",
+        "laos": "ສີມ່ວງ",
+        "jp": "紫",
+        "vie": "màu tím",
+        "en_pronunciation": "/ˈpərpəl/",
+        "laos_pronunciation": "simuang",
+        "jp_pronunciation": "murasaki",
+        "vie_pronunciation": "mau tim"
+      },
+      "means": {
+        "en": "A purple color or pigment",
+        "zh": "（电子学）正常电气状态下的尖锐瞬变波（或一系列此类瞬变）"
+      }
+    },
+    {
+      "word": {
+        "en": "purpose",
+        "laos": "ຈຸດປະສົງ",
+        "jp": "目的",
+        "vie": "mục đích",
+        "en_pronunciation": "/ˈpərpəs/",
+        "laos_pronunciation": "chudpasong",
+        "jp_pronunciation": "mokuteki",
+        "vie_pronunciation": "muc dich"
+      },
+      "means": {
+        "en": "An anticipated outcome that is intended or that guides your planned actions",
+        "zh": "通过压力或吸力移动流体或气体的机械装置"
+      }
+    },
+    {
+      "word": {
+        "en": "purposeful",
+        "laos": "ເປັນຈຸດປະສົງ",
+        "jp": "目的のある",
+        "vie": "có mục đích",
+        "en_pronunciation": "/ˈpərpəsfəl/",
+        "laos_pronunciation": "penchudpasong",
+        "jp_pronunciation": "mokuteki noaru",
+        "vie_pronunciation": "co muc dich"
+      },
+      "means": {
+        "en": "Serving as or indicating the existence of a purpose or goal",
+        "zh": "一种粗藤蔓植物，因其大而多汁的圆形橙色果实而广泛种植，果实呈坚硬的橙色外皮和大量种子；"
+      }
+    },
+    {
+      "word": {
+        "en": "purse",
+        "laos": "ຖົງເງິນ",
+        "jp": "財布",
+        "vie": "ví",
+        "en_pronunciation": "/pərs/",
+        "laos_pronunciation": "thongngoen",
+        "jp_pronunciation": "saifu",
+        "vie_pronunciation": "vi"
+      },
+      "means": {
+        "en": "A container used for carrying money and small personal items or accessories (especially by women)",
+        "zh": "Cucurbita pepo 的亚种包括夏南瓜和一些秋南瓜"
+      }
+    },
+    {
+      "word": {
+        "en": "pursue",
+        "laos": "ໄລ່ຕາມ",
+        "jp": "追求する",
+        "vie": "theo đuổi",
+        "en_pronunciation": "/pərˈsu/",
+        "laos_pronunciation": "laitam",
+        "jp_pronunciation": "tsuikyuu suru",
+        "vie_pronunciation": "theo duoi"
+      },
+      "means": {
+        "en": "Carry out or participate in an activity; be involved in",
+        "zh": "（拳击）用拳头击打"
+      }
+    },
+    {
+      "word": {
+        "en": "pursuit",
+        "laos": "ການໄລ່ຈັບ",
+        "jp": "追跡",
+        "vie": "theo đuổi",
+        "en_pronunciation": "/pərˈsut/",
+        "laos_pronunciation": "kan laichab",
+        "jp_pronunciation": "tsuiseki",
+        "vie_pronunciation": "theo duoi"
+      },
+      "means": {
+        "en": "The act of pursuing in an effort to overtake or capture",
+        "zh": "准确地在指定时间行动或到达或执行"
+      }
+    },
+    {
+      "word": {
+        "en": "push",
+        "laos": "ຍູ້",
+        "jp": "押す",
+        "vie": "đẩy",
+        "en_pronunciation": "/pʊʃ/",
+        "laos_pronunciation": "nyu",
+        "jp_pronunciation": "osu",
+        "vie_pronunciation": "day"
+      },
+      "means": {
+        "en": "The act of applying force in order to move something away",
+        "zh": "遵守指定时间的品质或习惯"
+      }
+    },
+    {
+      "word": {
+        "en": "pushy",
+        "laos": "ແສ່ວ",
+        "jp": "強引な",
+        "vie": "tự đề cao",
+        "en_pronunciation": "/ˈpʊʃi/",
+        "laos_pronunciation": "aesv",
+        "jp_pronunciation": "gouin na",
+        "vie_pronunciation": "tu de cao"
+      },
+      "means": {
+        "en": "Marked by aggressive ambition and energy and initiative",
+        "zh": "处以罚款；"
+      }
+    },
+    {
+      "word": {
+        "en": "put",
+        "laos": "ເອົາໃສ່",
+        "jp": "置く",
+        "vie": "đặt",
+        "en_pronunciation": "/pʊt/",
+        "laos_pronunciation": "aosai",
+        "jp_pronunciation": "oku",
+        "vie_pronunciation": "dat"
+      },
+      "means": {
+        "en": "The option to sell a given stock (or stock index or commodity future) at a given price before a given date",
+        "zh": "给予惩罚"
+      }
+    },
+    {
+      "word": {
+        "en": "puzzle",
+        "laos": "ແຂ່ງຂັນ",
+        "jp": "パズル",
+        "vie": "câu đố",
+        "en_pronunciation": "/ˈpəzəl/",
+        "laos_pronunciation": "aekhngkhan",
+        "jp_pronunciation": "pazuru",
+        "vie_pronunciation": "cau do"
+      },
+      "means": {
+        "en": "A particularly baffling problem that is said to have a correct solution",
+        "zh": "惩罚的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "puzzlement",
+        "laos": "ນົກຊະນາ",
+        "jp": "困惑",
+        "vie": "sự bối rối",
+        "en_pronunciation": "/ˈpəzəlmənt/",
+        "laos_pronunciation": "nok sana",
+        "jp_pronunciation": "konwaku",
+        "vie_pronunciation": "su boi roi"
+      },
+      "means": {
+        "en": "Confusion resulting from failure to understand",
+        "zh": "在教育机构就读的学习者"
+      }
+    },
+    {
+      "word": {
+        "en": "pyramid",
+        "laos": "ລູກປືນ",
+        "jp": "ピラミッド",
+        "vie": "kim tự tháp",
+        "en_pronunciation": "/ˈpɪrəmɪd/",
+        "laos_pronunciation": "lukpun",
+        "jp_pronunciation": "piramiddo",
+        "vie_pronunciation": "kim tu thap"
+      },
+      "means": {
+        "en": "A polyhedron having a polygonal base and triangular sides with a common vertex",
+        "zh": "以付款方式取得某物"
+      }
+    },
+    {
+      "word": {
+        "en": "quake",
+        "laos": "ເຄື່ອງພັກ",
+        "jp": "地震",
+        "vie": "trận động đất",
+        "en_pronunciation": "/kweɪk/",
+        "laos_pronunciation": "kheuongphak",
+        "jp_pronunciation": "jishin",
+        "vie_pronunciation": "tran dong dat"
+      },
+      "means": {
+        "en": "Shaking and vibration at the surface of the earth resulting from underground movement along a fault plane of from volcanic activity",
+        "zh": "不含任何类型的外来元素"
+      }
+    },
+    {
+      "word": {
+        "en": "qualify",
+        "laos": "ມີຄຸນສົມບັດ",
+        "jp": "資格を得る",
+        "vie": "đủ điều kiện",
+        "en_pronunciation": "/kˈwɑləˌfaɪ/",
+        "laos_pronunciation": "mikhunsombad",
+        "jp_pronunciation": "shikaku wo eru",
+        "vie_pronunciation": "du dieu kien"
+      },
+      "means": {
+        "en": "Prove capable or fit; meet requirements",
+        "zh": "未稀释或未与外来物质混合"
+      }
+    },
+    {
+      "word": {
+        "en": "qualification",
+        "laos": "ວິຊາສະເພາະ",
+        "jp": "資格",
+        "vie": "trình độ chuyên môn",
+        "en_pronunciation": "/kˌwɑləfəˈkeɪʃən/",
+        "laos_pronunciation": "visasapho",
+        "jp_pronunciation": "shikaku",
+        "vie_pronunciation": "trinh do chuyen mon"
+      },
+      "means": {
+        "en": "An attribute that must be met or complied with and that fits a person for something",
+        "zh": "通过蒸馏除去杂质、提高浓度、分离"
+      }
+    },
+    {
+      "word": {
+        "en": "quality",
+        "laos": "ຄຸນນະພາບ",
+        "jp": "品質",
+        "vie": "chất lượng",
+        "en_pronunciation": "/kˈwɑləti/",
+        "laos_pronunciation": "khunnaphab",
+        "jp_pronunciation": "hinshitsu",
+        "vie_pronunciation": "chat luong"
+      },
+      "means": {
+        "en": "An essential and distinguishing attribute of something or someone; --Shakespeare",
+        "zh": "紫色或颜料"
+      }
+    },
+    {
+      "word": {
+        "en": "qualitative",
+        "laos": "ຄຸນນະພາບ",
+        "jp": "定性的",
+        "vie": "chất lượng",
+        "en_pronunciation": "/kˈwɑləˌteɪtɪv/",
+        "laos_pronunciation": "khunnaphab",
+        "jp_pronunciation": "teiseiteki",
+        "vie_pronunciation": "chat luong"
+      },
+      "means": {
+        "en": "Involving distinctions based on qualities",
+        "zh": "预期的结果或指导您计划的行动"
+      }
+    },
+    {
+      "word": {
+        "en": "quantify",
+        "laos": "ປະລິມານ",
+        "jp": "定量化する",
+        "vie": "định lượng",
+        "en_pronunciation": "/kˈwɑntɪˌfaɪ/",
+        "laos_pronunciation": "paliman",
+        "jp_pronunciation": "teiryouka suru",
+        "vie_pronunciation": "dinh luong"
+      },
+      "means": {
+        "en": "Use as a quantifier",
+        "zh": "充当或表明目的或目标的存在"
+      }
+    },
+    {
+      "word": {
+        "en": "quantification",
+        "laos": "ປະລິມານ",
+        "jp": "定量化",
+        "vie": "định lượng",
+        "en_pronunciation": "/kˌwɑntɪfəˈkeɪʃən/",
+        "laos_pronunciation": "paliman",
+        "jp_pronunciation": "teiryouka",
+        "vie_pronunciation": "dinh luong"
+      },
+      "means": {
+        "en": "A limitation imposed on the variables of a proposition (as by the quantifiers `some' or `all' or `no')",
+        "zh": "用于携带金钱和小件个人物品或配饰的容器（尤其是女性）"
+      }
+    },
+    {
+      "word": {
+        "en": "quantity",
+        "laos": "ປະລິມານ",
+        "jp": "量",
+        "vie": "số lượng",
+        "en_pronunciation": "/kˈwɑntəti/",
+        "laos_pronunciation": "paliman",
+        "jp_pronunciation": "ryou",
+        "vie_pronunciation": "so luong"
+      },
+      "means": {
+        "en": "How much there is or how many there are of something that you can quantify",
+        "zh": "进行或参加某项活动；"
+      }
+    },
+    {
+      "word": {
+        "en": "quantitative",
+        "laos": "ທີ່ປະລິມານ",
+        "jp": "定量的",
+        "vie": "định lượng",
+        "en_pronunciation": "/kˈwɑntɪˌteɪtɪv/",
+        "laos_pronunciation": "thipaliman",
+        "jp_pronunciation": "teiryouteki",
+        "vie_pronunciation": "dinh luong"
+      },
+      "means": {
+        "en": "Expressible as a quantity or relating to or susceptible of measurement",
+        "zh": "参与"
+      }
+    },
+    {
+      "word": {
+        "en": "quarrel",
+        "laos": "ການຜິດຖຽງກັນ",
+        "jp": "口論",
+        "vie": "cãi nhau",
+        "en_pronunciation": "/kˈwɔrəl/",
+        "laos_pronunciation": "kan phidthiangkan",
+        "jp_pronunciation": "kouron",
+        "vie_pronunciation": "cai nhau"
+      },
+      "means": {
+        "en": "An angry dispute",
+        "zh": "试图超越或捕获的追击行为"
+      }
+    },
+    {
+      "word": {
+        "en": "quarrelsome",
+        "laos": "ມັກຜິດຖຽງກັບຄົນຜິດຖຽງກັນ",
+        "jp": "喧嘩好きな",
+        "vie": "hay gây gổ",
+        "en_pronunciation": "/kˈwɔrəlsəm/",
+        "laos_pronunciation": "mak phidthiang kabkhon phidthiangkan",
+        "jp_pronunciation": "kenka suki na",
+        "vie_pronunciation": "hay gay go"
+      },
+      "means": {
+        "en": "Given to quarreling",
+        "zh": "施加力量以将某物移开的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "quart",
+        "laos": "ກະໄຕ",
+        "jp": "クォート",
+        "vie": "lít",
+        "en_pronunciation": "/kwɔrt/",
+        "laos_pronunciation": "katai",
+        "jp_pronunciation": "kuooto",
+        "vie_pronunciation": "lit"
+      },
+      "means": {
+        "en": "A United States liquid unit equal to 32 fluid ounces; four quarts equal one gallon",
+        "zh": "以进取的野心、精力和主动性为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "quarter",
+        "laos": "ໄຕມາດ",
+        "jp": "四半期",
+        "vie": "một phần tư",
+        "en_pronunciation": "/kˈwɔrtər/",
+        "laos_pronunciation": "taimad",
+        "jp_pronunciation": "shihanki",
+        "vie_pronunciation": "mot phan tu"
+      },
+      "means": {
+        "en": "One of four equal parts",
+        "zh": "在给定日期之前以给定价格出售给定股票（或股指或商品期货）的期权"
+      }
+    },
+    {
+      "word": {
+        "en": "quarterly",
+        "laos": "ໄຕມາດ",
+        "jp": "季刊",
+        "vie": "hàng quý",
+        "en_pronunciation": "/kˈwɔrtərli/",
+        "laos_pronunciation": "taimad",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "hang quy"
+      },
+      "means": {
+        "en": "A periodical that is published every quarter (or four issues per year)",
+        "zh": "一个特别莫名其妙的问题据说有正确的解决方案"
+      }
+    },
+    {
+      "word": {
+        "en": "queen",
+        "laos": "ຣາຊະວົງ",
+        "jp": "女王様",
+        "vie": "nữ hoàng",
+        "en_pronunciation": "/kwin/",
+        "laos_pronunciation": "rasavong",
+        "jp_pronunciation": "joousama",
+        "vie_pronunciation": "nu hoang"
+      },
+      "means": {
+        "en": "The only fertile female in a colony of social insects such as bees and ants and termites; its function is to lay eggs",
+        "zh": "因不理解而产生的混乱"
+      }
+    },
+    {
+      "word": {
+        "en": "query",
+        "laos": "ການສອບຖາມ",
+        "jp": "クエリ",
+        "vie": "truy vấn",
+        "en_pronunciation": "/kˈwiri/",
+        "laos_pronunciation": "kansobtham",
+        "jp_pronunciation": "kueri",
+        "vie_pronunciation": "truy van"
+      },
+      "means": {
+        "en": "An instance of questioning",
+        "zh": "具有多边形底面和具有公共顶点的三角形边的多面体"
+      }
+    },
+    {
+      "word": {
+        "en": "quest",
+        "laos": "ການສະແຫວງຫາ",
+        "jp": "クエスト",
+        "vie": "nhiệm vụ",
+        "en_pronunciation": "/kwɛst/",
+        "laos_pronunciation": "kansaaevngha",
+        "jp_pronunciation": "kuesuto",
+        "vie_pronunciation": "nhiem vu"
+      },
+      "means": {
+        "en": "A search for an alternative that meets cognitive criteria",
+        "zh": "由于火山活动沿断层面的地下运动而导致地球表面的摇晃和振动"
+      }
+    },
+    {
+      "word": {
+        "en": "question",
+        "laos": "ອະພິສິດ",
+        "jp": "質問",
+        "vie": "câu hỏi",
+        "en_pronunciation": "/kˈwɛʃən/",
+        "laos_pronunciation": "aphisid",
+        "jp_pronunciation": "shitsumon",
+        "vie_pronunciation": "cau hoi"
+      },
+      "means": {
+        "en": "An instance of questioning",
+        "zh": "证明有能力或适合；"
+      }
+    },
+    {
+      "word": {
+        "en": "questionnaire",
+        "laos": "ແບບສອບຖາມ",
+        "jp": "アンケート",
+        "vie": "bảng câu hỏi",
+        "en_pronunciation": "/kˌwɛsʧəˈnɛr/",
+        "laos_pronunciation": "aebb sobtham",
+        "jp_pronunciation": "ankeeto",
+        "vie_pronunciation": "bang cau hoi"
+      },
+      "means": {
+        "en": "A form containing a set of questions; submitted to people to gain statistical information",
+        "zh": "满足要求"
+      }
+    }
+  ]
+}

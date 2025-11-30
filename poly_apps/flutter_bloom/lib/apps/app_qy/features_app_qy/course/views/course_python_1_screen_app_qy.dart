@@ -10,29 +10,37 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Course Python 1 Screen for QY App
+/// Course Python 1 Screen for QY App - Refactored with centralized theme and common components
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
+import '../../../../../../common/widgets/buttons/primary_button.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
-class CoursePython1ScreenAppQy extends StatefulWidget {
-  const CoursePython1ScreenAppQy({super.key});
+class CoursePython1ScreenRefactoredAppQy extends StatefulWidget {
+  const CoursePython1ScreenRefactoredAppQy({super.key});
 
   @override
-  State<CoursePython1ScreenAppQy> createState() => _CoursePython1ScreenAppQyState();
+  State<CoursePython1ScreenRefactoredAppQy> createState() =>
+      _CoursePython1ScreenRefactoredAppQyState();
 }
 
-class _CoursePython1ScreenAppQyState extends State<CoursePython1ScreenAppQy> {
+class _CoursePython1ScreenRefactoredAppQyState
+    extends State<CoursePython1ScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
   final List<String> _categoryKeys;
   final List<Map<String, String>> _courseItems;
   int _selectedCategoryIndex;
 
-  _CoursePython1ScreenAppQyState()
+  _CoursePython1ScreenRefactoredAppQyState()
       : _categoryKeys = [
           QyAppLocalizationKeys.qyCourseCategoryPostgraduate,
           QyAppLocalizationKeys.qyCourseCategoryOral,
@@ -72,6 +80,21 @@ class _CoursePython1ScreenAppQyState extends State<CoursePython1ScreenAppQy> {
         ],
         _selectedCategoryIndex = 2;
 
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
+
   void _handleCategoryTap(int index) {
     setState(() {
       _selectedCategoryIndex = index;
@@ -100,28 +123,83 @@ class _CoursePython1ScreenAppQyState extends State<CoursePython1ScreenAppQy> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      appBar: AppBar(
-        title: Text(
-          QyAppLocalizationKeys.qyCoursePythonZoneTitle.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
-        ),
-        backgroundColor: ThemeColors.surface,
-        elevation: 0,
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCategoryList(),
+                        const SizedBox(height: ThemeDimensions.spacing24),
+                        _buildHeroCard(),
+                        const SizedBox(height: ThemeDimensions.spacing24),
+                        _buildBentoBoxCourseGrid(),
+                        const SizedBox(height: ThemeDimensions.spacing24),
+                        _buildVipBanner(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
             children: [
-              _buildCategoryList(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildHeroCard(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildCourseList(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildVipBanner(),
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+                onPressed: () => context.pop(),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing8),
+              Expanded(
+                child: Text(
+                  QyAppLocalizationKeys.qyCoursePythonZoneTitle.tr(context),
+                  style: ThemeTextStyles.title1.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -135,26 +213,35 @@ class _CoursePython1ScreenAppQyState extends State<CoursePython1ScreenAppQy> {
       child: Row(
         children: List.generate(_categoryKeys.length, (index) {
           final bool isSelected = _selectedCategoryIndex == index;
-          return GestureDetector(
-            onTap: () => _handleCategoryTap(index),
-            child: Container(
-              margin: EdgeInsets.only(right: Dimensions.spacingSmall),
-              padding: EdgeInsets.symmetric(
-                horizontal: Dimensions.paddingMedium,
-                vertical: Dimensions.paddingSmall,
-              ),
-              decoration: BoxDecoration(
-                color: isSelected ? ThemeColors.primary.withOpacity(0.1) : ThemeColors.surface,
-                borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                border: Border.all(
-                  color: isSelected ? ThemeColors.primary : ThemeColors.border,
+          return Padding(
+            padding: const EdgeInsets.only(right: ThemeDimensions.spacing12),
+            child: GestureDetector(
+              onTap: () => _handleCategoryTap(index),
+              child: GlassmorphismCard(
+                borderRadius: ThemeDimensions.radiusFull,
+                blur: 10,
+                opacity: isSelected ? 0.3 : 0.15,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: ThemeDimensions.spacing16,
+                  vertical: ThemeDimensions.spacing8,
                 ),
-              ),
-              child: Text(
-                _categoryKeys[index].tr(context),
-                style: TextStyles.body1.copyWith(
-                  color: isSelected ? ThemeColors.primary : ThemeColors.textPrimary,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                child: Container(
+                  decoration: isSelected
+                      ? BoxDecoration(
+                          gradient: ColorsAppQy.qyPrimaryGradient,
+                          borderRadius:
+                              BorderRadius.circular(ThemeDimensions.radiusFull),
+                        )
+                      : null,
+                  child: Text(
+                    _categoryKeys[index].tr(context),
+                    style: ThemeTextStyles.body1.copyWith(
+                      color:
+                          isSelected ? Colors.white : ColorsAppQy.qyTextPrimary,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -165,203 +252,213 @@ class _CoursePython1ScreenAppQyState extends State<CoursePython1ScreenAppQy> {
   }
 
   Widget _buildHeroCard() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-        border: Border.all(color: ThemeColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.shadow.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            QyAppLocalizationKeys.qyCourseDigitalSkill.tr(context),
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.primary,
-              fontWeight: FontWeight.w600,
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.25,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: ColorsAppQy.qyPrimaryGradient,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        ),
+        padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              QyAppLocalizationKeys.qyCourseDigitalSkill.tr(context),
+              style: ThemeTextStyles.caption.copyWith(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          SizedBox(height: Dimensions.spacingSmall),
-          Text(
-            QyAppLocalizationKeys.qyCoursePythonPathTitle.tr(context),
-            style: TextStyles.h2.copyWith(
-              color: ThemeColors.textPrimary,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: ThemeDimensions.spacing12),
+            Text(
+              QyAppLocalizationKeys.qyCoursePythonPathTitle.tr(context),
+              style: ThemeTextStyles.title1.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          SizedBox(height: Dimensions.spacingXSmall),
-          Text(
-            QyAppLocalizationKeys.qyCoursePythonPathDescription.tr(context),
-            style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-          ),
-        ],
+            const SizedBox(height: ThemeDimensions.spacing8),
+            Text(
+              QyAppLocalizationKeys.qyCoursePythonPathDescription.tr(context),
+              style: ThemeTextStyles.body2.copyWith(color: Colors.white70),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildCourseList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: _courseItems.map((course) {
-        return Container(
-          margin: EdgeInsets.only(bottom: Dimensions.spacingMedium),
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          decoration: BoxDecoration(
-            color: ThemeColors.surface,
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-            border: Border.all(color: ThemeColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: ThemeColors.shadow.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Dimensions.paddingSmall,
-                      vertical: Dimensions.paddingSizeExtraSmall,
+  Widget _buildBentoBoxCourseGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: ThemeDimensions.spacing16,
+        mainAxisSpacing: ThemeDimensions.spacing16,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: _courseItems.length,
+      itemBuilder: (context, index) {
+        final course = _courseItems[index];
+        return _buildBentoCourseCard(course);
+      },
+    );
+  }
+
+  Widget _buildBentoCourseCard(Map<String, String> course) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: InkWell(
+        onTap: () => _handleCourseTap(course),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ThemeDimensions.spacing8,
+                      vertical: ThemeDimensions.spacing4,
                     ),
                     decoration: BoxDecoration(
-                      color: ThemeColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+                      gradient: ColorsAppQy.qySecondaryGradient,
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
                     child: Text(
                       (course['badgeKey'] ?? '').tr(context),
-                      style: TextStyles.caption.copyWith(color: ThemeColors.primary),
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                ),
+              ],
+            ),
+            const SizedBox(height: ThemeDimensions.spacing12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    course['price'] ?? '',
-                    style: TextStyles.body1.copyWith(
-                      color: ThemeColors.textPrimary,
-                      fontWeight: FontWeight.w600,
+                    (course['titleKey'] ?? '').tr(context),
+                    style: ThemeTextStyles.body1.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
+                      fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: ThemeDimensions.spacing8),
+                  Text(
+                    (course['subtitleKey'] ?? '').tr(context),
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-              SizedBox(height: Dimensions.spacingSmall),
-              Text(
-                (course['titleKey'] ?? '').tr(context),
-                style: TextStyles.body1.copyWith(
-                  color: ThemeColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: Dimensions.spacingXSmall),
-              Text(
-                (course['subtitleKey'] ?? '').tr(context),
-                style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-              ),
-              SizedBox(height: Dimensions.spacingSmall),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingSmall,
-                  vertical: Dimensions.paddingSizeExtraSmall,
-                ),
-                decoration: BoxDecoration(
-                  color: ThemeColors.success.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                ),
-                child: Text(
-                  (course['tagKey'] ?? '').tr(context),
-                  style: TextStyles.caption.copyWith(color: ThemeColors.success),
-                ),
-              ),
-              SizedBox(height: Dimensions.spacingMedium),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => _handleCourseTap(course),
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: Text(QyAppLocalizationKeys.qyCoursePlanActionStart.tr(context)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: ThemeColors.primary,
+            ),
+            const SizedBox(height: ThemeDimensions.spacing12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: ThemeDimensions.spacing8,
+                    vertical: ThemeDimensions.spacing4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ColorsAppQy.qySuccess.withOpacity(0.1),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusMedium),
+                  ),
+                  child: Text(
+                    (course['tagKey'] ?? '').tr(context),
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ColorsAppQy.qySuccess,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
+                Text(
+                  course['price'] ?? '',
+                  style: ThemeTextStyles.body1.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildVipBanner() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3E2B85), Color(0xFF7755FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 20,
+      opacity: 0.3,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: ColorsAppQy.qyAccentGradient,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         ),
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.shadow.withOpacity(0.2),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            QyAppLocalizationKeys.qyCourseExperienceZoneTitle.tr(context),
-            style: TextStyles.caption.copyWith(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: Dimensions.spacingSmall),
-          Text(
-            QyAppLocalizationKeys.qyCourseVipExperienceSubtitle.tr(context),
-            style: TextStyles.body1.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: Dimensions.spacingXSmall),
-          Text(
-            QyAppLocalizationKeys.qyCourseVipCoverage.tr(context),
-            style: TextStyles.caption.copyWith(color: Colors.white70),
-          ),
-          SizedBox(height: Dimensions.spacingMedium),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _handleVipTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: ThemeColors.primary,
-                padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSmall),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-                ),
+        padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              QyAppLocalizationKeys.qyCourseExperienceZoneTitle.tr(context),
+              style: ThemeTextStyles.caption.copyWith(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
               ),
-              child: Text(QyAppLocalizationKeys.qyCourseVipCta.tr(context)),
             ),
-          ),
-        ],
+            const SizedBox(height: ThemeDimensions.spacing12),
+            Text(
+              QyAppLocalizationKeys.qyCourseVipExperienceSubtitle.tr(context),
+              style: ThemeTextStyles.title2.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: ThemeDimensions.spacing8),
+            Text(
+              QyAppLocalizationKeys.qyCourseVipCoverage.tr(context),
+              style: ThemeTextStyles.body2.copyWith(color: Colors.white70),
+            ),
+            const SizedBox(height: ThemeDimensions.spacing20),
+            SizedBox(
+              width: double.infinity,
+              child: PrimaryButton(
+                text: QyAppLocalizationKeys.qyCourseVipCta.tr(context),
+                onPressed: _handleVipTap,
+                isFullWidth: true,
+                backgroundColor: Colors.white,
+                foregroundColor: ColorsAppQy.qyPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

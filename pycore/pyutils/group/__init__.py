@@ -40,9 +40,9 @@ Example:
     # Returns: {"device2", "device3"}
 """
 
-from .group_controller import GroupController
-from .sync_strategy import SyncStrategy, AllSyncStrategy, SelectiveSyncStrategy, TouchOnlySyncStrategy
-from .sync_event import SyncEvent
+from pycore.pyutils.group.group_controller import GroupController
+from pycore.pyutils.group.sync_strategy import SyncStrategy, AllSyncStrategy, SelectiveSyncStrategy, TouchOnlySyncStrategy
+from pycore.pyutils.group.sync_event import SyncEvent
 
 __all__ = [
     'GroupController',

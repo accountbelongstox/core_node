@@ -62,7 +62,7 @@ function Initialize-AppConfigs {
         [string]$AppDirectory
     )
 
-    $script:AppsDirectory = Join-Path $AppDirectory "apps"
+    $script:AppsDirectory = $AppDirectory
 
     if (Test-Path $script:AppsDirectory -PathType Container) {
         try {

@@ -1,0 +1,11 @@
+{
+  "src": "en",
+  "dest": ["ko", "ja", "zh-cn"],
+  "texts": [
+    "Hello world",
+    "How are you?",
+    "Thank you very much",
+    "Good morning",
+    "Have a nice day"
+  ]
+}

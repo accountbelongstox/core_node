@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.346076+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "kindergarten",
+        "laos": "ອະນຸບານ",
+        "jp": "幼稚園",
+        "vie": "mẫu giáo",
+        "en_pronunciation": "/ˈkɪndərˌgɑrtən/",
+        "laos_pronunciation": "anuban",
+        "jp_pronunciation": "youchien",
+        "vie_pronunciation": "mau giao"
+      },
+      "means": {
+        "en": "A preschool for children age 4 to 6 to prepare them for primary school",
+        "zh": "为 4 至 6 岁儿童开设的幼儿园，为他们进入小学做好准备"
+      }
+    },
+    {
+      "word": {
+        "en": "king",
+        "laos": "ຣາຊາ",
+        "jp": "王",
+        "vie": "vua",
+        "en_pronunciation": "/kɪŋ/",
+        "laos_pronunciation": "rasa",
+        "jp_pronunciation": "ou",
+        "vie_pronunciation": "vua"
+      },
+      "means": {
+        "en": "A male sovereign; ruler of a kingdom",
+        "zh": "男性君主；"
+      }
+    },
+    {
+      "word": {
+        "en": "kingdom",
+        "laos": "ອານາຈັກ",
+        "jp": "王国",
+        "vie": "vương quốc",
+        "en_pronunciation": "/ˈkɪŋdəm/",
+        "laos_pronunciation": "anachak",
+        "jp_pronunciation": "oukoku",
+        "vie_pronunciation": "vuong quoc"
+      },
+      "means": {
+        "en": "A domain in which something is dominant",
+        "zh": "一个国家的统治者"
+      }
+    },
+    {
+      "word": {
+        "en": "kiss",
+        "laos": "ຈູບ",
+        "jp": "キス",
+        "vie": "hôn",
+        "en_pronunciation": "/kɪs/",
+        "laos_pronunciation": "chub",
+        "jp_pronunciation": "kisu",
+        "vie_pronunciation": "hon"
+      },
+      "means": {
+        "en": "The act of caressing with the lips (or an instance thereof)",
+        "zh": "某事物占主导地位的领域"
+      }
+    },
+    {
+      "word": {
+        "en": "kit",
+        "laos": "ຊຸດ",
+        "jp": "キット",
+        "vie": "bộ đồ",
+        "en_pronunciation": "/kɪt/",
+        "laos_pronunciation": "sud",
+        "jp_pronunciation": "kitto",
+        "vie_pronunciation": "bo do"
+      },
+      "means": {
+        "en": "A case for containing a set of articles",
+        "zh": "用嘴唇爱抚的行为（或其实例）"
+      }
+    },
+    {
+      "word": {
+        "en": "kitchen",
+        "laos": "ເຮືອນຄົວ",
+        "jp": "キッチン",
+        "vie": "phòng bếp",
+        "en_pronunciation": "/ˈkɪʧən/",
+        "laos_pronunciation": "heuonkhua",
+        "jp_pronunciation": "kitchin",
+        "vie_pronunciation": "phong bep"
+      },
+      "means": {
+        "en": "A room equipped for preparing meals",
+        "zh": "包含一组文章的案例"
+      }
+    },
+    {
+      "word": {
+        "en": "kite",
+        "laos": "ວ່າວ",
+        "jp": "凧",
+        "vie": "diều",
+        "en_pronunciation": "/kaɪt/",
+        "laos_pronunciation": "vav",
+        "jp_pronunciation": "tako",
+        "vie_pronunciation": "dieu"
+      },
+      "means": {
+        "en": "A bank check that has been fraudulently altered to increase its face value",
+        "zh": "配备准备饭菜的房间"
+      }
+    },
+    {
+      "word": {
+        "en": "knee",
+        "laos": "ຫົວເຂົ່າ",
+        "jp": "膝",
+        "vie": "đầu gối",
+        "en_pronunciation": "/ni/",
+        "laos_pronunciation": "huakheoa",
+        "jp_pronunciation": "hiza",
+        "vie_pronunciation": "dau goi"
+      },
+      "means": {
+        "en": "Hinge joint in the human leg connecting the tibia and fibula with the femur and protected in front by the patella",
+        "zh": "为增加面值而进行欺诈性更改的银行支票"
+      }
+    },
+    {
+      "word": {
+        "en": "kneel",
+        "laos": "ຄຸເຂົາ",
+        "jp": "ひざまずく",
+        "vie": "quỳ xuống",
+        "en_pronunciation": "/nil/",
+        "laos_pronunciation": "khukhao",
+        "jp_pronunciation": "hizamazuku",
+        "vie_pronunciation": "quy xuong"
+      },
+      "means": {
+        "en": "Supporting yourself on your knees",
+        "zh": "人腿中的铰链关节将胫骨、腓骨与股骨连接起来，并在前面受到髌骨的保护"
+      }
+    },
+    {
+      "word": {
+        "en": "knife",
+        "laos": "ມີດ",
+        "jp": "ナイフ",
+        "vie": "con dao",
+        "en_pronunciation": "/naɪf/",
+        "laos_pronunciation": "mid",
+        "jp_pronunciation": "naifu",
+        "vie_pronunciation": "con dao"
+      },
+      "means": {
+        "en": "Edge tool used as a cutting instrument; has a pointed blade with a sharp edge and a handle",
+        "zh": "用膝盖支撑自己"
+      }
+    },
+    {
+      "word": {
+        "en": "knight",
+        "laos": "Knight",
+        "jp": "騎士",
+        "vie": "hiệp sĩ",
+        "en_pronunciation": "/naɪt/",
+        "laos_pronunciation": "Knight",
+        "jp_pronunciation": "kishi",
+        "vie_pronunciation": "hiep si"
+      },
+      "means": {
+        "en": "Originally a person of noble birth trained to arms and chivalry; today in Great Britain a person honored by the sovereign for personal merit",
+        "zh": "用作切削工具的刃具；"
+      }
+    },
+    {
+      "word": {
+        "en": "knit",
+        "laos": "ຖັກ",
+        "jp": "ニット",
+        "vie": "đan",
+        "en_pronunciation": "/nɪt/",
+        "laos_pronunciation": "thak",
+        "jp_pronunciation": "nitto",
+        "vie_pronunciation": "dan"
+      },
+      "means": {
+        "en": "A fabric made by knitting",
+        "zh": "有一个带有锋利边缘和手柄的尖刀片"
+      }
+    },
+    {
+      "word": {
+        "en": "knob",
+        "laos": "ກະດຸມ",
+        "jp": "ノブ",
+        "vie": "núm vặn",
+        "en_pronunciation": "/nɑb/",
+        "laos_pronunciation": "kadum",
+        "jp_pronunciation": "nobu",
+        "vie_pronunciation": "num van"
+      },
+      "means": {
+        "en": "A circular rounded projection or protuberance",
+        "zh": "原本是贵族出身，受过武器和骑士训练的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "knock",
+        "laos": "ເຄາະ",
+        "jp": "ノックする",
+        "vie": "gõ cửa",
+        "en_pronunciation": "/nɑk/",
+        "laos_pronunciation": "kho",
+        "jp_pronunciation": "nokku suru",
+        "vie_pronunciation": "go cua"
+      },
+      "means": {
+        "en": "The sound of knocking (as on a door or in an engine or bearing)",
+        "zh": "今天在英国，因个人功绩而受到君主表彰的人"
+      }
+    },
+    {
+      "word": {
+        "en": "knot",
+        "laos": "ຂອດ",
+        "jp": "結び目",
+        "vie": "nút thắt",
+        "en_pronunciation": "/nɑt/",
+        "laos_pronunciation": "khod",
+        "jp_pronunciation": "musubi me",
+        "vie_pronunciation": "nut that"
+      },
+      "means": {
+        "en": "A tight cluster of people or things",
+        "zh": "一种通过针织制成的织物"
+      }
+    },
+    {
+      "word": {
+        "en": "knotty",
+        "laos": "ສັ່ນ",
+        "jp": "節のある",
+        "vie": "có nhiều nút thắt",
+        "en_pronunciation": "/ˈnɑti/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "fushi noaru",
+        "vie_pronunciation": "co nhieu nut that"
+      },
+      "means": {
+        "en": "Making great mental demands; hard to comprehend or solve or believe",
+        "zh": "圆形突出物或突出物"
+      }
+    },
+    {
+      "word": {
+        "en": "know",
+        "laos": "ຮູ້",
+        "jp": "知っています",
+        "vie": "biết",
+        "en_pronunciation": "/noʊ/",
+        "laos_pronunciation": "hu",
+        "jp_pronunciation": "shitte imasu",
+        "vie_pronunciation": "biet"
+      },
+      "means": {
+        "en": "The fact of being aware of information that is known to few people",
+        "zh": "敲击声（如门上、发动机或轴承上的敲击声）"
+      }
+    },
+    {
+      "word": {
+        "en": "knowledge",
+        "laos": "ຄວາມຮູ້",
+        "jp": "知識",
+        "vie": "kiến thức",
+        "en_pronunciation": "/ˈnɑlɪʤ/",
+        "laos_pronunciation": "khuaamhu",
+        "jp_pronunciation": "chishiki",
+        "vie_pronunciation": "kien thuc"
+      },
+      "means": {
+        "en": "The psychological result of perception and learning and reasoning",
+        "zh": "紧密聚集的人或物"
+      }
+    },
+    {
+      "word": {
+        "en": "knowledgeable",
+        "laos": "ທີ່ຮູ້ຈັກໄດ້",
+        "jp": "知識豊富な",
+        "vie": "hiểu biết",
+        "en_pronunciation": "/ˈnɑləʤəbəl/",
+        "laos_pronunciation": "thihuchakdai",
+        "jp_pronunciation": "chishikihoufu na",
+        "vie_pronunciation": "hieu biet"
+      },
+      "means": {
+        "en": "Highly educated; having extensive information or understanding",
+        "zh": "提出巨大的精神要求；"
+      }
+    },
+    {
+      "word": {
+        "en": "knowhow",
+        "laos": "ເລືຢ",
+        "jp": "ノウハウ",
+        "vie": "bí quyết",
+        "en_pronunciation": "/knowhow/",
+        "laos_pronunciation": "leuy",
+        "jp_pronunciation": "nouhau",
+        "vie_pronunciation": "bi quyet"
+      },
+      "means": {
+        "en": "Knowhow is an English word referring to 'knowhow'.",
+        "zh": "难以理解、解决或相信"
+      }
+    },
+    {
+      "word": {
+        "en": "label",
+        "laos": "ຕິດສະຫງວນ",
+        "jp": "ラベル",
+        "vie": "nhãn",
+        "en_pronunciation": "/ˈleɪbəl/",
+        "laos_pronunciation": "tidsanguan",
+        "jp_pronunciation": "raberu",
+        "vie_pronunciation": "nhan"
+      },
+      "means": {
+        "en": "A brief description given for purposes of identification",
+        "zh": "了解很少有人知道的信息这一事实"
+      }
+    },
+    {
+      "word": {
+        "en": "labor",
+        "laos": "ແຮງງານ",
+        "jp": "労働",
+        "vie": "lao động",
+        "en_pronunciation": "/ˈleɪbər/",
+        "laos_pronunciation": "aehngngan",
+        "jp_pronunciation": "roudou",
+        "vie_pronunciation": "lao dong"
+      },
+      "means": {
+        "en": "A social class comprising those who do manual labor or work for wages",
+        "zh": "感知、学习和推理的心理结果"
+      }
+    },
+    {
+      "word": {
+        "en": "labour",
+        "laos": "ແຮງງານ",
+        "jp": "労働",
+        "vie": "lao động",
+        "en_pronunciation": "/ˈleɪbər/",
+        "laos_pronunciation": "aehngngan",
+        "jp_pronunciation": "roudou",
+        "vie_pronunciation": "lao dong"
+      },
+      "means": {
+        "en": "A social class comprising those who do manual labor or work for wages",
+        "zh": "受过高等教育；"
+      }
+    },
+    {
+      "word": {
+        "en": "laboratory",
+        "laos": "ຫ້ອງທົດລອງ",
+        "jp": "研究室",
+        "vie": "phòng thí nghiệm",
+        "en_pronunciation": "/ˈlæbrəˌtɔri/",
+        "laos_pronunciation": "hongthodlong",
+        "jp_pronunciation": "kenkyuushitsu",
+        "vie_pronunciation": "phong thi nghiem"
+      },
+      "means": {
+        "en": "A workplace for the conduct of scientific research",
+        "zh": "拥有广泛的信息或理解"
+      }
+    },
+    {
+      "word": {
+        "en": "lab",
+        "laos": "ຫ້ອງທົດລອງ",
+        "jp": "研究室",
+        "vie": "phòng thí nghiệm",
+        "en_pronunciation": "/læb/",
+        "laos_pronunciation": "hongthodlong",
+        "jp_pronunciation": "kenkyuushitsu",
+        "vie_pronunciation": "phong thi nghiem"
+      },
+      "means": {
+        "en": "A workplace for the conduct of scientific research",
+        "zh": "Knowhow是一个英文单词，意为“专有技术”。"
+      }
+    },
+    {
+      "word": {
+        "en": "lace",
+        "laos": "ທອກ",
+        "jp": "レース",
+        "vie": "ren",
+        "en_pronunciation": "/leɪs/",
+        "laos_pronunciation": "thok",
+        "jp_pronunciation": "reesu",
+        "vie_pronunciation": "ren"
+      },
+      "means": {
+        "en": "A cord that is drawn through eyelets or around hooks in order to draw together two edges (as of a shoe or garment)",
+        "zh": "出于识别目的而给出的简要描述"
+      }
+    },
+    {
+      "word": {
+        "en": "lack",
+        "laos": "ຂາດເຂີນ",
+        "jp": "欠如",
+        "vie": "thiếu",
+        "en_pronunciation": "/læk/",
+        "laos_pronunciation": "khadkhoen",
+        "jp_pronunciation": "ketsujo",
+        "vie_pronunciation": "thieu"
+      },
+      "means": {
+        "en": "The state of needing something that is absent or unavailable",
+        "zh": "由从事体力劳动或为工资而工作的人组成的社会阶层"
+      }
+    },
+    {
+      "word": {
+        "en": "lad",
+        "laos": "ຜູ້ຍິງ",
+        "jp": "少年",
+        "vie": "chàng trai",
+        "en_pronunciation": "/læd/",
+        "laos_pronunciation": "phunying",
+        "jp_pronunciation": "shounen",
+        "vie_pronunciation": "chang trai"
+      },
+      "means": {
+        "en": "A boy or man",
+        "zh": "由从事体力劳动或为工资而工作的人组成的社会阶层"
+      }
+    },
+    {
+      "word": {
+        "en": "ladder",
+        "laos": "ຂັ້ນໄດ",
+        "jp": "はしご",
+        "vie": "thang",
+        "en_pronunciation": "/ˈlædər/",
+        "laos_pronunciation": "khandai",
+        "jp_pronunciation": "hashigo",
+        "vie_pronunciation": "thang"
+      },
+      "means": {
+        "en": "Steps consisting of two parallel members connected by rungs; for climbing up or down",
+        "zh": "进行科学研究的工作场所"
+      }
+    },
+    {
+      "word": {
+        "en": "lady",
+        "laos": "ແມ່ຊາ",
+        "jp": "女性",
+        "vie": "quý cô",
+        "en_pronunciation": "/ˈleɪdi/",
+        "laos_pronunciation": "aemsa",
+        "jp_pronunciation": "josei",
+        "vie_pronunciation": "quy co"
+      },
+      "means": {
+        "en": "A polite name for any woman",
+        "zh": "进行科学研究的工作场所"
+      }
+    },
+    {
+      "word": {
+        "en": "lag",
+        "laos": "ຮ່ວງ",
+        "jp": "ラグ",
+        "vie": "tụt hậu",
+        "en_pronunciation": "/læg/",
+        "laos_pronunciation": "huang",
+        "jp_pronunciation": "ragu",
+        "vie_pronunciation": "tut hau"
+      },
+      "means": {
+        "en": "The act of slowing down or falling behind",
+        "zh": "穿过孔眼或围绕钩子拉动的绳索，以便将两个边缘拉在一起（例如鞋子或衣服的边缘）"
+      }
+    },
+    {
+      "word": {
+        "en": "lake",
+        "laos": "ທະເລສາບ",
+        "jp": "湖",
+        "vie": "hồ",
+        "en_pronunciation": "/leɪk/",
+        "laos_pronunciation": "thalesab",
+        "jp_pronunciation": "mizuumi",
+        "vie_pronunciation": "ho"
+      },
+      "means": {
+        "en": "A body of (usually fresh) water surrounded by land",
+        "zh": "需要某种不存在或不可用的东西的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "lamb",
+        "laos": "ລູກແກະ",
+        "jp": "子羊",
+        "vie": "thịt cừu",
+        "en_pronunciation": "/læm/",
+        "laos_pronunciation": "lukkae",
+        "jp_pronunciation": "kohitsuji",
+        "vie_pronunciation": "thit cuu"
+      },
+      "means": {
+        "en": "Young sheep",
+        "zh": "一个男孩或一个男人"
+      }
+    },
+    {
+      "word": {
+        "en": "lame",
+        "laos": "ລ່ອຍ",
+        "jp": "足が不自由な",
+        "vie": "khập khiễng",
+        "en_pronunciation": "/leɪm/",
+        "laos_pronunciation": "lony",
+        "jp_pronunciation": "ashi ga fujiyuu na",
+        "vie_pronunciation": "khap khieng"
+      },
+      "means": {
+        "en": "Someone who doesn't understand what is going on",
+        "zh": "由梯级连接的两个平行构件组成的梯级；"
+      }
+    },
+    {
+      "word": {
+        "en": "lamp",
+        "laos": "ຜາງຍາມ",
+        "jp": "ランプ",
+        "vie": "đèn",
+        "en_pronunciation": "/læmp/",
+        "laos_pronunciation": "phangnyam",
+        "jp_pronunciation": "ranpu",
+        "vie_pronunciation": "den"
+      },
+      "means": {
+        "en": "An artificial source of visible illumination",
+        "zh": "用于爬上或爬下"
+      }
+    },
+    {
+      "word": {
+        "en": "land",
+        "laos": "ທີ່ດິນ",
+        "jp": "土地",
+        "vie": "đất đai",
+        "en_pronunciation": "/lænd/",
+        "laos_pronunciation": "thidin",
+        "jp_pronunciation": "tochi",
+        "vie_pronunciation": "dat dai"
+      },
+      "means": {
+        "en": "The land on which real estate is located",
+        "zh": "对任何女人来说都有礼貌的名字"
+      }
+    },
+    {
+      "word": {
+        "en": "landlord",
+        "laos": "ເຈົ້າຂອງເຮືອນ",
+        "jp": "家主",
+        "vie": "chủ nhà",
+        "en_pronunciation": "/ˈlænˌdlɔrd/",
+        "laos_pronunciation": "chaokhongheuon",
+        "jp_pronunciation": "yanushi",
+        "vie_pronunciation": "chu nha"
+      },
+      "means": {
+        "en": "A landowner who leases to others",
+        "zh": "放慢速度或落后的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "landlady",
+        "laos": "ເຈົ້າຂອງທີ່ດິນ",
+        "jp": "女将さん",
+        "vie": "bà chủ nhà",
+        "en_pronunciation": "/ˈlænˌdleɪdi/",
+        "laos_pronunciation": "chaokhongthidin",
+        "jp_pronunciation": "joshou san",
+        "vie_pronunciation": "ba chu nha"
+      },
+      "means": {
+        "en": "A landlord who is a woman",
+        "zh": "被陆地包围的（通常是淡水）水体"
+      }
+    },
+    {
+      "word": {
+        "en": "landmark",
+        "laos": "ຫລັກ",
+        "jp": "ランドマーク",
+        "vie": "cột mốc",
+        "en_pronunciation": "/ˈlændˌmɑrk/",
+        "laos_pronunciation": "lak",
+        "jp_pronunciation": "randomaaku",
+        "vie_pronunciation": "cot moc"
+      },
+      "means": {
+        "en": "The position of a prominent or well-known object in a particular landscape",
+        "zh": "幼羊"
+      }
+    },
+    {
+      "word": {
+        "en": "landscape",
+        "laos": "ພູມິພາບ",
+        "jp": "風景",
+        "vie": "phong cảnh",
+        "en_pronunciation": "/ˈlænˌskeɪp/",
+        "laos_pronunciation": "phumiphab",
+        "jp_pronunciation": "fuukei",
+        "vie_pronunciation": "phong canh"
+      },
+      "means": {
+        "en": "An expanse of scenery that can be seen in a single view",
+        "zh": "一个不明白发生了什么的人"
+      }
+    },
+    {
+      "word": {
+        "en": "lane",
+        "laos": "ຖະກາງ",
+        "jp": "レーン",
+        "vie": "làn đường",
+        "en_pronunciation": "/leɪn/",
+        "laos_pronunciation": "thakang",
+        "jp_pronunciation": "reen",
+        "vie_pronunciation": "lan duong"
+      },
+      "means": {
+        "en": "A narrow way or road",
+        "zh": "可见照明的人造光源"
+      }
+    },
+    {
+      "word": {
+        "en": "language",
+        "laos": "ພາສາ",
+        "jp": "言語",
+        "vie": "ngôn ngữ",
+        "en_pronunciation": "/ˈlæŋgwɪʤ/",
+        "laos_pronunciation": "phasa",
+        "jp_pronunciation": "gengo",
+        "vie_pronunciation": "ngon ngu"
+      },
+      "means": {
+        "en": "A systematic means of communicating by the use of sounds or conventional symbols",
+        "zh": "房地产所在的土地"
+      }
+    },
+    {
+      "word": {
+        "en": "lap",
+        "laos": "ຕັກ",
+        "jp": "ラップ",
+        "vie": "lòng",
+        "en_pronunciation": "/læp/",
+        "laos_pronunciation": "tak",
+        "jp_pronunciation": "rappu",
+        "vie_pronunciation": "long"
+      },
+      "means": {
+        "en": "The upper side of the thighs of a seated person",
+        "zh": "将土地出租给他人的土地所有者"
+      }
+    },
+    {
+      "word": {
+        "en": "laptop",
+        "laos": "ແລັບທັອບ",
+        "jp": "ラップトップ",
+        "vie": "máy tính xách tay",
+        "en_pronunciation": "/ˈlæpˌtɑp/",
+        "laos_pronunciation": "laeb thaob",
+        "jp_pronunciation": "rapputoppu",
+        "vie_pronunciation": "may tinh xach tay"
+      },
+      "means": {
+        "en": "A portable computer small enough to use in your lap",
+        "zh": "房东是个女的"
+      }
+    },
+    {
+      "word": {
+        "en": "large",
+        "laos": "ປຸ້ມ",
+        "jp": "大きい",
+        "vie": "lớn",
+        "en_pronunciation": "/lɑrʤ/",
+        "laos_pronunciation": "pum",
+        "jp_pronunciation": "ookii",
+        "vie_pronunciation": "lon"
+      },
+      "means": {
+        "en": "A garment size for a large person",
+        "zh": "特定景观中突出或众所周知的物体的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "laser",
+        "laos": "ເລເຊີ",
+        "jp": "レーザー",
+        "vie": "tia laze",
+        "en_pronunciation": "/ˈleɪzər/",
+        "laos_pronunciation": "lesoe",
+        "jp_pronunciation": "reezaa",
+        "vie_pronunciation": "tia laze"
+      },
+      "means": {
+        "en": "An acronym for light amplification by stimulated emission of radiation; an optical device that produces an intense monochromatic beam of coherent light",
+        "zh": "单一视角即可看到广阔的风景"
+      }
+    },
+    {
+      "word": {
+        "en": "lash",
+        "laos": "ຊັກ",
+        "jp": "まつげ",
+        "vie": "đòn roi",
+        "en_pronunciation": "/læʃ/",
+        "laos_pronunciation": "sak",
+        "jp_pronunciation": "matsuge",
+        "vie_pronunciation": "don roi"
+      },
+      "means": {
+        "en": "Any of the short curved hairs that grow from the edges of the eyelids",
+        "zh": "狭窄的道路或道路"
+      }
+    },
+    {
+      "word": {
+        "en": "lass",
+        "laos": "ຟ້ອງ",
+        "jp": "お嬢さん",
+        "vie": "cô gái",
+        "en_pronunciation": "/læs/",
+        "laos_pronunciation": "fong",
+        "jp_pronunciation": "o jou san",
+        "vie_pronunciation": "co gai"
+      },
+      "means": {
+        "en": "A girl or young woman who is unmarried",
+        "zh": "使用声音或传统符号进行交流的系统方法"
+      }
+    },
+    {
+      "word": {
+        "en": "last",
+        "laos": "ທ້າຍ",
+        "jp": "最後",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/læst/",
+        "laos_pronunciation": "thai",
+        "jp_pronunciation": "saigo",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "The temporal end; the concluding time",
+        "zh": "坐着的人的大腿上侧"
+      }
+    },
+    {
+      "word": {
+        "en": "late",
+        "laos": "ເດິກ",
+        "jp": "遅い",
+        "vie": "muộn",
+        "en_pronunciation": "/leɪt/",
+        "laos_pronunciation": "doek",
+        "jp_pronunciation": "osoi",
+        "vie_pronunciation": "muon"
+      },
+      "means": {
+        "en": "Being or occurring at an advanced period of time or after a usual or expected time",
+        "zh": "体积足够小，可以放在膝盖上使用的便携式计算机"
+      }
+    },
+    {
+      "word": {
+        "en": "lately",
+        "laos": "ເມື່ອໄວໆມານີ້",
+        "jp": "最近",
+        "vie": "gần đây",
+        "en_pronunciation": "/ˈleɪtli/",
+        "laos_pronunciation": "meu vaimani",
+        "jp_pronunciation": "saikin",
+        "vie_pronunciation": "gan day"
+      },
+      "means": {
+        "en": "In the recent past",
+        "zh": "适合身材高大的人的服装尺码"
+      }
+    },
+    {
+      "word": {
+        "en": "latitude",
+        "laos": "ເສັ້ນແວງ",
+        "jp": "緯度",
+        "vie": "vĩ độ",
+        "en_pronunciation": "/ˈlætəˌtud/",
+        "laos_pronunciation": "senaeuang",
+        "jp_pronunciation": "ido",
+        "vie_pronunciation": "vi do"
+      },
+      "means": {
+        "en": "The angular distance between an imaginary line around a heavenly body parallel to its equator and the equator itself",
+        "zh": "受激辐射光放大的缩写；"
+      }
+    },
+    {
+      "word": {
+        "en": "latter",
+        "laos": "ເສຽອົງສຸດທ້າຍ",
+        "jp": "後者",
+        "vie": "sau này",
+        "en_pronunciation": "/ˈlætər/",
+        "laos_pronunciation": "seia ongsudthai",
+        "jp_pronunciation": "kousha",
+        "vie_pronunciation": "sau nay"
+      },
+      "means": {
+        "en": "The second of two or the second mentioned of two",
+        "zh": "产生强烈单色相干光束的光学装置"
+      }
+    },
+    {
+      "word": {
+        "en": "laugh",
+        "laos": "ຫົວ",
+        "jp": "笑う",
+        "vie": "cười",
+        "en_pronunciation": "/læf/",
+        "laos_pronunciation": "hua",
+        "jp_pronunciation": "warau",
+        "vie_pronunciation": "cuoi"
+      },
+      "means": {
+        "en": "The sound of laughing",
+        "zh": "任何从眼睑边缘生长的短而弯曲的毛发"
+      }
+    },
+    {
+      "word": {
+        "en": "launch",
+        "laos": "ຜອບ",
+        "jp": "打ち上げ",
+        "vie": "phóng",
+        "en_pronunciation": "/lɔnʧ/",
+        "laos_pronunciation": "phob",
+        "jp_pronunciation": "uchiage",
+        "vie_pronunciation": "phong"
+      },
+      "means": {
+        "en": "A motorboat with an open deck or a half deck",
+        "zh": "未婚的女孩或年轻女子"
+      }
+    },
+    {
+      "word": {
+        "en": "laundry",
+        "laos": "ເຄື່ອງຊັກຜ້າ",
+        "jp": "洗濯物",
+        "vie": "giặt ủi",
+        "en_pronunciation": "/ˈlɔndri/",
+        "laos_pronunciation": "kheuong sakpha",
+        "jp_pronunciation": "sentakumono",
+        "vie_pronunciation": "giat ui"
+      },
+      "means": {
+        "en": "Garments or white goods that can be cleaned by laundering",
+        "zh": "时间的终结；"
+      }
+    },
+    {
+      "word": {
+        "en": "lavatory",
+        "laos": "ວັນທະຍາຄານ",
+        "jp": "洗面所",
+        "vie": "nhà vệ sinh",
+        "en_pronunciation": "/ˈlævəˌtɔri/",
+        "laos_pronunciation": "van thanyakhan",
+        "jp_pronunciation": "senmenjo",
+        "vie_pronunciation": "nha ve sinh"
+      },
+      "means": {
+        "en": "A room or building equipped with one or more toilets",
+        "zh": "结束时间"
+      }
+    },
+    {
+      "word": {
+        "en": "lavish",
+        "laos": "ສະຫຼົດໃຈ",
+        "jp": "贅沢な",
+        "vie": "xa hoa",
+        "en_pronunciation": "/ˈlævɪʃ/",
+        "laos_pronunciation": "sa rodchai",
+        "jp_pronunciation": "zeitaku na",
+        "vie_pronunciation": "xa hoa"
+      },
+      "means": {
+        "en": "Expend profusely; also used with abstract nouns",
+        "zh": "在提前的一段时间或在通常或预期的时间之后存在或发生"
+      }
+    },
+    {
+      "word": {
+        "en": "law",
+        "laos": "ກົດຫມາຍ",
+        "jp": "法律",
+        "vie": "pháp luật",
+        "en_pronunciation": "/lɔ/",
+        "laos_pronunciation": "kodmai",
+        "jp_pronunciation": "houritsu",
+        "vie_pronunciation": "phap luat"
+      },
+      "means": {
+        "en": "The collection of rules imposed by authority",
+        "zh": "在不久的过去"
+      }
+    },
+    {
+      "word": {
+        "en": "lawn",
+        "laos": "ສະຫນາມຫຍ້າ",
+        "jp": "芝生",
+        "vie": "bãi cỏ",
+        "en_pronunciation": "/lɔn/",
+        "laos_pronunciation": "sanamja",
+        "jp_pronunciation": "shibafu",
+        "vie_pronunciation": "bai co"
+      },
+      "means": {
+        "en": "A field of cultivated and mowed grass",
+        "zh": "围绕天体平行于其赤道的假想线与赤道本身之间的角距离"
+      }
+    },
+    {
+      "word": {
+        "en": "lawsuit",
+        "laos": "ການຟ້ອງຮ້ອງຄະດີ",
+        "jp": "訴訟",
+        "vie": "vụ kiện",
+        "en_pronunciation": "/ˈlɔˌsut/",
+        "laos_pronunciation": "kan fong hongkhadi",
+        "jp_pronunciation": "soshou",
+        "vie_pronunciation": "vu kien"
+      },
+      "means": {
+        "en": "A comprehensive term for any proceeding in a court of law whereby an individual seeks a legal remedy",
+        "zh": "两个中的第二个或两个中提到的第二个"
+      }
+    },
+    {
+      "word": {
+        "en": "lawyer",
+        "laos": "ທະນາຍຄວາມ",
+        "jp": "弁護士",
+        "vie": "luật sư",
+        "en_pronunciation": "/ˈlɔjər/",
+        "laos_pronunciation": "thanaikhuaam",
+        "jp_pronunciation": "bengoshi",
+        "vie_pronunciation": "luat su"
+      },
+      "means": {
+        "en": "A professional person authorized to practice law; conducts lawsuits or gives legal advice",
+        "zh": "笑声传来"
+      }
+    },
+    {
+      "word": {
+        "en": "lay",
+        "laos": "ປູ",
+        "jp": "横たわる",
+        "vie": "nằm",
+        "en_pronunciation": "/leɪ/",
+        "laos_pronunciation": "pu",
+        "jp_pronunciation": "yoko tawaru",
+        "vie_pronunciation": "nam"
+      },
+      "means": {
+        "en": "A narrative song with a recurrent refrain",
+        "zh": "具有开放甲板或半甲板的摩托艇"
+      }
+    },
+    {
+      "word": {
+        "en": "laborious",
+        "laos": "ເນື້ອໃນ",
+        "jp": "面倒な",
+        "vie": "vất vả",
+        "en_pronunciation": "/ləˈbɔriəs/",
+        "laos_pronunciation": "neuonai",
+        "jp_pronunciation": "mendou na",
+        "vie_pronunciation": "vat va"
+      },
+      "means": {
+        "en": "Characterized by effort to the point of exhaustion; especially physical effort",
+        "zh": "可通过洗涤清洁的服装或白色家电"
+      }
+    },
+    {
+      "word": {
+        "en": "landing",
+        "laos": "ການລົງຈອດ",
+        "jp": "着陸",
+        "vie": "hạ cánh",
+        "en_pronunciation": "/ˈlændɪŋ/",
+        "laos_pronunciation": "kanlongchod",
+        "jp_pronunciation": "chakuriku",
+        "vie_pronunciation": "ha canh"
+      },
+      "means": {
+        "en": "An intermediate platform in a staircase",
+        "zh": "配备一个或多个厕所的房间或建筑物"
+      }
+    },
+    {
+      "word": {
+        "en": "largely",
+        "laos": "ເປ່ງ",
+        "jp": "大体",
+        "vie": "phần lớn",
+        "en_pronunciation": "/ˈlɑrʤli/",
+        "laos_pronunciation": "peng",
+        "jp_pronunciation": "daitai",
+        "vie_pronunciation": "phan lon"
+      },
+      "means": {
+        "en": "In large part; mainly or chiefly",
+        "zh": "大量花费；"
+      }
+    },
+    {
+      "word": {
+        "en": "lastly",
+        "laos": "ສຸດທ້າຍ",
+        "jp": "最後に",
+        "vie": "cuối cùng",
+        "en_pronunciation": "/ˈlæstli/",
+        "laos_pronunciation": "sudthai",
+        "jp_pronunciation": "saigo ni",
+        "vie_pronunciation": "cuoi cung"
+      },
+      "means": {
+        "en": "The item at the end",
+        "zh": "也与抽象名词一起使用"
+      }
+    },
+    {
+      "word": {
+        "en": "later",
+        "laos": "ມື້ຕໍ່ມາ",
+        "jp": "後で",
+        "vie": "sau này",
+        "en_pronunciation": "/ˈleɪtər/",
+        "laos_pronunciation": "mutoma",
+        "jp_pronunciation": "atode",
+        "vie_pronunciation": "sau nay"
+      },
+      "means": {
+        "en": "Coming at a subsequent time or stage",
+        "zh": "当局强加的规则的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "laughter",
+        "laos": "ສຽງຫົວ",
+        "jp": "笑い",
+        "vie": "tiếng cười",
+        "en_pronunciation": "/ˈlæftər/",
+        "laos_pronunciation": "sianghua",
+        "jp_pronunciation": "warai",
+        "vie_pronunciation": "tieng cuoi"
+      },
+      "means": {
+        "en": "The sound of laughing",
+        "zh": "耕种和割草的田野"
+      }
+    },
+    {
+      "word": {
+        "en": "lawful",
+        "laos": "ຖືກຕ້ອງຕາມກົດຫມາຢ",
+        "jp": "合法的な",
+        "vie": "hợp pháp",
+        "en_pronunciation": "/ˈlɔfəl/",
+        "laos_pronunciation": "thuktongtam kodmay",
+        "jp_pronunciation": "gouhouteki na",
+        "vie_pronunciation": "hop phap"
+      },
+      "means": {
+        "en": "Conformable to or allowed by law",
+        "zh": "个人寻求法律补救措施的法庭诉讼的综合术语"
+      }
+    },
+    {
+      "word": {
+        "en": "layer",
+        "laos": "ຊັ້ນ",
+        "jp": "レイヤー",
+        "vie": "lớp",
+        "en_pronunciation": "/leɪər/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "reiyaa",
+        "vie_pronunciation": "lop"
+      },
+      "means": {
+        "en": "Single thickness of usually some homogeneous substance",
+        "zh": "获授权执业的专业人士；"
+      }
+    },
+    {
+      "word": {
+        "en": "layman",
+        "laos": "ຜູ້ຖົມ",
+        "jp": "素人",
+        "vie": "thường dân",
+        "en_pronunciation": "/ˈleɪmən/",
+        "laos_pronunciation": "phuthom",
+        "jp_pronunciation": "shirouto",
+        "vie_pronunciation": "thuong dan"
+      },
+      "means": {
+        "en": "Someone who is not a clergyman or a professional person",
+        "zh": "进行诉讼或提供法律建议"
+      }
+    },
+    {
+      "word": {
+        "en": "layoff",
+        "laos": "ການຢຸດຕິ",
+        "jp": "一時解雇",
+        "vie": "sa thải",
+        "en_pronunciation": "/leɪɔf/",
+        "laos_pronunciation": "kanyudti",
+        "jp_pronunciation": "ichiji kaiko",
+        "vie_pronunciation": "sa thai"
+      },
+      "means": {
+        "en": "The act of laying off an employee or a work force",
+        "zh": "一首反复出现副歌的叙事歌曲"
+      }
+    },
+    {
+      "word": {
+        "en": "layout",
+        "laos": "ແຜນຜັງ",
+        "jp": "レイアウト",
+        "vie": "bố cục",
+        "en_pronunciation": "/leɪaʊt/",
+        "laos_pronunciation": "aephnphang",
+        "jp_pronunciation": "reiauto",
+        "vie_pronunciation": "bo cuc"
+      },
+      "means": {
+        "en": "A plan or design of something that is laid out",
+        "zh": "其特点是努力到精疲力尽的程度；"
+      }
+    },
+    {
+      "word": {
+        "en": "lazy",
+        "laos": "ຂີ້ຄ້ານ",
+        "jp": "怠惰な",
+        "vie": "lười biếng",
+        "en_pronunciation": "/ˈleɪzi/",
+        "laos_pronunciation": "khikhan",
+        "jp_pronunciation": "taida na",
+        "vie_pronunciation": "luoi bieng"
+      },
+      "means": {
+        "en": "Moving slowly and gently",
+        "zh": "尤其是体力劳动"
+      }
+    },
+    {
+      "word": {
+        "en": "laziness",
+        "laos": "ຄວາມຂີ້ຄ້ານ",
+        "jp": "怠惰",
+        "vie": "sự lười biếng",
+        "en_pronunciation": "/ˈleɪzinəs/",
+        "laos_pronunciation": "khuaamkhikhan",
+        "jp_pronunciation": "taida",
+        "vie_pronunciation": "su luoi bieng"
+      },
+      "means": {
+        "en": "Inactivity resulting from a dislike of work",
+        "zh": "楼梯间的中间平台"
+      }
+    },
+    {
+      "word": {
+        "en": "lead",
+        "laos": "ນໍາພາ",
+        "jp": "リード",
+        "vie": "chì",
+        "en_pronunciation": "/lɛd/",
+        "laos_pronunciation": "noapha",
+        "jp_pronunciation": "riido",
+        "vie_pronunciation": "chi"
+      },
+      "means": {
+        "en": "An advantage held by a competitor in a race",
+        "zh": "很大程度上；"
+      }
+    },
+    {
+      "word": {
+        "en": "leader",
+        "laos": "ຜູ້ນໍາ",
+        "jp": "リーダー",
+        "vie": "lãnh đạo",
+        "en_pronunciation": "/ˈlidər/",
+        "laos_pronunciation": "phunoa",
+        "jp_pronunciation": "riidaa",
+        "vie_pronunciation": "lanh dao"
+      },
+      "means": {
+        "en": "A person who rules or guides or inspires others",
+        "zh": "主要或主要"
+      }
+    },
+    {
+      "word": {
+        "en": "leadership",
+        "laos": "ຄວາມເປັນຜູ້ນໍາ",
+        "jp": "リーダーシップ",
+        "vie": "sự lãnh đạo",
+        "en_pronunciation": "/ˈlidərˌʃɪp/",
+        "laos_pronunciation": "khuaampenphunoa",
+        "jp_pronunciation": "riidaashippu",
+        "vie_pronunciation": "su lanh dao"
+      },
+      "means": {
+        "en": "The activity of leading",
+        "zh": "项目在最后"
+      }
+    },
+    {
+      "word": {
+        "en": "leading",
+        "laos": "ພາສາ",
+        "jp": "先頭に立って",
+        "vie": "dẫn đầu",
+        "en_pronunciation": "/ˈlidɪŋ/",
+        "laos_pronunciation": "phasa",
+        "jp_pronunciation": "sentou ni tatsu te",
+        "vie_pronunciation": "dan dau"
+      },
+      "means": {
+        "en": "Thin strip of metal used to separate lines of type in printing",
+        "zh": "在随后的时间或阶段出现"
+      }
+    },
+    {
+      "word": {
+        "en": "leaf",
+        "laos": "ໃບ",
+        "jp": "葉",
+        "vie": "lá",
+        "en_pronunciation": "/lif/",
+        "laos_pronunciation": "bai",
+        "jp_pronunciation": "ha",
+        "vie_pronunciation": "la"
+      },
+      "means": {
+        "en": "The main organ of photosynthesis and transpiration in higher plants",
+        "zh": "笑声传来"
+      }
+    },
+    {
+      "word": {
+        "en": "leaflet",
+        "laos": "ໃບ",
+        "jp": "リーフレット",
+        "vie": "tờ rơi",
+        "en_pronunciation": "/ˈliflət/",
+        "laos_pronunciation": "bai",
+        "jp_pronunciation": "riifuretto",
+        "vie_pronunciation": "to roi"
+      },
+      "means": {
+        "en": "A thin triangular flap of a heart valve",
+        "zh": "符合法律或法律允许"
+      }
+    },
+    {
+      "word": {
+        "en": "league",
+        "laos": "ນິທານ",
+        "jp": "リーグ",
+        "vie": "giải đấu",
+        "en_pronunciation": "/lig/",
+        "laos_pronunciation": "nithan",
+        "jp_pronunciation": "riigu",
+        "vie_pronunciation": "giai dau"
+      },
+      "means": {
+        "en": "An association of sports teams that organizes matches for its members",
+        "zh": "通常是某种均质物质的单一厚度"
+      }
+    },
+    {
+      "word": {
+        "en": "leak",
+        "laos": "ຮົ່ວ",
+        "jp": "漏れ",
+        "vie": "rò rỉ",
+        "en_pronunciation": "/lik/",
+        "laos_pronunciation": "hov",
+        "jp_pronunciation": "more",
+        "vie_pronunciation": "ro ri"
+      },
+      "means": {
+        "en": "An accidental hole that allows something (fluid or light etc.) to enter or escape",
+        "zh": "非牧师或专业人士的人"
+      }
+    },
+    {
+      "word": {
+        "en": "lean",
+        "laos": "ງ່ຽງຢູ່",
+        "jp": "痩せた",
+        "vie": "nạc",
+        "en_pronunciation": "/lin/",
+        "laos_pronunciation": "ngiangyu",
+        "jp_pronunciation": "yase ta",
+        "vie_pronunciation": "nac"
+      },
+      "means": {
+        "en": "The property possessed by a line or surface that departs from the vertical",
+        "zh": "解雇雇员或劳动力的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "leap",
+        "laos": "ກະໂດດ",
+        "jp": "跳躍",
+        "vie": "bước nhảy vọt",
+        "en_pronunciation": "/lip/",
+        "laos_pronunciation": "kaodd",
+        "jp_pronunciation": "chouyaku",
+        "vie_pronunciation": "buoc nhay vot"
+      },
+      "means": {
+        "en": "A light, self-propelled movement upwards or forwards",
+        "zh": "已布置的事物的计划或设计"
+      }
+    },
+    {
+      "word": {
+        "en": "learn",
+        "laos": "ຮຽນ",
+        "jp": "学ぶ",
+        "vie": "học hỏi",
+        "en_pronunciation": "/lərn/",
+        "laos_pronunciation": "hian",
+        "jp_pronunciation": "manabu",
+        "vie_pronunciation": "hoc hoi"
+      },
+      "means": {
+        "en": "Gain knowledge or skills",
+        "zh": "缓慢而轻柔地移动"
+      }
+    },
+    {
+      "word": {
+        "en": "learned",
+        "laos": "ບໍ່ໄດ້ຮຽນ",
+        "jp": "学んだ",
+        "vie": "đã học",
+        "en_pronunciation": "/ˈlərnɪd/",
+        "laos_pronunciation": "bodaihian",
+        "jp_pronunciation": "manan da",
+        "vie_pronunciation": "da hoc"
+      },
+      "means": {
+        "en": "Gain knowledge or skills",
+        "zh": "由于不喜欢工作而缺乏活动"
+      }
+    },
+    {
+      "word": {
+        "en": "learning",
+        "laos": "ການຮຽນຮູ້",
+        "jp": "学習",
+        "vie": "học tập",
+        "en_pronunciation": "/ˈlərnɪŋ/",
+        "laos_pronunciation": "kanhianhu",
+        "jp_pronunciation": "gakushuu",
+        "vie_pronunciation": "hoc tap"
+      },
+      "means": {
+        "en": "The cognitive process of acquiring skill or knowledge",
+        "zh": "竞争对手在比赛中拥有的优势"
+      }
+    },
+    {
+      "word": {
+        "en": "learner",
+        "laos": "ຜູ້ຮຽນຮູ້",
+        "jp": "学習者",
+        "vie": "người học",
+        "en_pronunciation": "/ˈlərnər/",
+        "laos_pronunciation": "phuhianhu",
+        "jp_pronunciation": "gakushuusha",
+        "vie_pronunciation": "nguoi hoc"
+      },
+      "means": {
+        "en": "Someone (especially a child) who learns (as from a teacher) or takes up knowledge or beliefs",
+        "zh": "统治、指导或激励他人的人"
+      }
+    },
+    {
+      "word": {
+        "en": "lease",
+        "laos": "ສັນຍາເຊົ່າ",
+        "jp": "リース",
+        "vie": "thuê",
+        "en_pronunciation": "/lis/",
+        "laos_pronunciation": "snaiaseoa",
+        "jp_pronunciation": "riisu",
+        "vie_pronunciation": "thue"
+      },
+      "means": {
+        "en": "Property that is leased or rented out or let",
+        "zh": "领导活动"
+      }
+    },
+    {
+      "word": {
+        "en": "least",
+        "laos": "ຢ່າງຫນ້ອຍ",
+        "jp": "少なくとも",
+        "vie": "ít nhất",
+        "en_pronunciation": "/list/",
+        "laos_pronunciation": "yangnony",
+        "jp_pronunciation": "sukunakutomo",
+        "vie_pronunciation": "it nhat"
+      },
+      "means": {
+        "en": "Something that is of no importance",
+        "zh": "印刷时用于分隔字体线条的金属细条"
+      }
+    },
+    {
+      "word": {
+        "en": "leather",
+        "laos": "ຫນັງ",
+        "jp": "革",
+        "vie": "da",
+        "en_pronunciation": "/ˈlɛðər/",
+        "laos_pronunciation": "nang",
+        "jp_pronunciation": "kawa",
+        "vie_pronunciation": "da"
+      },
+      "means": {
+        "en": "An animal skin made smooth and flexible by removing the hair and then tanning",
+        "zh": "高等植物进行光合作用和蒸腾作用的主要器官"
+      }
+    },
+    {
+      "word": {
+        "en": "leave",
+        "laos": "ປະຖິ້ມ",
+        "jp": "離れる",
+        "vie": "rời đi",
+        "en_pronunciation": "/liv/",
+        "laos_pronunciation": "pathim",
+        "jp_pronunciation": "hanare ru",
+        "vie_pronunciation": "roi di"
+      },
+      "means": {
+        "en": "The period of time during which you are absent from work or duty",
+        "zh": "心脏瓣膜的薄三角形瓣"
+      }
+    },
+    {
+      "word": {
+        "en": "lecture",
+        "laos": "ບັນລະຍາຍ",
+        "jp": "講義",
+        "vie": "bài giảng",
+        "en_pronunciation": "/ˈlɛkʧər/",
+        "laos_pronunciation": "banlanyai",
+        "jp_pronunciation": "kougi",
+        "vie_pronunciation": "bai giang"
+      },
+      "means": {
+        "en": "A speech that is open to the public",
+        "zh": "为其成员组织比赛的运动队协会"
+      }
+    },
+    {
+      "word": {
+        "en": "lecturer",
+        "laos": "ປາຖົກ",
+        "jp": "講師",
+        "vie": "giảng viên",
+        "en_pronunciation": "/ˈlɛkʧərər/",
+        "laos_pronunciation": "pathok",
+        "jp_pronunciation": "koushi",
+        "vie_pronunciation": "giang vien"
+      },
+      "means": {
+        "en": "A public lecturer at certain universities",
+        "zh": "允许某些东西（液体或光等）进入或逸出的意外孔"
+      }
+    },
+    {
+      "word": {
+        "en": "left",
+        "laos": "ກ່ໍາ",
+        "jp": "左",
+        "vie": "trái",
+        "en_pronunciation": "/lɛft/",
+        "laos_pronunciation": "koa",
+        "jp_pronunciation": "hidari",
+        "vie_pronunciation": "trai"
+      },
+      "means": {
+        "en": "Location near or direction toward the left side; i.e. the side to the north when a person or object faces east",
+        "zh": "偏离垂直线的线或面所具有的性质"
+      }
+    },
+    {
+      "word": {
+        "en": "leftist",
+        "laos": "ຊ້າຍ",
+        "jp": "左翼",
+        "vie": "cánh tả",
+        "en_pronunciation": "/ˈlɛftɪst/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "sayoku",
+        "vie_pronunciation": "canh ta"
+      },
+      "means": {
+        "en": "A person who belongs to the political left",
+        "zh": "轻微的、自行向上或向前的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "leg",
+        "laos": "ແຄ່ງຂາ",
+        "jp": "脚",
+        "vie": "chân",
+        "en_pronunciation": "/lɛg/",
+        "laos_pronunciation": "aekhngkha",
+        "jp_pronunciation": "ashi",
+        "vie_pronunciation": "chan"
+      },
+      "means": {
+        "en": "A human limb; commonly used to refer to a whole limb but technically only the part of the limb between the knee and ankle",
+        "zh": "获得知识或技能"
+      }
+    },
+    {
+      "word": {
+        "en": "legacy",
+        "laos": "ຄວາມຫມາຍມໍລະດົກ",
+        "jp": "レガシー",
+        "vie": "di sản",
+        "en_pronunciation": "/ˈlɛgəsi/",
+        "laos_pronunciation": "khuaammai moladok",
+        "jp_pronunciation": "regashii",
+        "vie_pronunciation": "di san"
+      },
+      "means": {
+        "en": "(law) a gift of personal property by will",
+        "zh": "获得知识或技能"
+      }
+    }
+  ]
+}

@@ -350,20 +350,27 @@ export const CONVERTER_TOOLS: Tool[] = [
     category: 'converter',
     icon: 'calendar',
     params: {
-      datetime: { type: 'string', required: true, placeholder: 'Enter date and time' },
-      input_format: { type: 'string', required: false, placeholder: 'Input format (optional)' },
+      datetime: { type: 'string', required: true, placeholder: 'Enter date/time or timestamp' },
+      input_format: {
+        type: 'select',
+        required: false,
+        default: 'auto',
+        enum: ['auto', 'iso', 'unix', 'unix_ms', 'rfc2822', 'custom']
+      },
       output_format: {
         type: 'select',
         required: false,
-        default: 'iso',
-        enum: ['iso', 'unix', 'readable', 'custom']
+        default: 'all',
+        enum: ['all', 'iso', 'timestamp', 'unix', 'utc', 'locale', 'relative', 'custom']
       },
       timezone: {
         type: 'select',
         required: false,
         default: 'utc',
         enum: ['utc', 'local', 'est', 'pst', 'gmt', 'cet']
-      }
+      },
+      custom_format: { type: 'string', required: false, placeholder: 'Custom output pattern (optional)' },
+      custom_input_format: { type: 'string', required: false, placeholder: 'Custom input pattern (optional)' }
     },
     keywords: ['date', 'time', 'convert', 'format', 'timestamp', 'timezone']
   },
@@ -1276,7 +1283,215 @@ export const MEASUREMENT_TOOLS: Tool[] = [
   }
 ];
 
-// ================== DATA TOOLS (2 tools) ==================
+// ================== IMAGE TOOLS (7 tools) ==================
+export const IMAGE_TOOLS: Tool[] = [
+  {
+    id: 'image_resizer',
+    name: 'Image Resizer',
+    description: 'Resize images to specific dimensions',
+    category: 'media',
+    icon: 'expand-arrows-alt',
+    params: {
+      width: { type: 'integer', required: true, min: 1, max: 10000 },
+      height: { type: 'integer', required: true, min: 1, max: 10000 },
+      keep_aspect_ratio: { type: 'boolean', required: false, default: true }
+    },
+    keywords: ['image', 'resize', 'scale', 'dimensions', 'photo']
+  },
+  {
+    id: 'image_compressor',
+    name: 'Image Compressor',
+    description: 'Compress and optimize images',
+    category: 'media',
+    icon: 'compress-alt',
+    params: {
+      quality: { type: 'integer', required: false, default: 80, min: 1, max: 100 }
+    },
+    keywords: ['image', 'compress', 'optimize', 'reduce', 'size']
+  },
+  {
+    id: 'image_converter',
+    name: 'Image Converter',
+    description: 'Convert images between formats',
+    category: 'media',
+    icon: 'exchange-alt',
+    params: {
+      format: { type: 'select', required: true, enum: ['jpeg', 'png', 'webp', 'gif'] }
+    },
+    keywords: ['image', 'convert', 'format', 'jpeg', 'png', 'webp']
+  },
+  {
+    id: 'image_rotate',
+    name: 'Image Rotate & Flip',
+    description: 'Rotate and flip images',
+    category: 'media',
+    icon: 'sync-alt',
+    params: {
+      rotation: { type: 'select', required: false, default: 90, enum: [0, 90, 180, 270] }
+    },
+    keywords: ['image', 'rotate', 'flip', 'transform']
+  },
+  {
+    id: 'image_crop',
+    name: 'Image Cropper',
+    description: 'Crop images to specific dimensions',
+    category: 'media',
+    icon: 'crop-alt',
+    params: {
+      x: { type: 'integer', required: true, min: 0 },
+      y: { type: 'integer', required: true, min: 0 },
+      width: { type: 'integer', required: true, min: 1 },
+      height: { type: 'integer', required: true, min: 1 }
+    },
+    keywords: ['image', 'crop', 'cut', 'trim']
+  },
+  {
+    id: 'image_color_extractor',
+    name: 'Color Extractor',
+    description: 'Extract color palette from images',
+    category: 'media',
+    icon: 'eye-dropper',
+    params: {
+      count: { type: 'integer', required: false, default: 6, min: 3, max: 12 }
+    },
+    keywords: ['image', 'color', 'palette', 'extract', 'picker']
+  },
+  {
+    id: 'svg_placeholder_generator',
+    name: 'SVG Placeholder Generator',
+    description: 'Generate SVG placeholder images',
+    category: 'media',
+    icon: 'image',
+    params: {
+      width: { type: 'integer', required: true, default: 300 },
+      height: { type: 'integer', required: false, default: 200 }
+    },
+    keywords: ['svg', 'placeholder', 'image', 'generate']
+  }
+];
+
+// ================== CALCULATOR TOOLS (5 tools) ==================
+export const CALCULATOR_TOOLS: Tool[] = [
+  {
+    id: 'age_calculator',
+    name: 'Age Calculator',
+    description: 'Calculate exact age from birth date',
+    category: 'math',
+    icon: 'birthday-cake',
+    params: {
+      birth_date: { type: 'string', required: true, placeholder: 'YYYY-MM-DD' }
+    },
+    keywords: ['age', 'calculator', 'birth', 'date', 'years']
+  },
+  {
+    id: 'bmi_calculator',
+    name: 'BMI Calculator',
+    description: 'Calculate Body Mass Index',
+    category: 'math',
+    icon: 'weight',
+    params: {
+      weight: { type: 'number', required: true, placeholder: 'Weight in kg' },
+      height: { type: 'number', required: true, placeholder: 'Height in cm' }
+    },
+    keywords: ['bmi', 'body', 'mass', 'index', 'health', 'weight']
+  },
+  {
+    id: 'loan_emi_calculator',
+    name: 'Loan EMI Calculator',
+    description: 'Calculate monthly EMI for loans',
+    category: 'math',
+    icon: 'money-bill-wave',
+    params: {
+      principal: { type: 'number', required: true, placeholder: 'Loan amount' },
+      interest_rate: { type: 'number', required: true, placeholder: 'Annual interest rate %' },
+      tenure: { type: 'integer', required: true, placeholder: 'Loan tenure in months' }
+    },
+    keywords: ['loan', 'emi', 'mortgage', 'calculator', 'finance']
+  },
+  {
+    id: 'gst_calculator',
+    name: 'GST/VAT Calculator',
+    description: 'Calculate GST/VAT inclusive and exclusive amounts',
+    category: 'math',
+    icon: 'percent',
+    params: {
+      amount: { type: 'number', required: true, placeholder: 'Amount' },
+      gst_rate: { type: 'number', required: true, default: 18, placeholder: 'GST rate %' }
+    },
+    keywords: ['gst', 'vat', 'tax', 'calculator', 'inclusive', 'exclusive']
+  },
+  {
+    id: 'number_to_words',
+    name: 'Number to Words',
+    description: 'Convert numbers to written words',
+    category: 'math',
+    icon: 'spell-check',
+    params: {
+      number: { type: 'string', required: true, placeholder: 'Enter number' },
+      language: { type: 'select', required: false, default: 'en', enum: ['en', 'zh', 'es', 'fr', 'de'] }
+    },
+    keywords: ['number', 'words', 'convert', 'spell', 'currency']
+  }
+];
+
+// ================== PDF TOOLS (5 tools) ==================
+export const PDF_TOOLS: Tool[] = [
+  {
+    id: 'pdf_split',
+    name: 'PDF Splitter',
+    description: 'Split PDF into multiple files',
+    category: 'media',
+    icon: 'file-pdf',
+    params: {
+      method: { type: 'select', required: true, enum: ['range', 'every', 'extract'] }
+    },
+    keywords: ['pdf', 'split', 'extract', 'pages']
+  },
+  {
+    id: 'pdf_merge',
+    name: 'PDF Merger',
+    description: 'Merge multiple PDFs into one',
+    category: 'media',
+    icon: 'object-group',
+    params: {},
+    keywords: ['pdf', 'merge', 'combine', 'join']
+  },
+  {
+    id: 'pdf_compress',
+    name: 'PDF Compressor',
+    description: 'Reduce PDF file size',
+    category: 'media',
+    icon: 'compress-arrows-alt',
+    params: {
+      level: { type: 'select', required: false, default: 'medium', enum: ['low', 'medium', 'high'] }
+    },
+    keywords: ['pdf', 'compress', 'reduce', 'size', 'optimize']
+  },
+  {
+    id: 'pdf_rotate',
+    name: 'PDF Rotate',
+    description: 'Rotate PDF pages',
+    category: 'media',
+    icon: 'sync-alt',
+    params: {
+      rotation: { type: 'select', required: true, default: 90, enum: [90, 180, 270] }
+    },
+    keywords: ['pdf', 'rotate', 'pages', 'orientation']
+  },
+  {
+    id: 'pdf_password',
+    name: 'PDF Password',
+    description: 'Add or remove PDF password protection',
+    category: 'media',
+    icon: 'lock',
+    params: {
+      action: { type: 'select', required: true, enum: ['add', 'remove'] }
+    },
+    keywords: ['pdf', 'password', 'protect', 'encrypt', 'security']
+  }
+];
+
+// ================== DATA TOOLS (4 tools) ==================
 export const DATA_TOOLS: Tool[] = [
   {
     id: 'phone_parser_and_formatter',
@@ -1300,33 +1515,261 @@ export const DATA_TOOLS: Tool[] = [
       iban: { type: 'string', required: true, placeholder: 'Enter IBAN number' }
     },
     keywords: ['iban', 'validate', 'parse', 'bank', 'account']
+  },
+  {
+    id: 'safelink_decoder',
+    name: 'Safelink Decoder',
+    description: 'Decode safe links and redirects',
+    category: 'data',
+    icon: 'external-link-alt',
+    params: {
+      url: { type: 'url', required: true, placeholder: 'Enter safelink URL' }
+    },
+    keywords: ['safelink', 'decode', 'redirect', 'url', 'unwrap']
+  },
+  {
+    id: 'numeronym_generator',
+    name: 'Numeronym Generator',
+    description: 'Generate numeronyms (like i18n for internationalization)',
+    category: 'data',
+    icon: 'compress',
+    params: {
+      text: { type: 'string', required: true, placeholder: 'Enter text to convert' }
+    },
+    keywords: ['numeronym', 'abbreviation', 'i18n', 'shorten']
+  }
+];
+
+// ================== COLOR TOOLS (4 tools) ==================
+export const COLOR_TOOLS: Tool[] = [
+  {
+    id: 'gradient_generator',
+    name: 'Gradient Generator',
+    description: 'Create beautiful CSS gradients with visual editor',
+    category: 'development',
+    icon: 'paint-roller',
+    params: {
+      type: { type: 'select', required: false, default: 'linear', enum: ['linear', 'radial', 'conic'] },
+      angle: { type: 'integer', required: false, default: 90, min: 0, max: 360 }
+    },
+    keywords: ['gradient', 'css', 'color', 'background', 'design']
+  },
+  {
+    id: 'contrast_checker',
+    name: 'Contrast Checker',
+    description: 'Check color contrast for WCAG accessibility compliance',
+    category: 'development',
+    icon: 'adjust',
+    params: {
+      foreground: { type: 'string', required: true, default: '#000000' },
+      background: { type: 'string', required: true, default: '#ffffff' }
+    },
+    keywords: ['contrast', 'accessibility', 'wcag', 'a11y', 'color']
+  },
+  {
+    id: 'palette_generator',
+    name: 'Palette Generator',
+    description: 'Generate harmonious color palettes',
+    category: 'development',
+    icon: 'swatchbook',
+    params: {
+      base_color: { type: 'string', required: true, default: '#667eea' },
+      palette_type: { type: 'select', required: false, default: 'complementary', enum: ['complementary', 'analogous', 'triadic', 'split-complementary', 'tetradic', 'monochromatic'] }
+    },
+    keywords: ['palette', 'color', 'scheme', 'design', 'generate']
+  },
+  {
+    id: 'color_blindness_simulator',
+    name: 'Color Blindness Simulator',
+    description: 'Simulate how colors appear to people with color vision deficiencies',
+    category: 'development',
+    icon: 'eye',
+    params: {
+      color: { type: 'string', required: true, placeholder: 'Enter color (hex)' }
+    },
+    keywords: ['color', 'blindness', 'accessibility', 'simulation', 'vision']
+  }
+];
+
+// ================== TEXT TOOLS ADVANCED (4 tools) ==================
+export const TEXT_TOOLS_ADVANCED: Tool[] = [
+  {
+    id: 'duplicate_line_remover',
+    name: 'Remove Duplicate Lines',
+    description: 'Remove duplicate lines from text',
+    category: 'text',
+    icon: 'filter',
+    params: {
+      case_sensitive: { type: 'boolean', required: false, default: true },
+      trim_whitespace: { type: 'boolean', required: false, default: true },
+      sort_output: { type: 'boolean', required: false, default: false }
+    },
+    keywords: ['duplicate', 'remove', 'unique', 'lines', 'filter']
+  },
+  {
+    id: 'text_sorter',
+    name: 'Text Sorter',
+    description: 'Sort lines of text alphabetically or numerically',
+    category: 'text',
+    icon: 'sort-alpha-down',
+    params: {
+      sort_order: { type: 'select', required: false, default: 'asc', enum: ['asc', 'desc'] },
+      sort_type: { type: 'select', required: false, default: 'alphabetic', enum: ['alphabetic', 'numeric', 'length', 'natural'] }
+    },
+    keywords: ['sort', 'order', 'alphabetical', 'lines', 'text']
+  },
+  {
+    id: 'text_reverser',
+    name: 'Text Reverser',
+    description: 'Reverse text in various ways',
+    category: 'text',
+    icon: 'exchange-alt',
+    params: {
+      reverse_mode: { type: 'select', required: false, default: 'characters', enum: ['characters', 'words', 'lines', 'sentences'] }
+    },
+    keywords: ['reverse', 'text', 'backwards', 'flip', 'mirror']
+  },
+  {
+    id: 'word_counter_seo',
+    name: 'Word Counter (SEO)',
+    description: 'Analyze text for SEO with word count, keyword density, and readability',
+    category: 'text',
+    icon: 'chart-bar',
+    params: {},
+    keywords: ['word', 'count', 'seo', 'keyword', 'density', 'readability']
+  }
+];
+
+// ================== UTILITY TOOLS (3 tools) ==================
+export const UTILITY_TOOLS: Tool[] = [
+  {
+    id: 'qr_scanner',
+    name: 'QR Code Scanner',
+    description: 'Scan QR codes from image files or camera',
+    category: 'web',
+    icon: 'qrcode',
+    params: {},
+    keywords: ['qr', 'scan', 'camera', 'decode', 'barcode']
+  },
+  {
+    id: 'barcode_generator',
+    name: 'Barcode Generator',
+    description: 'Generate various types of barcodes',
+    category: 'web',
+    icon: 'barcode',
+    params: {
+      type: { type: 'select', required: false, default: 'CODE128', enum: ['CODE128', 'CODE39', 'EAN13', 'EAN8', 'UPC', 'ITF14'] },
+      content: { type: 'string', required: true, placeholder: 'Enter barcode content' }
+    },
+    keywords: ['barcode', 'generate', 'code128', 'ean', 'upc']
+  },
+  {
+    id: 'timezone_converter',
+    name: 'Time Zone Converter',
+    description: 'Convert time between different time zones',
+    category: 'converter',
+    icon: 'globe',
+    params: {
+      from_timezone: { type: 'string', required: true, default: 'UTC' },
+      to_timezone: { type: 'string', required: true, default: 'America/New_York' }
+    },
+    keywords: ['timezone', 'time', 'convert', 'world', 'clock']
+  }
+];
+
+// ================== FORMATTER TOOLS (2 tools) ==================
+export const FORMATTER_TOOLS: Tool[] = [
+  {
+    id: 'html_formatter',
+    name: 'HTML Formatter',
+    description: 'Format and beautify HTML code',
+    category: 'web',
+    icon: 'code',
+    params: {
+      indent_size: { type: 'integer', required: false, default: 2, min: 1, max: 8 }
+    },
+    keywords: ['html', 'format', 'beautify', 'prettify', 'indent']
+  },
+  {
+    id: 'css_formatter',
+    name: 'CSS Formatter',
+    description: 'Format, beautify, and minify CSS code',
+    category: 'web',
+    icon: 'paint-brush',
+    params: {
+      indent_size: { type: 'integer', required: false, default: 2, min: 1, max: 8 }
+    },
+    keywords: ['css', 'format', 'beautify', 'minify', 'prettify']
+  }
+];
+
+// ================== ADDITIONAL DEV TOOLS (1 tool) ==================
+export const ADDITIONAL_DEV_TOOLS: Tool[] = [
+  {
+    id: 'regex_cheatsheet',
+    name: 'Regex Cheatsheet',
+    description: 'Quick reference for regular expressions',
+    category: 'development',
+    icon: 'bookmark',
+    params: {},
+    keywords: ['regex', 'cheatsheet', 'reference', 'patterns', 'regular expression']
+  },
+  {
+    id: 'unit_converter',
+    name: 'Unit Converter',
+    description: 'Convert between different units of measurement',
+    category: 'converter',
+    icon: 'balance-scale',
+    params: {
+      category: { type: 'select', required: false, default: 'length', enum: ['length', 'weight', 'temperature', 'area', 'volume', 'data'] }
+    },
+    keywords: ['unit', 'convert', 'measurement', 'length', 'weight', 'temperature']
+  },
+  {
+    id: 'query_string_parser',
+    name: 'Query String Parser',
+    description: 'Parse and manipulate URL query strings',
+    category: 'web',
+    icon: 'question-circle',
+    params: {
+      query_string: { type: 'string', required: true, placeholder: '?key=value&...' }
+    },
+    keywords: ['query', 'string', 'url', 'parse', 'parameters']
   }
 ];
 
 // Export all tools combined
 export const ALL_TOOLS: Tool[] = [
-  ...CRYPTO_TOOLS,      // 15 tools
-  ...CONVERTER_TOOLS,   // 25 tools
-  ...WEB_TOOLS,         // 18 tools
-  ...TEXT_TOOLS,        // 10 tools
-  ...MATH_TOOLS,        // 3 tools
-  ...NETWORK_TOOLS,     // 6 tools
-  ...MEDIA_TOOLS,       // 4 tools
-  ...DEVELOPMENT_TOOLS, // 7 tools
-  ...MEASUREMENT_TOOLS, // 2 tools
-  ...DATA_TOOLS         // 2 tools
+  ...CRYPTO_TOOLS,          // 15 tools
+  ...CONVERTER_TOOLS,       // 25 tools
+  ...WEB_TOOLS,             // 18 tools
+  ...TEXT_TOOLS,            // 10 tools
+  ...TEXT_TOOLS_ADVANCED,   // 4 tools
+  ...MATH_TOOLS,            // 3 tools
+  ...NETWORK_TOOLS,         // 6 tools
+  ...MEDIA_TOOLS,           // 4 tools
+  ...IMAGE_TOOLS,           // 7 tools
+  ...CALCULATOR_TOOLS,      // 5 tools
+  ...PDF_TOOLS,             // 5 tools
+  ...DEVELOPMENT_TOOLS,     // 7 tools
+  ...MEASUREMENT_TOOLS,     // 2 tools
+  ...DATA_TOOLS,            // 4 tools
+  ...COLOR_TOOLS,           // 4 tools
+  ...UTILITY_TOOLS,         // 3 tools
+  ...FORMATTER_TOOLS,       // 2 tools
+  ...ADDITIONAL_DEV_TOOLS   // 3 tools
 ];
 
 // Export tools by category for easy access
 export const TOOLS_BY_CATEGORY = {
   crypto: CRYPTO_TOOLS,
-  converter: CONVERTER_TOOLS,
-  web: WEB_TOOLS,
-  text: TEXT_TOOLS,
-  math: MATH_TOOLS,
+  converter: [...CONVERTER_TOOLS, ...UTILITY_TOOLS.filter(t => t.category === 'converter'), ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'converter')],
+  web: [...WEB_TOOLS, ...UTILITY_TOOLS.filter(t => t.category === 'web'), ...FORMATTER_TOOLS, ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'web')],
+  text: [...TEXT_TOOLS, ...TEXT_TOOLS_ADVANCED],
+  math: [...MATH_TOOLS, ...CALCULATOR_TOOLS],
   network: NETWORK_TOOLS,
-  media: MEDIA_TOOLS,
-  development: DEVELOPMENT_TOOLS,
+  media: [...MEDIA_TOOLS, ...IMAGE_TOOLS, ...PDF_TOOLS],
+  development: [...DEVELOPMENT_TOOLS, ...COLOR_TOOLS, ...ADDITIONAL_DEV_TOOLS.filter(t => t.category === 'development')],
   measurement: MEASUREMENT_TOOLS,
   data: DATA_TOOLS
 };

@@ -1,0 +1,17 @@
+{
+    // https://nuxt.com/docs/guide/concepts/typescript
+    "extends": "./.nuxt/tsconfig.json",
+    "compilerOptions": {
+        "types": ["@nuxt/types", "@nuxtjs/i18n"],
+        "paths": {
+            "@/apps/*": ["./apps/*"],
+            "@/common/*": ["./common/*"],
+            "@/app_main/*": ["./apps/app_main/*"],
+            "@/app_codemart/*": ["./apps/app_codemart/*"],
+            "@/app_admin/*": ["./apps/app_admin/*"],
+            "@/app_example/*": ["./apps/app_example/*"],
+            "@/app_dev/*": ["./apps/app_dev/*"],
+            "@/app_dashboard/*": ["./apps/app_dashboard/*"]
+        }
+    }
+}

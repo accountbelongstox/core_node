@@ -9,7 +9,7 @@ import json
 import uuid
 from typing import Dict, Callable, Optional, Any, List
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.gvar.ws_rpc_constants import WS_RPC_CONSTANTS
+from pycore.pygvar import WS_RPC_CONSTANTS
 
 try:
     import websockets
@@ -109,7 +109,7 @@ class WsRpcClient:
         self.reconnect = False
         self._stop_heartbeat()
 
-        if self.ws and not self.ws.closed:
+        if self.ws:
             await self.ws.close()
 
         self.connected = False
@@ -418,7 +418,7 @@ class WsRpcClient:
 
     async def _send(self, message: Dict):
         """Send message to server"""
-        if not self.connected or not self.ws or self.ws.closed:
+        if not self.connected or not self.ws:
             self.message_queue.append(message)
             ColorPrint.debug("Message queued (not connected)")
             return

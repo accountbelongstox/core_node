@@ -46,6 +46,7 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   crypto: ^3.0.3
+  dio: ^5.4.0
   flutter_localizations:
     sdk: flutter
   flutter_native_splash: ^2.4.6
@@ -92,6 +93,7 @@ flutter:
 
     # VIP Club App assets
     - assets/apps/app_vipclub/images/
+    - assets/apps/app_vipclub/styles/
 
     # Travel App assets
     - assets/apps/app_travel/images/
@@ -99,6 +101,8 @@ flutter:
     - assets/apps/app_travel/images/upload/
     - assets/apps/app_travel/fonts/
     - assets/apps/app_travel/innerdata/
+
+    # QY App assets (English learning app)
 
   fonts:
     - family: Roboto

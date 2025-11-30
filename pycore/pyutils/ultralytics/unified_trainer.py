@@ -8,10 +8,10 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
-from .classification_trainer import ClassificationTrainer
-from .detection_trainer import DetectionTrainer
-from .device_manager import get_device_manager
-from .gpu_image_processor import get_gpu_processor
+from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
+from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
+from pycore.pyutils.ultralytics.device_manager import get_device_manager
+from pycore.pyutils.ultralytics.gpu_image_processor import get_gpu_processor
 
 
 def print_dataset_info(
@@ -727,7 +727,7 @@ class UnifiedDetectionTrainer:
                 background_image_config = metadata.get('background_images', [])
                 patch_image_config = metadata.get('patch_images', [])
 
-                from .ultralytics_trainer import process_image_config
+                from pycore.pyutils.ultralytics.ultralytics_trainer import process_image_config
                 import cv2
 
                 # Mode 1: Coordinate mode - Extract patches from background images

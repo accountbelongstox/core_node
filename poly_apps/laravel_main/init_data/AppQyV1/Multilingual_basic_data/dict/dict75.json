@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.435978+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "topic",
+        "laos": "ຫົວຂໍ້",
+        "jp": "トピック",
+        "vie": "chủ đề",
+        "en_pronunciation": "/ˈtɑpɪk/",
+        "laos_pronunciation": "huakho",
+        "jp_pronunciation": "topikku",
+        "vie_pronunciation": "chu de"
+      },
+      "means": {
+        "en": "The subject matter of a conversation or discussion",
+        "zh": "谈话或讨论的主题"
+      }
+    },
+    {
+      "word": {
+        "en": "topical",
+        "laos": "ກະທູ້",
+        "jp": "話題の",
+        "vie": "chuyên đề",
+        "en_pronunciation": "/ˈtɑpɪkəl/",
+        "laos_pronunciation": "kathu",
+        "jp_pronunciation": "wadai no",
+        "vie_pronunciation": "chuyen de"
+      },
+      "means": {
+        "en": "Pertaining to the surface of a body part",
+        "zh": "与身体部位的表面有关"
+      }
+    },
+    {
+      "word": {
+        "en": "topple",
+        "laos": "ຕີ່",
+        "jp": "倒れる",
+        "vie": "lật đổ",
+        "en_pronunciation": "/ˈtɑpəl/",
+        "laos_pronunciation": "ti",
+        "jp_pronunciation": "taore ru",
+        "vie_pronunciation": "lat do"
+      },
+      "means": {
+        "en": "Fall down, as if collapsing",
+        "zh": "倒下，就像塌陷一样"
+      }
+    },
+    {
+      "word": {
+        "en": "torch",
+        "laos": "ທວນໄຟ",
+        "jp": "たいまつ",
+        "vie": "ngọn đuốc",
+        "en_pronunciation": "/tɔrʧ/",
+        "laos_pronunciation": "thuanfai",
+        "jp_pronunciation": "taimatsu",
+        "vie_pronunciation": "ngon duoc"
+      },
+      "means": {
+        "en": "A light usually carried in the hand; consists of some flammable substance",
+        "zh": "通常手持的灯；"
+      }
+    },
+    {
+      "word": {
+        "en": "tornado",
+        "laos": "ລົມພາຍຸ",
+        "jp": "竜巻",
+        "vie": "cơn lốc xoáy",
+        "en_pronunciation": "/tɔrˈneɪˌdoʊ/",
+        "laos_pronunciation": "lomphaiu",
+        "jp_pronunciation": "tatsumaki",
+        "vie_pronunciation": "con loc xoay"
+      },
+      "means": {
+        "en": "A localized and violently destructive windstorm occurring over land characterized by a funnel-shaped cloud extending toward the ground",
+        "zh": "由一些易燃物质组成"
+      }
+    },
+    {
+      "word": {
+        "en": "torture",
+        "laos": "ການທໍລະມານ",
+        "jp": "拷問",
+        "vie": "tra tấn",
+        "en_pronunciation": "/ˈtɔrʧər/",
+        "laos_pronunciation": "kantholaman",
+        "jp_pronunciation": "goumon",
+        "vie_pronunciation": "tra tan"
+      },
+      "means": {
+        "en": "Extreme mental distress",
+        "zh": "发生在陆地上的局部且具有剧烈破坏性的风暴，其特征是向地面延伸的漏斗状云"
+      }
+    },
+    {
+      "word": {
+        "en": "toss",
+        "laos": "ຖິ້ມ",
+        "jp": "投げる",
+        "vie": "quăng",
+        "en_pronunciation": "/tɔs/",
+        "laos_pronunciation": "thim",
+        "jp_pronunciation": "nage ru",
+        "vie_pronunciation": "quang"
+      },
+      "means": {
+        "en": "The act of flipping a coin",
+        "zh": "极度精神困扰"
+      }
+    },
+    {
+      "word": {
+        "en": "total",
+        "laos": "ທັງຫມົດ",
+        "jp": "合計",
+        "vie": "tổng cộng",
+        "en_pronunciation": "/ˈtoʊtəl/",
+        "laos_pronunciation": "thangmod",
+        "jp_pronunciation": "goukei",
+        "vie_pronunciation": "tong cong"
+      },
+      "means": {
+        "en": "The whole amount",
+        "zh": "抛硬币的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "touch",
+        "laos": "ສໍາພັດ",
+        "jp": "触れる",
+        "vie": "chạm vào",
+        "en_pronunciation": "/təʧ/",
+        "laos_pronunciation": "soaphad",
+        "jp_pronunciation": "fureru",
+        "vie_pronunciation": "cham vao"
+      },
+      "means": {
+        "en": "The event of something coming in contact with the body",
+        "zh": "全部金额"
+      }
+    },
+    {
+      "word": {
+        "en": "tough",
+        "laos": "ທີ່ເຄັ່ງຄັດ",
+        "jp": "厳しい",
+        "vie": "cứng rắn",
+        "en_pronunciation": "/təf/",
+        "laos_pronunciation": "thikhengkhad",
+        "jp_pronunciation": "ikameshii",
+        "vie_pronunciation": "cung ran"
+      },
+      "means": {
+        "en": "Someone who learned to fight in the streets rather than being formally trained in the sport of boxing",
+        "zh": "物体与身体接触的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "tour",
+        "laos": "ການທ່ອງທ່ຽວ",
+        "jp": "ツアー",
+        "vie": "chuyến tham quan",
+        "en_pronunciation": "/tʊr/",
+        "laos_pronunciation": "kanthongthiav",
+        "jp_pronunciation": "tsuaa",
+        "vie_pronunciation": "chuyen tham quan"
+      },
+      "means": {
+        "en": "A journey or route all the way around a particular place or area",
+        "zh": "在街头学习战斗而不是接受正式拳击运动训练的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tourism",
+        "laos": "ການທ່ອງທ່ຽວ",
+        "jp": "観光",
+        "vie": "du lịch",
+        "en_pronunciation": "/ˈtʊˌrɪzəm/",
+        "laos_pronunciation": "kanthongthiav",
+        "jp_pronunciation": "kankou",
+        "vie_pronunciation": "du lich"
+      },
+      "means": {
+        "en": "The business of providing services to tourists",
+        "zh": "围绕特定地点或区域的旅程或路线"
+      }
+    },
+    {
+      "word": {
+        "en": "tourist",
+        "laos": "ນັກທ່ອງທ່ຽວ",
+        "jp": "観光客",
+        "vie": "khách du lịch",
+        "en_pronunciation": "/ˈtʊrɪst/",
+        "laos_pronunciation": "nakthongthiav",
+        "jp_pronunciation": "kankoukyaku",
+        "vie_pronunciation": "khach du lich"
+      },
+      "means": {
+        "en": "Someone who travels for pleasure",
+        "zh": "为游客提供服务的业务"
+      }
+    },
+    {
+      "word": {
+        "en": "tournament",
+        "laos": "ການແຂ່ງຂັນຊິງຊະນະ",
+        "jp": "トーナメント",
+        "vie": "giải đấu",
+        "en_pronunciation": "/ˈtʊrnəmənt/",
+        "laos_pronunciation": "kanaekhngkhan singsana",
+        "jp_pronunciation": "toonamento",
+        "vie_pronunciation": "giai dau"
+      },
+      "means": {
+        "en": "A sporting competition in which contestants play a series of games to decide the winner",
+        "zh": "一个为了快乐而旅行的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tow",
+        "laos": "ຜ້າເຊັດ",
+        "jp": "牽引する",
+        "vie": "kéo",
+        "en_pronunciation": "/toʊ/",
+        "laos_pronunciation": "phased",
+        "jp_pronunciation": "ken'in suru",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "The act of hauling something (as a vehicle) by means of a hitch or rope",
+        "zh": "一种体育比赛，参赛者通过一系列游戏来决定获胜者"
+      }
+    },
+    {
+      "word": {
+        "en": "toward",
+        "laos": "ສູ່",
+        "jp": "に向かって",
+        "vie": "hướng tới",
+        "en_pronunciation": "/təˈwɔrd/",
+        "laos_pronunciation": "su",
+        "jp_pronunciation": "ni muka tte",
+        "vie_pronunciation": "huong toi"
+      },
+      "means": {
+        "en": "Toward is an English word referring to 'toward'.",
+        "zh": "通过挂钩或绳索拖拽某物（如车辆）的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "towards",
+        "laos": "ຕໍ່",
+        "jp": "に向かって",
+        "vie": "hướng tới",
+        "en_pronunciation": "/təˈwɔrdz/",
+        "laos_pronunciation": "to",
+        "jp_pronunciation": "ni muka tte",
+        "vie_pronunciation": "huong toi"
+      },
+      "means": {
+        "en": "Towards is an English word referring to 'towards'.",
+        "zh": "Toward是一个英语单词，意为“朝向”。"
+      }
+    },
+    {
+      "word": {
+        "en": "towel",
+        "laos": "ຜ້າເຊັດຕົວ",
+        "jp": "タオル",
+        "vie": "khăn tắm",
+        "en_pronunciation": "/taʊəl/",
+        "laos_pronunciation": "pha sedtua",
+        "jp_pronunciation": "taoru",
+        "vie_pronunciation": "khan tam"
+      },
+      "means": {
+        "en": "A rectangular piece of absorbent cloth (or paper) for drying or wiping",
+        "zh": "Towards是一个英语单词，意为“朝向”。"
+      }
+    },
+    {
+      "word": {
+        "en": "tower",
+        "laos": "Towerກ",
+        "jp": "タワー",
+        "vie": "tháp",
+        "en_pronunciation": "/taʊər/",
+        "laos_pronunciation": "Towerk",
+        "jp_pronunciation": "tawaa",
+        "vie_pronunciation": "thap"
+      },
+      "means": {
+        "en": "A structure taller than its diameter; can stand alone or be attached to a larger building",
+        "zh": "用于干燥或擦拭的长方形吸水布（或纸）"
+      }
+    },
+    {
+      "word": {
+        "en": "town",
+        "laos": "ເມືອງ",
+        "jp": "町",
+        "vie": "thị trấn",
+        "en_pronunciation": "/taʊn/",
+        "laos_pronunciation": "meuong",
+        "jp_pronunciation": "machi",
+        "vie_pronunciation": "thi tran"
+      },
+      "means": {
+        "en": "An urban area with a fixed boundary that is smaller than a city",
+        "zh": "高于其直径的结构；"
+      }
+    },
+    {
+      "word": {
+        "en": "township",
+        "laos": "ເມືອງ",
+        "jp": "郡区",
+        "vie": "thị trấn",
+        "en_pronunciation": "/ˈtaʊnʃɪp/",
+        "laos_pronunciation": "meuong",
+        "jp_pronunciation": "gunku",
+        "vie_pronunciation": "thi tran"
+      },
+      "means": {
+        "en": "An administrative division of a county",
+        "zh": "可以独立或连接到更大的建筑物"
+      }
+    },
+    {
+      "word": {
+        "en": "toxic",
+        "laos": "ເປັນພິດ",
+        "jp": "有毒な",
+        "vie": "chất độc",
+        "en_pronunciation": "/ˈtɑksɪk/",
+        "laos_pronunciation": "penphid",
+        "jp_pronunciation": "yuudoku na",
+        "vie_pronunciation": "chat doc"
+      },
+      "means": {
+        "en": "Of or relating to or caused by a toxin or poison",
+        "zh": "具有固定边界且小于城市的城市区域"
+      }
+    },
+    {
+      "word": {
+        "en": "toy",
+        "laos": "ຂອງຫຼິ້ນ",
+        "jp": "おもちゃ",
+        "vie": "đồ chơi",
+        "en_pronunciation": "/tɔɪ/",
+        "laos_pronunciation": "khongrin",
+        "jp_pronunciation": "omocha",
+        "vie_pronunciation": "do choi"
+      },
+      "means": {
+        "en": "An artifact designed to be played with",
+        "zh": "县的行政区划"
+      }
+    },
+    {
+      "word": {
+        "en": "trace",
+        "laos": "ຮ່ອງຮອຍ",
+        "jp": "トレース",
+        "vie": "dấu vết",
+        "en_pronunciation": "/treɪs/",
+        "laos_pronunciation": "honghony",
+        "jp_pronunciation": "toreesu",
+        "vie_pronunciation": "dau vet"
+      },
+      "means": {
+        "en": "A just detectable amount",
+        "zh": "属于或与毒素或毒物有关或由毒素或毒物引起的"
+      }
+    },
+    {
+      "word": {
+        "en": "track",
+        "laos": "ລາງ",
+        "jp": "トラック",
+        "vie": "theo dõi",
+        "en_pronunciation": "/træk/",
+        "laos_pronunciation": "lang",
+        "jp_pronunciation": "torakku",
+        "vie_pronunciation": "theo doi"
+      },
+      "means": {
+        "en": "A line or route along which something travels or moves",
+        "zh": "一个设计用来玩的神器"
+      }
+    },
+    {
+      "word": {
+        "en": "tract",
+        "laos": "ຝະາຢ",
+        "jp": "道",
+        "vie": "đường",
+        "en_pronunciation": "/trækt/",
+        "laos_pronunciation": "fa ay",
+        "jp_pronunciation": "michi",
+        "vie_pronunciation": "duong"
+      },
+      "means": {
+        "en": "An extended area of land",
+        "zh": "刚好可检测的量"
+      }
+    },
+    {
+      "word": {
+        "en": "tractor",
+        "laos": "ລົດຕັກເຕີ",
+        "jp": "トラクター",
+        "vie": "máy kéo",
+        "en_pronunciation": "/ˈtræktər/",
+        "laos_pronunciation": "lod taktoe",
+        "jp_pronunciation": "torakutaa",
+        "vie_pronunciation": "may keo"
+      },
+      "means": {
+        "en": "A wheeled vehicle with large wheels; used in farming and other applications",
+        "zh": "某物行进或移动的线路或路线"
+      }
+    },
+    {
+      "word": {
+        "en": "trade",
+        "laos": "ການຄ້າ",
+        "jp": "貿易",
+        "vie": "buôn bán",
+        "en_pronunciation": "/treɪd/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "boueki",
+        "vie_pronunciation": "buon ban"
+      },
+      "means": {
+        "en": "The commercial exchange (buying and selling on domestic or international markets) of goods and services",
+        "zh": "扩大的土地面积"
+      }
+    },
+    {
+      "word": {
+        "en": "trademark",
+        "laos": "ຍີ່ຫໍ້",
+        "jp": "商標",
+        "vie": "nhãn hiệu",
+        "en_pronunciation": "/ˈtreɪdˌmɑrk/",
+        "laos_pronunciation": "nyiho",
+        "jp_pronunciation": "shouhyou",
+        "vie_pronunciation": "nhan hieu"
+      },
+      "means": {
+        "en": "A distinctive characteristic or attribute",
+        "zh": "具有大轮子的轮式车辆；"
+      }
+    },
+    {
+      "word": {
+        "en": "tradition",
+        "laos": "ຮີດຄອງປະເພນີ",
+        "jp": "伝統",
+        "vie": "truyền thống",
+        "en_pronunciation": "/trəˈdɪʃən/",
+        "laos_pronunciation": "hidkhongpapheni",
+        "jp_pronunciation": "dentou",
+        "vie_pronunciation": "truyen thong"
+      },
+      "means": {
+        "en": "An inherited pattern of thought or action",
+        "zh": "用于农业和其他应用"
+      }
+    },
+    {
+      "word": {
+        "en": "traditional",
+        "laos": "ຕາມປະເພນີ",
+        "jp": "伝統的な",
+        "vie": "truyền thống",
+        "en_pronunciation": "/trəˈdɪʃənəl/",
+        "laos_pronunciation": "tampapheni",
+        "jp_pronunciation": "dentouteki na",
+        "vie_pronunciation": "truyen thong"
+      },
+      "means": {
+        "en": "Consisting of or derived from tradition",
+        "zh": "商品和服务的商业交换（在国内或国际市场上买卖）"
+      }
+    },
+    {
+      "word": {
+        "en": "traffic",
+        "laos": "ການຈາລະຈອນ",
+        "jp": "交通",
+        "vie": "giao thông",
+        "en_pronunciation": "/ˈtræfɪk/",
+        "laos_pronunciation": "kanchalachon",
+        "jp_pronunciation": "koutsuu",
+        "vie_pronunciation": "giao thong"
+      },
+      "means": {
+        "en": "The aggregation of things (pedestrians or vehicles) coming and going in a particular locality during a specified period of time",
+        "zh": "独特的特征或属性"
+      }
+    },
+    {
+      "word": {
+        "en": "trafficking",
+        "laos": "ການຄ້າ",
+        "jp": "人身売買",
+        "vie": "buôn bán",
+        "en_pronunciation": "/ˈtræfɪkɪŋ/",
+        "laos_pronunciation": "kankha",
+        "jp_pronunciation": "jinshinbaibai",
+        "vie_pronunciation": "buon ban"
+      },
+      "means": {
+        "en": "Deal illegally",
+        "zh": "遗传的思想或行动模式"
+      }
+    },
+    {
+      "word": {
+        "en": "tragedy",
+        "laos": "ຄວາມໂສກເສົ້າ",
+        "jp": "悲劇",
+        "vie": "bi kịch",
+        "en_pronunciation": "/ˈtræʤədi/",
+        "laos_pronunciation": "khuaam osksao",
+        "jp_pronunciation": "higeki",
+        "vie_pronunciation": "bi kich"
+      },
+      "means": {
+        "en": "An event resulting in great loss and misfortune",
+        "zh": "由传统组成或源自传统"
+      }
+    },
+    {
+      "word": {
+        "en": "tragic",
+        "laos": "ໂສກ",
+        "jp": "悲劇的な",
+        "vie": "bi thảm",
+        "en_pronunciation": "/ˈtræʤɪk/",
+        "laos_pronunciation": "osk",
+        "jp_pronunciation": "higekiteki na",
+        "vie_pronunciation": "bi tham"
+      },
+      "means": {
+        "en": "Very sad; especially involving grief or death or destruction",
+        "zh": "在指定时间段内特定地点进出的事物（行人或车辆）的聚集"
+      }
+    },
+    {
+      "word": {
+        "en": "tragically",
+        "laos": "ເປັນ",
+        "jp": "悲劇的に",
+        "vie": "một cách bi thảm",
+        "en_pronunciation": "/ˈtræʤɪkli/",
+        "laos_pronunciation": "pen",
+        "jp_pronunciation": "higekiteki ni",
+        "vie_pronunciation": "mot cach bi tham"
+      },
+      "means": {
+        "en": "In a tragic manner; with tragic consequences",
+        "zh": "非法交易"
+      }
+    },
+    {
+      "word": {
+        "en": "trail",
+        "laos": "ທາງ",
+        "jp": "トレイル",
+        "vie": "dấu vết",
+        "en_pronunciation": "/treɪl/",
+        "laos_pronunciation": "thang",
+        "jp_pronunciation": "toreiru",
+        "vie_pronunciation": "dau vet"
+      },
+      "means": {
+        "en": "A track or mark left by something that has passed",
+        "zh": "造成巨大损失和不幸的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "trailer",
+        "laos": "ລົດພ່ວງ",
+        "jp": "トレーラー",
+        "vie": "xe kéo",
+        "en_pronunciation": "/ˈtreɪlər/",
+        "laos_pronunciation": "lod phuang",
+        "jp_pronunciation": "toreeraa",
+        "vie_pronunciation": "xe keo"
+      },
+      "means": {
+        "en": "Someone who takes more time than necessary; someone who lags behind",
+        "zh": "非常悲伤；"
+      }
+    },
+    {
+      "word": {
+        "en": "train",
+        "laos": "ຝຶກອົບຮົມ",
+        "jp": "電車",
+        "vie": "xe lửa",
+        "en_pronunciation": "/treɪn/",
+        "laos_pronunciation": "fukobhom",
+        "jp_pronunciation": "densha",
+        "vie_pronunciation": "xe lua"
+      },
+      "means": {
+        "en": "Public transport provided by a line of railway cars coupled together and drawn by a locomotive",
+        "zh": "尤其是涉及悲伤、死亡或破坏"
+      }
+    },
+    {
+      "word": {
+        "en": "trainer",
+        "laos": "ຜູ້ໃສ່ຄູ",
+        "jp": "トレーナー",
+        "vie": "huấn luyện viên",
+        "en_pronunciation": "/ˈtreɪnər/",
+        "laos_pronunciation": "phu saikhu",
+        "jp_pronunciation": "toreenaa",
+        "vie_pronunciation": "huan luyen vien"
+      },
+      "means": {
+        "en": "One who trains other persons or animals",
+        "zh": "以悲剧的方式；"
+      }
+    },
+    {
+      "word": {
+        "en": "trainee",
+        "laos": "ຜູ້ຢິງລົງລົດ",
+        "jp": "研修生",
+        "vie": "thực tập sinh",
+        "en_pronunciation": "/ˈtreɪˈni/",
+        "laos_pronunciation": "phu ying longlod",
+        "jp_pronunciation": "kenshuusei",
+        "vie_pronunciation": "thuc tap sinh"
+      },
+      "means": {
+        "en": "Someone who is being trained",
+        "zh": "带来悲惨的后果"
+      }
+    },
+    {
+      "word": {
+        "en": "training",
+        "laos": "ການຝຶກຫັດ",
+        "jp": "トレーニング",
+        "vie": "đào tạo",
+        "en_pronunciation": "/ˈtreɪnɪŋ/",
+        "laos_pronunciation": "kanfukhad",
+        "jp_pronunciation": "toreeningu",
+        "vie_pronunciation": "dao tao"
+      },
+      "means": {
+        "en": "Activity leading to skilled behavior",
+        "zh": "过去的事物留下的痕迹或标记"
+      }
+    },
+    {
+      "word": {
+        "en": "trait",
+        "laos": "ລັກຊະນະ",
+        "jp": "特性",
+        "vie": "đặc điểm",
+        "en_pronunciation": "/treɪt/",
+        "laos_pronunciation": "laksana",
+        "jp_pronunciation": "tokusei",
+        "vie_pronunciation": "dac diem"
+      },
+      "means": {
+        "en": "A distinguishing feature of your personal nature",
+        "zh": "花费过多时间的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "tram",
+        "laos": "ລົດລາງ",
+        "jp": "トラム",
+        "vie": "xe điện",
+        "en_pronunciation": "/træm/",
+        "laos_pronunciation": "lodlang",
+        "jp_pronunciation": "toramu",
+        "vie_pronunciation": "xe dien"
+      },
+      "means": {
+        "en": "A conveyance that transports passengers or freight in carriers suspended from cables and supported by a series of towers",
+        "zh": "落后的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tranquil",
+        "laos": "ຜາ",
+        "jp": "静かな",
+        "vie": "yên tĩnh",
+        "en_pronunciation": "/ˈtræŋkwɪl/",
+        "laos_pronunciation": "pha",
+        "jp_pronunciation": "shizuka na",
+        "vie_pronunciation": "yen tinh"
+      },
+      "means": {
+        "en": "(of a body of water) free from disturbance by heavy waves",
+        "zh": "由连接在一起并由机车牵引的一列铁路车厢提供的公共交通"
+      }
+    },
+    {
+      "word": {
+        "en": "tranquility",
+        "laos": "ຄວາມສະຫງົບງຽບ",
+        "jp": "静けさ",
+        "vie": "sự yên bình",
+        "en_pronunciation": "/træŋkˈwɪlɪti/",
+        "laos_pronunciation": "khuaamsangobngiab",
+        "jp_pronunciation": "shizukesa",
+        "vie_pronunciation": "su yen binh"
+      },
+      "means": {
+        "en": "A disposition free from stress or emotion",
+        "zh": "训练其他人或动物的人"
+      }
+    },
+    {
+      "word": {
+        "en": "transaction",
+        "laos": "ການເຮັດທຸລະກໍາ",
+        "jp": "トランザクション",
+        "vie": "giao dịch",
+        "en_pronunciation": "/trænˈzækʃən/",
+        "laos_pronunciation": "kanhed thulakoa",
+        "jp_pronunciation": "toranzakushon",
+        "vie_pronunciation": "giao dich"
+      },
+      "means": {
+        "en": "The act of transacting within or between groups (as carrying on commercial activities)",
+        "zh": "正在接受培训的人"
+      }
+    },
+    {
+      "word": {
+        "en": "transcend",
+        "laos": "ກົມ",
+        "jp": "超越する",
+        "vie": "vượt qua",
+        "en_pronunciation": "/trænˈsɛnd/",
+        "laos_pronunciation": "kom",
+        "jp_pronunciation": "chouetsu suru",
+        "vie_pronunciation": "vuot qua"
+      },
+      "means": {
+        "en": "Be greater in scope or size than some standard",
+        "zh": "导致熟练行为的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "transcript",
+        "laos": "ສິດທິ",
+        "jp": "転写物",
+        "vie": "bảng điểm",
+        "en_pronunciation": "/ˈtrænˌskrɪpt/",
+        "laos_pronunciation": "sidthi",
+        "jp_pronunciation": "tensha mono",
+        "vie_pronunciation": "bang diem"
+      },
+      "means": {
+        "en": "Something that has been transcribed; a written record (usually typewritten) of dictated or recorded speech",
+        "zh": "您个人性格的显着特征"
+      }
+    },
+    {
+      "word": {
+        "en": "transfer",
+        "laos": "ການໂອນຍ້າຍ",
+        "jp": "転送",
+        "vie": "chuyển nhượng",
+        "en_pronunciation": "/ˈtrænsfər/",
+        "laos_pronunciation": "kan oonnyai",
+        "jp_pronunciation": "tensou",
+        "vie_pronunciation": "chuyen nhuong"
+      },
+      "means": {
+        "en": "The act of moving something from one location to another",
+        "zh": "一种用悬挂在电缆上并由一系列塔架支撑的载体运输乘客或货物的运输工具"
+      }
+    },
+    {
+      "word": {
+        "en": "transference",
+        "laos": "ການໂອນເງິນ",
+        "jp": "転移",
+        "vie": "sự chuyển giao",
+        "en_pronunciation": "/trænsˈfərəns/",
+        "laos_pronunciation": "kanoonngoen",
+        "jp_pronunciation": "ten'i",
+        "vie_pronunciation": "su chuyen giao"
+      },
+      "means": {
+        "en": "(psychoanalysis) the process whereby emotions are passed on or displaced from one person to another; during psychoanalysis the displacement of feelings toward others (usually the parents) is onto the analyst",
+        "zh": "（水体）不受大浪干扰的"
+      }
+    },
+    {
+      "word": {
+        "en": "transform",
+        "laos": "ການຫັນປ່ຽນ",
+        "jp": "変換する",
+        "vie": "biến đổi",
+        "en_pronunciation": "/ˈtrænsfɔrm/",
+        "laos_pronunciation": "kanhanpian",
+        "jp_pronunciation": "henkan suru",
+        "vie_pronunciation": "bien doi"
+      },
+      "means": {
+        "en": "Subject to a mathematical transformation",
+        "zh": "没有压力或情绪的性格"
+      }
+    },
+    {
+      "word": {
+        "en": "transient",
+        "laos": "ຂ້າມ",
+        "jp": "一時的な",
+        "vie": "nhất thời",
+        "en_pronunciation": "/ˈtrænʒənt/",
+        "laos_pronunciation": "kham",
+        "jp_pronunciation": "ichijiteki na",
+        "vie_pronunciation": "nhat thoi"
+      },
+      "means": {
+        "en": "One who stays for only a short time",
+        "zh": "团体内部或团体之间的交易行为（如进行商业活动）"
+      }
+    },
+    {
+      "word": {
+        "en": "transistor",
+        "laos": "ວະຈີທ",
+        "jp": "トランジスタ",
+        "vie": "bóng bán dẫn",
+        "en_pronunciation": "/trænˈzɪstər/",
+        "laos_pronunciation": "va chith",
+        "jp_pronunciation": "toranjisuta",
+        "vie_pronunciation": "bong ban dan"
+      },
+      "means": {
+        "en": "A semiconductor device capable of amplification",
+        "zh": "范围或规模大于某些标准"
+      }
+    },
+    {
+      "word": {
+        "en": "transit",
+        "laos": "ຂ້າມຜ່ານ",
+        "jp": "トランジット",
+        "vie": "quá cảnh",
+        "en_pronunciation": "/ˈtrænzɪt/",
+        "laos_pronunciation": "khamphan",
+        "jp_pronunciation": "toranjitto",
+        "vie_pronunciation": "qua canh"
+      },
+      "means": {
+        "en": "A surveying instrument for measuring horizontal and vertical angles, consisting of a small telescope mounted on a tripod",
+        "zh": "已经转录的东西；"
+      }
+    },
+    {
+      "word": {
+        "en": "transition",
+        "laos": "ການຫັນ",
+        "jp": "移行",
+        "vie": "chuyển tiếp",
+        "en_pronunciation": "/trænˈzɪʃən/",
+        "laos_pronunciation": "kanhan",
+        "jp_pronunciation": "ikou",
+        "vie_pronunciation": "chuyen tiep"
+      },
+      "means": {
+        "en": "The act of passing from one state or place to the next",
+        "zh": "口述或录音的书面记录（通常是打字的）"
+      }
+    },
+    {
+      "word": {
+        "en": "translate",
+        "laos": "ແປ",
+        "jp": "翻訳する",
+        "vie": "dịch",
+        "en_pronunciation": "/trænzˈleɪt/",
+        "laos_pronunciation": "aep",
+        "jp_pronunciation": "honyaku suru",
+        "vie_pronunciation": "dich"
+      },
+      "means": {
+        "en": "Restate (words) from one language into another language",
+        "zh": "将某物从一个位置移动到另一个位置的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "transmit",
+        "laos": "ສົ່ງໄປ",
+        "jp": "送信する",
+        "vie": "truyền tải",
+        "en_pronunciation": "/trænzˈmɪt/",
+        "laos_pronunciation": "songpai",
+        "jp_pronunciation": "soushin suru",
+        "vie_pronunciation": "truyen tai"
+      },
+      "means": {
+        "en": "Transfer to another",
+        "zh": "（精神分析）情绪从一个人传递或转移到另一个人的过程；"
+      }
+    },
+    {
+      "word": {
+        "en": "transparent",
+        "laos": "ເປມົນ",
+        "jp": "透明な",
+        "vie": "trong suốt",
+        "en_pronunciation": "/trænˈspɛrənt/",
+        "laos_pronunciation": "pemon",
+        "jp_pronunciation": "toumei na",
+        "vie_pronunciation": "trong suot"
+      },
+      "means": {
+        "en": "Transmitting light; able to be seen through with clarity",
+        "zh": "在精神分析过程中，对他人（通常是父母）的感情转移到分析师身上"
+      }
+    },
+    {
+      "word": {
+        "en": "transformation",
+        "laos": "ການປ່ຽນແປງ",
+        "jp": "変換",
+        "vie": "sự biến đổi",
+        "en_pronunciation": "/ˌtrænsfərˈmeɪʃən/",
+        "laos_pronunciation": "kanpianaepng",
+        "jp_pronunciation": "henkan",
+        "vie_pronunciation": "su bien doi"
+      },
+      "means": {
+        "en": "A qualitative change",
+        "zh": "经过数学变换"
+      }
+    },
+    {
+      "word": {
+        "en": "transitional",
+        "laos": "ການຫັນປ່ຽນ",
+        "jp": "過渡的な",
+        "vie": "chuyển tiếp",
+        "en_pronunciation": "/trænˈzɪʃənəl/",
+        "laos_pronunciation": "kanhanpian",
+        "jp_pronunciation": "katoteki na",
+        "vie_pronunciation": "chuyen tiep"
+      },
+      "means": {
+        "en": "Of or relating to or characterized by transition",
+        "zh": "只停留很短时间的人"
+      }
+    },
+    {
+      "word": {
+        "en": "translation",
+        "laos": "ການແປ",
+        "jp": "翻訳",
+        "vie": "dịch thuật",
+        "en_pronunciation": "/trænzˈleɪʃən/",
+        "laos_pronunciation": "kanaep",
+        "jp_pronunciation": "honyaku",
+        "vie_pronunciation": "dich thuat"
+      },
+      "means": {
+        "en": "A written communication in a second language having the same meaning as the written communication in a first language",
+        "zh": "一种具有放大功能的半导体器件"
+      }
+    },
+    {
+      "word": {
+        "en": "transmission",
+        "laos": "ການສົ່ງຜ່ານ",
+        "jp": "送信",
+        "vie": "sự truyền tải",
+        "en_pronunciation": "/trænzˈmɪʃən/",
+        "laos_pronunciation": "kansongphan",
+        "jp_pronunciation": "soushin",
+        "vie_pronunciation": "su truyen tai"
+      },
+      "means": {
+        "en": "The act of sending a message; causing a message to be transmitted",
+        "zh": "一种用于测量水平角和垂直角的测量仪器，由安装在三脚架上的小型望远镜组成"
+      }
+    },
+    {
+      "word": {
+        "en": "transparency",
+        "laos": "ຄວາມໂປ່ງໃສ",
+        "jp": "透明性",
+        "vie": "minh bạch",
+        "en_pronunciation": "/trænˈspɛrənsi/",
+        "laos_pronunciation": "khuaamopngsai",
+        "jp_pronunciation": "toumeisei",
+        "vie_pronunciation": "minh bach"
+      },
+      "means": {
+        "en": "Permitting the free passage of electromagnetic radiation",
+        "zh": "从一个州或地方转移到下一个州或地方的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "translator",
+        "laos": "ຜູ້ຢິງແປ",
+        "jp": "翻訳者",
+        "vie": "người phiên dịch",
+        "en_pronunciation": "/trænzˈleɪtər/",
+        "laos_pronunciation": "phu yingaep",
+        "jp_pronunciation": "honyakusha",
+        "vie_pronunciation": "nguoi phien dich"
+      },
+      "means": {
+        "en": "A person who translates written messages from one language to another",
+        "zh": "将（单词）从一种语言重述为另一种语言"
+      }
+    },
+    {
+      "word": {
+        "en": "transmitter",
+        "laos": "ເຄື່ອງສົ່ງ",
+        "jp": "送信機",
+        "vie": "máy phát",
+        "en_pronunciation": "/trænsˈmɪtər/",
+        "laos_pronunciation": "kheuongsong",
+        "jp_pronunciation": "soushinki",
+        "vie_pronunciation": "may phat"
+      },
+      "means": {
+        "en": "Someone who transmits a message",
+        "zh": "转移到另一个"
+      }
+    },
+    {
+      "word": {
+        "en": "transplant",
+        "laos": "ການປູກໄມ້",
+        "jp": "移植",
+        "vie": "cấy ghép",
+        "en_pronunciation": "/trænˈsplænt/",
+        "laos_pronunciation": "kanpukmai",
+        "jp_pronunciation": "ishoku",
+        "vie_pronunciation": "cay ghep"
+      },
+      "means": {
+        "en": "(surgery) tissue or organ transplanted from a donor to a recipient; in some cases the patient can be both donor and recipient",
+        "zh": "传输光；"
+      }
+    },
+    {
+      "word": {
+        "en": "transport",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "輸送",
+        "vie": "vận chuyển",
+        "en_pronunciation": "/ˈtrænspɔrt/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "yusou",
+        "vie_pronunciation": "van chuyen"
+      },
+      "means": {
+        "en": "Something that serves as a means of transportation",
+        "zh": "能够被清晰地看透"
+      }
+    },
+    {
+      "word": {
+        "en": "trap",
+        "laos": "ແຮ້ວ",
+        "jp": "トラップ",
+        "vie": "cái bẫy",
+        "en_pronunciation": "/træp/",
+        "laos_pronunciation": "aehv",
+        "jp_pronunciation": "torappu",
+        "vie_pronunciation": "cai bay"
+      },
+      "means": {
+        "en": "A device in which something (usually an animal) can be caught and penned",
+        "zh": "质的改变"
+      }
+    },
+    {
+      "word": {
+        "en": "trash",
+        "laos": "ຂີ້ເຫຍື້ອ",
+        "jp": "ゴミ箱",
+        "vie": "thùng rác",
+        "en_pronunciation": "/træʃ/",
+        "laos_pronunciation": "khihiau",
+        "jp_pronunciation": "gomi hako",
+        "vie_pronunciation": "thung rac"
+      },
+      "means": {
+        "en": "Worthless material that is to be disposed of",
+        "zh": "属于或与过渡有关或以过渡为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "transplantation",
+        "laos": "ການປ່ຽນຖ່າຍ",
+        "jp": "移植",
+        "vie": "sự cấy ghép",
+        "en_pronunciation": "/ˌtrænzplænˈteɪʃən/",
+        "laos_pronunciation": "kanpianthai",
+        "jp_pronunciation": "ishoku",
+        "vie_pronunciation": "su cay ghep"
+      },
+      "means": {
+        "en": "An operation moving an organ from one organism (the donor) to another (the recipient)",
+        "zh": "与第一语言的书面交流具有相同含义的第二语言的书面交流"
+      }
+    },
+    {
+      "word": {
+        "en": "transportation",
+        "laos": "ການຂົນສົ່ງ",
+        "jp": "交通機関",
+        "vie": "vận chuyển",
+        "en_pronunciation": "/ˌtrænspərˈteɪʃən/",
+        "laos_pronunciation": "kankhonsong",
+        "jp_pronunciation": "koutsuukikan",
+        "vie_pronunciation": "van chuyen"
+      },
+      "means": {
+        "en": "A facility consisting of the means and equipment necessary for the movement of passengers or goods",
+        "zh": "发送消息的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "trauma",
+        "laos": "ຄວາມເສັຽເບົາ",
+        "jp": "トラウマ",
+        "vie": "chấn thương",
+        "en_pronunciation": "/ˈtrɔmə/",
+        "laos_pronunciation": "khuaam seiabao",
+        "jp_pronunciation": "torauma",
+        "vie_pronunciation": "chan thuong"
+      },
+      "means": {
+        "en": "Any physical damage to the body caused by violence or accident or fracture etc.",
+        "zh": "导致消息被传输"
+      }
+    },
+    {
+      "word": {
+        "en": "traumatic",
+        "laos": "ເຈັບໃຈ",
+        "jp": "トラウマ的な",
+        "vie": "chấn thương",
+        "en_pronunciation": "/trɔˈmætɪk/",
+        "laos_pronunciation": "chebchai",
+        "jp_pronunciation": "torauma tekina",
+        "vie_pronunciation": "chan thuong"
+      },
+      "means": {
+        "en": "Of or relating to a physical injury or wound to the body",
+        "zh": "允许电磁辐射自由通过"
+      }
+    },
+    {
+      "word": {
+        "en": "travel",
+        "laos": "ເດີນທາງ",
+        "jp": "旅行",
+        "vie": "du lịch",
+        "en_pronunciation": "/ˈtrævəl/",
+        "laos_pronunciation": "doenthang",
+        "jp_pronunciation": "ryokou",
+        "vie_pronunciation": "du lich"
+      },
+      "means": {
+        "en": "The act of going from one place to another",
+        "zh": "将书面信息从一种语言翻译成另一种语言的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tray",
+        "laos": "ພາຖາດ",
+        "jp": "トレイ",
+        "vie": "cái khay",
+        "en_pronunciation": "/treɪ/",
+        "laos_pronunciation": "phathad",
+        "jp_pronunciation": "torei",
+        "vie_pronunciation": "cai khay"
+      },
+      "means": {
+        "en": "An open receptacle for holding or displaying or serving articles or food",
+        "zh": "传递消息的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tread",
+        "laos": "ຕຶ",
+        "jp": "トレッド",
+        "vie": "bước đi",
+        "en_pronunciation": "/trɛd/",
+        "laos_pronunciation": "tu",
+        "jp_pronunciation": "toreddo",
+        "vie_pronunciation": "buoc di"
+      },
+      "means": {
+        "en": "A step in walking or running",
+        "zh": "（外科手术）将组织或器官从捐赠者移植到接受者身上；"
+      }
+    },
+    {
+      "word": {
+        "en": "treasure",
+        "laos": "ສົມບັດ",
+        "jp": "宝物",
+        "vie": "kho báu",
+        "en_pronunciation": "/ˈtrɛʒər/",
+        "laos_pronunciation": "sombad",
+        "jp_pronunciation": "takaramono",
+        "vie_pronunciation": "kho bau"
+      },
+      "means": {
+        "en": "Accumulated wealth in the form of money or jewels etc.",
+        "zh": "在某些情况下，患者既可以是捐赠者，也可以是接受者"
+      }
+    },
+    {
+      "word": {
+        "en": "treasury",
+        "laos": "ສາງເງິນຈໍາຍະ",
+        "jp": "財務省",
+        "vie": "kho bạc",
+        "en_pronunciation": "/ˈtrɛʒəri/",
+        "laos_pronunciation": "sang ngoen choaia",
+        "jp_pronunciation": "zaimu shou",
+        "vie_pronunciation": "kho bac"
+      },
+      "means": {
+        "en": "The funds of a government or institution or individual",
+        "zh": "作为交通工具的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "treat",
+        "laos": "ຮັກສາ",
+        "jp": "治療する",
+        "vie": "đối xử",
+        "en_pronunciation": "/trit/",
+        "laos_pronunciation": "haksa",
+        "jp_pronunciation": "chiryou suru",
+        "vie_pronunciation": "doi xu"
+      },
+      "means": {
+        "en": "Something considered choice to eat",
+        "zh": "可以捕捉和圈养某物（通常是动物）的装置"
+      }
+    },
+    {
+      "word": {
+        "en": "treasurer",
+        "laos": "ນາຍຄັງ",
+        "jp": "会計係",
+        "vie": "thủ quỹ",
+        "en_pronunciation": "/ˈtrɛʒərər/",
+        "laos_pronunciation": "naikhang",
+        "jp_pronunciation": "kaikei kakari",
+        "vie_pronunciation": "thu quy"
+      },
+      "means": {
+        "en": "An officer charged with receiving and disbursing funds",
+        "zh": "将被处置的无价值材料"
+      }
+    },
+    {
+      "word": {
+        "en": "treatment",
+        "laos": "ການຮັກສາ",
+        "jp": "治療",
+        "vie": "điều trị",
+        "en_pronunciation": "/ˈtritmənt/",
+        "laos_pronunciation": "kanhaksa",
+        "jp_pronunciation": "chiryou",
+        "vie_pronunciation": "dieu tri"
+      },
+      "means": {
+        "en": "Care provided to improve a situation (especially medical procedures or applications that are intended to relieve illness or injury)",
+        "zh": "将器官从一种生物体（供体）转移到另一种生物体（受体）的手术"
+      }
+    },
+    {
+      "word": {
+        "en": "treaty",
+        "laos": "ສົນທິສັນຍາ",
+        "jp": "条約",
+        "vie": "hiệp ước",
+        "en_pronunciation": "/ˈtriti/",
+        "laos_pronunciation": "sonthisnaia",
+        "jp_pronunciation": "jouyaku",
+        "vie_pronunciation": "hiep uoc"
+      },
+      "means": {
+        "en": "A written agreement between two states or sovereigns",
+        "zh": "由乘客或货物运输所需的手段和设备组成的设施"
+      }
+    },
+    {
+      "word": {
+        "en": "tree",
+        "laos": "ກົກໄມ້",
+        "jp": "木",
+        "vie": "cây",
+        "en_pronunciation": "/tri/",
+        "laos_pronunciation": "kokmai",
+        "jp_pronunciation": "ki",
+        "vie_pronunciation": "cay"
+      },
+      "means": {
+        "en": "A tall perennial woody plant having a main trunk and branches forming a distinct elevated crown; includes both gymnosperms and angiosperms",
+        "zh": "任何因暴力、事故、骨折等对身体造成的物理损伤。"
+      }
+    },
+    {
+      "word": {
+        "en": "trek",
+        "laos": "ກ້ໍາ",
+        "jp": "トレッキング",
+        "vie": "chuyến đi",
+        "en_pronunciation": "/trɛk/",
+        "laos_pronunciation": "koa",
+        "jp_pronunciation": "torekkingu",
+        "vie_pronunciation": "chuyen di"
+      },
+      "means": {
+        "en": "A journey by ox wagon (especially an organized migration by a group of settlers)",
+        "zh": "属于或与之有关的身体伤害或伤口"
+      }
+    },
+    {
+      "word": {
+        "en": "tremble",
+        "laos": "ຊັ່ນ",
+        "jp": "震える",
+        "vie": "run rẩy",
+        "en_pronunciation": "/ˈtrɛmbəl/",
+        "laos_pronunciation": "san",
+        "jp_pronunciation": "furue ru",
+        "vie_pronunciation": "run ray"
+      },
+      "means": {
+        "en": "A reflex motion caused by cold or fear or excitement",
+        "zh": "从一个地方到另一个地方的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "tremendous",
+        "laos": "ຜຸັ້ຍ",
+        "jp": "すごい",
+        "vie": "to lớn",
+        "en_pronunciation": "/trɪˈmɛndəs/",
+        "laos_pronunciation": "phuany",
+        "jp_pronunciation": "sugoi",
+        "vie_pronunciation": "to lon"
+      },
+      "means": {
+        "en": "Extraordinarily large in size or extent or amount or power or degree; ; ; ; - Walter Lippman",
+        "zh": "用于盛放、展示或盛放物品或食物的开放式容器"
+      }
+    },
+    {
+      "word": {
+        "en": "trench",
+        "laos": "ນ້ໍາ",
+        "jp": "溝",
+        "vie": "rãnh",
+        "en_pronunciation": "/trɛnʧ/",
+        "laos_pronunciation": "noa",
+        "jp_pronunciation": "mizo",
+        "vie_pronunciation": "ranh"
+      },
+      "means": {
+        "en": "A ditch dug as a fortification having a parapet of the excavated earth",
+        "zh": "步行或跑步的一步"
+      }
+    },
+    {
+      "word": {
+        "en": "trend",
+        "laos": "ແນວໂນ້ມ",
+        "jp": "トレンド",
+        "vie": "xu hướng",
+        "en_pronunciation": "/trɛnd/",
+        "laos_pronunciation": "aenuaonm",
+        "jp_pronunciation": "torendo",
+        "vie_pronunciation": "xu huong"
+      },
+      "means": {
+        "en": "A general direction in which something tends to move",
+        "zh": "以金钱或珠宝等形式积累的财富。"
+      }
+    },
+    {
+      "word": {
+        "en": "trial",
+        "laos": "ການທົດລອງ",
+        "jp": "裁判",
+        "vie": "thử nghiệm",
+        "en_pronunciation": "/traɪəl/",
+        "laos_pronunciation": "kanthodlong",
+        "jp_pronunciation": "saiban",
+        "vie_pronunciation": "thu nghiem"
+      },
+      "means": {
+        "en": "The act of testing something",
+        "zh": "政府、机构或个人的资金"
+      }
+    },
+    {
+      "word": {
+        "en": "triangle",
+        "laos": "ສາມຫລ່ຽມ",
+        "jp": "三角形",
+        "vie": "tam giác",
+        "en_pronunciation": "/ˈtraɪˌæŋgəl/",
+        "laos_pronunciation": "samliam",
+        "jp_pronunciation": "sankakukei",
+        "vie_pronunciation": "tam giac"
+      },
+      "means": {
+        "en": "A three-sided polygon",
+        "zh": "考虑选择吃的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "tribe",
+        "laos": "ເຜົ່າ",
+        "jp": "部族",
+        "vie": "bộ lạc",
+        "en_pronunciation": "/traɪb/",
+        "laos_pronunciation": "pheoa",
+        "jp_pronunciation": "buzoku",
+        "vie_pronunciation": "bo lac"
+      },
+      "means": {
+        "en": "A social division of (usually preliterate) people",
+        "zh": "负责接收和支付资金的官员"
+      }
+    },
+    {
+      "word": {
+        "en": "triangular",
+        "laos": "ບຸພາບ",
+        "jp": "三角形",
+        "vie": "hình tam giác",
+        "en_pronunciation": "/traɪˈæŋgjələr/",
+        "laos_pronunciation": "buphab",
+        "jp_pronunciation": "sankakukei",
+        "vie_pronunciation": "hinh tam giac"
+      },
+      "means": {
+        "en": "Having three angles; forming or shaped like a triangle",
+        "zh": "为改善情况而提供的护理（尤其是旨在缓解疾病或伤害的医疗程序或应用）"
+      }
+    },
+    {
+      "word": {
+        "en": "tribal",
+        "laos": "ຕັບໂມງ",
+        "jp": "部族の",
+        "vie": "bộ lạc",
+        "en_pronunciation": "/ˈtraɪbəl/",
+        "laos_pronunciation": "tabomng",
+        "jp_pronunciation": "buzoku no",
+        "vie_pronunciation": "bo lac"
+      },
+      "means": {
+        "en": "Relating to or characteristic of a tribe",
+        "zh": "两个国家或主权国家之间的书面协议"
+      }
+    },
+    {
+      "word": {
+        "en": "tribune",
+        "laos": "TEBTER",
+        "jp": "トリビューン",
+        "vie": "diễn đàn",
+        "en_pronunciation": "/ˈtrɪbjun/",
+        "laos_pronunciation": "TEBTER",
+        "jp_pronunciation": "toribyuun",
+        "vie_pronunciation": "dien dan"
+      },
+      "means": {
+        "en": "(ancient Rome) an official elected by the plebeians to protect their interests",
+        "zh": "一种高大的多年生木本植物，具有主干和分枝，形成明显的高架树冠；"
+      }
+    },
+    {
+      "word": {
+        "en": "tribute",
+        "laos": "ສ່ວຍ",
+        "jp": "賛辞",
+        "vie": "cống nạp",
+        "en_pronunciation": "/ˈtrɪbjut/",
+        "laos_pronunciation": "suany",
+        "jp_pronunciation": "sanji",
+        "vie_pronunciation": "cong nap"
+      },
+      "means": {
+        "en": "Something given or done as an expression of esteem",
+        "zh": "包括裸子植物和被子植物"
+      }
+    },
+    {
+      "word": {
+        "en": "trick",
+        "laos": "ເລ້ຫລ່ຽມ",
+        "jp": "トリック",
+        "vie": "thủ thuật",
+        "en_pronunciation": "/trɪk/",
+        "laos_pronunciation": "leliam",
+        "jp_pronunciation": "torikku",
+        "vie_pronunciation": "thu thuat"
+      },
+      "means": {
+        "en": "A cunning or deceitful action or device",
+        "zh": "乘坐牛车的旅程（尤其是一群定居者有组织的迁徙）"
+      }
+    },
+    {
+      "word": {
+        "en": "trickle",
+        "laos": "ຍົວະ",
+        "jp": "滴る",
+        "vie": "nhỏ giọt",
+        "en_pronunciation": "/ˈtrɪkəl/",
+        "laos_pronunciation": "nyuaa",
+        "jp_pronunciation": "shitataru",
+        "vie_pronunciation": "nho giot"
+      },
+      "means": {
+        "en": "Flowing in drops; the formation and falling of drops of liquid",
+        "zh": "由寒冷、恐惧或兴奋引起的反射性动作"
+      }
+    },
+    {
+      "word": {
+        "en": "tricky",
+        "laos": "ສັກກາໃຈ",
+        "jp": "トリッキーな",
+        "vie": "phức tạp",
+        "en_pronunciation": "/ˈtrɪki/",
+        "laos_pronunciation": "sak kachai",
+        "jp_pronunciation": "torikkii na",
+        "vie_pronunciation": "phuc tap"
+      },
+      "means": {
+        "en": "Not to be trusted; - James Agee",
+        "zh": "尺寸、范围、数量、力量或程度特别大；"
+      }
+    },
+    {
+      "word": {
+        "en": "trifle",
+        "laos": "ຊົ້ນ",
+        "jp": "些細な事",
+        "vie": "chuyện vặt vãnh",
+        "en_pronunciation": "/ˈtraɪfəl/",
+        "laos_pronunciation": "son",
+        "jp_pronunciation": "sasai na koto",
+        "vie_pronunciation": "chuyen vat vanh"
+      },
+      "means": {
+        "en": "A cold pudding made of layers of sponge cake spread with fruit or jelly; may be decorated with nuts, cream, or chocolate",
+        "zh": ";"
+      }
+    }
+  ]
+}

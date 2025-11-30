@@ -10,17 +10,20 @@ Supports two modes:
 """
 
 import os
-import cv2
-import numpy as np
 import json
 import glob
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Callable, Union
 from abc import ABC, abstractmethod
 
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+numpy = get_third_package_numpy()
+
 # Import enhancer utilities (used in direct patch mode)
 try:
-    from ..image_enhancer import ImageEnhancer, create_enhancement_from_config
+    from pycore.pyutils.image_enhancer import ImageEnhancer, create_enhancement_from_config
     ENHANCER_AVAILABLE = True
 except ImportError:
     try:

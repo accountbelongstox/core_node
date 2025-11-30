@@ -1,6 +1,6 @@
 import 'localization_keys_app_codemart.dart';
 
-final Map<String, String> zhAppCodemart = {
+Map<String, String> zhAppCodemart = {
   LocalizationKeysAppCodemart.codemartAppName: '码集市',
   LocalizationKeysAppCodemart.codemartWelcome: '欢迎来到码集市',
   LocalizationKeysAppCodemart.codemartLogin: '登录',
@@ -80,6 +80,25 @@ final Map<String, String> zhAppCodemart = {
   LocalizationKeysAppCodemart.codemartUser: '用户',
   LocalizationKeysAppCodemart.codemartRetry: '重试',
   LocalizationKeysAppCodemart.codemartAdd: '添加',
+  LocalizationKeysAppCodemart.codemartWelcomeBackTitle: '实时构建情报已就绪',
+  LocalizationKeysAppCodemart.codemartWelcomeBackSubtitle: '一站式调度跨境团队、监控资金通道与审批流程。',
+  LocalizationKeysAppCodemart.codemartMetricActiveProjects: '活跃流水线',
+  LocalizationKeysAppCodemart.codemartMetricCompleted: '已完成交付',
+  LocalizationKeysAppCodemart.codemartMetricBudget: '开放预算',
+  LocalizationKeysAppCodemart.codemartMetricPendingReviews: '评审队列',
+  LocalizationKeysAppCodemart.codemartQuickActionTaskHallSubtitle: '竞标精选 AI 任务',
+  LocalizationKeysAppCodemart.codemartQuickActionTasksSubtitle: '跟踪任务、交接与质检',
+  LocalizationKeysAppCodemart.codemartQuickActionCreateProjectSubtitle: '分钟级生成多市场项目简报',
+  LocalizationKeysAppCodemart.codemartQuickActionProjectsSubtitle: '监控进度与审批',
+  LocalizationKeysAppCodemart.codemartQuickActionWalletSubtitle: '多币种托管与结算',
+  LocalizationKeysAppCodemart.codemartModeDeveloperSubtitle: '与团队协同交付 AI 原生成果',
+  LocalizationKeysAppCodemart.codemartModeClientSubtitle: '快速启动任务小组与预算',
+  LocalizationKeysAppCodemart.codemartLoginHeroTitle: '接入科技方云端交付体系',
+  LocalizationKeysAppCodemart.codemartLoginHeroSubtitle: '精选工程师、弹性治理、透明资金工具。',
+  LocalizationKeysAppCodemart.codemartLoginFeatureDelivery: '两周节奏交付 + 预测式质检',
+  LocalizationKeysAppCodemart.codemartLoginFeatureEscrow: '托管支付与合规护栏',
+  LocalizationKeysAppCodemart.codemartLoginFeatureRealtime: '冲刺资产全链路可视化',
+  LocalizationKeysAppCodemart.codemartLoginDebugBanner: '调试沙箱 · 仅含模拟数据',
 
   // Login & Registration
   LocalizationKeysAppCodemart.codemartDontHaveAccount: '还没有账号？',

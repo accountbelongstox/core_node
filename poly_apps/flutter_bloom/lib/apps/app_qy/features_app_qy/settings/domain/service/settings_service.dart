@@ -24,7 +24,8 @@ class SettingsService {
   Future<AppSettingsModel> getSettings() async {
     try {
       final response = await _apiService.get('/api/v1/settings');
-      return AppSettingsModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return AppSettingsModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return AppSettingsModel.defaultSettings();
     }

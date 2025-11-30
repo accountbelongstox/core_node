@@ -7,20 +7,15 @@ Supports rectangles, circles, polygons, lines, and text labels
 """
 
 import sys
-import numpy as np
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
-from PIL import Image as PILImage
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL, get_third_package_cv2
 
-# Check and install dependencies before importing cv2
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import cv2
+numpy = get_third_package_numpy()
+PIL = get_third_package_PIL()
+cv2 = get_third_package_cv2()
+PILImage = PIL.Image
 
 
 class ImageAnnotator:

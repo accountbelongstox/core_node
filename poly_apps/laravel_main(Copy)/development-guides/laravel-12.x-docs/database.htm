@@ -1,0 +1,198 @@
+<!doctypehtml tml tml><html lang=en><title>Database: Getting Started - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Database: Getting Started<ul><li><a href=#introduction>Introduction</a> <ul><li><a href=#configuration>Configuration</a><li><a href=#read-and-write-connections>Read and Write Connections</a></ul><li><a href=#running-queries>Running SQL Queries</a> <ul><li><a href=#using-multiple-database-connections>Using Multiple Database Connections</a><li><a href=#listening-for-query-events>Listening for Query Events</a><li><a href=#monitoring-cumulative-query-time>Monitoring Cumulative Query Time</a></ul><li><a href=#database-transactions>Database Transactions</a><li><a href=#connecting-to-the-database-cli>Connecting to the Database CLI</a><li><a href=#inspecting-your-databases>Inspecting Your Databases</a><li><a href=#monitoring-your-databases>Monitoring Your Databases</a></ul><h2><a href=#introduction>Introduction</a></h2><p>Almost every modern web application interacts with a database. Laravel makes interacting with databases extremely simple across a variety of supported databases using raw SQL, a <a href=queries.htm>fluent query builder</a>, and the <a href=eloquent.htm>Eloquent ORM</a>. Currently, Laravel provides first-party support for five databases:<div markdown=1><ul><li>MariaDB 10.3+ (<a href=https://mariadb.org/about/#maintenance-policy>Version Policy</a>)<li>MySQL 5.7+ (<a href=https://en.wikipedia.org/wiki/MySQL#Release_history>Version Policy</a>)<li>PostgreSQL 10.0+ (<a href=https://www.postgresql.org/support/versioning/>Version Policy</a>)<li>SQLite 3.26.0+<li>SQL Server 2017+ (<a href="https://docs.microsoft.com/en-us/lifecycle/products/?products=sql-server">Version Policy</a>)</ul></div><p>Additionally, MongoDB is supported via the <code>mongodb/laravel-mongodb</code> package, which is officially maintained by MongoDB. Check out the <a href=https://www.mongodb.com/docs/drivers/php/laravel-mongodb/>Laravel MongoDB</a> documentation for more information.<h3><a href=#configuration>Configuration</a></h3><p>The configuration for Laravel's database services is located in your application's <code>config/database.php</code> configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Laravel's supported database systems are provided in this file.<p>By default, Laravel's sample <a href=configuration.htm#environment-configuration>environment configuration</a> is ready to use with <a href=sail.htm>Laravel Sail</a>, which is a Docker configuration for developing Laravel applications on your local machine. However, you are free to modify your database configuration as needed for your local database.<h4><a href=#sqlite-configuration>SQLite Configuration</a></h4><p>SQLite databases are contained within a single file on your filesystem. You can create a new SQLite database using the <code>touch</code> command in your terminal: <code>touch database/database.sqlite</code>. After the database has been created, you may easily configure your environment variables to point to this database by placing the absolute path to the database in the <code>DB_DATABASE</code> environment variable:<div><pre><code>1DB_CONNECTION=sqlite2DB_DATABASE=/absolute/path/to/database.sqlite
+DB_CONNECTION=sqlite
+DB_DATABASE=/absolute/path/to/database.sqlite</code></pre></div><p>By default, foreign key constraints are enabled for SQLite connections. If you would like to disable them, you should set the <code>DB_FOREIGN_KEYS</code> environment variable to <code>false</code>:<div><pre><code>1DB_FOREIGN_KEYS=false
+DB_FOREIGN_KEYS=false</code></pre></div><div><p>If you use the <a href=installation.htm#creating-a-laravel-project>Laravel installer</a> to create your Laravel application and select SQLite as your database, Laravel will automatically create a <code>database/database.sqlite</code> file and run the default <a href=migrations.htm>database migrations</a> for you.</div><h4><a href=#mssql-configuration>Microsoft SQL Server Configuration</a></h4><p>To use a Microsoft SQL Server database, you should ensure that you have the <code>sqlsrv</code> and <code>pdo_sqlsrv</code> PHP extensions installed as well as any dependencies they may require such as the Microsoft SQL ODBC driver.<h4><a href=#configuration-using-urls>Configuration Using URLs</a></h4><p>Typically, database connections are configured using multiple configuration values such as <code>host</code>, <code>database</code>, <code>username</code>, <code>password</code>, etc. Each of these configuration values has its own corresponding environment variable. This means that when configuring your database connection information on a production server, you need to manage several environment variables.<p>Some managed database providers such as AWS and Heroku provide a single database "URL" that contains all of the connection information for the database in a single string. An example database URL may look something like the following:<div><pre><code><div>1<span>mysql://root:<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>/forge?charset=UTF-8</span></div><div hidden>
+mysql://root:<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>/forge?charset=UTF-8</div></code></pre></div><p>These URLs typically follow a standard schema convention:<div><pre><code>1driver://username:password@host:port/database?options
+driver://username:password@host:port/database?options</code></pre></div><p>For convenience, Laravel supports these URLs as an alternative to configuring your database with multiple configuration options. If the <code>url</code> (or corresponding <code>DB_URL</code> environment variable) configuration option is present, it will be used to extract the database connection and credential information.<h3><a href=#read-and-write-connections>Read and Write Connections</a></h3><p>Sometimes you may wish to use one database connection for SELECT statements, and another for INSERT, UPDATE, and DELETE statements. Laravel makes this a breeze, and the proper connections will always be used whether you are using raw queries, the query builder, or the Eloquent ORM.<p>To see how read / write connections should be configured, let's look at this example:<div><pre><code> 1'mysql'=> [ 2'read'=> [ 3'host'=> [ 4'192.168.1.1', 5'196.168.1.2', 6        ], 7    ], 8'write'=> [ 9'host'=> [10'196.168.1.3',11        ],12    ],13'sticky'=>true,14 15'database'=>env('DB_DATABASE','laravel'),16'username'=>env('DB_USERNAME','root'),17'password'=>env('DB_PASSWORD',''),18'unix_socket'=>env('DB_SOCKET',''),19'charset'=>env('DB_CHARSET','utf8mb4'),20'collation'=>env('DB_COLLATION','utf8mb4_unicode_ci'),21'prefix'=>'',22'prefix_indexes'=>true,23'strict'=>true,24'engine'=>null,25'options'=>extension_loaded('pdo_mysql') ?array_filter([26PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),27]) : [],28],
+'mysql' => [
+    'read' => [
+        'host' => [
+            '192.168.1.1',
+            '196.168.1.2',
+        ],
+    ],
+    'write' => [
+        'host' => [
+            '196.168.1.3',
+        ],
+    ],
+    'sticky' => true,
+
+    'database' => env('DB_DATABASE', 'laravel'),
+    'username' => env('DB_USERNAME', 'root'),
+    'password' => env('DB_PASSWORD', ''),
+    'unix_socket' => env('DB_SOCKET', ''),
+    'charset' => env('DB_CHARSET', 'utf8mb4'),
+    'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+    'prefix' => '',
+    'prefix_indexes' => true,
+    'strict' => true,
+    'engine' => null,
+    'options' => extension_loaded('pdo_mysql') ? array_filter([
+        PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+    ]) : [],
+],</code></pre></div><p>Note that three keys have been added to the configuration array: <code>read</code>, <code>write</code> and <code>sticky</code>. The <code>read</code> and <code>write</code> keys have array values containing a single key: <code>host</code>. The rest of the database options for the <code>read</code> and <code>write</code> connections will be merged from the main <code>mysql</code> configuration array.<p>You only need to place items in the <code>read</code> and <code>write</code> arrays if you wish to override the values from the main <code>mysql</code> array. So, in this case, <code>192.168.1.1</code> will be used as the host for the "read" connection, while <code>192.168.1.3</code> will be used for the "write" connection. The database credentials, prefix, character set, and all other options in the main <code>mysql</code> array will be shared across both connections. When multiple values exist in the <code>host</code> configuration array, a database host will be randomly chosen for each request.<h4><a href=#the-sticky-option>The <code>sticky</code> Option</a></h4><p>The <code>sticky</code> option is an optional value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the <code>sticky</code> option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. It is up to you to decide if this is the desired behavior for your application.<h2><a href=#running-queries>Running SQL Queries</a></h2><p>Once you have configured your database connection, you may run queries using the <code>DB</code> facade. The <code>DB</code> facade provides methods for each type of query: <code>select</code>, <code>update</code>, <code>insert</code>, <code>delete</code>, and <code>statement</code>.<h4><a href=#running-a-select-query>Running a Select Query</a></h4><p>To run a basic SELECT query, you may use the <code>select</code> method on the <code>DB</code> facade:<div><pre><code> 1&lt;?php 2  3namespace App\Http\Controllers; 4  5use Illuminate\Support\Facades\DB; 6use Illuminate\View\View; 7  8classUserControllerextendsController 9{10/**11     * Show a list of all of the application's users.12*/13publicfunctionindex():View14    {15$users=DB::select('select * from users where active = ?', [1]);16 17returnview('user.index',['users'=>$users]);18    }19}
+&lt;?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
+
+class UserController extends Controller
+{
+    /**
+     * Show a list of all of the application's users.
+     */
+    public function index(): View
+    {
+        $users = DB::select('select * from users where active = ?', [1]);
+
+        return view('user.index', ['users' => $users]);
+    }
+}</code></pre></div><p>The first argument passed to the <code>select</code> method is the SQL query, while the second argument is any parameter bindings that need to be bound to the query. Typically, these are the values of the <code>where</code> clause constraints. Parameter binding provides protection against SQL injection.<p>The <code>select</code> method will always return an <code>array</code> of results. Each result within the array will be a PHP <code>stdClass</code> object representing a record from the database:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3$users=DB::select('select * from users');4 5foreach ($usersas$user) {6echo$user->name;7}
+use Illuminate\Support\Facades\DB;
+
+$users = DB::select('select * from users');
+
+foreach ($users as $user) {
+    echo $user->name;
+}</code></pre></div><h4><a href=#selecting-scalar-values>Selecting Scalar Values</a></h4><p>Sometimes your database query may result in a single, scalar value. Instead of being required to retrieve the query's scalar result from a record object, Laravel allows you to retrieve this value directly using the <code>scalar</code> method:<div><pre><code>1$burgers=DB::scalar(2"select count(case when food = 'burger' then 1 end) as burgers from menu"3);
+$burgers = DB::scalar(
+    "select count(case when food = 'burger' then 1 end) as burgers from menu"
+);</code></pre></div><h4><a href=#selecting-multiple-result-sets>Selecting Multiple Result Sets</a></h4><p>If your application calls stored procedures that return multiple result sets, you may use the <code>selectResultSets</code> method to retrieve all of the result sets returned by the stored procedure:<div><pre><code>1[$options, $notifications] =DB::selectResultSets(2"CALL get_user_options_and_notifications(?)", $request->user()->id3);
+[$options, $notifications] = DB::selectResultSets(
+    "CALL get_user_options_and_notifications(?)", $request->user()->id
+);</code></pre></div><h4><a href=#using-named-bindings>Using Named Bindings</a></h4><p>Instead of using <code>?</code> to represent your parameter bindings, you may execute a query using named bindings:<div><pre><code>1$results=DB::select('select * from users where id = :id', ['id'=>1]);
+$results = DB::select('select * from users where id = :id', ['id' => 1]);</code></pre></div><h4><a href=#running-an-insert-statement>Running an Insert Statement</a></h4><p>To execute an <code>insert</code> statement, you may use the <code>insert</code> method on the <code>DB</code> facade. Like <code>select</code>, this method accepts the SQL query as its first argument and bindings as its second argument:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3DB::insert('insert into users (id, name) values (?, ?)', [1, 'Marc']);
+use Illuminate\Support\Facades\DB;
+
+DB::insert('insert into users (id, name) values (?, ?)', [1, 'Marc']);</code></pre></div><h4><a href=#running-an-update-statement>Running an Update Statement</a></h4><p>The <code>update</code> method should be used to update existing records in the database. The number of rows affected by the statement is returned by the method:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3$affected=DB::update(4'update users set votes = 100 where name = ?',5    ['Anita']6);
+use Illuminate\Support\Facades\DB;
+
+$affected = DB::update(
+    'update users set votes = 100 where name = ?',
+    ['Anita']
+);</code></pre></div><h4><a href=#running-a-delete-statement>Running a Delete Statement</a></h4><p>The <code>delete</code> method should be used to delete records from the database. Like <code>update</code>, the number of rows affected will be returned by the method:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3$deleted=DB::delete('delete from users');
+use Illuminate\Support\Facades\DB;
+
+$deleted = DB::delete('delete from users');</code></pre></div><h4><a href=#running-a-general-statement>Running a General Statement</a></h4><p>Some database statements do not return any value. For these types of operations, you may use the <code>statement</code> method on the <code>DB</code> facade:<div><pre><code>1DB::statement('drop table users');
+DB::statement('drop table users');</code></pre></div><h4><a href=#running-an-unprepared-statement>Running an Unprepared Statement</a></h4><p>Sometimes you may want to execute an SQL statement without binding any values. You may use the <code>DB</code> facade's <code>unprepared</code> method to accomplish this:<div><pre><code>1DB::unprepared('update users set votes = 100 where name = "Dries"');
+DB::unprepared('update users set votes = 100 where name = "Dries"');</code></pre></div><div><p>Since unprepared statements do not bind parameters, they may be vulnerable to SQL injection. You should never allow user controlled values within an unprepared statement.</div><h4><a href=#implicit-commits-in-transactions>Implicit Commits</a></h4><p>When using the <code>DB</code> facade's <code>statement</code> and <code>unprepared</code> methods within transactions you must be careful to avoid statements that cause <a href=https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html>implicit commits</a>. These statements will cause the database engine to indirectly commit the entire transaction, leaving Laravel unaware of the database's transaction level. An example of such a statement is creating a database table:<div><pre><code>1DB::unprepared('create table a (col varchar(1) null)');
+DB::unprepared('create table a (col varchar(1) null)');</code></pre></div><p>Please refer to the MySQL manual for <a href=https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html>a list of all statements</a> that trigger implicit commits.<h3><a href=#using-multiple-database-connections>Using Multiple Database Connections</a></h3><p>If your application defines multiple connections in your <code>config/database.php</code> configuration file, you may access each connection via the <code>connection</code> method provided by the <code>DB</code> facade. The connection name passed to the <code>connection</code> method should correspond to one of the connections listed in your <code>config/database.php</code> configuration file or configured at runtime using the <code>config</code> helper:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3$users=DB::connection('sqlite')->select(/* ... */);
+use Illuminate\Support\Facades\DB;
+
+$users = DB::connection('sqlite')->select(/* ... */);</code></pre></div><p>You may access the raw, underlying PDO instance of a connection using the <code>getPdo</code> method on a connection instance:<div><pre><code>1$pdo=DB::connection()->getPdo();
+$pdo = DB::connection()->getPdo();</code></pre></div><h3><a href=#listening-for-query-events>Listening for Query Events</a></h3><p>If you would like to specify a closure that is invoked for each SQL query executed by your application, you may use the <code>DB</code> facade's <code>listen</code> method. This method can be useful for logging queries or debugging. You may register your query listener closure in the <code>boot</code> method of a <a href=providers.htm>service provider</a>:<div><pre><code> 1&lt;?php 2  3namespace App\Providers; 4  5use Illuminate\Database\Events\QueryExecuted; 6use Illuminate\Support\Facades\DB; 7use Illuminate\Support\ServiceProvider; 8  9classAppServiceProviderextendsServiceProvider10{11/**12     * Register any application services.13*/14publicfunctionregister():void15    {16// ...17    }18 19/**20     * Bootstrap any application services.21*/22publicfunctionboot():void23    {24DB::listen(function(QueryExecuted$query) {25// $query->sql;26// $query->bindings;27// $query->time;28// $query->toRawSql();29        });30    }31}
+&lt;?php
+
+namespace App\Providers;
+
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        // ...
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        DB::listen(function (QueryExecuted $query) {
+            // $query->sql;
+            // $query->bindings;
+            // $query->time;
+            // $query->toRawSql();
+        });
+    }
+}</code></pre></div><h3><a href=#monitoring-cumulative-query-time>Monitoring Cumulative Query Time</a></h3><p>A common performance bottleneck of modern web applications is the amount of time they spend querying databases. Thankfully, Laravel can invoke a closure or callback of your choice when it spends too much time querying the database during a single request. To get started, provide a query time threshold (in milliseconds) and closure to the <code>whenQueryingForLongerThan</code> method. You may invoke this method in the <code>boot</code> method of a <a href=providers.htm>service provider</a>:<div><pre><code> 1&lt;?php 2  3namespace App\Providers; 4  5use Illuminate\Database\Connection; 6use Illuminate\Support\Facades\DB; 7use Illuminate\Support\ServiceProvider; 8use Illuminate\Database\Events\QueryExecuted; 9 10classAppServiceProviderextendsServiceProvider11{12/**13     * Register any application services.14*/15publicfunctionregister():void16    {17// ...18    }19 20/**21     * Bootstrap any application services.22*/23publicfunctionboot():void24    {25DB::whenQueryingForLongerThan(500, function(Connection$connection, QueryExecuted$event) {26// Notify development team...27        });28    }29}
+&lt;?php
+
+namespace App\Providers;
+
+use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Database\Events\QueryExecuted;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        // ...
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        DB::whenQueryingForLongerThan(500, function (Connection $connection, QueryExecuted $event) {
+            // Notify development team...
+        });
+    }
+}</code></pre></div><h2><a href=#database-transactions>Database Transactions</a></h2><p>You may use the <code>transaction</code> method provided by the <code>DB</code> facade to run a set of operations within a database transaction. If an exception is thrown within the transaction closure, the transaction will automatically be rolled back and the exception is re-thrown. If the closure executes successfully, the transaction will automatically be committed. You don't need to worry about manually rolling back or committing while using the <code>transaction</code> method:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3DB::transaction(function() {4DB::update('update users set votes = 1');5 6DB::delete('delete from posts');7});
+use Illuminate\Support\Facades\DB;
+
+DB::transaction(function () {
+    DB::update('update users set votes = 1');
+
+    DB::delete('delete from posts');
+});</code></pre></div><h4><a href=#handling-deadlocks>Handling Deadlocks</a></h4><p>The <code>transaction</code> method accepts an optional second argument which defines the number of times a transaction should be retried when a deadlock occurs. Once these attempts have been exhausted, an exception will be thrown:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3DB::transaction(function() {4DB::update('update users set votes = 1');5 6DB::delete('delete from posts');7}, 5);
+use Illuminate\Support\Facades\DB;
+
+DB::transaction(function () {
+    DB::update('update users set votes = 1');
+
+    DB::delete('delete from posts');
+}, 5);</code></pre></div><h4><a href=#manually-using-transactions>Manually Using Transactions</a></h4><p>If you would like to begin a transaction manually and have complete control over rollbacks and commits, you may use the <code>beginTransaction</code> method provided by the <code>DB</code> facade:<div><pre><code>1use Illuminate\Support\Facades\DB;2 3DB::beginTransaction();
+use Illuminate\Support\Facades\DB;
+
+DB::beginTransaction();</code></pre></div><p>You can rollback the transaction via the <code>rollBack</code> method:<div><pre><code>1DB::rollBack();
+DB::rollBack();</code></pre></div><p>Lastly, you can commit a transaction via the <code>commit</code> method:<div><pre><code>1DB::commit();
+DB::commit();</code></pre></div><div><p>The <code>DB</code> facade's transaction methods control the transactions for both the <a href=queries.htm>query builder</a> and <a href=eloquent.htm>Eloquent ORM</a>.</div><h2><a href=#connecting-to-the-database-cli>Connecting to the Database CLI</a></h2><p>If you would like to connect to your database's CLI, you may use the <code>db</code> Artisan command:<div><pre><code>1php artisandb
+php artisan db</code></pre></div><p>If needed, you may specify a database connection name to connect to a database connection that is not the default connection:<div><pre><code>1php artisandbmysql
+php artisan db mysql</code></pre></div><h2><a href=#inspecting-your-databases>Inspecting Your Databases</a></h2><p>Using the <code>db:show</code> and <code>db:table</code> Artisan commands, you can get valuable insight into your database and its associated tables. To see an overview of your database, including its size, type, number of open connections, and a summary of its tables, you may use the <code>db:show</code> command:<div><pre><code>1php artisandb:show
+php artisan db:show</code></pre></div><p>You may specify which database connection should be inspected by providing the database connection name to the command via the <code>--database</code> option:<div><pre><code>1php artisandb:show--database=pgsql
+php artisan db:show --database=pgsql</code></pre></div><p>If you would like to include table row counts and database view details within the output of the command, you may provide the <code>--counts</code> and <code>--views</code> options, respectively. On large databases, retrieving row counts and view details can be slow:<div><pre><code>1php artisandb:show--counts--views
+php artisan db:show --counts --views</code></pre></div><p>In addition, you may use the following <code>Schema</code> methods to inspect your database:<div><pre><code>1use Illuminate\Support\Facades\Schema;2 3$tables=Schema::getTables();4$views=Schema::getViews();5$columns=Schema::getColumns('users');6$indexes=Schema::getIndexes('users');7$foreignKeys=Schema::getForeignKeys('users');
+use Illuminate\Support\Facades\Schema;
+
+$tables = Schema::getTables();
+$views = Schema::getViews();
+$columns = Schema::getColumns('users');
+$indexes = Schema::getIndexes('users');
+$foreignKeys = Schema::getForeignKeys('users');</code></pre></div><p>If you would like to inspect a database connection that is not your application's default connection, you may use the <code>connection</code> method:<div><pre><code>1$columns=Schema::connection('sqlite')->getColumns('users');
+$columns = Schema::connection('sqlite')->getColumns('users');</code></pre></div><h4><a href=#table-overview>Table Overview</a></h4><p>If you would like to get an overview of an individual table within your database, you may execute the <code>db:table</code> Artisan command. This command provides a general overview of a database table, including its columns, types, attributes, keys, and indexes:<div><pre><code>1php artisandb:tableusers
+php artisan db:table users</code></pre></div><h2><a href=#monitoring-your-databases>Monitoring Your Databases</a></h2><p>Using the <code>db:monitor</code> Artisan command, you can instruct Laravel to dispatch an <code>Illuminate\Database\Events\DatabaseBusy</code> event if your database is managing more than a specified number of open connections.<p>To get started, you should schedule the <code>db:monitor</code> command to <a href=scheduling.htm>run every minute</a>. The command accepts the names of the database connection configurations that you wish to monitor as well as the maximum number of open connections that should be tolerated before dispatching an event:<div><pre><code>1php artisandb:monitor--databases=mysql,pgsql--max=100
+php artisan db:monitor --databases=mysql,pgsql --max=100</code></pre></div><p>Scheduling this command alone is not enough to trigger a notification alerting you of the number of open connections. When the command encounters a database that has an open connection count that exceeds your threshold, a <code>DatabaseBusy</code> event will be dispatched. You should listen for this event within your application's <code>AppServiceProvider</code> in order to send a notification to you or your development team:<div><pre><code> 1use App\Notifications\DatabaseApproachingMaxConnections; 2use Illuminate\Database\Events\DatabaseBusy; 3use Illuminate\Support\Facades\Event; 4use Illuminate\Support\Facades\Notification; 5  6/** 7 * Bootstrap any application services. 8*/ 9publicfunctionboot():void10{11Event::listen(function(DatabaseBusy$event) {<div>12Notification::route('mail', '<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>')</div>13->notify(newDatabaseApproachingMaxConnections(14$event->connectionName,15$event->connections16            ));17    });18}<div hidden>
+use App\Notifications\DatabaseApproachingMaxConnections;
+use Illuminate\Database\Events\DatabaseBusy;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Event::listen(function (DatabaseBusy $event) {
+        Notification::route('mail', '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>')
+            ->notify(new DatabaseApproachingMaxConnections(
+                $event->connectionName,
+                $event->connections
+            ));
+    });
+}</div></code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a> <ul><li><a href=#configuration> Configuration </a><li><a href=#read-and-write-connections> Read and Write Connections </a></ul><li><a href=#running-queries> Running SQL Queries </a> <ul><li><a href=#using-multiple-database-connections> Using Multiple Database Connections </a><li><a href=#listening-for-query-events> Listening for Query Events </a><li><a href=#monitoring-cumulative-query-time> Monitoring Cumulative Query Time </a></ul><li><a href=#database-transactions> Database Transactions </a><li><a href=#connecting-to-the-database-cli> Connecting to the Database CLI </a><li><a href=#inspecting-your-databases> Inspecting Your Databases </a><li><a href=#monitoring-your-databases> Monitoring Your Databases </a></ul></div></div></div></div></div></div></div></div></div>

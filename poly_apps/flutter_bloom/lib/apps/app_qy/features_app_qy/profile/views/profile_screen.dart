@@ -20,6 +20,8 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/interest/select_interest.d
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/assets/common_assets_icons.dart';
 import 'package:get/get.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart' as LocalizationManager;
 
 class ProfileScreenView extends StatelessWidget {
   const ProfileScreenView({super.key});
@@ -30,7 +32,7 @@ class ProfileScreenView extends StatelessWidget {
     final controller = ProfileControllerAppQy(context);
     return Scaffold(
       backgroundColor: Theme.of(context).cardColor,
-      appBar: const CustomAppBar(title: "Fill Your Profile"),
+      appBar: CustomAppBar(title: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileFill).tr(context)),
       body: Padding(
         padding: const EdgeInsets.all(ThemeDimensions.paddingSizeDefault),
         child: Column(
@@ -71,47 +73,47 @@ class ProfileScreenView extends StatelessWidget {
             const SizedBox(
               height: ThemeDimensions.sizeTwentyFive,
             ),
-            const Text('Full Name *'),
+            Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileFullName).tr(context)),
             CustomTextField(
               controller: controller.nameController,
               showCountryCode: false,
               prefixIcon: CommonAssetsIcons.name,
-              hintText: "Enter your full name",
+              hintText: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileEnterFullName).tr(context),
             ),
             const SizedBox(height: 8),
-            const Text('Email *'),
+            Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileEmail).tr(context)),
             CustomTextField(
               controller: controller.emailController,
               showCountryCode: false,
               prefixIcon: CommonAssetsIcons.email,
-              hintText: "Enter your email",
+              hintText: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileEnterEmail).tr(context),
               inputType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 8),
-            const Text("Phone Number"),
+            Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfilePhone).tr(context)),
             CustomTextField(
               controller: controller.phoneController,
               showCountryCode: false,
-              hintText: "Enter phone number",
+              hintText: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileEnterPhone).tr(context),
               prefixIcon: CommonAssetsIcons.phone,
               inputType: TextInputType.phone,
             ),
             const SizedBox(height: 8),
-            const Text("Bio"),
+            Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyBio).tr(context)),
             CustomTextField(
               controller: controller.bioController,
               showCountryCode: false,
               prefixIcon: CommonAssetsIcons.bio,
-              hintText: "Tell us about yourself",
+              hintText: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileTellAboutYourself).tr(context),
               maxLines: 2,
             ),
             const SizedBox(height: 8),
-            const Text("Location"),
+            Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileLocation).tr(context)),
             CustomTextField(
               controller: controller.locationController,
               showCountryCode: false,
               prefixIcon: CommonAssetsIcons.location,
-              hintText: "City, Country",
+              hintText: LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileCityCountry).tr(context),
             ),
             // Error Message
             Obx(() {
@@ -157,7 +159,9 @@ class ProfileScreenView extends StatelessWidget {
                     : Theme.of(context).colorScheme.outline,
                 height: ThemeDimensions.largeExtraSize,
                 width: double.infinity,
-                buttonText: controller.isSaving ? "Saving..." : "Continue",
+                buttonText: controller.isSaving 
+                    ? LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileSaving).tr(context)
+                    : LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileContinue).tr(context),
               )),
             ),
           ],
@@ -194,13 +198,13 @@ class ProfileScreenView extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Select Profile Photo',
+                LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileSelectPhoto).tr(context),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 20),
               ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: const Text('Choose from Gallery'),
+                title: Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileChooseGallery).tr(context)),
                 onTap: () {
                   Navigator.pop(context);
                   controller.pickProfilePhotoFromGallery();
@@ -208,7 +212,7 @@ class ProfileScreenView extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt),
-                title: const Text('Take Photo'),
+                title: Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyProfileTakePhoto).tr(context)),
                 onTap: () {
                   Navigator.pop(context);
                   controller.takeProfilePhoto();
@@ -216,7 +220,7 @@ class ProfileScreenView extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.cancel),
-                title: const Text('Cancel'),
+                title: Text(LocalizationManager.StringTranslationExtension(QyAppLocalizationKeys.qyCancel).tr(context)),
                 onTap: () => Navigator.pop(context),
               ),
             ],

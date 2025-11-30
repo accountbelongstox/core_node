@@ -1,0 +1,935 @@
+{
+  "version": "2.0",
+  "app_name": "app_wuy",
+  "last_updated": "2025-11-19T06:33:10.975834",
+  "pages": {
+    "example": {
+      "page_key": "example",
+      "layer": "rough",
+      "expected_images": [
+        {
+          "file_name": "example_home_wireframe.png",
+          "file_path": "2_page_designs_rough/images/example_home_wireframe.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=2_page_designs_rough/images/example_home_wireframe.png",
+          "color_palette": [
+            [
+              "#f0f0f0",
+              0.9061
+            ],
+            [
+              "#efefef",
+              0.0127
+            ],
+            [
+              "#f1f1f1",
+              0.0066
+            ],
+            [
+              "#f3f3f3",
+              0.0051
+            ],
+            [
+              "#f2f2f2",
+              0.005
+            ],
+            [
+              "#f4f4f4",
+              0.0045
+            ],
+            [
+              "#eeeeee",
+              0.0029
+            ],
+            [
+              "#f5f5f5",
+              0.0029
+            ],
+            [
+              "#f6f6f6",
+              0.0015
+            ],
+            [
+              "#ededed",
+              0.0013
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.029386"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "about_us_page": {
+      "page_key": "about_us_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "02_about_us_page.png",
+          "file_path": "3_page_designs_detailed/about_us_page/images/02_about_us_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/about_us_page/images/02_about_us_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.6634
+            ],
+            [
+              "#f8f8f8",
+              0.0526
+            ],
+            [
+              "#fafcff",
+              0.009
+            ],
+            [
+              "#fcfdff",
+              0.0083
+            ],
+            [
+              "#fdfeff",
+              0.0079
+            ],
+            [
+              "#f9fcff",
+              0.0075
+            ],
+            [
+              "#f5faff",
+              0.0065
+            ],
+            [
+              "#f7fbff",
+              0.0053
+            ],
+            [
+              "#fbfdff",
+              0.005
+            ],
+            [
+              "#ebf4ff",
+              0.005
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.057822"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "add_friend_page": {
+      "page_key": "add_friend_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "10_add_friend_page.png",
+          "file_path": "3_page_designs_detailed/add_friend_page/images/10_add_friend_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/add_friend_page/images/10_add_friend_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.6952
+            ],
+            [
+              "#efefef",
+              0.0501
+            ],
+            [
+              "#eeeeee",
+              0.0069
+            ],
+            [
+              "#df582b",
+              0.0056
+            ],
+            [
+              "#e15f2d",
+              0.004
+            ],
+            [
+              "#de522e",
+              0.004
+            ],
+            [
+              "#dd4f2b",
+              0.0038
+            ],
+            [
+              "#dc4b2c",
+              0.0038
+            ],
+            [
+              "#e3642d",
+              0.0036
+            ],
+            [
+              "#de542d",
+              0.0034
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.084657"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "chat_page": {
+      "page_key": "chat_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "13_chat_page.png",
+          "file_path": "3_page_designs_detailed/chat_page/images/13_chat_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/chat_page/images/13_chat_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.7006
+            ],
+            [
+              "#f4f6f9",
+              0.0895
+            ],
+            [
+              "#1684fc",
+              0.0474
+            ],
+            [
+              "#f3f5f9",
+              0.0061
+            ],
+            [
+              "#f3f5f8",
+              0.0049
+            ],
+            [
+              "#fbfdff",
+              0.0046
+            ],
+            [
+              "#fefefe",
+              0.0043
+            ],
+            [
+              "#1986fc",
+              0.0037
+            ],
+            [
+              "#1a86fc",
+              0.0034
+            ],
+            [
+              "#1785fc",
+              0.0033
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.111942"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "example_home_page": {
+      "page_key": "example_home_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "example_mockup.png",
+          "file_path": "3_page_designs_detailed/example_home_page/images/example_mockup.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/example_home_page/images/example_mockup.png",
+          "color_palette": [
+            [
+              "#f0f0f0",
+              0.897
+            ],
+            [
+              "#efefef",
+              0.0138
+            ],
+            [
+              "#f1f1f1",
+              0.0073
+            ],
+            [
+              "#f2f2f2",
+              0.006
+            ],
+            [
+              "#f3f3f3",
+              0.0054
+            ],
+            [
+              "#f4f4f4",
+              0.005
+            ],
+            [
+              "#eeeeee",
+              0.003
+            ],
+            [
+              "#f5f5f5",
+              0.003
+            ],
+            [
+              "#ededed",
+              0.0016
+            ],
+            [
+              "#f6f6f6",
+              0.0016
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.130623"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "find_friends_page": {
+      "page_key": "find_friends_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "08_find_friends_page.png",
+          "file_path": "3_page_designs_detailed/find_friends_page/images/08_find_friends_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/find_friends_page/images/08_find_friends_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.8815
+            ],
+            [
+              "#f8f8f8",
+              0.0717
+            ],
+            [
+              "#fefefe",
+              0.0063
+            ],
+            [
+              "#fafafa",
+              0.0036
+            ],
+            [
+              "#fcfcfc",
+              0.0033
+            ],
+            [
+              "#f4f4f4",
+              0.0032
+            ],
+            [
+              "#f7f7f7",
+              0.0032
+            ],
+            [
+              "#dcdcdc",
+              0.0017
+            ],
+            [
+              "#e1e1e1",
+              0.0017
+            ],
+            [
+              "#fdfdfd",
+              0.0013
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.157518"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "friends_list_page": {
+      "page_key": "friends_list_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "06_friends_list_page.png",
+          "file_path": "3_page_designs_detailed/friends_list_page/images/06_friends_list_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/friends_list_page/images/06_friends_list_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.7536
+            ],
+            [
+              "#ededed",
+              0.1016
+            ],
+            [
+              "#fefefe",
+              0.0101
+            ],
+            [
+              "#ececec",
+              0.0067
+            ],
+            [
+              "#f5f5f5",
+              0.0052
+            ],
+            [
+              "#fdfdfd",
+              0.0042
+            ],
+            [
+              "#fcfcfc",
+              0.0038
+            ],
+            [
+              "#fbfbfb",
+              0.0035
+            ],
+            [
+              "#f7f7f7",
+              0.0029
+            ],
+            [
+              "#f8f8f8",
+              0.0026
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.184862"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "friend_info_page": {
+      "page_key": "friend_info_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "05_friend_info_page.png",
+          "file_path": "3_page_designs_detailed/friend_info_page/images/05_friend_info_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/friend_info_page/images/05_friend_info_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.5551
+            ],
+            [
+              "#7becfe",
+              0.1028
+            ],
+            [
+              "#fefefe",
+              0.0275
+            ],
+            [
+              "#d9feff",
+              0.0163
+            ],
+            [
+              "#e5fbc1",
+              0.0158
+            ],
+            [
+              "#fcfcfc",
+              0.0064
+            ],
+            [
+              "#eefcdf",
+              0.0059
+            ],
+            [
+              "#e7e7e7",
+              0.0053
+            ],
+            [
+              "#ececec",
+              0.0051
+            ],
+            [
+              "#fdfdfd",
+              0.0041
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.217710"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "history_tracking_page": {
+      "page_key": "history_tracking_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "03_history_tracking_page.png",
+          "file_path": "3_page_designs_detailed/history_tracking_page/images/03_history_tracking_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/history_tracking_page/images/03_history_tracking_page.png",
+          "color_palette": [
+            [
+              "#75f9fd",
+              0.4234
+            ],
+            [
+              "#ffffff",
+              0.2774
+            ],
+            [
+              "#fefefe",
+              0.0061
+            ],
+            [
+              "#76f8fc",
+              0.0061
+            ],
+            [
+              "#73fdff",
+              0.0032
+            ],
+            [
+              "#77f8fc",
+              0.0032
+            ],
+            [
+              "#6efdff",
+              0.0032
+            ],
+            [
+              "#ebe6e6",
+              0.0032
+            ],
+            [
+              "#7de9ec",
+              0.0032
+            ],
+            [
+              "#a0dcde",
+              0.0032
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.248492"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "login_page": {
+      "page_key": "login_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "11_login_page.png",
+          "file_path": "3_page_designs_detailed/login_page/images/11_login_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/login_page/images/11_login_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.708
+            ],
+            [
+              "#1684fc",
+              0.0284
+            ],
+            [
+              "#fdfeff",
+              0.0101
+            ],
+            [
+              "#fbfdff",
+              0.0088
+            ],
+            [
+              "#f9fcff",
+              0.0075
+            ],
+            [
+              "#fcfdff",
+              0.0074
+            ],
+            [
+              "#fafcff",
+              0.0071
+            ],
+            [
+              "#feffff",
+              0.0068
+            ],
+            [
+              "#fefeff",
+              0.0065
+            ],
+            [
+              "#ebf4ff",
+              0.0049
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.277145"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "map_page": {
+      "page_key": "map_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "04_map_page.png",
+          "file_path": "3_page_designs_detailed/map_page/images/04_map_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/map_page/images/04_map_page.png",
+          "color_palette": [
+            [
+              "#eeedeb",
+              0.2715
+            ],
+            [
+              "#ffffff",
+              0.1831
+            ],
+            [
+              "#edecea",
+              0.0456
+            ],
+            [
+              "#c1ecb0",
+              0.0246
+            ],
+            [
+              "#aadaff",
+              0.0158
+            ],
+            [
+              "#c0ebaf",
+              0.0148
+            ],
+            [
+              "#fefefe",
+              0.0076
+            ],
+            [
+              "#efeeec",
+              0.0063
+            ],
+            [
+              "#ecebe9",
+              0.0059
+            ],
+            [
+              "#f4f4f3",
+              0.0052
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.310486"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "my_profile_page": {
+      "page_key": "my_profile_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "07_my_profile_page.png",
+          "file_path": "3_page_designs_detailed/my_profile_page/images/07_my_profile_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/my_profile_page/images/07_my_profile_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.7064
+            ],
+            [
+              "#e3642d",
+              0.0076
+            ],
+            [
+              "#df582b",
+              0.0068
+            ],
+            [
+              "#e5672c",
+              0.0059
+            ],
+            [
+              "#e15f2d",
+              0.0048
+            ],
+            [
+              "#de522e",
+              0.0042
+            ],
+            [
+              "#e2602c",
+              0.0041
+            ],
+            [
+              "#e25b2c",
+              0.004
+            ],
+            [
+              "#e15d2c",
+              0.004
+            ],
+            [
+              "#e4662b",
+              0.0038
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.339444"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "network_records_page": {
+      "page_key": "network_records_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "12_network_records_page.png",
+          "file_path": "3_page_designs_detailed/network_records_page/images/12_network_records_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/network_records_page/images/12_network_records_page.png",
+          "color_palette": [
+            [
+              "#e7fbc4",
+              0.3963
+            ],
+            [
+              "#ffffff",
+              0.3083
+            ],
+            [
+              "#eeeeee",
+              0.0401
+            ],
+            [
+              "#ededed",
+              0.0118
+            ],
+            [
+              "#fffffe",
+              0.0068
+            ],
+            [
+              "#d6dbcd",
+              0.0064
+            ],
+            [
+              "#e6fbc1",
+              0.0064
+            ],
+            [
+              "#e7fbc5",
+              0.0064
+            ],
+            [
+              "#efefef",
+              0.0037
+            ],
+            [
+              "#e6fac4",
+              0.0033
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.370443"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "profile_page": {
+      "page_key": "profile_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "01_profile_page.png",
+          "file_path": "3_page_designs_detailed/profile_page/images/01_profile_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/profile_page/images/01_profile_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.723
+            ],
+            [
+              "#fefefe",
+              0.0085
+            ],
+            [
+              "#fcfcfc",
+              0.0077
+            ],
+            [
+              "#fdfdfd",
+              0.0058
+            ],
+            [
+              "#fafafa",
+              0.0016
+            ],
+            [
+              "#fbfbfb",
+              0.0014
+            ],
+            [
+              "#f9f9f9",
+              0.0007
+            ],
+            [
+              "#deecdf",
+              0.0005
+            ],
+            [
+              "#f8f8f8",
+              0.0005
+            ],
+            [
+              "#f7f7f7",
+              0.0005
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.401848"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "registration_page": {
+      "page_key": "registration_page",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "09_registration_page.png",
+          "file_path": "3_page_designs_detailed/registration_page/images/09_registration_page.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/registration_page/images/09_registration_page.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.5842
+            ],
+            [
+              "#f3f9ff",
+              0.1095
+            ],
+            [
+              "#fdfeff",
+              0.0107
+            ],
+            [
+              "#f2f9ff",
+              0.0101
+            ],
+            [
+              "#f9fcff",
+              0.0093
+            ],
+            [
+              "#fafcff",
+              0.009
+            ],
+            [
+              "#f5faff",
+              0.0088
+            ],
+            [
+              "#fcfdff",
+              0.007
+            ],
+            [
+              "#fbfdff",
+              0.0069
+            ],
+            [
+              "#fefeff",
+              0.0052
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.432181"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    },
+    "search_functionality": {
+      "page_key": "search_functionality",
+      "layer": "detailed",
+      "expected_images": [
+        {
+          "file_name": "14_search_functionality.png",
+          "file_path": "3_page_designs_detailed/search_functionality/images/14_search_functionality.png",
+          "image_type": "expected",
+          "download_url": "/api/file/download?path=3_page_designs_detailed/search_functionality/images/14_search_functionality.png",
+          "color_palette": [
+            [
+              "#ffffff",
+              0.6419
+            ],
+            [
+              "#efefef",
+              0.1371
+            ],
+            [
+              "#fefefe",
+              0.0239
+            ],
+            [
+              "#cecece",
+              0.0138
+            ],
+            [
+              "#0f40f5",
+              0.0092
+            ],
+            [
+              "#eeeeee",
+              0.0087
+            ],
+            [
+              "#f1f1f1",
+              0.0082
+            ],
+            [
+              "#fcfcfc",
+              0.0064
+            ],
+            [
+              "#f2f2f2",
+              0.006
+            ],
+            [
+              "#d2d2d2",
+              0.0043
+            ]
+          ],
+          "ocr_text": [],
+          "last_analyzed": "2025-11-19T06:33:11.461981"
+        }
+      ],
+      "actual_images": [],
+      "comparison_notes": ""
+    }
+  }
+}

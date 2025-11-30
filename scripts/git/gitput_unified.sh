@@ -59,6 +59,37 @@ TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 export COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 
+read_masked_password() {
+    local prompt="$1"
+    local password=""
+    local char=""
+    local old_stty="$(stty -g 2>/dev/null)"
+
+    printf "%s" "$prompt"
+
+    stty -echo 2>/dev/null
+    while IFS= read -r -s -n1 char; do
+        if [[ -z "$char" ]]; then
+            printf "\n"
+            break
+        elif [[ $char == $'\n' || $char == $'\r' ]]; then
+            printf "\n"
+            break
+        elif [[ $char == $'\177' || $char == $'\b' ]]; then
+            if [ -n "$password" ]; then
+                password="${password%?}"
+                printf "\b \b"
+            fi
+        else
+            password+="$char"
+            printf "*"
+        fi
+    done
+
+    stty "$old_stty" 2>/dev/null
+    printf "%s" "$password"
+}
+
 # File validation function for win_common directory
 test_win_common_files() {
     write_color_text "=== Validating win_common directory files ===" "Yellow"
@@ -314,14 +345,32 @@ get_default_remote() {
     fi
 }
 
+# Load remote configurations from git_remotes.conf
+load_remote_configs() {
+    local config_file="$SCRIPT_DIR/git_remotes.conf"
+    declare -g -A remote_configs
+    
+    if [ ! -f "$config_file" ]; then
+        echo "Error: Configuration file not found: $config_file"
+        exit 1
+    fi
+    
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip empty lines and comments
+        [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+        # Trim whitespace
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+        # Store in associative array
+        remote_configs["$key"]="$value"
+    done < "$config_file"
+}
+
+# Load configurations
+load_remote_configs
+
 # Default remote (primary) - this will be restored after each operation
 DEFAULT_REMOTE=$(get_default_remote "$PROJECT_NAME")
-
-# Remote configurations
-declare -A remote_configs
-remote_configs["gitee"]="git@gitee.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["github"]="git@github.com:accountbelongstox/$PROJECT_NAME.git"
-remote_configs["local"]="ssh://git@git.local.12gm.com:17004/adminroot/$PROJECT_NAME.git"
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 get_execution_order() {
@@ -478,7 +527,7 @@ get_current_remote() {
 # Function to set remote URL
 set_remote_url() {
     local remote_url="$1"
-    
+
     write_color_text "Executing: git remote set-url origin $remote_url" "DarkGray"
     git remote set-url origin "$remote_url"
     if [ $? -eq 0 ]; then
@@ -670,37 +719,37 @@ invoke_safe_git_pull() {
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
-    
+
     write_color_text "----------------------------------------------------------------" "DarkYellow"
     write_color_text "Starting git operations for: $target_url" "Cyan"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
     write_color_text "--------------------------------" "Green"
-    
+
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
-    
+
     # Ensure SSH permissions are correct
     ensure_ssh_permissions
-    
+
     # Ensure git identity is configured
     ensure_git_identity
-    
+
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)
     ORIGINAL_REMOTE_URL=$(get_current_remote)
     write_color_text "Original branch: $ORIGINAL_BRANCH" "DarkGray"
     write_color_text "Original remote: $ORIGINAL_REMOTE_URL" "DarkGray"
-    
+
     # Create backup if enabled
     create_working_backup
-    
+
     # Set target remote
     if ! set_remote_url "$target_url"; then
         return 1
     fi
-    
+
     # Show remote configuration
     write_color_text "--------------------------------" "Green"
     write_color_text "Executing: git remote -v" "DarkGray"
@@ -748,7 +797,26 @@ invoke_git_operations() {
                 done
                 echo ""
 
-                write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                # Ask for encryption confirmation with default Y
+                write_color_text "Do you want to encrypt these files before pushing? (Y/n): " "Yellow"
+                read -r encrypt_confirm
+
+                # Default to Y if empty or Enter pressed
+                if [[ -z "$encrypt_confirm" ]] || [[ "$encrypt_confirm" =~ ^[Yy]$ ]]; then
+                    write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                elif [[ "$encrypt_confirm" =~ ^[Nn]$ ]]; then
+                    write_color_text "Skipping encryption. Continuing with git push." "Yellow"
+                    write_color_text "WARNING: Sensitive files will be pushed unencrypted!" "Red"
+                    # Skip encryption by jumping to the end of this block
+                    # We'll use a flag to control this
+                    local skip_encryption=true
+                else
+                    # Invalid input, default to Y
+                    write_color_text "Invalid input. Defaulting to Yes." "Yellow"
+                    write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
+                fi
+
+                if [ "${skip_encryption:-false}" != "true" ]; then
 
                 # Find disguise.js in scripts directory
                 write_color_text "Searching for disguise.js in scripts directory..." "Cyan"
@@ -765,21 +833,19 @@ invoke_git_operations() {
                     # Get password once for all files
                     write_color_text "Enter encryption password for all sensitive files:" "Yellow"
                     local global_password=""
-                    
+
                     while true; do
-                        echo -n "Enter encryption password: "
-                        read -s password1
-                        echo ""
-                        
+                        write_color_text "Enter encryption password: " "Yellow"
+                        read -r password1
+
                         if [ -z "$password1" ]; then
                             write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
                             continue
                         fi
-                        
-                        echo -n "Confirm encryption password: "
-                        read -s password2
-                        echo ""
-                        
+
+                        write_color_text "Confirm encryption password: " "Yellow"
+                        read -r password2
+
                         if [ "$password1" = "$password2" ]; then
                             global_password="$password1"
                             break
@@ -838,6 +904,8 @@ invoke_git_operations() {
                     write_color_text "WARNING: disguise.js not found in scripts directory." "Yellow"
                     write_color_text "Continuing with git push. Please encrypt sensitive files manually." "Yellow"
                 fi
+
+                fi  # End of skip_encryption check
             else
                 write_color_text "SUCCESS: No unencrypted sensitive files found." "Green"
             fi
@@ -892,7 +960,13 @@ invoke_git_operations() {
     write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
     git push --set-upstream origin "$current_branch"
     write_color_text "----------------------------------------------------------------" "DarkBlue"
-    
+
+    # Restore default remote after push (always restore to DEFAULT_REMOTE)
+    if [ "$(get_current_remote)" != "$DEFAULT_REMOTE" ]; then
+        write_color_text "Restoring default remote: $DEFAULT_REMOTE" "Yellow"
+        set_remote_url "$DEFAULT_REMOTE"
+    fi
+
     return 0
 }
 
@@ -946,10 +1020,6 @@ main() {
             write_color_text "Unknown remote target: $target" "Red"
             all_success=false
         fi
-        
-        # Always restore original branch and remote after each operation
-        restore_original_branch
-        restore_original_remote
     done
     
     write_color_text "\n=== Summary ===" "Magenta"

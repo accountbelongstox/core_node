@@ -142,6 +142,12 @@ class ThemeDimensions {
   static const double borderRadiusMedium = radiusM;
   static const double borderRadiusLarge = radiusL;
 
+  // Additional radius aliases for app_qy
+  static const double radiusSm = radiusS;
+  static const double radiusMd = radiusM;
+  static const double radiusLg = radiusL;
+  static const double radiusFull = radiusRound;
+
   // Circle and avatar sizes
   static const double circleMedium = 20.0;
   static const double circleSmall = 16.0;
@@ -616,4 +622,11 @@ class ThemeDimensions {
 
   /// Legacy alias for backward compatibility
   static const double menuIconSize = iconSizeL;
+
+  // Backward compatibility aliases for app_qy
+  static const double radiusMedium = radiusM;
+  static const double spacingXSmall = spacing4;
+  static const double paddingXSmall = spacing4;
+  static const double paddingXLarge = spacing32;
+  static const double radiusXLarge = radiusXL;
 }

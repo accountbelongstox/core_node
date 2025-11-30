@@ -1,0 +1,72 @@
+/* Sidebar styles - File tree and navigation */
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #334155;
+}
+
+/* Current folder path display */
+.current-folder-path {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.path-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.path-label {
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.path-text {
+  flex: 1;
+  font-size: 0.8rem;
+  color: #334155;
+  background: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-placeholder {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.sidebar.hidden {
+  display: none;
+}

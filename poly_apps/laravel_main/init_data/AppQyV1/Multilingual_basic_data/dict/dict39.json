@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.338203+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "inferior",
+        "laos": "ຕໍ່າຕ້ອຍ",
+        "jp": "劣った",
+        "vie": "kém cỏi",
+        "en_pronunciation": "/ˌɪnˈfɪriər/",
+        "laos_pronunciation": "toatony",
+        "jp_pronunciation": "ototsu ta",
+        "vie_pronunciation": "kem coi"
+      },
+      "means": {
+        "en": "One of lesser rank or station or quality",
+        "zh": "较低等级、地位或品质之一"
+      }
+    },
+    {
+      "word": {
+        "en": "inferiority",
+        "laos": "ຄວາມຕ່ໍາ",
+        "jp": "劣等感",
+        "vie": "sự thấp kém",
+        "en_pronunciation": "/ˌɪnfɪriˈɔrɪˌti/",
+        "laos_pronunciation": "khuaamtoa",
+        "jp_pronunciation": "rettoukan",
+        "vie_pronunciation": "su thap kem"
+      },
+      "means": {
+        "en": "The state of being inferior",
+        "zh": "低人一等的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "infinite",
+        "laos": "ອະສັນຍະພາບ",
+        "jp": "無限",
+        "vie": "vô hạn",
+        "en_pronunciation": "/ˈɪnfənət/",
+        "laos_pronunciation": "a snaiaphab",
+        "jp_pronunciation": "mugen",
+        "vie_pronunciation": "vo han"
+      },
+      "means": {
+        "en": "The unlimited expanse in which everything is located",
+        "zh": "一切事物都位于其中的无限广阔"
+      }
+    },
+    {
+      "word": {
+        "en": "infinity",
+        "laos": "Infinity",
+        "jp": "無限大",
+        "vie": "vô cực",
+        "en_pronunciation": "/ˌɪnˈfɪnɪti/",
+        "laos_pronunciation": "Infinity",
+        "jp_pronunciation": "mugendai",
+        "vie_pronunciation": "vo cuc"
+      },
+      "means": {
+        "en": "Time without end",
+        "zh": "时间没有尽头"
+      }
+    },
+    {
+      "word": {
+        "en": "infinitive",
+        "laos": "Infinitive",
+        "jp": "不定詞",
+        "vie": "nguyên thể",
+        "en_pronunciation": "/ˌɪnˈfɪnɪtɪv/",
+        "laos_pronunciation": "Infinitive",
+        "jp_pronunciation": "futei shi",
+        "vie_pronunciation": "nguyen the"
+      },
+      "means": {
+        "en": "The uninflected form of the verb",
+        "zh": "动词的未变形形式"
+      }
+    },
+    {
+      "word": {
+        "en": "inflate",
+        "laos": "ພອງຂຶ້ນ",
+        "jp": "膨らませる",
+        "vie": "thổi phồng lên",
+        "en_pronunciation": "/ɪnˈfleɪt/",
+        "laos_pronunciation": "phongkhun",
+        "jp_pronunciation": "fukurama seru",
+        "vie_pronunciation": "thoi phong len"
+      },
+      "means": {
+        "en": "Exaggerate or make bigger",
+        "zh": "夸大或变大"
+      }
+    },
+    {
+      "word": {
+        "en": "inflation",
+        "laos": "ເງິນເຟີ້",
+        "jp": "インフレ",
+        "vie": "lạm phát",
+        "en_pronunciation": "/ˌɪnˈfleɪʃən/",
+        "laos_pronunciation": "ngoenfoe",
+        "jp_pronunciation": "infure",
+        "vie_pronunciation": "lam phat"
+      },
+      "means": {
+        "en": "A general and progressive increase in prices",
+        "zh": "价格普遍逐步上涨"
+      }
+    },
+    {
+      "word": {
+        "en": "inflict",
+        "laos": "ເຖືອນ",
+        "jp": "負わせる",
+        "vie": "gây ra",
+        "en_pronunciation": "/ˌɪnˈflɪkt/",
+        "laos_pronunciation": "theuon",
+        "jp_pronunciation": "owa seru",
+        "vie_pronunciation": "gay ra"
+      },
+      "means": {
+        "en": "Impose something unpleasant",
+        "zh": "强加一些不愉快的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "infliction",
+        "laos": "infliction",
+        "jp": "被害",
+        "vie": "sự hành hạ",
+        "en_pronunciation": "/ˌɪnˈflɪkʃən/",
+        "laos_pronunciation": "infliction",
+        "jp_pronunciation": "higai",
+        "vie_pronunciation": "su hanh ha"
+      },
+      "means": {
+        "en": "The act of imposing something (as a tax or an embargo)",
+        "zh": "征收某物的行为（如税收或禁运）"
+      }
+    },
+    {
+      "word": {
+        "en": "influence",
+        "laos": "ອິດທິພົນ",
+        "jp": "影響力",
+        "vie": "ảnh hưởng",
+        "en_pronunciation": "/ˈɪnfluəns/",
+        "laos_pronunciation": "idthiphon",
+        "jp_pronunciation": "eikyouryoku",
+        "vie_pronunciation": "anh huong"
+      },
+      "means": {
+        "en": "A power to affect persons or events especially power based on prestige etc",
+        "zh": "影响人或事件的权力，尤其是基于声望等的权力"
+      }
+    },
+    {
+      "word": {
+        "en": "influential",
+        "laos": "ທີ່ມີຜົນສະທ້ອນໃຫ້",
+        "jp": "影響力のある",
+        "vie": "có ảnh hưởng",
+        "en_pronunciation": "/ˌɪnfluˈɛnʃəl/",
+        "laos_pronunciation": "thimi phonsathonhai",
+        "jp_pronunciation": "eikyouryoku noaru",
+        "vie_pronunciation": "co anh huong"
+      },
+      "means": {
+        "en": "Having or exercising influence or power",
+        "zh": "拥有或行使影响力或权力"
+      }
+    },
+    {
+      "word": {
+        "en": "influenza",
+        "laos": "ໄຂ້ຫວັດໃຫຢ່",
+        "jp": "インフルエンザ",
+        "vie": "bệnh cúm",
+        "en_pronunciation": "/ˌɪnfluˈɛnzə/",
+        "laos_pronunciation": "khaivad haiy",
+        "jp_pronunciation": "infuruenza",
+        "vie_pronunciation": "benh cum"
+      },
+      "means": {
+        "en": "An acute febrile highly contagious viral disease",
+        "zh": "一种急性发热性高度传染性病毒性疾病"
+      }
+    },
+    {
+      "word": {
+        "en": "flu",
+        "laos": "ໄຂ້ຫວັດໃຫຍ່",
+        "jp": "インフルエンザ",
+        "vie": "cúm",
+        "en_pronunciation": "/flu/",
+        "laos_pronunciation": "khaivadhainy",
+        "jp_pronunciation": "infuruenza",
+        "vie_pronunciation": "cum"
+      },
+      "means": {
+        "en": "An acute febrile highly contagious viral disease",
+        "zh": "一种急性发热性高度传染性病毒性疾病"
+      }
+    },
+    {
+      "word": {
+        "en": "inform",
+        "laos": "ບອກໃຫ້",
+        "jp": "知らせる",
+        "vie": "thông báo",
+        "en_pronunciation": "/ˌɪnˈfɔrm/",
+        "laos_pronunciation": "bokhai",
+        "jp_pronunciation": "shirase ru",
+        "vie_pronunciation": "thong bao"
+      },
+      "means": {
+        "en": "Impart knowledge of some fact, state or affairs, or event to",
+        "zh": "将某些事实、状态、事务或事件的知识传授给"
+      }
+    },
+    {
+      "word": {
+        "en": "information",
+        "laos": "ຂໍ້ມູນຂ່າວສານ",
+        "jp": "情報",
+        "vie": "thông tin",
+        "en_pronunciation": "/ˌɪnˌfɔrˈmeɪʃən/",
+        "laos_pronunciation": "khomunkhauasan",
+        "jp_pronunciation": "jouhou",
+        "vie_pronunciation": "thong tin"
+      },
+      "means": {
+        "en": "A message received and understood",
+        "zh": "消息已收到并已理解"
+      }
+    },
+    {
+      "word": {
+        "en": "informative",
+        "laos": "ເສັຽຂໍ້ບັນຍັດ",
+        "jp": "有益な",
+        "vie": "nhiều thông tin",
+        "en_pronunciation": "/ˌɪnˈfɔrmətɪv/",
+        "laos_pronunciation": "seiakhobnaiad",
+        "jp_pronunciation": "yuueki na",
+        "vie_pronunciation": "nhieu thong tin"
+      },
+      "means": {
+        "en": "Tending to increase knowledge or dissipate ignorance",
+        "zh": "倾向于增加知识或消除无知"
+      }
+    },
+    {
+      "word": {
+        "en": "informant",
+        "laos": "ສູຈະ",
+        "jp": "情報提供者",
+        "vie": "người cung cấp thông tin",
+        "en_pronunciation": "/ˌɪnˈfɔrmənt/",
+        "laos_pronunciation": "sucha",
+        "jp_pronunciation": "jouhouteikyousha",
+        "vie_pronunciation": "nguoi cung cap thong tin"
+      },
+      "means": {
+        "en": "A person who supplies information",
+        "zh": "提供信息的人"
+      }
+    },
+    {
+      "word": {
+        "en": "infrastructure",
+        "laos": "ພື້ນຖານພື້ນຖານໂຄງລ່າງ",
+        "jp": "インフラストラクチャ",
+        "vie": "cơ sở hạ tầng",
+        "en_pronunciation": "/ˌɪnfrəˈstrəkʧər/",
+        "laos_pronunciation": "phunthanphunthanokhnglang",
+        "jp_pronunciation": "infurasutorakucha",
+        "vie_pronunciation": "co so ha tang"
+      },
+      "means": {
+        "en": "The basic structure or features of a system or organization",
+        "zh": "系统或组织的基本结构或特征"
+      }
+    },
+    {
+      "word": {
+        "en": "infringe",
+        "laos": "ລະເມີດ",
+        "jp": "侵害する",
+        "vie": "xâm phạm",
+        "en_pronunciation": "/ˌɪnˈfrɪnʤ/",
+        "laos_pronunciation": "lamoed",
+        "jp_pronunciation": "shingai suru",
+        "vie_pronunciation": "xam pham"
+      },
+      "means": {
+        "en": "Go against, as of rules and laws",
+        "zh": "违反规则和法律"
+      }
+    },
+    {
+      "word": {
+        "en": "infringement",
+        "laos": "ການລະເມີດ",
+        "jp": "侵害",
+        "vie": "vi phạm",
+        "en_pronunciation": "/ˌɪnˈfrɪnʤmənt/",
+        "laos_pronunciation": "kanlamoed",
+        "jp_pronunciation": "shingai",
+        "vie_pronunciation": "vi pham"
+      },
+      "means": {
+        "en": "An act that disregards an agreement or a right",
+        "zh": "无视协议或权利的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "ingenious",
+        "laos": "ສະຫຼາດສະບາຍ",
+        "jp": "独創的な",
+        "vie": "khéo léo",
+        "en_pronunciation": "/ˌɪnˈʤinjəs/",
+        "laos_pronunciation": "saradsabai",
+        "jp_pronunciation": "dokusouteki na",
+        "vie_pronunciation": "kheo leo"
+      },
+      "means": {
+        "en": "Showing inventiveness and skill",
+        "zh": "展现创造力和技巧"
+      }
+    },
+    {
+      "word": {
+        "en": "ingenuity",
+        "laos": "ສະນິດ",
+        "jp": "創意工夫",
+        "vie": "sự khéo léo",
+        "en_pronunciation": "/ˌɪnʤəˈnuəˌti/",
+        "laos_pronunciation": "sanid",
+        "jp_pronunciation": "soui kufuu",
+        "vie_pronunciation": "su kheo leo"
+      },
+      "means": {
+        "en": "The power of creative imagination",
+        "zh": "创造性想象力的力量"
+      }
+    },
+    {
+      "word": {
+        "en": "ingredient",
+        "laos": "ສ່ວນປະກອບ",
+        "jp": "成分",
+        "vie": "thành phần",
+        "en_pronunciation": "/ˌɪnˈgridiənt/",
+        "laos_pronunciation": "suanpakob",
+        "jp_pronunciation": "seibun",
+        "vie_pronunciation": "thanh phan"
+      },
+      "means": {
+        "en": "A component of a mixture or compound",
+        "zh": "混合物或化合物的成分"
+      }
+    },
+    {
+      "word": {
+        "en": "inhabit",
+        "laos": "ອາໄສຢູ່",
+        "jp": "生息する",
+        "vie": "cư trú",
+        "en_pronunciation": "/ˌɪnˈhæbət/",
+        "laos_pronunciation": "asaiyu",
+        "jp_pronunciation": "seisoku suru",
+        "vie_pronunciation": "cu tru"
+      },
+      "means": {
+        "en": "Inhabit or live in; be an inhabitant of",
+        "zh": "居住或生活在；"
+      }
+    },
+    {
+      "word": {
+        "en": "inhabitant",
+        "laos": "ໃສ",
+        "jp": "住民",
+        "vie": "cư dân",
+        "en_pronunciation": "/ˌɪnˈhæbɪtənt/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "juumin",
+        "vie_pronunciation": "cu dan"
+      },
+      "means": {
+        "en": "A person who inhabits a particular place",
+        "zh": "居住在特定地方的人"
+      }
+    },
+    {
+      "word": {
+        "en": "inherent",
+        "laos": "ປະກົດຂຶ້ນ",
+        "jp": "固有の",
+        "vie": "vốn có",
+        "en_pronunciation": "/ˌɪnˈhɛrənt/",
+        "laos_pronunciation": "pakodkhun",
+        "jp_pronunciation": "koyuu no",
+        "vie_pronunciation": "von co"
+      },
+      "means": {
+        "en": "Existing as an essential constituent or characteristic",
+        "zh": "作为基本成分或特征而存在"
+      }
+    },
+    {
+      "word": {
+        "en": "inherit",
+        "laos": "ມູນມໍລະດົກ",
+        "jp": "継承する",
+        "vie": "kế thừa",
+        "en_pronunciation": "/ˌɪnˈhɛrət/",
+        "laos_pronunciation": "munmoladok",
+        "jp_pronunciation": "keishou suru",
+        "vie_pronunciation": "ke thua"
+      },
+      "means": {
+        "en": "Obtain from someone after their death",
+        "zh": "从某人死后获得"
+      }
+    },
+    {
+      "word": {
+        "en": "inheritance",
+        "laos": "ສິນມໍລະດົກ",
+        "jp": "継承",
+        "vie": "sự kế thừa",
+        "en_pronunciation": "/ˌɪnˈhɛrətəns/",
+        "laos_pronunciation": "sinmoladok",
+        "jp_pronunciation": "keishou",
+        "vie_pronunciation": "su ke thua"
+      },
+      "means": {
+        "en": "Hereditary succession to a title or an office or property",
+        "zh": "头衔、职位或财产的世袭继承"
+      }
+    },
+    {
+      "word": {
+        "en": "inhibit",
+        "laos": "ຍັບຍັ້ງ",
+        "jp": "阻害する",
+        "vie": "ức chế",
+        "en_pronunciation": "/ˌɪnˈhɪbət/",
+        "laos_pronunciation": "nybaiang",
+        "jp_pronunciation": "sogai suru",
+        "vie_pronunciation": "uc che"
+      },
+      "means": {
+        "en": "To put down by force or authority",
+        "zh": "以武力或权威压制"
+      }
+    },
+    {
+      "word": {
+        "en": "inhibition",
+        "laos": "ນາຢ",
+        "jp": "阻害",
+        "vie": "ức chế",
+        "en_pronunciation": "/ˌɪnəˈbɪʃən/",
+        "laos_pronunciation": "nay",
+        "jp_pronunciation": "sogai",
+        "vie_pronunciation": "uc che"
+      },
+      "means": {
+        "en": "(psychology) the conscious exclusion of unacceptable thoughts or desires",
+        "zh": "（心理学）有意识地排除不可接受的想法或欲望"
+      }
+    },
+    {
+      "word": {
+        "en": "initial",
+        "laos": "ເບື້ອງຕົ້ນ",
+        "jp": "イニシャル",
+        "vie": "ban đầu",
+        "en_pronunciation": "/ˌɪˈnɪʃəl/",
+        "laos_pronunciation": "beuongton",
+        "jp_pronunciation": "inisharu",
+        "vie_pronunciation": "ban dau"
+      },
+      "means": {
+        "en": "The first letter of a word (especially a person's name)",
+        "zh": "单词的第一个字母（尤其是人名）"
+      }
+    },
+    {
+      "word": {
+        "en": "initially",
+        "laos": "ໃນເບື້ອງຕົ້ນ",
+        "jp": "最初は",
+        "vie": "ban đầu",
+        "en_pronunciation": "/ˌɪˈnɪʃəli/",
+        "laos_pronunciation": "naibeuongton",
+        "jp_pronunciation": "saisho ha",
+        "vie_pronunciation": "ban dau"
+      },
+      "means": {
+        "en": "At the beginning",
+        "zh": "一开始"
+      }
+    },
+    {
+      "word": {
+        "en": "initiate",
+        "laos": "ເລີ່ມຕົ້ນ",
+        "jp": "始める",
+        "vie": "khởi xướng",
+        "en_pronunciation": "/ˌɪˈnɪʃiˌeɪt/",
+        "laos_pronunciation": "loemton",
+        "jp_pronunciation": "hajime ru",
+        "vie_pronunciation": "khoi xuong"
+      },
+      "means": {
+        "en": "Someone new to a field or activity",
+        "zh": "刚接触某个领域或活动的人"
+      }
+    },
+    {
+      "word": {
+        "en": "initiation",
+        "laos": "ການເລີ່ມຕົ້ນ",
+        "jp": "開始",
+        "vie": "sự khởi đầu",
+        "en_pronunciation": "/ˌɪˌnɪʃiˈeɪʃən/",
+        "laos_pronunciation": "kanloemton",
+        "jp_pronunciation": "kaishi",
+        "vie_pronunciation": "su khoi dau"
+      },
+      "means": {
+        "en": "A formal entry into an organization or position or office",
+        "zh": "正式进入某个组织、职位或办公室"
+      }
+    },
+    {
+      "word": {
+        "en": "initiative",
+        "laos": "ຂໍ້ລິເລີ່ມ",
+        "jp": "イニシアチブ",
+        "vie": "sáng kiến",
+        "en_pronunciation": "/ˌɪˈnɪʃətɪv/",
+        "laos_pronunciation": "kholiloem",
+        "jp_pronunciation": "inishiachibu",
+        "vie_pronunciation": "sang kien"
+      },
+      "means": {
+        "en": "Readiness to embark on bold new ventures",
+        "zh": "准备好进行大胆的新冒险"
+      }
+    },
+    {
+      "word": {
+        "en": "inject",
+        "laos": "ສັກ",
+        "jp": "注入する",
+        "vie": "tiêm",
+        "en_pronunciation": "/ˌɪnˈʤɛkt/",
+        "laos_pronunciation": "sak",
+        "jp_pronunciation": "chuunyuu suru",
+        "vie_pronunciation": "tiem"
+      },
+      "means": {
+        "en": "Give an injection to",
+        "zh": "注射"
+      }
+    },
+    {
+      "word": {
+        "en": "injection",
+        "laos": "ການສັກຢາ",
+        "jp": "注射",
+        "vie": "tiêm",
+        "en_pronunciation": "/ˌɪnˈʤɛkʃən/",
+        "laos_pronunciation": "kansakya",
+        "jp_pronunciation": "chuusha",
+        "vie_pronunciation": "tiem"
+      },
+      "means": {
+        "en": "The forceful insertion of a substance under pressure",
+        "zh": "在压力下用力插入物质"
+      }
+    },
+    {
+      "word": {
+        "en": "injure",
+        "laos": "ບາດເຈັບ",
+        "jp": "傷つける",
+        "vie": "làm tổn thương",
+        "en_pronunciation": "/ˈɪnʤər/",
+        "laos_pronunciation": "badcheb",
+        "jp_pronunciation": "kizutsu keru",
+        "vie_pronunciation": "lam ton thuong"
+      },
+      "means": {
+        "en": "Cause injuries or bodily harm to",
+        "zh": "造成伤害或身体伤害"
+      }
+    },
+    {
+      "word": {
+        "en": "injury",
+        "laos": "ການບາດເຈັບ",
+        "jp": "怪我",
+        "vie": "chấn thương",
+        "en_pronunciation": "/ˈɪnʤəri/",
+        "laos_pronunciation": "kanbadcheb",
+        "jp_pronunciation": "kega",
+        "vie_pronunciation": "chan thuong"
+      },
+      "means": {
+        "en": "Any physical damage to the body caused by violence or accident or fracture etc.",
+        "zh": "任何因暴力、事故、骨折等对身体造成的物理损伤。"
+      }
+    },
+    {
+      "word": {
+        "en": "injurious",
+        "laos": "ຕາຍ",
+        "jp": "有害な",
+        "vie": "có hại",
+        "en_pronunciation": "/ˌɪnˈʤʊriəs/",
+        "laos_pronunciation": "tai",
+        "jp_pronunciation": "yuugai na",
+        "vie_pronunciation": "co hai"
+      },
+      "means": {
+        "en": "Harmful to living things",
+        "zh": "对生物有害"
+      }
+    },
+    {
+      "word": {
+        "en": "ink",
+        "laos": "ນ້ໍາເມິກ",
+        "jp": "インク",
+        "vie": "mực",
+        "en_pronunciation": "/ɪŋk/",
+        "laos_pronunciation": "noa moek",
+        "jp_pronunciation": "inku",
+        "vie_pronunciation": "muc"
+      },
+      "means": {
+        "en": "A liquid used for printing or writing or drawing",
+        "zh": "用于印刷、书写或绘图的液体"
+      }
+    },
+    {
+      "word": {
+        "en": "inland",
+        "laos": "ປະເທດ",
+        "jp": "内陸部",
+        "vie": "nội địa",
+        "en_pronunciation": "/ˈɪnˌlænd/",
+        "laos_pronunciation": "pathed",
+        "jp_pronunciation": "nairikubu",
+        "vie_pronunciation": "noi dia"
+      },
+      "means": {
+        "en": "Situated away from an area's coast or border",
+        "zh": "远离某个地区的海岸或边界"
+      }
+    },
+    {
+      "word": {
+        "en": "inmate",
+        "laos": "ຜູ້ຢິງອາຍຸ",
+        "jp": "受刑者",
+        "vie": "tù nhân",
+        "en_pronunciation": "/ˈɪnˌmeɪt/",
+        "laos_pronunciation": "phu yingoaiu",
+        "jp_pronunciation": "jukeisha",
+        "vie_pronunciation": "tu nhan"
+      },
+      "means": {
+        "en": "One of several resident of a dwelling (especially someone confined to a prison or hospital)",
+        "zh": "住宅的几名居民之一（尤其是被关在监狱或医院里的人）"
+      }
+    },
+    {
+      "word": {
+        "en": "inn",
+        "laos": "ເລ່ງລັດ",
+        "jp": "旅館",
+        "vie": "quán trọ",
+        "en_pronunciation": "/ɪn/",
+        "laos_pronunciation": "lenglad",
+        "jp_pronunciation": "ryokan",
+        "vie_pronunciation": "quan tro"
+      },
+      "means": {
+        "en": "A hotel providing overnight lodging for travelers",
+        "zh": "为旅客提供过夜住宿的酒店"
+      }
+    },
+    {
+      "word": {
+        "en": "inner",
+        "laos": "ໃນພາຍໃນ",
+        "jp": "内側",
+        "vie": "bên trong",
+        "en_pronunciation": "/ˈɪnər/",
+        "laos_pronunciation": "naiphainai",
+        "jp_pronunciation": "uchigawa",
+        "vie_pronunciation": "ben trong"
+      },
+      "means": {
+        "en": "Located inward; - Leonard Bernstein; - David Denby; - A.R.Gurney,Jr.",
+        "zh": "位于内侧；"
+      }
+    },
+    {
+      "word": {
+        "en": "innocent",
+        "laos": "ບໍລິສົດ",
+        "jp": "無実の",
+        "vie": "vô tội",
+        "en_pronunciation": "/ˈɪnəsənt/",
+        "laos_pronunciation": "bolisod",
+        "jp_pronunciation": "mujitsu no",
+        "vie_pronunciation": "vo toi"
+      },
+      "means": {
+        "en": "A person who lacks knowledge of evil",
+        "zh": "一个缺乏邪恶知识的人"
+      }
+    },
+    {
+      "word": {
+        "en": "innocence",
+        "laos": "ຄວາມບໍລິສົດ",
+        "jp": "無実",
+        "vie": "sự ngây thơ",
+        "en_pronunciation": "/ˈɪnəsəns/",
+        "laos_pronunciation": "khuaam bolisod",
+        "jp_pronunciation": "mujitsu",
+        "vie_pronunciation": "su ngay tho"
+      },
+      "means": {
+        "en": "The quality of innocent naivete",
+        "zh": "天真烂漫的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "innovate",
+        "laos": "ປະດິດສ້າງ",
+        "jp": "革新する",
+        "vie": "đổi mới",
+        "en_pronunciation": "/ˈɪnəˌveɪt/",
+        "laos_pronunciation": "padidsang",
+        "jp_pronunciation": "kakushin suru",
+        "vie_pronunciation": "doi moi"
+      },
+      "means": {
+        "en": "Bring something new to an environment",
+        "zh": "为环境带来新的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "innovation",
+        "laos": "ປະດິດສ້າງ",
+        "jp": "イノベーション",
+        "vie": "sự đổi mới",
+        "en_pronunciation": "/ˌɪnəˈveɪʃən/",
+        "laos_pronunciation": "padidsang",
+        "jp_pronunciation": "inobeeshon",
+        "vie_pronunciation": "su doi moi"
+      },
+      "means": {
+        "en": "A creation (a new device or process) resulting from study and experimentation",
+        "zh": "研究和实验产生的创造（新设备或过程）"
+      }
+    },
+    {
+      "word": {
+        "en": "innovative",
+        "laos": "ທີ່ປະດິດຄິດເລກ",
+        "jp": "革新的な",
+        "vie": "đổi mới",
+        "en_pronunciation": "/ˈɪnəˌveɪtɪv/",
+        "laos_pronunciation": "thi padid khid lek",
+        "jp_pronunciation": "kakushinteki na",
+        "vie_pronunciation": "doi moi"
+      },
+      "means": {
+        "en": "Ahead of the times",
+        "zh": "领先于时代"
+      }
+    },
+    {
+      "word": {
+        "en": "innumerable",
+        "laos": "ຈໍານວນທີ່ນັບໄດ້",
+        "jp": "無数の",
+        "vie": "vô số",
+        "en_pronunciation": "/ˌɪˈnumərəbəl/",
+        "laos_pronunciation": "choanuan thi nabdai",
+        "jp_pronunciation": "musuu no",
+        "vie_pronunciation": "vo so"
+      },
+      "means": {
+        "en": "Too numerous to be counted",
+        "zh": "多得难以计数"
+      }
+    },
+    {
+      "word": {
+        "en": "input",
+        "laos": "ການປ້ອນຂໍ້ມູນ",
+        "jp": "入力",
+        "vie": "đầu vào",
+        "en_pronunciation": "/ˈɪnˌpʊt/",
+        "laos_pronunciation": "kanponkhomun",
+        "jp_pronunciation": "nyuuryoku",
+        "vie_pronunciation": "dau vao"
+      },
+      "means": {
+        "en": "Signal going into an electronic system",
+        "zh": "信号进入电子系统"
+      }
+    },
+    {
+      "word": {
+        "en": "inquire",
+        "laos": "ສອບຖາມ",
+        "jp": "問い合わせる",
+        "vie": "hỏi thăm",
+        "en_pronunciation": "/ˌɪnkˈwaɪr/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "toiawase ru",
+        "vie_pronunciation": "hoi tham"
+      },
+      "means": {
+        "en": "Inquire about",
+        "zh": "打听"
+      }
+    },
+    {
+      "word": {
+        "en": "enquire",
+        "laos": "ສອບຖາມ",
+        "jp": "問い合わせる",
+        "vie": "hỏi thăm",
+        "en_pronunciation": "/ɪnkˈwaɪər/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "toiawase ru",
+        "vie_pronunciation": "hoi tham"
+      },
+      "means": {
+        "en": "Inquire about",
+        "zh": "打听"
+      }
+    },
+    {
+      "word": {
+        "en": "inquiry",
+        "laos": "ສອບຖາມ",
+        "jp": "お問い合わせ",
+        "vie": "cuộc điều tra",
+        "en_pronunciation": "/ˌɪnkˈwaɪˌri/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "o toiawase",
+        "vie_pronunciation": "cuoc dieu tra"
+      },
+      "means": {
+        "en": "A search for knowledge",
+        "zh": "寻找知识"
+      }
+    },
+    {
+      "word": {
+        "en": "enquiry",
+        "laos": "ສອບຖາມ",
+        "jp": "お問い合わせ",
+        "vie": "cuộc điều tra",
+        "en_pronunciation": "/ɪnkˈwaɪˌri/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "o toiawase",
+        "vie_pronunciation": "cuoc dieu tra"
+      },
+      "means": {
+        "en": "An instance of questioning",
+        "zh": "提问的一个例子"
+      }
+    },
+    {
+      "word": {
+        "en": "inquisitive",
+        "laos": "ທີ່ຢາກຮູ້",
+        "jp": "好奇心旺盛な",
+        "vie": "tò mò",
+        "en_pronunciation": "/ˌɪnkˈwɪzɪtɪv/",
+        "laos_pronunciation": "thiyakhu",
+        "jp_pronunciation": "koukishin'ousei na",
+        "vie_pronunciation": "to mo"
+      },
+      "means": {
+        "en": "Showing curiosity",
+        "zh": "表现出好奇心"
+      }
+    },
+    {
+      "word": {
+        "en": "insane",
+        "laos": "ບ້າ",
+        "jp": "狂った",
+        "vie": "mất trí",
+        "en_pronunciation": "/ˌɪnˈseɪn/",
+        "laos_pronunciation": "ba",
+        "jp_pronunciation": "kurutsu ta",
+        "vie_pronunciation": "mat tri"
+      },
+      "means": {
+        "en": "Afflicted with or characteristic of mental derangement",
+        "zh": "患有精神错乱或具有精神错乱的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "insect",
+        "laos": "ແມງໄມ້",
+        "jp": "昆虫",
+        "vie": "côn trùng",
+        "en_pronunciation": "/ˈɪnˌsɛkt/",
+        "laos_pronunciation": "aemngmai",
+        "jp_pronunciation": "konchuu",
+        "vie_pronunciation": "con trung"
+      },
+      "means": {
+        "en": "Small air-breathing arthropod",
+        "zh": "小型呼吸空气节肢动物"
+      }
+    },
+    {
+      "word": {
+        "en": "insanity",
+        "laos": "ເສຽພາບ",
+        "jp": "狂気",
+        "vie": "sự điên rồ",
+        "en_pronunciation": "/ˌɪnˈsænɪti/",
+        "laos_pronunciation": "seiaphab",
+        "jp_pronunciation": "kyouki",
+        "vie_pronunciation": "su dien ro"
+      },
+      "means": {
+        "en": "Relatively permanent disorder of the mind",
+        "zh": "相对永久性的精神障碍"
+      }
+    },
+    {
+      "word": {
+        "en": "insert",
+        "laos": "ຊອນເຂົ້າ",
+        "jp": "挿入する",
+        "vie": "chèn",
+        "en_pronunciation": "/ˌɪnˈsərt/",
+        "laos_pronunciation": "sonkhao",
+        "jp_pronunciation": "sounyuu suru",
+        "vie_pronunciation": "chen"
+      },
+      "means": {
+        "en": "A folded section placed between the leaves of another publication",
+        "zh": "放置在另一出版物的页之间的折叠部分"
+      }
+    },
+    {
+      "word": {
+        "en": "insertion",
+        "laos": "ການແຊກ",
+        "jp": "挿入",
+        "vie": "chèn",
+        "en_pronunciation": "/ˌɪnˈsərʃən/",
+        "laos_pronunciation": "kanaesk",
+        "jp_pronunciation": "sounyuu",
+        "vie_pronunciation": "chen"
+      },
+      "means": {
+        "en": "A message (spoken or written) that is introduced or inserted",
+        "zh": "引入或插入的消息（口头或书面）"
+      }
+    },
+    {
+      "word": {
+        "en": "inside",
+        "laos": "ພາຍໃນ",
+        "jp": "内側",
+        "vie": "bên trong",
+        "en_pronunciation": "/ˌɪnˈsaɪd/",
+        "laos_pronunciation": "phainai",
+        "jp_pronunciation": "uchigawa",
+        "vie_pronunciation": "ben trong"
+      },
+      "means": {
+        "en": "The region that is inside of something",
+        "zh": "某物内部的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "insider",
+        "laos": "ຜູ້ຂຶ້ນໄປພາຍໃນ",
+        "jp": "インサイダー",
+        "vie": "người trong cuộc",
+        "en_pronunciation": "/ˌɪnˈsaɪdər/",
+        "laos_pronunciation": "phu khunpaiphainai",
+        "jp_pronunciation": "insaidaa",
+        "vie_pronunciation": "nguoi trong cuoc"
+      },
+      "means": {
+        "en": "An officer of a corporation or others who have access to private information about the corporation's operations",
+        "zh": "公司的管理人员或有权访问有关公司运营的私人信息的其他人"
+      }
+    },
+    {
+      "word": {
+        "en": "insight",
+        "laos": "ຄວາມເຂົ້າໃຈໃນ",
+        "jp": "洞察力",
+        "vie": "cái nhìn sâu sắc",
+        "en_pronunciation": "/ˈɪnˌsaɪt/",
+        "laos_pronunciation": "khuaamkhaochainai",
+        "jp_pronunciation": "dousatsuryoku",
+        "vie_pronunciation": "cai nhin sau sac"
+      },
+      "means": {
+        "en": "Clear or deep perception of a situation",
+        "zh": "对情况有清晰或深刻的认识"
+      }
+    },
+    {
+      "word": {
+        "en": "insightful",
+        "laos": "ທີ່ຢັງຢັງຈະໃຈ",
+        "jp": "洞察力に富んだ",
+        "vie": "sâu sắc",
+        "en_pronunciation": "/ˈɪnˌsaɪtfəl/",
+        "laos_pronunciation": "thi yang yang chachai",
+        "jp_pronunciation": "dousatsuryoku ni ton da",
+        "vie_pronunciation": "sau sac"
+      },
+      "means": {
+        "en": "Exhibiting insight or clear and deep perception; ; -R.C.Angell",
+        "zh": "表现出洞察力或清晰而深刻的感知；"
+      }
+    },
+    {
+      "word": {
+        "en": "insist",
+        "laos": "ຮຽກຮ້ອງໃຫ້ຊາບ",
+        "jp": "主張する",
+        "vie": "nhấn mạnh",
+        "en_pronunciation": "/ˌɪnˈsɪst/",
+        "laos_pronunciation": "hiakhonghaisab",
+        "jp_pronunciation": "shuchou suru",
+        "vie_pronunciation": "nhan manh"
+      },
+      "means": {
+        "en": "Be emphatic or resolute and refuse to budge",
+        "zh": "强调或坚决，拒绝让步"
+      }
+    },
+    {
+      "word": {
+        "en": "insistence",
+        "laos": "ການຍືນຍັນ",
+        "jp": "主張",
+        "vie": "sự khăng khăng",
+        "en_pronunciation": "/ˌɪnˈsɪstəns/",
+        "laos_pronunciation": "kannyunnyan",
+        "jp_pronunciation": "shuchou",
+        "vie_pronunciation": "su khang khang"
+      },
+      "means": {
+        "en": "Continual and persistent demands",
+        "zh": "持续不断的要求"
+      }
+    },
+    {
+      "word": {
+        "en": "insistent",
+        "laos": "ທີ່ໂລ່ງໃຈ",
+        "jp": "しつこい",
+        "vie": "khăng khăng",
+        "en_pronunciation": "/ˌɪnˈsɪstənt/",
+        "laos_pronunciation": "thi olngchai",
+        "jp_pronunciation": "shitsukoi",
+        "vie_pronunciation": "khang khang"
+      },
+      "means": {
+        "en": "Repetitive and persistent",
+        "zh": "重复且持久"
+      }
+    },
+    {
+      "word": {
+        "en": "inspect",
+        "laos": "ກວດກາ",
+        "jp": "検査する",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ˌɪnˈspɛkt/",
+        "laos_pronunciation": "kuadka",
+        "jp_pronunciation": "kensa suru",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "Look over carefully",
+        "zh": "仔细看一遍"
+      }
+    },
+    {
+      "word": {
+        "en": "inspection",
+        "laos": "ການກວດກາ",
+        "jp": "検査",
+        "vie": "kiểm tra",
+        "en_pronunciation": "/ˌɪnˈspɛkʃən/",
+        "laos_pronunciation": "kankuadka",
+        "jp_pronunciation": "kensa",
+        "vie_pronunciation": "kiem tra"
+      },
+      "means": {
+        "en": "A formal or official examination",
+        "zh": "正式或官方考试"
+      }
+    },
+    {
+      "word": {
+        "en": "inspector",
+        "laos": "ຜູ້ກວດການ",
+        "jp": "検査官",
+        "vie": "thanh tra",
+        "en_pronunciation": "/ˌɪnˈspɛktər/",
+        "laos_pronunciation": "phu kuadkan",
+        "jp_pronunciation": "kensakan",
+        "vie_pronunciation": "thanh tra"
+      },
+      "means": {
+        "en": "A high ranking police officer",
+        "zh": "一名高级警官"
+      }
+    },
+    {
+      "word": {
+        "en": "inspire",
+        "laos": "ດົນໃຈ",
+        "jp": "インスピレーションを与える",
+        "vie": "truyền cảm hứng",
+        "en_pronunciation": "/ˌɪnˈspaɪr/",
+        "laos_pronunciation": "donchai",
+        "jp_pronunciation": "insupireeshon wo atae ru",
+        "vie_pronunciation": "truyen cam hung"
+      },
+      "means": {
+        "en": "Heighten or intensify",
+        "zh": "加强或加强"
+      }
+    },
+    {
+      "word": {
+        "en": "instal",
+        "laos": "ເຄື່ອງຫລີ້ນ",
+        "jp": "インストールする",
+        "vie": "cài đặt",
+        "en_pronunciation": "/instal/",
+        "laos_pronunciation": "kheuonglin",
+        "jp_pronunciation": "insutooru suru",
+        "vie_pronunciation": "cai dat"
+      },
+      "means": {
+        "en": "Set up for use",
+        "zh": "设置使用"
+      }
+    },
+    {
+      "word": {
+        "en": "install",
+        "laos": "ຈັດເຂົ້າ",
+        "jp": "インストールする",
+        "vie": "cài đặt",
+        "en_pronunciation": "/ˌɪnˈstɔl/",
+        "laos_pronunciation": "chadkhao",
+        "jp_pronunciation": "insutooru suru",
+        "vie_pronunciation": "cai dat"
+      },
+      "means": {
+        "en": "Set up for use",
+        "zh": "设置使用"
+      }
+    },
+    {
+      "word": {
+        "en": "inspiration",
+        "laos": "ການດົນໃຈ",
+        "jp": "インスピレーション",
+        "vie": "nguồn cảm hứng",
+        "en_pronunciation": "/ˌɪnspərˈeɪʃən/",
+        "laos_pronunciation": "kan donchai",
+        "jp_pronunciation": "insupireeshon",
+        "vie_pronunciation": "nguon cam hung"
+      },
+      "means": {
+        "en": "Arousal of the mind to special unusual activity or creativity",
+        "zh": "唤醒大脑对特殊的不寻常的活动或创造力"
+      }
+    },
+    {
+      "word": {
+        "en": "instalation",
+        "laos": "ກະປຸກສັງເກດ",
+        "jp": "設置",
+        "vie": "cài đặt",
+        "en_pronunciation": "/instalation/",
+        "laos_pronunciation": "ka puksangked",
+        "jp_pronunciation": "setchi",
+        "vie_pronunciation": "cai dat"
+      },
+      "means": {
+        "en": "Instalation is an English word referring to 'instalation'.",
+        "zh": "Instalation是一个英文单词，意为“安装”。"
+      }
+    },
+    {
+      "word": {
+        "en": "installation",
+        "laos": "ການຕິດຕັ້ງ",
+        "jp": "インストール",
+        "vie": "cài đặt",
+        "en_pronunciation": "/ˌɪnstəˈleɪʃən/",
+        "laos_pronunciation": "kantidtang",
+        "jp_pronunciation": "insutooru",
+        "vie_pronunciation": "cai dat"
+      },
+      "means": {
+        "en": "The act of installing something (as equipment)",
+        "zh": "安装某物（如设备）的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "inspirational",
+        "laos": "ສ້າງແຮງບັນດານໃຈ",
+        "jp": "インスピレーションを与える",
+        "vie": "truyền cảm hứng",
+        "en_pronunciation": "/ˌɪnspərˈeɪʃənəl/",
+        "laos_pronunciation": "sang aehng bandanchai",
+        "jp_pronunciation": "insupireeshon wo atae ru",
+        "vie_pronunciation": "truyen cam hung"
+      },
+      "means": {
+        "en": "Imparting a divine influence on the mind and soul",
+        "zh": "对思想和灵魂产生神圣的影响"
+      }
+    },
+    {
+      "word": {
+        "en": "instalment",
+        "laos": "ງວດ",
+        "jp": "分割払い",
+        "vie": "trả góp",
+        "en_pronunciation": "/instalment/",
+        "laos_pronunciation": "nguad",
+        "jp_pronunciation": "bunkatsu harai",
+        "vie_pronunciation": "tra gop"
+      },
+      "means": {
+        "en": "A part of a broadcast serial",
+        "zh": "广播连续剧的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "installment",
+        "laos": "ງວດ",
+        "jp": "分割払い",
+        "vie": "trả góp",
+        "en_pronunciation": "/ˌɪnˈstɔlmənt/",
+        "laos_pronunciation": "nguad",
+        "jp_pronunciation": "bunkatsu harai",
+        "vie_pronunciation": "tra gop"
+      },
+      "means": {
+        "en": "A payment of part of a debt; usually paid at regular intervals",
+        "zh": "偿还部分债务；"
+      }
+    },
+    {
+      "word": {
+        "en": "instance",
+        "laos": "ສັງວຽນ",
+        "jp": "インスタンス",
+        "vie": "ví dụ",
+        "en_pronunciation": "/ˈɪnstəns/",
+        "laos_pronunciation": "sanguaian",
+        "jp_pronunciation": "insutansu",
+        "vie_pronunciation": "vi du"
+      },
+      "means": {
+        "en": "An occurrence of something",
+        "zh": "某事的发生"
+      }
+    },
+    {
+      "word": {
+        "en": "instant",
+        "laos": "ວິທີການ",
+        "jp": "インスタント",
+        "vie": "ngay lập tức",
+        "en_pronunciation": "/ˈɪnstənt/",
+        "laos_pronunciation": "vithikan",
+        "jp_pronunciation": "insutanto",
+        "vie_pronunciation": "ngay lap tuc"
+      },
+      "means": {
+        "en": "A very short time (as the time it takes the eye to blink or the heart to beat)",
+        "zh": "非常短的时间（如眼睛眨动或心脏跳动所需的时间）"
+      }
+    },
+    {
+      "word": {
+        "en": "instantaneous",
+        "laos": "ຍ່າງຢ",
+        "jp": "瞬間的な",
+        "vie": "tức thời",
+        "en_pronunciation": "/ˌɪnstənˈtæniəs/",
+        "laos_pronunciation": "nyangy",
+        "jp_pronunciation": "shunkanteki na",
+        "vie_pronunciation": "tuc thoi"
+      },
+      "means": {
+        "en": "Occurring with no delay",
+        "zh": "立即发生"
+      }
+    },
+    {
+      "word": {
+        "en": "instead",
+        "laos": "ແທນທີ່",
+        "jp": "代わりに",
+        "vie": "thay vào đó",
+        "en_pronunciation": "/ˌɪnˈstɛd/",
+        "laos_pronunciation": "aethnthi",
+        "jp_pronunciation": "kawari ni",
+        "vie_pronunciation": "thay vao do"
+      },
+      "means": {
+        "en": "In place of, or as an alternative to",
+        "zh": "代替或作为替代"
+      }
+    },
+    {
+      "word": {
+        "en": "instinct",
+        "laos": "ສັນຊາດ",
+        "jp": "本能",
+        "vie": "bản năng",
+        "en_pronunciation": "/ˈɪnstɪŋkt/",
+        "laos_pronunciation": "sansad",
+        "jp_pronunciation": "honnou",
+        "vie_pronunciation": "ban nang"
+      },
+      "means": {
+        "en": "Inborn pattern of behavior often responsive to specific stimuli",
+        "zh": "通常对特定刺激做出反应的先天行为模式"
+      }
+    },
+    {
+      "word": {
+        "en": "instinctive",
+        "laos": "ແຢ່ງ",
+        "jp": "本能的な",
+        "vie": "bản năng",
+        "en_pronunciation": "/ˌɪnˈstɪŋktɪv/",
+        "laos_pronunciation": "aeyng",
+        "jp_pronunciation": "honnouteki na",
+        "vie_pronunciation": "ban nang"
+      },
+      "means": {
+        "en": "Unthinking; prompted by (or as if by) instinct",
+        "zh": "不假思索；"
+      }
+    },
+    {
+      "word": {
+        "en": "institute",
+        "laos": "ສະຖາບັນ",
+        "jp": "研究所",
+        "vie": "viện",
+        "en_pronunciation": "/ˈɪnstɪˌtut/",
+        "laos_pronunciation": "sathaban",
+        "jp_pronunciation": "kenkyuusho",
+        "vie_pronunciation": "vien"
+      },
+      "means": {
+        "en": "An association organized to promote art or science or education",
+        "zh": "为促进艺术、科学或教育而组织的协会"
+      }
+    },
+    {
+      "word": {
+        "en": "institution",
+        "laos": "ສະຖາບັນ",
+        "jp": "機関",
+        "vie": "cơ quan",
+        "en_pronunciation": "/ˌɪnstɪˈtuʃən/",
+        "laos_pronunciation": "sathaban",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "co quan"
+      },
+      "means": {
+        "en": "An organization founded and united for a specific purpose",
+        "zh": "为特定目的而成立和联合的组织"
+      }
+    },
+    {
+      "word": {
+        "en": "institutional",
+        "laos": "ຖາເບີກ",
+        "jp": "制度的な",
+        "vie": "thể chế",
+        "en_pronunciation": "/ˌɪnstɪˈtuʃənəl/",
+        "laos_pronunciation": "thaboek",
+        "jp_pronunciation": "seidoteki na",
+        "vie_pronunciation": "the che"
+      },
+      "means": {
+        "en": "Relating to or constituting or involving an institution",
+        "zh": "与机构有关或构成机构或涉及机构"
+      }
+    },
+    {
+      "word": {
+        "en": "instruct",
+        "laos": "ແນະນໍາ",
+        "jp": "指示する",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/ˌɪnˈstrəkt/",
+        "laos_pronunciation": "naenoa",
+        "jp_pronunciation": "shiji suru",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "Impart skills or knowledge to",
+        "zh": "传授技能或知识"
+      }
+    },
+    {
+      "word": {
+        "en": "instruction",
+        "laos": "ອະນຸສາດ",
+        "jp": "指示",
+        "vie": "hướng dẫn",
+        "en_pronunciation": "/ˌɪnˈstrəkʃən/",
+        "laos_pronunciation": "anusad",
+        "jp_pronunciation": "shiji",
+        "vie_pronunciation": "huong dan"
+      },
+      "means": {
+        "en": "A message describing how something is to be done",
+        "zh": "描述如何完成某事的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "instructor",
+        "laos": "ຜູ້ຢິງສອນ",
+        "jp": "インストラクター",
+        "vie": "người hướng dẫn",
+        "en_pronunciation": "/ˌɪnˈstrəktər/",
+        "laos_pronunciation": "phu yingson",
+        "jp_pronunciation": "insutorakutaa",
+        "vie_pronunciation": "nguoi huong dan"
+      },
+      "means": {
+        "en": "A person whose occupation is teaching",
+        "zh": "职业是教学的人"
+      }
+    },
+    {
+      "word": {
+        "en": "instructive",
+        "laos": "ແນະນໍາ",
+        "jp": "有益な",
+        "vie": "mang tính hướng dẫn",
+        "en_pronunciation": "/ˌɪnˈstrəktɪv/",
+        "laos_pronunciation": "naenoa",
+        "jp_pronunciation": "yuueki na",
+        "vie_pronunciation": "mang tinh huong dan"
+      },
+      "means": {
+        "en": "Serving to instruct or enlighten or inform",
+        "zh": "起到指导、启发或告知的作用"
+      }
+    },
+    {
+      "word": {
+        "en": "instrument",
+        "laos": "ເຄື່ອງມື",
+        "jp": "楽器",
+        "vie": "nhạc cụ",
+        "en_pronunciation": "/ˈɪnstrəmənt/",
+        "laos_pronunciation": "kheuongmu",
+        "jp_pronunciation": "gakki",
+        "vie_pronunciation": "nhac cu"
+      },
+      "means": {
+        "en": "A device that requires skill for proper use",
+        "zh": "需要技巧才能正确使用的设备"
+      }
+    },
+    {
+      "word": {
+        "en": "instrumental",
+        "laos": "ທີ່ເປັນເຄື່ອງມື",
+        "jp": "インストゥルメンタル",
+        "vie": "nhạc cụ",
+        "en_pronunciation": "/ˌɪnstrəˈmɛnəl/",
+        "laos_pronunciation": "thipenkheuongmu",
+        "jp_pronunciation": "insutourumentaru",
+        "vie_pronunciation": "nhac cu"
+      },
+      "means": {
+        "en": "Relating to or designed for or performed on musical instruments",
+        "zh": "与乐器有关、为乐器设计或在乐器上演奏"
+      }
+    },
+    {
+      "word": {
+        "en": "insulate",
+        "laos": "Insulate ອອນໄລນ໌",
+        "jp": "絶縁する",
+        "vie": "cách nhiệt",
+        "en_pronunciation": "/ˈɪnsəˌleɪt/",
+        "laos_pronunciation": "Insulate nlain",
+        "jp_pronunciation": "zetsuen suru",
+        "vie_pronunciation": "cach nhiet"
+      },
+      "means": {
+        "en": "Protect from heat, cold, or noise by surrounding with insulating material",
+        "zh": "用绝缘材料包围，防止热、冷或噪音"
+      }
+    },
+    {
+      "word": {
+        "en": "insulation",
+        "laos": "ການສອສຕອລ",
+        "jp": "絶縁体",
+        "vie": "cách nhiệt",
+        "en_pronunciation": "/ˌɪnsəˈleɪʃən/",
+        "laos_pronunciation": "kan s  stol",
+        "jp_pronunciation": "zetsuentai",
+        "vie_pronunciation": "cach nhiet"
+      },
+      "means": {
+        "en": "The state of being isolated or detached",
+        "zh": "孤立或疏离的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "insulator",
+        "laos": "ຜູ້ຢິງບັງຄັບ",
+        "jp": "絶縁体",
+        "vie": "chất cách điện",
+        "en_pronunciation": "/ˈɪnsəˌleɪtər/",
+        "laos_pronunciation": "phu yingbangkhab",
+        "jp_pronunciation": "zetsuentai",
+        "vie_pronunciation": "chat cach dien"
+      },
+      "means": {
+        "en": "A material such as glass or porcelain with negligible electrical or thermal conductivity",
+        "zh": "导电率或导热率可忽略不计的材料，例如玻璃或瓷器"
+      }
+    },
+    {
+      "word": {
+        "en": "insult",
+        "laos": "ການດູຖູກ",
+        "jp": "侮辱",
+        "vie": "xúc phạm",
+        "en_pronunciation": "/ˌɪnˈsəlt/",
+        "laos_pronunciation": "kan duthuk",
+        "jp_pronunciation": "bujoku",
+        "vie_pronunciation": "xuc pham"
+      },
+      "means": {
+        "en": "A rude expression intended to offend or hurt",
+        "zh": "意图冒犯或伤害的粗鲁表达"
+      }
+    }
+  ]
+}

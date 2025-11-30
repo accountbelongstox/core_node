@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.364107+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "navy",
+        "laos": "ກອງທັບເຮືອ",
+        "jp": "ネイビー",
+        "vie": "hải quân",
+        "en_pronunciation": "/ˈneɪvi/",
+        "laos_pronunciation": "kongthabheu",
+        "jp_pronunciation": "neibii",
+        "vie_pronunciation": "hai quan"
+      },
+      "means": {
+        "en": "An organization of military vessels belonging to a country and available for sea warfare",
+        "zh": "属于一个国家并可用于海战的军舰组织"
+      }
+    },
+    {
+      "word": {
+        "en": "naval",
+        "laos": "ຜູ້ຊາຢ",
+        "jp": "海軍",
+        "vie": "hải quân",
+        "en_pronunciation": "/ˈneɪvəl/",
+        "laos_pronunciation": "phusay",
+        "jp_pronunciation": "kaigun",
+        "vie_pronunciation": "hai quan"
+      },
+      "means": {
+        "en": "Connected with or belonging to or used in a navy",
+        "zh": "与海军有联系、属于海军或在海军中使用"
+      }
+    },
+    {
+      "word": {
+        "en": "near",
+        "laos": "ໃກ້",
+        "jp": "近くの",
+        "vie": "gần",
+        "en_pronunciation": "/nɪr/",
+        "laos_pronunciation": "kai",
+        "jp_pronunciation": "chikaku no",
+        "vie_pronunciation": "gan"
+      },
+      "means": {
+        "en": "Move towards",
+        "zh": "走向"
+      }
+    },
+    {
+      "word": {
+        "en": "nearly",
+        "laos": "ເກືອບ",
+        "jp": "ほぼ",
+        "vie": "gần như",
+        "en_pronunciation": "/ˈnɪrli/",
+        "laos_pronunciation": "keuob",
+        "jp_pronunciation": "hobo",
+        "vie_pronunciation": "gan nhu"
+      },
+      "means": {
+        "en": "(of actions or states) slightly short of or not quite accomplished; all but",
+        "zh": "（行动或状态）稍有不足或未完全完成；"
+      }
+    },
+    {
+      "word": {
+        "en": "nearby",
+        "laos": "ປະເທດໃກ້ຄຽງ",
+        "jp": "近くの",
+        "vie": "gần đó",
+        "en_pronunciation": "/ˈnɪrˈbaɪ/",
+        "laos_pronunciation": "pathedkaikhiang",
+        "jp_pronunciation": "chikaku no",
+        "vie_pronunciation": "gan do"
+      },
+      "means": {
+        "en": "Close at hand",
+        "zh": "除了"
+      }
+    },
+    {
+      "word": {
+        "en": "neat",
+        "laos": "ປະສະກອນ",
+        "jp": "きちんとした",
+        "vie": "gọn gàng",
+        "en_pronunciation": "/nit/",
+        "laos_pronunciation": "pa sakon",
+        "jp_pronunciation": "kichintoshita",
+        "vie_pronunciation": "gon gang"
+      },
+      "means": {
+        "en": "Clean or organized",
+        "zh": "近在咫尺"
+      }
+    },
+    {
+      "word": {
+        "en": "necessary",
+        "laos": "ຈໍາເປັນ",
+        "jp": "必要な",
+        "vie": "cần thiết",
+        "en_pronunciation": "/ˈnɛsəˌsɛri/",
+        "laos_pronunciation": "choapen",
+        "jp_pronunciation": "hitsuyou na",
+        "vie_pronunciation": "can thiet"
+      },
+      "means": {
+        "en": "Anything indispensable",
+        "zh": "干净或有条理"
+      }
+    },
+    {
+      "word": {
+        "en": "necessarily",
+        "laos": "ຈຽມຕົວ",
+        "jp": "必然的に",
+        "vie": "nhất thiết",
+        "en_pronunciation": "/ˌnɛsəˈsɛrəli/",
+        "laos_pronunciation": "chiamtua",
+        "jp_pronunciation": "hitsuzenteki ni",
+        "vie_pronunciation": "nhat thiet"
+      },
+      "means": {
+        "en": "In an essential manner",
+        "zh": "任何事物都不可或缺"
+      }
+    },
+    {
+      "word": {
+        "en": "necessity",
+        "laos": "ຄວາມຈໍາເປັນ",
+        "jp": "必要性",
+        "vie": "sự cần thiết",
+        "en_pronunciation": "/nəˈsɛsɪti/",
+        "laos_pronunciation": "khuaamchoapen",
+        "jp_pronunciation": "hitsuyousei",
+        "vie_pronunciation": "su can thiet"
+      },
+      "means": {
+        "en": "The condition of being essential or indispensable",
+        "zh": "以一种必要的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "necessitate",
+        "laos": "ຈຶ່ງຈໍາເປັນ",
+        "jp": "必要とする",
+        "vie": "đòi hỏi",
+        "en_pronunciation": "/nəˈsɛsəˌteɪt/",
+        "laos_pronunciation": "chungchoapen",
+        "jp_pronunciation": "hitsuyou tosuru",
+        "vie_pronunciation": "doi hoi"
+      },
+      "means": {
+        "en": "Require as useful, just, or proper",
+        "zh": "必要或不可缺少的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "neck",
+        "laos": "ຄໍ",
+        "jp": "首",
+        "vie": "cái cổ",
+        "en_pronunciation": "/nɛk/",
+        "laos_pronunciation": "kho",
+        "jp_pronunciation": "kubi",
+        "vie_pronunciation": "cai co"
+      },
+      "means": {
+        "en": "The part of an organism (human or animal) that connects the head to the rest of the body",
+        "zh": "要求有用、公正或适当"
+      }
+    },
+    {
+      "word": {
+        "en": "necklace",
+        "laos": "ສາຍສ້ອຍຄໍ",
+        "jp": "ネックレス",
+        "vie": "vòng cổ",
+        "en_pronunciation": "/ˈnɛkləs/",
+        "laos_pronunciation": "saisonykho",
+        "jp_pronunciation": "nekkuresu",
+        "vie_pronunciation": "vong co"
+      },
+      "means": {
+        "en": "Jewelry consisting of a cord or chain (often bearing gems) worn about the neck as an ornament (especially by women)",
+        "zh": "有机体（人类或动物）将头部与身体其他部分连接起来的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "need",
+        "laos": "ຕ້ອງການ",
+        "jp": "必要です",
+        "vie": "cần",
+        "en_pronunciation": "/nid/",
+        "laos_pronunciation": "tongkan",
+        "jp_pronunciation": "hitsuyou desu",
+        "vie_pronunciation": "can"
+      },
+      "means": {
+        "en": "A condition requiring relief",
+        "zh": "由绳索或链条（通常带有宝石）组成的珠宝，佩戴在脖子上作为装饰品（尤其是女性）"
+      }
+    },
+    {
+      "word": {
+        "en": "needy",
+        "laos": "ຜ້າເຊັດຕີນ",
+        "jp": "貧しい",
+        "vie": "thiếu thốn",
+        "en_pronunciation": "/ˈnidi/",
+        "laos_pronunciation": "pha sedtin",
+        "jp_pronunciation": "mazushii",
+        "vie_pronunciation": "thieu thon"
+      },
+      "means": {
+        "en": "Needy people collectively",
+        "zh": "需要缓解的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "needle",
+        "laos": "ເຂັມ",
+        "jp": "針",
+        "vie": "cây kim",
+        "en_pronunciation": "/ˈnidəl/",
+        "laos_pronunciation": "khem",
+        "jp_pronunciation": "hari",
+        "vie_pronunciation": "cay kim"
+      },
+      "means": {
+        "en": "The leaf of a conifer",
+        "zh": "困难群众集体"
+      }
+    },
+    {
+      "word": {
+        "en": "negate",
+        "laos": "negate",
+        "jp": "否定する",
+        "vie": "phủ nhận",
+        "en_pronunciation": "/nɪˈgeɪt/",
+        "laos_pronunciation": "negate",
+        "jp_pronunciation": "hitei suru",
+        "vie_pronunciation": "phu nhan"
+      },
+      "means": {
+        "en": "Be in contradiction with",
+        "zh": "针叶树的叶子"
+      }
+    },
+    {
+      "word": {
+        "en": "negation",
+        "laos": "ການເຈລະຈາ",
+        "jp": "否定",
+        "vie": "sự phủ định",
+        "en_pronunciation": "/nəˈgeɪʃən/",
+        "laos_pronunciation": "kanchelacha",
+        "jp_pronunciation": "hitei",
+        "vie_pronunciation": "su phu dinh"
+      },
+      "means": {
+        "en": "A negative statement; a statement that is a refusal or denial of some other statement",
+        "zh": "与 相矛盾"
+      }
+    },
+    {
+      "word": {
+        "en": "negative",
+        "laos": "ໃນແງ່ລົບ",
+        "jp": "否定的な",
+        "vie": "tiêu cực",
+        "en_pronunciation": "/ˈnɛgətɪv/",
+        "laos_pronunciation": "nai aenglob",
+        "jp_pronunciation": "hiteiteki na",
+        "vie_pronunciation": "tieu cuc"
+      },
+      "means": {
+        "en": "A reply of denial",
+        "zh": "否定的陈述；"
+      }
+    },
+    {
+      "word": {
+        "en": "neglect",
+        "laos": "ເລີກກັນ",
+        "jp": "無視する",
+        "vie": "bỏ bê",
+        "en_pronunciation": "/nɪˈglɛkt/",
+        "laos_pronunciation": "loekkan",
+        "jp_pronunciation": "mushisu ru",
+        "vie_pronunciation": "bo be"
+      },
+      "means": {
+        "en": "Lack of attention and due care",
+        "zh": "拒绝或否认其他某些陈述的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "neglectful",
+        "laos": "ພໍຫມັ່ນໃຈ",
+        "jp": "怠慢な",
+        "vie": "lơ là",
+        "en_pronunciation": "/nɪˈglɛktfəl/",
+        "laos_pronunciation": "pho manchai",
+        "jp_pronunciation": "taiman na",
+        "vie_pronunciation": "lo la"
+      },
+      "means": {
+        "en": "Not showing due care or attention",
+        "zh": "否认的回复"
+      }
+    },
+    {
+      "word": {
+        "en": "negligent",
+        "laos": "ທີ່ບໍ່ເອົາໃຈໃສ່",
+        "jp": "怠慢な",
+        "vie": "cẩu thả",
+        "en_pronunciation": "/ˈnɛglɪʤənt/",
+        "laos_pronunciation": "thibooaochaisai",
+        "jp_pronunciation": "taiman na",
+        "vie_pronunciation": "cau tha"
+      },
+      "means": {
+        "en": "Characterized by neglect and undue lack of concern",
+        "zh": "缺乏关注和应有的照顾"
+      }
+    },
+    {
+      "word": {
+        "en": "negligence",
+        "laos": "ການປ່ອຢ",
+        "jp": "過失",
+        "vie": "sơ suất",
+        "en_pronunciation": "/ˈnɛglɪʤəns/",
+        "laos_pronunciation": "kan poy",
+        "jp_pronunciation": "kashitsu",
+        "vie_pronunciation": "so suat"
+      },
+      "means": {
+        "en": "Failure to act with the prudence that a reasonable person would exercise under the same circumstances",
+        "zh": "没有表现出应有的谨慎或关注"
+      }
+    },
+    {
+      "word": {
+        "en": "negligible",
+        "laos": "ບໍ່ມີເລີຍ",
+        "jp": "無視できる",
+        "vie": "không đáng kể",
+        "en_pronunciation": "/ˈnɛglɪʤəbəl/",
+        "laos_pronunciation": "bomiloeny",
+        "jp_pronunciation": "mushi dekiru",
+        "vie_pronunciation": "khong dang ke"
+      },
+      "means": {
+        "en": "So small as to be meaningless; insignificant",
+        "zh": "其特点是忽视和过度缺乏关心"
+      }
+    },
+    {
+      "word": {
+        "en": "negotiate",
+        "laos": "ເຈລະຈາ",
+        "jp": "交渉する",
+        "vie": "đàm phán",
+        "en_pronunciation": "/nɪˈgoʊʃiˌeɪt/",
+        "laos_pronunciation": "chelacha",
+        "jp_pronunciation": "koushou suru",
+        "vie_pronunciation": "dam phan"
+      },
+      "means": {
+        "en": "Discuss the terms of an arrangement",
+        "zh": "未能像一个理性的人在相同情况下那样谨慎行事"
+      }
+    },
+    {
+      "word": {
+        "en": "negotiation",
+        "laos": "ການເຈລະຈາ",
+        "jp": "交渉",
+        "vie": "đàm phán",
+        "en_pronunciation": "/nɪˌgoʊʃiˈeɪʃən/",
+        "laos_pronunciation": "kanchelacha",
+        "jp_pronunciation": "koushou",
+        "vie_pronunciation": "dam phan"
+      },
+      "means": {
+        "en": "A discussion intended to produce an agreement",
+        "zh": "小到毫无意义；"
+      }
+    },
+    {
+      "word": {
+        "en": "negotiable",
+        "laos": "ສາມາດຕໍ່ລອງໄດ້",
+        "jp": "交渉可能",
+        "vie": "có thể thương lượng",
+        "en_pronunciation": "/nəˈgoʊʃəbəl/",
+        "laos_pronunciation": "samad to longdai",
+        "jp_pronunciation": "koushoukanou",
+        "vie_pronunciation": "co the thuong luong"
+      },
+      "means": {
+        "en": "Capable of being passed or negotiated",
+        "zh": "微不足道的"
+      }
+    },
+    {
+      "word": {
+        "en": "neighbor",
+        "laos": "ເພື່ອນບ້ານ",
+        "jp": "隣人",
+        "vie": "hàng xóm",
+        "en_pronunciation": "/ˈneɪbər/",
+        "laos_pronunciation": "pheuonban",
+        "jp_pronunciation": "rinjin",
+        "vie_pronunciation": "hang xom"
+      },
+      "means": {
+        "en": "A person who lives (or is located) near another",
+        "zh": "讨论安排的条款"
+      }
+    },
+    {
+      "word": {
+        "en": "neighbour",
+        "laos": "ເພື່ອນບ້ານ",
+        "jp": "隣人",
+        "vie": "hàng xóm",
+        "en_pronunciation": "/ˈneɪbər/",
+        "laos_pronunciation": "pheuonban",
+        "jp_pronunciation": "rinjin",
+        "vie_pronunciation": "hang xom"
+      },
+      "means": {
+        "en": "A person who lives (or is located) near another",
+        "zh": "旨在达成协议的讨论"
+      }
+    },
+    {
+      "word": {
+        "en": "neighborhood",
+        "laos": "ເພື່ອນບ້ານ",
+        "jp": "近所",
+        "vie": "khu phố",
+        "en_pronunciation": "/ˈneɪbərˌhʊd/",
+        "laos_pronunciation": "pheuonban",
+        "jp_pronunciation": "kinjo",
+        "vie_pronunciation": "khu pho"
+      },
+      "means": {
+        "en": "A surrounding or nearby region",
+        "zh": "能够通过或协商"
+      }
+    },
+    {
+      "word": {
+        "en": "neighbourhood",
+        "laos": "ເພື່ອນບ້ານ",
+        "jp": "近所",
+        "vie": "khu phố",
+        "en_pronunciation": "/ˈneɪbərˌhʊd/",
+        "laos_pronunciation": "pheuonban",
+        "jp_pronunciation": "kinjo",
+        "vie_pronunciation": "khu pho"
+      },
+      "means": {
+        "en": "A surrounding or nearby region",
+        "zh": "住在（或位于）另一个人附近的人"
+      }
+    },
+    {
+      "word": {
+        "en": "neither",
+        "laos": "ທັງສອງ",
+        "jp": "どちらでもない",
+        "vie": "cũng không",
+        "en_pronunciation": "/ˈniðər/",
+        "laos_pronunciation": "thangsong",
+        "jp_pronunciation": "dochirademonai",
+        "vie_pronunciation": "cung khong"
+      },
+      "means": {
+        "en": "Not either; not one or the other",
+        "zh": "住在（或位于）另一个人附近的人"
+      }
+    },
+    {
+      "word": {
+        "en": "nephew",
+        "laos": "ຫລານຊາຍ",
+        "jp": "甥っ子",
+        "vie": "cháu trai",
+        "en_pronunciation": "/ˈnɛfju/",
+        "laos_pronunciation": "lansai",
+        "jp_pronunciation": "oi tsu ko",
+        "vie_pronunciation": "chau trai"
+      },
+      "means": {
+        "en": "A son of your brother or sister",
+        "zh": "周围或附近地区"
+      }
+    },
+    {
+      "word": {
+        "en": "nerve",
+        "laos": "ເສັ້ນປະສາດ",
+        "jp": "神経",
+        "vie": "dây thần kinh",
+        "en_pronunciation": "/nərv/",
+        "laos_pronunciation": "senpasad",
+        "jp_pronunciation": "shinkei",
+        "vie_pronunciation": "day than kinh"
+      },
+      "means": {
+        "en": "Any bundle of nerve fibers running to various organs and tissues of the body",
+        "zh": "周围或附近地区"
+      }
+    },
+    {
+      "word": {
+        "en": "nervous",
+        "laos": "ກິຣິຍາ",
+        "jp": "神経質な",
+        "vie": "lo lắng",
+        "en_pronunciation": "/ˈnərvəs/",
+        "laos_pronunciation": "kirinya",
+        "jp_pronunciation": "shinkeishitsu na",
+        "vie_pronunciation": "lo lang"
+      },
+      "means": {
+        "en": "Easily agitated",
+        "zh": "也不是；"
+      }
+    },
+    {
+      "word": {
+        "en": "nest",
+        "laos": "ຮັງນົກ",
+        "jp": "巣",
+        "vie": "tổ",
+        "en_pronunciation": "/nɛst/",
+        "laos_pronunciation": "hangnok",
+        "jp_pronunciation": "su",
+        "vie_pronunciation": "to"
+      },
+      "means": {
+        "en": "A structure in which animals lay eggs or give birth to their young",
+        "zh": "不是其中之一"
+      }
+    },
+    {
+      "word": {
+        "en": "net",
+        "laos": "ສຸດ",
+        "jp": "ネット",
+        "vie": "mạng lưới",
+        "en_pronunciation": "/nɛt/",
+        "laos_pronunciation": "sud",
+        "jp_pronunciation": "netto",
+        "vie_pronunciation": "mang luoi"
+      },
+      "means": {
+        "en": "A computer network consisting of a worldwide network of computer networks that use the TCP/IP network protocols to facilitate data transmission and exchange",
+        "zh": "你兄弟或姐妹的儿子"
+      }
+    },
+    {
+      "word": {
+        "en": "network",
+        "laos": "ເຄືອຂ່າຍ",
+        "jp": "ネットワーク",
+        "vie": "mạng lưới",
+        "en_pronunciation": "/ˈnɛtˌwərk/",
+        "laos_pronunciation": "kheuokhai",
+        "jp_pronunciation": "nettowaaku",
+        "vie_pronunciation": "mang luoi"
+      },
+      "means": {
+        "en": "An interconnected system of things or people",
+        "zh": "通往身体各个器官和组织的任何神经纤维束"
+      }
+    },
+    {
+      "word": {
+        "en": "networking",
+        "laos": "ເຄືອຂ່າຍ",
+        "jp": "ネットワーキング",
+        "vie": "mạng",
+        "en_pronunciation": "/ˈnɛtˌwərkɪŋ/",
+        "laos_pronunciation": "kheuokhai",
+        "jp_pronunciation": "nettowaakingu",
+        "vie_pronunciation": "mang"
+      },
+      "means": {
+        "en": "Communicate with and within a group",
+        "zh": "容易激动"
+      }
+    },
+    {
+      "word": {
+        "en": "neutral",
+        "laos": "ກາງ",
+        "jp": "中立的な",
+        "vie": "trung tính",
+        "en_pronunciation": "/ˈnutrəl/",
+        "laos_pronunciation": "kang",
+        "jp_pronunciation": "chuuritsuteki na",
+        "vie_pronunciation": "trung tinh"
+      },
+      "means": {
+        "en": "One who does not side with any party in a war or dispute",
+        "zh": "动物产卵或产仔的结构"
+      }
+    },
+    {
+      "word": {
+        "en": "neutrality",
+        "laos": "ຄວາມເປັນກາງ",
+        "jp": "中立性",
+        "vie": "tính trung lập",
+        "en_pronunciation": "/nuˈtræləti/",
+        "laos_pronunciation": "khuaampenkang",
+        "jp_pronunciation": "chuuritsusei",
+        "vie_pronunciation": "tinh trung lap"
+      },
+      "means": {
+        "en": "Nonparticipation in a dispute or war",
+        "zh": "由全球计算机网络组成的计算机网络，使用 TCP/IP 网络协议来促进数据传输和交换"
+      }
+    },
+    {
+      "word": {
+        "en": "neutralize",
+        "laos": "ບໍາບັດ",
+        "jp": "中和する",
+        "vie": "trung hòa",
+        "en_pronunciation": "/ˈnutrəˌlaɪz/",
+        "laos_pronunciation": "boabad",
+        "jp_pronunciation": "chuuwa suru",
+        "vie_pronunciation": "trung hoa"
+      },
+      "means": {
+        "en": "Make politically neutral and thus inoffensive",
+        "zh": "物或人的互连系统"
+      }
+    },
+    {
+      "word": {
+        "en": "neutralise",
+        "laos": "ບໍາບັດ",
+        "jp": "中和する",
+        "vie": "trung hòa",
+        "en_pronunciation": "/neutralise/",
+        "laos_pronunciation": "boabad",
+        "jp_pronunciation": "chuuwa suru",
+        "vie_pronunciation": "trung hoa"
+      },
+      "means": {
+        "en": "Get rid of (someone who may be a threat) by killing",
+        "zh": "与群体内以及群体内进行交流"
+      }
+    },
+    {
+      "word": {
+        "en": "never",
+        "laos": "ບໍ່ເຄີຍ",
+        "jp": "決して",
+        "vie": "không bao giờ",
+        "en_pronunciation": "/ˈnɛvər/",
+        "laos_pronunciation": "bokhoeny",
+        "jp_pronunciation": "kesshite",
+        "vie_pronunciation": "khong bao gio"
+      },
+      "means": {
+        "en": "Not ever; at no time in the past or future",
+        "zh": "在战争或争端中不站在任何一方的人"
+      }
+    },
+    {
+      "word": {
+        "en": "nevertheless",
+        "laos": "ເຖິງຢ່າງໃດກໍ່ຕາມ",
+        "jp": "それにもかかわらず",
+        "vie": "tuy nhiên",
+        "en_pronunciation": "/ˌnɛvərðəˈlɛs/",
+        "laos_pronunciation": "thoengyangdaikotam",
+        "jp_pronunciation": "sorenimokakawarazu",
+        "vie_pronunciation": "tuy nhien"
+      },
+      "means": {
+        "en": "Despite anything to the contrary (usually following a concession)",
+        "zh": "不参与争端或战争"
+      }
+    },
+    {
+      "word": {
+        "en": "new",
+        "laos": "ໃຫມ່",
+        "jp": "新しい",
+        "vie": "mới",
+        "en_pronunciation": "/nu/",
+        "laos_pronunciation": "haim",
+        "jp_pronunciation": "atarashii",
+        "vie_pronunciation": "moi"
+      },
+      "means": {
+        "en": "Not of long duration; having just (or relatively recently) come into being or been made or acquired or discovered",
+        "zh": "保持政治中立，因此不具有冒犯性"
+      }
+    },
+    {
+      "word": {
+        "en": "news",
+        "laos": "ຂ່າວ",
+        "jp": "ニュース",
+        "vie": "tin tức",
+        "en_pronunciation": "/nuz/",
+        "laos_pronunciation": "khav",
+        "jp_pronunciation": "nyuusu",
+        "vie_pronunciation": "tin tuc"
+      },
+      "means": {
+        "en": "Information about recent and important events",
+        "zh": "通过杀死来除掉（可能构成威胁的人）"
+      }
+    },
+    {
+      "word": {
+        "en": "newspaper",
+        "laos": "ຫນັງສືພິມ",
+        "jp": "新聞",
+        "vie": "tờ báo",
+        "en_pronunciation": "/ˈnuzˌpeɪpər/",
+        "laos_pronunciation": "nangsuphim",
+        "jp_pronunciation": "shinbun",
+        "vie_pronunciation": "to bao"
+      },
+      "means": {
+        "en": "A daily or weekly publication on folded sheets; contains news and articles and advertisements",
+        "zh": "从来没有；"
+      }
+    },
+    {
+      "word": {
+        "en": "next",
+        "laos": "ຕໍ່ໄປ",
+        "jp": "次へ",
+        "vie": "tiếp theo",
+        "en_pronunciation": "/nɛkst/",
+        "laos_pronunciation": "topai",
+        "jp_pronunciation": "tsugi he",
+        "vie_pronunciation": "tiep theo"
+      },
+      "means": {
+        "en": "Immediately following in time or order",
+        "zh": "过去或将来的任何时间"
+      }
+    },
+    {
+      "word": {
+        "en": "nice",
+        "laos": "ດີ",
+        "jp": "素敵な",
+        "vie": "tốt đẹp",
+        "en_pronunciation": "/nis/",
+        "laos_pronunciation": "di",
+        "jp_pronunciation": "suteki na",
+        "vie_pronunciation": "tot dep"
+      },
+      "means": {
+        "en": "A city in southeastern France on the Mediterranean; the leading resort on the French Riviera",
+        "zh": "尽管有任何相反的情况（通常是在做出让步之后）"
+      }
+    },
+    {
+      "word": {
+        "en": "nicety",
+        "laos": "ຮ້ອງ",
+        "jp": "素敵な",
+        "vie": "sự tử tế",
+        "en_pronunciation": "/ˈnaɪsɪti/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "suteki na",
+        "vie_pronunciation": "su tu te"
+      },
+      "means": {
+        "en": "Conformity with some esthetic standard of correctness or propriety",
+        "zh": "持续时间不长；"
+      }
+    },
+    {
+      "word": {
+        "en": "nickel",
+        "laos": "ນິກຄະເນ",
+        "jp": "ニッケル",
+        "vie": "niken",
+        "en_pronunciation": "/ˈnɪkəl/",
+        "laos_pronunciation": "nikkhane",
+        "jp_pronunciation": "nikkeru",
+        "vie_pronunciation": "niken"
+      },
+      "means": {
+        "en": "A hard malleable ductile silvery metallic element that is resistant to corrosion; used in alloys; occurs in pentlandite and smaltite and garnierite and millerite",
+        "zh": "刚刚（或相对最近）出现或被制造或获得或发现"
+      }
+    },
+    {
+      "word": {
+        "en": "nickname",
+        "laos": "ຊື່ຫຼິ້ນ",
+        "jp": "ニックネーム",
+        "vie": "biệt hiệu",
+        "en_pronunciation": "/ˈnɪkˌneɪm/",
+        "laos_pronunciation": "surin",
+        "jp_pronunciation": "nikkuneemu",
+        "vie_pronunciation": "biet hieu"
+      },
+      "means": {
+        "en": "A familiar name for a person (often a shortened version of a person's given name)",
+        "zh": "有关最近和重要事件的信息"
+      }
+    },
+    {
+      "word": {
+        "en": "niece",
+        "laos": "ຫລານສາວ",
+        "jp": "姪",
+        "vie": "cháu gái",
+        "en_pronunciation": "/nis/",
+        "laos_pronunciation": "lansav",
+        "jp_pronunciation": "mei",
+        "vie_pronunciation": "chau gai"
+      },
+      "means": {
+        "en": "A daughter of your brother or sister",
+        "zh": "折叠纸上的日报或周刊；"
+      }
+    },
+    {
+      "word": {
+        "en": "night",
+        "laos": "ກາງຄືນ",
+        "jp": "夜",
+        "vie": "đêm",
+        "en_pronunciation": "/naɪt/",
+        "laos_pronunciation": "kangkhun",
+        "jp_pronunciation": "yoru",
+        "vie_pronunciation": "dem"
+      },
+      "means": {
+        "en": "The time after sunset and before sunrise while it is dark outside",
+        "zh": "包含新闻、文章和广告"
+      }
+    },
+    {
+      "word": {
+        "en": "nightmare",
+        "laos": "ຝັນຮ້າຍ",
+        "jp": "悪夢",
+        "vie": "cơn ác mộng",
+        "en_pronunciation": "/ˈnaɪtˌmɛr/",
+        "laos_pronunciation": "fanhai",
+        "jp_pronunciation": "akumu",
+        "vie_pronunciation": "con ac mong"
+      },
+      "means": {
+        "en": "A situation resembling a terrifying dream",
+        "zh": "按时间或顺序紧随其后"
+      }
+    },
+    {
+      "word": {
+        "en": "nil",
+        "laos": "nil",
+        "jp": "なし",
+        "vie": "không",
+        "en_pronunciation": "/nɪl/",
+        "laos_pronunciation": "nil",
+        "jp_pronunciation": "nashi",
+        "vie_pronunciation": "khong"
+      },
+      "means": {
+        "en": "A quantity of no importance",
+        "zh": "法国东南部地中海城市；"
+      }
+    },
+    {
+      "word": {
+        "en": "nine",
+        "laos": "ເກົ້າ",
+        "jp": "9",
+        "vie": "chín",
+        "en_pronunciation": "/naɪn/",
+        "laos_pronunciation": "kao",
+        "jp_pronunciation": "9",
+        "vie_pronunciation": "chin"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of eight and one",
+        "zh": "法国里维埃拉领先的度假胜地"
+      }
+    },
+    {
+      "word": {
+        "en": "nineteen",
+        "laos": "ສິບເກົ້າ",
+        "jp": "19",
+        "vie": "mười chín",
+        "en_pronunciation": "/ˈnaɪnˈtin/",
+        "laos_pronunciation": "sibkao",
+        "jp_pronunciation": "19",
+        "vie_pronunciation": "muoi chin"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of eighteen and one",
+        "zh": "符合某些正确或得体的审美标准"
+      }
+    },
+    {
+      "word": {
+        "en": "ninety",
+        "laos": "ເກົ້າສິບ",
+        "jp": "九十",
+        "vie": "chín mươi",
+        "en_pronunciation": "/ˈnaɪnti/",
+        "laos_pronunciation": "kaosib",
+        "jp_pronunciation": "kyuujuu",
+        "vie_pronunciation": "chin muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of ten and nine",
+        "zh": "一种具有抗腐蚀能力的硬质延展性银色金属元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "ninth",
+        "laos": "ທີ່ເກົ້າ",
+        "jp": "9番目",
+        "vie": "thứ chín",
+        "en_pronunciation": "/naɪnθ/",
+        "laos_pronunciation": "thikao",
+        "jp_pronunciation": "9 banme",
+        "vie_pronunciation": "thu chin"
+      },
+      "means": {
+        "en": "Position nine in a countable series of things",
+        "zh": "用于合金；"
+      }
+    },
+    {
+      "word": {
+        "en": "nitrogen",
+        "laos": "ໄນໂຕຣເຈນ",
+        "jp": "窒素",
+        "vie": "nitơ",
+        "en_pronunciation": "/ˈnaɪtrəʤən/",
+        "laos_pronunciation": "nai otrchen",
+        "jp_pronunciation": "chisso",
+        "vie_pronunciation": "nito"
+      },
+      "means": {
+        "en": "A common nonmetallic element that is normally a colorless odorless tasteless inert diatomic gas; constitutes 78 percent of the atmosphere by volume; a constituent of all living tissues",
+        "zh": "出现在镍黄铁矿、辉绿铁矿、镁镍铁矿和镁铁矿中"
+      }
+    },
+    {
+      "word": {
+        "en": "no",
+        "laos": "ບໍ່",
+        "jp": "いいえ",
+        "vie": "không",
+        "en_pronunciation": "/noʊ/",
+        "laos_pronunciation": "bo",
+        "jp_pronunciation": "iie",
+        "vie_pronunciation": "khong"
+      },
+      "means": {
+        "en": "A negative",
+        "zh": "一个人熟悉的名字（通常是一个人名的缩写）"
+      }
+    },
+    {
+      "word": {
+        "en": "nightly",
+        "laos": "ຕາມຄ່ໍາ",
+        "jp": "毎晩",
+        "vie": "hàng đêm",
+        "en_pronunciation": "/ˈnaɪtli/",
+        "laos_pronunciation": "tamkhoa",
+        "jp_pronunciation": "maiban",
+        "vie_pronunciation": "hang dem"
+      },
+      "means": {
+        "en": "Happening every night",
+        "zh": "您兄弟或姐妹的女儿"
+      }
+    },
+    {
+      "word": {
+        "en": "noble",
+        "laos": "ຂຸນ",
+        "jp": "高貴な",
+        "vie": "cao quý",
+        "en_pronunciation": "/ˈnoʊbəl/",
+        "laos_pronunciation": "khun",
+        "jp_pronunciation": "kouki na",
+        "vie_pronunciation": "cao quy"
+      },
+      "means": {
+        "en": "A titled peer of the realm",
+        "zh": "日落后、日出前室外天黑时的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "nobility",
+        "laos": "ສາໂຣ",
+        "jp": "貴族",
+        "vie": "quý tộc",
+        "en_pronunciation": "/noʊˈbɪləti/",
+        "laos_pronunciation": "saor",
+        "jp_pronunciation": "kizoku",
+        "vie_pronunciation": "quy toc"
+      },
+      "means": {
+        "en": "A privileged class holding hereditary titles",
+        "zh": "类似可怕梦境的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "nobody",
+        "laos": "ບໍ່ມີໃຜ",
+        "jp": "誰も",
+        "vie": "không ai",
+        "en_pronunciation": "/ˈnoʊˌbɑˌdi/",
+        "laos_pronunciation": "bomiphai",
+        "jp_pronunciation": "daremo",
+        "vie_pronunciation": "khong ai"
+      },
+      "means": {
+        "en": "A person of no influence",
+        "zh": "数量不重要"
+      }
+    },
+    {
+      "word": {
+        "en": "nod",
+        "laos": "ສ່າຍ",
+        "jp": "うなずく",
+        "vie": "gật đầu",
+        "en_pronunciation": "/nɑd/",
+        "laos_pronunciation": "sai",
+        "jp_pronunciation": "unazuku",
+        "vie_pronunciation": "gat dau"
+      },
+      "means": {
+        "en": "A sign of assent or salutation or command",
+        "zh": "八加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "noise",
+        "laos": "ສຽງລົບກວນ",
+        "jp": "騒音",
+        "vie": "tiếng ồn",
+        "en_pronunciation": "/nɔɪz/",
+        "laos_pronunciation": "sianglobkuan",
+        "jp_pronunciation": "souon",
+        "vie_pronunciation": "tieng on"
+      },
+      "means": {
+        "en": "Sound of any kind (especially unintelligible or dissonant sound)",
+        "zh": "十八加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "noisy",
+        "laos": "ຈ້ຽວຈ້າວ",
+        "jp": "騒々しい",
+        "vie": "ồn ào",
+        "en_pronunciation": "/ˈnɔɪzi/",
+        "laos_pronunciation": "chiauachav",
+        "jp_pronunciation": "soozooshii",
+        "vie_pronunciation": "on ao"
+      },
+      "means": {
+        "en": "Full of or characterized by loud and nonmusical sounds",
+        "zh": "十和九的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "nominal",
+        "laos": "ອັກເສບ",
+        "jp": "公称",
+        "vie": "danh nghĩa",
+        "en_pronunciation": "/ˈnɑmənəl/",
+        "laos_pronunciation": "akseb",
+        "jp_pronunciation": "koushou",
+        "vie_pronunciation": "danh nghia"
+      },
+      "means": {
+        "en": "A phrase that can function as the subject or object of a verb",
+        "zh": "在一系列可数事物中的位置九"
+      }
+    },
+    {
+      "word": {
+        "en": "nominate",
+        "laos": "ແຕ່ງຕັ້ງ",
+        "jp": "指名する",
+        "vie": "đề cử",
+        "en_pronunciation": "/ˈnɑməˌneɪt/",
+        "laos_pronunciation": "aetngtang",
+        "jp_pronunciation": "shimei suru",
+        "vie_pronunciation": "de cu"
+      },
+      "means": {
+        "en": "Propose as a candidate for some honor",
+        "zh": "一种常见的非金属元素，通常是无色无臭无味的惰性双原子气体；"
+      }
+    },
+    {
+      "word": {
+        "en": "nomination",
+        "laos": "ນາມ",
+        "jp": "指名",
+        "vie": "đề cử",
+        "en_pronunciation": "/ˌnɑməˈneɪʃən/",
+        "laos_pronunciation": "nam",
+        "jp_pronunciation": "shimei",
+        "vie_pronunciation": "de cu"
+      },
+      "means": {
+        "en": "The act of officially naming a candidate",
+        "zh": "按体积计占大气的 78%；"
+      }
+    },
+    {
+      "word": {
+        "en": "nominee",
+        "laos": "ເທັນ",
+        "jp": "候補者",
+        "vie": "người được đề cử",
+        "en_pronunciation": "/ˌnɑməˈni/",
+        "laos_pronunciation": "then",
+        "jp_pronunciation": "kouhosha",
+        "vie_pronunciation": "nguoi duoc de cu"
+      },
+      "means": {
+        "en": "A politician who is running for public office",
+        "zh": "所有活组织的组成部分"
+      }
+    },
+    {
+      "word": {
+        "en": "none",
+        "laos": "ບໍ່ມີ",
+        "jp": "なし",
+        "vie": "không có",
+        "en_pronunciation": "/nən/",
+        "laos_pronunciation": "bomi",
+        "jp_pronunciation": "nashi",
+        "vie_pronunciation": "khong co"
+      },
+      "means": {
+        "en": "A canonical hour that is the ninth hour of the day counting from sunrise",
+        "zh": "负数"
+      }
+    },
+    {
+      "word": {
+        "en": "nonetheless",
+        "laos": "ເຖິງຢ່າງໃດກໍ່ຕາມ",
+        "jp": "それにもかかわらず",
+        "vie": "dù sao đi nữa",
+        "en_pronunciation": "/ˌnənðəˈlɛs/",
+        "laos_pronunciation": "thoengyangdaikotam",
+        "jp_pronunciation": "sorenimokakawarazu",
+        "vie_pronunciation": "du sao di nua"
+      },
+      "means": {
+        "en": "Despite anything to the contrary (usually following a concession)",
+        "zh": "每晚都会发生"
+      }
+    },
+    {
+      "word": {
+        "en": "nonsense",
+        "laos": "ສັມຜັດປະລາບ",
+        "jp": "ナンセンス",
+        "vie": "điều vô lý",
+        "en_pronunciation": "/ˈnɑnsɛns/",
+        "laos_pronunciation": "sam phad palab",
+        "jp_pronunciation": "nansensu",
+        "vie_pronunciation": "dieu vo ly"
+      },
+      "means": {
+        "en": "A message that seems to convey no meaning",
+        "zh": "王国的贵族贵族"
+      }
+    },
+    {
+      "word": {
+        "en": "noodle",
+        "laos": "ເຂົ້າປຸ້ນ",
+        "jp": "麺類",
+        "vie": "mì sợi",
+        "en_pronunciation": "/ˈnudəl/",
+        "laos_pronunciation": "khaopun",
+        "jp_pronunciation": "menrui",
+        "vie_pronunciation": "mi soi"
+      },
+      "means": {
+        "en": "A ribbonlike strip of pasta",
+        "zh": "拥有世袭头衔的特权阶级"
+      }
+    },
+    {
+      "word": {
+        "en": "noon",
+        "laos": "ຕອນທ່ຽງ",
+        "jp": "正午",
+        "vie": "buổi trưa",
+        "en_pronunciation": "/nun/",
+        "laos_pronunciation": "tonthiang",
+        "jp_pronunciation": "shougo",
+        "vie_pronunciation": "buoi trua"
+      },
+      "means": {
+        "en": "The middle of the day",
+        "zh": "一个没有影响力的人"
+      }
+    },
+    {
+      "word": {
+        "en": "nor",
+        "laos": "ນີບໍ່",
+        "jp": "でもない",
+        "vie": "cũng không",
+        "en_pronunciation": "/nɔr/",
+        "laos_pronunciation": "nibo",
+        "jp_pronunciation": "demonai",
+        "vie_pronunciation": "cung khong"
+      },
+      "means": {
+        "en": "Nor is an English word referring to 'nor'.",
+        "zh": "同意、致敬或命令的标志"
+      }
+    },
+    {
+      "word": {
+        "en": "norm",
+        "laos": "ສິນຄ້າ",
+        "jp": "標準",
+        "vie": "chuẩn mực",
+        "en_pronunciation": "/nɔrm/",
+        "laos_pronunciation": "sinkha",
+        "jp_pronunciation": "hyoujun",
+        "vie_pronunciation": "chuan muc"
+      },
+      "means": {
+        "en": "A standard or model or pattern regarded as typical",
+        "zh": "任何类型的声音（尤其是难以理解或不和谐的声音）"
+      }
+    },
+    {
+      "word": {
+        "en": "normal",
+        "laos": "ທໍາມະດາ",
+        "jp": "普通の",
+        "vie": "bình thường",
+        "en_pronunciation": "/ˈnɔrməl/",
+        "laos_pronunciation": "thoamada",
+        "jp_pronunciation": "futsuu no",
+        "vie_pronunciation": "binh thuong"
+      },
+      "means": {
+        "en": "Something regarded as a normative example",
+        "zh": "充满响亮的非音乐声音或以响亮的非音乐声音为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "normally",
+        "laos": "ເປັນປົກກະຕິ",
+        "jp": "普通に",
+        "vie": "bình thường",
+        "en_pronunciation": "/ˈnɔrməli/",
+        "laos_pronunciation": "penpokkati",
+        "jp_pronunciation": "futsuu ni",
+        "vie_pronunciation": "binh thuong"
+      },
+      "means": {
+        "en": "Under normal conditions",
+        "zh": "可以作为动词的主语或宾语的短语"
+      }
+    },
+    {
+      "word": {
+        "en": "normalize",
+        "laos": "ປົກກະຕິ",
+        "jp": "正規化する",
+        "vie": "bình thường hóa",
+        "en_pronunciation": "/ˈnɔrməˌlaɪz/",
+        "laos_pronunciation": "pokkati",
+        "jp_pronunciation": "seikika suru",
+        "vie_pronunciation": "binh thuong hoa"
+      },
+      "means": {
+        "en": "Become normal or return to its normal state",
+        "zh": "提议作为某些荣誉的候选人"
+      }
+    },
+    {
+      "word": {
+        "en": "normalise",
+        "laos": "ປົກກະຕິ",
+        "jp": "正規化する",
+        "vie": "bình thường hóa",
+        "en_pronunciation": "/normalise/",
+        "laos_pronunciation": "pokkati",
+        "jp_pronunciation": "seikika suru",
+        "vie_pronunciation": "binh thuong hoa"
+      },
+      "means": {
+        "en": "Become normal or return to its normal state",
+        "zh": "正式任命候选人的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "normalization",
+        "laos": "ປົກກະຕິ",
+        "jp": "正規化",
+        "vie": "bình thường hóa",
+        "en_pronunciation": "/ˌnɔrməlɪˈzeɪʃən/",
+        "laos_pronunciation": "pokkati",
+        "jp_pronunciation": "seikika",
+        "vie_pronunciation": "binh thuong hoa"
+      },
+      "means": {
+        "en": "The imposition of standards or regulations",
+        "zh": "竞选公职的政治家"
+      }
+    },
+    {
+      "word": {
+        "en": "normalisation",
+        "laos": "ປົກກະຕິ",
+        "jp": "正規化",
+        "vie": "bình thường hóa",
+        "en_pronunciation": "/normalisation/",
+        "laos_pronunciation": "pokkati",
+        "jp_pronunciation": "seikika",
+        "vie_pronunciation": "binh thuong hoa"
+      },
+      "means": {
+        "en": "The imposition of standards or regulations",
+        "zh": "规范时间，即从日出算起的第九个小时"
+      }
+    },
+    {
+      "word": {
+        "en": "north",
+        "laos": "ພາກເຫນືອ",
+        "jp": "北",
+        "vie": "phía bắc",
+        "en_pronunciation": "/nɔrθ/",
+        "laos_pronunciation": "phakhenu",
+        "jp_pronunciation": "kita",
+        "vie_pronunciation": "phia bac"
+      },
+      "means": {
+        "en": "The region of the United States lying to the north of the Mason-Dixon line",
+        "zh": "尽管有任何相反的情况（通常是在做出让步之后）"
+      }
+    },
+    {
+      "word": {
+        "en": "northern",
+        "laos": "ພາກເຫນືອ",
+        "jp": "北の",
+        "vie": "phương bắc",
+        "en_pronunciation": "/ˈnɔrðərn/",
+        "laos_pronunciation": "phakhenu",
+        "jp_pronunciation": "kita no",
+        "vie_pronunciation": "phuong bac"
+      },
+      "means": {
+        "en": "A dialect of Middle English that developed into Scottish Lallans",
+        "zh": "一条似乎没有传达任何意义的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "northeast",
+        "laos": "ພາກຕາເວັນອອກສຽງເຫນືອ",
+        "jp": "北東",
+        "vie": "hướng đông bắc",
+        "en_pronunciation": "/ˌnɔrˈθist/",
+        "laos_pronunciation": "phaktauaenooksianghenu",
+        "jp_pronunciation": "hokutou",
+        "vie_pronunciation": "huong dong bac"
+      },
+      "means": {
+        "en": "The compass point midway between north and east; at 45 degrees",
+        "zh": "一条带状的意大利面"
+      }
+    },
+    {
+      "word": {
+        "en": "northeastern",
+        "laos": "ການາເຫນືອ",
+        "jp": "北東部",
+        "vie": "đông bắc",
+        "en_pronunciation": "/ˌnɔrˈθistərn/",
+        "laos_pronunciation": "ka nahenu",
+        "jp_pronunciation": "hokutoubu",
+        "vie_pronunciation": "dong bac"
+      },
+      "means": {
+        "en": "Situated in or oriented toward the northeast",
+        "zh": "中午"
+      }
+    },
+    {
+      "word": {
+        "en": "northwest",
+        "laos": "ພາກເຫນືອ",
+        "jp": "北西",
+        "vie": "tây bắc",
+        "en_pronunciation": "/ˌnɔrθˈwɛst/",
+        "laos_pronunciation": "phakhenu",
+        "jp_pronunciation": "hokusei",
+        "vie_pronunciation": "tay bac"
+      },
+      "means": {
+        "en": "The northwestern region of the United States",
+        "zh": "Nor 不是指“nor”的英语单词。"
+      }
+    },
+    {
+      "word": {
+        "en": "northwestern",
+        "laos": "ພາກຕາເວັນຕົກສ່ຽງເຫນືອ",
+        "jp": "北西部",
+        "vie": "tây bắc",
+        "en_pronunciation": "/ˌnɔrθˈwɛstərn/",
+        "laos_pronunciation": "phak tauaentok sianghenu",
+        "jp_pronunciation": "hokusei bu",
+        "vie_pronunciation": "tay bac"
+      },
+      "means": {
+        "en": "Situated in or oriented toward the northwest",
+        "zh": "被视为典型的标准、模型或模式"
+      }
+    },
+    {
+      "word": {
+        "en": "nose",
+        "laos": "ດັງ",
+        "jp": "鼻",
+        "vie": "mũi",
+        "en_pronunciation": "/noʊz/",
+        "laos_pronunciation": "dang",
+        "jp_pronunciation": "hana",
+        "vie_pronunciation": "mui"
+      },
+      "means": {
+        "en": "The organ of smell and entrance to the respiratory tract; the prominent part of the face of man or other mammals",
+        "zh": "被视为规范示例的事物"
+      }
+    },
+    {
+      "word": {
+        "en": "nosy",
+        "laos": "ທັນດົກ",
+        "jp": "おせっかいな",
+        "vie": "tọc mạch",
+        "en_pronunciation": "/ˈnoʊzi/",
+        "laos_pronunciation": "thandok",
+        "jp_pronunciation": "osekkaina",
+        "vie_pronunciation": "toc mach"
+      },
+      "means": {
+        "en": "Offensively curious or inquisitive",
+        "zh": "正常情况下"
+      }
+    },
+    {
+      "word": {
+        "en": "not",
+        "laos": "ບໍ່",
+        "jp": "そうではない",
+        "vie": "không",
+        "en_pronunciation": "/nɑt/",
+        "laos_pronunciation": "bo",
+        "jp_pronunciation": "soudehanai",
+        "vie_pronunciation": "khong"
+      },
+      "means": {
+        "en": "Negation of a word or group of words",
+        "zh": "变得正常或恢复正常状态"
+      }
+    },
+    {
+      "word": {
+        "en": "note",
+        "laos": "ຫມາຍເຫດ",
+        "jp": "メモ",
+        "vie": "ghi chú",
+        "en_pronunciation": "/noʊt/",
+        "laos_pronunciation": "maihed",
+        "jp_pronunciation": "memo",
+        "vie_pronunciation": "ghi chu"
+      },
+      "means": {
+        "en": "A brief written record",
+        "zh": "变得正常或恢复正常状态"
+      }
+    },
+    {
+      "word": {
+        "en": "notation",
+        "laos": "ຄໍາທໍາ",
+        "jp": "表記法",
+        "vie": "ký hiệu",
+        "en_pronunciation": "/noʊˈteɪʃən/",
+        "laos_pronunciation": "khoathoa",
+        "jp_pronunciation": "hyoukihou",
+        "vie_pronunciation": "ky hieu"
+      },
+      "means": {
+        "en": "A technical system of symbols used to represent special things",
+        "zh": "实施标准或法规"
+      }
+    },
+    {
+      "word": {
+        "en": "notable",
+        "laos": "ທີ່ຫນ້າສັງເກດ",
+        "jp": "注目すべき",
+        "vie": "đáng chú ý",
+        "en_pronunciation": "/ˈnoʊtəbəl/",
+        "laos_pronunciation": "thi nasangked",
+        "jp_pronunciation": "chuumoku subeki",
+        "vie_pronunciation": "dang chu y"
+      },
+      "means": {
+        "en": "A celebrity who is an inspiration to others",
+        "zh": "实施标准或法规"
+      }
+    },
+    {
+      "word": {
+        "en": "notebook",
+        "laos": "ປື້ມບັນທຶກ",
+        "jp": "ノート",
+        "vie": "sổ tay",
+        "en_pronunciation": "/ˈnoʊtˌbʊk/",
+        "laos_pronunciation": "pumbanthuk",
+        "jp_pronunciation": "nooto",
+        "vie_pronunciation": "so tay"
+      },
+      "means": {
+        "en": "A book with blank pages for recording notes or memoranda",
+        "zh": "美国位于梅森-迪克森线以北的地区"
+      }
+    },
+    {
+      "word": {
+        "en": "noteworthy",
+        "laos": "ຫນ້າສັງເກດ",
+        "jp": "注目に値する",
+        "vie": "đáng chú ý",
+        "en_pronunciation": "/ˈnoʊtˌwərði/",
+        "laos_pronunciation": "na sangked",
+        "jp_pronunciation": "chuumoku ni atai suru",
+        "vie_pronunciation": "dang chu y"
+      },
+      "means": {
+        "en": "Worthy of notice",
+        "zh": "中古英语的一种方言，后来发展成为苏格兰拉兰语"
+      }
+    }
+  ]
+}

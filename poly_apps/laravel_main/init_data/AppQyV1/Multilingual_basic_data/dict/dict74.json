@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.433339+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "thick",
+        "laos": "ຫນາ",
+        "jp": "厚い",
+        "vie": "dày",
+        "en_pronunciation": "/θɪk/",
+        "laos_pronunciation": "na",
+        "jp_pronunciation": "atsui",
+        "vie_pronunciation": "day"
+      },
+      "means": {
+        "en": "The location of something surrounded by other things",
+        "zh": "某事物被其他事物包围的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "thief",
+        "laos": "ຂະໂມຍ",
+        "jp": "泥棒",
+        "vie": "tên trộm",
+        "en_pronunciation": "/θif/",
+        "laos_pronunciation": "kha omny",
+        "jp_pronunciation": "dorobou",
+        "vie_pronunciation": "ten trom"
+      },
+      "means": {
+        "en": "A criminal who takes property belonging to someone else with the intention of keeping it or selling it",
+        "zh": "犯罪分子夺取他人财产并意图保留或出售"
+      }
+    },
+    {
+      "word": {
+        "en": "thigh",
+        "laos": "ກົກຂາ",
+        "jp": "太もも",
+        "vie": "đùi",
+        "en_pronunciation": "/θaɪ/",
+        "laos_pronunciation": "kokkha",
+        "jp_pronunciation": "futomomo",
+        "vie_pronunciation": "dui"
+      },
+      "means": {
+        "en": "The part of the leg between the hip and the knee",
+        "zh": "腿在臀部和膝盖之间的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "thin",
+        "laos": "ຈ່ອຍຜອມ",
+        "jp": "薄い",
+        "vie": "mỏng",
+        "en_pronunciation": "/θɪn/",
+        "laos_pronunciation": "chony phom",
+        "jp_pronunciation": "usui",
+        "vie_pronunciation": "mong"
+      },
+      "means": {
+        "en": "Lose thickness; become thin or thinner",
+        "zh": "失去厚度；"
+      }
+    },
+    {
+      "word": {
+        "en": "thing",
+        "laos": "ສິ່ງ",
+        "jp": "もの",
+        "vie": "điều",
+        "en_pronunciation": "/θɪŋ/",
+        "laos_pronunciation": "sing",
+        "jp_pronunciation": "mono",
+        "vie_pronunciation": "dieu"
+      },
+      "means": {
+        "en": "A special situation",
+        "zh": "变瘦或者变薄"
+      }
+    },
+    {
+      "word": {
+        "en": "theoretical",
+        "laos": "ທາງທິດສະດີ",
+        "jp": "理論的",
+        "vie": "lý thuyết",
+        "en_pronunciation": "/ˌθiərˈɛtɪkəl/",
+        "laos_pronunciation": "thangthidsadi",
+        "jp_pronunciation": "rironteki",
+        "vie_pronunciation": "ly thuyet"
+      },
+      "means": {
+        "en": "Concerned primarily with theories or hypotheses rather than practical considerations",
+        "zh": "特殊情况"
+      }
+    },
+    {
+      "word": {
+        "en": "therapist",
+        "laos": "ຜູ້ຊົງປິ່ນປົວ",
+        "jp": "セラピスト",
+        "vie": "nhà trị liệu",
+        "en_pronunciation": "/ˈθɛrəpɪst/",
+        "laos_pronunciation": "phu songpinpua",
+        "jp_pronunciation": "serapisuto",
+        "vie_pronunciation": "nha tri lieu"
+      },
+      "means": {
+        "en": "A person skilled in a particular type of therapy",
+        "zh": "主要关注理论或假设而不是实际考虑"
+      }
+    },
+    {
+      "word": {
+        "en": "therapeutic",
+        "laos": "ບໍາບັດ",
+        "jp": "治療的な",
+        "vie": "trị liệu",
+        "en_pronunciation": "/ˌθɛrəˈpjutɪk/",
+        "laos_pronunciation": "boabad",
+        "jp_pronunciation": "chiryou tekina",
+        "vie_pronunciation": "tri lieu"
+      },
+      "means": {
+        "en": "A medicine or therapy that cures disease or relieve pain",
+        "zh": "擅长特定类型治疗的人"
+      }
+    },
+    {
+      "word": {
+        "en": "therapeutical",
+        "laos": "ການບໍາບັດ",
+        "jp": "治療的な",
+        "vie": "trị liệu",
+        "en_pronunciation": "/therapeutical/",
+        "laos_pronunciation": "kanboabad",
+        "jp_pronunciation": "chiryou tekina",
+        "vie_pronunciation": "tri lieu"
+      },
+      "means": {
+        "en": "Relating to or involved in therapy",
+        "zh": "治愈疾病或缓解疼痛的药物或疗法"
+      }
+    },
+    {
+      "word": {
+        "en": "think",
+        "laos": "ນຶກຄິດ",
+        "jp": "考える",
+        "vie": "nghĩ",
+        "en_pronunciation": "/θɪŋk/",
+        "laos_pronunciation": "nukkhid",
+        "jp_pronunciation": "kangae ru",
+        "vie_pronunciation": "nghi"
+      },
+      "means": {
+        "en": "An instance of deliberate thinking",
+        "zh": "与治疗有关或参与治疗"
+      }
+    },
+    {
+      "word": {
+        "en": "thinking",
+        "laos": "ຄິດ",
+        "jp": "考えている",
+        "vie": "suy nghĩ",
+        "en_pronunciation": "/ˈθɪŋkɪŋ/",
+        "laos_pronunciation": "khid",
+        "jp_pronunciation": "kangae teiru",
+        "vie_pronunciation": "suy nghi"
+      },
+      "means": {
+        "en": "The process of using your mind to consider something carefully",
+        "zh": "刻意思考的例子"
+      }
+    },
+    {
+      "word": {
+        "en": "third",
+        "laos": "ທີສາມ",
+        "jp": "3番目",
+        "vie": "thứ ba",
+        "en_pronunciation": "/θərd/",
+        "laos_pronunciation": "thisam",
+        "jp_pronunciation": "3 banme",
+        "vie_pronunciation": "thu ba"
+      },
+      "means": {
+        "en": "One of three equal parts of a divisible whole",
+        "zh": "用你的头脑仔细考虑某件事的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "thirst",
+        "laos": "ຄວາມຫິວນໍ້າ",
+        "jp": "喉の渇き",
+        "vie": "khát nước",
+        "en_pronunciation": "/θərst/",
+        "laos_pronunciation": "khuaam hiuanoa",
+        "jp_pronunciation": "nodo no kawaki",
+        "vie_pronunciation": "khat nuoc"
+      },
+      "means": {
+        "en": "A physiological need to drink",
+        "zh": "可分整体的三个相等部分之一"
+      }
+    },
+    {
+      "word": {
+        "en": "thirsty",
+        "laos": "ຫິວ",
+        "jp": "のどが渇いた",
+        "vie": "khát nước",
+        "en_pronunciation": "/ˈθərsti/",
+        "laos_pronunciation": "hiv",
+        "jp_pronunciation": "nodoga katsu ita",
+        "vie_pronunciation": "khat nuoc"
+      },
+      "means": {
+        "en": "Needing moisture",
+        "zh": "生理需要喝酒"
+      }
+    },
+    {
+      "word": {
+        "en": "thirteen",
+        "laos": "ສິບສາມ",
+        "jp": "13",
+        "vie": "mười ba",
+        "en_pronunciation": "/ˈθərˈtin/",
+        "laos_pronunciation": "sibsam",
+        "jp_pronunciation": "13",
+        "vie_pronunciation": "muoi ba"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of twelve and one",
+        "zh": "需要水分"
+      }
+    },
+    {
+      "word": {
+        "en": "thirty",
+        "laos": "ສາມສິບ",
+        "jp": "30",
+        "vie": "ba mươi",
+        "en_pronunciation": "/ˈθərˌdi/",
+        "laos_pronunciation": "samsib",
+        "jp_pronunciation": "30",
+        "vie_pronunciation": "ba muoi"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of ten and three",
+        "zh": "十二加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "this",
+        "laos": "ນີ້",
+        "jp": "これ",
+        "vie": "cái này",
+        "en_pronunciation": "/ðɪs/",
+        "laos_pronunciation": "ni",
+        "jp_pronunciation": "kore",
+        "vie_pronunciation": "cai nay"
+      },
+      "means": {
+        "en": "This is an English word referring to 'this'.",
+        "zh": "十和三的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "thorn",
+        "laos": "ຫນາມ",
+        "jp": "とげ",
+        "vie": "cái gai",
+        "en_pronunciation": "/θɔrn/",
+        "laos_pronunciation": "nam",
+        "jp_pronunciation": "toge",
+        "vie_pronunciation": "cai gai"
+      },
+      "means": {
+        "en": "Something that causes irritation and annoyance",
+        "zh": "这是一个英语单词，指的是“这个”。"
+      }
+    },
+    {
+      "word": {
+        "en": "thorny",
+        "laos": "ພິວທຽນ",
+        "jp": "とげのある",
+        "vie": "gai góc",
+        "en_pronunciation": "/ˈθɔrni/",
+        "laos_pronunciation": "phiuathian",
+        "jp_pronunciation": "togenoaru",
+        "vie_pronunciation": "gai goc"
+      },
+      "means": {
+        "en": "Bristling with perplexities",
+        "zh": "引起刺激和烦恼的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "thorough",
+        "laos": "ຢຶ້ງຢູ່",
+        "jp": "徹底した",
+        "vie": "kỹ lưỡng",
+        "en_pronunciation": "/θəroʊ/",
+        "laos_pronunciation": "yungyu",
+        "jp_pronunciation": "tettei shita",
+        "vie_pronunciation": "ky luong"
+      },
+      "means": {
+        "en": "Painstakingly careful and accurate",
+        "zh": "心里充满了困惑"
+      }
+    },
+    {
+      "word": {
+        "en": "those",
+        "laos": "ທີ່",
+        "jp": "それらの",
+        "vie": "những cái đó",
+        "en_pronunciation": "/ðoʊz/",
+        "laos_pronunciation": "thi",
+        "jp_pronunciation": "sorerano",
+        "vie_pronunciation": "nhung cai do"
+      },
+      "means": {
+        "en": "Those is an English word referring to 'those'.",
+        "zh": "精心细致、准确无误"
+      }
+    },
+    {
+      "word": {
+        "en": "though",
+        "laos": "ເຖິງແມ່ນວ່າ",
+        "jp": "でも",
+        "vie": "mặc dù",
+        "en_pronunciation": "/ðoʊ/",
+        "laos_pronunciation": "thoengaemnva",
+        "jp_pronunciation": "demo",
+        "vie_pronunciation": "mac du"
+      },
+      "means": {
+        "en": "(postpositive) however",
+        "zh": "those是一个英语单词，指的是“那些”。"
+      }
+    },
+    {
+      "word": {
+        "en": "thought",
+        "laos": "ຄິດ",
+        "jp": "考えた",
+        "vie": "suy nghĩ",
+        "en_pronunciation": "/θɔt/",
+        "laos_pronunciation": "khid",
+        "jp_pronunciation": "kangae ta",
+        "vie_pronunciation": "suy nghi"
+      },
+      "means": {
+        "en": "The content of cognition; the main thing you are thinking about",
+        "zh": "（后置正）但是"
+      }
+    },
+    {
+      "word": {
+        "en": "thoughtful",
+        "laos": "ຄິດວ່າ",
+        "jp": "思慮深い",
+        "vie": "chu đáo",
+        "en_pronunciation": "/ˈθɔtfəl/",
+        "laos_pronunciation": "khidva",
+        "jp_pronunciation": "shiryo fukai",
+        "vie_pronunciation": "chu dao"
+      },
+      "means": {
+        "en": "Having intellectual depth",
+        "zh": "认知内容；"
+      }
+    },
+    {
+      "word": {
+        "en": "thousand",
+        "laos": "ພັນ",
+        "jp": "千",
+        "vie": "nghìn",
+        "en_pronunciation": "/ˈθaʊzənd/",
+        "laos_pronunciation": "phan",
+        "jp_pronunciation": "sen",
+        "vie_pronunciation": "nghin"
+      },
+      "means": {
+        "en": "The cardinal number that is the product of 10 and 100",
+        "zh": "你正在考虑的主要事情"
+      }
+    },
+    {
+      "word": {
+        "en": "thread",
+        "laos": "ດ້າຍ",
+        "jp": "スレッド",
+        "vie": "chủ đề",
+        "en_pronunciation": "/θrɛd/",
+        "laos_pronunciation": "dai",
+        "jp_pronunciation": "sureddo",
+        "vie_pronunciation": "chu de"
+      },
+      "means": {
+        "en": "A fine cord of twisted fibers (of cotton or silk or wool or nylon etc.) used in sewing and weaving",
+        "zh": "具有知识深度"
+      }
+    },
+    {
+      "word": {
+        "en": "threat",
+        "laos": "ໄພຂົ່ມຂູ່",
+        "jp": "脅威",
+        "vie": "mối đe dọa",
+        "en_pronunciation": "/θrɛt/",
+        "laos_pronunciation": "phaikhomkhu",
+        "jp_pronunciation": "kyoui",
+        "vie_pronunciation": "moi de doa"
+      },
+      "means": {
+        "en": "Something that is a source of danger",
+        "zh": "10 和 100 的乘积的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "threaten",
+        "laos": "ຂົ່ມຂູ່",
+        "jp": "脅す",
+        "vie": "đe dọa",
+        "en_pronunciation": "/θˈrɛtən/",
+        "laos_pronunciation": "khomkhu",
+        "jp_pronunciation": "odosu",
+        "vie_pronunciation": "de doa"
+      },
+      "means": {
+        "en": "Pose a threat to; present a danger to",
+        "zh": "用于缝纫和编织的细捻纤维（棉或丝或羊毛或尼龙等）"
+      }
+    },
+    {
+      "word": {
+        "en": "three",
+        "laos": "ສາມ",
+        "jp": "3つ",
+        "vie": "ba",
+        "en_pronunciation": "/θri/",
+        "laos_pronunciation": "sam",
+        "jp_pronunciation": "3 tsu",
+        "vie_pronunciation": "ba"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of one and one and one",
+        "zh": "危险来源的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "threshold",
+        "laos": "ປະຕູ",
+        "jp": "しきい値",
+        "vie": "ngưỡng",
+        "en_pronunciation": "/θˈrɛˌʃoʊld/",
+        "laos_pronunciation": "patu",
+        "jp_pronunciation": "shikii atai",
+        "vie_pronunciation": "nguong"
+      },
+      "means": {
+        "en": "The starting point for a new state or experience",
+        "zh": "构成威胁；"
+      }
+    },
+    {
+      "word": {
+        "en": "thrift",
+        "laos": "ບົ້ມ",
+        "jp": "倹約",
+        "vie": "tiết kiệm",
+        "en_pronunciation": "/θrɪft/",
+        "laos_pronunciation": "bom",
+        "jp_pronunciation": "kenyaku",
+        "vie_pronunciation": "tiet kiem"
+      },
+      "means": {
+        "en": "Any of numerous sun-loving low-growing evergreens of the genus Armeria having round heads of pink or white flowers",
+        "zh": "构成危险"
+      }
+    },
+    {
+      "word": {
+        "en": "thrifty",
+        "laos": "thrifty",
+        "jp": "倹約家",
+        "vie": "tiết kiệm",
+        "en_pronunciation": "/θˈrɪfti/",
+        "laos_pronunciation": "thrifty",
+        "jp_pronunciation": "kenyakuka",
+        "vie_pronunciation": "tiet kiem"
+      },
+      "means": {
+        "en": "Careful and diligent in the use of resources",
+        "zh": "一加一加一的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "thrill",
+        "laos": "ຕື່ນເຕັ້ນ",
+        "jp": "スリル",
+        "vie": "hồi hộp",
+        "en_pronunciation": "/θrɪl/",
+        "laos_pronunciation": "tunten",
+        "jp_pronunciation": "suriru",
+        "vie_pronunciation": "hoi hop"
+      },
+      "means": {
+        "en": "The swift release of a store of affective force",
+        "zh": "新状态或体验的起点"
+      }
+    },
+    {
+      "word": {
+        "en": "thriller",
+        "laos": "ຄວາມຕື່ນຕົກໃຈ",
+        "jp": "スリラー",
+        "vie": "phim kinh dị",
+        "en_pronunciation": "/θˈrɪlər/",
+        "laos_pronunciation": "khuaam tuntokchai",
+        "jp_pronunciation": "suriraa",
+        "vie_pronunciation": "phim kinh di"
+      },
+      "means": {
+        "en": "A suspenseful adventure story or play or movie",
+        "zh": "阿尔梅里亚属众多喜阳光的低矮常绿植物，有粉红色或白色的圆头花"
+      }
+    },
+    {
+      "word": {
+        "en": "thrive",
+        "laos": "ຈະເລີນ",
+        "jp": "繁栄する",
+        "vie": "phát triển mạnh",
+        "en_pronunciation": "/θraɪv/",
+        "laos_pronunciation": "chaloen",
+        "jp_pronunciation": "han'ei suru",
+        "vie_pronunciation": "phat trien manh"
+      },
+      "means": {
+        "en": "Grow vigorously",
+        "zh": "谨慎勤奋地利用资源"
+      }
+    },
+    {
+      "word": {
+        "en": "throat",
+        "laos": "ຄໍຫອຢ",
+        "jp": "喉",
+        "vie": "cổ họng",
+        "en_pronunciation": "/θroʊt/",
+        "laos_pronunciation": "kho hoy",
+        "jp_pronunciation": "nodo",
+        "vie_pronunciation": "co hong"
+      },
+      "means": {
+        "en": "The passage to the stomach and lungs; in the front part of the neck below the chin and above the collarbone",
+        "zh": "迅速释放储存的情感力量"
+      }
+    },
+    {
+      "word": {
+        "en": "throne",
+        "laos": "ພະຣະ",
+        "jp": "玉座",
+        "vie": "ngai vàng",
+        "en_pronunciation": "/θroʊn/",
+        "laos_pronunciation": "phara",
+        "jp_pronunciation": "gyokuza",
+        "vie_pronunciation": "ngai vang"
+      },
+      "means": {
+        "en": "The chair of state for a monarch, bishop, etc.",
+        "zh": "悬疑的冒险故事、戏剧或电影"
+      }
+    },
+    {
+      "word": {
+        "en": "through",
+        "laos": "ຜ່ານ",
+        "jp": "を通して",
+        "vie": "thông qua",
+        "en_pronunciation": "/θru/",
+        "laos_pronunciation": "phan",
+        "jp_pronunciation": "wo toushi te",
+        "vie_pronunciation": "thong qua"
+      },
+      "means": {
+        "en": "Having finished or arrived at completion",
+        "zh": "蓬勃成长"
+      }
+    },
+    {
+      "word": {
+        "en": "throughout",
+        "laos": "ໂດຍຕະຫຼອດ",
+        "jp": "全体を通して",
+        "vie": "xuyên suốt",
+        "en_pronunciation": "/θruaʊt/",
+        "laos_pronunciation": "odnytarod",
+        "jp_pronunciation": "zentai wo toushi te",
+        "vie_pronunciation": "xuyen suot"
+      },
+      "means": {
+        "en": "From first to last",
+        "zh": "通往胃和肺的通道；"
+      }
+    },
+    {
+      "word": {
+        "en": "throw",
+        "laos": "ຖິ້ມ",
+        "jp": "投げる",
+        "vie": "ném",
+        "en_pronunciation": "/θroʊ/",
+        "laos_pronunciation": "thim",
+        "jp_pronunciation": "nage ru",
+        "vie_pronunciation": "nem"
+      },
+      "means": {
+        "en": "The act of throwing (propelling something with a rapid movement of the arm and wrist)",
+        "zh": "在颈部前部，下巴下方、锁骨上方"
+      }
+    },
+    {
+      "word": {
+        "en": "thrust",
+        "laos": "ນິຣົກ",
+        "jp": "推力",
+        "vie": "lực đẩy",
+        "en_pronunciation": "/θrəst/",
+        "laos_pronunciation": "nirok",
+        "jp_pronunciation": "suiryoku",
+        "vie_pronunciation": "luc day"
+      },
+      "means": {
+        "en": "The force used in pushing",
+        "zh": "君主、主教等的国家主席。"
+      }
+    },
+    {
+      "word": {
+        "en": "thumb",
+        "laos": "ໂປ້",
+        "jp": "親指",
+        "vie": "ngón tay cái",
+        "en_pronunciation": "/θəm/",
+        "laos_pronunciation": "op",
+        "jp_pronunciation": "oyayubi",
+        "vie_pronunciation": "ngon tay cai"
+      },
+      "means": {
+        "en": "The thick short innermost digit of the forelimb",
+        "zh": "已完成或即将完成"
+      }
+    },
+    {
+      "word": {
+        "en": "thunder",
+        "laos": "ຟ້າຮ້ອງ",
+        "jp": "雷",
+        "vie": "sấm sét",
+        "en_pronunciation": "/ˈθəndər/",
+        "laos_pronunciation": "fahong",
+        "jp_pronunciation": "kaminari",
+        "vie_pronunciation": "sam set"
+      },
+      "means": {
+        "en": "A deep prolonged loud noise",
+        "zh": "从第一个到最后一个"
+      }
+    },
+    {
+      "word": {
+        "en": "thunderous",
+        "laos": "ຈຶ່ນ",
+        "jp": "雷鳴のような",
+        "vie": "sấm sét",
+        "en_pronunciation": "/ˈθəndərəs/",
+        "laos_pronunciation": "chun",
+        "jp_pronunciation": "raimei noyouna",
+        "vie_pronunciation": "sam set"
+      },
+      "means": {
+        "en": "Loud enough to cause (temporary) hearing loss",
+        "zh": "投掷动作（通过手臂和手腕的快速运动来推动物体）"
+      }
+    },
+    {
+      "word": {
+        "en": "thursday",
+        "laos": "ວັນພະຫັດ",
+        "jp": "木曜日",
+        "vie": "thứ năm",
+        "en_pronunciation": "/ˈθərzˌdeɪ/",
+        "laos_pronunciation": "vanphahad",
+        "jp_pronunciation": "mokuyoubi",
+        "vie_pronunciation": "thu nam"
+      },
+      "means": {
+        "en": "The fifth day of the week; the fourth working day",
+        "zh": "推动时所用的力"
+      }
+    },
+    {
+      "word": {
+        "en": "thus",
+        "laos": "ດັ່ງນັ້ນ",
+        "jp": "したがって",
+        "vie": "do đó",
+        "en_pronunciation": "/ðəs/",
+        "laos_pronunciation": "dangnan",
+        "jp_pronunciation": "shitagatte",
+        "vie_pronunciation": "do do"
+      },
+      "means": {
+        "en": "An aromatic gum resin obtained from various Arabian or East African trees; formerly valued for worship and for embalming and fumigation",
+        "zh": "前肢最内侧的粗短指"
+      }
+    },
+    {
+      "word": {
+        "en": "tick",
+        "laos": "ຫມາຍຕິກ",
+        "jp": "カチカチ",
+        "vie": "đánh dấu",
+        "en_pronunciation": "/tɪk/",
+        "laos_pronunciation": "maitik",
+        "jp_pronunciation": "kachikachi",
+        "vie_pronunciation": "danh dau"
+      },
+      "means": {
+        "en": "A metallic tapping sound",
+        "zh": "深沉而持久的巨响"
+      }
+    },
+    {
+      "word": {
+        "en": "ticket",
+        "laos": "ປີ້",
+        "jp": "チケット",
+        "vie": "vé",
+        "en_pronunciation": "/ˈtɪkɪt/",
+        "laos_pronunciation": "pi",
+        "jp_pronunciation": "chiketto",
+        "vie_pronunciation": "ve"
+      },
+      "means": {
+        "en": "A commercial document showing that the holder is entitled to something (as to ride on public transportation or to enter a public entertainment)",
+        "zh": "声音大到足以导致（暂时）听力损失"
+      }
+    },
+    {
+      "word": {
+        "en": "tickle",
+        "laos": "ຈີ້ໃຫ້ຫົວ",
+        "jp": "くすぐったい",
+        "vie": "cù",
+        "en_pronunciation": "/ˈtɪkəl/",
+        "laos_pronunciation": "chi haihua",
+        "jp_pronunciation": "kusuguttai",
+        "vie_pronunciation": "cu"
+      },
+      "means": {
+        "en": "A cutaneous sensation often resulting from light stroking",
+        "zh": "一周的第五天；"
+      }
+    },
+    {
+      "word": {
+        "en": "tide",
+        "laos": "ກະອັກໄພ",
+        "jp": "潮",
+        "vie": "thủy triều",
+        "en_pronunciation": "/taɪd/",
+        "laos_pronunciation": "ka akphai",
+        "jp_pronunciation": "shio",
+        "vie_pronunciation": "thuy trieu"
+      },
+      "means": {
+        "en": "The periodic rise and fall of the sea level under the gravitational pull of the moon",
+        "zh": "第四个工作日"
+      }
+    },
+    {
+      "word": {
+        "en": "tidal",
+        "laos": "ກະຫມາດ",
+        "jp": "潮汐",
+        "vie": "thủy triều",
+        "en_pronunciation": "/ˈtaɪdəl/",
+        "laos_pronunciation": "kamad",
+        "jp_pronunciation": "chouseki",
+        "vie_pronunciation": "thuy trieu"
+      },
+      "means": {
+        "en": "Of or relating to or caused by tides",
+        "zh": "从各种阿拉伯或东非树木中提取的芳香树胶树脂；"
+      }
+    },
+    {
+      "word": {
+        "en": "tidy",
+        "laos": "ກະທັດຮັດ",
+        "jp": "きちんとした",
+        "vie": "gọn gàng",
+        "en_pronunciation": "/ˈtaɪdi/",
+        "laos_pronunciation": "kathadhad",
+        "jp_pronunciation": "kichintoshita",
+        "vie_pronunciation": "gon gang"
+      },
+      "means": {
+        "en": "Receptacle that holds odds and ends (as sewing materials)",
+        "zh": "以前因崇拜、防腐和熏蒸而受到重视"
+      }
+    },
+    {
+      "word": {
+        "en": "tie",
+        "laos": "ຜູກມັດ",
+        "jp": "ネクタイ",
+        "vie": "cà vạt",
+        "en_pronunciation": "/taɪ/",
+        "laos_pronunciation": "phukmad",
+        "jp_pronunciation": "nekutai",
+        "vie_pronunciation": "ca vat"
+      },
+      "means": {
+        "en": "Neckwear consisting of a long narrow piece of material worn (mostly by men) under a collar and tied in knot at the front",
+        "zh": "金属敲击声"
+      }
+    },
+    {
+      "word": {
+        "en": "tiger",
+        "laos": "ເສືອ",
+        "jp": "虎",
+        "vie": "hổ",
+        "en_pronunciation": "/ˈtaɪgər/",
+        "laos_pronunciation": "seu",
+        "jp_pronunciation": "tora",
+        "vie_pronunciation": "ho"
+      },
+      "means": {
+        "en": "A fierce or audacious person",
+        "zh": "表明持有人有权享有某事的商业文件（例如乘坐公共交通工具或进入公共娱乐场所）"
+      }
+    },
+    {
+      "word": {
+        "en": "tight",
+        "laos": "ແຫນ້ນ",
+        "jp": "きつい",
+        "vie": "chặt chẽ",
+        "en_pronunciation": "/taɪt/",
+        "laos_pronunciation": "aenn",
+        "jp_pronunciation": "kitsui",
+        "vie_pronunciation": "chat che"
+      },
+      "means": {
+        "en": "Closely constrained or constricted or constricting",
+        "zh": "通常由轻抚引起的皮肤感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "tile",
+        "laos": "ກະເບື້ອງ",
+        "jp": "タイル",
+        "vie": "ngói",
+        "en_pronunciation": "/taɪl/",
+        "laos_pronunciation": "kabeuong",
+        "jp_pronunciation": "tairu",
+        "vie_pronunciation": "ngoi"
+      },
+      "means": {
+        "en": "A flat thin rectangular slab (as of fired clay or rubber or linoleum) used to cover surfaces",
+        "zh": "海平面在月球引力作用下的周期性升降"
+      }
+    },
+    {
+      "word": {
+        "en": "tigress",
+        "laos": "ເສືອໂຄກ",
+        "jp": "あばずれ女",
+        "vie": "hổ cái",
+        "en_pronunciation": "/tigress/",
+        "laos_pronunciation": "seuookhk",
+        "jp_pronunciation": "abazure onna",
+        "vie_pronunciation": "ho cai"
+      },
+      "means": {
+        "en": "A female tiger",
+        "zh": "属于潮汐的或与潮汐相关的或由潮汐引起的"
+      }
+    },
+    {
+      "word": {
+        "en": "tighten",
+        "laos": "ບຽດ",
+        "jp": "締める",
+        "vie": "thắt chặt",
+        "en_pronunciation": "/ˈtaɪtən/",
+        "laos_pronunciation": "biad",
+        "jp_pronunciation": "shime ru",
+        "vie_pronunciation": "that chat"
+      },
+      "means": {
+        "en": "Make tight or tighter",
+        "zh": "容纳零碎物品（作为缝纫材料）的容器"
+      }
+    },
+    {
+      "word": {
+        "en": "till",
+        "laos": "till",
+        "jp": "まで",
+        "vie": "cho đến khi",
+        "en_pronunciation": "/tɪl/",
+        "laos_pronunciation": "till",
+        "jp_pronunciation": "made",
+        "vie_pronunciation": "cho den khi"
+      },
+      "means": {
+        "en": "Unstratified soil deposited by a glacier; consists of sand and clay and gravel and boulders mixed together",
+        "zh": "颈饰由一块狭长的材料组成，佩戴在衣领下（主要由男性佩戴），并在前面打结"
+      }
+    },
+    {
+      "word": {
+        "en": "tilt",
+        "laos": "ອຽງ",
+        "jp": "傾ける",
+        "vie": "nghiêng",
+        "en_pronunciation": "/tɪlt/",
+        "laos_pronunciation": "iang",
+        "jp_pronunciation": "katamuke ru",
+        "vie_pronunciation": "nghieng"
+      },
+      "means": {
+        "en": "A combat between two mounted knights tilting against each other with blunted lances",
+        "zh": "凶猛或大胆的人"
+      }
+    },
+    {
+      "word": {
+        "en": "timber",
+        "laos": "ໄມ້",
+        "jp": "木材",
+        "vie": "gỗ",
+        "en_pronunciation": "/ˈtɪmbər/",
+        "laos_pronunciation": "mai",
+        "jp_pronunciation": "mokuzai",
+        "vie_pronunciation": "go"
+      },
+      "means": {
+        "en": "The wood of trees cut and prepared for use as building material",
+        "zh": "紧密约束或约束或约束"
+      }
+    },
+    {
+      "word": {
+        "en": "time",
+        "laos": "ເວລາ",
+        "jp": "時間",
+        "vie": "thời gian",
+        "en_pronunciation": "/taɪm/",
+        "laos_pronunciation": "vela",
+        "jp_pronunciation": "jikan",
+        "vie_pronunciation": "thoi gian"
+      },
+      "means": {
+        "en": "An instance or single occasion for some event",
+        "zh": "用于覆盖表面的扁平薄矩形板（如烧制粘土或橡胶或油毡）"
+      }
+    },
+    {
+      "word": {
+        "en": "timid",
+        "laos": "ຂີ້ອາຍ",
+        "jp": "臆病な",
+        "vie": "rụt rè",
+        "en_pronunciation": "/ˈtɪmɪd/",
+        "laos_pronunciation": "khioai",
+        "jp_pronunciation": "okubyou na",
+        "vie_pronunciation": "rut re"
+      },
+      "means": {
+        "en": "People who are fearful and cautious",
+        "zh": "一只母老虎"
+      }
+    },
+    {
+      "word": {
+        "en": "timely",
+        "laos": "ທັນເວລາ",
+        "jp": "タイムリーな",
+        "vie": "kịp thời",
+        "en_pronunciation": "/ˈtaɪmli/",
+        "laos_pronunciation": "thanuaela",
+        "jp_pronunciation": "taimurii na",
+        "vie_pronunciation": "kip thoi"
+      },
+      "means": {
+        "en": "Before a time limit expires",
+        "zh": "使紧或更紧"
+      }
+    },
+    {
+      "word": {
+        "en": "timing",
+        "laos": "ເວນີເວລາ",
+        "jp": "タイミング",
+        "vie": "thời gian",
+        "en_pronunciation": "/ˈtaɪmɪŋ/",
+        "laos_pronunciation": "veniuaela",
+        "jp_pronunciation": "taimingu",
+        "vie_pronunciation": "thoi gian"
+      },
+      "means": {
+        "en": "The time when something happens",
+        "zh": "冰川沉积的未分层土壤；"
+      }
+    },
+    {
+      "word": {
+        "en": "tin",
+        "laos": "ຈຸນເຄ",
+        "jp": "ブリキ",
+        "vie": "thiếc",
+        "en_pronunciation": "/tɪn/",
+        "laos_pronunciation": "chunkhe",
+        "jp_pronunciation": "buriki",
+        "vie_pronunciation": "thiec"
+      },
+      "means": {
+        "en": "A silvery malleable metallic element that resists corrosion; used in many alloys and to coat other metals to prevent corrosion; obtained chiefly from cassiterite where it occurs as tin oxide",
+        "zh": "由沙子、粘土、砾石和巨石混合在一起组成"
+      }
+    },
+    {
+      "word": {
+        "en": "tiny",
+        "laos": "ຂະຫນາດນ້ອຍ",
+        "jp": "小さな",
+        "vie": "nhỏ bé",
+        "en_pronunciation": "/ˈtaɪni/",
+        "laos_pronunciation": "khanadnony",
+        "jp_pronunciation": "chiisa na",
+        "vie_pronunciation": "nho be"
+      },
+      "means": {
+        "en": "Very small",
+        "zh": "两名骑兵之间用钝长矛相互倾斜的战斗"
+      }
+    },
+    {
+      "word": {
+        "en": "tip",
+        "laos": "ປາຍ",
+        "jp": "ヒント",
+        "vie": "tiền boa",
+        "en_pronunciation": "/tɪp/",
+        "laos_pronunciation": "pai",
+        "jp_pronunciation": "hinto",
+        "vie_pronunciation": "tien boa"
+      },
+      "means": {
+        "en": "The extreme end of something; especially something pointed",
+        "zh": "砍伐并准备用作建筑材料的树木"
+      }
+    },
+    {
+      "word": {
+        "en": "tire",
+        "laos": "ຢາງລົດ",
+        "jp": "タイヤ",
+        "vie": "lốp xe",
+        "en_pronunciation": "/taɪər/",
+        "laos_pronunciation": "yanglod",
+        "jp_pronunciation": "taiya",
+        "vie_pronunciation": "lop xe"
+      },
+      "means": {
+        "en": "Hoop that covers a wheel",
+        "zh": "某些事件的实例或单一场合"
+      }
+    },
+    {
+      "word": {
+        "en": "tissue",
+        "laos": "ແພຈຸລັງ",
+        "jp": "組織",
+        "vie": "mô",
+        "en_pronunciation": "/ˈtɪʃu/",
+        "laos_pronunciation": "aephchulang",
+        "jp_pronunciation": "soshiki",
+        "vie_pronunciation": "mo"
+      },
+      "means": {
+        "en": "Part of an organism consisting of an aggregate of cells having a similar structure and function",
+        "zh": "害怕和谨慎的人"
+      }
+    },
+    {
+      "word": {
+        "en": "tired",
+        "laos": "ເມື່ອຍ",
+        "jp": "疲れた",
+        "vie": "mệt mỏi",
+        "en_pronunciation": "/taɪərd/",
+        "laos_pronunciation": "meuony",
+        "jp_pronunciation": "tsukare ta",
+        "vie_pronunciation": "met moi"
+      },
+      "means": {
+        "en": "Lose interest or become bored with something or somebody",
+        "zh": "在期限到期之前"
+      }
+    },
+    {
+      "word": {
+        "en": "tiring",
+        "laos": "ເມື່ອຍ",
+        "jp": "疲れる",
+        "vie": "mệt mỏi",
+        "en_pronunciation": "/ˈtaɪrɪŋ/",
+        "laos_pronunciation": "meuony",
+        "jp_pronunciation": "tsukare ru",
+        "vie_pronunciation": "met moi"
+      },
+      "means": {
+        "en": "Lose interest or become bored with something or somebody",
+        "zh": "当某件事发生的时候"
+      }
+    },
+    {
+      "word": {
+        "en": "tireless",
+        "laos": "ບໍ່ອຶດບໍ່ອິດເມື່ອຍ",
+        "jp": "疲れ知らずの",
+        "vie": "không mệt mỏi",
+        "en_pronunciation": "/ˈtaɪərləs/",
+        "laos_pronunciation": "boudbo idmeuony",
+        "jp_pronunciation": "tsukare shirazu no",
+        "vie_pronunciation": "khong met moi"
+      },
+      "means": {
+        "en": "Showing sustained enthusiastic action with unflagging vitality",
+        "zh": "一种抗腐蚀的银色可塑金属元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "tiresome",
+        "laos": "ໂລຫະ",
+        "jp": "面倒な",
+        "vie": "mệt mỏi",
+        "en_pronunciation": "/ˈtaɪərsəm/",
+        "laos_pronunciation": "olha",
+        "jp_pronunciation": "mendou na",
+        "vie_pronunciation": "met moi"
+      },
+      "means": {
+        "en": "So lacking in interest as to cause mental weariness; ; ; ; ; ; - Edmund Burke; ; - Mark Twain",
+        "zh": "用于许多合金并涂覆其他金属以防止腐蚀；"
+      }
+    },
+    {
+      "word": {
+        "en": "title",
+        "laos": "ໃບຕາດິນ",
+        "jp": "タイトル",
+        "vie": "tiêu đề",
+        "en_pronunciation": "/ˈtaɪtəl/",
+        "laos_pronunciation": "baitadin",
+        "jp_pronunciation": "taitoru",
+        "vie_pronunciation": "tieu de"
+      },
+      "means": {
+        "en": "A heading that names a statute or legislative bill; may give a brief summary of the matters it deals with",
+        "zh": "主要从锡石中获得，以氧化锡的形式存在"
+      }
+    },
+    {
+      "word": {
+        "en": "to",
+        "laos": "ເພື່ອ",
+        "jp": "に",
+        "vie": "đến",
+        "en_pronunciation": "/tɪ/",
+        "laos_pronunciation": "pheu",
+        "jp_pronunciation": "ni",
+        "vie_pronunciation": "den"
+      },
+      "means": {
+        "en": "To is an English word referring to 'to'.",
+        "zh": "很小"
+      }
+    },
+    {
+      "word": {
+        "en": "toast",
+        "laos": "ຈີ່",
+        "jp": "乾杯",
+        "vie": "nâng ly chúc mừng",
+        "en_pronunciation": "/toʊst/",
+        "laos_pronunciation": "chi",
+        "jp_pronunciation": "kanpai",
+        "vie_pronunciation": "nang ly chuc mung"
+      },
+      "means": {
+        "en": "Slices of bread that have been toasted",
+        "zh": "某事的极端；"
+      }
+    },
+    {
+      "word": {
+        "en": "tobacco",
+        "laos": "ຢາສູບ",
+        "jp": "タバコ",
+        "vie": "thuốc lá",
+        "en_pronunciation": "/təˈbæˌkoʊ/",
+        "laos_pronunciation": "yasub",
+        "jp_pronunciation": "tabako",
+        "vie_pronunciation": "thuoc la"
+      },
+      "means": {
+        "en": "Leaves of the tobacco plant dried and prepared for smoking or ingestion",
+        "zh": "特别是有针对性的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "today",
+        "laos": "ມື້ນີ້",
+        "jp": "今日",
+        "vie": "hôm nay",
+        "en_pronunciation": "/təˈdeɪ/",
+        "laos_pronunciation": "muni",
+        "jp_pronunciation": "kyou",
+        "vie_pronunciation": "hom nay"
+      },
+      "means": {
+        "en": "The present time or age",
+        "zh": "覆盖车轮的箍"
+      }
+    },
+    {
+      "word": {
+        "en": "toe",
+        "laos": "ຕີນ",
+        "jp": "つま先",
+        "vie": "ngón chân",
+        "en_pronunciation": "/toʊ/",
+        "laos_pronunciation": "tin",
+        "jp_pronunciation": "tsuma saki",
+        "vie_pronunciation": "ngon chan"
+      },
+      "means": {
+        "en": "One of the digits of the foot",
+        "zh": "由具有相似结构和功能的细胞聚集体组成的生物体的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "together",
+        "laos": "ຮ່ວມກັນ",
+        "jp": "一緒に",
+        "vie": "cùng với nhau",
+        "en_pronunciation": "/təˈgɛðər/",
+        "laos_pronunciation": "huamkan",
+        "jp_pronunciation": "isshoni",
+        "vie_pronunciation": "cung voi nhau"
+      },
+      "means": {
+        "en": "Mentally and emotionally stable",
+        "zh": "对某事或某人失去兴趣或感到无聊"
+      }
+    },
+    {
+      "word": {
+        "en": "toil",
+        "laos": "ນ້ໍາມັນ",
+        "jp": "労苦",
+        "vie": "công việc cực nhọc",
+        "en_pronunciation": "/tɔɪl/",
+        "laos_pronunciation": "noaman",
+        "jp_pronunciation": "rouku",
+        "vie_pronunciation": "cong viec cuc nhoc"
+      },
+      "means": {
+        "en": "Productive work (especially physical work done for wages)",
+        "zh": "对某事或某人失去兴趣或感到无聊"
+      }
+    },
+    {
+      "word": {
+        "en": "toilet",
+        "laos": "ວິດ",
+        "jp": "トイレ",
+        "vie": "nhà vệ sinh",
+        "en_pronunciation": "/ˈtɔɪlət/",
+        "laos_pronunciation": "vid",
+        "jp_pronunciation": "toire",
+        "vie_pronunciation": "nha ve sinh"
+      },
+      "means": {
+        "en": "A room or building equipped with one or more toilets",
+        "zh": "展现持续的热情行动和不屈不挠的活力"
+      }
+    },
+    {
+      "word": {
+        "en": "token",
+        "laos": "ແທ່ງ",
+        "jp": "トークン",
+        "vie": "mã thông báo",
+        "en_pronunciation": "/ˈtoʊkən/",
+        "laos_pronunciation": "aethng",
+        "jp_pronunciation": "tookun",
+        "vie_pronunciation": "ma thong bao"
+      },
+      "means": {
+        "en": "An individual instance of a type of symbol",
+        "zh": "缺乏兴趣以致精神疲倦；"
+      }
+    },
+    {
+      "word": {
+        "en": "tolerate",
+        "laos": "ທົນທານຕໍ່",
+        "jp": "我慢する",
+        "vie": "chịu đựng",
+        "en_pronunciation": "/ˈtɑlərˌeɪt/",
+        "laos_pronunciation": "thonthanto",
+        "jp_pronunciation": "gaman suru",
+        "vie_pronunciation": "chiu dung"
+      },
+      "means": {
+        "en": "Put up with something or somebody unpleasant",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "tolerance",
+        "laos": "ຄວາມອົດທົນ",
+        "jp": "公差",
+        "vie": "khoan dung",
+        "en_pronunciation": "/ˈtɑlərəns/",
+        "laos_pronunciation": "khuaamodthon",
+        "jp_pronunciation": "kousa",
+        "vie_pronunciation": "khoan dung"
+      },
+      "means": {
+        "en": "The power or capacity of an organism to tolerate unfavorable environmental conditions",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "tolerant",
+        "laos": "ຄວາມທົນທານ",
+        "jp": "寛容な",
+        "vie": "khoan dung",
+        "en_pronunciation": "/ˈtɑlərənt/",
+        "laos_pronunciation": "khuaamthonthan",
+        "jp_pronunciation": "kanyou na",
+        "vie_pronunciation": "khoan dung"
+      },
+      "means": {
+        "en": "Showing respect for the rights or opinions or practices of others",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "tolerable",
+        "laos": "ທີ່ທົນທົນທານໄດ້",
+        "jp": "耐えられる",
+        "vie": "có thể chịu đựng được",
+        "en_pronunciation": "/ˈtɑlərəbəl/",
+        "laos_pronunciation": "thi thon thonthandai",
+        "jp_pronunciation": "tae rareru",
+        "vie_pronunciation": "co the chiu dung duoc"
+      },
+      "means": {
+        "en": "Capable of being borne or endured",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "toll",
+        "laos": "ເວຄະ",
+        "jp": "料金所",
+        "vie": "số điện thoại",
+        "en_pronunciation": "/toʊl/",
+        "laos_pronunciation": "vekha",
+        "jp_pronunciation": "ryoukinjo",
+        "vie_pronunciation": "so dien thoai"
+      },
+      "means": {
+        "en": "A fee levied for the use of roads or bridges (used for maintenance)",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "tomato",
+        "laos": "ຫມາກເລັ່ນ",
+        "jp": "トマト",
+        "vie": "cà chua",
+        "en_pronunciation": "/təˈmɑˌtoʊ/",
+        "laos_pronunciation": "maklen",
+        "jp_pronunciation": "tomato",
+        "vie_pronunciation": "ca chua"
+      },
+      "means": {
+        "en": "Mildly acid red or yellow pulpy fruit eaten as a vegetable",
+        "zh": "——埃德蒙·伯克；"
+      }
+    },
+    {
+      "word": {
+        "en": "tomorrow",
+        "laos": "ມື້ອື່ນ",
+        "jp": "明日",
+        "vie": "ngày mai",
+        "en_pronunciation": "/təˈmɑˌroʊ/",
+        "laos_pronunciation": "muun",
+        "jp_pronunciation": "ashita",
+        "vie_pronunciation": "ngay mai"
+      },
+      "means": {
+        "en": "The day after today",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "ton",
+        "laos": "ໂຕນ",
+        "jp": "トン",
+        "vie": "tấn",
+        "en_pronunciation": "/tən/",
+        "laos_pronunciation": "otn",
+        "jp_pronunciation": "ton",
+        "vie_pronunciation": "tan"
+      },
+      "means": {
+        "en": "A United States unit of weight equivalent to 2000 pounds",
+        "zh": "——马克·吐温"
+      }
+    },
+    {
+      "word": {
+        "en": "tone",
+        "laos": "ໂຕນ",
+        "jp": "トーン",
+        "vie": "giai điệu",
+        "en_pronunciation": "/toʊn/",
+        "laos_pronunciation": "otn",
+        "jp_pronunciation": "toon",
+        "vie_pronunciation": "giai dieu"
+      },
+      "means": {
+        "en": "The quality of a person's voice",
+        "zh": "命名法规或立法法案的标题；"
+      }
+    },
+    {
+      "word": {
+        "en": "tonnage",
+        "laos": "ສຽງແກ່",
+        "jp": "トン数",
+        "vie": "trọng tải",
+        "en_pronunciation": "/ˈtənɪʤ/",
+        "laos_pronunciation": "siangaek",
+        "jp_pronunciation": "ton kazu",
+        "vie_pronunciation": "trong tai"
+      },
+      "means": {
+        "en": "A tax imposed on ships that enter the US; based on the tonnage of the ship",
+        "zh": "可以对其所处理的事项进行简要总结"
+      }
+    },
+    {
+      "word": {
+        "en": "tongue",
+        "laos": "ລິ້ນ",
+        "jp": "舌",
+        "vie": "lưỡi",
+        "en_pronunciation": "/təŋ/",
+        "laos_pronunciation": "lin",
+        "jp_pronunciation": "shita",
+        "vie_pronunciation": "luoi"
+      },
+      "means": {
+        "en": "A mobile mass of muscular tissue covered with mucous membrane and located in the oral cavity",
+        "zh": "To是一个英语单词，指的是“to”。"
+      }
+    },
+    {
+      "word": {
+        "en": "tonight",
+        "laos": "ຄືນນີ້",
+        "jp": "今夜",
+        "vie": "tối nay",
+        "en_pronunciation": "/təˈnaɪt/",
+        "laos_pronunciation": "khunni",
+        "jp_pronunciation": "konya",
+        "vie_pronunciation": "toi nay"
+      },
+      "means": {
+        "en": "The present or immediately coming night",
+        "zh": "烤好的面包片"
+      }
+    },
+    {
+      "word": {
+        "en": "too",
+        "laos": "ແລ້ວ",
+        "jp": "も",
+        "vie": "quá",
+        "en_pronunciation": "/tu/",
+        "laos_pronunciation": "aelv",
+        "jp_pronunciation": "mo",
+        "vie_pronunciation": "qua"
+      },
+      "means": {
+        "en": "To a degree exceeding normal or proper limits",
+        "zh": "烟草植物的叶子干燥并准备用于吸烟或摄入"
+      }
+    },
+    {
+      "word": {
+        "en": "tool",
+        "laos": "ເຄື່ອງມື",
+        "jp": "ツール",
+        "vie": "công cụ",
+        "en_pronunciation": "/tul/",
+        "laos_pronunciation": "kheuongmu",
+        "jp_pronunciation": "tsuuru",
+        "vie_pronunciation": "cong cu"
+      },
+      "means": {
+        "en": "An implement used in the practice of a vocation",
+        "zh": "现在的时间或年龄"
+      }
+    },
+    {
+      "word": {
+        "en": "tooth",
+        "laos": "ແຂ້ວ",
+        "jp": "歯",
+        "vie": "răng",
+        "en_pronunciation": "/tuθ/",
+        "laos_pronunciation": "aekhv",
+        "jp_pronunciation": "ha",
+        "vie_pronunciation": "rang"
+      },
+      "means": {
+        "en": "Hard bonelike structures in the jaws of vertebrates; used for biting and chewing or for attack and defense",
+        "zh": "脚的数字之一"
+      }
+    },
+    {
+      "word": {
+        "en": "top",
+        "laos": "ທາງເທີງ",
+        "jp": "トップ",
+        "vie": "hàng đầu",
+        "en_pronunciation": "/tɔp/",
+        "laos_pronunciation": "thang thoeng",
+        "jp_pronunciation": "toppu",
+        "vie_pronunciation": "hang dau"
+      },
+      "means": {
+        "en": "The upper part of anything",
+        "zh": "精神和情绪稳定"
+      }
+    }
+  ]
+}

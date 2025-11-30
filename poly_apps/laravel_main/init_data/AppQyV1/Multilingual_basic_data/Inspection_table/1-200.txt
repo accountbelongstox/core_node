@@ -1,0 +1,204 @@
+# Words 1-200
+
+| # | English | Lao | Lao Pronunciation | Japanese | Japanese Pronunciation | Vietnamese | Vietnamese Pronunciation | English Meaning | Chinese Meaning |
+|---|---------|-----|-------------------|----------|------------------------|------------|---------------------------|-----------------|-----------------|
+| 1 | a | ເອກ | eek | 一つの | hitotsu no | một | một | indefinite article, one | 一个，不定冠词 |
+| 2 | an | ເອກ | eek | 一つの | hitotsu no | một | một | indefinite article used before vowel sounds | 一个（用于元音前） |
+| 3 | abandon | ປະຖິ້ມ | pa thim | 放棄する | hōki suru | từ bỏ | từ bỏ | to give up completely, to desert | 放弃，抛弃 |
+| 4 | abbreviation | ຄຳຫຍໍ້ | kham nyo | 略語 | ryakugo | viết tắt | viết tắt | a shortened form of a word or phrase | 缩写，简写 |
+| 5 | abide | ປະຕິບັດຕາມ | pa ti bat tam | 従う | shitagau | tuân theo | tuân theo | to accept or act in accordance with | 遵守，遵循 |
+| 6 | able | ສາມາດ | sa mat | できる | dekiru | có thể | có thể | having the power, skill, or means to do something | 能够，有能力的 |
+| 7 | ability | ຄວາມສາມາດ | khwam sa mat | 能力 | nōryoku | khả năng | khả năng | the power or skill to do something | 能力，才能 |
+| 8 | abnormal | ຜິດປົກກະຕິ | phit pok ka ti | 異常な | ijō na | bất thường | bất thường | deviating from what is normal or usual | 异常的，不正常的 |
+| 9 | aboard | ຢູ່ເທິງ | yu theng | 乗って | notte | trên tàu | trên tàu | on or into a ship, aircraft, train, or other vehicle | 在船上/飞机上/车上 |
+| 10 | abolish | ຍົກເລີກ | nyok loek | 廃止する | haishi suru | bãi bỏ | bãi bỏ | to formally put an end to a system, practice, or institution | 废除，取消 |
+| 11 | abolition | ການຍົກເລີກ | kan nyok loek | 廃止 | haishi | sự bãi bỏ | sự bãi bỏ | the action of abolishing a system, practice, or institution | 废除，废止 |
+| 12 | abort | ຍົກເລີກ | nyok loek | 中止する | chūshi suru | hủy bỏ | hủy bỏ | to terminate a process or operation before completion | 中止，终止 |
+| 13 | abortion | ການເອົາລູກອອກ | kan ao luk ok | 中絶 | chūzetsu | phá thai | phá thai | the deliberate termination of a human pregnancy | 堕胎，人工流产 |
+| 14 | about | ກ່ຽວກັບ | kiak kap | について | ni tsuite | về | về | on the subject of, concerning | 关于，大约 |
+| 15 | above | ເທິງ | theng | 上に | ue ni | trên | trên | at a higher level or layer than | 在...之上，超过 |
+| 16 | abreast | ຂ້າງຄຽງ | khang khiang | 並んで | naran de | song song | song song | side by side and facing the same way | 并排，并肩 |
+| 17 | abroad | ຕ່າງປະເທດ | tang pa thet | 海外で | kaigai de | ở nước ngoài | ở nước ngoài | in or to a foreign country or countries | 在国外，海外 |
+| 18 | abrupt | ກະທັນຫັນ | ka than han | 突然の | totsuzen no | đột ngột | đột ngột | sudden and unexpected | 突然的，意外的 |
+| 19 | absent | ບໍ່ມີ | bo mi | 不在の | fuzai no | vắng mặt | vắng mặt | not present in a place, at an occasion, or as part of something | 缺席的，不在的 |
+| 20 | absence | ການບໍ່ມີ | kan bo mi | 不在 | fuzai | sự vắng mặt | sự vắng mặt | the state of being away from a place or person | 缺席，不在 |
+| 21 | absolute | ສົມບູນ | som bun | 絶対的な | zettaiteki na | tuyệt đối | tuyệt đối | not qualified or diminished in any way, total | 绝对的，完全的 |
+| 22 | absorb | ດູດຊຶມ | dut sum | 吸収する | kyūshū suru | hấp thụ | hấp thụ | to take in or soak up by chemical or physical action | 吸收，吸取 |
+| 23 | abstract | ນາມະທຳ | nam tham | 抽象的な | chūshōteki na | trừu tượng | trừu tượng | existing in thought or as an idea but not having a physical or concrete existence | 抽象的，理论的 |
+| 24 | absorption | ການດູດຊຶມ | kan dut sum | 吸収 | kyūshū | sự hấp thụ | sự hấp thụ | the process of taking in or soaking up | 吸收，吸收作用 |
+| 25 | absurd | ບໍ່ສົມບູນ | bo som bun | ばかげた | bakageta | vô lý | vô lý | wildly unreasonable, illogical, or inappropriate | 荒谬的，荒唐的 |
+| 26 | abundant | ອຸດົມສົມບູນ | udom som bun | 豊富な | hōfu na | dồi dào | dồi dào | existing in large quantities, plentiful | 丰富的，充裕的 |
+| 27 | absurdity | ຄວາມບໍ່ສົມບູນ | khwam bo som bun | ばかげたこと | bakageta koto | sự vô lý | sự vô lý | the quality or state of being absurd | 荒谬，荒唐 |
+| 28 | abundance | ຄວາມອຸດົມສົມບູນ | khwam udom som bun | 豊富 | hōfu | sự dồi dào | sự dồi dào | a very large quantity of something | 丰富，充裕 |
+| 29 | abuse | ການລ່ວງລະເມີດ | kan luang la met | 虐待 | gyakutai | lạm dụng | lạm dụng | to use something to bad effect or for a bad purpose | 滥用，虐待 |
+| 30 | abusive | ລ່ວງລະເມີດ | luang la met | 虐待的な | gyakutaiteki na | lạm dụng | lạm dụng | extremely offensive and insulting | 辱骂的，虐待的 |
+| 31 | academy | ສະຖາບັນ | sa tha ban | アカデミー | akademī | học viện | học viện | a place of study or training in a special field | 学院，研究院 |
+| 32 | accelerate | ເລັ່ງ | leng | 加速する | kasoku suru | tăng tốc | tăng tốc | to increase in rate, amount, or extent | 加速，加快 |
+| 33 | academic | ທາງວິຊາການ | thang vi sa kan | 学術的な | gakujutsuteki na | học thuật | học thuật | relating to education and scholarship | 学术的，学院的 |
+| 34 | acceleration | ການເລັ່ງ | kan leng | 加速 | kasoku | gia tốc | gia tốc | the rate of change of velocity per unit of time | 加速，加速度 |
+| 35 | academician | ນັກວິຊາການ | nak vi sa kan | 学士院会員 | gakushiin kaiin | viện sĩ | viện sĩ | a member of an academy, especially the Royal Academy of Arts | 院士，学会会员 |
+| 36 | accent | ສຽງ | siang | アクセント | akusento | dấu nhấn | dấu nhấn | a distinctive way of pronouncing a language | 口音，重音 |
+| 37 | accept | ຍອມຮັບ | nyom rap | 受け入れる | ukeireru | chấp nhận | chấp nhận | to consent to receive or undertake something offered | 接受，承认 |
+| 38 | access | ການເຂົ້າເຖິງ | kan khao theng | アクセス | akusesu | truy cập | truy cập | the means or opportunity to approach or enter a place | 进入，访问 |
+| 39 | acceptance | ການຍອມຮັບ | kan nyom rap | 受諾 | judaku | sự chấp nhận | sự chấp nhận | the action of consenting to receive or undertake something | 接受，承认 |
+| 40 | accessible | ເຂົ້າເຖິງໄດ້ | khao theng dai | アクセス可能な | akusesu kanō na | có thể truy cập | có thể truy cập | able to be reached or entered | 可进入的，可访问的 |
+| 41 | acceptable | ຍອມຮັບໄດ້ | nyom rap dai | 受け入れられる | ukeirerareru | chấp nhận được | chấp nhận được | able to be agreed on, suitable | 可接受的，合适的 |
+| 42 | accessory | ອຸປະກອນ | u pa kon | アクセサリー | akusesarī | phụ kiện | phụ kiện | a thing which can be added to something else to make it more useful or attractive | 附件，配件 |
+| 43 | accident | ອຸບັດເຫດ | u bat het | 事故 | jiko | tai nạn | tai nạn | an unfortunate incident that happens unexpectedly | 事故，意外 |
+| 44 | accidental | ບັງເອີນ | bang eun | 偶然の | gūzen no | tình cờ | tình cờ | happening by chance or unintentionally | 偶然的，意外的 |
+| 45 | acclaim | ສັນລະເສີນ | san la sen | 称賛 | shōsan | ca ngợi | ca ngợi | to praise enthusiastically and publicly | 称赞，赞扬 |
+| 46 | accommodate | ຈັດຫາ | chat ha | 収容する | shūyō suru | chỗ ở | chỗ ở | to provide lodging or sufficient space for | 容纳，提供住宿 |
+| 47 | accommodation | ທີ່ພັກ | thi phak | 宿泊施設 | shukuhaku shisetsu | chỗ ở | chỗ ở | a room, group of rooms, or building in which someone may live or stay | 住宿，住所 |
+| 48 | accompany | ຕາມ | tam | 同行する | dōkō suru | đi cùng | đi cùng | to go somewhere with someone as a companion | 陪伴，伴随 |
+| 49 | accomplish | ສຳເລັດ | sam let | 達成する | tassei suru | hoàn thành | hoàn thành | to achieve or complete successfully | 完成，实现 |
+| 50 | accord | ຕົກລົງ | tok long | 一致 | itchi | thỏa thuận | thỏa thuận | an official agreement or treaty | 协议，一致 |
+| 51 | accomplishment | ການສຳເລັດ | kan sam let | 達成 | tassei | thành tựu | thành tựu | something that has been achieved successfully | 成就，完成 |
+| 52 | accordance | ຕາມ | tam | 一致 | itchi | theo | theo | in agreement or harmony with | 一致，符合 |
+| 53 | according to | ຕາມ | tam | によると | ni yoru to | theo | theo | as stated by or in | 根据，按照 |
+| 54 | accordingly | ຕາມນັ້ນ | tam nan | それに応じて | sore ni ōjite | theo đó | theo đó | in a way that is appropriate to the particular circumstances | 因此，相应地 |
+| 55 | account | ບັນຊີ | ban si | 口座 | kōza | tài khoản | tài khoản | a record of financial expenditure and receipts | 账户，账目 |
+| 56 | accounting | ການບັນຊີ | kan ban si | 会計 | kaikei | kế toán | kế toán | the process of keeping financial accounts | 会计，记账 |
+| 57 | accountant | ນັກບັນຊີ | nak ban si | 会計士 | kaikeishi | kế toán viên | kế toán viên | a person whose job is to keep or inspect financial accounts | 会计师 |
+| 58 | accountancy | ວິຊາການບັນຊີ | vi sa kan ban si | 会計学 | kaikeigaku | kế toán học | kế toán học | the profession or duties of an accountant | 会计学，会计职业 |
+| 59 | accountable | ຮັບຜິດຊອບ | rap phit sop | 責任がある | sekinin ga aru | chịu trách nhiệm | chịu trách nhiệm | required or expected to justify actions or decisions | 有责任的，应负责的 |
+| 60 | accumulate | ສະສົມ | sa som | 蓄積する | chikuseki suru | tích lũy | tích lũy | to gather together or acquire an increasing number or quantity of | 积累，累积 |
+| 61 | accountability | ຄວາມຮັບຜິດຊອບ | khwam rap phit sop | 説明責任 | setsumei sekinin | trách nhiệm giải trình | trách nhiệm giải trình | the fact or condition of being accountable | 责任，问责 |
+| 62 | accumulation | ການສະສົມ | kan sa som | 蓄積 | chikuseki | sự tích lũy | sự tích lũy | the acquisition or gradual gathering of something | 积累，累积 |
+| 63 | accumulative | ສະສົມ | sa som | 累積的な | ruisekiteki na | tích lũy | tích lũy | gathering or growing by gradual increases | 累积的，积累的 |
+| 64 | accurate | ຖືກຕ້ອງ | thuok tong | 正確な | seikaku na | chính xác | chính xác | correct in all details, exact | 准确的，精确的 |
+| 65 | accuse | ກ່າວຫາ | kao ha | 非難する | hinan suru | buộc tội | buộc tội | to charge someone with an offense or crime | 指控，控告 |
+| 66 | accuracy | ຄວາມຖືກຕ້ອງ | khwam thuok tong | 正確さ | seikasusa | độ chính xác | độ chính xác | the quality or state of being correct or precise | 准确性，精确度 |
+| 67 | accusation | ການກ່າວຫາ | kan kao ha | 非難 | hinan | lời buộc tội | lời buộc tội | a charge or claim that someone has done something illegal or wrong | 指控，控告 |
+| 68 | accustom | ເຮັດໃຫ້ຄຸ້ນເຄີຍ | het hai khun kheuy | 慣れさせる | nare saseru | làm quen | làm quen | to make someone or something accept something as normal or usual | 使习惯，使适应 |
+| 69 | accustomed | ຄຸ້ນເຄີຍ | khun kheuy | 慣れた | nareta | quen thuộc | quen thuộc | customary, usual | 习惯的，通常的 |
+| 70 | ace | ເອດ | et | エース | ēsu | át | át | a playing card with a single spot on it, ranked as the highest card | A牌，王牌 |
+| 71 | ache | ເຈັບ | chep | 痛み | itami | đau | đau | a continuous dull pain | 疼痛，酸痛 |
+| 72 | achieve | ບັນລຸ | ban lu | 達成する | tassei suru | đạt được | đạt được | to successfully bring about or reach a desired objective or result | 达到，实现 |
+| 73 | achievement | ການບັນລຸ | kan ban lu | 達成 | tassei | thành tựu | thành tựu | a thing done successfully with effort, skill, or courage | 成就，成绩 |
+| 74 | acid | ກົດ | kot | 酸 | san | axit | axit | a chemical substance that neutralizes alkalis, dissolves some metals | 酸，酸性物质 |
+| 75 | acidity | ຄວາມເປັນກົດ | khwam pen kot | 酸性 | sansei | độ axit | độ axit | the level of acid in substances such as water, soil, or wine | 酸度，酸性 |
+| 76 | acknowledge | ຍອມຮັບ | nyom rap | 認める | mitomeru | thừa nhận | thừa nhận | to accept or admit the existence or truth of | 承认，确认 |
+| 77 | acknowledgement | ການຍອມຮັບ | kan nyom rap | 承認 | shōnin | sự thừa nhận | sự thừa nhận | acceptance of the truth or existence of something | 承认，确认 |
+| 78 | acquaint | ເຮັດໃຫ້ຮູ້ຈັກ | het hai hu chak | 知らせる | shiraseru | làm quen | làm quen | to make someone aware of or familiar with | 使熟悉，使了解 |
+| 79 | acquaintance | ຄົນຮູ້ຈັກ | khon hu chak | 知人 | chijin | người quen | người quen | a person one knows slightly, but who is not a close friend | 熟人，相识 |
+| 80 | acquire | ໄດ້ຮັບ | dai rap | 獲得する | kakutoku suru | có được | có được | to buy or obtain an asset or object for oneself | 获得，取得 |
+| 81 | acquisition | ການໄດ້ຮັບ | kan dai rap | 獲得 | kakutoku | sự có được | sự có được | an asset or object bought or obtained | 获得，收购 |
+| 82 | acre | ເອເກີ | e ke | エーカー | ēkā | mẫu Anh | mẫu Anh | a unit of land area equal to 4,840 square yards | 英亩 |
+| 83 | across | ຂ້າມ | kham | 横切って | yokogitte | qua | qua | from one side to the other of | 横过，穿过 |
+| 84 | act | ກິດຈະກຳ | kit cha kam | 行動する | kōdō suru | hành động | hành động | to take action, do something | 行动，表演 |
+| 85 | action | ການກະທຳ | kan ka tham | 行動 | kōdō | hành động | hành động | the fact or process of doing something | 行动，行为 |
+| 86 | acting | ການສະແດງ | kan sa daeng | 演技 | engi | diễn xuất | diễn xuất | the art or occupation of performing in plays, movies, or television productions | 表演，演技 |
+| 87 | activate | ເປີດໃຊ້ | poet sai | 活性化する | kasseika suru | kích hoạt | kích hoạt | to make something active or operative | 激活，启动 |
+| 88 | active | ມີກິດຈະກຳ | mi kit cha kam | 活動的な | katsudōteki na | tích cực | tích cực | engaging or ready to engage in physically energetic pursuits | 活跃的，积极的 |
+| 89 | activity | ກິດຈະກຳ | kit cha kam | 活動 | katsudō | hoạt động | hoạt động | the condition in which things are happening or being done | 活动，行动 |
+| 90 | activist | ນັກກິດຈະກຳ | nak kit cha kam | 活動家 | katsudōka | nhà hoạt động | nhà hoạt động | a person who campaigns to bring about political or social change | 活动家，积极分子 |
+| 91 | actor | ນັກສະແດງ | nak sa daeng | 俳優 | haiyū | diễn viên | diễn viên | a person whose profession is acting on the stage, in movies, or on television | 演员 |
+| 92 | actress | ນັກສະແດງຍິງ | nak sa daeng nying | 女優 | joyū | nữ diễn viên | nữ diễn viên | a female actor | 女演员 |
+| 93 | actual | ຈິງ | ching | 実際の | jissai no | thực tế | thực tế | existing in fact, real | 实际的，真实的 |
+| 94 | actually | ຕົວຈິງ | tua ching | 実際に | jissai ni | thực ra | thực ra | as the truth or facts of a situation, really | 实际上，事实上 |
+| 95 | acupuncture | ການປີ້ນເຂັມ | kan pin khem | 鍼治療 | hari chiryō | châm cứu | châm cứu | a system of complementary medicine in which fine needles are inserted in the skin | 针灸，针刺疗法 |
+| 96 | acute | ແຫຼມ | laem | 鋭い | surudoi | cấp tính | cấp tính | present or experienced to a severe or intense degree | 急性的，尖锐的 |
+| 97 | adapt | ປັບຕົວ | pap tua | 適応する | tekiō suru | thích ứng | thích ứng | to make something suitable for a new use or purpose | 适应，调整 |
+| 98 | adaptation | ການປັບຕົວ | kan pap tua | 適応 | tekiō | sự thích ứng | sự thích ứng | the action or process of adapting or being adapted | 适应，改编 |
+| 99 | adaptive | ປັບຕົວ | pap tua | 適応的な | tekiōteki na | thích ứng | thích ứng | having an ability to change to suit different conditions | 适应的，有适应能力的 |
+| 100 | add | ເພີ່ມ | phoem | 加える | kuwaeru | thêm | thêm | to join something to something else so as to increase the size, number, or amount | 添加，增加 |
+| 101 | addition | ການເພີ່ມ | kan phoem | 追加 | tsuika | phép cộng | phép cộng | the action or process of adding something to something else | 添加，加法 |
+| 102 | additional | ເພີ່ມເຕີມ | phoem toem | 追加の | tsuika no | thêm | thêm | added, extra, or supplementary to what is already present or available | 额外的，附加的 |
+| 103 | addict | ຜູ້ຕິດ | phu tit | 中毒者 | chūdokusha | người nghiện | người nghiện | a person who is addicted to a particular substance or activity | 成瘾者，上瘾的人 |
+| 104 | addiction | ການຕິດ | kan tit | 中毒 | chūdoku | nghiện | nghiện | the fact or condition of being addicted to a particular substance or activity | 成瘾，上瘾 |
+| 105 | addictive | ຕິດ | tit | 中毒性の | chūdokusei no | gây nghiện | gây nghiện | causing or likely to cause someone to become addicted | 成瘾的，上瘾的 |
+| 106 | address | ທີ່ຢູ່ | thi yu | 住所 | jūsho | địa chỉ | địa chỉ | the particulars of the place where someone lives or an organization is situated | 地址，演说 |
+| 107 | adequate | ພຽງພໍ | phiang pho | 十分な | jūbun na | đầy đủ | đầy đủ | satisfactory or acceptable in quality or quantity | 足够的，充足的 |
+| 108 | adequacy | ຄວາມພຽງພໍ | khwam phiang pho | 十分さ | jūbunsa | sự đầy đủ | sự đầy đủ | the state or quality of being adequate | 充足，适当 |
+| 109 | adequately | ຢ່າງພຽງພໍ | yang phiang pho | 十分に | jūbun ni | đầy đủ | đầy đủ | to a satisfactory or acceptable extent | 充分地，足够地 |
+| 110 | adhere | ຕິດ | tit | 付着する | fuchaku suru | dính | dính | to stick fast to a surface or substance | 粘附，坚持 |
+| 111 | adherence | ການຕິດ | kan tit | 遵守 | junshu | sự tuân thủ | sự tuân thủ | attachment or commitment to a person, cause, or belief | 坚持，遵守 |
+| 112 | adjacent | ຕິດກັນ | tit kan | 隣接した | rinsetsu shita | liền kề | liền kề | next to or adjoining something else | 相邻的，邻近的 |
+| 113 | adjective | ຄຳຄຸນນາມ | kham khun nam | 形容詞 | keiyōshi | tính từ | tính từ | a word naming an attribute of a noun | 形容词 |
+| 114 | adjust | ປັບ | pap | 調整する | chōsei suru | điều chỉnh | điều chỉnh | to alter or move something slightly in order to achieve the desired fit, appearance, or result | 调整，调节 |
+| 115 | adjustment | ການປັບ | kan pap | 調整 | chōsei | sự điều chỉnh | sự điều chỉnh | a small alteration or movement made to achieve a desired fit, appearance, or result | 调整，调节 |
+| 116 | administer | ບໍລິຫານ | bo li han | 管理する | kanri suru | quản lý | quản lý | to manage and be responsible for the running of a business, organization, etc. | 管理，执行 |
+| 117 | administrate | ບໍລິຫານ | bo li han | 管理する | kanri suru | quản trị | quản trị | to manage the affairs of an organization | 管理，治理 |
+| 118 | administration | ການບໍລິຫານ | kan bo li han | 管理 | kanri | quản trị | quản trị | the process or activity of running a business, organization, etc. | 管理，行政 |
+| 119 | administrative | ທາງການບໍລິຫານ | thang kan bo li han | 管理の | kanri no | hành chính | hành chính | relating to the running of a business, organization, etc. | 行政的，管理的 |
+| 120 | admire | ຊົມເຊີຍ | som seuy | 称賛する | shōsan suru | ngưỡng mộ | ngưỡng mộ | to regard with respect or warm approval | 钦佩，赞赏 |
+| 121 | admiration | ການຊົມເຊີຍ | kan som seuy | 称賛 | shōsan | sự ngưỡng mộ | sự ngưỡng mộ | respect and warm approval | 钦佩，赞赏 |
+| 122 | admirable | ຄຸ້ນຄ່າ | khun kha | 立派な | rippa na | đáng ngưỡng mộ | đáng ngưỡng mộ | arousing or deserving respect and approval | 令人钦佩的，值得赞赏的 |
+| 123 | admit | ຍອມຮັບ | nyom rap | 認める | mitomeru | thừa nhận | thừa nhận | to confess to be true or to be the case | 承认，允许进入 |
+| 124 | admission | ການຍອມຮັບ | kan nyom rap | 入場 | nyūjō | sự thừa nhận | sự thừa nhận | the process or fact of entering or being allowed to enter a place or organization | 承认，入场 |
+| 125 | admittance | ການເຂົ້າ | kan khao | 入場許可 | nyūjō kyoka | sự cho vào | sự cho vào | the process or fact of entering or being allowed to enter a place | 进入，入场许可 |
+| 126 | admittedly | ຍອມຮັບ | nyom rap | 確かに | tashika ni | thừa nhận | thừa nhận | used to express a concession or recognition that something is the case | 诚然，无可否认地 |
+| 127 | adolescent | ໄວລຸ້ນ | vai lun | 思春期の | shishunki no | thanh thiếu niên | thanh thiếu niên | a young person in the process of developing from a child into an adult | 青少年，青春期的 |
+| 128 | adolescence | ໄວລຸ້ນ | vai lun | 思春期 | shishunki | tuổi thanh thiếu niên | tuổi thanh thiếu niên | the period following the onset of puberty during which a young person develops from a child into an adult | 青春期，青少年时期 |
+| 129 | adopt | ລອງ | long | 採用する | saiyō suru | nhận nuôi | nhận nuôi | to legally take another's child and bring it up as one's own | 收养，采用 |
+| 130 | adoption | ການລອງ | kan long | 採用 | saiyō | sự nhận nuôi | sự nhận nuôi | the action or fact of legally taking another's child and bringing it up as one's own | 收养，采用 |
+| 131 | adore | ຮັກ | hak | 崇拝する | sūhai suru | yêu thích | yêu thích | to love and respect someone deeply | 崇拜，爱慕 |
+| 132 | adorable | ນ້ອຍນ້ອຍ | noi noi | 愛らしい | airashii | đáng yêu | đáng yêu | inspiring great affection, delightful, charming | 可爱的，讨人喜欢的 |
+| 133 | adult | ຜູ້ໃຫຍ່ | phu nyai | 大人 | otona | người lớn | người lớn | a person who is fully grown or developed | 成年人，成年的 |
+| 134 | adulthood | ໄວເຖົ້າ | vai thao | 成人期 | seijinki | tuổi trưởng thành | tuổi trưởng thành | the state or condition of being fully grown or mature | 成年期，成年 |
+| 135 | advance | ກ້າວໜ້າ | kao na | 前進する | zenshin suru | tiến bộ | tiến bộ | to move forward in a purposeful way | 前进，提前 |
+| 136 | advancement | ການກ້າວໜ້າ | kan kao na | 前進 | zenshin | sự tiến bộ | sự tiến bộ | the process of promoting a cause or plan | 前进，提升 |
+| 137 | advanced | ຂັ້ນສູງ | khan sung | 高度な | kōdo na | tiên tiến | tiên tiến | far on or ahead in development or progress | 先进的，高级的 |
+| 138 | advantage | ຂໍ້ໄດ້ປຽບ | kho dai piab | 利点 | riten | lợi thế | lợi thế | a condition or circumstance that puts one in a favorable or superior position | 优势，有利条件 |
+| 139 | advantageous | ມີຂໍ້ໄດ້ປຽບ | mi kho dai piab | 有利な | yūri na | có lợi | có lợi | involving or creating favorable circumstances that increase the chances of success or effectiveness | 有利的，有优势的 |
+| 140 | advent | ການມາເຖິງ | kan ma theng | 到来 | tōrai | sự đến | sự đến | the arrival of a notable person, thing, or event | 到来，出现 |
+| 141 | adventure | ການຜະຈົນໄພ | kan pha chon phai | 冒険 | bōken | cuộc phiêu lưu | cuộc phiêu lưu | an unusual and exciting, typically hazardous, experience or activity | 冒险，奇遇 |
+| 142 | adventurer | ນັກຜະຈົນໄພ | nak pha chon phai | 冒険者 | bōkensha | nhà thám hiểm | nhà thám hiểm | a person who enjoys or seeks adventure | 冒险家，探险者 |
+| 143 | adventurous | ຜະຈົນໄພ | pha chon phai | 冒険的な | bōkenteki na | phiêu lưu | phiêu lưu | willing to take risks or to try out new methods, ideas, or experiences | 冒险的，大胆的 |
+| 144 | adverb | ຄຳກຳມະນິຍົມ | kham kam ma ni nyom | 副詞 | fukushi | phó từ | phó từ | a word or phrase that modifies or qualifies an adjective, verb, or other adverb | 副词 |
+| 145 | adversary | ຄູ່ແຂ່ງ | khu khaeng | 敵 | teki | đối thủ | đối thủ | one's opponent in a contest, conflict, or dispute | 对手，敌人 |
+| 146 | adverse | ບໍ່ດີ | bo di | 不利な | furi na | bất lợi | bất lợi | preventing success or development, harmful, unfavorable | 不利的，有害的 |
+| 147 | advertise | ໂຄສະນາ | kho sa na | 広告する | kōkoku suru | quảng cáo | quảng cáo | to describe or draw attention to a product, service, or event in a public medium | 做广告，宣传 |
+| 148 | advice | ຄຳແນະນຳ | kham nae nam | 助言 | jogen | lời khuyên | lời khuyên | guidance or recommendations offered with regard to prudent future action | 建议，忠告 |
+| 149 | adversity | ຄວາມຫຍຸ້ງຍາກ | khwam nyung nyak | 逆境 | gyakkyō | nghịch cảnh | nghịch cảnh | difficulties, misfortune | 逆境，困难 |
+| 150 | advertisement | ໂຄສະນາ | kho sa na | 広告 | kōkoku | quảng cáo | quảng cáo | a notice or announcement in a public medium promoting a product, service, or event | 广告 |
+| 151 | ad | ໂຄສະນາ | kho sa na | 広告 | kōkoku | quảng cáo | quảng cáo | an advertisement | 广告（advertisement的缩写） |
+| 152 | advertising | ການໂຄສະນາ | kan kho sa na | 広告 | kōkoku | quảng cáo | quảng cáo | the activity or profession of producing advertisements for commercial products or services | 广告业，做广告 |
+| 153 | advise | ແນະນຳ | nae nam | 助言する | jogen suru | khuyên | khuyên | to offer suggestions about the best course of action to someone | 建议，劝告 |
+| 154 | advisor | ທີ່ປຶກສາ | thi puk sa | 顧問 | komon | cố vấn | cố vấn | a person who gives advice in a particular field | 顾问，咨询师 |
+| 155 | adviser | ທີ່ປຶກສາ | thi puk sa | 顧問 | komon | cố vấn | cố vấn | a person who gives advice in a particular field | 顾问，咨询师 |
+| 156 | advisory | ທາງປຶກສາ | thang puk sa | 助言の | jogen no | tư vấn | tư vấn | having or consisting in the power to make recommendations but not to take action enforcing them | 咨询的，顾问的 |
+| 157 | advisable | ຄວນ | khwan | 望ましい | nozomashii | nên | nên | to be recommended or sensible, wise to do | 可取的，明智的 |
+| 158 | advocate | ສົນທິນຸກອນ | son thi nu kon | 擁護する | yōgo suru | ủng hộ | ủng hộ | to publicly recommend or support | 提倡，拥护 |
+| 159 | advocacy | ການສົນທິນຸກອນ | kan son thi nu kon | 擁護 | yōgo | sự ủng hộ | sự ủng hộ | public support for or recommendation of a particular cause or policy | 拥护，提倡 |
+| 160 | aerial | ທາງອາກາດ | thang a kat | 空中の | kūchū no | trên không | trên không | existing, happening, or operating in the air | 空中的，航空的 |
+| 161 | aesthetic | ກ຅ຓດຈ຅ດຉ຃ | la-aesthetic | アエサタハエタイカ | ja-aesthetic | aesthetic | vi-aesthetic | Auto description for aesthetic | aesthetic 的自动示例 |
+| 162 | aesthetics | ກ຅ຓດຈ຅ດຉ຃ຓ | la-aesthetics | アエサタハエタイカサ | ja-aesthetics | aesthetics | vi-aesthetics | Auto description for aesthetics | aesthetics 的自动示例 |
+| 163 | affair | ເລື່ອງ | leuang | 事件 | jiken | việc | việc | an event or sequence of events of a specified kind or that has previously been referred to | 事件，事务 |
+| 164 | affect | ສົ່ງຜົນກະທົບ | song phon ka thop | 影響する | eikyō suru | ảnh hưởng | ảnh hưởng | to have an effect on, make a difference to | 影响，感动 |
+| 165 | affection | ຄວາມຮັກ | khwam hak | 愛情 | aijō | tình cảm | tình cảm | a gentle feeling of fondness or liking | 喜爱，感情 |
+| 166 | affectionate | ມີຄວາມຮັກ | mi khwam hak | 愛情深い | aijōbukai | trìu mến | trìu mến | readily feeling or showing fondness or tenderness | 深情的，充满爱意的 |
+| 167 | affiliate | ສາຂາ | sa kha | 関連会社 | kanren gaisha | chi nhánh | chi nhánh | to officially attach or connect to an organization | 附属，分支机构 |
+| 168 | affiliation | ການສາຂາ | kan sa kha | 関連 | kanren | sự liên kết | sự liên kết | the state or process of affiliating or being affiliated | 附属关系，联系 |
+| 169 | affirm | ຢືນຢັນ | yun yan | 断言する | dangen suru | khẳng định | khẳng định | to state as a fact, assert strongly and publicly | 断言，肯定 |
+| 170 | affirmation | ການຢືນຢັນ | kan yun yan | 断言 | dangen | sự khẳng định | sự khẳng định | the action or process of affirming something | 断言，肯定 |
+| 171 | affirmative | ຢືນຢັນ | yun yan | 肯定的な | kōteiteki na | khẳng định | khẳng định | agreeing with or consenting to a statement or request | 肯定的，同意的 |
+| 172 | affix | ຕິດ | tit | 接辞 | setsuji | phụ tố | phụ tố | an additional element placed at the beginning or end of a root, stem, or word | 词缀，附加 |
+| 173 | affixation | ການຕິດ | kan tit | 接辞化 | setsujika | sự thêm phụ tố | sự thêm phụ tố | the process of adding an affix to a word | 词缀化，附加 |
+| 174 | affluent | ມີຄວາມຮັ່ງມີ | mi khwam hang mi | 裕福な | yūfuku na | giàu có | giàu có | having a great deal of money, wealthy | 富裕的，富有的 |
+| 175 | affluence | ຄວາມຮັ່ງມີ | khwam hang mi | 裕福 | yūfuku | sự giàu có | sự giàu có | the state of having a great deal of money, wealth | 富裕，财富 |
+| 176 | afford | ສາມາດ | sa mat | 余裕がある | yoyū ga aru | có thể | có thể | to have enough money to pay for | 负担得起，提供 |
+| 177 | affordable | ສາມາດຈ່າຍໄດ້ | sa mat chai dai | 手頃な | tegoro na | có thể chi trả | có thể chi trả | inexpensive, reasonably priced | 负担得起的，价格合理的 |
+| 178 | affordability | ຄວາມສາມາດຈ່າຍໄດ້ | khwam sa mat chai dai | 手頃さ | tegorosa | khả năng chi trả | khả năng chi trả | the state of being affordable | 可负担性，价格合理性 |
+| 179 | afloat | ລອຍ | loi | 浮かんで | ukande | nổi | nổi | floating in water, not sinking | 漂浮的，在水上的 |
+| 180 | afraid | ຢ້ານ | yan | 恐れて | osorete | sợ | sợ | feeling fear or anxiety, frightened | 害怕的，担心的 |
+| 181 | after | ຫຼັງ | lang | 後で | ato de | sau | sau | in the time following an event or another period of time | 在...之后，后来 |
+| 182 | aftermath | ຜົນສະທ້ອນ | phon sa thon | 余波 | yoha | hậu quả | hậu quả | the consequences or aftereffects of a significant unpleasant event | 后果，余波 |
+| 183 | afternoon | ຕອນບ່າຍ | ton bai | 午後 | gogo | buổi chiều | buổi chiều | the time from noon or lunchtime to evening | 下午 |
+| 184 | afterward | ຫຼັງຈາກນັ້ນ | lang chak nan | その後 | sono ato | sau đó | sau đó | at a later or future time, subsequently | 后来，之后 |
+| 185 | afterwards | ຫຼັງຈາກນັ້ນ | lang chak nan | その後 | sono ato | sau đó | sau đó | at a later or future time, subsequently | 后来，之后 |
+| 186 | again | ອີກຄັ້ງ | ik khang | 再び | futatabi | lại | lại | another time, once more | 再次，又 |
+| 187 | against | ຕໍ່ | to | に対して | ni taishite | chống lại | chống lại | in opposition to, contrary to | 反对，对着 |
+| 188 | age | ອາຍຸ | a nyu | 年齢 | nenrei | tuổi | tuổi | the length of time that a person has lived or a thing has existed | 年龄，时代 |
+| 189 | aged | ແກ່ | kae | 年を取った | toshi o totta | già | già | having lived for a specified length of time, old | 年老的，...岁的 |
+| 190 | aging | ການແກ່ | kan kae | 老化 | rōka | lão hóa | lão hóa | the process of growing old | 老化，变老 |
+| 191 | ageing | ການແກ່ | kan kae | 老化 | rōka | lão hóa | lão hóa | the process of growing old | 老化，变老 |
+| 192 | agenda | ລາຍການ | lai kan | 議題 | gidai | chương trình | chương trình | a list of items to be discussed at a formal meeting | 议程，日程 |
+| 193 | agent | ຕົວແທນ | tua taen | 代理人 | dairinin | đại lý | đại lý | a person who acts on behalf of another person or group | 代理人，代理商 |
+| 194 | agency | ສຳນັກງານ | sam nak ngan | 代理店 | dairiten | cơ quan | cơ quan | a business or organization established to provide a particular service | 代理机构，办事处 |
+| 195 | aggravate | ເຮັດໃຫ້ເພີ່ມຂຶ້ນ | het hai phoem khun | 悪化させる | akka saseru | làm trầm trọng | làm trầm trọng | to make a problem, injury, or offense worse or more serious | 加重，使恶化 |
+| 196 | aggravation | ການເພີ່ມຂຶ້ນ | kan phoem khun | 悪化 | akka | sự trầm trọng | sự trầm trọng | the state of becoming worse or more serious | 加重，恶化 |
+| 197 | aggregate | ລວມ | luam | 集計 | shūkei | tổng hợp | tổng hợp | a whole formed by combining several separate elements | 总计，集合 |
+| 198 | aggressive | ກ້າຫານ | ka han | 攻撃的な | kōgekiteki na | hung hăng | hung hăng | ready or likely to attack or confront, characterized by or resulting from aggression | 侵略的，好斗的 |
+| 199 | aggression | ການກ້າຫານ | kan ka han | 攻撃 | kōgeki | sự hung hăng | sự hung hăng | hostile or violent behavior or attitudes toward another | 侵略，攻击 |
+| 200 | agitate | ກະຕຸ້ນ | ka tun | かき混ぜる | kakimazeru | khuấy động | khuấy động | to make someone troubled or nervous, to stir or disturb | 煽动，搅动 |

@@ -16,18 +16,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32ui, get_third_package_PIL
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32ui = get_third_package_win32ui()
+PIL = get_third_package_PIL()
 
-import win32gui
-import win32con
-import win32ui
-from PIL import Image, ImageDraw, ImageFont
+Image = PIL.Image
+ImageDraw = PIL.ImageDraw
+ImageFont = PIL.ImageFont
 
 
 # --- Embedded ColorPrint Class for rich console output ---

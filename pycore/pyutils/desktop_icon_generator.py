@@ -10,13 +10,6 @@ import os
 import shutil
 import tempfile
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
 try:
     import win32com.client
     HAS_WIN32COM = True
@@ -36,21 +29,21 @@ class DesktopIconGenerator:
     def _convert_png_to_ico(self, png_path, ico_path=None):
         """
         Convert PNG to ICO format (Windows only)
-        
+
         Args:
             png_path: Path to PNG file
-            ico_path: Path to output ICO file (optional, creates temp file if not provided)
-        
+            ico_path: Path to output ICO file (optional, saves in same directory as PNG if not provided)
+
         Returns:
             Path: Path to ICO file
         """
         if os.name != 'nt':  # Only on Windows
             raise NotImplementedError("PNG to ICO conversion only supported on Windows")
-        
+
         png_path = Path(png_path)
         if not png_path.exists():
             raise FileNotFoundError(f"PNG file not found: {png_path}")
-        
+
         # Try to import PIL/Pillow
         try:
             from PIL import Image
@@ -65,15 +58,20 @@ class DesktopIconGenerator:
                 print("[INFO] Pillow installed successfully")
             except Exception as e:
                 raise RuntimeError(f"Failed to import/install Pillow for PNG conversion: {e}")
-        
-        # Generate ICO path if not provided
+
+        # Generate ICO path if not provided - save in same directory as PNG
         if ico_path is None:
-            temp_dir = Path(tempfile.gettempdir()) / 'desktop_icons'
-            temp_dir.mkdir(exist_ok=True)
-            ico_path = temp_dir / f"{png_path.stem}.ico"
-            self._temp_ico_files.append(ico_path)  # Track for cleanup
-        
+            ico_path = png_path.parent / f"{png_path.stem}.ico"
+
         ico_path = Path(ico_path)
+
+        # If ICO already exists and is newer than PNG, skip conversion
+        if ico_path.exists():
+            png_mtime = png_path.stat().st_mtime
+            ico_mtime = ico_path.stat().st_mtime
+            if ico_mtime >= png_mtime:
+                print(f"[INFO] Using existing ICO (up to date): {ico_path}")
+                return ico_path
         
         try:
             # Open PNG and convert to ICO

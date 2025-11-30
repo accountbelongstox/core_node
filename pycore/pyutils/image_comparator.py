@@ -6,20 +6,15 @@ Provides image similarity comparison functionality
 """
 
 import sys
-import numpy as np
 from typing import Union, Tuple
 from pathlib import Path
-from PIL import Image as PILImage
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
-# Check and install dependencies before importing cv2
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import cv2
+np = get_third_package_numpy()
+PIL_Image = get_third_package_PIL_Image()
+cv2 = get_third_package_cv2()
+PILImage = PIL_Image
 
 
 class ImageComparator:

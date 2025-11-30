@@ -101,6 +101,14 @@ class AssetsImagesAppTravel {
   // User Profile Images
   static const String travelUserAvatarDefault = 'assets/apps/app_travel/images/user_avatar_default.png';
   static const String travelVipBadge = 'assets/apps/app_travel/images/vip_badge.png';
+  static const String travelHotelTitleLogo = 'assets/apps/app_travel/images/hotel_title_logo.png';
+
+  // Flight Icons
+  static const String travelIconTransfer = 'assets/apps/app_travel/images/icon_transfer.png';
+  static const String travelFlightIcon = 'assets/apps/app_travel/images/flight_icon.png';
+
+  // Airline Logos
+  static const String travelAirlineLogoJeju = 'assets/apps/app_travel/images/airline_logo_jeju.png';
 
   // Popular & Recommended
   static const String travelPopularAttraction = '$_baseUpload/2dcda4e400ace9f993835fbb.jpg_250x250_d841fd57.jpg';
@@ -224,6 +232,9 @@ class AssetsImagesAppTravel {
       // User Profile
       'travelUserAvatarDefault': travelUserAvatarDefault,
       'travelVipBadge': travelVipBadge,
+
+      // Flight Icons
+      'travelIconTransfer': travelIconTransfer,
     };
   }
 

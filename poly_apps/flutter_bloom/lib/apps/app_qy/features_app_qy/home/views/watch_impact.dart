@@ -11,13 +11,15 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/wacth_impact_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/watch_impact_data.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/views/play_video_screen.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
-import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 
 class WatchTheImpactScreen extends StatefulWidget {
   const WatchTheImpactScreen({super.key});
@@ -29,10 +31,11 @@ class WatchTheImpactScreen extends StatefulWidget {
 class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
   @override
   Widget build(BuildContext context) {
+    final watchImpacts = WatchImpactData.getMockWatchImpacts();
     return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            "Watch the Impact of....",
+          title: Text(
+            QyAppLocalizationKeys.qyHomeWatchImpact.tr(context),
             style: ThemeTextStyles.textSemiBold,
           ),
           actions: const [
@@ -47,29 +50,25 @@ class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 0),
           child: GridView.builder(
-              itemCount: watchImpactList.length,
+              itemCount: watchImpacts.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2, childAspectRatio: 4 / 5),
               itemBuilder: (_, index) {
                 return InkWell(
                   onTap: () {
-                    Get.to(const PlayVideoScreen());
+                    context.push('/qy/home/watch-impact/play');
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Stack(
                       children: [
-                        // Container(
-                        //   color: Colors.grey,
-                        // ),
                         ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.asset(
-                              watchImpactList[index].watchImage,
+                              watchImpacts[index].watchImage,
                               height: 230,
                               fit: BoxFit.fitHeight,
                             )),
-
                         const Positioned(
                           top: 65,
                           left: 60,
@@ -80,14 +79,14 @@ class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
                           ),
                         ),
                         Positioned(
-                            //top: 150,
                             bottom: 30,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: ThemeDimensions.defaultSize),
                               child: Text(
-                                watchImpactList[index].watchName,
-                                style: ThemeTextStyles.textMedium.copyWith(color: ThemeColors.white),
+                                watchImpacts[index].watchName,
+                                style: ThemeTextStyles.textMedium
+                                    .copyWith(color: ThemeColors.white),
                               ),
                             )),
                       ],

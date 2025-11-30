@@ -40,7 +40,7 @@
 // ============================================================================
 
 // Supported application types (must match directory names in apps/)
-export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools' | 'pymatrix';
+export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools' | 'pymatrix' | 'main';
 
 export interface AppEntryConfig {
   name: string;
@@ -263,6 +263,33 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     permissions: {
       required: ['pymatrix.access'],
       roles: ['user', 'developer', 'admin']
+    }
+  },
+  main: {
+    name: 'main',
+    displayName: 'Core Node Main Site',
+    description: 'Main site for Core Node platform',
+    namespace: 'main',
+    defaultRoute: '/',
+    theme: {
+      primary: '#4361ee',
+      secondary: '#805dca',
+      layout: 'default'
+    },
+    api: {
+      namespace: 'main',
+      baseUrl: '/api/mainsite',
+      version: 'v1'
+    },
+    features: {
+      dashboard: true,
+      analytics: true,
+      notifications: true,
+      userManagement: false
+    },
+    permissions: {
+      required: ['main.access'],
+      roles: ['user', 'admin']
     }
   }
 };

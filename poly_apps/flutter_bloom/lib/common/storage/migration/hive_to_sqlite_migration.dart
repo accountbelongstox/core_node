@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import '../storage_manager.dart';
@@ -30,7 +30,7 @@ class HiveToSQLiteMigration {
         'common_storage',
         _migrationFlagKey,
       );
-      
+
       if (result == _migrationVersion) {
         return false; // Migration already completed
       }
@@ -133,10 +133,15 @@ class HiveToSQLiteMigration {
   /// Check if Hive data exists
   static Future<bool> _hasHiveData() async {
     try {
+      // Skip Hive data check on web platform
+      if (kIsWeb) {
+        return false;
+      }
+
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final hivePath = join(documentsDirectory.path, 'hive');
       final hiveDir = Directory(hivePath);
-      
+
       if (!await hiveDir.exists()) {
         return false;
       }
@@ -145,6 +150,13 @@ class HiveToSQLiteMigration {
       final files = await hiveDir.list().toList();
       return files.any((file) => file.path.endsWith('.hive'));
     } catch (e) {
+      // Silently handle MissingPluginException on web or when plugin is not available
+      if (e.toString().contains('MissingPluginException') ||
+          e.toString().contains('getApplicationDocumentsDirectory')) {
+        debugPrint(
+            'Hive data check skipped (platform not supported or plugin not available)');
+        return false;
+      }
       debugPrint('Error checking Hive data: $e');
       return false;
     }
@@ -155,7 +167,7 @@ class HiveToSQLiteMigration {
     try {
       // Read Hive data from file system
       final hiveData = await _readHiveBoxData(boxName, appName);
-      
+
       if (hiveData.isEmpty) {
         return 0;
       }
@@ -188,10 +200,15 @@ class HiveToSQLiteMigration {
     String? appName,
   ) async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        return {};
+      }
+
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final hivePath = join(documentsDirectory.path, 'hive');
       final boxFile = join(hivePath, '$boxName.hive');
-      
+
       final file = File(boxFile);
       if (!await file.exists()) {
         return {};
@@ -203,6 +220,13 @@ class HiveToSQLiteMigration {
       debugPrint('Hive file found: $boxFile (migration will start fresh)');
       return {};
     } catch (e) {
+      // Silently handle MissingPluginException on web or when plugin is not available
+      if (e.toString().contains('MissingPluginException') ||
+          e.toString().contains('getApplicationDocumentsDirectory')) {
+        debugPrint(
+            'Hive box data read skipped (platform not supported or plugin not available)');
+        return {};
+      }
       debugPrint('Error reading Hive box data: $e');
       return {};
     }
@@ -211,6 +235,11 @@ class HiveToSQLiteMigration {
   /// Backup Hive data before migration
   static Future<void> _backupHiveData(String? appName) async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        return;
+      }
+
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final hivePath = join(documentsDirectory.path, 'hive');
       final backupPath = join(
@@ -224,6 +253,13 @@ class HiveToSQLiteMigration {
         debugPrint('Hive data backed up to: $backupPath');
       }
     } catch (e) {
+      // Silently handle MissingPluginException on web or when plugin is not available
+      if (e.toString().contains('MissingPluginException') ||
+          e.toString().contains('getApplicationDocumentsDirectory')) {
+        debugPrint(
+            'Hive data backup skipped (platform not supported or plugin not available)');
+        return;
+      }
       debugPrint('Failed to backup Hive data: $e');
     }
   }
@@ -231,7 +267,8 @@ class HiveToSQLiteMigration {
   /// Clear migration flag (for testing)
   static Future<void> clearMigrationFlag() async {
     try {
-      await StorageManager.instance.deleteKey('common_storage', _migrationFlagKey);
+      await StorageManager.instance
+          .deleteKey('common_storage', _migrationFlagKey);
     } catch (e) {
       debugPrint('Failed to clear migration flag: $e');
     }

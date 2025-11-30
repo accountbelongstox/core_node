@@ -1,7 +1,7 @@
 const path = require('path');
 const logger = require('#@logger');
 const TranslationProvider = require('../../libs/TranslationProvider');
-const pythonBridge = require('#@ncore/utils/python_bridge');
+const { getInstance: getPythonBridge } = require('#@python_bridge');
 
 class NLLB200TranslationProvider extends TranslationProvider {
   constructor(name, config) {
@@ -59,6 +59,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
         return false;
       }
 
+      const pythonBridge = getPythonBridge();
       const pythonAvailable = await pythonBridge.checkPythonAvailable();
       if (!pythonAvailable) {
         logger.error('Python is not available');
@@ -110,6 +111,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
     try {
       logger.info(`Translating with NLLB-200: ${sourceLanguage} -> ${targetLanguage}`);
 
+      const pythonBridge = getPythonBridge();
       const pythonResult = await pythonBridge.callWithModel(this.translatorScriptPath, {
         text: text,
         source_lang: sourceLanguage,
@@ -161,6 +163,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
     }));
 
     try {
+      const pythonBridge = getPythonBridge();
       const results = await pythonBridge.batchCall(
         this.translatorScriptPath,
         batchParams,
@@ -211,6 +214,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
     }
 
     try {
+      const pythonBridge = getPythonBridge();
       const modelInfo = await pythonBridge.getModelInfo(this.modelName);
       return modelInfo;
     } catch (error) {
@@ -221,6 +225,7 @@ class NLLB200TranslationProvider extends TranslationProvider {
 
   async clearCache() {
     try {
+      const pythonBridge = getPythonBridge();
       const result = await pythonBridge.clearModelCache(this.modelName);
       logger.info(result.message || 'Cache cleared');
       return result;
