@@ -9,8 +9,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 31_ensure_php84_intelligent.sh
-# Description: Intelligent PHP 8.4 installation with multi-dimensional state detection
+# Script: 31_ensure_php85_intelligent.sh
+# Description: Intelligent PHP 8.5 installation with multi-dimensional state detection
 # Author: System Administrator
 # Version: 1.0
 # Design: Based on SHELL_INSTALLATION_DEVELOPMENT_GUIDE.md principles
@@ -24,7 +24,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Script identification
-SCRIPT_INDEX="[31_PHP84_INTELLIGENT]"
+SCRIPT_INDEX="[31_PHP85_INTELLIGENT]"
 
 # Source global variables for constraint checking
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -167,13 +167,13 @@ check_php_extensions() {
 fix_missing_extensions() {
     echo -e "${BLUE}$SCRIPT_INDEX [FIX] Checking and fixing missing PHP extensions...${NC}"
 
-    if ! command -v php8.4 >/dev/null 2>&1; then
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 not installed, cannot fix extensions${NC}"
+    if ! command -v php8.5 >/dev/null 2>&1; then
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 not installed, cannot fix extensions${NC}"
         return 1
     fi
 
     # Get list of loaded modules
-    local loaded_modules=$(php8.4 -m 2>/dev/null)
+    local loaded_modules=$(php8.5 -m 2>/dev/null)
     local missing_packages=()
     local installed_packages=()
 
@@ -182,11 +182,11 @@ fix_missing_extensions() {
     # Check each required extension
     for ext in "${REQUIRED_EXTENSIONS[@]}"; do
         local module_name="${EXTENSION_MAP[$ext]}"
-        local package_name="php8.4-${ext}"
+        local package_name="php8.5-${ext}"
 
         # Check if module is loaded
         if echo "$loaded_modules" | grep -qi "^$module_name$"; then
-            echo -e "${GREEN}$SCRIPT_INDEX $module_name: loaded ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX $module_name: loaded ï¿½?{NC}"
             continue
         fi
 
@@ -212,27 +212,27 @@ fix_missing_extensions() {
             if $USE_SUDO apt install "$pkg" -y --no-install-recommends 2>&1 | tee /tmp/ext_fix.log; then
                 # Check if package was actually installed (dpkg may report errors for other packages like nginx)
                 if dpkg -l | grep -q "^ii.*$pkg[[:space:]]"; then
-                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed successfully ï¿?{NC}"
+                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed successfully ï¿½?{NC}"
                     installed_packages+=("$pkg")
                 else
                     # Check if dpkg error was due to other packages, not our PHP extension
                     if grep -q "Setting up $pkg" /tmp/ext_fix.log; then
                         # Package was actually set up, just dpkg had issues with other packages
                         if dpkg -l | grep -q "^i.*$pkg"; then
-                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with dpkg warnings) ï¿?{NC}"
+                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with dpkg warnings) ï¿½?{NC}"
                             installed_packages+=("$pkg")
                         else
                             # Try with recommends
                             echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
                             if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
                                 if dpkg -l | grep -q "^i.*$pkg"; then
-                                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿½?{NC}"
                                     installed_packages+=("$pkg")
                                 else
-                                    echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                                    echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                                 fi
                             else
-                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                             fi
                         fi
                     else
@@ -240,13 +240,13 @@ fix_missing_extensions() {
                         echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
                         if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
                             if dpkg -l | grep -q "^i.*$pkg"; then
-                                echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                                echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿½?{NC}"
                                 installed_packages+=("$pkg")
                             else
-                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                             fi
                         else
-                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                         fi
                     fi
                 fi
@@ -259,13 +259,13 @@ fix_missing_extensions() {
                     echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
                     if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
                         if dpkg -l | grep -q "^i.*$pkg"; then
-                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿½?{NC}"
                             installed_packages+=("$pkg")
                         else
-                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                         fi
                     else
-                        echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                        echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿½?{NC}"
                     fi
                 fi
             fi
@@ -277,9 +277,9 @@ fix_missing_extensions() {
             echo -e "${GREEN}$SCRIPT_INDEX Installed ${#installed_packages[@]} extension packages${NC}"
 
             # Restart PHP-FPM to load new extensions
-            if systemctl is-active --quiet php8.4-fpm 2>/dev/null; then
+            if systemctl is-active --quiet php8.5-fpm 2>/dev/null; then
                 echo -e "${YELLOW}$SCRIPT_INDEX Restarting PHP-FPM to load new extensions...${NC}"
-                $USE_SUDO systemctl restart php8.4-fpm
+                $USE_SUDO systemctl restart php8.5-fpm
                 echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM restarted${NC}"
             fi
 
@@ -287,11 +287,11 @@ fix_missing_extensions() {
             echo -e "${CYAN}$SCRIPT_INDEX Verifying newly installed extensions...${NC}"
             local verification_failed=0
             for pkg in "${installed_packages[@]}"; do
-                local ext_name=$(echo "$pkg" | sed 's/php8.4-//')
+                local ext_name=$(echo "$pkg" | sed 's/php8.5-//')
                 local module_name="${EXTENSION_MAP[$ext_name]}"
 
-                if php8.4 -m 2>/dev/null | grep -qi "^$module_name$"; then
-                    echo -e "${GREEN}$SCRIPT_INDEX $module_name: now loaded ï¿?{NC}"
+                if php8.5 -m 2>/dev/null | grep -qi "^$module_name$"; then
+                    echo -e "${GREEN}$SCRIPT_INDEX $module_name: now loaded ï¿½?{NC}"
                 else
                     echo -e "${YELLOW}$SCRIPT_INDEX $module_name: still not loaded (may need system restart)${NC}"
                     ((verification_failed++))
@@ -302,7 +302,7 @@ fix_missing_extensions() {
                 echo -e "${GREEN}$SCRIPT_INDEX All extensions verified and loaded${NC}"
             else
                 echo -e "${YELLOW}$SCRIPT_INDEX $verification_failed extensions not loaded yet${NC}"
-                echo -e "${YELLOW}$SCRIPT_INDEX Try restarting PHP-FPM: sudo systemctl restart php8.4-fpm${NC}"
+                echo -e "${YELLOW}$SCRIPT_INDEX Try restarting PHP-FPM: sudo systemctl restart php8.5-fpm${NC}"
             fi
         fi
     else
@@ -322,23 +322,23 @@ fix_php_symbolic_link() {
     echo -e "${BLUE}$SCRIPT_INDEX [FIX] Fixing PHP symbolic link and cleaning up old versions...${NC}"
 
     local target_link="/usr/local/bin/php"
-    local expected_binary="/usr/bin/php8.4"
+    local expected_binary="/usr/bin/php8.5"
 
-    # Check if PHP 8.4 binary exists and is executable
+    # Check if PHP 8.5 binary exists and is executable
     if [ ! -f "$expected_binary" ]; then
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary not found: $expected_binary${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary not found: $expected_binary${NC}"
         return 1
     fi
 
     if [ ! -x "$expected_binary" ]; then
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary is not executable: $expected_binary${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary is not executable: $expected_binary${NC}"
         return 1
     fi
 
-    # Test PHP 8.4 binary works before creating symlink
-    echo -e "${YELLOW}$SCRIPT_INDEX Testing PHP 8.4 binary functionality...${NC}"
+    # Test PHP 8.5 binary works before creating symlink
+    echo -e "${YELLOW}$SCRIPT_INDEX Testing PHP 8.5 binary functionality...${NC}"
     if ! timeout 10 "$expected_binary" --version >/dev/null 2>&1; then
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary is not functional: $expected_binary${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary is not functional: $expected_binary${NC}"
         return 1
     fi
 
@@ -369,7 +369,7 @@ fix_php_symbolic_link() {
         $USE_SUDO rm -f "$target_link"
     fi
 
-    # Create new symbolic link to PHP 8.4
+    # Create new symbolic link to PHP 8.5
     echo -e "${YELLOW}$SCRIPT_INDEX Creating new symbolic link: $target_link -> $expected_binary${NC}"
     if $USE_SUDO ln -sf "$expected_binary" "$target_link"; then
         echo -e "${GREEN}$SCRIPT_INDEX Successfully created symbolic link: $target_link -> $expected_binary${NC}"
@@ -408,7 +408,7 @@ cleanup_old_php_versions() {
     echo -e "${BLUE}$SCRIPT_INDEX [CLEANUP] Removing old PHP versions from PATH and disabling services...${NC}"
 
     # List of old PHP versions to clean up
-    local old_versions=(7.4 8.0 8.1 8.2 8.3)
+    local old_versions=(7.4 8.0 8.1 8.2 8.3 8.4)
     local cleanup_errors=0
 
     echo -e "${CYAN}$SCRIPT_INDEX Step 1: Stopping and disabling old PHP-FPM services...${NC}"
@@ -483,30 +483,30 @@ cleanup_old_php_versions() {
         done
     fi
 
-    echo -e "${CYAN}$SCRIPT_INDEX Step 5: Ensuring only PHP 8.4 is in update-alternatives...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Step 5: Ensuring only PHP 8.5 is in update-alternatives...${NC}"
     # Remove all PHP alternatives first
     if update-alternatives --query php >/dev/null 2>&1; then
         echo -e "${YELLOW}$SCRIPT_INDEX Removing all existing PHP alternatives...${NC}"
         $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
     fi
 
-    # Add only PHP 8.4 to alternatives
-    if [ -f "/usr/bin/php8.4" ] && [ -x "/usr/bin/php8.4" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.4 to alternatives with priority 84...${NC}"
-        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.4 84 2>/dev/null || true
+    # Add only PHP 8.5 to alternatives
+    if [ -f "/usr/bin/php8.5" ] && [ -x "/usr/bin/php8.5" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.5 to alternatives with priority 84...${NC}"
+        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84 2>/dev/null || true
 
-        # Set PHP 8.4 as the default
-        $USE_SUDO update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
+        # Set PHP 8.5 as the default
+        $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
 
-        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 set as default via update-alternatives${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 set as default via update-alternatives${NC}"
     fi
 
     echo -e "${CYAN}$SCRIPT_INDEX Step 6: Verifying cleanup results...${NC}"
-    # Verify that 'php' command points to PHP 8.4
+    # Verify that 'php' command points to PHP 8.5
     if command -v php >/dev/null 2>&1; then
         local current_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
         if [[ "$current_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX Verification: 'php' command points to PHP 8.4 ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX Verification: 'php' command points to PHP 8.5 ï¿½?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: 'php' command points to PHP $current_version${NC}"
         fi
@@ -522,7 +522,7 @@ cleanup_old_php_versions() {
     done
 
     if ! $running_old_fpm; then
-        echo -e "${GREEN}$SCRIPT_INDEX Verification: No old PHP-FPM services running ï¿?{NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX Verification: No old PHP-FPM services running ï¿½?{NC}"
     fi
 
     echo -e "${GREEN}$SCRIPT_INDEX Old PHP versions cleanup completed${NC}"
@@ -542,20 +542,20 @@ verify_php_symbolic_link_fix() {
     echo -e "${BLUE}$SCRIPT_INDEX [VERIFY] Verifying PHP symbolic link fix...${NC}"
 
     local target_link="/usr/local/bin/php"
-    local expected_binary="/usr/bin/php8.4"
+    local expected_binary="/usr/bin/php8.5"
     local verification_passed=true
 
     # Test 1: Check if symbolic link exists and points to correct target
     if [ -L "$target_link" ]; then
         local actual_target=$(readlink "$target_link")
         if [ "$actual_target" = "$expected_binary" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX ï¿?Symbolic link correct: $target_link -> $actual_target${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Symbolic link correct: $target_link -> $actual_target${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿½?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
             verification_passed=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link missing: $target_link${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?Symbolic link missing: $target_link${NC}"
         verification_passed=false
     fi
 
@@ -563,22 +563,22 @@ verify_php_symbolic_link_fix() {
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP command version correct: $php_version${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command version incorrect: $php_version (expected: 8.4.x)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿½?PHP command version incorrect: $php_version (expected: 8.4.x)${NC}"
             verification_passed=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command not available${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?PHP command not available${NC}"
         verification_passed=false
     fi
 
     # Test 3: Check if which php returns the correct path
     local which_php=$(which php 2>/dev/null || echo "not_found")
     if [ "$which_php" = "$target_link" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?'which php' returns correct path: $which_php${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?'which php' returns correct path: $which_php${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
         verification_passed=false
     fi
 
@@ -588,23 +588,23 @@ verify_php_symbolic_link_fix() {
         if command -v "php${old_version}" >/dev/null 2>&1; then
             local old_php_path=$(which "php${old_version}" 2>/dev/null)
             if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
-                echo -e "${RED}$SCRIPT_INDEX ï¿?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
+                echo -e "${RED}$SCRIPT_INDEX ï¿½?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
                 old_versions_found=true
             fi
         fi
     done
 
     if ! $old_versions_found; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?No old PHP versions found in /usr/local/bin${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?No old PHP versions found in /usr/local/bin${NC}"
     else
         verification_passed=false
     fi
 
     # Test 5: Check if PHP alternatives are clean
     if update-alternatives --query php >/dev/null 2>&1; then
-        echo -e "${YELLOW}$SCRIPT_INDEX ï¿?PHP alternatives still configured (may be intentional)${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX ï¿½?PHP alternatives still configured (may be intentional)${NC}"
     else
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP alternatives are clean${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP alternatives are clean${NC}"
     fi
 
     # Final result
@@ -622,20 +622,20 @@ verify_php_symbolic_link_fix() {
     echo -e "${BLUE}$SCRIPT_INDEX [VERIFY] Verifying PHP symbolic link fix...${NC}"
 
     local target_link="/usr/local/bin/php"
-    local expected_binary="/usr/bin/php8.4"
+    local expected_binary="/usr/bin/php8.5"
     local success=true
 
     # Test 1: Check if symbolic link exists and points to correct target
     if [ -L "$target_link" ]; then
         local actual_target=$(readlink "$target_link")
         if [ "$actual_target" = "$expected_binary" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX ï¿?Symbolic link correct: $target_link -> $actual_target${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Symbolic link correct: $target_link -> $actual_target${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿½?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
             success=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link missing: $target_link${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?Symbolic link missing: $target_link${NC}"
         success=false
     fi
 
@@ -643,22 +643,22 @@ verify_php_symbolic_link_fix() {
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP command version correct: $php_version${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command version incorrect: $php_version (expected: 8.4)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿½?PHP command version incorrect: $php_version (expected: 8.4)${NC}"
             success=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command not available${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?PHP command not available${NC}"
         success=false
     fi
 
     # Test 3: Check if which php returns the correct path
     local which_php=$(which php 2>/dev/null || echo "not found")
     if [ "$which_php" = "$target_link" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?'which php' returns correct path: $which_php${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?'which php' returns correct path: $which_php${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
         success=false
     fi
 
@@ -668,23 +668,23 @@ verify_php_symbolic_link_fix() {
         if command -v "php${old_version}" >/dev/null 2>&1; then
             local old_php_path=$(which "php${old_version}" 2>/dev/null)
             if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
-                echo -e "${RED}$SCRIPT_INDEX ï¿?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
+                echo -e "${RED}$SCRIPT_INDEX ï¿½?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
                 old_php_found=true
             fi
         fi
     done
 
     if ! $old_php_found; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?No old PHP versions found in /usr/local/bin${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?No old PHP versions found in /usr/local/bin${NC}"
     else
         success=false
     fi
 
     # Test 5: Test PHP functionality with a simple command
     if timeout 10 php -r "echo 'PHP is working';" >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP functionality test passed${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP functionality test passed${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP functionality test failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?PHP functionality test failed${NC}"
         success=false
     fi
 
@@ -707,14 +707,14 @@ analyze_php_state() {
     local fpm_status=0
     local extensions_ok=false
     local link_ok=false
-    local php84_binary_exists=false
+    local php85_binary_exists=false
 
-    # Check if PHP 8.4 binary exists (regardless of current symlink)
-    if [ -f "/usr/bin/php8.4" ]; then
-        php84_binary_exists=true
-        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 binary found: /usr/bin/php8.4${NC}"
+    # Check if PHP 8.5 binary exists (regardless of current symlink)
+    if [ -f "/usr/bin/php8.5" ]; then
+        php85_binary_exists=true
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 binary found: /usr/bin/php8.5${NC}"
     else
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 binary not found: /usr/bin/php8.4${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 binary not found: /usr/bin/php8.5${NC}"
     fi
 
     # Run all detection checks
@@ -728,11 +728,11 @@ analyze_php_state() {
     if $binary_exists && $version_ok && [ $fpm_status -eq 0 ] && $extensions_ok && $link_ok; then
         echo -e "${GREEN}$SCRIPT_INDEX State: ${PHP_STATE["FULLY_CONFIGURED"]}${NC}"
         return 0
-    elif ! $php84_binary_exists; then
+    elif ! $php85_binary_exists; then
         echo -e "${RED}$SCRIPT_INDEX State: ${PHP_STATE["MISSING"]}${NC}"
         return 1
-    elif $php84_binary_exists && ! $link_ok; then
-        # PHP 8.4 is installed but symlink is wrong/missing
+    elif $php85_binary_exists && ! $link_ok; then
+        # PHP 8.5 is installed but symlink is wrong/missing
         if $binary_exists && ! $version_ok; then
             echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["LINKED_WRONG_VERSION"]}${NC}"
             return 2
@@ -740,17 +740,17 @@ analyze_php_state() {
             echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["LINKED_BROKEN"]}${NC}"
             return 5
         fi
-    elif $php84_binary_exists && $link_ok && [ $fpm_status -ne 0 ]; then
+    elif $php85_binary_exists && $link_ok && [ $fpm_status -ne 0 ]; then
         case $fpm_status in
             1) echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["FPM_NOT_RUNNING"]}${NC}" ;;
             2) echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["FPM_NOT_RUNNING"]}${NC}" ;;
             3) echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["FPM_NOT_INSTALLED"]}${NC}" ;;
         esac
         return 3
-    elif $php84_binary_exists && $link_ok && ! $extensions_ok; then
+    elif $php85_binary_exists && $link_ok && ! $extensions_ok; then
         echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["EXTENSIONS_MISSING"]}${NC}"
         return 4
-    elif $php84_binary_exists && ! $binary_exists; then
+    elif $php85_binary_exists && ! $binary_exists; then
         echo -e "${YELLOW}$SCRIPT_INDEX State: ${PHP_STATE["INSTALLED_NO_LINK"]}${NC}"
         return 6
     else
@@ -782,7 +782,7 @@ pre_installation_check() {
     local composer_state_result=0
 
     # Check PHP state
-    echo -e "${CYAN}$SCRIPT_INDEX Checking PHP 8.4 state...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Checking PHP 8.5 state...${NC}"
     analyze_php_state; php_state_result=$?
 
     # Check Composer state independently
@@ -791,9 +791,9 @@ pre_installation_check() {
 
     # Display results
     if [ $php_state_result -eq 0 ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX  PHP 8.4 is fully configured and ready${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX  PHP 8.5 is fully configured and ready${NC}"
     else
-        echo -e "${YELLOW}$SCRIPT_INDEX  PHP 8.4 needs attention (state code: $php_state_result)${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX  PHP 8.5 needs attention (state code: $php_state_result)${NC}"
     fi
 
     if [ $composer_state_result -eq 0 ]; then
@@ -812,7 +812,7 @@ pre_installation_check() {
         # Show what needs to be done
         if [ $php_state_result -ne 0 ]; then
             case $php_state_result in
-                1) echo -e "${YELLOW}$SCRIPT_INDEX  PHP 8.4 installation required${NC}" ;;
+                1) echo -e "${YELLOW}$SCRIPT_INDEX  PHP 8.5 installation required${NC}" ;;
                 2) echo -e "${YELLOW}$SCRIPT_INDEX  PHP version update required - will fix symbolic link${NC}" ;;
                 3) echo -e "${YELLOW}$SCRIPT_INDEX  PHP repair required${NC}" ;;
                 5) echo -e "${YELLOW}$SCRIPT_INDEX  PHP symbolic link repair required${NC}" ;;
@@ -835,12 +835,12 @@ pre_installation_check() {
 
 # PHASE 4: Installation Execution (Conditional Based on State)
 
-# Remove existing PHP versions before installing PHP 8.4
+# Remove existing PHP versions before installing PHP 8.5
 remove_existing_php() {
     echo -e "${BLUE}$SCRIPT_INDEX [CLEANUP] Stopping existing PHP services (keeping packages)...${NC}"
 
     # Get list of installed PHP packages for information
-    local php_packages=$(dpkg -l | grep -E '^ii.*php[0-9]\.' | awk '{print $2}' | grep -v php8.4 || true)
+    local php_packages=$(dpkg -l | grep -E '^ii.*php[0-9]\.' | awk '{print $2}' | grep -v php8.5 || true)
 
     if [ -n "$php_packages" ]; then
         echo -e "${CYAN}$SCRIPT_INDEX Found existing PHP packages (will be preserved):${NC}"
@@ -929,38 +929,38 @@ setup_php_repository() {
         $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
     }
 
-    # Verify PHP 8.4 availability
-    echo -e "${BLUE}$SCRIPT_INDEX Verifying PHP 8.4 availability...${NC}"
-    if apt policy php8.4 2>/dev/null | grep -q "Candidate"; then
-        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is available${NC}"
+    # Verify PHP 8.5 availability
+    echo -e "${BLUE}$SCRIPT_INDEX Verifying PHP 8.5 availability...${NC}"
+    if apt policy php8.5 2>/dev/null | grep -q "Candidate"; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is available${NC}"
     else
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 may not be available, but continuing...${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 may not be available, but continuing...${NC}"
     fi
 }
 
-# 4.2 Install PHP 8.4 core packages with Laravel support
+# 4.2 Install PHP 8.5 core packages with Laravel support
 install_php_core() {
-    echo -e "${BLUE}$SCRIPT_INDEX [INSTALL] Installing PHP 8.4 core packages...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX [INSTALL] Installing PHP 8.5 core packages...${NC}"
 
     # Step 0: Prevent Apache2 installation BEFORE installing PHP
     echo -e "${CYAN}$SCRIPT_INDEX Preventing Apache2 installation...${NC}"
     $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
 
-    # Step 1: Install PHP 8.4 core package (without apache2 dependencies)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.4 (without Apache2)...${NC}"
-    if ! dpkg -l | grep -q "^ii.*php8.4[[:space:]]"; then
-        if $USE_SUDO apt install php8.4 -y --no-install-recommends 2>/dev/null || $USE_SUDO apt install php8.4 -y --no-install-recommends --allow-unauthenticated; then
-            echo -e "${GREEN}$SCRIPT_INDEX php8.4 installed successfully${NC}"
+    # Step 1: Install PHP 8.5 core package (without apache2 dependencies)
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.5 (without Apache2)...${NC}"
+    if ! dpkg -l | grep -q "^ii.*php8.5[[:space:]]"; then
+        if $USE_SUDO apt install php8.5 -y --no-install-recommends 2>/dev/null || $USE_SUDO apt install php8.5 -y --no-install-recommends --allow-unauthenticated; then
+            echo -e "${GREEN}$SCRIPT_INDEX php8.5 installed successfully${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.4${NC}"
+            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.5${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}$SCRIPT_INDEX php8.4 already installed${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX php8.5 already installed${NC}"
     fi
 
     # Step 2: Install Laravel-required PHP extensions (CLI/FPM only, NO Apache2)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Installing Laravel-required PHP 8.4 extensions...${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Installing Laravel-required PHP 8.5 extensions...${NC}"
 
     # Use core extensions from common variables
     local core_extensions=("${CORE_EXTENSIONS[@]}")
@@ -973,7 +973,7 @@ install_php_core() {
     for ext in "${core_extensions[@]}"; do
         # Check if already installed
         if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
-            echo -e "${GREEN}$SCRIPT_INDEX $ext: already installed ï¿?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX $ext: already installed ï¿½?{NC}"
             ((already_installed_count++))
             continue
         fi
@@ -984,21 +984,21 @@ install_php_core() {
         if $USE_SUDO apt install "$ext" -y --no-install-recommends 2>&1 | tee /tmp/php_ext_install.log; then
             # Verify installation
             if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
-                echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully ï¿?{NC}"
+                echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully ï¿½?{NC}"
                 ((installed_count++))
             else
                 echo -e "${YELLOW}$SCRIPT_INDEX $ext: installation reported success but package not found${NC}"
                 # Try without --no-install-recommends
                 if $USE_SUDO apt install "$ext" -y 2>&1 | tee /tmp/php_ext_install.log; then
                     if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
-                        echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿?{NC}"
+                        echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿½?{NC}"
                         ((installed_count++))
                     else
-                        echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                        echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿½?{NC}"
                         failed_extensions+=("$ext")
                     fi
                 else
-                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿½?{NC}"
                     cat /tmp/php_ext_install.log
                     failed_extensions+=("$ext")
                 fi
@@ -1008,15 +1008,15 @@ install_php_core() {
             # Try without --no-install-recommends
             if $USE_SUDO apt install "$ext" -y 2>&1 | tee /tmp/php_ext_install.log; then
                 if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
-                    echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿?{NC}"
+                    echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿½?{NC}"
                     ((installed_count++))
                 else
-                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿½?{NC}"
                     cat /tmp/php_ext_install.log
                     failed_extensions+=("$ext")
                 fi
             else
-                echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿½?{NC}"
                 cat /tmp/php_ext_install.log
                 failed_extensions+=("$ext")
             fi
@@ -1044,7 +1044,7 @@ install_php_core() {
             echo -e "${YELLOW}$SCRIPT_INDEX   sudo apt install $ext${NC}"
         done
     else
-        echo -e "${GREEN}$SCRIPT_INDEX All extensions installed successfully ï¿?{NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX All extensions installed successfully ï¿½?{NC}"
         echo -e "${CYAN}========================================${NC}"
     fi
 
@@ -1056,11 +1056,11 @@ install_php_core() {
 
     # Step 3: Verify PHP installation
     echo -e "${YELLOW}$SCRIPT_INDEX Step 3: Verifying PHP installation...${NC}"
-    if command -v php8.4 >/dev/null 2>&1; then
-        local php_version=$(php8.4 -v 2>/dev/null | head -n 1 || echo "Version check failed")
-        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 verification: $php_version${NC}"
+    if command -v php8.5 >/dev/null 2>&1; then
+        local php_version=$(php8.5 -v 2>/dev/null | head -n 1 || echo "Version check failed")
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 verification: $php_version${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary not found after installation${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary not found after installation${NC}"
         return 1
     fi
 
@@ -1070,10 +1070,10 @@ install_php_core() {
     local missing_critical=()
 
     for ext in "${critical_extensions[@]}"; do
-        if php8.4 -m 2>/dev/null | grep -qi "^${ext}$"; then
-            echo -e "${GREEN}$SCRIPT_INDEX   $ext: loaded ï¿?{NC}"
+        if php8.5 -m 2>/dev/null | grep -qi "^${ext}$"; then
+            echo -e "${GREEN}$SCRIPT_INDEX   $ext: loaded ï¿½?{NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX   $ext: NOT loaded ï¿?{NC}"
+            echo -e "${RED}$SCRIPT_INDEX   $ext: NOT loaded ï¿½?{NC}"
             missing_critical+=("$ext")
         fi
     done
@@ -1081,36 +1081,36 @@ install_php_core() {
     if [ ${#missing_critical[@]} -gt 0 ]; then
         echo -e "${RED}$SCRIPT_INDEX Critical extensions missing: ${missing_critical[*]}${NC}"
         echo -e "${YELLOW}$SCRIPT_INDEX This may cause issues with Composer and Laravel${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Install with: sudo apt install php8.4-curl php8.4-mbstring php8.4-xml${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Install with: sudo apt install php8.5-curl php8.5-mbstring php8.5-xml${NC}"
         # Don't fail, just warn
     fi
 
     # Set the actual installed version
     ACTUAL_PHP_VERSION="8.4"
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 core installation completed${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 core installation completed${NC}"
 }
 
 # Composer installation is now handled by separate script 32_install_composer.sh
 
-# 4.3 Install PHP 8.4 FPM - Following test_phpdoc.txt exactly
+# 4.3 Install PHP 8.5 FPM - Following test_phpdoc.txt exactly
 install_php_fpm() {
-    echo -e "${BLUE}$SCRIPT_INDEX [INSTALL] Installing PHP 8.4 FPM...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX [INSTALL] Installing PHP 8.5 FPM...${NC}"
 
     # Prevent Apache2 installation during FPM setup
     echo -e "${CYAN}$SCRIPT_INDEX Preventing Apache2 during FPM installation...${NC}"
     $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
 
-    # Step 1: Install PHP 8.4 FPM only
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.4-fpm...${NC}"
-    if ! dpkg -l | grep -q "^ii.*php8.4-fpm[[:space:]]"; then
-        if $USE_SUDO apt install php8.4-fpm -y --no-install-recommends; then
-            echo -e "${GREEN}$SCRIPT_INDEX php8.4-fpm installed successfully${NC}"
+    # Step 1: Install PHP 8.5 FPM only
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.5-fpm...${NC}"
+    if ! dpkg -l | grep -q "^ii.*php8.5-fpm[[:space:]]"; then
+        if $USE_SUDO apt install php8.5-fpm -y --no-install-recommends; then
+            echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm installed successfully${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.4-fpm${NC}"
+            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.5-fpm${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}$SCRIPT_INDEX php8.4-fpm already installed${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm already installed${NC}"
     fi
 
     # Remove Apache2 if it was installed during FPM installation
@@ -1154,19 +1154,19 @@ install_php_fpm() {
     echo -e "${GREEN}$SCRIPT_INDEX PHP $PHP_VERSION FPM installation and setup completed successfully${NC}"
 }
 
-# 4.4 Configure and start PHP-FPM service - moved to 32_configure_php84.sh
+# 4.4 Configure and start PHP-FPM service - moved to 32_configure_php85.sh
 
-# Configuration functions moved to 32_configure_php84.sh
+# Configuration functions moved to 32_configure_php85.sh
 
-# Nginx configuration functions moved to 32_configure_php84.sh
+# Nginx configuration functions moved to 32_configure_php85.sh
 
-# Nginx site configuration moved to 32_configure_php84.sh
+# Nginx site configuration moved to 32_configure_php85.sh
 
-# Configuration functions moved to 32_configure_php84.sh
+# Configuration functions moved to 32_configure_php85.sh
 
 # 4.6 Main installation execution function
 execute_installation() {
-    echo -e "${CYAN}$SCRIPT_INDEX [EXECUTION] Starting PHP 8.4 installation process...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX [EXECUTION] Starting PHP 8.5 installation process...${NC}"
 
     # Step 1: Clean up old PHP versions first
     cleanup_old_php_versions || {
@@ -1184,15 +1184,15 @@ execute_installation() {
         return 1
     }
 
-    # Step 4: Install PHP 8.4 core
+    # Step 4: Install PHP 8.5 core
     install_php_core || {
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 core installation failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 core installation failed${NC}"
         return 1
     }
 
-    # Step 5: Install PHP 8.4 FPM
+    # Step 5: Install PHP 8.5 FPM
     install_php_fpm || {
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 FPM installation failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 FPM installation failed${NC}"
         return 1
     }
 
@@ -1206,13 +1206,13 @@ execute_installation() {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP symbolic link verification completed with warnings${NC}"
     }
 
-    # Step 7: Configuration delegated to 32_configure_php84.sh
-    echo -e "${CYAN}$SCRIPT_INDEX PHP configuration delegated to 32_configure_php84.sh${NC}"
+    # Step 7: Configuration delegated to 32_configure_php85.sh
+    echo -e "${CYAN}$SCRIPT_INDEX PHP configuration delegated to 32_configure_php85.sh${NC}"
 
     # Step 8: Next step will configure PHP
     echo -e "${CYAN}$SCRIPT_INDEX Next step will configure PHP settings and Composer${NC}"
 
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 installation execution completed successfully${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 installation execution completed successfully${NC}"
 }
 
 # PHASE 5: Post-installation Verification
@@ -1223,7 +1223,7 @@ post_installation_verification() {
     # Re-run comprehensive state analysis
     if analyze_php_state; then
         echo -e "${GREEN}$SCRIPT_INDEX [OK] Post-installation verification PASSED${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is fully configured and ready for use${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is fully configured and ready for use${NC}"
 
         # Display final status
         display_final_status
@@ -1237,7 +1237,7 @@ post_installation_verification() {
 
 display_final_status() {
     echo -e "${CYAN}========================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.4 Installation Summary (per test_phpdoc.txt)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 Installation Summary (per test_phpdoc.txt)${NC}"
     echo -e "${CYAN}========================================================================${NC}"
 
     # PHP version verification (as per documentation)
@@ -1250,17 +1250,17 @@ display_final_status() {
 
     # PHP-FPM service status (as per documentation)
     echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM Service Status:${NC}"
-    if systemctl is-active --quiet php8.4-fpm; then
-        echo -e "${GREEN}$SCRIPT_INDEX php8.4-fpm service: [RUNNING]${NC}"
-        systemctl status php8.4-fpm --no-pager -l | head -5
+    if systemctl is-active --quiet php8.5-fpm; then
+        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm service: [RUNNING]${NC}"
+        systemctl status php8.5-fpm --no-pager -l | head -5
     else
-        echo -e "${RED}$SCRIPT_INDEX php8.4-fpm service: [NOT RUNNING]${NC}"
+        echo -e "${RED}$SCRIPT_INDEX php8.5-fpm service: [NOT RUNNING]${NC}"
     fi
 
     # Socket status (as per documentation)
-    if [ -S "/run/php/php8.4-fpm.sock" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM Socket: /run/php/php8.4-fpm.sock [OK]${NC}"
-        local socket_perms=$(stat -c "%a" "/run/php/php8.4-fpm.sock" 2>/dev/null || echo "unknown")
+    if [ -S "/run/php/php8.5-fpm.sock" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM Socket: /run/php/php8.5-fpm.sock [OK]${NC}"
+        local socket_perms=$(stat -c "%a" "/run/php/php8.5-fpm.sock" 2>/dev/null || echo "unknown")
         echo -e "${GREEN}$SCRIPT_INDEX Socket Permissions: $socket_perms${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX PHP-FPM Socket: Not found${NC}"
@@ -1310,8 +1310,8 @@ display_final_status() {
     done
 
     echo -e "${CYAN}========================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.4 installation completed as per test_phpdoc.txt!${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.4 is ready for web development${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.5 installation completed as per test_phpdoc.txt!${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.5 is ready for web development${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP-FPM is configured and running${NC}"
     echo -e "${CYAN}========================================================================${NC}"
 }
@@ -1320,7 +1320,7 @@ display_final_status() {
 
 main() {
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX Intelligent PHP 8.4 Installation System${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Intelligent PHP 8.5 Installation System${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 
     # Pre-flight checks
@@ -1358,9 +1358,9 @@ main() {
     local php_state_result=0
     analyze_php_state; php_state_result=$?
 
-    # ALWAYS try to fix missing extensions if PHP 8.4 is installed
-    if command -v php8.4 >/dev/null 2>&1; then
-        echo -e "${CYAN}$SCRIPT_INDEX PHP 8.4 detected, checking for missing extensions...${NC}"
+    # ALWAYS try to fix missing extensions if PHP 8.5 is installed
+    if command -v php8.5 >/dev/null 2>&1; then
+        echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 detected, checking for missing extensions...${NC}"
         fix_missing_extensions || {
             echo -e "${YELLOW}$SCRIPT_INDEX Extension fix completed with warnings${NC}"
         }
@@ -1405,12 +1405,12 @@ exit_code=$?
 # Final summary
 echo -e "${CYAN}============================================================================${NC}"
 if [ $exit_code -eq 0 ]; then
-    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.4 installation/configuration completed successfully!${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.4 is now available via 'php' command${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [INFO] Symbolic link: /usr/local/bin/php -> /usr/bin/php8.4${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.5 installation/configuration completed successfully!${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.5 is now available via 'php' command${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] Symbolic link: /usr/local/bin/php -> /usr/bin/php8.5${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX [INFO] Old PHP versions have been cleaned up${NC}"
 else
-    echo -e "${RED}$SCRIPT_INDEX [FAILED] PHP 8.4 installation/configuration failed with exit code: $exit_code${NC}"
+    echo -e "${RED}$SCRIPT_INDEX [FAILED] PHP 8.5 installation/configuration failed with exit code: $exit_code${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX [INFO] Check the output above for specific error details${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX [INFO] You may need to run the script again or fix issues manually${NC}"
 fi
