@@ -188,7 +188,7 @@ get_server_info() {
         echo ""
         print_info "Method 1: Manual Configuration"
         print_info "  1. Open RustDesk Client"
-        print_info "  2. Click Menu button [ â‹?] next to your ID"
+        print_info "  2. Click Menu button [ ï¿½?] next to your ID"
         print_info "  3. Click on 'Network'"
         print_info "  4. Unlock settings using elevated privileges"
         print_info "  5. Configure the following:"
@@ -245,33 +245,61 @@ get_server_info() {
     fi
 }
 
+prompt_installation() {
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+        print_info "Desktop environment detected."
+        print_info "RustDesk server is designed for headless servers only."
+        print_info "Skipping installation on desktop system."
+        return 1
+    fi
+
+    print_info "No desktop environment detected (server mode)."
+    echo ""
+
+    local user_input
+    read -r -p "Install RustDesk Server now? [y/N] " user_input
+    user_input=${user_input:-N}
+
+    if [[ "$user_input" =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+
+    print_info "Installation skipped by user choice."
+    return 1
+}
+
 main() {
     print_info "========================================"
     print_info "  RustDesk Server Installation"
     print_info "========================================"
     echo ""
-    
+
     print_info "RustDesk is an open-source remote desktop software"
     print_info "This script will install the RustDesk relay and signal servers"
     echo ""
-    
+
     print_info "Installation Directory: $RUSTDESK_INSTALL_DIR"
     echo ""
-    
+
     print_info "System Requirements:"
     print_info "  - Low hardware requirements (basic cloud server is sufficient)"
     print_info "  - Network: TCP ports 21114-21119, UDP port 21116"
     print_info "  - Traffic: 30 K/s to 3 M/s (1920x1080 screen)"
     echo ""
-    
+
+    if ! prompt_installation; then
+        return 0
+    fi
+
+    echo ""
     print_info "Checking prerequisites..."
-    
+
     configure_firewall
-    
+
     echo ""
     print_info "Starting RustDesk server installation..."
     echo ""
-    
+
     if install_rustdesk_server; then
         echo ""
         print_info "Waiting a moment for services to initialize..."

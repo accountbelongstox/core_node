@@ -39,7 +39,17 @@ SELECTED_REGION=$(get_var "SELECTED_REGION")
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-$(get_var "CLOUD_PROVIDER")}
 
 if [ "$INSTALL_DOCKER" = "false" ]; then
-    echo "Skipping Docker installation,INSTALL_DOCKER: $INSTALL_DOCKER,INSTALL_MODE: $INSTALL_MODE" 
+    echo "Skipping Docker installation,INSTALL_DOCKER: $INSTALL_DOCKER,INSTALL_MODE: $INSTALL_MODE"
+    exit 0
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is not installed. Skipping Docker daemon configuration."
+    exit 0
+fi
+
+if ! $USE_SUDO systemctl is-active --quiet docker.service 2>/dev/null && ! $USE_SUDO systemctl is-enabled --quiet docker.service 2>/dev/null; then
+    echo "Docker service is not available. Skipping Docker daemon configuration."
     exit 0
 fi
 
