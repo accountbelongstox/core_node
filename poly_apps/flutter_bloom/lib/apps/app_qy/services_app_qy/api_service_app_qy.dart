@@ -56,7 +56,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> post(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {
@@ -92,7 +92,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> put(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {
@@ -128,7 +128,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> patch(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {

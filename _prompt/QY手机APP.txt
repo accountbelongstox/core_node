@@ -98,3 +98,5 @@ D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\_prompts\api_inf
 5：请求语音、翻译接口，（注意，这个不和记忆库一起返回，因为记忆库有几万个单词，所以并不会直接返回语音和翻译、而是改为稍候请求）
 
 以上功能先更新端点库，随后你先现实 初始化页。
+
+
