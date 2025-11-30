@@ -1,596 +1,646 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
-library;
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
-import '../../../../../../common/theme/base/theme_dimensions.dart';
-import '../../../../../../common/theme/base/theme_text_styles.dart';
-import '../../../../../../common/localization/localization_manager.dart';
-import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/settings_controller_app_qy.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refactored_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class SettingsScreenRefactoredAppQy extends StatefulWidget {
   const SettingsScreenRefactoredAppQy({super.key});
 
   @override
-  State<SettingsScreenRefactoredAppQy> createState() =>
-      _SettingsScreenRefactoredAppQyState();
+  State<SettingsScreenRefactoredAppQy> createState() => _SettingsScreenRefactoredAppQyState();
 }
 
-class _SettingsScreenRefactoredAppQyState
-    extends State<SettingsScreenRefactoredAppQy> {
+class _SettingsScreenRefactoredAppQyState extends State<SettingsScreenRefactoredAppQy>
+    with TickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SettingsControllerAppQy>().loadSettings();
+      context.read<SettingsControllerRefactoredAppQy>().initialize();
     });
   }
 
-  void _showLanguageDialog() {
-    final controller = context.read<SettingsControllerAppQy>();
-    final currentLanguage = controller.settings.language;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: ThemeColors.surface,
-        title: Text(
-          QyAppLocalizationKeys.qySettingsLanguage.tr(context),
-          style: TextStyles.h4.copyWith(color: ThemeColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLanguageOption('zh', currentLanguage),
-            _buildLanguageOption('en', currentLanguage),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              QyAppLocalizationKeys.qyCommonCancel.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLanguageOption(String language, String currentLanguage) {
-    final isSelected = language == currentLanguage;
-    final displayName = language == 'zh' ? '中文' : 'English';
-
-    return ListTile(
-      title: Text(
-        displayName,
-        style: TextStyles.body1.copyWith(
-          color: isSelected ? ThemeColors.primary : ThemeColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      trailing: isSelected
-          ? Icon(Icons.check, color: ThemeColors.primary)
-          : null,
-      onTap: () {
-        context.read<SettingsControllerAppQy>().changeLanguage(language);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  void _showThemeDialog() {
-    final controller = context.read<SettingsControllerAppQy>();
-    final currentTheme = controller.settings.theme;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: ThemeColors.surface,
-        title: Text(
-          QyAppLocalizationKeys.qySettingsTheme.tr(context),
-          style: TextStyles.h4.copyWith(color: ThemeColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildThemeOption('auto', currentTheme),
-            _buildThemeOption('light', currentTheme),
-            _buildThemeOption('dark', currentTheme),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              QyAppLocalizationKeys.qyCommonCancel.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildThemeOption(String theme, String currentTheme) {
-    final isSelected = theme == currentTheme;
-    String displayName;
-    switch (theme) {
-      case 'auto':
-        displayName = QyAppLocalizationKeys.qySettingsThemeAuto.tr(context);
-        break;
-      case 'light':
-        displayName = QyAppLocalizationKeys.qySettingsThemeLight.tr(context);
-        break;
-      case 'dark':
-        displayName = QyAppLocalizationKeys.qySettingsThemeDark.tr(context);
-        break;
-      default:
-        displayName = theme;
-    }
-
-    return ListTile(
-      title: Text(
-        displayName,
-        style: TextStyles.body1.copyWith(
-          color: isSelected ? ThemeColors.primary : ThemeColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      trailing: isSelected
-          ? Icon(Icons.check, color: ThemeColors.primary)
-          : null,
-      onTap: () {
-        context.read<SettingsControllerAppQy>().changeTheme(theme);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  void _showDailyGoalDialog() {
-    final controller = context.read<SettingsControllerAppQy>();
-    int selectedGoal = controller.settings.dailyGoal;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: ThemeColors.surface,
-          title: Text(
-            QyAppLocalizationKeys.qySettingsDailyGoal.tr(context),
-            style: TextStyles.h4.copyWith(color: ThemeColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$selectedGoal ${QyAppLocalizationKeys.qyWords.tr(context)}',
-                style: TextStyles.h2.copyWith(
-                  color: ThemeColors.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: Dimensions.spacingMedium),
-              Slider(
-                value: selectedGoal.toDouble(),
-                min: 50,
-                max: 500,
-                divisions: 45,
-                activeColor: ThemeColors.primary,
-                inactiveColor: ThemeColors.border,
-                onChanged: (value) {
-                  setState(() {
-                    selectedGoal = value.toInt();
-                  });
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                QyAppLocalizationKeys.qyCommonCancel.tr(context),
-                style: TextStyles.button.copyWith(color: ThemeColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                context.read<SettingsControllerAppQy>().updateDailyGoal(selectedGoal);
-                Navigator.pop(context);
-              },
-              child: Text(
-                QyAppLocalizationKeys.qyCommonOk.tr(context),
-                style: TextStyles.button.copyWith(color: ThemeColors.primary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      appBar: AppBar(
-        title: Text(
-          QyAppLocalizationKeys.qySettings.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
-        ),
-        backgroundColor: ThemeColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
-        ),
-      ),
-      body: Consumer<SettingsControllerAppQy>(
-        builder: (context, controller, child) {
-          if (controller.isLoading && controller.settings == AppSettingsModel.defaultSettings()) {
-            return Center(
-              child: CircularProgressIndicator(color: ThemeColors.primary),
-            );
-          }
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: Consumer<SettingsControllerRefactoredAppQy>(
+                    builder: (context, controller, child) {
+                      if (controller.isLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
+                          ),
+                        );
+                      }
 
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              _buildSectionHeader(QyAppLocalizationKeys.qySettingsGeneral.tr(context)),
-              _buildSettingsGroup([
-                _buildSettingsTile(
-                  icon: Icons.language,
-                  title: QyAppLocalizationKeys.qySettingsLanguage.tr(context),
-                  subtitle: controller.settings.language == 'zh' ? '中文' : 'English',
-                  onTap: _showLanguageDialog,
+                      return _buildSettingsContent(controller);
+                    },
+                  ),
                 ),
-                _buildSettingsTile(
-                  icon: Icons.brightness_6,
-                  title: QyAppLocalizationKeys.qySettingsTheme.tr(context),
-                  subtitle: _getThemeDisplayName(controller.settings.theme),
-                  onTap: _showThemeDialog,
-                ),
-              ]),
-
-              _buildSectionHeader(QyAppLocalizationKeys.qySettingsLearning.tr(context)),
-              _buildSettingsGroup([
-                _buildSettingsTile(
-                  icon: Icons.flag,
-                  title: QyAppLocalizationKeys.qySettingsDailyGoal.tr(context),
-                  subtitle: '${controller.settings.dailyGoal} ${QyAppLocalizationKeys.qyWords.tr(context)}',
-                  onTap: _showDailyGoalDialog,
-                ),
-                _buildSwitchTile(
-                  icon: Icons.play_circle,
-                  title: QyAppLocalizationKeys.qySettingsAutoPlayAudio.tr(context),
-                  value: controller.settings.autoPlayAudio,
-                  onChanged: controller.toggleAutoPlayAudio,
-                ),
-                _buildSwitchTile(
-                  icon: Icons.translate,
-                  title: QyAppLocalizationKeys.qySettingsShowTranslation.tr(context),
-                  value: controller.settings.showTranslation,
-                  onChanged: controller.toggleShowTranslation,
-                ),
-              ]),
-
-              _buildSectionHeader(QyAppLocalizationKeys.qySettingsNotifications.tr(context)),
-              _buildSettingsGroup([
-                _buildSwitchTile(
-                  icon: Icons.notifications,
-                  title: QyAppLocalizationKeys.qySettingsEnableNotifications.tr(context),
-                  value: controller.settings.notificationsEnabled,
-                  onChanged: controller.toggleNotifications,
-                ),
-                _buildSwitchTile(
-                  icon: Icons.volume_up,
-                  title: QyAppLocalizationKeys.qySettingsSound.tr(context),
-                  value: controller.settings.soundEnabled,
-                  onChanged: controller.toggleSound,
-                  enabled: controller.settings.notificationsEnabled,
-                ),
-                _buildSwitchTile(
-                  icon: Icons.vibration,
-                  title: QyAppLocalizationKeys.qySettingsVibration.tr(context),
-                  value: controller.settings.vibrationEnabled,
-                  onChanged: controller.toggleVibration,
-                  enabled: controller.settings.notificationsEnabled,
-                ),
-              ]),
-
-              _buildSectionHeader(QyAppLocalizationKeys.qySettingsReminder.tr(context)),
-              _buildSettingsGroup([
-                _buildSettingsTile(
-                  icon: Icons.access_time,
-                  title: QyAppLocalizationKeys.qySettingsReminderTime.tr(context),
-                  subtitle: _formatTime(controller.settings.reminderHour, controller.settings.reminderMinute),
-                  onTap: () => _showTimePicker(controller),
-                ),
-                _buildSwitchTile(
-                  icon: Icons.weekend,
-                  title: QyAppLocalizationKeys.qySettingsWeekendReminder.tr(context),
-                  value: controller.settings.weekendReminder,
-                  onChanged: controller.toggleWeekendReminder,
-                ),
-              ]),
-
-              _buildSectionHeader(QyAppLocalizationKeys.qySettingsOther.tr(context)),
-              _buildSettingsGroup([
-                _buildSettingsTile(
-                  icon: Icons.info,
-                  title: QyAppLocalizationKeys.qySettingsAbout.tr(context),
-                  onTap: () {},
-                ),
-                _buildSettingsTile(
-                  icon: Icons.privacy_tip,
-                  title: QyAppLocalizationKeys.qySettingsPrivacy.tr(context),
-                  onTap: () {},
-                ),
-                _buildSettingsTile(
-                  icon: Icons.refresh,
-                  title: QyAppLocalizationKeys.qySettingsReset.tr(context),
-                  onTap: () => _showResetDialog(controller),
-                  textColor: ThemeColors.error,
-                ),
-              ]),
-
-              SizedBox(height: Dimensions.spacingLarge),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        Dimensions.paddingMedium,
-        Dimensions.paddingLarge,
-        Dimensions.paddingMedium,
-        Dimensions.paddingSmall,
-      ),
-      child: Text(
-        title,
-        style: TextStyles.caption.copyWith(
-          color: ThemeColors.textSecondary,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsGroup(List<Widget> children) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Column(
-        children: children,
-      ),
-    );
-  }
-
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required VoidCallback onTap,
-    Color? textColor,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: ThemeColors.border.withOpacity(0.3)),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(Dimensions.paddingSmall),
-              decoration: BoxDecoration(
-                color: ThemeColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: textColor ?? ThemeColors.primary,
-              ),
+              ],
             ),
-            SizedBox(width: Dimensions.spacingMedium),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyles.body1.copyWith(
-                      color: textColor ?? ThemeColors.textPrimary,
-                      fontWeight: FontWeight.w500,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+            onPressed: () => context.pop(),
+          ),
+          const SizedBox(width: ThemeDimensions.spacing8),
+          Text(
+            'Settings',
+            style: ThemeTextStyles.title1.copyWith(
+              color: ColorsAppQy.qyTextPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsContent(SettingsControllerRefactoredAppQy controller) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
+      children: [
+        _buildUserSection(),
+        const SizedBox(height: ThemeDimensions.spacing24),
+        _buildBentoGrid(controller),
+        const SizedBox(height: ThemeDimensions.spacing24),
+        _buildQuickToggles(controller),
+        const SizedBox(height: ThemeDimensions.spacing24),
+        _buildDataSection(controller),
+        const SizedBox(height: ThemeDimensions.spacing24),
+        _buildAboutSection(),
+        const SizedBox(height: ThemeDimensions.spacing80),
+      ],
+    );
+  }
+
+  Widget _buildUserSection() {
+    final authService = context.watch<AuthServiceAppQy>();
+    final user = authService.currentUser;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: ColorsAppQy.qyPrimaryGradient,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ColorsAppQy.qyPrimary.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    user?.displayName?.substring(0, 1).toUpperCase() ?? 'U',
+                    style: ThemeTextStyles.title1.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (subtitle != null) ...[
-                    SizedBox(height: Dimensions.spacingXSmall),
+                ),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle,
-                      style: TextStyles.caption.copyWith(
-                        color: ThemeColors.textSecondary,
+                      user?.displayName ?? 'Guest',
+                      style: ThemeTextStyles.title3.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: ThemeDimensions.spacing4),
+                    Text(
+                      user?.email ?? 'Not logged in',
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: ColorsAppQy.qyTextSecondary,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: ThemeColors.textTertiary,
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, color: ColorsAppQy.qyPrimary),
+                onPressed: () {
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSwitchTile({
+  Widget _buildBentoGrid(SettingsControllerRefactoredAppQy controller) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: ThemeDimensions.spacing16,
+      crossAxisSpacing: ThemeDimensions.spacing16,
+      childAspectRatio: 1.2,
+      children: [
+        _buildBentoCard(
+          icon: Icons.language_rounded,
+          title: 'Language & Voice',
+          subtitle: controller.languageVoice.appLanguage == QyAppLocalizationKeys.qyLanguageCodeZh 
+              ? QyAppLocalizationKeys.qyLanguageChinese.tr(context)
+              : QyAppLocalizationKeys.qyLanguageEnglish.tr(context),
+          gradient: ColorsAppQy.qyPrimaryGradient,
+          onTap: () {
+          },
+        ),
+        _buildBentoCard(
+          icon: Icons.school_rounded,
+          title: 'Learning',
+          subtitle: '${controller.learning.dailyNewWords} words/day',
+          gradient: LinearGradient(
+            colors: [Colors.purple.shade400, Colors.purple.shade600],
+          ),
+          onTap: () {
+          },
+        ),
+        _buildBentoCard(
+          icon: Icons.palette_rounded,
+          title: 'Display',
+          subtitle: controller.display.themeMode.capitalize(),
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade400, Colors.orange.shade600],
+          ),
+          onTap: () {
+          },
+        ),
+        _buildBentoCard(
+          icon: Icons.notifications_rounded,
+          title: 'Notifications',
+          subtitle: controller.notification.dailyStudyReminder ? 'Enabled' : 'Disabled',
+          gradient: LinearGradient(
+            colors: [Colors.pink.shade400, Colors.pink.shade600],
+          ),
+          onTap: () {
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBentoCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Gradient gradient,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+              decoration: BoxDecoration(
+                gradient: ColorsAppQy.qyFrostedGlassGradient,
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: gradient,
+                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 24),
+                  ),
+                  const Spacer(),
+                  Text(
+                    title,
+                    style: ThemeTextStyles.body.copyWith(
+                      color: ColorsAppQy.qyTextPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: ThemeDimensions.spacing4),
+                  Text(
+                    subtitle,
+                    style: ThemeTextStyles.caption.copyWith(
+                      color: ColorsAppQy.qyTextSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickToggles(SettingsControllerRefactoredAppQy controller) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quick Settings',
+                style: ThemeTextStyles.title3.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              _buildToggleItem(
+                icon: Icons.volume_up_rounded,
+                title: 'Auto Play Audio',
+                value: controller.languageVoice.autoPlayOnStudy,
+                onChanged: (value) => controller.updateAutoPlayOnStudy(value),
+              ),
+              _buildToggleItem(
+                icon: Icons.animation_rounded,
+                title: 'Animations',
+                value: controller.display.enableAnimations,
+                onChanged: (value) => controller.updateEnableAnimations(value),
+              ),
+              _buildToggleItem(
+                icon: Icons.vibration_rounded,
+                title: 'Haptic Feedback',
+                value: controller.display.hapticFeedback,
+                onChanged: (value) => controller.updateHapticFeedback(value),
+              ),
+              _buildToggleItem(
+                icon: Icons.sync_rounded,
+                title: 'Auto Sync',
+                value: controller.dataStorage.autoSync,
+                onChanged: (value) => controller.updateAutoSync(value),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleItem({
     required IconData icon,
     required String title,
     required bool value,
-    required Function(bool) onChanged,
-    bool enabled = true,
+    required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: ThemeColors.border.withOpacity(0.3)),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
       child: Row(
         children: [
-          Container(
-            padding: EdgeInsets.all(Dimensions.paddingSmall),
-            decoration: BoxDecoration(
-              color: ThemeColors.primary.withOpacity(enabled ? 0.1 : 0.05),
-              borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: enabled ? ThemeColors.primary : ThemeColors.textTertiary,
-            ),
-          ),
-          SizedBox(width: Dimensions.spacingMedium),
+          Icon(icon, color: ColorsAppQy.qyPrimary, size: 20),
+          const SizedBox(width: ThemeDimensions.spacing12),
           Expanded(
             child: Text(
               title,
-              style: TextStyles.body1.copyWith(
-                color: enabled ? ThemeColors.textPrimary : ThemeColors.textTertiary,
-                fontWeight: FontWeight.w500,
+              style: ThemeTextStyles.body.copyWith(
+                color: ColorsAppQy.qyTextPrimary,
               ),
             ),
           ),
           Switch(
             value: value,
-            onChanged: enabled ? onChanged : null,
-            activeColor: ThemeColors.primary,
-            inactiveThumbColor: ThemeColors.textTertiary,
-            inactiveTrackColor: ThemeColors.border,
+            onChanged: onChanged,
+            activeColor: ColorsAppQy.qyPrimary,
           ),
         ],
       ),
     );
   }
 
-  String _getThemeDisplayName(String theme) {
-    switch (theme) {
-      case 'auto':
-        return QyAppLocalizationKeys.qySettingsThemeAuto.tr(context);
-      case 'light':
-        return QyAppLocalizationKeys.qySettingsThemeLight.tr(context);
-      case 'dark':
-        return QyAppLocalizationKeys.qySettingsThemeDark.tr(context);
-      default:
-        return theme;
-    }
-  }
-
-  String _formatTime(int hour, int minute) {
-    final hourStr = hour.toString().padLeft(2, '0');
-    final minuteStr = minute.toString().padLeft(2, '0');
-    return '$hourStr:$minuteStr';
-  }
-
-  Future<void> _showTimePicker(SettingsControllerAppQy controller) async {
-    final TimeOfDay? time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
-        hour: controller.settings.reminderHour,
-        minute: controller.settings.reminderMinute,
-      ),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: ThemeColors.primary,
+  Widget _buildDataSection(SettingsControllerRefactoredAppQy controller) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
             ),
           ),
-          child: child!,
-        );
-      },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Data & Storage',
+                style: ThemeTextStyles.title3.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              _buildActionItem(
+                icon: Icons.cloud_sync_rounded,
+                title: 'Sync Data',
+                subtitle: 'Last synced: Just now',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.delete_outline_rounded,
+                title: 'Clear Cache',
+                subtitle: '${controller.dataStorage.maxCacheSize} MB',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.file_download_rounded,
+                title: 'Export Data',
+                subtitle: 'Backup your learning data',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.refresh_rounded,
+                title: 'Reset Settings',
+                subtitle: 'Restore default settings',
+                onTap: () => _showResetDialog(controller),
+                isDestructive: true,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-
-    if (time != null) {
-      controller.updateReminderTime(time.hour, time.minute);
-    }
   }
 
-  void _showResetDialog(SettingsControllerAppQy controller) {
+  Widget _buildActionItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+          child: Container(
+            padding: const EdgeInsets.all(ThemeDimensions.spacing12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isDestructive ? Colors.red.shade400 : ColorsAppQy.qyPrimary,
+                  size: 20,
+                ),
+                const SizedBox(width: ThemeDimensions.spacing12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: ThemeTextStyles.body.copyWith(
+                          color: isDestructive
+                              ? Colors.red.shade400
+                              : ColorsAppQy.qyTextPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: ThemeDimensions.spacing2),
+                      Text(
+                        subtitle,
+                        style: ThemeTextStyles.caption.copyWith(
+                          color: ColorsAppQy.qyTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAboutSection() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'About',
+                style: ThemeTextStyles.title3.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: ThemeDimensions.spacing16),
+              _buildActionItem(
+                icon: Icons.help_outline_rounded,
+                title: 'Help Center',
+                subtitle: 'FAQs and support',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                subtitle: 'How we protect your data',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.description_outlined,
+                title: 'Terms of Service',
+                subtitle: 'Terms and conditions',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.info_outline_rounded,
+                title: 'App Version',
+                subtitle: '1.0.0 (Build 1)',
+                onTap: () {},
+              ),
+              _buildActionItem(
+                icon: Icons.logout_rounded,
+                title: 'Logout',
+                subtitle: 'Sign out from your account',
+                onTap: () => _handleLogout(),
+                isDestructive: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResetDialog(SettingsControllerRefactoredAppQy controller) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: ThemeColors.surface,
-        title: Text(
-          QyAppLocalizationKeys.qySettingsReset.tr(context),
-          style: TextStyles.h4.copyWith(color: ThemeColors.textPrimary),
-        ),
-        content: Text(
-          QyAppLocalizationKeys.qySettingsResetConfirm.tr(context),
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
-        ),
+        title: const Text('Reset Settings'),
+        content: const Text('Are you sure you want to reset all settings to defaults?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              QyAppLocalizationKeys.qyCommonCancel.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.textSecondary),
-            ),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              final success = await controller.resetToDefaults();
-              if (context.mounted) {
-                Navigator.pop(context);
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        QyAppLocalizationKeys.qySettingsResetSuccess.tr(context),
-                      ),
-                    ),
-                  );
-                }
+              Navigator.pop(context);
+              await controller.resetToDefaults();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Settings reset to defaults')),
+                );
               }
             },
-            child: Text(
-              QyAppLocalizationKeys.qyCommonOk.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.error),
-            ),
+            child: const Text('Reset', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogout() async {
+    final authService = context.read<AuthServiceAppQy>();
+    await authService.logout();
+    if (mounted) {
+      context.go('/login');
+    }
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return '${this[0].toUpperCase()}${substring(1)}';
   }
 }

@@ -13,6 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
+const globalVars = require('#@global_vars');
 
 class IframeRecursiveCrawler {
     constructor(page, frame, options = {}) {
@@ -123,9 +124,13 @@ class IframeRecursiveCrawler {
                 return false;
             }
 
+            const timeout = globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`[RECURSIVE-CRAWLER] Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await frame.waitForNavigation({
                 waitUntil: 'networkidle2',
-                timeout: 30000
+                timeout: timeout
             }).catch(() => {
                 logger.warn('[RECURSIVE-CRAWLER] Navigation timeout or no navigation occurred');
             });
@@ -156,9 +161,13 @@ class IframeRecursiveCrawler {
                 return false;
             }
 
+            const timeout = globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`[RECURSIVE-CRAWLER] Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await frame.waitForNavigation({
                 waitUntil: 'networkidle2',
-                timeout: 30000
+                timeout: timeout
             }).catch(() => {
                 logger.warn('[RECURSIVE-CRAWLER] Navigation timeout or no navigation occurred');
             });
@@ -178,9 +187,13 @@ class IframeRecursiveCrawler {
         try {
             await frame.evaluate(() => window.history.back());
 
+            const timeout = globalVars.PUPPETEER_NAVIGATION_TIMEOUT_MS;
+            const timeoutMinutes = Math.round(timeout / 60000);
+            logger.info(`[RECURSIVE-CRAWLER] Navigation will timeout after ${timeoutMinutes} minute(s) (${timeout}ms)`);
+
             await frame.waitForNavigation({
                 waitUntil: 'networkidle2',
-                timeout: 30000
+                timeout: timeout
             }).catch(() => {
                 logger.warn('[RECURSIVE-CRAWLER] Back navigation timeout');
             });

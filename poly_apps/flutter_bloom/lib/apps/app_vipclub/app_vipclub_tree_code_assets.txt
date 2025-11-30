@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-05 16:05:37
+Generated: 2025-11-09 01:40:45
 App: app_vipclub
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -21,7 +21,8 @@ app_vipclub [code_assets]
 │   │   └── splash_controller_app_vipclub.dart
 │   ├── doc
 │   │   ├── 1.png
-│   │   └── 2.png
+│   │   ├── 2.png
+│   │   └── military_tactical_theme.md
 │   ├── features_app_vipclub
 │   │   ├── articles
 │   │   │   └── views
@@ -30,11 +31,11 @@ app_vipclub [code_assets]
 │   │   ├── auth
 │   │   │   ├── controllers
 │   │   │   │   └── auth_controller.dart
-│   │   │   ├── views
-│   │   │   │   ├── login_screen.dart
-│   │   │   │   ├── register_screen.dart
-│   │   │   │   └── splash_screen.dart
-│   │   │   └── widgets
+│   │   │   └── views
+│   │   │       ├── login_screen.dart
+│   │   │       ├── login_screen.dart.backup
+│   │   │       ├── register_screen.dart
+│   │   │       └── splash_screen.dart
 │   │   ├── bookings
 │   │   │   ├── controllers
 │   │   │   │   └── booking_controller.dart
@@ -52,9 +53,15 @@ app_vipclub [code_assets]
 │   │   │   ├── controllers
 │   │   │   │   └── home_controller.dart
 │   │   │   ├── views
-│   │   │   │   └── home_screen.dart
+│   │   │   │   ├── home_screen.dart
+│   │   │   │   ├── home_screen.dart.backup3
+│   │   │   │   └── home_screen_old.dart.backup
 │   │   │   └── widgets
+│   │   │       ├── article_card.dart
+│   │   │       ├── banner_carousel.dart
 │   │   │       ├── facility_card.dart
+│   │   │       ├── facility_project_card.dart
+│   │   │       ├── price_tier_tab.dart
 │   │   │       └── vip_status_card.dart
 │   │   ├── hotel
 │   │   │   ├── controllers
@@ -91,25 +98,27 @@ app_vipclub [code_assets]
 │   │   │   └── views
 │   │   │       └── vip_benefits_screen.dart
 │   │   └── vip_card
-│   │       ├── controllers
-│   │       ├── views
-│   │       │   └── vip_card_screen.dart
-│   │       └── widgets
+│   │       └── views
+│   │           └── vip_card_screen.dart
 │   ├── localization_app_vipclub
 │   │   ├── en_app_vipclub.dart
 │   │   ├── localization_keys_app_vipclub.dart
 │   │   └── zh_app_vipclub.dart
 │   ├── main_app_vipclub.dart
+│   ├── main_app_vipclub.dart.backup
 │   ├── models_app_vipclub
 │   │   ├── article_model_app_vipclub.dart
+│   │   ├── banner_model_app_vipclub.dart
 │   │   ├── booking_model_app_vipclub.dart
 │   │   ├── facility_model_app_vipclub.dart
 │   │   ├── payment_model_app_vipclub.dart
+│   │   ├── price_tier_model_app_vipclub.dart
 │   │   ├── splash_model_app_vipclub.dart
 │   │   ├── support_model_app_vipclub.dart
 │   │   ├── user_model_app_vipclub.dart
 │   │   └── vip_card_model_app_vipclub.dart
 │   ├── provider_app_vipclub
+│   │   ├── app_data_provider_app_vipclub.dart
 │   │   └── user_provider_app_vipclub.dart
 │   ├── repositories_app_vipclub
 │   │   └── booking_repository.dart
@@ -123,11 +132,14 @@ app_vipclub [code_assets]
 │   │   ├── membership_api_service_app_vipclub.dart
 │   │   ├── payments_api_service_app_vipclub.dart
 │   │   ├── support_api_service_app_vipclub.dart
+│   │   ├── vipclub_auth_adapter.dart
 │   │   ├── vipclub_auth_api_service.dart
 │   │   ├── vipclub_public_api_service.dart
 │   │   └── vipclub_storage_service.dart
 │   ├── settings_app_vipclub
 │   │   └── settings_app_vipclub.dart
+│   ├── theme_app_vipclub
+│   │   └── vipclub_theme.dart
 │   └── utils_app_vipclub
 │       └── splash_helper.dart
 ├── lib/common/
@@ -138,7 +150,6 @@ app_vipclub [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
-│   ├── auth
 │   ├── auth_v2
 │   │   ├── README.md
 │   │   ├── auth_config.dart
@@ -179,6 +190,7 @@ app_vipclub [code_assets]
 │   ├── localization
 │   │   ├── common_en.dart
 │   │   ├── common_zh.dart
+│   │   ├── localization.dart
 │   │   ├── localization_keys.dart
 │   │   ├── localization_manager.dart
 │   │   └── map_locales.dart
@@ -236,6 +248,7 @@ app_vipclub [code_assets]
 │   │   ├── models
 │   │   │   ├── api_config.dart
 │   │   │   └── api_response.dart
+│   │   ├── network.dart
 │   │   ├── network_framework.dart
 │   │   ├── parsers
 │   │   │   └── adaptive_data_parser.dart
@@ -536,9 +549,19 @@ app_vipclub [code_assets]
 │       ├── type_button_widget.dart
 │       └── widgets.dart
 ├── assets/apps/app_vipclub/
-│   └── images
-│       ├── splash_1.png
-│       └── splash_2.png
+│   ├── images
+│   │   ├── banner_1.jpg
+│   │   ├── banner_2.jpg
+│   │   ├── banner_3.jpg
+│   │   ├── login_bg_1.png
+│   │   ├── login_bg_2.png
+│   │   ├── logo.png
+│   │   ├── placeholder_images_metadata.json
+│   │   ├── splash_1.png
+│   │   └── splash_2.png
+│   └── styles
+│       ├── demo_military_dashboard.html
+│       └── military_tactical_theme.css
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep
@@ -570,14 +593,11 @@ app_vipclub [code_assets]
     │   ├── google.png
     │   ├── guest.png
     │   ├── health.png
-    │   ├── ic_launcher.backup.png
     │   ├── ic_launcher.png
     │   ├── ic_username.png
     │   ├── init_trip.png
     │   ├── inventor.png
-    │   ├── logo.backup.png
     │   ├── logo.png
-    │   ├── maintenance.backup.png
     │   ├── maintenance.png
     │   ├── menu.png
     │   ├── name.png
@@ -589,7 +609,6 @@ app_vipclub [code_assets]
     │   ├── onbording1.png
     │   ├── onbording2.png
     │   ├── onbording3.png
-    │   ├── one_bg.backup.jpg
     │   ├── one_bg.jpg
     │   ├── password.png
     │   ├── people.png
@@ -598,15 +617,11 @@ app_vipclub [code_assets]
     │   ├── placeholder.jpg
     │   ├── placeholder.png
     │   ├── profile_icon.png
-    │   ├── raw-logo.backup.png
     │   ├── raw-logo.png
-    │   ├── registry_logo_1.backup.png
     │   ├── registry_logo_1.png
-    │   ├── registry_logo_2.backup.png
     │   ├── registry_logo_2.png
     │   ├── social.png
     │   ├── splash.png
-    │   ├── splash_logo.backup.png
     │   ├── splash_logo.png
     │   ├── twitter.png
     │   ├── united_kingdom.png
@@ -615,17 +630,16 @@ app_vipclub [code_assets]
     │   ├── weclom.png
     │   ├── weibo-circle-fill.png
     │   ├── welcm.png
-    │   ├── welcom.backup.png
     │   ├── welcom.png
     │   ├── welcome.jpg
     │   └── youtube.png
     ├── images
-    │   └── .gitkeep
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
     └── launch
         ├── .gitkeep
-        ├── dark_launch.backup.jpg
         ├── dark_launch.jpg
-        ├── light_launch.backup.jpg
         ├── light_launch.jpg
         ├── splash_bg.png
         ├── splash_logo.png

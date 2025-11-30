@@ -20,9 +20,16 @@ Features:
 import sys
 import subprocess
 import platform
+import importlib.util
 from typing import Optional, Dict, Tuple, List
 from pathlib import Path
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+
+from pycore.pyfoundations.third_party import get_third_package_torch, get_third_package_cv2
+
+torch = get_third_package_torch()
+cv2 = get_third_package_cv2()
 
 
 class UnifiedGPUManager:
@@ -248,39 +255,46 @@ class UnifiedGPUManager:
 
     def _check_pytorch_cuda(self) -> Tuple[bool, bool]:
         """Check PyTorch and CUDA availability"""
-        try:
-            import torch
-            pytorch_available = True
-            cuda_available = torch.cuda.is_available()
-
-            if cuda_available and not self.gpu_name:
+        pytorch_available = True
+        cuda_available = False
+        
+        if hasattr(torch, 'cuda') and torch.cuda.is_available():
+            cuda_available = True
+            if not self.gpu_name:
                 # Get GPU info from PyTorch
                 self.gpu_name = torch.cuda.get_device_name(0)
                 props = torch.cuda.get_device_properties(0)
                 self.gpu_memory_gb = props.total_memory / (1024**3)
+            
+            # Print CUDA information if available
+            if self.verbose:
+                cuda_version = torch.version.cuda if hasattr(torch.version, 'cuda') else "Unknown"
+                device_count = torch.cuda.device_count()
+                ColorPrint.green(f"[OK] PyTorch CUDA available")
+                ColorPrint.blue(f"     CUDA Version: {cuda_version}")
+                ColorPrint.blue(f"     GPU Count: {device_count}")
+                if self.gpu_name:
+                    ColorPrint.blue(f"     GPU Name: {self.gpu_name}")
+                if self.gpu_memory_gb:
+                    ColorPrint.blue(f"     GPU Memory: {self.gpu_memory_gb:.2f} GB")
+        else:
+            if self.verbose:
+                ColorPrint.yellow("[WARN] PyTorch CUDA not available")
 
-            return pytorch_available, cuda_available
-        except ImportError:
-            return False, False
+        return pytorch_available, cuda_available
 
     def _check_pytorch_rocm(self) -> Tuple[bool, bool]:
         """Check PyTorch ROCm availability"""
-        try:
-            import torch
-            pytorch_available = True
-            rocm_available = hasattr(torch, 'hip') and torch.hip.is_available()
-            return pytorch_available, rocm_available
-        except ImportError:
-            return False, False
+        pytorch_available = True
+        rocm_available = hasattr(torch, 'hip') and torch.hip.is_available()
+        return pytorch_available, rocm_available
 
     def _check_opencv_cuda(self) -> bool:
         """Check OpenCV CUDA availability"""
-        try:
-            import cv2
+        if hasattr(cv2, 'cuda'):
             device_count = cv2.cuda.getCudaEnabledDeviceCount()
             return device_count > 0
-        except (ImportError, AttributeError):
-            return False
+        return False
 
     def _install_pytorch_cuda(self):
         """Auto-install PyTorch with CUDA support"""

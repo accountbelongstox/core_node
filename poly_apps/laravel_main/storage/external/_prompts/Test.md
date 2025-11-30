@@ -1,0 +1,17 @@
+Now in the prompt word focus textarea, there is a left-click menu, you can choose to submit translation immediately, and at the same time, it will automatically request the voice later, and start playing after the voice. Note that if there is still something in the queue on the right when playing the voice, it will continue to play. At the same time, when it is not in the editing area, the full page of the webpage will be in the code browser as long as it is in the code browser. Pressing the space bar will pull up the voice list of prompts in the foreground. If there is a selection, it will be played in order from the selected one. If not, it will be played from index [0], and it will be played in a loop at the same time, and the space will stop.
+When playing automatically, you can click the stop button of the voice item to stop it. The voice being played will change the icon, and the icon can be clicked.
+At the same time, there is a hidden subtitle area displayed at the bottom of the top of the entire web page. When the click is playing, real-time subtitles will be displayed and hidden after playing.
+
+Also do not create a backup file of tasks/prompts.bak. At the same time, use \n and to split sentences. Instead of using . because sometimes . is the file extension.
+You need to use \n and periods, but globally.
+Confirm the following again. At the same time, the textarea right-click menu should add a copy function, and the selected one can be copied.
+Now look at the file tree function on the left. In the expanded folder, there was a right-click function on the file. Please look for the original code. Now you don’t see the right-click function after clicking it.
+Don't use catch to block some error, but fix it.
+In the translation of prompts, when a voice is requested, do not read it immediately, but delay it for 2 seconds. Due to HTML reasons, there will actually be a blank period when the requested audio starts to play sound. Please solve this problem.
+First remove many unnecessary catches, both front and back ends.
+
+The _delete directory is in the project root directory, see laravel php map path ncore dir.
+Can you find the laravel main project directory of this project, read the documentation, and then find the code broswer's web and backend interaction?
+Do not back up for testing.
+
+Test automatic cleanup.

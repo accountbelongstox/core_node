@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云矩阵单元测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 20px;
+            min-height: calc(100vh - 180px);
+        }
+
+        .devices-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .device-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s;
+        }
+
+        .device-card.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .device-info {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .device-serial {
+            color: #999;
+            font-family: 'Courier New', monospace;
+            margin-top: 5px;
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .device-action {
+            flex: 1;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 0;
+            font-weight: 600;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s ease;
+        }
+
+        .device-action.start {
+            background: #10b981;
+        }
+
+        .device-action.start:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .device-action.stop {
+            background: #ef4444;
+        }
+
+        .device-action.stop:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .device-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .stream-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .streams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            min-height: 320px;
+        }
+
+        .stream-card {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            color: #f8fafc;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .stream-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .stream-card-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stream-card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .menu-btn,
+        .stop-btn {
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .menu-btn {
+            background: #1d4ed8;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .menu-btn.has-screenshot::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .stop-btn {
+            background: #f97316;
+            color: white;
+        }
+
+        .menu-btn:hover {
+            background: #2563eb;
+        }
+
+        .stop-btn:hover {
+            background: #ea580c;
+        }
+
+        .grid-index-label {
+            font-weight: 600;
+        }
+
+        .stream-canvas {
+            width: 100%;
+            min-height: 200px;
+            border-radius: 10px;
+            background: #020617;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .codec-warning {
+            font-size: 12px;
+            color: #fde68a;
+            display: none;
+        }
+
+        .stream-card.no-codec .codec-warning {
+            display: block;
+        }
+
+        .stream-stats {
+            font-size: 13px;
+            color: #cbd5f5;
+        }
+
+        .stream-placeholder {
+            grid-column: 1 / -1;
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            color: #64748b;
+            border: 2px dashed #e2e8f0;
+        }
+
+        .log-panel {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+        }
+
+        .log-entry.info {
+            color: #0ea5e9;
+        }
+
+        .log-entry.error {
+            color: #f87171;
+        }
+
+        .log-entry.success {
+            color: #34d399;
+        }
+
+        .screenshot-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 999;
+        }
+
+        .screenshot-modal.active {
+            display: flex;
+        }
+
+        .screenshot-modal__content {
+            background: #0f172a;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.6);
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .screenshot-modal__content img {
+            max-width: 70vw;
+            max-height: 70vh;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .modal-close {
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            align-self: flex-end;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>星灿传媒科技 云矩阵组件测试</h1>
+            <div class="status">
+                <div class="status-item">
+                    <div class="status-indicator"></div>
+                    <span>Server Status: <strong id="serverStatus">Connected</strong></span>
+                </div>
+                <div class="status-item">
+                    <span>Devices: <strong id="deviceCount">0</strong></span>
+                </div>
+                <div class="status-item">
+                    <span>Port: <strong>27880</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="devices-panel">
+                <div class="panel-title">
+                    <span>📱 Connected Devices</span>
+                    <button class="refresh-btn" onclick="refreshDevices()">🔄 Refresh</button>
+                </div>
+                <div class="device-list" id="deviceList">
+                    <div class="stream-placeholder">
+                        <p>Loading devices...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stream-panel">
+                <div class="panel-title">
+                    <span>📺 实时推流</span>
+                </div>
+                <div class="streams-grid" id="streamsGrid">
+                    <div class="stream-placeholder" id="gridPlaceholder">
+                        <h3>暂无推流</h3>
+                        <p>在左侧设备列表中点击“启动推流”添加设备</p>
+                    </div>
+                </div>
+                <div class="log-panel" id="logPanel">
+                    <div class="log-entry">System ready...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="screenshot-modal" id="screenshotModal">
+        <div class="screenshot-modal__content">
+            <button class="modal-close" id="screenshotModalClose">×</button>
+            <img id="screenshotModalImg" alt="Screenshot Preview">
+            <p id="screenshotModalTitle"></p>
+        </div>
+    </div>
+
+    <script>
+        const supportsWebCodecs = 'VideoDecoder' in window;
+        const deviceMap = new Map();
+        const deviceControls = new Map();
+        const streamStates = new Map();
+        const pointerStates = new Map();
+        const textDecoder = new TextDecoder();
+
+        let ws = null;
+        let wsConnected = false;
+        let streamsGrid = null;
+        let gridPlaceholder = null;
+        let screenshotModal = null;
+        let screenshotModalImg = null;
+        let screenshotModalTitle = null;
+        let screenshotModalSerial = null;
+
+        window.onload = () => {
+            streamsGrid = document.getElementById('streamsGrid');
+            gridPlaceholder = document.getElementById('gridPlaceholder');
+            screenshotModal = document.getElementById('screenshotModal');
+            screenshotModalImg = document.getElementById('screenshotModalImg');
+            screenshotModalTitle = document.getElementById('screenshotModalTitle');
+            document.getElementById('screenshotModalClose').addEventListener('click', closeScreenshotModal);
+            screenshotModal.addEventListener('click', (event) => {
+                if (event.target === screenshotModal) {
+                    closeScreenshotModal();
+                }
+            });
+
+            if (!supportsWebCodecs) {
+                addLog('当前浏览器不支持 WebCodecs，将依赖截图预览', 'error');
+            }
+
+            connectWebSocket();
+            refreshDevices();
+            setInterval(refreshDevices, 5000);
+        };
+
+        function connectWebSocket() {
+            const wsUrl = `ws://${window.location.hostname}:27880/ws`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                wsConnected = true;
+                setServerStatus('Connected');
+                addLog('WebSocket connected', 'success');
+                updateAllDeviceControls();
+            };
+
+            ws.onmessage = (event) => {
+                if (event.data instanceof Blob) {
+                    event.data.arrayBuffer()
+                        .then(processVideoFrameBuffer)
+                        .catch(err => addLog(`Frame decode error: ${err.message}`, 'error'));
+                    return;
+                }
+
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerMessage(data);
+                } catch (error) {
+                    console.error('Failed to parse message:', error);
+                }
+            };
+
+            ws.onerror = () => {
+                setServerStatus('Error');
+                addLog('WebSocket error', 'error');
+            };
+
+            ws.onclose = () => {
+                wsConnected = false;
+                setServerStatus('Disconnected');
+                addLog('WebSocket disconnected', 'error');
+                updateAllDeviceControls();
+
+                [...streamStates.keys()].forEach(serial => {
+                    handleStreamStopped(serial, '连接断开，推流已结束');
+                });
+
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function setServerStatus(status) {
+            document.getElementById('serverStatus').textContent = status;
+        }
+
+        async function refreshDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+
+                deviceMap.clear();
+                deviceControls.clear();
+                document.getElementById('deviceCount').textContent = data.count;
+
+                const deviceList = document.getElementById('deviceList');
+                deviceList.innerHTML = '';
+
+                if (!data.devices.length) {
+                    deviceList.innerHTML = '<div class="stream-placeholder"><p>未发现设备</p></div>';
+                    return;
+                }
+
+                data.devices.forEach(device => {
+                    deviceMap.set(device.serial, device);
+                    const card = document.createElement('div');
+                    card.className = 'device-card';
+                    card.dataset.serial = device.serial;
+
+                    card.innerHTML = `
+                        <div class="device-name">${device.model || 'Unknown Device'}</div>
+                        <div class="device-info">
+                            <div>Manufacturer: ${device.manufacturer || 'N/A'}</div>
+                            <div>Android: ${device.android_version || 'Unknown'}</div>
+                            <div>Status: ${device.status || 'Unknown'}</div>
+                        </div>
+                        <div class="device-serial">Serial: ${device.serial}</div>
+                    `;
+
+                    const actions = document.createElement('div');
+                    actions.className = 'device-actions';
+
+                    const startBtn = document.createElement('button');
+                    startBtn.className = 'device-action start';
+                    startBtn.textContent = '启动推流';
+                    startBtn.addEventListener('click', () => startStreamForDevice(device.serial));
+
+                    const stopBtn = document.createElement('button');
+                    stopBtn.className = 'device-action stop';
+                    stopBtn.textContent = '停止推流';
+                    stopBtn.addEventListener('click', () => stopStreamForDevice(device.serial));
+
+                    actions.appendChild(startBtn);
+                    actions.appendChild(stopBtn);
+                    card.appendChild(actions);
+
+                    deviceList.appendChild(card);
+                    deviceControls.set(device.serial, { startBtn, stopBtn, card });
+                    updateDeviceControls(device.serial);
+                });
+
+                addLog(`Found ${data.count} device(s)`, 'success');
+            } catch (error) {
+                addLog(`Failed to fetch devices: ${error.message}`, 'error');
+            }
+        }
+
+        function startStreamForDevice(serial) {
+            if (!wsConnected || !ws || ws.readyState !== WebSocket.OPEN) {
+                addLog('WebSocket not connected', 'error');
+                return;
+            }
+
+            if (!deviceMap.has(serial)) {
+                addLog(`Device ${serial} not found`, 'error');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                command: 'start_stream',
+                serial
+            }));
+
+            addLog(`[${serial}] 请求启动推流`, 'info');
+        }
+
+        function stopStreamForDevice(serial) {
+            if (!wsConnected || !ws || ws.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                command: 'stop_stream',
+                serial
+            }));
+
+            addLog(`[${serial}] 请求停止推流`, 'info');
+        }
+
+        function handleServerMessage(data) {
+            switch (data.type) {
+                case 'info':
+                    addLog(formatMessage(data.message, data.serial), 'info');
+                    break;
+                case 'error':
+                case 'stream_error':
+                    addLog(formatMessage(data.message || 'Server error', data.serial), 'error');
+                    if (data.serial) {
+                        handleStreamStopped(data.serial, data.message || '推流异常');
+                    }
+                    break;
+                case 'stream_started':
+                    handleStreamAttached(data.serial, true, data.info);
+                    break;
+                case 'stream_attached':
+                    handleStreamAttached(data.serial, false, data.info);
+                    break;
+                case 'stream_stopped':
+                    handleStreamStopped(data.serial);
+                    break;
+                case 'stream_detached':
+                    addLog(`[${data.serial}] 已从当前客户端解绑`, 'info');
+                    handleStreamStopped(data.serial);
+                    break;
+                case 'screenshot':
+                    handleScreenshot(data.serial, data.data);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function ensureStreamState(serial, device, info = null) {
+            if (streamStates.has(serial)) {
+                const existing = streamStates.get(serial);
+                if (info?.resolution) {
+                    existing.deviceResolution = info.resolution;
+                }
+                if (device) {
+                    existing.device = device;
+                }
+                return existing;
+            }
+
+            const tile = document.createElement('div');
+            tile.className = 'stream-card';
+            tile.dataset.serial = serial;
+            if (!supportsWebCodecs) {
+                tile.classList.add('no-codec');
+            }
+
+            const header = document.createElement('div');
+            header.className = 'stream-card-header';
+
+            const meta = document.createElement('div');
+            meta.className = 'stream-card-meta';
+            const name = document.createElement('div');
+            name.className = 'device-name';
+            name.textContent = device?.model || 'Unknown Device';
+            const serialText = document.createElement('div');
+            serialText.className = 'device-serial';
+            serialText.textContent = serial;
+            meta.appendChild(name);
+            meta.appendChild(serialText);
+
+            const actions = document.createElement('div');
+            actions.className = 'stream-card-actions';
+
+            const screenshotBtn = document.createElement('button');
+            screenshotBtn.className = 'menu-btn';
+            screenshotBtn.innerHTML = `📷 截图 #<span class="grid-index-label">-</span>`;
+            screenshotBtn.disabled = true;
+            screenshotBtn.addEventListener('click', () => openScreenshotModal(serial));
+
+            const stopBtn = document.createElement('button');
+            stopBtn.className = 'stop-btn';
+            stopBtn.textContent = '停止';
+            stopBtn.addEventListener('click', () => stopStreamForDevice(serial));
+
+            actions.appendChild(screenshotBtn);
+            actions.appendChild(stopBtn);
+
+            header.appendChild(meta);
+            header.appendChild(actions);
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'stream-canvas';
+            canvas.style.touchAction = 'none';
+            const stats = document.createElement('div');
+            stats.className = 'stream-stats';
+            stats.textContent = 'Video: -- fps, -- kbps';
+
+            const codecWarning = document.createElement('div');
+            codecWarning.className = 'codec-warning';
+            codecWarning.textContent = 'WebCodecs 不可用，仅可查看截图';
+
+            tile.appendChild(header);
+            tile.appendChild(canvas);
+            tile.appendChild(codecWarning);
+            tile.appendChild(stats);
+
+            streamsGrid.appendChild(tile);
+            updateGridPlaceholder();
+            updateGridIndices();
+
+            const state = {
+                serial,
+                device,
+                tile,
+                canvas,
+                ctx: canvas.getContext('2d'),
+                statsEl: stats,
+                screenshotBtn,
+                gridIndexEl: screenshotBtn.querySelector('.grid-index-label'),
+                decoder: null,
+                decoderConfigured: false,
+                codec: null,
+                frameCount: 0,
+                bytesAccum: 0,
+                lastStatTs: performance.now(),
+                latestScreenshot: null,
+                deviceResolution: info?.resolution || device?.resolution || { width: 1080, height: 1920 }
+            };
+
+            streamStates.set(serial, state);
+            attachPointerHandlers(state);
+            updateDeviceControls(serial);
+            return state;
+        }
+
+        function handleStreamAttached(serial, startedNew, info) {
+            const cachedDevice = deviceMap.get(serial) || { serial };
+            if (info?.model) {
+                cachedDevice.model = info.model;
+            }
+            if (info?.resolution) {
+                cachedDevice.resolution = info.resolution;
+            }
+            deviceMap.set(serial, cachedDevice);
+
+            const state = ensureStreamState(serial, cachedDevice, info);
+            state.tile.classList.toggle('no-codec', !supportsWebCodecs);
+            if (info?.resolution) {
+                state.deviceResolution = info.resolution;
+            }
+            addLog(`[${serial}] ${startedNew ? '推流已启动' : '加入已有推流'}`, 'success');
+        }
+
+        function handleStreamStopped(serial, reason) {
+            const state = streamStates.get(serial);
+            if (state) {
+                resetDecoderForState(state);
+                state.tile.remove();
+                streamStates.delete(serial);
+                pointerStates.delete(serial);
+            }
+            updateGridPlaceholder();
+            updateGridIndices();
+            updateDeviceControls(serial);
+
+            if (screenshotModalSerial === serial) {
+                closeScreenshotModal();
+            }
+
+            if (reason) {
+                addLog(`[${serial}] ${reason}`, 'error');
+            }
+        }
+
+        function updateGridPlaceholder() {
+            if (!gridPlaceholder) {
+                return;
+            }
+            gridPlaceholder.style.display = streamStates.size ? 'none' : 'block';
+        }
+
+        function updateGridIndices() {
+            const cards = streamsGrid.querySelectorAll('.stream-card');
+            cards.forEach((card, index) => {
+                const serial = card.dataset.serial;
+                const state = streamStates.get(serial);
+                if (state && state.gridIndexEl) {
+                    state.gridIndexEl.textContent = index + 1;
+                    state.screenshotBtn.title = `查看截图（Grid ${index + 1}）`;
+                }
+            });
+        }
+
+        function processVideoFrameBuffer(buffer) {
+            if (buffer.byteLength < 13) {
+                return;
+            }
+
+            const serialLen = new DataView(buffer, 0, 1).getUint8(0);
+            if (buffer.byteLength < 1 + serialLen + 12) {
+                return;
+            }
+
+            const serialBytes = new Uint8Array(buffer, 1, serialLen);
+            const serial = textDecoder.decode(serialBytes);
+
+            const headerOffset = 1 + serialLen;
+            const header = new DataView(buffer, headerOffset, 12);
+            const ptsHigh = header.getUint32(0);
+            const ptsLow = header.getUint32(4);
+            const packetSize = header.getUint32(8);
+            const payloadOffset = headerOffset + 12;
+
+            if (buffer.byteLength < payloadOffset + packetSize) {
+                return;
+            }
+
+            const ptsRaw = (BigInt(ptsHigh) << 32n) | BigInt(ptsLow);
+            const isConfig = (ptsRaw & 0x8000000000000000n) !== 0n;
+            const isKeyframe = (ptsRaw & 0x4000000000000000n) !== 0n;
+            const pts = Number(ptsRaw & 0x3FFFFFFFFFFFFFFFn);
+            const payload = new Uint8Array(buffer, payloadOffset, packetSize);
+
+            const device = deviceMap.get(serial) || { serial };
+            const state = ensureStreamState(serial, device);
+            updateStats(state, packetSize);
+
+            if (!supportsWebCodecs) {
+                return;
+            }
+
+            if (!ensureDecoderForState(state)) {
+                return;
+            }
+
+            if (isConfig) {
+                configureDecoderForState(state, payload);
+                return;
+            }
+
+            if (!state.decoderConfigured) {
+                return;
+            }
+
+            try {
+                const chunkData = convertAnnexBToAvcc(payload);
+                const chunk = new EncodedVideoChunk({
+                    type: isKeyframe ? 'key' : 'delta',
+                    timestamp: pts,
+                    data: chunkData
+                });
+                state.decoder.decode(chunk);
+            } catch (error) {
+                addLog(`[${serial}] Decode failure: ${error.message}`, 'error');
+                state.decoderConfigured = false;
+            }
+        }
+
+        function updateStats(state, bytes) {
+            state.frameCount += 1;
+            state.bytesAccum += bytes;
+
+            const now = performance.now();
+            if (now - state.lastStatTs >= 1000) {
+                const fps = state.frameCount;
+                const kbps = ((state.bytesAccum * 8) / 1024).toFixed(2);
+                state.statsEl.textContent = `Video: ${fps} fps, ${kbps} kbps`;
+                state.frameCount = 0;
+                state.bytesAccum = 0;
+                state.lastStatTs = now;
+            }
+        }
+
+        function ensureDecoderForState(state) {
+            if (!supportsWebCodecs) {
+                return false;
+            }
+
+            if (state.decoder && state.decoder.state !== 'closed') {
+                return true;
+            }
+
+            state.decoder = new VideoDecoder({
+                output: (frame) => renderFrame(state, frame),
+                error: (err) => addLog(`[${state.serial}] Decoder error: ${err.message}`, 'error')
+            });
+            state.decoderConfigured = false;
+            state.codec = null;
+            return true;
+        }
+
+        function resetDecoderForState(state) {
+            if (state.decoder) {
+                try {
+                    state.decoder.close();
+                } catch (_) {
+                    // ignore
+                }
+            }
+            state.decoder = null;
+            state.decoderConfigured = false;
+            state.codec = null;
+            if (state.ctx) {
+                state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+            }
+        }
+
+        function renderFrame(state, frame) {
+            if (!state.canvas || !state.ctx) {
+                frame.close();
+                return;
+            }
+            if (state.canvas.width !== frame.codedWidth || state.canvas.height !== frame.codedHeight) {
+                state.canvas.width = frame.codedWidth;
+                state.canvas.height = frame.codedHeight;
+            }
+            state.ctx.drawImage(frame, 0, 0, state.canvas.width, state.canvas.height);
+            frame.close();
+        }
+
+        function configureDecoderForState(state, data) {
+            const nalus = extractAnnexBNalus(data);
+            const sps = nalus.filter(nalu => (nalu[0] & 0x1f) === 7);
+            const pps = nalus.filter(nalu => (nalu[0] & 0x1f) === 8);
+
+            if (!sps.length || !pps.length) {
+                addLog(`[${state.serial}] Invalid config frame`, 'error');
+                return;
+            }
+
+            const avcc = buildAvcConfigRecord(sps, pps);
+            const codecString = getCodecFromSps(sps[0]);
+
+            ensureDecoderForState(state);
+            if (!state.decoder) {
+                return;
+            }
+
+            state.decoder.configure({
+                codec: codecString,
+                description: avcc.buffer,
+                hardwareAcceleration: 'prefer-hardware'
+            });
+
+            state.decoderConfigured = true;
+            state.codec = codecString;
+            addLog(`[${state.serial}] Decoder configured (${codecString})`, 'success');
+        }
+
+        function extractAnnexBNalus(buffer) {
+            const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            const nalus = [];
+            let start = -1;
+
+            const pushNalu = (end) => {
+                if (start >= 0 && end > start) {
+                    nalus.push(bytes.slice(start, end));
+                }
+            };
+
+            for (let i = 0; i < bytes.length; i++) {
+                if (i + 3 < bytes.length &&
+                    bytes[i] === 0 && bytes[i + 1] === 0 &&
+                    bytes[i + 2] === 0 && bytes[i + 3] === 1) {
+                    if (start >= 0) {
+                        pushNalu(i);
+                    }
+                    start = i + 4;
+                    i += 3;
+                } else if (i + 2 < bytes.length &&
+                    bytes[i] === 0 && bytes[i + 1] === 0 &&
+                    bytes[i + 2] === 1) {
+                    if (start >= 0) {
+                        pushNalu(i);
+                    }
+                    start = i + 3;
+                    i += 2;
+                }
+            }
+
+            if (start >= 0 && start < bytes.length) {
+                nalus.push(bytes.slice(start));
+            }
+            return nalus;
+        }
+
+        function convertAnnexBToAvcc(buffer) {
+            const nalus = extractAnnexBNalus(buffer);
+            if (!nalus.length) {
+                return buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            }
+
+            const totalLength = nalus.reduce((sum, nalu) => sum + 4 + nalu.length, 0);
+            const avcc = new Uint8Array(totalLength);
+
+            let offset = 0;
+            nalus.forEach(nalu => {
+                const size = nalu.length;
+                avcc[offset++] = (size >>> 24) & 0xff;
+                avcc[offset++] = (size >>> 16) & 0xff;
+                avcc[offset++] = (size >>> 8) & 0xff;
+                avcc[offset++] = size & 0xff;
+                avcc.set(nalu, offset);
+                offset += size;
+            });
+
+            return avcc;
+        }
+
+        function buildAvcConfigRecord(spsList, ppsList) {
+            const firstSps = spsList[0];
+            const totalLength = 7 +
+                spsList.reduce((sum, nalu) => sum + 2 + nalu.length, 0) +
+                1 +
+                ppsList.reduce((sum, nalu) => sum + 2 + nalu.length, 0);
+
+            const avcc = new Uint8Array(totalLength);
+            let offset = 0;
+            avcc[offset++] = 0x01;
+            avcc[offset++] = firstSps[1];
+            avcc[offset++] = firstSps[2];
+            avcc[offset++] = firstSps[3];
+            avcc[offset++] = 0xFC | 0x03;
+            avcc[offset++] = 0xE0 | spsList.length;
+
+            spsList.forEach(nalu => {
+                avcc[offset++] = (nalu.length >> 8) & 0xff;
+                avcc[offset++] = nalu.length & 0xff;
+                avcc.set(nalu, offset);
+                offset += nalu.length;
+            });
+
+            avcc[offset++] = ppsList.length;
+            ppsList.forEach(nalu => {
+                avcc[offset++] = (nalu.length >> 8) & 0xff;
+                avcc[offset++] = nalu.length & 0xff;
+                avcc.set(nalu, offset);
+                offset += nalu.length;
+            });
+
+            return avcc;
+        }
+
+        function getCodecFromSps(sps) {
+            if (!sps || sps.length < 4) {
+                return 'avc1.42001E';
+            }
+            const profile = sps[1].toString(16).padStart(2, '0');
+            const compatibility = sps[2].toString(16).padStart(2, '0');
+            const level = sps[3].toString(16).padStart(2, '0');
+            return `avc1.${profile}${compatibility}${level}`;
+        }
+
+        function handleScreenshot(serial, data) {
+            const state = streamStates.get(serial);
+            if (!state) {
+                return;
+            }
+            state.latestScreenshot = data;
+            state.screenshotBtn.disabled = false;
+            state.screenshotBtn.classList.add('has-screenshot');
+
+            if (screenshotModalSerial === serial) {
+                screenshotModalImg.src = `data:image/png;base64,${data}`;
+            }
+        }
+
+        function openScreenshotModal(serial) {
+            const state = streamStates.get(serial);
+            if (!state || !state.latestScreenshot) {
+                addLog(`[${serial}] 暂无截图`, 'error');
+                return;
+            }
+
+            screenshotModalImg.src = `data:image/png;base64,${state.latestScreenshot}`;
+            screenshotModalTitle.textContent = `设备 ${serial} - 最新截图`;
+            screenshotModalSerial = serial;
+            screenshotModal.classList.add('active');
+        }
+
+        function closeScreenshotModal() {
+            screenshotModal.classList.remove('active');
+            screenshotModalSerial = null;
+        }
+
+        function formatMessage(message, serial) {
+            if (!serial) {
+                return message;
+            }
+            return `[${serial}] ${message}`;
+        }
+
+        function addLog(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function updateDeviceControls(serial) {
+            const controls = deviceControls.get(serial);
+            if (!controls) {
+                return;
+            }
+
+            const active = streamStates.has(serial);
+            controls.startBtn.disabled = !wsConnected || active;
+            controls.stopBtn.disabled = !active;
+
+            if (controls.card) {
+                controls.card.classList.toggle('active', active);
+            }
+        }
+        function updateAllDeviceControls() {
+            deviceControls.forEach((_, serial) => updateDeviceControls(serial));
+        }
+
+        function attachPointerHandlers(state) {
+            const canvas = state.canvas;
+            if (!canvas) {
+                return;
+            }
+
+            const pointerState = {
+                isDown: false,
+                pointerId: null,
+                lastCoords: null,
+                skipNextUp: false
+            };
+            pointerStates.set(state.serial, pointerState);
+
+            canvas.addEventListener('pointerdown', (evt) => handlePointerDown(evt, state, pointerState));
+            canvas.addEventListener('pointermove', (evt) => handlePointerMove(evt, state, pointerState));
+            canvas.addEventListener('pointerup', (evt) => handlePointerUp(evt, state, pointerState));
+            canvas.addEventListener('pointerleave', (evt) => handlePointerUp(evt, state, pointerState, true));
+            canvas.addEventListener('pointercancel', (evt) => handlePointerUp(evt, state, pointerState, true));
+        }
+
+        function handlePointerDown(evt, state, pointerState) {
+            if (!canSendTouch()) {
+                return;
+            }
+            evt.preventDefault();
+            const coords = convertToDeviceCoords(evt, state);
+            if (!coords) {
+                return;
+            }
+
+             if (evt.detail && evt.detail > 1) {
+                pointerState.skipNextUp = true;
+                pointerState.isDown = false;
+                pointerState.pointerId = null;
+                pointerState.lastCoords = coords;
+                sendTouchCommand(state.serial, {
+                    action: 'double_tap',
+                    x: coords.x,
+                    y: coords.y,
+                    pressure: 1,
+                    pointerId: 0
+                });
+                return;
+            }
+
+            pointerState.isDown = true;
+            pointerState.pointerId = evt.pointerId;
+            pointerState.lastCoords = coords;
+            try {
+                evt.target.setPointerCapture(evt.pointerId);
+            } catch (_) {
+                // ignore
+            }
+            sendTouchCommand(state.serial, {
+                action: 'down',
+                x: coords.x,
+                y: coords.y,
+                pressure: evt.pressure && evt.pressure > 0 ? evt.pressure : 0.9,
+                pointerId: evt.pointerId
+            });
+        }
+
+        function handlePointerMove(evt, state, pointerState) {
+            if (!pointerState.isDown || !canSendTouch()) {
+                return;
+            }
+            evt.preventDefault();
+            const coords = convertToDeviceCoords(evt, state);
+            if (!coords) {
+                return;
+            }
+
+            pointerState.lastCoords = coords;
+            sendTouchCommand(state.serial, {
+                action: 'move',
+                x: coords.x,
+                y: coords.y,
+                pressure: evt.pressure && evt.pressure > 0 ? evt.pressure : 0.7,
+                pointerId: pointerState.pointerId ?? evt.pointerId
+            });
+        }
+
+        function handlePointerUp(evt, state, pointerState, cancel = false) {
+            if (!canSendTouch()) {
+                return;
+            }
+            evt.preventDefault();
+
+            if (pointerState.skipNextUp) {
+                pointerState.skipNextUp = false;
+                return;
+            }
+
+            if (!pointerState.isDown) {
+                return;
+            }
+
+            const coords = convertToDeviceCoords(evt, state) || pointerState.lastCoords;
+
+            if (coords) {
+                sendTouchCommand(state.serial, {
+                    action: 'up',
+                    x: coords.x,
+                    y: coords.y,
+                    pressure: 0,
+                    pointerId: pointerState.pointerId ?? evt.pointerId
+                });
+            }
+
+            pointerState.isDown = false;
+            pointerState.pointerId = null;
+            pointerState.lastCoords = null;
+
+            if (!cancel) {
+                try {
+                    evt.target.releasePointerCapture(evt.pointerId);
+                } catch (_) {
+                    // ignore
+                }
+            }
+        }
+
+        function convertToDeviceCoords(evt, state) {
+            const canvas = state.canvas;
+            if (!canvas) {
+                return null;
+            }
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+                return null;
+            }
+            const resolution = state.deviceResolution || { width: 1080, height: 1920 };
+            const normX = (evt.clientX - rect.left) / rect.width;
+            const normY = (evt.clientY - rect.top) / rect.height;
+
+            const x = Math.max(0, Math.min(resolution.width - 1, Math.round(normX * resolution.width)));
+            const y = Math.max(0, Math.min(resolution.height - 1, Math.round(normY * resolution.height)));
+            return { x, y };
+        }
+
+        function sendTouchCommand(serial, payload) {
+            if (!canSendTouch()) {
+                return;
+            }
+            ws.send(JSON.stringify({
+                command: 'touch_event',
+                serial,
+                ...payload
+            }));
+        }
+
+        function canSendTouch() {
+            return wsConnected && ws && ws.readyState === WebSocket.OPEN;
+        }
+    </script>
+</body>
+</html>

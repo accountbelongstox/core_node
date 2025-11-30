@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.298423+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "dose",
+        "laos": "ປະລິມານ",
+        "jp": "用量",
+        "vie": "liều lượng",
+        "en_pronunciation": "/doʊs/",
+        "laos_pronunciation": "paliman",
+        "jp_pronunciation": "youryou",
+        "vie_pronunciation": "lieu luong"
+      },
+      "means": {
+        "en": "A measured portion of medicine taken at any one time",
+        "zh": "任何一次服用的一定量的药物"
+      }
+    },
+    {
+      "word": {
+        "en": "dot",
+        "laos": "ດອດ",
+        "jp": "ドット",
+        "vie": "dấu chấm",
+        "en_pronunciation": "/dɑt/",
+        "laos_pronunciation": "dod",
+        "jp_pronunciation": "dotto",
+        "vie_pronunciation": "dau cham"
+      },
+      "means": {
+        "en": "A very small circular shape",
+        "zh": "一个非常小的圆形"
+      }
+    },
+    {
+      "word": {
+        "en": "dosage",
+        "laos": "ປະຣິກາ",
+        "jp": "投与量",
+        "vie": "liều lượng",
+        "en_pronunciation": "/ˈdoʊsɪʤ/",
+        "laos_pronunciation": "parika",
+        "jp_pronunciation": "touyo ryou",
+        "vie_pronunciation": "lieu luong"
+      },
+      "means": {
+        "en": "The quantity of an active agent (substance or radiation) taken in or absorbed at any one time",
+        "zh": "任一时刻摄入或吸收的活性剂（物质或辐射）的量"
+      }
+    },
+    {
+      "word": {
+        "en": "double",
+        "laos": "ຕ່ໍາ ໆ",
+        "jp": "ダブル",
+        "vie": "gấp đôi",
+        "en_pronunciation": "/ˈdəbəl/",
+        "laos_pronunciation": "toa",
+        "jp_pronunciation": "daburu",
+        "vie_pronunciation": "gap doi"
+      },
+      "means": {
+        "en": "A base hit on which the batter stops safely at second base",
+        "zh": "击球手安全停在二垒的安打"
+      }
+    },
+    {
+      "word": {
+        "en": "doubt",
+        "laos": "ສົງໄສ",
+        "jp": "疑う",
+        "vie": "nghi ngờ",
+        "en_pronunciation": "/daʊt/",
+        "laos_pronunciation": "songsai",
+        "jp_pronunciation": "utagau",
+        "vie_pronunciation": "nghi ngo"
+      },
+      "means": {
+        "en": "The state of being unsure of something",
+        "zh": "对某事不确定的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "doubtful",
+        "laos": "ສອດແຄ້ວ",
+        "jp": "疑わしい",
+        "vie": "nghi ngờ",
+        "en_pronunciation": "/ˈdaʊtfəl/",
+        "laos_pronunciation": "sodaekhv",
+        "jp_pronunciation": "utagawashii",
+        "vie_pronunciation": "nghi ngo"
+      },
+      "means": {
+        "en": "Open to doubt or suspicion; ; ; ; - Karen Horney",
+        "zh": "容易受到怀疑或怀疑；"
+      }
+    },
+    {
+      "word": {
+        "en": "doubtless",
+        "laos": "ບໍ່ແນ່ໃຈ",
+        "jp": "間違いなく",
+        "vie": "chắc chắn",
+        "en_pronunciation": "/ˈdaʊtləs/",
+        "laos_pronunciation": "boaenchai",
+        "jp_pronunciation": "machigai naku",
+        "vie_pronunciation": "chac chan"
+      },
+      "means": {
+        "en": "Without doubt; certainly",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "dough",
+        "laos": "ເຂົ້າຫນົມປັງ",
+        "jp": "生地",
+        "vie": "bột",
+        "en_pronunciation": "/doʊ/",
+        "laos_pronunciation": "khaonompang",
+        "jp_pronunciation": "kiji",
+        "vie_pronunciation": "bot"
+      },
+      "means": {
+        "en": "A flour mixture stiff enough to knead or roll",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "dove",
+        "laos": "ນົກເຂົາ",
+        "jp": "鳩",
+        "vie": "chim bồ câu",
+        "en_pronunciation": "/dəv/",
+        "laos_pronunciation": "nokkhao",
+        "jp_pronunciation": "hato",
+        "vie_pronunciation": "chim bo cau"
+      },
+      "means": {
+        "en": "Any of numerous small pigeons",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "down",
+        "laos": "ລົງ",
+        "jp": "ダウン",
+        "vie": "xuống",
+        "en_pronunciation": "/daʊn/",
+        "laos_pronunciation": "long",
+        "jp_pronunciation": "daun",
+        "vie_pronunciation": "xuong"
+      },
+      "means": {
+        "en": "Soft fine feathers",
+        "zh": "- 凯伦·霍妮"
+      }
+    },
+    {
+      "word": {
+        "en": "downgrade",
+        "laos": "ດາກ",
+        "jp": "ダウングレード",
+        "vie": "hạ cấp",
+        "en_pronunciation": "/ˈdaʊnˈgreɪd/",
+        "laos_pronunciation": "dak",
+        "jp_pronunciation": "daungureedo",
+        "vie_pronunciation": "ha cap"
+      },
+      "means": {
+        "en": "The property possessed by a slope or surface that descends",
+        "zh": "毫无疑问；"
+      }
+    },
+    {
+      "word": {
+        "en": "download",
+        "laos": "ດາວໂຫລດ",
+        "jp": "ダウンロード",
+        "vie": "tải về",
+        "en_pronunciation": "/ˈdaʊnˌloʊd/",
+        "laos_pronunciation": "dauaold",
+        "jp_pronunciation": "daunroodo",
+        "vie_pronunciation": "tai ve"
+      },
+      "means": {
+        "en": "Transfer a file or program from a central computer to a smaller computer or to a computer at a remote location",
+        "zh": "当然"
+      }
+    },
+    {
+      "word": {
+        "en": "downstairs",
+        "laos": "ຢູ່ລຸ່ມ",
+        "jp": "階下",
+        "vie": "tầng dưới",
+        "en_pronunciation": "/ˈdaʊnˈstɛrz/",
+        "laos_pronunciation": "yulum",
+        "jp_pronunciation": "kaika",
+        "vie_pronunciation": "tang duoi"
+      },
+      "means": {
+        "en": "On or of lower floors of a building",
+        "zh": "面粉混合物足够硬，可以揉捏或滚动"
+      }
+    },
+    {
+      "word": {
+        "en": "downtown",
+        "laos": "ດາວິດ",
+        "jp": "ダウンタウン",
+        "vie": "trung tâm thành phố",
+        "en_pronunciation": "/ˈdaʊnˈtaʊn/",
+        "laos_pronunciation": "david",
+        "jp_pronunciation": "dauntaun",
+        "vie_pronunciation": "trung tam thanh pho"
+      },
+      "means": {
+        "en": "The central area or commercial center of a town or city",
+        "zh": "众多小型鸽子中的任何一种"
+      }
+    },
+    {
+      "word": {
+        "en": "downward",
+        "laos": "ລົງລຸ່ມ",
+        "jp": "下向き",
+        "vie": "đi xuống",
+        "en_pronunciation": "/ˈdaʊnwərd/",
+        "laos_pronunciation": "longlum",
+        "jp_pronunciation": "shitamuki",
+        "vie_pronunciation": "di xuong"
+      },
+      "means": {
+        "en": "Extending or moving from a higher to a lower place",
+        "zh": "柔软细腻的羽毛"
+      }
+    },
+    {
+      "word": {
+        "en": "downwards",
+        "laos": "ລົງລຸ່ມ",
+        "jp": "下向き",
+        "vie": "đi xuống",
+        "en_pronunciation": "/ˈdaʊnwərdz/",
+        "laos_pronunciation": "longlum",
+        "jp_pronunciation": "shitamuki",
+        "vie_pronunciation": "di xuong"
+      },
+      "means": {
+        "en": "Spatially or metaphorically from a higher to a lower level or position",
+        "zh": "下降的斜坡或表面所拥有的财产"
+      }
+    },
+    {
+      "word": {
+        "en": "doze",
+        "laos": "ມອນ",
+        "jp": "居眠り",
+        "vie": "ngủ gật",
+        "en_pronunciation": "/doʊz/",
+        "laos_pronunciation": "mon",
+        "jp_pronunciation": "inemuri",
+        "vie_pronunciation": "ngu gat"
+      },
+      "means": {
+        "en": "A light fitful sleep",
+        "zh": "将文件或程序从中央计算机传输到较小的计算机或远程位置的计算机"
+      }
+    },
+    {
+      "word": {
+        "en": "dozen",
+        "laos": "ງໍາ",
+        "jp": "ダース",
+        "vie": "tá",
+        "en_pronunciation": "/ˈdəzən/",
+        "laos_pronunciation": "ngoa",
+        "jp_pronunciation": "daasu",
+        "vie_pronunciation": "ta"
+      },
+      "means": {
+        "en": "The cardinal number that is the sum of eleven and one",
+        "zh": "在建筑物的较低楼层或较低楼层"
+      }
+    },
+    {
+      "word": {
+        "en": "draft",
+        "laos": "ຮ່າງ",
+        "jp": "ドラフト",
+        "vie": "dự thảo",
+        "en_pronunciation": "/dræft/",
+        "laos_pronunciation": "hang",
+        "jp_pronunciation": "dorafuto",
+        "vie_pronunciation": "du thao"
+      },
+      "means": {
+        "en": "A document ordering the payment of money; drawn by one person or bank on another",
+        "zh": "城镇或城市的中心区域或商业中心"
+      }
+    },
+    {
+      "word": {
+        "en": "drag",
+        "laos": "ລາກ",
+        "jp": "ドラッグ",
+        "vie": "kéo",
+        "en_pronunciation": "/dræg/",
+        "laos_pronunciation": "lak",
+        "jp_pronunciation": "doraggu",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "The phenomenon of resistance to motion through a fluid",
+        "zh": "从较高的地方延伸或移动到较低的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "dragon",
+        "laos": "ມັງກອນ",
+        "jp": "ドラゴン",
+        "vie": "rồng",
+        "en_pronunciation": "/ˈdrægən/",
+        "laos_pronunciation": "mangkon",
+        "jp_pronunciation": "doragon",
+        "vie_pronunciation": "rong"
+      },
+      "means": {
+        "en": "A creature of Teutonic mythology; usually represented as breathing fire and having a reptilian body and sometimes wings",
+        "zh": "空间上或隐喻上从较高水平或位置到较低水平或位置"
+      }
+    },
+    {
+      "word": {
+        "en": "drain",
+        "laos": "ລະເຫາະ",
+        "jp": "排水する",
+        "vie": "cống",
+        "en_pronunciation": "/dreɪn/",
+        "laos_pronunciation": "laho",
+        "jp_pronunciation": "haisui suru",
+        "vie_pronunciation": "cong"
+      },
+      "means": {
+        "en": "Emptying something accomplished by allowing liquid to run out of it",
+        "zh": "断断续续的浅睡眠"
+      }
+    },
+    {
+      "word": {
+        "en": "drainage",
+        "laos": "ການລະບາຍນ້ໍາ",
+        "jp": "排水",
+        "vie": "thoát nước",
+        "en_pronunciation": "/ˈdreɪnɪʤ/",
+        "laos_pronunciation": "kanlabainoa",
+        "jp_pronunciation": "haisui",
+        "vie_pronunciation": "thoat nuoc"
+      },
+      "means": {
+        "en": "Emptying something accomplished by allowing liquid to run out of it",
+        "zh": "十一加一之和的基数"
+      }
+    },
+    {
+      "word": {
+        "en": "drama",
+        "laos": "ລະຄອນ",
+        "jp": "ドラマ",
+        "vie": "kịch",
+        "en_pronunciation": "/ˈdrɑmə/",
+        "laos_pronunciation": "lakhon",
+        "jp_pronunciation": "dorama",
+        "vie_pronunciation": "kich"
+      },
+      "means": {
+        "en": "A dramatic work intended for performance by actors on a stage",
+        "zh": "命令付款的文件；"
+      }
+    },
+    {
+      "word": {
+        "en": "dramatic",
+        "laos": "ອັດຕະ",
+        "jp": "ドラマチックな",
+        "vie": "kịch tính",
+        "en_pronunciation": "/drəˈmætɪk/",
+        "laos_pronunciation": "adta",
+        "jp_pronunciation": "doramachikku na",
+        "vie_pronunciation": "kich tinh"
+      },
+      "means": {
+        "en": "Suitable to or characteristic of drama",
+        "zh": "由一个人或银行向另一个人提取"
+      }
+    },
+    {
+      "word": {
+        "en": "dramatically",
+        "laos": "ຢ່າງໄວຢະ",
+        "jp": "劇的に",
+        "vie": "một cách đột ngột",
+        "en_pronunciation": "/drəˈmætɪkəli/",
+        "laos_pronunciation": "yanguaaiya",
+        "jp_pronunciation": "gekiteki ni",
+        "vie_pronunciation": "mot cach dot ngot"
+      },
+      "means": {
+        "en": "In a very impressive manner",
+        "zh": "流体运动阻力现象"
+      }
+    },
+    {
+      "word": {
+        "en": "drastic",
+        "laos": "ຮົນແຮງ",
+        "jp": "思い切った",
+        "vie": "quyết liệt",
+        "en_pronunciation": "/ˈdræstɪk/",
+        "laos_pronunciation": "honaehng",
+        "jp_pronunciation": "omoikitsu ta",
+        "vie_pronunciation": "quyet liet"
+      },
+      "means": {
+        "en": "Forceful and extreme and rigorous",
+        "zh": "条顿神话中的生物；"
+      }
+    },
+    {
+      "word": {
+        "en": "drastically",
+        "laos": "ຢ່າງຮຸນແຮງ",
+        "jp": "劇的に",
+        "vie": "quyết liệt",
+        "en_pronunciation": "/ˈdræstɪkli/",
+        "laos_pronunciation": "yanghunaehng",
+        "jp_pronunciation": "gekiteki ni",
+        "vie_pronunciation": "quyet liet"
+      },
+      "means": {
+        "en": "In a drastic manner",
+        "zh": "通常表现为喷火、爬行动物的身体，有时还有翅膀"
+      }
+    },
+    {
+      "word": {
+        "en": "draw",
+        "laos": "ແຕ້ມ",
+        "jp": "描く",
+        "vie": "vẽ",
+        "en_pronunciation": "/drɔ/",
+        "laos_pronunciation": "aetm",
+        "jp_pronunciation": "egaku",
+        "vie_pronunciation": "ve"
+      },
+      "means": {
+        "en": "A gully that is shallower than a ravine",
+        "zh": "通过让液体流出来清空某物"
+      }
+    },
+    {
+      "word": {
+        "en": "drawing",
+        "laos": "ຮູບແຕ້ມ",
+        "jp": "絵を描く",
+        "vie": "vẽ",
+        "en_pronunciation": "/drɔɪŋ/",
+        "laos_pronunciation": "hubaetm",
+        "jp_pronunciation": "e wo egaku",
+        "vie_pronunciation": "ve"
+      },
+      "means": {
+        "en": "An illustration that is drawn by hand and published in a book, magazine, or newspaper",
+        "zh": "通过让液体流出来清空某物"
+      }
+    },
+    {
+      "word": {
+        "en": "drawback",
+        "laos": "ຮອຍເປື້ອນ",
+        "jp": "欠点",
+        "vie": "nhược điểm",
+        "en_pronunciation": "/ˈdrɔˌbæk/",
+        "laos_pronunciation": "honypeuon",
+        "jp_pronunciation": "ketten",
+        "vie_pronunciation": "nhuoc diem"
+      },
+      "means": {
+        "en": "The quality of being a hindrance",
+        "zh": "供演员在舞台上表演的戏剧作品"
+      }
+    },
+    {
+      "word": {
+        "en": "drawer",
+        "laos": "ລິ້ນຊັກ",
+        "jp": "引き出し",
+        "vie": "ngăn kéo",
+        "en_pronunciation": "/drɔr/",
+        "laos_pronunciation": "linsak",
+        "jp_pronunciation": "hikidashi",
+        "vie_pronunciation": "ngan keo"
+      },
+      "means": {
+        "en": "A boxlike container in a piece of furniture; made so as to slide in and out",
+        "zh": "适合戏剧或戏剧特点"
+      }
+    },
+    {
+      "word": {
+        "en": "dread",
+        "laos": "ຢໍາ",
+        "jp": "恐怖",
+        "vie": "sợ hãi",
+        "en_pronunciation": "/drɛd/",
+        "laos_pronunciation": "yoa",
+        "jp_pronunciation": "kyoufu",
+        "vie_pronunciation": "so hai"
+      },
+      "means": {
+        "en": "Fearful expectation or anticipation",
+        "zh": "以一种非常令人印象深刻的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "dreadful",
+        "laos": "ເປັນຕາຢ້ານ",
+        "jp": "恐ろしい",
+        "vie": "khủng khiếp",
+        "en_pronunciation": "/ˈdrɛdfəl/",
+        "laos_pronunciation": "pentayan",
+        "jp_pronunciation": "osoroshii",
+        "vie_pronunciation": "khung khiep"
+      },
+      "means": {
+        "en": "Causing fear or dread or terror",
+        "zh": "强悍、极致、严谨"
+      }
+    },
+    {
+      "word": {
+        "en": "dream",
+        "laos": "ຝັນ",
+        "jp": "夢",
+        "vie": "giấc mơ",
+        "en_pronunciation": "/drim/",
+        "laos_pronunciation": "fan",
+        "jp_pronunciation": "yume",
+        "vie_pronunciation": "giac mo"
+      },
+      "means": {
+        "en": "A series of mental images and emotions occurring during sleep",
+        "zh": "以激烈的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "dreamy",
+        "laos": "ຝັນ",
+        "jp": "夢のような",
+        "vie": "mộng mơ",
+        "en_pronunciation": "/ˈdrimi/",
+        "laos_pronunciation": "fan",
+        "jp_pronunciation": "yume noyouna",
+        "vie_pronunciation": "mong mo"
+      },
+      "means": {
+        "en": "Dreamy in mood or nature",
+        "zh": "比山沟还浅的沟壑"
+      }
+    },
+    {
+      "word": {
+        "en": "dress",
+        "laos": "ເຄື່ອງນຸ່ງຫົ່ມ",
+        "jp": "ドレス",
+        "vie": "ăn mặc",
+        "en_pronunciation": "/drɛs/",
+        "laos_pronunciation": "kheuongnunghom",
+        "jp_pronunciation": "doresu",
+        "vie_pronunciation": "an mac"
+      },
+      "means": {
+        "en": "A one-piece garment for a woman; has skirt and bodice",
+        "zh": "手绘并发表在书籍、杂志或报纸上的插图"
+      }
+    },
+    {
+      "word": {
+        "en": "dressing",
+        "laos": "ການນຸ່ງຖື",
+        "jp": "ドレッシング",
+        "vie": "mặc quần áo",
+        "en_pronunciation": "/ˈdrɛsɪŋ/",
+        "laos_pronunciation": "kannungthu",
+        "jp_pronunciation": "doresshingu",
+        "vie_pronunciation": "mac quan ao"
+      },
+      "means": {
+        "en": "Savory dressings for salads; basically of two kinds: either the thin French or vinaigrette type or the creamy mayonnaise type",
+        "zh": "成为障碍的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "drift",
+        "laos": "ເລື່ອນລອຍ",
+        "jp": "ドリフト",
+        "vie": "trôi dạt",
+        "en_pronunciation": "/drɪft/",
+        "laos_pronunciation": "leuonlony",
+        "jp_pronunciation": "dorifuto",
+        "vie_pronunciation": "troi dat"
+      },
+      "means": {
+        "en": "A force that moves something along",
+        "zh": "一件家具中的盒状容器；"
+      }
+    },
+    {
+      "word": {
+        "en": "drill",
+        "laos": "ຊ້ອມ",
+        "jp": "ドリル",
+        "vie": "khoan",
+        "en_pronunciation": "/drɪl/",
+        "laos_pronunciation": "som",
+        "jp_pronunciation": "doriru",
+        "vie_pronunciation": "khoan"
+      },
+      "means": {
+        "en": "A tool with a sharp point and cutting edges for making holes in hard materials (usually rotating rapidly or by repeated blows)",
+        "zh": "可滑入和滑出"
+      }
+    },
+    {
+      "word": {
+        "en": "drink",
+        "laos": "ດື່ມ",
+        "jp": "飲む",
+        "vie": "uống",
+        "en_pronunciation": "/drɪŋk/",
+        "laos_pronunciation": "dum",
+        "jp_pronunciation": "nomu",
+        "vie_pronunciation": "uong"
+      },
+      "means": {
+        "en": "A single serving of a beverage",
+        "zh": "恐惧的期待或期待"
+      }
+    },
+    {
+      "word": {
+        "en": "drip",
+        "laos": "ຍ້ອຍລົງ",
+        "jp": "点滴",
+        "vie": "nhỏ giọt",
+        "en_pronunciation": "/drɪp/",
+        "laos_pronunciation": "nyonylong",
+        "jp_pronunciation": "tenteki",
+        "vie_pronunciation": "nho giot"
+      },
+      "means": {
+        "en": "Flowing in drops; the formation and falling of drops of liquid",
+        "zh": "引起恐惧或恐惧或恐怖"
+      }
+    },
+    {
+      "word": {
+        "en": "drive",
+        "laos": "ຂັບ",
+        "jp": "ドライブ",
+        "vie": "lái xe",
+        "en_pronunciation": "/draɪv/",
+        "laos_pronunciation": "khab",
+        "jp_pronunciation": "doraibu",
+        "vie_pronunciation": "lai xe"
+      },
+      "means": {
+        "en": "The act of applying force to propel something",
+        "zh": "睡眠期间出现的一系列心理图像和情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "driver",
+        "laos": "ຄົນຂັບລົດ",
+        "jp": "運転手",
+        "vie": "người lái xe",
+        "en_pronunciation": "/ˈdraɪvər/",
+        "laos_pronunciation": "khonkhablod",
+        "jp_pronunciation": "untenshu",
+        "vie_pronunciation": "nguoi lai xe"
+      },
+      "means": {
+        "en": "The operator of a motor vehicle",
+        "zh": "心情或自然上的梦幻"
+      }
+    },
+    {
+      "word": {
+        "en": "drop",
+        "laos": "ຢາດ",
+        "jp": "落とす",
+        "vie": "thả",
+        "en_pronunciation": "/drɔp/",
+        "laos_pronunciation": "yad",
+        "jp_pronunciation": "oto su",
+        "vie_pronunciation": "tha"
+      },
+      "means": {
+        "en": "A shape that is spherical and small",
+        "zh": "一件女式连体衣；"
+      }
+    },
+    {
+      "word": {
+        "en": "dropout",
+        "laos": "ການຂຶ້ນໄປ",
+        "jp": "ドロップアウト",
+        "vie": "bỏ học",
+        "en_pronunciation": "/ˈdrɑˌpaʊt/",
+        "laos_pronunciation": "kankhunpai",
+        "jp_pronunciation": "doroppuauto",
+        "vie_pronunciation": "bo hoc"
+      },
+      "means": {
+        "en": "Someone who quits school before graduation",
+        "zh": "有裙子和紧身胸衣"
+      }
+    },
+    {
+      "word": {
+        "en": "drought",
+        "laos": "ໄພແຫ້ງແລ້ງ",
+        "jp": "干ばつ",
+        "vie": "hạn hán",
+        "en_pronunciation": "/draʊt/",
+        "laos_pronunciation": "phaiaehngaelng",
+        "jp_pronunciation": "kan batsu",
+        "vie_pronunciation": "han han"
+      },
+      "means": {
+        "en": "A shortage of rainfall",
+        "zh": "沙拉咸味调料；"
+      }
+    },
+    {
+      "word": {
+        "en": "drown",
+        "laos": "ຈົມນ້ໍາ",
+        "jp": "溺れる",
+        "vie": "chết đuối",
+        "en_pronunciation": "/draʊn/",
+        "laos_pronunciation": "chomnoa",
+        "jp_pronunciation": "obore ru",
+        "vie_pronunciation": "chet duoi"
+      },
+      "means": {
+        "en": "Cover completely or make imperceptible",
+        "zh": "基本上有两种：薄法式或油醋汁类型或奶油蛋黄酱类型"
+      }
+    },
+    {
+      "word": {
+        "en": "drug",
+        "laos": "ຢາ",
+        "jp": "麻薬",
+        "vie": "thuốc",
+        "en_pronunciation": "/drəg/",
+        "laos_pronunciation": "ya",
+        "jp_pronunciation": "mayaku",
+        "vie_pronunciation": "thuoc"
+      },
+      "means": {
+        "en": "A substance that is used as a medicine or narcotic",
+        "zh": "使某物向前移动的力"
+      }
+    },
+    {
+      "word": {
+        "en": "drum",
+        "laos": "ກອງ",
+        "jp": "ドラム",
+        "vie": "trống",
+        "en_pronunciation": "/drəm/",
+        "laos_pronunciation": "kong",
+        "jp_pronunciation": "doramu",
+        "vie_pronunciation": "trong"
+      },
+      "means": {
+        "en": "A musical percussion instrument; usually consists of a hollow cylinder with a membrane stretched across each end",
+        "zh": "具有锋利尖端和切削刃的工具，用于在硬质材料上打孔（通常快速旋转或反复敲击）"
+      }
+    },
+    {
+      "word": {
+        "en": "drunk",
+        "laos": "ເມົາເຫຼົ້າ",
+        "jp": "酔った",
+        "vie": "say rượu",
+        "en_pronunciation": "/drəŋk/",
+        "laos_pronunciation": "maoheoa",
+        "jp_pronunciation": "yotsu ta",
+        "vie_pronunciation": "say ruou"
+      },
+      "means": {
+        "en": "A chronic drinker",
+        "zh": "一份饮料"
+      }
+    },
+    {
+      "word": {
+        "en": "drunken",
+        "laos": "ເມົາເທີ້",
+        "jp": "酔った",
+        "vie": "say rượu",
+        "en_pronunciation": "/ˈdrəŋkən/",
+        "laos_pronunciation": "maothoe",
+        "jp_pronunciation": "yotsu ta",
+        "vie_pronunciation": "say ruou"
+      },
+      "means": {
+        "en": "Given to or marked by the consumption of alcohol",
+        "zh": "滴滴流动；"
+      }
+    },
+    {
+      "word": {
+        "en": "drunkard",
+        "laos": "ຂີ້ເຫລົ້າ",
+        "jp": "酔っ払い",
+        "vie": "người say rượu",
+        "en_pronunciation": "/ˈdrəŋkərd/",
+        "laos_pronunciation": "khiheloa",
+        "jp_pronunciation": "yotsu harai",
+        "vie_pronunciation": "nguoi say ruou"
+      },
+      "means": {
+        "en": "A chronic drinker",
+        "zh": "液滴的形成和落下"
+      }
+    },
+    {
+      "word": {
+        "en": "dry",
+        "laos": "ເຊັດ",
+        "jp": "乾いた",
+        "vie": "khô",
+        "en_pronunciation": "/draɪ/",
+        "laos_pronunciation": "sed",
+        "jp_pronunciation": "kawai ta",
+        "vie_pronunciation": "kho"
+      },
+      "means": {
+        "en": "A reformer who opposes the use of intoxicating beverages",
+        "zh": "施加力来推动某物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "dryer",
+        "laos": "ເຄື່ອງອົບແຫ້ງ",
+        "jp": "乾燥機",
+        "vie": "máy sấy",
+        "en_pronunciation": "/draɪər/",
+        "laos_pronunciation": "kheuong obaehng",
+        "jp_pronunciation": "kansouki",
+        "vie_pronunciation": "may say"
+      },
+      "means": {
+        "en": "An appliance that removes moisture",
+        "zh": "机动车辆的操作者"
+      }
+    },
+    {
+      "word": {
+        "en": "dual",
+        "laos": "ຄູ່",
+        "jp": "デュアル",
+        "vie": "kép",
+        "en_pronunciation": "/duəl/",
+        "laos_pronunciation": "khu",
+        "jp_pronunciation": "deyuaru",
+        "vie_pronunciation": "kep"
+      },
+      "means": {
+        "en": "Consisting of or involving two parts or components usually in pairs",
+        "zh": "形状为球形且较小"
+      }
+    },
+    {
+      "word": {
+        "en": "dub",
+        "laos": "ໂດຢ",
+        "jp": "ダブ",
+        "vie": "lồng tiếng",
+        "en_pronunciation": "/dəb/",
+        "laos_pronunciation": "ody",
+        "jp_pronunciation": "dabu",
+        "vie_pronunciation": "long tieng"
+      },
+      "means": {
+        "en": "The new sounds added by dubbing",
+        "zh": "毕业前退学的人"
+      }
+    },
+    {
+      "word": {
+        "en": "dubious",
+        "laos": "ຫນ້າສົງສານ",
+        "jp": "疑わしい",
+        "vie": "đáng ngờ",
+        "en_pronunciation": "/ˈdubiəs/",
+        "laos_pronunciation": "nasongsan",
+        "jp_pronunciation": "utagawashii",
+        "vie_pronunciation": "dang ngo"
+      },
+      "means": {
+        "en": "Fraught with uncertainty or doubt",
+        "zh": "降雨量不足"
+      }
+    },
+    {
+      "word": {
+        "en": "duck",
+        "laos": "ເປັດ",
+        "jp": "アヒル",
+        "vie": "con vịt",
+        "en_pronunciation": "/dək/",
+        "laos_pronunciation": "ped",
+        "jp_pronunciation": "ahiru",
+        "vie_pronunciation": "con vit"
+      },
+      "means": {
+        "en": "Small wild or domesticated web-footed broad-billed swimming bird usually having a depressed body and short legs",
+        "zh": "完全覆盖或难以察觉"
+      }
+    },
+    {
+      "word": {
+        "en": "due",
+        "laos": "ໂດຍ",
+        "jp": "期限の",
+        "vie": "đến hạn",
+        "en_pronunciation": "/du/",
+        "laos_pronunciation": "odny",
+        "jp_pronunciation": "kigen no",
+        "vie_pronunciation": "den han"
+      },
+      "means": {
+        "en": "That which is deserved or owed",
+        "zh": "用作药物或麻醉剂的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "duly",
+        "laos": "ຫມັ້ນ",
+        "jp": "正式に",
+        "vie": "đúng cách",
+        "en_pronunciation": "/ˈduli/",
+        "laos_pronunciation": "man",
+        "jp_pronunciation": "seishiki ni",
+        "vie_pronunciation": "dung cach"
+      },
+      "means": {
+        "en": "At the proper time",
+        "zh": "打击乐器；"
+      }
+    },
+    {
+      "word": {
+        "en": "dull",
+        "laos": "ປິ້ງ",
+        "jp": "鈍い",
+        "vie": "đần độn",
+        "en_pronunciation": "/dəl/",
+        "laos_pronunciation": "ping",
+        "jp_pronunciation": "nibui",
+        "vie_pronunciation": "dan don"
+      },
+      "means": {
+        "en": "Make dull in appearance",
+        "zh": "通常由一个空心圆柱体组成，两端都拉伸有薄膜"
+      }
+    },
+    {
+      "word": {
+        "en": "dumb",
+        "laos": "ງ່າວ",
+        "jp": "愚かな",
+        "vie": "câm",
+        "en_pronunciation": "/dəm/",
+        "laos_pronunciation": "ngav",
+        "jp_pronunciation": "oroka na",
+        "vie_pronunciation": "cam"
+      },
+      "means": {
+        "en": "Slow to learn or understand; lacking intellectual acuity; ; ; - Thackeray",
+        "zh": "长期饮酒者"
+      }
+    },
+    {
+      "word": {
+        "en": "dump",
+        "laos": "ຈຸ່ມ",
+        "jp": "ダンプ",
+        "vie": "đổ",
+        "en_pronunciation": "/dəmp/",
+        "laos_pronunciation": "chum",
+        "jp_pronunciation": "danpu",
+        "vie_pronunciation": "do"
+      },
+      "means": {
+        "en": "A coarse term for defecation",
+        "zh": "以饮酒为特征或以饮酒为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "duplicate",
+        "laos": "ຊ້ໍາ",
+        "jp": "重複",
+        "vie": "trùng lặp",
+        "en_pronunciation": "/ˈdupləˌkeɪt/",
+        "laos_pronunciation": "soa",
+        "jp_pronunciation": "choufuku",
+        "vie_pronunciation": "trung lap"
+      },
+      "means": {
+        "en": "Something additional of the same kind",
+        "zh": "长期饮酒者"
+      }
+    },
+    {
+      "word": {
+        "en": "duplication",
+        "laos": "ການຊໍ້າຊ້ອນ",
+        "jp": "重複",
+        "vie": "sự nhân bản",
+        "en_pronunciation": "/ˌdjupləˈkeɪʃən/",
+        "laos_pronunciation": "kan soason",
+        "jp_pronunciation": "choufuku",
+        "vie_pronunciation": "su nhan ban"
+      },
+      "means": {
+        "en": "A copy that corresponds to an original exactly",
+        "zh": "反对使用醉酒饮料的改革者"
+      }
+    },
+    {
+      "word": {
+        "en": "durable",
+        "laos": "ອະົາຫມັ້ນ",
+        "jp": "耐久性のある",
+        "vie": "bền bỉ",
+        "en_pronunciation": "/ˈdʊrəbəl/",
+        "laos_pronunciation": "a oaman",
+        "jp_pronunciation": "taikyuusei noaru",
+        "vie_pronunciation": "ben bi"
+      },
+      "means": {
+        "en": "Existing for a long time",
+        "zh": "一种去除湿气的器具"
+      }
+    },
+    {
+      "word": {
+        "en": "duration",
+        "laos": "ໄລເລີງ",
+        "jp": "期間",
+        "vie": "thời lượng",
+        "en_pronunciation": "/ˈdʊˈreɪʃən/",
+        "laos_pronunciation": "lai loeng",
+        "jp_pronunciation": "kikan",
+        "vie_pronunciation": "thoi luong"
+      },
+      "means": {
+        "en": "The period of time during which something continues",
+        "zh": "由通常成对的两个零件或组件组成或涉及两个零件或组件"
+      }
+    },
+    {
+      "word": {
+        "en": "durability",
+        "laos": "ຄວາມທົນຊັດ",
+        "jp": "耐久性",
+        "vie": "độ bền",
+        "en_pronunciation": "/dərəˈbɪlɪti/",
+        "laos_pronunciation": "khuaam thonsad",
+        "jp_pronunciation": "taikyuusei",
+        "vie_pronunciation": "do ben"
+      },
+      "means": {
+        "en": "Permanence by virtue of the power to resist stress or force",
+        "zh": "通过配音添加的新声音"
+      }
+    },
+    {
+      "word": {
+        "en": "during",
+        "laos": "ໃນໄລຍະ",
+        "jp": "中に",
+        "vie": "trong thời gian",
+        "en_pronunciation": "/ˈdʊrɪŋ/",
+        "laos_pronunciation": "nailainya",
+        "jp_pronunciation": "nakani",
+        "vie_pronunciation": "trong thoi gian"
+      },
+      "means": {
+        "en": "During is an English word referring to 'during'.",
+        "zh": "充满不确定性或怀疑"
+      }
+    },
+    {
+      "word": {
+        "en": "dusk",
+        "laos": "ຍາມແຖໃກ້ຄ່ໍາ",
+        "jp": "夕暮れ",
+        "vie": "hoàng hôn",
+        "en_pronunciation": "/dəsk/",
+        "laos_pronunciation": "nyam aeth kaikhoa",
+        "jp_pronunciation": "yuugure",
+        "vie_pronunciation": "hoang hon"
+      },
+      "means": {
+        "en": "The time of day immediately following sunset",
+        "zh": "野生或驯养的小型蹼足宽嘴游泳鸟，通常身体凹陷，腿短"
+      }
+    },
+    {
+      "word": {
+        "en": "dust",
+        "laos": "ຂີ້ຝຸ່ນ",
+        "jp": "ほこり",
+        "vie": "bụi bặm",
+        "en_pronunciation": "/dəst/",
+        "laos_pronunciation": "khifun",
+        "jp_pronunciation": "hokori",
+        "vie_pronunciation": "bui bam"
+      },
+      "means": {
+        "en": "Fine powdery material such as dry earth or pollen that can be blown about in the air",
+        "zh": "应得的或应得的"
+      }
+    },
+    {
+      "word": {
+        "en": "duty",
+        "laos": "ຫນ້າທີ່",
+        "jp": "義務",
+        "vie": "nhiệm vụ",
+        "en_pronunciation": "/ˈduti/",
+        "laos_pronunciation": "nathi",
+        "jp_pronunciation": "gimu",
+        "vie_pronunciation": "nhiem vu"
+      },
+      "means": {
+        "en": "The social force that binds you to the courses of action demanded by that force; ; - John D.Rockefeller Jr",
+        "zh": "在适当的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "dwarf",
+        "laos": "ມະໂນ້ວ",
+        "jp": "ドワーフ",
+        "vie": "người lùn",
+        "en_pronunciation": "/dwɔrf/",
+        "laos_pronunciation": "ma onv",
+        "jp_pronunciation": "dowaafu",
+        "vie_pronunciation": "nguoi lun"
+      },
+      "means": {
+        "en": "A person who is markedly small",
+        "zh": "使外观暗淡无光"
+      }
+    },
+    {
+      "word": {
+        "en": "dusty",
+        "laos": "ທີ່ເປັນຝ່ົນ",
+        "jp": "ほこりっぽい",
+        "vie": "bụi bặm",
+        "en_pronunciation": "/ˈdəsti/",
+        "laos_pronunciation": "thipen fon",
+        "jp_pronunciation": "hokorippoi",
+        "vie_pronunciation": "bui bam"
+      },
+      "means": {
+        "en": "Covered with a layer of dust",
+        "zh": "学习或理解速度慢；"
+      }
+    },
+    {
+      "word": {
+        "en": "dwell",
+        "laos": "ອາໄສຢູ່",
+        "jp": "住む",
+        "vie": "trú ngụ",
+        "en_pronunciation": "/dwɛl/",
+        "laos_pronunciation": "asaiyu",
+        "jp_pronunciation": "sumu",
+        "vie_pronunciation": "tru ngu"
+      },
+      "means": {
+        "en": "Think moodily or anxiously about something",
+        "zh": "缺乏智力敏锐度；"
+      }
+    },
+    {
+      "word": {
+        "en": "dye",
+        "laos": "ຍ້ອມສີ",
+        "jp": "染料",
+        "vie": "thuốc nhuộm",
+        "en_pronunciation": "/daɪ/",
+        "laos_pronunciation": "nyomsi",
+        "jp_pronunciation": "senryou",
+        "vie_pronunciation": "thuoc nhuom"
+      },
+      "means": {
+        "en": "A usually soluble substance for staining or coloring e.g. fabrics or hair",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "dynamic",
+        "laos": "Dynamic",
+        "jp": "ダイナミックな",
+        "vie": "năng động",
+        "en_pronunciation": "/daɪˈnæmɪk/",
+        "laos_pronunciation": "Dynamic",
+        "jp_pronunciation": "dainamikku na",
+        "vie_pronunciation": "nang dong"
+      },
+      "means": {
+        "en": "An efficient incentive",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "dynasty",
+        "laos": "ລາຊະວົງ",
+        "jp": "王朝",
+        "vie": "triều đại",
+        "en_pronunciation": "/ˈdaɪnəsti/",
+        "laos_pronunciation": "lasavong",
+        "jp_pronunciation": "ouchou",
+        "vie_pronunciation": "trieu dai"
+      },
+      "means": {
+        "en": "A sequence of powerful leaders in the same family",
+        "zh": "——萨克雷"
+      }
+    },
+    {
+      "word": {
+        "en": "each",
+        "laos": "ແຕ່ລະ",
+        "jp": "それぞれ",
+        "vie": "mỗi",
+        "en_pronunciation": "/iʧ/",
+        "laos_pronunciation": "aetla",
+        "jp_pronunciation": "sorezore",
+        "vie_pronunciation": "moi"
+      },
+      "means": {
+        "en": "(used of count nouns) every one considered individually",
+        "zh": "排便的粗俗术语"
+      }
+    },
+    {
+      "word": {
+        "en": "dweller",
+        "laos": "ທີ່ຢູ່ອາໄສ",
+        "jp": "住人",
+        "vie": "cư dân",
+        "en_pronunciation": "/dˈwɛlər/",
+        "laos_pronunciation": "thiyuoasai",
+        "jp_pronunciation": "juunin",
+        "vie_pronunciation": "cu dan"
+      },
+      "means": {
+        "en": "A person who inhabits a particular place",
+        "zh": "同类的额外东西"
+      }
+    },
+    {
+      "word": {
+        "en": "dynamics",
+        "laos": "ນະໂຍບາຍດ້ານ",
+        "jp": "ダイナミクス",
+        "vie": "động lực học",
+        "en_pronunciation": "/daɪˈnæmɪks/",
+        "laos_pronunciation": "naonybaidan",
+        "jp_pronunciation": "dainamikusu",
+        "vie_pronunciation": "dong luc hoc"
+      },
+      "means": {
+        "en": "The branch of mechanics concerned with the forces that cause motions of bodies",
+        "zh": "与原件完全对应的副本"
+      }
+    },
+    {
+      "word": {
+        "en": "dwelling",
+        "laos": "ທີ່ຢູ່ອາໄສ",
+        "jp": "住居",
+        "vie": "chỗ ở",
+        "en_pronunciation": "/dˈwɛlɪŋ/",
+        "laos_pronunciation": "thiyuoasai",
+        "jp_pronunciation": "juukyo",
+        "vie_pronunciation": "cho o"
+      },
+      "means": {
+        "en": "Housing that someone is living in",
+        "zh": "存在已久"
+      }
+    },
+    {
+      "word": {
+        "en": "eager",
+        "laos": "ມີຄວາມກະຕືລືລົ້ນ",
+        "jp": "熱心な",
+        "vie": "háo hức",
+        "en_pronunciation": "/ˈigər/",
+        "laos_pronunciation": "mikhuaamkatululon",
+        "jp_pronunciation": "nesshin na",
+        "vie_pronunciation": "hao huc"
+      },
+      "means": {
+        "en": "A high wave (often dangerous) caused by tidal flow (as by colliding tidal currents or in a narrow estuary)",
+        "zh": "某事持续的时间段"
+      }
+    },
+    {
+      "word": {
+        "en": "eagle",
+        "laos": "ນົກອິນຊີ",
+        "jp": "ワシ",
+        "vie": "đại bàng",
+        "en_pronunciation": "/ˈigəl/",
+        "laos_pronunciation": "nokinsi",
+        "jp_pronunciation": "washi",
+        "vie_pronunciation": "dai bang"
+      },
+      "means": {
+        "en": "Any of various large keen-sighted diurnal birds of prey noted for their broad wings and strong soaring flight",
+        "zh": "凭借抵抗压力或外力的能力而持久"
+      }
+    },
+    {
+      "word": {
+        "en": "ear",
+        "laos": "ກາງ",
+        "jp": "耳",
+        "vie": "tai",
+        "en_pronunciation": "/ɪr/",
+        "laos_pronunciation": "kang",
+        "jp_pronunciation": "mimi",
+        "vie_pronunciation": "tai"
+      },
+      "means": {
+        "en": "The sense organ for hearing and equilibrium",
+        "zh": "期间是一个英语单词，指的是“期间”。"
+      }
+    },
+    {
+      "word": {
+        "en": "early",
+        "laos": "ຕົ້ນ",
+        "jp": "早い",
+        "vie": "sớm",
+        "en_pronunciation": "/ˈərli/",
+        "laos_pronunciation": "ton",
+        "jp_pronunciation": "hayai",
+        "vie_pronunciation": "som"
+      },
+      "means": {
+        "en": "At or near the beginning of a period of time or course of events or before the usual or expected time",
+        "zh": "日落之后的一天中的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "earn",
+        "laos": "ສົ່ງເງິນ",
+        "jp": "稼ぐ",
+        "vie": "kiếm tiền",
+        "en_pronunciation": "/ərn/",
+        "laos_pronunciation": "songngoen",
+        "jp_pronunciation": "kasegu",
+        "vie_pronunciation": "kiem tien"
+      },
+      "means": {
+        "en": "Earn on some commercial or business transaction; earn as salary or wages",
+        "zh": "细粉状物质，如干土或花粉，可在空气中飘扬"
+      }
+    },
+    {
+      "word": {
+        "en": "earnest",
+        "laos": "ແຍເສີນ",
+        "jp": "真剣な",
+        "vie": "nghiêm túc",
+        "en_pronunciation": "/ˈərnɪst/",
+        "laos_pronunciation": "aenysoen",
+        "jp_pronunciation": "shinken na",
+        "vie_pronunciation": "nghiem tuc"
+      },
+      "means": {
+        "en": "Something of value given by one person to another to bind a contract",
+        "zh": "将你束缚于该力量所要求的行动方针的社会力量；"
+      }
+    },
+    {
+      "word": {
+        "en": "earnings",
+        "laos": "ລາຍໄດ້",
+        "jp": "収入",
+        "vie": "thu nhập",
+        "en_pronunciation": "/ˈərnɪŋz/",
+        "laos_pronunciation": "laidai",
+        "jp_pronunciation": "shuunyuu",
+        "vie_pronunciation": "thu nhap"
+      },
+      "means": {
+        "en": "The excess of revenues over outlays in a given period of time (including depreciation and other non-cash expenses)",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "earth",
+        "laos": "ໂລກ",
+        "jp": "地球",
+        "vie": "trái đất",
+        "en_pronunciation": "/ərθ/",
+        "laos_pronunciation": "olk",
+        "jp_pronunciation": "chikyuu",
+        "vie_pronunciation": "trai dat"
+      },
+      "means": {
+        "en": "The 3rd planet from the sun; the planet we live on",
+        "zh": "——小约翰·D·洛克菲勒"
+      }
+    },
+    {
+      "word": {
+        "en": "earthquake",
+        "laos": "ແຜ່ນດິນໄຫວ",
+        "jp": "地震",
+        "vie": "trận động đất",
+        "en_pronunciation": "/ˈərθkˌweɪk/",
+        "laos_pronunciation": "aephndinhaiv",
+        "jp_pronunciation": "jishin",
+        "vie_pronunciation": "tran dong dat"
+      },
+      "means": {
+        "en": "Shaking and vibration at the surface of the earth resulting from underground movement along a fault plane of from volcanic activity",
+        "zh": "一个人的体型明显很小"
+      }
+    },
+    {
+      "word": {
+        "en": "ease",
+        "laos": "ສຸໂຂ",
+        "jp": "楽にする",
+        "vie": "dễ dàng",
+        "en_pronunciation": "/iz/",
+        "laos_pronunciation": "suokh",
+        "jp_pronunciation": "raku nisuru",
+        "vie_pronunciation": "de dang"
+      },
+      "means": {
+        "en": "Freedom from difficulty or hardship or effort",
+        "zh": "蒙上了一层灰尘"
+      }
+    },
+    {
+      "word": {
+        "en": "east",
+        "laos": "ຕາເວັນອອກ",
+        "jp": "東",
+        "vie": "phía đông",
+        "en_pronunciation": "/ist/",
+        "laos_pronunciation": "tauaenook",
+        "jp_pronunciation": "higashi",
+        "vie_pronunciation": "phia dong"
+      },
+      "means": {
+        "en": "The cardinal compass point that is at 90 degrees",
+        "zh": "情绪低落或焦虑地思考某事"
+      }
+    },
+    {
+      "word": {
+        "en": "eastern",
+        "laos": "ຕາເວັນອອກ",
+        "jp": "東部",
+        "vie": "phương đông",
+        "en_pronunciation": "/ˈistərn/",
+        "laos_pronunciation": "tauaenook",
+        "jp_pronunciation": "toubu",
+        "vie_pronunciation": "phuong dong"
+      },
+      "means": {
+        "en": "Lying toward or situated in the east",
+        "zh": "用于染色或着色的通常可溶性物质，例如"
+      }
+    },
+    {
+      "word": {
+        "en": "easter",
+        "laos": "ວັນ Easter",
+        "jp": "イースター",
+        "vie": "lễ Phục sinh",
+        "en_pronunciation": "/ˈistər/",
+        "laos_pronunciation": "van Easter",
+        "jp_pronunciation": "iisutaa",
+        "vie_pronunciation": "le Phuc sinh"
+      },
+      "means": {
+        "en": "A Christian celebration of the Resurrection of Christ; celebrated on the Sunday following the first full moon after the vernal equinox",
+        "zh": "织物或头发"
+      }
+    },
+    {
+      "word": {
+        "en": "easy",
+        "laos": "ງ່າຍ",
+        "jp": "簡単な",
+        "vie": "dễ dàng",
+        "en_pronunciation": "/ˈizi/",
+        "laos_pronunciation": "ngai",
+        "jp_pronunciation": "kantan na",
+        "vie_pronunciation": "de dang"
+      },
+      "means": {
+        "en": "Posing no difficulty; requiring little effort",
+        "zh": "有效的激励"
+      }
+    },
+    {
+      "word": {
+        "en": "easy-going",
+        "laos": "ງ່າຍ",
+        "jp": "気楽な",
+        "vie": "dễ tính",
+        "en_pronunciation": "/easy-going/",
+        "laos_pronunciation": "ngai",
+        "jp_pronunciation": "kiraku na",
+        "vie_pronunciation": "de tinh"
+      },
+      "means": {
+        "en": "Not hurried or forced",
+        "zh": "同一家族中一系列有权有势的领导者"
+      }
+    },
+    {
+      "word": {
+        "en": "eat",
+        "laos": "ກິນເຂົ້າ",
+        "jp": "食べる",
+        "vie": "ăn",
+        "en_pronunciation": "/it/",
+        "laos_pronunciation": "kinkhao",
+        "jp_pronunciation": "tabe ru",
+        "vie_pronunciation": "an"
+      },
+      "means": {
+        "en": "Take in solid food",
+        "zh": "（用于可数名词）每一个单独考虑"
+      }
+    },
+    {
+      "word": {
+        "en": "easily",
+        "laos": "ງ່າຍ",
+        "jp": "簡単に",
+        "vie": "dễ dàng",
+        "en_pronunciation": "/ˈizəli/",
+        "laos_pronunciation": "ngai",
+        "jp_pronunciation": "kantan ni",
+        "vie_pronunciation": "de dang"
+      },
+      "means": {
+        "en": "With ease (`easy' is sometimes used informally for `easily')",
+        "zh": "居住在特定地方的人"
+      }
+    }
+  ]
+}

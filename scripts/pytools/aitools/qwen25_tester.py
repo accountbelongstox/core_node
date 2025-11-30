@@ -22,26 +22,28 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         bool: True if test succeeded, False otherwise
     """
     try:
-        # Set cache directory
         os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[TEST] Importing transformers...')
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         print(f'[INFO] Model: {model_name}')
         print('[INFO] First run will download model from HuggingFace (~1GB)')
+        print('[INFO] Download timeout: 3600s (1 hour)')
         print('[INFO] This may take a few minutes...')
         print()
 
         print('[TEST] Loading tokenizer...')
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, resume_download=True)
         print('[OK] Tokenizer loaded successfully')
 
         print('[TEST] Loading model...')
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype='auto',
-            device_map='auto'
+            device_map='auto',
+            resume_download=True
         )
         print('[OK] Model loaded successfully')
 

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.415087+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "solemn",
+        "laos": "ຢ່າງຈິງຈັງ",
+        "jp": "厳粛な",
+        "vie": "long trọng",
+        "en_pronunciation": "/ˈsɑləm/",
+        "laos_pronunciation": "yangchingchang",
+        "jp_pronunciation": "genshuku na",
+        "vie_pronunciation": "long trong"
+      },
+      "means": {
+        "en": "Dignified and somber in manner or character and committed to keeping promises",
+        "zh": "举止或性格端庄严肃，信守承诺"
+      }
+    },
+    {
+      "word": {
+        "en": "solemnity",
+        "laos": "ຄວາມຫລຣາສະດົກ",
+        "jp": "厳粛さ",
+        "vie": "sự trang trọng",
+        "en_pronunciation": "/səˈlɛmnəti/",
+        "laos_pronunciation": "khuaam lra sadok",
+        "jp_pronunciation": "genshuku sa",
+        "vie_pronunciation": "su trang trong"
+      },
+      "means": {
+        "en": "A trait of dignified seriousness",
+        "zh": "一种庄严严肃的特质"
+      }
+    },
+    {
+      "word": {
+        "en": "solicit",
+        "laos": "ຊັກໃຈ",
+        "jp": "求める",
+        "vie": "gạ gẫm",
+        "en_pronunciation": "/səˈlɪsɪt/",
+        "laos_pronunciation": "sakchai",
+        "jp_pronunciation": "motome ru",
+        "vie_pronunciation": "ga gam"
+      },
+      "means": {
+        "en": "Make a solicitation or entreaty for something; request urgently or persistently",
+        "zh": "恳求或恳求某事；"
+      }
+    },
+    {
+      "word": {
+        "en": "solicitor",
+        "laos": "ທະນາຢ",
+        "jp": "弁護士",
+        "vie": "luật sư",
+        "en_pronunciation": "/səˈlɪsətər/",
+        "laos_pronunciation": "thanay",
+        "jp_pronunciation": "bengoshi",
+        "vie_pronunciation": "luat su"
+      },
+      "means": {
+        "en": "A petitioner who solicits contributions or trade or votes",
+        "zh": "紧急或持续请求"
+      }
+    },
+    {
+      "word": {
+        "en": "solid",
+        "laos": "ແຂງ",
+        "jp": "固体",
+        "vie": "chất rắn",
+        "en_pronunciation": "/ˈsɑləd/",
+        "laos_pronunciation": "aekhng",
+        "jp_pronunciation": "kotai",
+        "vie_pronunciation": "chat ran"
+      },
+      "means": {
+        "en": "Matter that is solid at room temperature and pressure",
+        "zh": "募捐、交易或投票的请愿人"
+      }
+    },
+    {
+      "word": {
+        "en": "solidity",
+        "laos": "ຄວາມແຂງກະດ້າງ",
+        "jp": "堅牢性",
+        "vie": "sự vững chắc",
+        "en_pronunciation": "/səˈlɪdəti/",
+        "laos_pronunciation": "khuaamaekhngkadang",
+        "jp_pronunciation": "kenrou sei",
+        "vie_pronunciation": "su vung chac"
+      },
+      "means": {
+        "en": "The consistency of a solid",
+        "zh": "在室温和压力下为固体的物质"
+      }
+    },
+    {
+      "word": {
+        "en": "solidify",
+        "laos": "ແຂງ",
+        "jp": "固まる",
+        "vie": "làm cứng lại",
+        "en_pronunciation": "/səˈlɪdəˌfaɪ/",
+        "laos_pronunciation": "aekhng",
+        "jp_pronunciation": "katama ru",
+        "vie_pronunciation": "lam cung lai"
+      },
+      "means": {
+        "en": "Make solid or more solid; cause to solidify",
+        "zh": "固体的稠度"
+      }
+    },
+    {
+      "word": {
+        "en": "solidarity",
+        "laos": "ຄວາມສາມັກຄີ",
+        "jp": "連帯",
+        "vie": "đoàn kết",
+        "en_pronunciation": "/ˌsɑləˈdɛrəti/",
+        "laos_pronunciation": "khuaamsamakkhi",
+        "jp_pronunciation": "rentai",
+        "vie_pronunciation": "doan ket"
+      },
+      "means": {
+        "en": "A union of interests or purposes or sympathies among members of a group",
+        "zh": "使固体或更固体；"
+      }
+    },
+    {
+      "word": {
+        "en": "solitary",
+        "laos": "ປ່ຽວພອຍ",
+        "jp": "孤独な",
+        "vie": "đơn độc",
+        "en_pronunciation": "/ˈsɑləˌtɛri/",
+        "laos_pronunciation": "piauaphony",
+        "jp_pronunciation": "kodoku na",
+        "vie_pronunciation": "don doc"
+      },
+      "means": {
+        "en": "Confinement of a prisoner in isolation from other prisoners",
+        "zh": "导致凝固"
+      }
+    },
+    {
+      "word": {
+        "en": "solitude",
+        "laos": "ຄວາມນະ",
+        "jp": "孤独",
+        "vie": "sự cô đơn",
+        "en_pronunciation": "/ˈsɑləˌtud/",
+        "laos_pronunciation": "khuaamna",
+        "jp_pronunciation": "kodoku",
+        "vie_pronunciation": "su co don"
+      },
+      "means": {
+        "en": "A state of social isolation",
+        "zh": "团体成员之间的利益、目的或同情的联合"
+      }
+    },
+    {
+      "word": {
+        "en": "solo",
+        "laos": "ຕໍ້ນ້ອຍ",
+        "jp": "ソロ",
+        "vie": "một mình",
+        "en_pronunciation": "/ˈsoʊˌloʊ/",
+        "laos_pronunciation": "tonony",
+        "jp_pronunciation": "soro",
+        "vie_pronunciation": "mot minh"
+      },
+      "means": {
+        "en": "Any activity that is performed alone without assistance",
+        "zh": "将囚犯与其他囚犯隔离监禁"
+      }
+    },
+    {
+      "word": {
+        "en": "solve",
+        "laos": "ແກ້",
+        "jp": "解決する",
+        "vie": "giải quyết",
+        "en_pronunciation": "/sɑlv/",
+        "laos_pronunciation": "aek",
+        "jp_pronunciation": "kaiketsu suru",
+        "vie_pronunciation": "giai quyet"
+      },
+      "means": {
+        "en": "Find the solution to (a problem or question) or understand the meaning of",
+        "zh": "社会孤立状态"
+      }
+    },
+    {
+      "word": {
+        "en": "solution",
+        "laos": "ວິທີແກ້ໄຂ",
+        "jp": "解決策",
+        "vie": "giải pháp",
+        "en_pronunciation": "/səˈluʃən/",
+        "laos_pronunciation": "vithiaekkhai",
+        "jp_pronunciation": "kaiketsusaku",
+        "vie_pronunciation": "giai phap"
+      },
+      "means": {
+        "en": "A homogeneous mixture of two or more substances; frequently (but not necessarily) a liquid solution",
+        "zh": "任何在没有帮助的情况下独自进行的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "solvent",
+        "laos": "ສານລະລາຍ",
+        "jp": "溶剤",
+        "vie": "dung môi",
+        "en_pronunciation": "/ˈsɑlvənt/",
+        "laos_pronunciation": "sanlalai",
+        "jp_pronunciation": "youzai",
+        "vie_pronunciation": "dung moi"
+      },
+      "means": {
+        "en": "A liquid substance capable of dissolving other substances",
+        "zh": "找到（问题）的解决方案或理解其含义"
+      }
+    },
+    {
+      "word": {
+        "en": "soluble",
+        "laos": "ລະລາຍ",
+        "jp": "可溶性",
+        "vie": "hòa tan",
+        "en_pronunciation": "/ˈsɑljəbəl/",
+        "laos_pronunciation": "lalai",
+        "jp_pronunciation": "kayousei",
+        "vie_pronunciation": "hoa tan"
+      },
+      "means": {
+        "en": "(of a substance) capable of being dissolved in some solvent (usually water)",
+        "zh": "两种或多种物质的均匀混合物；"
+      }
+    },
+    {
+      "word": {
+        "en": "some",
+        "laos": "ບາງ",
+        "jp": "いくつかの",
+        "vie": "một số",
+        "en_pronunciation": "/səm/",
+        "laos_pronunciation": "bang",
+        "jp_pronunciation": "ikutsukano",
+        "vie_pronunciation": "mot so"
+      },
+      "means": {
+        "en": "Quantifier; used with either mass nouns or plural count nouns to indicate an unspecified number or quantity",
+        "zh": "通常（但不一定）是液体溶液"
+      }
+    },
+    {
+      "word": {
+        "en": "somebody",
+        "laos": "ຜູ້ໃດຜູ້ຫນຶ່ງ",
+        "jp": "誰か",
+        "vie": "ai đó",
+        "en_pronunciation": "/ˈsəmˌbɑdi/",
+        "laos_pronunciation": "phudaiphunung",
+        "jp_pronunciation": "dareka",
+        "vie_pronunciation": "ai do"
+      },
+      "means": {
+        "en": "A human being",
+        "zh": "能够溶解其他物质的液体物质"
+      }
+    },
+    {
+      "word": {
+        "en": "somehow",
+        "laos": "ບາງເທື່ອ",
+        "jp": "どういうわけか",
+        "vie": "bằng cách nào đó",
+        "en_pronunciation": "/ˈsəmˌhaʊ/",
+        "laos_pronunciation": "bangtheu",
+        "jp_pronunciation": "douiuwakeka",
+        "vie_pronunciation": "bang cach nao do"
+      },
+      "means": {
+        "en": "In some unspecified way or manner; or by some unspecified means",
+        "zh": "（物质的）能够溶解在某种溶剂（通常是水）中的"
+      }
+    },
+    {
+      "word": {
+        "en": "someone",
+        "laos": "ຜູ້ໃດຜູ້ຫນຶ່ງ",
+        "jp": "誰か",
+        "vie": "ai đó",
+        "en_pronunciation": "/ˈsəmˌwən/",
+        "laos_pronunciation": "phudaiphunung",
+        "jp_pronunciation": "dareka",
+        "vie_pronunciation": "ai do"
+      },
+      "means": {
+        "en": "A human being",
+        "zh": "量词；"
+      }
+    },
+    {
+      "word": {
+        "en": "something",
+        "laos": "ບາງສິ່ງບາງຢ່າງ",
+        "jp": "何か",
+        "vie": "cái gì đó",
+        "en_pronunciation": "/ˈsəmθɪŋ/",
+        "laos_pronunciation": "bang singbangyang",
+        "jp_pronunciation": "nanika",
+        "vie_pronunciation": "cai gi do"
+      },
+      "means": {
+        "en": "Something is an English word referring to 'something'.",
+        "zh": "与质量名词或复数计数名词一起使用，表示未指定的数字或数量"
+      }
+    },
+    {
+      "word": {
+        "en": "sometime",
+        "laos": "ບາງເວລາ",
+        "jp": "いつか",
+        "vie": "đôi khi",
+        "en_pronunciation": "/ˈsəmˌtaɪm/",
+        "laos_pronunciation": "banguaela",
+        "jp_pronunciation": "itsuka",
+        "vie_pronunciation": "doi khi"
+      },
+      "means": {
+        "en": "Belonging to some prior time",
+        "zh": "一个人"
+      }
+    },
+    {
+      "word": {
+        "en": "sometimes",
+        "laos": "ບາງເທື່ອ",
+        "jp": "時々",
+        "vie": "đôi khi",
+        "en_pronunciation": "/ˈsəmˌtaɪmz/",
+        "laos_pronunciation": "bangtheu",
+        "jp_pronunciation": "tokidoki",
+        "vie_pronunciation": "doi khi"
+      },
+      "means": {
+        "en": "On certain occasions or in certain cases but not always",
+        "zh": "以某种未指定的方式或方式；"
+      }
+    },
+    {
+      "word": {
+        "en": "somewhat",
+        "laos": "ຈັ່ງໃດຈັ່ງຫນຶ່ງ",
+        "jp": "ある程度",
+        "vie": "phần nào",
+        "en_pronunciation": "/ˈsəmˈwət/",
+        "laos_pronunciation": "changdai changnung",
+        "jp_pronunciation": "aru teido",
+        "vie_pronunciation": "phan nao"
+      },
+      "means": {
+        "en": "To a small degree or extent",
+        "zh": "或通过某种未指定的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "somewhere",
+        "laos": "ບ່ອນໃດບ່ອນຫນຶ່ງ",
+        "jp": "どこかで",
+        "vie": "ở đâu đó",
+        "en_pronunciation": "/ˈsəmˌwɛr/",
+        "laos_pronunciation": "bondai bonnung",
+        "jp_pronunciation": "dokokade",
+        "vie_pronunciation": "o dau do"
+      },
+      "means": {
+        "en": "An indefinite or unknown location",
+        "zh": "一个人"
+      }
+    },
+    {
+      "word": {
+        "en": "son",
+        "laos": "ລູກຊາຍ",
+        "jp": "息子",
+        "vie": "con trai",
+        "en_pronunciation": "/sən/",
+        "laos_pronunciation": "luksai",
+        "jp_pronunciation": "musuko",
+        "vie_pronunciation": "con trai"
+      },
+      "means": {
+        "en": "A male human offspring",
+        "zh": "Something 是一个英语单词，指的是“某物”。"
+      }
+    },
+    {
+      "word": {
+        "en": "song",
+        "laos": "ເພງ",
+        "jp": "歌",
+        "vie": "bài hát",
+        "en_pronunciation": "/sɔŋ/",
+        "laos_pronunciation": "pheng",
+        "jp_pronunciation": "uta",
+        "vie_pronunciation": "bai hat"
+      },
+      "means": {
+        "en": "A short musical composition with words",
+        "zh": "属于某个以前的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "soon",
+        "laos": "ໃນບໍ່ຊ້ານີ້",
+        "jp": "すぐに",
+        "vie": "sớm thôi",
+        "en_pronunciation": "/sun/",
+        "laos_pronunciation": "naibosani",
+        "jp_pronunciation": "suguni",
+        "vie_pronunciation": "som thoi"
+      },
+      "means": {
+        "en": "In the near future",
+        "zh": "在某些场合或某些情况下，但并非总是如此"
+      }
+    },
+    {
+      "word": {
+        "en": "soothe",
+        "laos": "ກ່ອມໃຈ",
+        "jp": "なだめる",
+        "vie": "xoa dịu",
+        "en_pronunciation": "/suð/",
+        "laos_pronunciation": "komchai",
+        "jp_pronunciation": "nadameru",
+        "vie_pronunciation": "xoa diu"
+      },
+      "means": {
+        "en": "Give moral or emotional strength to",
+        "zh": "在很小的程度上或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "sophisticated",
+        "laos": "ຊັບຊ້ອນ",
+        "jp": "洗練された",
+        "vie": "phức tạp",
+        "en_pronunciation": "/səˈfɪstɪˌkeɪtəd/",
+        "laos_pronunciation": "sabson",
+        "jp_pronunciation": "senren sareta",
+        "vie_pronunciation": "phuc tap"
+      },
+      "means": {
+        "en": "Make less natural or innocent",
+        "zh": "不确定或未知的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "sophistication",
+        "laos": "ຄວາມຊັບຊ້ອນ",
+        "jp": "洗練",
+        "vie": "sự tinh tế",
+        "en_pronunciation": "/səˌfɪstəˈkeɪʃən/",
+        "laos_pronunciation": "khuaamsabson",
+        "jp_pronunciation": "senren",
+        "vie_pronunciation": "su tinh te"
+      },
+      "means": {
+        "en": "Uplifting enlightenment",
+        "zh": "男性人类后代"
+      }
+    },
+    {
+      "word": {
+        "en": "sore",
+        "laos": "ບາດເຈັບ",
+        "jp": "痛い",
+        "vie": "đau",
+        "en_pronunciation": "/sɔr/",
+        "laos_pronunciation": "badcheb",
+        "jp_pronunciation": "itai",
+        "vie_pronunciation": "dau"
+      },
+      "means": {
+        "en": "An open skin infection",
+        "zh": "一首带有歌词的短音乐作品"
+      }
+    },
+    {
+      "word": {
+        "en": "sorrow",
+        "laos": "ຄວາມເສົ້າໂສກ",
+        "jp": "悲しみ",
+        "vie": "nỗi buồn",
+        "en_pronunciation": "/ˈsɑroʊ/",
+        "laos_pronunciation": "khuaam saoosk",
+        "jp_pronunciation": "kanashimi",
+        "vie_pronunciation": "noi buon"
+      },
+      "means": {
+        "en": "An emotion of great sadness associated with loss or bereavement",
+        "zh": "在不久的将来"
+      }
+    },
+    {
+      "word": {
+        "en": "sorrowful",
+        "laos": "ເສົ້າໃຈ",
+        "jp": "悲しい",
+        "vie": "buồn bã",
+        "en_pronunciation": "/ˈsɑroʊfəl/",
+        "laos_pronunciation": "saochai",
+        "jp_pronunciation": "kanashii",
+        "vie_pronunciation": "buon ba"
+      },
+      "means": {
+        "en": "Experiencing or marked by or expressing sorrow especially that associated with irreparable loss; ; ; ; - Proverbs 14:13",
+        "zh": "给予道德或情感力量"
+      }
+    },
+    {
+      "word": {
+        "en": "sorry",
+        "laos": "ຂໍອະໄພ",
+        "jp": "ごめんなさい",
+        "vie": "xin lỗi",
+        "en_pronunciation": "/ˈsɑri/",
+        "laos_pronunciation": "khooaphai",
+        "jp_pronunciation": "gomennasai",
+        "vie_pronunciation": "xin loi"
+      },
+      "means": {
+        "en": "Feeling or expressing regret or sorrow or a sense of loss over something done or undone",
+        "zh": "变得不那么自然或天真"
+      }
+    },
+    {
+      "word": {
+        "en": "sort",
+        "laos": "ເຊີງ",
+        "jp": "並べ替える",
+        "vie": "sắp xếp",
+        "en_pronunciation": "/sɔrt/",
+        "laos_pronunciation": "soeng",
+        "jp_pronunciation": "narabekae ru",
+        "vie_pronunciation": "sap xep"
+      },
+      "means": {
+        "en": "A category of things distinguished by some common characteristic or quality",
+        "zh": "振奋人心的启蒙"
+      }
+    },
+    {
+      "word": {
+        "en": "soul",
+        "laos": "ວິນຢານ",
+        "jp": "魂",
+        "vie": "linh hồn",
+        "en_pronunciation": "/soʊl/",
+        "laos_pronunciation": "vinyan",
+        "jp_pronunciation": "tamashii",
+        "vie_pronunciation": "linh hon"
+      },
+      "means": {
+        "en": "The immaterial part of a person; the actuating cause of an individual life",
+        "zh": "开放性皮肤感染"
+      }
+    },
+    {
+      "word": {
+        "en": "sound",
+        "laos": "ສຽງ",
+        "jp": "音",
+        "vie": "âm thanh",
+        "en_pronunciation": "/saʊnd/",
+        "laos_pronunciation": "siang",
+        "jp_pronunciation": "oto",
+        "vie_pronunciation": "am thanh"
+      },
+      "means": {
+        "en": "The particular auditory effect produced by a given cause",
+        "zh": "因失去或丧亲而感到极度悲伤的情绪"
+      }
+    },
+    {
+      "word": {
+        "en": "soup",
+        "laos": "ແກງ",
+        "jp": "スープ",
+        "vie": "súp",
+        "en_pronunciation": "/sup/",
+        "laos_pronunciation": "aekng",
+        "jp_pronunciation": "suupu",
+        "vie_pronunciation": "sup"
+      },
+      "means": {
+        "en": "Liquid food especially of meat or fish or vegetable stock often containing pieces of solid food",
+        "zh": "经历或以悲伤为标志或表达悲伤，尤其是与无法挽回的损失相关的悲伤；"
+      }
+    },
+    {
+      "word": {
+        "en": "sour",
+        "laos": "ບູດ",
+        "jp": "酸っぱい",
+        "vie": "chua",
+        "en_pronunciation": "/saʊər/",
+        "laos_pronunciation": "bud",
+        "jp_pronunciation": "suppai",
+        "vie_pronunciation": "chua"
+      },
+      "means": {
+        "en": "A cocktail made of a liquor (especially whiskey or gin) mixed with lemon or lime juice and sugar",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "source",
+        "laos": "ທີ່ມາ",
+        "jp": "ソース",
+        "vie": "nguồn",
+        "en_pronunciation": "/sɔrs/",
+        "laos_pronunciation": "thima",
+        "jp_pronunciation": "soosu",
+        "vie_pronunciation": "nguon"
+      },
+      "means": {
+        "en": "The place where something begins, where it springs into being",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "south",
+        "laos": "ພາກໃຕ້",
+        "jp": "南",
+        "vie": "miền nam",
+        "en_pronunciation": "/saʊθ/",
+        "laos_pronunciation": "phaktai",
+        "jp_pronunciation": "minami",
+        "vie_pronunciation": "mien nam"
+      },
+      "means": {
+        "en": "The region of the United States lying to the south of the Mason-Dixon line",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "southern",
+        "laos": "ທາງໃຕ້",
+        "jp": "南部の",
+        "vie": "miền nam",
+        "en_pronunciation": "/ˈsəðərn/",
+        "laos_pronunciation": "thangtai",
+        "jp_pronunciation": "nanbu no",
+        "vie_pronunciation": "mien nam"
+      },
+      "means": {
+        "en": "In or characteristic of a region of the United States south of (approximately) the Mason-Dixon line",
+        "zh": "- 箴言 14:13"
+      }
+    },
+    {
+      "word": {
+        "en": "southeast",
+        "laos": "ພາກໃຕ້",
+        "jp": "南東",
+        "vie": "hướng đông nam",
+        "en_pronunciation": "/ˌsaʊˈθist/",
+        "laos_pronunciation": "phaktai",
+        "jp_pronunciation": "nantou",
+        "vie_pronunciation": "huong dong nam"
+      },
+      "means": {
+        "en": "The compass point midway between south and east; at 135 degrees",
+        "zh": "对已完成或未完成的事情感到或表达遗憾或悲伤或失落感"
+      }
+    },
+    {
+      "word": {
+        "en": "southeastern",
+        "laos": "ທາງຕາເວັນອອກສຽງໃຕ້ຂອງ",
+        "jp": "南東部",
+        "vie": "hướng đông nam",
+        "en_pronunciation": "/ˌsaʊˈθistərn/",
+        "laos_pronunciation": "thang tauaenooksiangtaikhong",
+        "jp_pronunciation": "nantou bu",
+        "vie_pronunciation": "huong dong nam"
+      },
+      "means": {
+        "en": "Situated in or oriented toward the southeast",
+        "zh": "具有某些共同特征或品质的一类事物"
+      }
+    },
+    {
+      "word": {
+        "en": "southwest",
+        "laos": "ທິດຕາເວັນຕົກສຽງ",
+        "jp": "南西",
+        "vie": "tây nam",
+        "en_pronunciation": "/ˌsaʊθˈwɛst/",
+        "laos_pronunciation": "thidtauaentoksiang",
+        "jp_pronunciation": "nansei",
+        "vie_pronunciation": "tay nam"
+      },
+      "means": {
+        "en": "The compass point midway between south and west; at 225 degrees",
+        "zh": "人的非物质部分；"
+      }
+    },
+    {
+      "word": {
+        "en": "southwestern",
+        "laos": "ທິດຕາເວັນຕົກເລນ",
+        "jp": "南西部",
+        "vie": "tây nam",
+        "en_pronunciation": "/ˌsaʊθˈwɛstərn/",
+        "laos_pronunciation": "thidtauaentok len",
+        "jp_pronunciation": "nanseibu",
+        "vie_pronunciation": "tay nam"
+      },
+      "means": {
+        "en": "A dialect of Middle English",
+        "zh": "个人生活的驱动因素"
+      }
+    },
+    {
+      "word": {
+        "en": "souvenir",
+        "laos": "ທີ່ລະລຶກ",
+        "jp": "お土産",
+        "vie": "quà lưu niệm",
+        "en_pronunciation": "/ˌsuvəˈnɪr/",
+        "laos_pronunciation": "thilaluk",
+        "jp_pronunciation": "o miyage",
+        "vie_pronunciation": "qua luu niem"
+      },
+      "means": {
+        "en": "Something of sentimental value",
+        "zh": "由给定原因产生的特定听觉效果"
+      }
+    },
+    {
+      "word": {
+        "en": "sovereign",
+        "laos": "ເຈືອງ",
+        "jp": "主権者",
+        "vie": "có chủ quyền",
+        "en_pronunciation": "/ˈsɑvrən/",
+        "laos_pronunciation": "cheuong",
+        "jp_pronunciation": "shukensha",
+        "vie_pronunciation": "co chu quyen"
+      },
+      "means": {
+        "en": "A nation's ruler or head of state usually by hereditary right",
+        "zh": "液体食品，尤其是肉或鱼或蔬菜汤，通常含有固体食物块"
+      }
+    },
+    {
+      "word": {
+        "en": "sovereignty",
+        "laos": "ອະທິປະໄຕ",
+        "jp": "主権",
+        "vie": "chủ quyền",
+        "en_pronunciation": "/ˈsɑvrənti/",
+        "laos_pronunciation": "athipatai",
+        "jp_pronunciation": "shuken",
+        "vie_pronunciation": "chu quyen"
+      },
+      "means": {
+        "en": "Government free from external control",
+        "zh": "由酒（尤其是威士忌或杜松子酒）与柠檬或酸橙汁和糖混合制成的鸡尾酒"
+      }
+    },
+    {
+      "word": {
+        "en": "sow",
+        "laos": "ຮ້ອງໄຫ້",
+        "jp": "種をまく",
+        "vie": "gieo hạt",
+        "en_pronunciation": "/soʊ/",
+        "laos_pronunciation": "honghai",
+        "jp_pronunciation": "tane womaku",
+        "vie_pronunciation": "gieo hat"
+      },
+      "means": {
+        "en": "An adult female hog",
+        "zh": "某事物开始的地方，它产生的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "space",
+        "laos": "ອະວະກາດ",
+        "jp": "スペース",
+        "vie": "không gian",
+        "en_pronunciation": "/speɪs/",
+        "laos_pronunciation": "auaakad",
+        "jp_pronunciation": "supeesu",
+        "vie_pronunciation": "khong gian"
+      },
+      "means": {
+        "en": "The unlimited expanse in which everything is located",
+        "zh": "美国位于梅森-迪克森线以南的地区"
+      }
+    },
+    {
+      "word": {
+        "en": "spacious",
+        "laos": "ວິສານ",
+        "jp": "広々とした",
+        "vie": "rộng rãi",
+        "en_pronunciation": "/ˈspeɪʃəs/",
+        "laos_pronunciation": "visan",
+        "jp_pronunciation": "hirobiro toshita",
+        "vie_pronunciation": "rong rai"
+      },
+      "means": {
+        "en": "Very large in expanse or scope",
+        "zh": "位于（大约）梅森-迪克森线以南的美国地区或该地区的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "spatial",
+        "laos": "ພື້ນທີ່",
+        "jp": "空間的な",
+        "vie": "không gian",
+        "en_pronunciation": "/ˈspeɪʃəl/",
+        "laos_pronunciation": "phunthi",
+        "jp_pronunciation": "kuukanteki na",
+        "vie_pronunciation": "khong gian"
+      },
+      "means": {
+        "en": "Pertaining to or involving or having the nature of space",
+        "zh": "指南针指向南和东之间的中间点；"
+      }
+    },
+    {
+      "word": {
+        "en": "spaceship",
+        "laos": "ການສໍ້ໂກງ",
+        "jp": "宇宙船",
+        "vie": "tàu vũ trụ",
+        "en_pronunciation": "/ˈspeɪsˌʃɪp/",
+        "laos_pronunciation": "kansookng",
+        "jp_pronunciation": "uchuusen",
+        "vie_pronunciation": "tau vu tru"
+      },
+      "means": {
+        "en": "A spacecraft designed to carry a crew into interstellar space (especially in science fiction)",
+        "zh": "135度"
+      }
+    },
+    {
+      "word": {
+        "en": "spacecraft",
+        "laos": "ເຮືອບິນອະວະກາດ",
+        "jp": "宇宙船",
+        "vie": "tàu vũ trụ",
+        "en_pronunciation": "/ˈspeɪˌskræft/",
+        "laos_pronunciation": "heuobinoauaakad",
+        "jp_pronunciation": "uchuusen",
+        "vie_pronunciation": "tau vu tru"
+      },
+      "means": {
+        "en": "A craft capable of traveling in outer space; technically, a satellite around the sun",
+        "zh": "位于或面向东南"
+      }
+    },
+    {
+      "word": {
+        "en": "spade",
+        "laos": "ກະຈອມປ້ອງ",
+        "jp": "スペード",
+        "vie": "thuổng",
+        "en_pronunciation": "/speɪd/",
+        "laos_pronunciation": "ka chompong",
+        "jp_pronunciation": "supeedo",
+        "vie_pronunciation": "thuong"
+      },
+      "means": {
+        "en": "A playing card in the major suit that has one or more black figures on it",
+        "zh": "指南针指向南和西之间的中间点；"
+      }
+    },
+    {
+      "word": {
+        "en": "spaghetti",
+        "laos": "Spaghetti",
+        "jp": "スパゲッティ",
+        "vie": "spaghetti",
+        "en_pronunciation": "/spəˈgɛti/",
+        "laos_pronunciation": "Spaghetti",
+        "jp_pronunciation": "supagettei",
+        "vie_pronunciation": "spaghetti"
+      },
+      "means": {
+        "en": "Spaghetti served with a tomato sauce",
+        "zh": "225度"
+      }
+    },
+    {
+      "word": {
+        "en": "span",
+        "laos": "ປະສານ",
+        "jp": "スパン",
+        "vie": "nhịp",
+        "en_pronunciation": "/spæn/",
+        "laos_pronunciation": "pasan",
+        "jp_pronunciation": "supan",
+        "vie_pronunciation": "nhip"
+      },
+      "means": {
+        "en": "The complete duration of something",
+        "zh": "中古英语的一种方言"
+      }
+    },
+    {
+      "word": {
+        "en": "spare",
+        "laos": "ພົ່ນລົງ",
+        "jp": "予備",
+        "vie": "dự phòng",
+        "en_pronunciation": "/spɛr/",
+        "laos_pronunciation": "phonlong",
+        "jp_pronunciation": "yobi",
+        "vie_pronunciation": "du phong"
+      },
+      "means": {
+        "en": "An extra component of a machine or other apparatus",
+        "zh": "有情感价值的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "sparingly",
+        "laos": "ອະຣັນຍະສະມຸດ",
+        "jp": "控えめに",
+        "vie": "một cách tiết kiệm",
+        "en_pronunciation": "/ˈspɛrɪŋli/",
+        "laos_pronunciation": "a ran nyasamud",
+        "jp_pronunciation": "hikae meni",
+        "vie_pronunciation": "mot cach tiet kiem"
+      },
+      "means": {
+        "en": "To a meager degree or in a meager manner",
+        "zh": "一个国家的统治者或国家元首通常是世袭的"
+      }
+    },
+    {
+      "word": {
+        "en": "spark",
+        "laos": "ໄຟຟ້າ",
+        "jp": "スパーク",
+        "vie": "tia lửa",
+        "en_pronunciation": "/spɑrk/",
+        "laos_pronunciation": "faifa",
+        "jp_pronunciation": "supaaku",
+        "vie_pronunciation": "tia lua"
+      },
+      "means": {
+        "en": "A momentary flash of light",
+        "zh": "政府不受外部控制"
+      }
+    },
+    {
+      "word": {
+        "en": "sparkle",
+        "laos": "ສ່ອງແສງ",
+        "jp": "輝き",
+        "vie": "lấp lánh",
+        "en_pronunciation": "/ˈspɑrkəl/",
+        "laos_pronunciation": "songaesng",
+        "jp_pronunciation": "kagayaki",
+        "vie_pronunciation": "lap lanh"
+      },
+      "means": {
+        "en": "Merriment expressed by a brightness or gleam or animation of countenance",
+        "zh": "一头成年母猪"
+      }
+    },
+    {
+      "word": {
+        "en": "speak",
+        "laos": "ພູດຈາ",
+        "jp": "話す",
+        "vie": "nói",
+        "en_pronunciation": "/spik/",
+        "laos_pronunciation": "phudcha",
+        "jp_pronunciation": "hanasu",
+        "vie_pronunciation": "noi"
+      },
+      "means": {
+        "en": "Express in speech",
+        "zh": "一切事物都位于其中的无限广阔"
+      }
+    },
+    {
+      "word": {
+        "en": "speaker",
+        "laos": "ຜູ້ຢິງເວົ້າ",
+        "jp": "スピーカー",
+        "vie": "loa",
+        "en_pronunciation": "/ˈspikər/",
+        "laos_pronunciation": "phu yinguaao",
+        "jp_pronunciation": "supiikaa",
+        "vie_pronunciation": "loa"
+      },
+      "means": {
+        "en": "Someone who expresses in language; someone who talks (especially someone who delivers a public speech or someone especially garrulous)",
+        "zh": "范围或范围非常大"
+      }
+    },
+    {
+      "word": {
+        "en": "spear",
+        "laos": "ຫອກ",
+        "jp": "槍",
+        "vie": "giáo",
+        "en_pronunciation": "/spɪr/",
+        "laos_pronunciation": "hok",
+        "jp_pronunciation": "yari",
+        "vie_pronunciation": "giao"
+      },
+      "means": {
+        "en": "A long pointed rod used as a tool or weapon",
+        "zh": "与空间有关或涉及或具有空间性质"
+      }
+    },
+    {
+      "word": {
+        "en": "special",
+        "laos": "ພິສູດ",
+        "jp": "特別な",
+        "vie": "đặc biệt",
+        "en_pronunciation": "/ˈspɛʃəl/",
+        "laos_pronunciation": "phisud",
+        "jp_pronunciation": "tokubetsu na",
+        "vie_pronunciation": "dac biet"
+      },
+      "means": {
+        "en": "A special offering (usually temporary and at a reduced price) that is featured in advertising",
+        "zh": "设计用于携带船员进入星际空间的航天器（尤其是在科幻小说中）"
+      }
+    },
+    {
+      "word": {
+        "en": "specialize",
+        "laos": "ເຮັດໃຫ້ຮ້ອນ",
+        "jp": "専門化する",
+        "vie": "chuyên môn hóa",
+        "en_pronunciation": "/ˈspɛʃəˌlaɪz/",
+        "laos_pronunciation": "hedhaihon",
+        "jp_pronunciation": "senmonka suru",
+        "vie_pronunciation": "chuyen mon hoa"
+      },
+      "means": {
+        "en": "Become more focus on an area of activity or field of study",
+        "zh": "能够在外太空旅行的飞船；"
+      }
+    },
+    {
+      "word": {
+        "en": "specialise",
+        "laos": "ເຮັດໃຫ້ຮ້ອນ",
+        "jp": "専門化する",
+        "vie": "chuyên môn hóa",
+        "en_pronunciation": "/specialise/",
+        "laos_pronunciation": "hedhaihon",
+        "jp_pronunciation": "senmonka suru",
+        "vie_pronunciation": "chuyen mon hoa"
+      },
+      "means": {
+        "en": "Devote oneself to a special area of work",
+        "zh": "从技术上讲，一颗围绕太阳运行的卫星"
+      }
+    },
+    {
+      "word": {
+        "en": "specialization",
+        "laos": "ຄວາມຊ່ຽວຊານ",
+        "jp": "専門化",
+        "vie": "chuyên môn hóa",
+        "en_pronunciation": "/ˌspɛʃələˈzeɪʃən/",
+        "laos_pronunciation": "khuaamsiauasan",
+        "jp_pronunciation": "senmonka",
+        "vie_pronunciation": "chuyen mon hoa"
+      },
+      "means": {
+        "en": "The act of specializing; making something suitable for a special purpose",
+        "zh": "一张大花色的扑克牌，上面有一个或多个黑色数字"
+      }
+    },
+    {
+      "word": {
+        "en": "specialisation",
+        "laos": "ຄວາມຊ່ຽວຊານ",
+        "jp": "専門化",
+        "vie": "chuyên môn hóa",
+        "en_pronunciation": "/specialisation/",
+        "laos_pronunciation": "khuaamsiauasan",
+        "jp_pronunciation": "senmonka",
+        "vie_pronunciation": "chuyen mon hoa"
+      },
+      "means": {
+        "en": "(biology) the structural adaptation of some body part for a particular function",
+        "zh": "意大利面配番茄酱"
+      }
+    },
+    {
+      "word": {
+        "en": "specialist",
+        "laos": "ຜູ້ຊ່ຽວຊານ",
+        "jp": "専門家",
+        "vie": "chuyên gia",
+        "en_pronunciation": "/ˈspɛʃəlɪst/",
+        "laos_pronunciation": "phusiauasan",
+        "jp_pronunciation": "senmonka",
+        "vie_pronunciation": "chuyen gia"
+      },
+      "means": {
+        "en": "An expert who is devoted to one occupation or branch of learning",
+        "zh": "某事的完整持续时间"
+      }
+    },
+    {
+      "word": {
+        "en": "specialty",
+        "laos": "ພິສູດ",
+        "jp": "専門",
+        "vie": "đặc sản",
+        "en_pronunciation": "/ˈspɛʃəlti/",
+        "laos_pronunciation": "phisud",
+        "jp_pronunciation": "senmon",
+        "vie_pronunciation": "dac san"
+      },
+      "means": {
+        "en": "An asset of special worth or utility",
+        "zh": "机器或其他设备的额外组件"
+      }
+    },
+    {
+      "word": {
+        "en": "speciality",
+        "laos": "ພິສູດ",
+        "jp": "専門",
+        "vie": "đặc sản",
+        "en_pronunciation": "/ˌspɛʃiˈælɪti/",
+        "laos_pronunciation": "phisud",
+        "jp_pronunciation": "senmon",
+        "vie_pronunciation": "dac san"
+      },
+      "means": {
+        "en": "An asset of special worth or utility",
+        "zh": "在微薄的程度上或以微薄的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "species",
+        "laos": "ຊະນິດ",
+        "jp": "種",
+        "vie": "loài",
+        "en_pronunciation": "/ˈspiʃiz/",
+        "laos_pronunciation": "sanid",
+        "jp_pronunciation": "tane",
+        "vie_pronunciation": "loai"
+      },
+      "means": {
+        "en": "(biology) taxonomic group whose members can interbreed",
+        "zh": "瞬间闪光"
+      }
+    },
+    {
+      "word": {
+        "en": "specific",
+        "laos": "ເຈາະຈົງ",
+        "jp": "具体的な",
+        "vie": "cụ thể",
+        "en_pronunciation": "/spɪˈsɪfɪk/",
+        "laos_pronunciation": "chochong",
+        "jp_pronunciation": "gutaiteki na",
+        "vie_pronunciation": "cu the"
+      },
+      "means": {
+        "en": "A fact about some part (as opposed to general)",
+        "zh": "通过表情的亮度、光芒或动画来表达欢乐"
+      }
+    },
+    {
+      "word": {
+        "en": "specifically",
+        "laos": "ໂດຍສະເພາະ",
+        "jp": "具体的には",
+        "vie": "cụ thể",
+        "en_pronunciation": "/spəˈsɪfɪkli/",
+        "laos_pronunciation": "odnysapho",
+        "jp_pronunciation": "gutaiteki niha",
+        "vie_pronunciation": "cu the"
+      },
+      "means": {
+        "en": "In distinction from others",
+        "zh": "用言语表达"
+      }
+    },
+    {
+      "word": {
+        "en": "specify",
+        "laos": "ລະບຸ",
+        "jp": "指定する",
+        "vie": "chỉ định",
+        "en_pronunciation": "/ˈspɛsəˌfaɪ/",
+        "laos_pronunciation": "labu",
+        "jp_pronunciation": "shiteisu ru",
+        "vie_pronunciation": "chi dinh"
+      },
+      "means": {
+        "en": "Specify as a condition or requirement in a contract or agreement; make an express demand or provision in an agreement",
+        "zh": "用语言表达的人；"
+      }
+    },
+    {
+      "word": {
+        "en": "specification",
+        "laos": "ການສະເພາະ",
+        "jp": "仕様",
+        "vie": "đặc điểm kỹ thuật",
+        "en_pronunciation": "/ˌspɛsɪfɪˈkeɪʃən/",
+        "laos_pronunciation": "kansapho",
+        "jp_pronunciation": "shiyou",
+        "vie_pronunciation": "dac diem ky thuat"
+      },
+      "means": {
+        "en": "A detailed description of design criteria for a piece of work",
+        "zh": "说话的人（尤其是发表公开演讲的人或特别喋喋不休的人）"
+      }
+    },
+    {
+      "word": {
+        "en": "specimen",
+        "laos": "ຕົວຢ່າງ",
+        "jp": "標本",
+        "vie": "mẫu vật",
+        "en_pronunciation": "/ˈspɛsəmən/",
+        "laos_pronunciation": "tuayang",
+        "jp_pronunciation": "hyouhon",
+        "vie_pronunciation": "mau vat"
+      },
+      "means": {
+        "en": "An example regarded as typical of its class",
+        "zh": "用作工具或武器的长尖杆"
+      }
+    },
+    {
+      "word": {
+        "en": "spectacle",
+        "laos": "ປະດັບປະດາ",
+        "jp": "スペクタクル",
+        "vie": "cảnh tượng",
+        "en_pronunciation": "/ˈspɛktəkəl/",
+        "laos_pronunciation": "padabpada",
+        "jp_pronunciation": "supekutakuru",
+        "vie_pronunciation": "canh tuong"
+      },
+      "means": {
+        "en": "Something or someone seen (especially a notable or unusual sight)",
+        "zh": "广告中出现的特别优惠（通常是临时的且降价）"
+      }
+    },
+    {
+      "word": {
+        "en": "spectacular",
+        "laos": "ທີ່ປະທັບໃຈ",
+        "jp": "素晴らしい",
+        "vie": "ngoạn mục",
+        "en_pronunciation": "/spɛkˈtækjələr/",
+        "laos_pronunciation": "thipathabchai",
+        "jp_pronunciation": "subarashii",
+        "vie_pronunciation": "ngoan muc"
+      },
+      "means": {
+        "en": "A lavishly produced performance",
+        "zh": "更加专注于某个活动领域或研究领域"
+      }
+    },
+    {
+      "word": {
+        "en": "spectator",
+        "laos": "ຜູ້ໄດ້ຮັບ",
+        "jp": "観客",
+        "vie": "khán giả",
+        "en_pronunciation": "/ˈspɛkteɪtər/",
+        "laos_pronunciation": "phudaihab",
+        "jp_pronunciation": "kankyaku",
+        "vie_pronunciation": "khan gia"
+      },
+      "means": {
+        "en": "A close observer; someone who looks at something (such as an exhibition of some kind)",
+        "zh": "专注于特定的工作领域"
+      }
+    },
+    {
+      "word": {
+        "en": "spectrum",
+        "laos": "ປະດັບສຽງ",
+        "jp": "スペクトル",
+        "vie": "quang phổ",
+        "en_pronunciation": "/ˈspɛktrəm/",
+        "laos_pronunciation": "padabsiang",
+        "jp_pronunciation": "supekutoru",
+        "vie_pronunciation": "quang pho"
+      },
+      "means": {
+        "en": "An ordered array of the components of an emission or wave",
+        "zh": "专业化行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "speculate",
+        "laos": "ຄາດຄະເນ",
+        "jp": "推測する",
+        "vie": "suy đoán",
+        "en_pronunciation": "/ˈspɛkjəˌleɪt/",
+        "laos_pronunciation": "khadkhane",
+        "jp_pronunciation": "suisoku suru",
+        "vie_pronunciation": "suy doan"
+      },
+      "means": {
+        "en": "To believe especially on uncertain or tentative grounds",
+        "zh": "制作适合特殊用途的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "speculation",
+        "laos": "ການຄາດເດົາ",
+        "jp": "推測",
+        "vie": "suy đoán",
+        "en_pronunciation": "/ˌspɛkjəˈleɪʃən/",
+        "laos_pronunciation": "kan khaddao",
+        "jp_pronunciation": "suisoku",
+        "vie_pronunciation": "suy doan"
+      },
+      "means": {
+        "en": "A message expressing an opinion based on incomplete evidence",
+        "zh": "（生物学）某些身体部位针对特定功能的结构适应"
+      }
+    },
+    {
+      "word": {
+        "en": "speculative",
+        "laos": "ຄາດເດົາ",
+        "jp": "投機的な",
+        "vie": "suy đoán",
+        "en_pronunciation": "/ˈspɛkjələtɪv/",
+        "laos_pronunciation": "khaddao",
+        "jp_pronunciation": "touki tekina",
+        "vie_pronunciation": "suy doan"
+      },
+      "means": {
+        "en": "Not financially safe or secure",
+        "zh": "致力于某一职业或某一学科领域的专家"
+      }
+    },
+    {
+      "word": {
+        "en": "speech",
+        "laos": "ໂວຫານ",
+        "jp": "スピーチ",
+        "vie": "lời nói",
+        "en_pronunciation": "/spiʧ/",
+        "laos_pronunciation": "ouahan",
+        "jp_pronunciation": "supiichi",
+        "vie_pronunciation": "loi noi"
+      },
+      "means": {
+        "en": "The act of delivering a formal spoken communication to an audience",
+        "zh": "具有特殊价值或实用性的资产"
+      }
+    },
+    {
+      "word": {
+        "en": "speechless",
+        "laos": "ທີ່ບໍ່ອອກ",
+        "jp": "無言",
+        "vie": "không nói nên lời",
+        "en_pronunciation": "/ˈspiʧləs/",
+        "laos_pronunciation": "thiboook",
+        "jp_pronunciation": "mugon",
+        "vie_pronunciation": "khong noi nen loi"
+      },
+      "means": {
+        "en": "Temporarily incapable of speaking",
+        "zh": "具有特殊价值或实用性的资产"
+      }
+    },
+    {
+      "word": {
+        "en": "speed",
+        "laos": "ຄວາມໄວ",
+        "jp": "速度",
+        "vie": "tốc độ",
+        "en_pronunciation": "/spid/",
+        "laos_pronunciation": "khuaamuaai",
+        "jp_pronunciation": "sokudo",
+        "vie_pronunciation": "toc do"
+      },
+      "means": {
+        "en": "Distance travelled per unit time",
+        "zh": "（生物学）成员可以杂交的分类群"
+      }
+    },
+    {
+      "word": {
+        "en": "speedy",
+        "laos": "ຄວາມໄວ",
+        "jp": "速い",
+        "vie": "nhanh chóng",
+        "en_pronunciation": "/ˈspiˌdi/",
+        "laos_pronunciation": "khuaamuaai",
+        "jp_pronunciation": "hayai",
+        "vie_pronunciation": "nhanh chong"
+      },
+      "means": {
+        "en": "Characterized by speed; moving with or capable of moving with high speed",
+        "zh": "关于某些部分的事实（而不是一般情况）"
+      }
+    },
+    {
+      "word": {
+        "en": "spell",
+        "laos": "ສະກົດ",
+        "jp": "呪文",
+        "vie": "đánh vần",
+        "en_pronunciation": "/spɛl/",
+        "laos_pronunciation": "sakod",
+        "jp_pronunciation": "jumon",
+        "vie_pronunciation": "danh van"
+      },
+      "means": {
+        "en": "A psychological state induced by (or as if induced by) a magical incantation",
+        "zh": "与其他人不同"
+      }
+    },
+    {
+      "word": {
+        "en": "spelling",
+        "laos": "ການສະກົດຄໍາ",
+        "jp": "スペル",
+        "vie": "đánh vần",
+        "en_pronunciation": "/ˈspɛlɪŋ/",
+        "laos_pronunciation": "kansakodkhoa",
+        "jp_pronunciation": "superu",
+        "vie_pronunciation": "danh van"
+      },
+      "means": {
+        "en": "Forming words with letters according to the principles underlying accepted usage",
+        "zh": "在合同或协议中指定为条件或要求；"
+      }
+    },
+    {
+      "word": {
+        "en": "speeding",
+        "laos": "ຄວາມໄວ",
+        "jp": "スピード違反",
+        "vie": "tăng tốc",
+        "en_pronunciation": "/ˈspidɪŋ/",
+        "laos_pronunciation": "khuaamuaai",
+        "jp_pronunciation": "supiido ihan",
+        "vie_pronunciation": "tang toc"
+      },
+      "means": {
+        "en": "Changing location rapidly",
+        "zh": "在协议中提出明确的要求或规定"
+      }
+    },
+    {
+      "word": {
+        "en": "spend",
+        "laos": "ຈ່າຍ",
+        "jp": "費やす",
+        "vie": "chi tiêu",
+        "en_pronunciation": "/spɛnd/",
+        "laos_pronunciation": "chai",
+        "jp_pronunciation": "tsuiyasu",
+        "vie_pronunciation": "chi tieu"
+      },
+      "means": {
+        "en": "Pass time in a specific way",
+        "zh": "一件作品的设计标准的详细描述"
+      }
+    },
+    {
+      "word": {
+        "en": "spending",
+        "laos": "ການຖ່າຍ",
+        "jp": "支出",
+        "vie": "chi tiêu",
+        "en_pronunciation": "/ˈspɛndɪŋ/",
+        "laos_pronunciation": "kanthai",
+        "jp_pronunciation": "shishutsu",
+        "vie_pronunciation": "chi tieu"
+      },
+      "means": {
+        "en": "The act of spending or disbursing money",
+        "zh": "被视为同类典型的例子"
+      }
+    },
+    {
+      "word": {
+        "en": "sphere",
+        "laos": "ມົນ",
+        "jp": "球体",
+        "vie": "quả cầu",
+        "en_pronunciation": "/sfɪr/",
+        "laos_pronunciation": "mon",
+        "jp_pronunciation": "kyuutai",
+        "vie_pronunciation": "qua cau"
+      },
+      "means": {
+        "en": "A particular environment or walk of life",
+        "zh": "看到的某物或某人（尤其是值得注意或不寻常的景象）"
+      }
+    },
+    {
+      "word": {
+        "en": "spherical",
+        "laos": "ອະສຸສານ",
+        "jp": "球状の",
+        "vie": "hình cầu",
+        "en_pronunciation": "/sˈfɛrɪkəl/",
+        "laos_pronunciation": "a susan",
+        "jp_pronunciation": "kyuujou no",
+        "vie_pronunciation": "hinh cau"
+      },
+      "means": {
+        "en": "Of or relating to spheres or resembling a sphere",
+        "zh": "制作精良的演出"
+      }
+    },
+    {
+      "word": {
+        "en": "spice",
+        "laos": "ເຄື່ອງເທດ",
+        "jp": "スパイス",
+        "vie": "gia vị",
+        "en_pronunciation": "/spaɪs/",
+        "laos_pronunciation": "kheuongthed",
+        "jp_pronunciation": "supaisu",
+        "vie_pronunciation": "gia vi"
+      },
+      "means": {
+        "en": "Aromatic substances of vegetable origin used as a preservative",
+        "zh": "密切的观察者；"
+      }
+    },
+    {
+      "word": {
+        "en": "spicy",
+        "laos": "ເຜັດ",
+        "jp": "辛い",
+        "vie": "vị cay",
+        "en_pronunciation": "/ˈspaɪsi/",
+        "laos_pronunciation": "phed",
+        "jp_pronunciation": "tsurai",
+        "vie_pronunciation": "vi cay"
+      },
+      "means": {
+        "en": "Having an agreeably pungent taste",
+        "zh": "观看某物的人（例如某种展览）"
+      }
+    },
+    {
+      "word": {
+        "en": "spider",
+        "laos": "ແມງມຸມ",
+        "jp": "蜘蛛",
+        "vie": "nhện",
+        "en_pronunciation": "/ˈspaɪdər/",
+        "laos_pronunciation": "aemngmum",
+        "jp_pronunciation": "kumo",
+        "vie_pronunciation": "nhen"
+      },
+      "means": {
+        "en": "Predatory arachnid with eight legs, two poison fangs, two feelers, and usually two silk-spinning organs at the back end of the body; they spin silk to make cocoons for eggs or traps for prey",
+        "zh": "发射或波的组成部分的有序阵列"
+      }
+    }
+  ]
+}

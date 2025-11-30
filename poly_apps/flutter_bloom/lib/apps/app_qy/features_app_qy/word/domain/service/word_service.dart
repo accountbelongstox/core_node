@@ -14,7 +14,8 @@
 library;
 
 import '../model/word_model.dart';
-import '../../../../../services_app_qy/api_service_app_qy.dart';
+import '../../../../services_app_qy/api_service_app_qy.dart';
+import '../../data/word_book_data_service.dart';
 
 class WordService {
   final ApiServiceAppQy _apiService;
@@ -26,8 +27,10 @@ class WordService {
   Future<List<WordBookModel>> getWordBooks() async {
     try {
       final response = await _apiService.get('/api/v1/words/books');
-      final data = response.data as List<dynamic>;
-      return data.map((json) => WordBookModel.fromJson(json as Map<String, dynamic>)).toList();
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['books'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList.map((json) => WordBookModel.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       return _getMockWordBooks();
     }
@@ -36,7 +39,8 @@ class WordService {
   Future<WordBookModel> getWordBookById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/words/books/$id');
-      return WordBookModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return WordBookModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return _getMockWordBooks().first;
     }
@@ -48,8 +52,10 @@ class WordService {
         '/api/v1/words/books/$bookId/words',
         queryParameters: {'page': page, 'limit': limit},
       );
-      final data = response.data['words'] as List<dynamic>;
-      return data.map((json) => WordModel.fromJson(json as Map<String, dynamic>)).toList();
+      final responseData = response['data'] ?? response;
+      final wordsData = (responseData is Map) ? (responseData['words'] ?? responseData['items'] ?? []) : [];
+      final dataList = wordsData as List<dynamic>;
+      return dataList.map((json) => WordModel.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       return [];
     }
@@ -58,7 +64,8 @@ class WordService {
   Future<WordModel> getWordById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/words/$id');
-      return WordModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return WordModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }
@@ -86,41 +93,14 @@ class WordService {
         '/api/v1/words/search',
         queryParameters: {'q': query},
       );
-      return response.data as Map<String, dynamic>;
+      final data = response['data'] ?? response;
+      return data as Map<String, dynamic>;
     } catch (e) {
       return {};
     }
   }
 
   List<WordBookModel> _getMockWordBooks() {
-    return [
-      const WordBookModel(
-        id: '1',
-        name: 'COCA 语料库 20000',
-        description: '美国当代英语语料库高频词汇',
-        totalWords: 16952,
-        learnedWords: 27,
-        remainingWords: 16925,
-        category: 'coca',
-      ),
-      const WordBookModel(
-        id: '2',
-        name: '雅思词汇',
-        description: 'IELTS 核心词汇',
-        totalWords: 5000,
-        learnedWords: 0,
-        remainingWords: 5000,
-        category: 'ielts',
-      ),
-      const WordBookModel(
-        id: '3',
-        name: '四六级词汇',
-        description: 'CET-4/6 核心词汇',
-        totalWords: 4500,
-        learnedWords: 0,
-        remainingWords: 4500,
-        category: 'cet',
-      ),
-    ];
+    return WordBookDataService.getMockWordBooks();
   }
 }

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.396414+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "relation",
+        "laos": "ຄວາມສໍາພັນ",
+        "jp": "関係",
+        "vie": "quan hệ",
+        "en_pronunciation": "/riˈleɪʃən/",
+        "laos_pronunciation": "khuaamsoaphan",
+        "jp_pronunciation": "kankei",
+        "vie_pronunciation": "quan he"
+      },
+      "means": {
+        "en": "An abstraction belonging to or characteristic of two entities or parts together",
+        "zh": "属于两个实体或部分的抽象或它们的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "relativity",
+        "laos": "ສັມພັດຕະພາບ",
+        "jp": "相対性理論",
+        "vie": "tính tương đối",
+        "en_pronunciation": "/ˌrɛləˈtɪvəti/",
+        "laos_pronunciation": "sam phadtaphab",
+        "jp_pronunciation": "soutaiseiriron",
+        "vie_pronunciation": "tinh tuong doi"
+      },
+      "means": {
+        "en": "(physics) the theory that space and time are relative concepts rather than absolute concepts",
+        "zh": "（物理学）空间和时间是相对概念而不是绝对概念的理论"
+      }
+    },
+    {
+      "word": {
+        "en": "relaxation",
+        "laos": "ການພັກຜ່ອນ",
+        "jp": "リラクゼーション",
+        "vie": "thư giãn",
+        "en_pronunciation": "/ˌrilækˈseɪʃən/",
+        "laos_pronunciation": "kanphakphon",
+        "jp_pronunciation": "rirakuzeeshon",
+        "vie_pronunciation": "thu gian"
+      },
+      "means": {
+        "en": "(physiology) the gradual lengthening of inactive muscle or muscle fibers",
+        "zh": "（生理学）不活动的肌肉或肌纤维的逐渐延长"
+      }
+    },
+    {
+      "word": {
+        "en": "relationship",
+        "laos": "ຄວາມສໍາພັນ",
+        "jp": "関係",
+        "vie": "mối quan hệ",
+        "en_pronunciation": "/riˈleɪʃənˌʃɪp/",
+        "laos_pronunciation": "khuaamsoaphan",
+        "jp_pronunciation": "kankei",
+        "vie_pronunciation": "moi quan he"
+      },
+      "means": {
+        "en": "A relation between people; (`relationship' is often used where `relation' would serve, as in `the relationship between inflation and unemployment', but the preferred usage of `relationship' is for human relations or states of relatedness)",
+        "zh": "人与人之间的关系；"
+      }
+    },
+    {
+      "word": {
+        "en": "relay",
+        "laos": "ສົ່ງຕໍ່",
+        "jp": "リレー",
+        "vie": "tiếp sức",
+        "en_pronunciation": "/ˈriˌleɪ/",
+        "laos_pronunciation": "songto",
+        "jp_pronunciation": "riree",
+        "vie_pronunciation": "tiep suc"
+      },
+      "means": {
+        "en": "The act of passing something along from one person or group to another",
+        "zh": "（“关系”通常用在需要“关系”的地方，例如“通货膨胀与失业之间的关系”，但“关系”的首选用法是指人际关系或相关状态）"
+      }
+    },
+    {
+      "word": {
+        "en": "release",
+        "laos": "ປ່ອຍເສັຽ",
+        "jp": "リリース",
+        "vie": "phát hành",
+        "en_pronunciation": "/riˈlis/",
+        "laos_pronunciation": "ponyseia",
+        "jp_pronunciation": "ririisu",
+        "vie_pronunciation": "phat hanh"
+      },
+      "means": {
+        "en": "Merchandise issued for sale or public showing (especially a record or film)",
+        "zh": "将某物从一个人或团体传递给另一个人或团体的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "relentless",
+        "laos": "ອະນຸພີ",
+        "jp": "容赦ない",
+        "vie": "không ngừng nghỉ",
+        "en_pronunciation": "/rɪˈlɛntlɪs/",
+        "laos_pronunciation": "anuphi",
+        "jp_pronunciation": "yousha nai",
+        "vie_pronunciation": "khong ngung nghi"
+      },
+      "means": {
+        "en": "Not to be placated or appeased or moved by entreaty",
+        "zh": "发行用于销售或公开放映的商品（尤其是唱片或电影）"
+      }
+    },
+    {
+      "word": {
+        "en": "relevant",
+        "laos": "ທີ່ກ່ຽວຂ້ອງ",
+        "jp": "関連する",
+        "vie": "có liên quan",
+        "en_pronunciation": "/ˈrɛləvənt/",
+        "laos_pronunciation": "thikiauakhong",
+        "jp_pronunciation": "kanrensu ru",
+        "vie_pronunciation": "co lien quan"
+      },
+      "means": {
+        "en": "Having a bearing on or connection with the subject at issue",
+        "zh": "不因恳求而安抚、安抚或感动"
+      }
+    },
+    {
+      "word": {
+        "en": "relevance",
+        "laos": "ຄວາມກ່ຽວຂ້ອງ",
+        "jp": "関連性",
+        "vie": "sự liên quan",
+        "en_pronunciation": "/ˈrɛləvəns/",
+        "laos_pronunciation": "khuaamkiauakhong",
+        "jp_pronunciation": "kanrensei",
+        "vie_pronunciation": "su lien quan"
+      },
+      "means": {
+        "en": "The relation of something to the matter at hand",
+        "zh": "与所讨论的主题有关系或联系"
+      }
+    },
+    {
+      "word": {
+        "en": "relic",
+        "laos": "ຕ່ໍາ",
+        "jp": "遺物",
+        "vie": "thánh tích",
+        "en_pronunciation": "/ˈrɛlɪk/",
+        "laos_pronunciation": "toa",
+        "jp_pronunciation": "ibutsu",
+        "vie_pronunciation": "thanh tich"
+      },
+      "means": {
+        "en": "An antiquity that has survived from the distant past",
+        "zh": "某事物与当前事物的关系"
+      }
+    },
+    {
+      "word": {
+        "en": "relieve",
+        "laos": "ຊ່ວຢເຫລືອ",
+        "jp": "和らげる",
+        "vie": "giảm nhẹ",
+        "en_pronunciation": "/rɪˈliv/",
+        "laos_pronunciation": "suayhelu",
+        "jp_pronunciation": "yawara geru",
+        "vie_pronunciation": "giam nhe"
+      },
+      "means": {
+        "en": "Provide physical relief, as from pain",
+        "zh": "从遥远的过去幸存下来的古物"
+      }
+    },
+    {
+      "word": {
+        "en": "relief",
+        "laos": "ການບັນເທົາທຸກ",
+        "jp": "救済",
+        "vie": "cứu trợ",
+        "en_pronunciation": "/rɪˈlif/",
+        "laos_pronunciation": "kanbanthaothuk",
+        "jp_pronunciation": "kyuusai",
+        "vie_pronunciation": "cuu tro"
+      },
+      "means": {
+        "en": "The feeling that comes when something burdensome is removed or reduced",
+        "zh": "提供身体缓解，例如缓解疼痛"
+      }
+    },
+    {
+      "word": {
+        "en": "religion",
+        "laos": "ສາດສະຫນາ",
+        "jp": "宗教",
+        "vie": "tôn giáo",
+        "en_pronunciation": "/rɪˈlɪʤən/",
+        "laos_pronunciation": "sadsana",
+        "jp_pronunciation": "shuukyou",
+        "vie_pronunciation": "ton giao"
+      },
+      "means": {
+        "en": "A strong belief in a supernatural power or powers that control human destiny",
+        "zh": "当一些负担被移除或减少时的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "relish",
+        "laos": "ການກະໂດດ",
+        "jp": "味わう",
+        "vie": "thưởng thức",
+        "en_pronunciation": "/ˈrɛlɪʃ/",
+        "laos_pronunciation": "kankaodd",
+        "jp_pronunciation": "ajiwa u",
+        "vie_pronunciation": "thuong thuc"
+      },
+      "means": {
+        "en": "Vigorous and enthusiastic enjoyment",
+        "zh": "坚信有一种或多种超自然力量可以控制人类的命运"
+      }
+    },
+    {
+      "word": {
+        "en": "religious",
+        "laos": "ແຫ່ງສາສະຫນາ",
+        "jp": "宗教的な",
+        "vie": "tôn giáo",
+        "en_pronunciation": "/rɪˈlɪʤəs/",
+        "laos_pronunciation": "aehngsasana",
+        "jp_pronunciation": "shuukyouteki na",
+        "vie_pronunciation": "ton giao"
+      },
+      "means": {
+        "en": "A member of a religious order who is bound by vows of poverty and chastity and obedience",
+        "zh": "充满活力与激情的享受"
+      }
+    },
+    {
+      "word": {
+        "en": "reluctant",
+        "laos": "ບໍ່ເຕັມໃຈ",
+        "jp": "気が進まない",
+        "vie": "miễn cưỡng",
+        "en_pronunciation": "/rɪˈləktənt/",
+        "laos_pronunciation": "botemchai",
+        "jp_pronunciation": "kiga susuma nai",
+        "vie_pronunciation": "mien cuong"
+      },
+      "means": {
+        "en": "Unwillingness to do something contrary to your custom",
+        "zh": "受贫穷、贞洁和服从誓言约束的宗教团体的成员"
+      }
+    },
+    {
+      "word": {
+        "en": "reluctance",
+        "laos": "ຄວາມບໍ່ເຕັມໃຈ",
+        "jp": "気が進まない",
+        "vie": "sự miễn cưỡng",
+        "en_pronunciation": "/rɪˈləktəns/",
+        "laos_pronunciation": "khuaambotemchai",
+        "jp_pronunciation": "kiga susuma nai",
+        "vie_pronunciation": "su mien cuong"
+      },
+      "means": {
+        "en": "(physics) opposition to magnetic flux (analogous to electric resistance)",
+        "zh": "不愿意做违背你习惯的事情"
+      }
+    },
+    {
+      "word": {
+        "en": "rely",
+        "laos": "ເພິ່ງ",
+        "jp": "頼る",
+        "vie": "dựa vào",
+        "en_pronunciation": "/rɪˈlaɪ/",
+        "laos_pronunciation": "phoeng",
+        "jp_pronunciation": "tayoru",
+        "vie_pronunciation": "dua vao"
+      },
+      "means": {
+        "en": "Have confidence or faith in",
+        "zh": "（物理学）与磁通量相反（类似于电阻）"
+      }
+    },
+    {
+      "word": {
+        "en": "remain",
+        "laos": "ຍັງຄົງຢູ່",
+        "jp": "残る",
+        "vie": "ở lại",
+        "en_pronunciation": "/rɪˈmeɪn/",
+        "laos_pronunciation": "nyangkhongyu",
+        "jp_pronunciation": "nokoru",
+        "vie_pronunciation": "o lai"
+      },
+      "means": {
+        "en": "Stay the same; remain in a certain state",
+        "zh": "有信心或有信心"
+      }
+    },
+    {
+      "word": {
+        "en": "reliance",
+        "laos": "ຢໍາເກງ",
+        "jp": "依存",
+        "vie": "sự trông cậy",
+        "en_pronunciation": "/rɪˈlaɪəns/",
+        "laos_pronunciation": "yoakeng",
+        "jp_pronunciation": "izon",
+        "vie_pronunciation": "su trong cay"
+      },
+      "means": {
+        "en": "Certainty based on past experience",
+        "zh": "保持不变；"
+      }
+    },
+    {
+      "word": {
+        "en": "remainder",
+        "laos": "ສ່ວນທີ່ເຫຼືອ",
+        "jp": "残り",
+        "vie": "phần còn lại",
+        "en_pronunciation": "/rɪˈmeɪndər/",
+        "laos_pronunciation": "suanthiheu",
+        "jp_pronunciation": "nokori",
+        "vie_pronunciation": "phan con lai"
+      },
+      "means": {
+        "en": "Something left after other parts have been taken away",
+        "zh": "保持在某种状态"
+      }
+    },
+    {
+      "word": {
+        "en": "reliable",
+        "laos": "ທີ່ເຮັດໃຫ້ເຊື່ອໄດ້",
+        "jp": "信頼できる",
+        "vie": "đáng tin cậy",
+        "en_pronunciation": "/rɪˈlaɪəbəl/",
+        "laos_pronunciation": "thihedhai seuodai",
+        "jp_pronunciation": "shinrai dekiru",
+        "vie_pronunciation": "dang tin cay"
+      },
+      "means": {
+        "en": "Worthy of reliance or trust",
+        "zh": "基于过去经验的确定性"
+      }
+    },
+    {
+      "word": {
+        "en": "remark",
+        "laos": "ຂໍ້ສັງເກດ",
+        "jp": "コメント",
+        "vie": "nhận xét",
+        "en_pronunciation": "/rɪˈmɑrk/",
+        "laos_pronunciation": "khosangked",
+        "jp_pronunciation": "komento",
+        "vie_pronunciation": "nhan xet"
+      },
+      "means": {
+        "en": "A statement that expresses a personal opinion or belief or adds information",
+        "zh": "其他部分被拿走后留下的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "remarkable",
+        "laos": "ທີ່ໂດດເດັ່ນ",
+        "jp": "注目に値する",
+        "vie": "đáng chú ý",
+        "en_pronunciation": "/rɪˈmɑrkəbəl/",
+        "laos_pronunciation": "thioddden",
+        "jp_pronunciation": "chuumoku ni atai suru",
+        "vie_pronunciation": "dang chu y"
+      },
+      "means": {
+        "en": "Unusual or striking",
+        "zh": "值得依赖或信任"
+      }
+    },
+    {
+      "word": {
+        "en": "remedy",
+        "laos": "ຢາຢ",
+        "jp": "治療法",
+        "vie": "phương thuốc",
+        "en_pronunciation": "/ˈrɛmədi/",
+        "laos_pronunciation": "yay",
+        "jp_pronunciation": "chiryouhou",
+        "vie_pronunciation": "phuong thuoc"
+      },
+      "means": {
+        "en": "Act of correcting an error or a fault or an evil",
+        "zh": "表达个人意见或信念或添加信息的声明"
+      }
+    },
+    {
+      "word": {
+        "en": "remember",
+        "laos": "ຈໍາໄວ້",
+        "jp": "覚えておいてください",
+        "vie": "nhớ",
+        "en_pronunciation": "/rɪˈmɛmbər/",
+        "laos_pronunciation": "choauaai",
+        "jp_pronunciation": "oboe teoitekudasai",
+        "vie_pronunciation": "nho"
+      },
+      "means": {
+        "en": "Recall knowledge from memory; have a recollection",
+        "zh": "不寻常或引人注目"
+      }
+    },
+    {
+      "word": {
+        "en": "remedial",
+        "laos": "ການສູດ",
+        "jp": "救済的な",
+        "vie": "khắc phục",
+        "en_pronunciation": "/rɪˈmidiəl/",
+        "laos_pronunciation": "kansud",
+        "jp_pronunciation": "kyuusai tekina",
+        "vie_pronunciation": "khac phuc"
+      },
+      "means": {
+        "en": "Tending or intended to rectify or improve",
+        "zh": "纠正错误、错误或邪恶的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "remembrance",
+        "laos": "ຄວາມຈໍາ",
+        "jp": "思い出",
+        "vie": "sự tưởng nhớ",
+        "en_pronunciation": "/riˈmɛmbrəns/",
+        "laos_pronunciation": "khuaamchoa",
+        "jp_pronunciation": "omoide",
+        "vie_pronunciation": "su tuong nho"
+      },
+      "means": {
+        "en": "The ability to recall past occurrences",
+        "zh": "从记忆中回忆知识；"
+      }
+    },
+    {
+      "word": {
+        "en": "remind",
+        "laos": "ເຕືອນໃຈ",
+        "jp": "思い出させる",
+        "vie": "nhắc nhở",
+        "en_pronunciation": "/riˈmaɪnd/",
+        "laos_pronunciation": "teuonchai",
+        "jp_pronunciation": "omoidasa seru",
+        "vie_pronunciation": "nhac nho"
+      },
+      "means": {
+        "en": "Put in the mind of someone",
+        "zh": "有回忆"
+      }
+    },
+    {
+      "word": {
+        "en": "reminder",
+        "laos": "ຄໍາເຕືອນ",
+        "jp": "リマインダー",
+        "vie": "nhắc nhở",
+        "en_pronunciation": "/riˈmaɪndər/",
+        "laos_pronunciation": "khoateuon",
+        "jp_pronunciation": "rimaindaa",
+        "vie_pronunciation": "nhac nho"
+      },
+      "means": {
+        "en": "A message that helps you remember something",
+        "zh": "倾向于或打算纠正或改进"
+      }
+    },
+    {
+      "word": {
+        "en": "reminiscent",
+        "laos": "ອະທິບາຍ",
+        "jp": "思い出す",
+        "vie": "gợi nhớ",
+        "en_pronunciation": "/ˌrɛməˈnɪsənt/",
+        "laos_pronunciation": "athibai",
+        "jp_pronunciation": "omoidasu",
+        "vie_pronunciation": "goi nho"
+      },
+      "means": {
+        "en": "Serving to bring to mind; - Wilder Hobson",
+        "zh": "回忆过去发生的事情的能力"
+      }
+    },
+    {
+      "word": {
+        "en": "reminiscence",
+        "laos": "ການຈື່ເຫດ",
+        "jp": "回想",
+        "vie": "sự hồi tưởng",
+        "en_pronunciation": "/ˌrɛməˈnɪsəns/",
+        "laos_pronunciation": "kan chuhed",
+        "jp_pronunciation": "kaisou",
+        "vie_pronunciation": "su hoi tuong"
+      },
+      "means": {
+        "en": "A mental impression retained and recalled from the past",
+        "zh": "放在某人心里"
+      }
+    },
+    {
+      "word": {
+        "en": "remnant",
+        "laos": "ທີ່ເຫລືອ",
+        "jp": "残り物",
+        "vie": "tàn dư",
+        "en_pronunciation": "/ˈrɛmnənt/",
+        "laos_pronunciation": "thihelu",
+        "jp_pronunciation": "nokori mono",
+        "vie_pronunciation": "tan du"
+      },
+      "means": {
+        "en": "A small part or portion that remains after the main part no longer exists",
+        "zh": "帮助您记住某事的消息"
+      }
+    },
+    {
+      "word": {
+        "en": "remote",
+        "laos": "ຫ່າງໄກ",
+        "jp": "リモート",
+        "vie": "từ xa",
+        "en_pronunciation": "/rɪˈmoʊt/",
+        "laos_pronunciation": "hangkai",
+        "jp_pronunciation": "rimooto",
+        "vie_pronunciation": "tu xa"
+      },
+      "means": {
+        "en": "A device that can be used to control a machine or apparatus from a distance",
+        "zh": "服务于让人想起；"
+      }
+    },
+    {
+      "word": {
+        "en": "remove",
+        "laos": "ເອົາອອກ",
+        "jp": "削除する",
+        "vie": "loại bỏ",
+        "en_pronunciation": "/riˈmuv/",
+        "laos_pronunciation": "aoook",
+        "jp_pronunciation": "sakujosuru",
+        "vie_pronunciation": "loai bo"
+      },
+      "means": {
+        "en": "Degree of figurative distance or separation;  or",
+        "zh": "——怀尔德·霍布森"
+      }
+    },
+    {
+      "word": {
+        "en": "removal",
+        "laos": "ການໂຍກຍ້າຍ",
+        "jp": "除去",
+        "vie": "loại bỏ",
+        "en_pronunciation": "/rɪˈmuvəl/",
+        "laos_pronunciation": "kanonyknyai",
+        "jp_pronunciation": "jokyo",
+        "vie_pronunciation": "loai bo"
+      },
+      "means": {
+        "en": "The act of removing",
+        "zh": "保留并回忆起过去的心理印象"
+      }
+    },
+    {
+      "word": {
+        "en": "renaissance",
+        "laos": "ສໍາຜັດ",
+        "jp": "ルネッサンス",
+        "vie": "sự phục hưng",
+        "en_pronunciation": "/ˌrɛnəˈsɑns/",
+        "laos_pronunciation": "soaphad",
+        "jp_pronunciation": "runessansu",
+        "vie_pronunciation": "su phuc hung"
+      },
+      "means": {
+        "en": "The period of European history at the close of the Middle Ages and the rise of the modern world; a cultural rebirth from the 14th through the middle of the 17th centuries",
+        "zh": "主要部分不再存在后剩下的一小部分或部分"
+      }
+    },
+    {
+      "word": {
+        "en": "render",
+        "laos": "ສະນັບສະດີ້",
+        "jp": "レンダリングする",
+        "vie": "kết xuất",
+        "en_pronunciation": "/ˈrɛndər/",
+        "laos_pronunciation": "sanab sadi",
+        "jp_pronunciation": "rendaringu suru",
+        "vie_pronunciation": "ket xuat"
+      },
+      "means": {
+        "en": "A substance similar to stucco but exclusively applied to masonry walls",
+        "zh": "可用于远距离控制机器或设备的装置"
+      }
+    },
+    {
+      "word": {
+        "en": "renew",
+        "laos": "ການຕໍ່ໃຫມ່",
+        "jp": "更新する",
+        "vie": "gia hạn",
+        "en_pronunciation": "/rɪˈnu/",
+        "laos_pronunciation": "kan tohaim",
+        "jp_pronunciation": "koushin suru",
+        "vie_pronunciation": "gia han"
+      },
+      "means": {
+        "en": "Reestablish on a new, usually improved, basis or make new or like new",
+        "zh": "比喻距离或分离的程度；"
+      }
+    },
+    {
+      "word": {
+        "en": "rendering",
+        "laos": "ການເຮັດໃຫ້ເກີດຂື້ນ",
+        "jp": "レンダリング",
+        "vie": "kết xuất",
+        "en_pronunciation": "/ˈrɛndərɪŋ/",
+        "laos_pronunciation": "kanhedhaikoedkhun",
+        "jp_pronunciation": "rendaringu",
+        "vie_pronunciation": "ket xuat"
+      },
+      "means": {
+        "en": "A performance of a musical composition or a dramatic role etc.",
+        "zh": "或"
+      }
+    },
+    {
+      "word": {
+        "en": "renewal",
+        "laos": "ການຕໍ່ອາຍຸ",
+        "jp": "リニューアル",
+        "vie": "đổi mới",
+        "en_pronunciation": "/rɪˈnuəl/",
+        "laos_pronunciation": "kantooaiu",
+        "jp_pronunciation": "rinyuuaru",
+        "vie_pronunciation": "doi moi"
+      },
+      "means": {
+        "en": "The conversion of wasteland into land suitable for use of habitation or cultivation",
+        "zh": "移除的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "renewable",
+        "laos": "ທົດລອງ",
+        "jp": "再生可能",
+        "vie": "tái tạo",
+        "en_pronunciation": "/riˈnuəbəl/",
+        "laos_pronunciation": "thodlong",
+        "jp_pronunciation": "saiseikanou",
+        "vie_pronunciation": "tai tao"
+      },
+      "means": {
+        "en": "That can be renewed or extended",
+        "zh": "中世纪末期和现代世界兴起的欧洲历史时期；"
+      }
+    },
+    {
+      "word": {
+        "en": "renovate",
+        "laos": "ສ້ອມແປງ",
+        "jp": "改修する",
+        "vie": "đổi mới",
+        "en_pronunciation": "/ˈrɛnəˌveɪt/",
+        "laos_pronunciation": "somaepng",
+        "jp_pronunciation": "kaishuu suru",
+        "vie_pronunciation": "doi moi"
+      },
+      "means": {
+        "en": "Restore to a previous or better condition",
+        "zh": "14世纪到17世纪中叶的文化复兴"
+      }
+    },
+    {
+      "word": {
+        "en": "renovation",
+        "laos": "ການສ້ອມແປງ",
+        "jp": "改修",
+        "vie": "cải tạo",
+        "en_pronunciation": "/ˌrɛnəˈveɪʃən/",
+        "laos_pronunciation": "kansomaepng",
+        "jp_pronunciation": "kaishuu",
+        "vie_pronunciation": "cai tao"
+      },
+      "means": {
+        "en": "The act of improving by renewing and restoring",
+        "zh": "一种类似于灰泥的物质，但专门用于砖石墙"
+      }
+    },
+    {
+      "word": {
+        "en": "renown",
+        "laos": "ສຽງລື້າ",
+        "jp": "名声",
+        "vie": "danh tiếng",
+        "en_pronunciation": "/rɪˈnaʊn/",
+        "laos_pronunciation": "siang lua",
+        "jp_pronunciation": "meisei",
+        "vie_pronunciation": "danh tieng"
+      },
+      "means": {
+        "en": "The state or quality of being widely honored and acclaimed",
+        "zh": "在新的、通常是改进的基础上重建或制造新的或类似的新的"
+      }
+    },
+    {
+      "word": {
+        "en": "renowned",
+        "laos": "ລືຊື",
+        "jp": "有名な",
+        "vie": "nổi tiếng",
+        "en_pronunciation": "/rɪˈnaʊnd/",
+        "laos_pronunciation": "lusu",
+        "jp_pronunciation": "yuumei na",
+        "vie_pronunciation": "noi tieng"
+      },
+      "means": {
+        "en": "Widely known and esteemed",
+        "zh": "音乐作品或戏剧角色等的表演。"
+      }
+    },
+    {
+      "word": {
+        "en": "rent",
+        "laos": "ເຊົ່າເຮືອນ",
+        "jp": "家賃",
+        "vie": "thuê",
+        "en_pronunciation": "/rɛnt/",
+        "laos_pronunciation": "seoaheuon",
+        "jp_pronunciation": "yachin",
+        "vie_pronunciation": "thue"
+      },
+      "means": {
+        "en": "A payment or series of payments made by the lessee to an owner for use of some property, facility, equipment, or service",
+        "zh": "将荒地转变为适合居住或耕种的土地"
+      }
+    },
+    {
+      "word": {
+        "en": "rental",
+        "laos": "ການເຊົ່າ",
+        "jp": "レンタル",
+        "vie": "cho thuê",
+        "en_pronunciation": "/ˈrɛntəl/",
+        "laos_pronunciation": "kanseoa",
+        "jp_pronunciation": "rentaru",
+        "vie_pronunciation": "cho thue"
+      },
+      "means": {
+        "en": "Property that is leased or rented out or let",
+        "zh": "可以更新或延长"
+      }
+    },
+    {
+      "word": {
+        "en": "repair",
+        "laos": "ສ້ອມແປງ",
+        "jp": "修理",
+        "vie": "sửa chữa",
+        "en_pronunciation": "/rɪˈpɛr/",
+        "laos_pronunciation": "somaepng",
+        "jp_pronunciation": "shuuri",
+        "vie_pronunciation": "sua chua"
+      },
+      "means": {
+        "en": "The act of putting something in working order again",
+        "zh": "恢复到之前或更好的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "repay",
+        "laos": "ຊໍາລະ",
+        "jp": "返済する",
+        "vie": "trả ơn",
+        "en_pronunciation": "/riˈpeɪ/",
+        "laos_pronunciation": "soala",
+        "jp_pronunciation": "hensai suru",
+        "vie_pronunciation": "tra on"
+      },
+      "means": {
+        "en": "Pay back",
+        "zh": "通过更新和恢复来改进的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "repeat",
+        "laos": "ຊ້ໍາ",
+        "jp": "繰り返す",
+        "vie": "lặp lại",
+        "en_pronunciation": "/rɪˈpit/",
+        "laos_pronunciation": "soa",
+        "jp_pronunciation": "kurikaesu",
+        "vie_pronunciation": "lap lai"
+      },
+      "means": {
+        "en": "An event that repeats",
+        "zh": "受到广泛尊崇和赞誉的状态或品质"
+      }
+    },
+    {
+      "word": {
+        "en": "repel",
+        "laos": "ຢ່ວງຍາກ",
+        "jp": "撃退する",
+        "vie": "đẩy lùi",
+        "en_pronunciation": "/rɪˈpɛl/",
+        "laos_pronunciation": "yuangnyak",
+        "jp_pronunciation": "gekitai suru",
+        "vie_pronunciation": "day lui"
+      },
+      "means": {
+        "en": "Cause to move back by force or influence",
+        "zh": "广为人知并受人尊敬"
+      }
+    },
+    {
+      "word": {
+        "en": "repertoire",
+        "laos": "ຕອບກັນ",
+        "jp": "レパートリー",
+        "vie": "tiết mục",
+        "en_pronunciation": "/ˈrɛpərtˌwɑr/",
+        "laos_pronunciation": "tobkan",
+        "jp_pronunciation": "repaatorii",
+        "vie_pronunciation": "tiet muc"
+      },
+      "means": {
+        "en": "The entire range of skills or aptitudes or devices used in a particular field or occupation",
+        "zh": "承租人为使用某些财产、设施、设备或服务而向业主支付的一笔或一系列付款"
+      }
+    },
+    {
+      "word": {
+        "en": "replace",
+        "laos": "ປ່ຽນແທນ",
+        "jp": "交換する",
+        "vie": "thay thế",
+        "en_pronunciation": "/ˌriˈpleɪs/",
+        "laos_pronunciation": "pianaethn",
+        "jp_pronunciation": "koukan suru",
+        "vie_pronunciation": "thay the"
+      },
+      "means": {
+        "en": "Substitute a person or thing for (another that is broken or inefficient or lost or no longer working or yielding what is expected)",
+        "zh": "已出租或出租的财产"
+      }
+    },
+    {
+      "word": {
+        "en": "reply",
+        "laos": "ຕອບ",
+        "jp": "返信する",
+        "vie": "trả lời",
+        "en_pronunciation": "/rɪˈplaɪ/",
+        "laos_pronunciation": "tob",
+        "jp_pronunciation": "henshin suru",
+        "vie_pronunciation": "tra loi"
+      },
+      "means": {
+        "en": "A statement (either spoken or written) that is made to reply to a question or request or criticism or accusation",
+        "zh": "使某事物重新恢复正常运转的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "reparable",
+        "laos": "ອະນຸໄທ",
+        "jp": "修復可能な",
+        "vie": "có thể sửa chữa được",
+        "en_pronunciation": "/reparable/",
+        "laos_pronunciation": "anuthai",
+        "jp_pronunciation": "shuufukukanou na",
+        "vie_pronunciation": "co the sua chua duoc"
+      },
+      "means": {
+        "en": "Capable of being repaired or rectified",
+        "zh": "回报"
+      }
+    },
+    {
+      "word": {
+        "en": "repayment",
+        "laos": "ການຈ່າຢຫນີ້",
+        "jp": "返済",
+        "vie": "trả nợ",
+        "en_pronunciation": "/riˈpeɪmənt/",
+        "laos_pronunciation": "kan cha yni",
+        "jp_pronunciation": "hensai",
+        "vie_pronunciation": "tra no"
+      },
+      "means": {
+        "en": "The act of returning money received previously",
+        "zh": "重复发生的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "repetition",
+        "laos": "ການຄ້າງ",
+        "jp": "繰り返し",
+        "vie": "sự lặp lại",
+        "en_pronunciation": "/ˌrɛpəˈtɪʃən/",
+        "laos_pronunciation": "kankhang",
+        "jp_pronunciation": "kurikaeshi",
+        "vie_pronunciation": "su lap lai"
+      },
+      "means": {
+        "en": "An event that repeats",
+        "zh": "因武力或影响力而退回"
+      }
+    },
+    {
+      "word": {
+        "en": "replacement",
+        "laos": "ການທົດແທນ",
+        "jp": "交換",
+        "vie": "thay thế",
+        "en_pronunciation": "/rɪˈpleɪsmənt/",
+        "laos_pronunciation": "kanthodaethn",
+        "jp_pronunciation": "koukan",
+        "vie_pronunciation": "thay the"
+      },
+      "means": {
+        "en": "The act of furnishing an equivalent person or thing in the place of another",
+        "zh": "在特定领域或职业中使用的全部技能或能力或设备"
+      }
+    },
+    {
+      "word": {
+        "en": "repetitive",
+        "laos": "ຊໍ້າຊາກ",
+        "jp": "繰り返しの",
+        "vie": "lặp đi lặp lại",
+        "en_pronunciation": "/rɪˈpɛtɪtɪv/",
+        "laos_pronunciation": "soasak",
+        "jp_pronunciation": "kurikaeshi no",
+        "vie_pronunciation": "lap di lap lai"
+      },
+      "means": {
+        "en": "Repetitive and persistent",
+        "zh": "替换一个人或物（另一个损坏或效率低下或丢失或不再工作或产生预期效果的人或物）"
+      }
+    },
+    {
+      "word": {
+        "en": "repeatedly",
+        "laos": "ຊ້ໍາຊາກ",
+        "jp": "繰り返し",
+        "vie": "nhiều lần",
+        "en_pronunciation": "/rɪˈpitɪdli/",
+        "laos_pronunciation": "s oasak",
+        "jp_pronunciation": "kurikaeshi",
+        "vie_pronunciation": "nhieu lan"
+      },
+      "means": {
+        "en": "Several time",
+        "zh": "为答复问题、请求、批评或指控而做出的声明（口头或书面）"
+      }
+    },
+    {
+      "word": {
+        "en": "report",
+        "laos": "ລາຍງານ",
+        "jp": "報告書",
+        "vie": "báo cáo",
+        "en_pronunciation": "/rɪˈpɔrt/",
+        "laos_pronunciation": "laingan",
+        "jp_pronunciation": "houkokusho",
+        "vie_pronunciation": "bao cao"
+      },
+      "means": {
+        "en": "A written document describing the findings of some individual or group",
+        "zh": "能够修复或纠正"
+      }
+    },
+    {
+      "word": {
+        "en": "represent",
+        "laos": "ເປັນຕົວແທນ",
+        "jp": "表す",
+        "vie": "đại diện",
+        "en_pronunciation": "/ˌrɛprɪˈzɛnt/",
+        "laos_pronunciation": "pentuaaethn",
+        "jp_pronunciation": "arawasu",
+        "vie_pronunciation": "dai dien"
+      },
+      "means": {
+        "en": "Take the place of or be parallel or equivalent to",
+        "zh": "退回先前收到的款项的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "repress",
+        "laos": "ຮອຍແສ້",
+        "jp": "抑圧する",
+        "vie": "đàn áp",
+        "en_pronunciation": "/riˈprɛs/",
+        "laos_pronunciation": "honyaes",
+        "jp_pronunciation": "yokuatsu suru",
+        "vie_pronunciation": "dan ap"
+      },
+      "means": {
+        "en": "Put down by force or intimidation",
+        "zh": "重复发生的事件"
+      }
+    },
+    {
+      "word": {
+        "en": "reproach",
+        "laos": "ຮ້ອງຕໍາຫນິຕິຕຽນ",
+        "jp": "非難する",
+        "vie": "khiển trách",
+        "en_pronunciation": "/riˈproʊʧ/",
+        "laos_pronunciation": "hong toa nititian",
+        "jp_pronunciation": "hinan suru",
+        "vie_pronunciation": "khien trach"
+      },
+      "means": {
+        "en": "A mild rebuke or criticism",
+        "zh": "提供同等的人或物代替另一个人或物的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "reproduce",
+        "laos": "ຜະລິດຄືນໃຫມ່",
+        "jp": "再現する",
+        "vie": "tái tạo",
+        "en_pronunciation": "/ˌriprəˈdus/",
+        "laos_pronunciation": "phalidkhunhaim",
+        "jp_pronunciation": "saigen suru",
+        "vie_pronunciation": "tai tao"
+      },
+      "means": {
+        "en": "Make a copy or equivalent of",
+        "zh": "重复且持久"
+      }
+    },
+    {
+      "word": {
+        "en": "republic",
+        "laos": "ສາທາລະນະລັດ",
+        "jp": "共和国",
+        "vie": "nước cộng hòa",
+        "en_pronunciation": "/riˈpəblɪk/",
+        "laos_pronunciation": "sathalanalad",
+        "jp_pronunciation": "kyouwakoku",
+        "vie_pronunciation": "nuoc cong hoa"
+      },
+      "means": {
+        "en": "A political system in which the supreme power lies in a body of citizens who can elect people to represent them",
+        "zh": "几次"
+      }
+    },
+    {
+      "word": {
+        "en": "reputation",
+        "laos": "ຊື່ສຽງ",
+        "jp": "評判",
+        "vie": "danh tiếng",
+        "en_pronunciation": "/ˌrɛpjəˈteɪʃən/",
+        "laos_pronunciation": "susiang",
+        "jp_pronunciation": "hyouban",
+        "vie_pronunciation": "danh tieng"
+      },
+      "means": {
+        "en": "The state of being held in high esteem and honor",
+        "zh": "描述某些个人或团体的发现的书面文件"
+      }
+    },
+    {
+      "word": {
+        "en": "repute",
+        "laos": "ສົມຄະຕິ",
+        "jp": "評判",
+        "vie": "danh tiếng",
+        "en_pronunciation": "/riˈpjut/",
+        "laos_pronunciation": "somkhati",
+        "jp_pronunciation": "hyouban",
+        "vie_pronunciation": "danh tieng"
+      },
+      "means": {
+        "en": "The state of being held in high esteem and honor",
+        "zh": "代替或平行或等同于"
+      }
+    },
+    {
+      "word": {
+        "en": "request",
+        "laos": "ການຮ້ອງຂໍ",
+        "jp": "リクエスト",
+        "vie": "yêu cầu",
+        "en_pronunciation": "/rɪkˈwɛst/",
+        "laos_pronunciation": "kanhongkho",
+        "jp_pronunciation": "rikuesuto",
+        "vie_pronunciation": "yeu cau"
+      },
+      "means": {
+        "en": "A formal message requesting something that is submitted to an authority",
+        "zh": "以武力或恐吓方式镇压"
+      }
+    },
+    {
+      "word": {
+        "en": "require",
+        "laos": "ຕ້ອງການ",
+        "jp": "必要とする",
+        "vie": "yêu cầu",
+        "en_pronunciation": "/ˌrikˈwaɪər/",
+        "laos_pronunciation": "tongkan",
+        "jp_pronunciation": "hitsuyou tosuru",
+        "vie_pronunciation": "yeu cau"
+      },
+      "means": {
+        "en": "Require as useful, just, or proper",
+        "zh": "温和的斥责或批评"
+      }
+    },
+    {
+      "word": {
+        "en": "rescue",
+        "laos": "ການກູ້ໄພ",
+        "jp": "救助",
+        "vie": "giải cứu",
+        "en_pronunciation": "/ˈrɛskju/",
+        "laos_pronunciation": "kan kuphai",
+        "jp_pronunciation": "kyuujo",
+        "vie_pronunciation": "giai cuu"
+      },
+      "means": {
+        "en": "Recovery or preservation from loss or danger",
+        "zh": "制作一份副本或同等文件"
+      }
+    },
+    {
+      "word": {
+        "en": "reporter",
+        "laos": "ນັກຂ່າວ",
+        "jp": "レポーター",
+        "vie": "phóng viên",
+        "en_pronunciation": "/rɪˈpɔrtər/",
+        "laos_pronunciation": "nakkhav",
+        "jp_pronunciation": "repootaa",
+        "vie_pronunciation": "phong vien"
+      },
+      "means": {
+        "en": "A person who investigates and reports or edits news stories",
+        "zh": "最高权力掌握在公民团体手中的政治体系，公民可以选举代表他们的人"
+      }
+    },
+    {
+      "word": {
+        "en": "representation",
+        "laos": "ທີ່ຕາງ",
+        "jp": "表現",
+        "vie": "đại diện",
+        "en_pronunciation": "/ˌrɛprəzɛnˈteɪʃən/",
+        "laos_pronunciation": "thitang",
+        "jp_pronunciation": "hyougen",
+        "vie_pronunciation": "dai dien"
+      },
+      "means": {
+        "en": "A presentation to the mind in the form of an idea or image",
+        "zh": "受到高度尊重和荣誉的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "repression",
+        "laos": "ການກົດຂີ່ຂູດຮີດ",
+        "jp": "弾圧",
+        "vie": "sự đàn áp",
+        "en_pronunciation": "/riˈprɛʃən/",
+        "laos_pronunciation": "kankodkhikhudhid",
+        "jp_pronunciation": "dan'atsu",
+        "vie_pronunciation": "su dan ap"
+      },
+      "means": {
+        "en": "A state of forcible subjugation",
+        "zh": "受到高度尊重和荣誉的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "reproduction",
+        "laos": "ການແຜ່ພັນ",
+        "jp": "再生",
+        "vie": "sinh sản",
+        "en_pronunciation": "/ˌriprəˈdəkʃən/",
+        "laos_pronunciation": "kanaephphan",
+        "jp_pronunciation": "saisei",
+        "vie_pronunciation": "sinh san"
+      },
+      "means": {
+        "en": "The process of generating offspring",
+        "zh": "请求提交给权威机构的正式消息"
+      }
+    },
+    {
+      "word": {
+        "en": "republican",
+        "laos": "ສາທາລະນະລັດ",
+        "jp": "共和党員",
+        "vie": "người theo chủ nghĩa cộng hòa",
+        "en_pronunciation": "/rɪˈpəblɪkən/",
+        "laos_pronunciation": "sathalanalad",
+        "jp_pronunciation": "kyouwatou in",
+        "vie_pronunciation": "nguoi theo chu nghia cong hoa"
+      },
+      "means": {
+        "en": "A member of the Republican Party",
+        "zh": "要求有用、公正或适当"
+      }
+    },
+    {
+      "word": {
+        "en": "reputable",
+        "laos": "ທີ່ມີຊື່ສຽງ",
+        "jp": "評判の良い",
+        "vie": "uy tín",
+        "en_pronunciation": "/ˈrɛpjətəbəl/",
+        "laos_pronunciation": "thimisusiang",
+        "jp_pronunciation": "hyouban no yoi",
+        "vie_pronunciation": "uy tin"
+      },
+      "means": {
+        "en": "Having a good reputation",
+        "zh": "从损失或危险中恢复或保存"
+      }
+    },
+    {
+      "word": {
+        "en": "requirement",
+        "laos": "ຂໍ້ກໍານົດ",
+        "jp": "要件",
+        "vie": "yêu cầu",
+        "en_pronunciation": "/rɪkˈwaɪrmənt/",
+        "laos_pronunciation": "khokoanod",
+        "jp_pronunciation": "youken",
+        "vie_pronunciation": "yeu cau"
+      },
+      "means": {
+        "en": "Required activity",
+        "zh": "调查、报道或编辑新闻报道的人"
+      }
+    },
+    {
+      "word": {
+        "en": "representative",
+        "laos": "ຕົວແທນ",
+        "jp": "代表者",
+        "vie": "đại diện",
+        "en_pronunciation": "/ˌrɛprɪˈzɛnətɪv/",
+        "laos_pronunciation": "tuaaethn",
+        "jp_pronunciation": "daihyousha",
+        "vie_pronunciation": "dai dien"
+      },
+      "means": {
+        "en": "A person who represents others",
+        "zh": "以想法或图像的形式呈现给大脑"
+      }
+    },
+    {
+      "word": {
+        "en": "repressive",
+        "laos": "ຊົດເຊີຍ",
+        "jp": "抑圧的な",
+        "vie": "đàn áp",
+        "en_pronunciation": "/riˈprɛsɪv/",
+        "laos_pronunciation": "sodsoeny",
+        "jp_pronunciation": "yokuatsuteki na",
+        "vie_pronunciation": "dan ap"
+      },
+      "means": {
+        "en": "Restrictive of action",
+        "zh": "强行征服的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "reproductive",
+        "laos": "ຢ້ຽມສອນ",
+        "jp": "生殖",
+        "vie": "sinh sản",
+        "en_pronunciation": "/ˌriprəˈdəktɪv/",
+        "laos_pronunciation": "yiamson",
+        "jp_pronunciation": "seishoku",
+        "vie_pronunciation": "sinh san"
+      },
+      "means": {
+        "en": "Producing new life or offspring",
+        "zh": "产生后代的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "research",
+        "laos": "ການຄົ້ນຄ້ວາ",
+        "jp": "研究",
+        "vie": "nghiên cứu",
+        "en_pronunciation": "/ˈrisərʧ/",
+        "laos_pronunciation": "kankhonkhuaa",
+        "jp_pronunciation": "kenkyuu",
+        "vie_pronunciation": "nghien cuu"
+      },
+      "means": {
+        "en": "Systematic investigation to establish facts",
+        "zh": "共和党党员"
+      }
+    },
+    {
+      "word": {
+        "en": "researcher",
+        "laos": "ນັກຄົ້ນຄວ້າ",
+        "jp": "研究者",
+        "vie": "nhà nghiên cứu",
+        "en_pronunciation": "/ˈrisərʧər/",
+        "laos_pronunciation": "nakkhonkhva",
+        "jp_pronunciation": "kenkyuusha",
+        "vie_pronunciation": "nha nghien cuu"
+      },
+      "means": {
+        "en": "A scientist who devotes himself to doing research",
+        "zh": "拥有良好的声誉"
+      }
+    },
+    {
+      "word": {
+        "en": "resemble",
+        "laos": "ຄ້າຍຄື",
+        "jp": "似ている",
+        "vie": "giống",
+        "en_pronunciation": "/rɪˈzɛmbəl/",
+        "laos_pronunciation": "khaikhu",
+        "jp_pronunciation": "nite iru",
+        "vie_pronunciation": "giong"
+      },
+      "means": {
+        "en": "Appear like; be similar or bear a likeness to",
+        "zh": "所需活动"
+      }
+    },
+    {
+      "word": {
+        "en": "resemblance",
+        "laos": "ຄວາມຄ້າຍຄືກັນ",
+        "jp": "類似性",
+        "vie": "sự giống nhau",
+        "en_pronunciation": "/rɪˈzɛmbləns/",
+        "laos_pronunciation": "khuaamkhaikhukan",
+        "jp_pronunciation": "ruijisei",
+        "vie_pronunciation": "su giong nhau"
+      },
+      "means": {
+        "en": "Similarity in appearance or external or superficial details",
+        "zh": "代表他人的人"
+      }
+    },
+    {
+      "word": {
+        "en": "resent",
+        "laos": "ຂຸ່ນແຄ້ນ",
+        "jp": "再送信しました",
+        "vie": "bực bội",
+        "en_pronunciation": "/rɪˈzɛnt/",
+        "laos_pronunciation": "khunaekhn",
+        "jp_pronunciation": "saisoushin shimashita",
+        "vie_pronunciation": "buc boi"
+      },
+      "means": {
+        "en": "Feel bitter or indignant about",
+        "zh": "行动限制"
+      }
+    },
+    {
+      "word": {
+        "en": "resentment",
+        "laos": "ຄວາມແຄ້ນໃຈ",
+        "jp": "憤り",
+        "vie": "oán giận",
+        "en_pronunciation": "/rɪˈzɛntmənt/",
+        "laos_pronunciation": "khuaamaekhnchai",
+        "jp_pronunciation": "ikidoori",
+        "vie_pronunciation": "oan gian"
+      },
+      "means": {
+        "en": "A feeling of deep and bitter anger and ill-will",
+        "zh": "产生新生命或后代"
+      }
+    },
+    {
+      "word": {
+        "en": "reserve",
+        "laos": "ສະຫງວນໄວ້",
+        "jp": "予約",
+        "vie": "dự trữ",
+        "en_pronunciation": "/rɪˈzərv/",
+        "laos_pronunciation": "sanguanuaai",
+        "jp_pronunciation": "yoyaku",
+        "vie_pronunciation": "du tru"
+      },
+      "means": {
+        "en": "Formality and propriety of manner",
+        "zh": "系统调查以查明事实"
+      }
+    },
+    {
+      "word": {
+        "en": "reservation",
+        "laos": "ການຈອງ",
+        "jp": "予約",
+        "vie": "đặt chỗ",
+        "en_pronunciation": "/ˌrɛzərˈveɪʃən/",
+        "laos_pronunciation": "kanchong",
+        "jp_pronunciation": "yoyaku",
+        "vie_pronunciation": "dat cho"
+      },
+      "means": {
+        "en": "A district that is reserved for particular purpose",
+        "zh": "一个致力于研究的科学家"
+      }
+    },
+    {
+      "word": {
+        "en": "reserved",
+        "laos": "ເຜື່ອໄວ້",
+        "jp": "予約済み",
+        "vie": "dành riêng",
+        "en_pronunciation": "/rɪˈzərvd/",
+        "laos_pronunciation": "pheuouaai",
+        "jp_pronunciation": "yoyaku sumi",
+        "vie_pronunciation": "danh rieng"
+      },
+      "means": {
+        "en": "Hold back or set aside, especially for future use or contingency",
+        "zh": "看起来像；"
+      }
+    },
+    {
+      "word": {
+        "en": "reservoir",
+        "laos": "ບ່ອນຂັງນ້ໍາ",
+        "jp": "貯水池",
+        "vie": "hồ chứa",
+        "en_pronunciation": "/ˈrɛzəvˌwɑr/",
+        "laos_pronunciation": "bon khangnoa",
+        "jp_pronunciation": "chosuichi",
+        "vie_pronunciation": "ho chua"
+      },
+      "means": {
+        "en": "A large or extra supply of something",
+        "zh": "相似或有相似之处"
+      }
+    },
+    {
+      "word": {
+        "en": "reshuffle",
+        "laos": "ຍົກຮ່າງ",
+        "jp": "再シャッフル",
+        "vie": "cải tổ lại",
+        "en_pronunciation": "/riˈʃəfəl/",
+        "laos_pronunciation": "nyokhang",
+        "jp_pronunciation": "sai shaffuru",
+        "vie_pronunciation": "cai to lai"
+      },
+      "means": {
+        "en": "A redistribution of something",
+        "zh": "外观或外部或表面细节的相似性"
+      }
+    },
+    {
+      "word": {
+        "en": "reside",
+        "laos": "ອາໄສຢູ່",
+        "jp": "住んでいる",
+        "vie": "cư trú",
+        "en_pronunciation": "/rɪˈzaɪd/",
+        "laos_pronunciation": "asaiyu",
+        "jp_pronunciation": "sun deiru",
+        "vie_pronunciation": "cu tru"
+      },
+      "means": {
+        "en": "Make one's home in a particular place or community",
+        "zh": "感到痛苦或愤慨"
+      }
+    },
+    {
+      "word": {
+        "en": "residence",
+        "laos": "ທີ່ຢູ່ອາໄສ",
+        "jp": "住居",
+        "vie": "nơi cư trú",
+        "en_pronunciation": "/ˈrɛzɪdəns/",
+        "laos_pronunciation": "thiyuoasai",
+        "jp_pronunciation": "juukyo",
+        "vie_pronunciation": "noi cu tru"
+      },
+      "means": {
+        "en": "Any address at which you dwell more than temporarily",
+        "zh": "一种深深而痛苦的愤怒和恶意的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "resident",
+        "laos": "ຜູ້ຢິງອາໄສຍູ່",
+        "jp": "居住者",
+        "vie": "thường trú",
+        "en_pronunciation": "/ˈrɛzɪdənt/",
+        "laos_pronunciation": "phu ying asai nyu",
+        "jp_pronunciation": "kyojuusha",
+        "vie_pronunciation": "thuong tru"
+      },
+      "means": {
+        "en": "Someone who lives at a particular place for a prolonged period or who was born there",
+        "zh": "礼仪和礼仪"
+      }
+    },
+    {
+      "word": {
+        "en": "residential",
+        "laos": "ທີ່ຈ່າ່",
+        "jp": "住宅用",
+        "vie": "khu dân cư",
+        "en_pronunciation": "/ˌrɛzɪˈdɛnʃəl/",
+        "laos_pronunciation": "thi cha",
+        "jp_pronunciation": "juutakuyou",
+        "vie_pronunciation": "khu dan cu"
+      },
+      "means": {
+        "en": "Used or designed for residence or limited to residences",
+        "zh": "为特定目的而保留的地区"
+      }
+    },
+    {
+      "word": {
+        "en": "resign",
+        "laos": "ລາອອກ",
+        "jp": "辞任する",
+        "vie": "từ chức",
+        "en_pronunciation": "/rɪˈzaɪn/",
+        "laos_pronunciation": "laook",
+        "jp_pronunciation": "jinin suru",
+        "vie_pronunciation": "tu chuc"
+      },
+      "means": {
+        "en": "Leave (a job, post, or position) voluntarily",
+        "zh": "保留或搁置，特别是为了将来使用或应急"
+      }
+    },
+    {
+      "word": {
+        "en": "resignation",
+        "laos": "ການລາອອກ",
+        "jp": "辞任",
+        "vie": "từ chức",
+        "en_pronunciation": "/ˌrɛzɪgˈneɪʃən/",
+        "laos_pronunciation": "kanlaook",
+        "jp_pronunciation": "jinin",
+        "vie_pronunciation": "tu chuc"
+      },
+      "means": {
+        "en": "Acceptance of despair",
+        "zh": "大量或额外供应的某物"
+      }
+    },
+    {
+      "word": {
+        "en": "resist",
+        "laos": "ຕ້ານທານ",
+        "jp": "「",
+        "vie": "chống lại",
+        "en_pronunciation": "/rɪˈzɪst/",
+        "laos_pronunciation": "tanthan",
+        "jp_pronunciation": "(",
+        "vie_pronunciation": "chong lai"
+      },
+      "means": {
+        "en": "Elude, especially in a baffling way",
+        "zh": "某物的重新分配"
+      }
+    }
+  ]
+}

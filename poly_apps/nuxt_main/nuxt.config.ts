@@ -79,13 +79,22 @@ export default defineNuxtConfig({
                     rel: 'stylesheet',
                     href: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap',
                 },
+                {
+                    rel: 'stylesheet',
+                    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
+                },
+                {
+                    rel: 'stylesheet',
+                    href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+                },
             ],
         },
     },
 
     css: [
         '~/assets/css/app.css',
-        '~/assets/css/apps/app_pymatrix_theme.css'
+        '~/assets/css/apps/app_pymatrix_theme.css',
+        '~/apps/app_ittools/styles_app_ittools/holographic.css'
     ],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 
@@ -151,6 +160,11 @@ export default defineNuxtConfig({
         optimizeDeps: {
             include: ['quill'],
             exclude: ['vue3-easymde', 'vue-json-excel3', 'easymde', 'vue3-quill']
+        },
+        server: {
+            watch: {
+                ignored: ['**/pages/index.vue']
+            }
         },
         ssr: {
             noExternal: ['vue3-quill']

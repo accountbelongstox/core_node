@@ -1,0 +1,2399 @@
+================================================================================
+Flutter App Directory Tree
+================================================================================
+Generated: 2025-11-09 02:00:40
+App: flutter
+Mode: code
+Flutter Root: /mnt/d/programing/core_node/poly_apps/flutter_bloom
+Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+================================================================================
+
+flutter_bloom [code]
+├── lib/
+│   ├── apps
+│   │   ├── .prompts
+│   │   │   ├── _prompt.txt
+│   │   │   └── cursor.txt
+│   │   ├── app_achat
+│   │   │   ├── .prompts
+│   │   │   │   └── cursor.txt
+│   │   │   ├── app_achat_tree.md
+│   │   │   ├── app_achat_tree_code_assets.txt
+│   │   │   ├── build_config.ini
+│   │   │   ├── config_app_achat
+│   │   │   │   ├── api_config_achat.dart
+│   │   │   │   ├── app_config.dart
+│   │   │   │   ├── constants.dart
+│   │   │   │   ├── prefs_app_achat.dart
+│   │   │   │   ├── provider_app_achat.dart
+│   │   │   │   └── storage_app_achat.dart
+│   │   │   ├── controller_app_achat
+│   │   │   │   ├── auth_controller_app_achat.dart
+│   │   │   │   ├── proxy_settings_controller.dart
+│   │   │   │   ├── settings_controller_app_achat.dart
+│   │   │   │   └── settings_controller_persistent.dart
+│   │   │   ├── error.txt
+│   │   │   ├── features_app_achat
+│   │   │   │   ├── add_contacts
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── add_contacts_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── contact_option_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── add_contacts_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── contact_option_item.dart
+│   │   │   │   ├── app_lock
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── app_lock_controller.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── app_lock_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── app_lock_settings_list.dart
+│   │   │   │   ├── chat_details
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── chat_details_controller.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── chat_message_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── chat_details_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── chat_details_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── chat_details_app_bar.dart
+│   │   │   │   │       └── chat_details_widgets.dart
+│   │   │   │   ├── chat_home
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── chat_controller_app_achat.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── chat_home_screen.dart
+│   │   │   │   ├── chat_list
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── chat_list_controller.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── chat_list_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── chat_list_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── chat_list_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── chat_list_appbar.dart
+│   │   │   │   │       ├── chat_list_item.dart
+│   │   │   │   │       └── chat_search_bar.dart
+│   │   │   │   ├── common_widgets
+│   │   │   │   │   └── bottom_navigation
+│   │   │   │   │       ├── achat_bottom_navigation.dart
+│   │   │   │   │       └── common_bottom_navigation.dart
+│   │   │   │   ├── contacts
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── contacts_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── contact_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── contacts_screen.dart
+│   │   │   │   ├── create_group
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── create_group_controller.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── contact_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── contact_service.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── contact_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── create_group_screen.dart
+│   │   │   │   ├── discover
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── discover_controller.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── discover_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── discover_app_bar.dart
+│   │   │   │   │       ├── discover_item_card.dart
+│   │   │   │   │       └── discover_section_header.dart
+│   │   │   │   ├── group_chat
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── chat_message_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── chat_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── group_chat_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── chat_input_bar.dart
+│   │   │   │   │       ├── chat_message_list.dart
+│   │   │   │   │       └── group_chat_appbar.dart
+│   │   │   │   ├── home
+│   │   │   │   │   ├── .gitkeep
+│   │   │   │   │   └── views
+│   │   │   │   │       └── home_screen.dart
+│   │   │   │   ├── language_settings
+│   │   │   │   │   └── views
+│   │   │   │   │       └── language_settings_screen.dart
+│   │   │   │   ├── new_chat
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── new_chat_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── new_chat_contact_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── new_chat_screen.dart
+│   │   │   │   ├── notification_setting
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── notification_setting_controller.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── notification_setting_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── notification_setting_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── notification_setting_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── notification_setting_card.dart
+│   │   │   │   │       └── notification_setting_list.dart
+│   │   │   │   ├── privacy_security
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── privacy_security_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── privacy_security_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── privacy_security_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── privacy_security_list.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── profile_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── profile_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── profile_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── profile_header.dart
+│   │   │   │   │       └── profile_menu.dart
+│   │   │   │   ├── proxy_settings
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── proxy_settings_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── proxy_setting_card.dart
+│   │   │   │   ├── qr_profile
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── qr_profile_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── qr_profile_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── qr_profile_screen.dart
+│   │   │   │   └── test_backend
+│   │   │   │       └── test_backend_page.dart
+│   │   │   ├── localization_app_achat
+│   │   │   │   ├── en_app_achat.dart
+│   │   │   │   ├── localization_keys_app_achat.dart
+│   │   │   │   └── zh_app_achat.dart
+│   │   │   ├── main_app_achat.dart
+│   │   │   ├── model_app_achat
+│   │   │   │   ├── chat_item_model.dart
+│   │   │   │   └── user_model.dart
+│   │   │   ├── models
+│   │   │   │   ├── chat_models.dart
+│   │   │   │   ├── message_models.dart
+│   │   │   │   └── user_models.dart
+│   │   │   ├── models_app_achat
+│   │   │   │   ├── discover_item_model.dart
+│   │   │   │   └── user_model_app_achat.dart
+│   │   │   ├── network
+│   │   │   │   ├── achat_api_client.dart
+│   │   │   │   └── achat_websocket_client.dart
+│   │   │   ├── repositories_app_achat
+│   │   │   │   └── achat_repository.dart
+│   │   │   ├── resources_app_achat
+│   │   │   │   ├── assets_icons_app_achat.dart
+│   │   │   │   └── assets_images_app_achat.dart
+│   │   │   ├── router_app_achat
+│   │   │   │   └── router_app_achat.dart
+│   │   │   ├── services_app_achat
+│   │   │   │   └── achat_service.dart
+│   │   │   ├── settings_app_achat
+│   │   │   │   └── settings_app_achat.dart
+│   │   │   ├── storage
+│   │   │   │   └── achat_storage_manager.dart
+│   │   │   └── utils_app_achat
+│   │   │       ├── app_utils.dart
+│   │   │       └── test_data_generator.dart
+│   │   ├── app_bank
+│   │   │   ├── .prompt
+│   │   │   │   └── cursor.txt
+│   │   │   ├── app_bank_tree.md
+│   │   │   ├── app_bank_tree_code_assets.txt
+│   │   │   ├── build_config.ini
+│   │   │   ├── config_app_bank
+│   │   │   │   ├── api_config_app_bank.dart
+│   │   │   │   ├── app_config_app_bank.dart
+│   │   │   │   ├── bank_endpoint_config.dart
+│   │   │   │   ├── bank_text_styles.dart
+│   │   │   │   ├── constants.dart
+│   │   │   │   ├── prefs_app_bank.dart
+│   │   │   │   ├── provider_app_bank.dart
+│   │   │   │   └── theme_config_app_bank.dart
+│   │   │   ├── error.txt
+│   │   │   ├── features_app_bank
+│   │   │   │   ├── account_overview
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── account_detail_screen.dart
+│   │   │   │   │       └── account_overview_screen.dart
+│   │   │   │   ├── authentication
+│   │   │   │   │   └── views
+│   │   │   │   │       └── authentication_screen.dart
+│   │   │   │   ├── card_management
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── card_management_screen.dart
+│   │   │   │   │       └── card_management_screen_enhanced.dart
+│   │   │   │   ├── dashboard
+│   │   │   │   │   └── views
+│   │   │   │   │       └── dashboard_screen.dart
+│   │   │   │   ├── debug
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── debug_settings_screen.dart
+│   │   │   │   │       ├── developer_feedback_screen.dart
+│   │   │   │   │       ├── developer_tools_screen.dart
+│   │   │   │   │       └── exclusive_customer_screen.dart
+│   │   │   │   ├── help
+│   │   │   │   │   └── views
+│   │   │   │   │       └── help_screen.dart
+│   │   │   │   ├── investment
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── investment_screen.dart
+│   │   │   │   │       └── investment_screen_enhanced.dart
+│   │   │   │   ├── life
+│   │   │   │   │   └── views
+│   │   │   │   │       └── life_screen.dart
+│   │   │   │   ├── loan
+│   │   │   │   │   └── views
+│   │   │   │   │       └── loan_screen.dart
+│   │   │   │   ├── onboarding
+│   │   │   │   │   └── views
+│   │   │   │   │       └── onboarding_screen.dart
+│   │   │   │   ├── payment
+│   │   │   │   │   └── views
+│   │   │   │   │       └── payment_screen.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   └── views
+│   │   │   │   │       └── profile_screen.dart
+│   │   │   │   ├── security
+│   │   │   │   │   └── views
+│   │   │   │   │       └── security_screen.dart
+│   │   │   │   ├── settings
+│   │   │   │   │   └── views
+│   │   │   │   │       └── settings_screen.dart
+│   │   │   │   ├── splash
+│   │   │   │   │   └── views
+│   │   │   │   │       └── splash_screen.dart
+│   │   │   │   ├── transaction_history
+│   │   │   │   │   └── views
+│   │   │   │   │       └── transaction_history_screen.dart
+│   │   │   │   └── transfer
+│   │   │   │       └── views
+│   │   │   │           └── transfer_screen.dart
+│   │   │   ├── helpers
+│   │   │   │   └── bank_app_initializer.dart
+│   │   │   ├── localization_app_bank
+│   │   │   │   ├── en_app_bank.dart
+│   │   │   │   ├── localization_keys_app_bank.dart
+│   │   │   │   └── zh_app_bank.dart
+│   │   │   ├── main_app_bank.dart
+│   │   │   ├── managers_app_bank
+│   │   │   │   ├── app_lifecycle_manager.dart
+│   │   │   │   └── user_manager.dart
+│   │   │   ├── models_app_bank
+│   │   │   │   ├── bank_global_data.dart
+│   │   │   │   ├── bank_user_model.dart
+│   │   │   │   └── user_model_app_bank.dart
+│   │   │   ├── providers_app_bank
+│   │   │   │   └── bank_user_provider.dart
+│   │   │   ├── resources_app_bank
+│   │   │   │   ├── assets_images_app_bank.dart
+│   │   │   │   └── gradients_app_bank.dart
+│   │   │   ├── router_app_bank
+│   │   │   │   └── router_app_bank.dart
+│   │   │   ├── services_app_bank
+│   │   │   │   ├── bank_auth_api_service.dart
+│   │   │   │   ├── bank_network_service.dart
+│   │   │   │   └── bank_public_api_service.dart
+│   │   │   ├── settings_app_bank
+│   │   │   │   └── settings_app_bank.dart
+│   │   │   └── widgets_app_bank
+│   │   │       ├── bank_app_bar.dart
+│   │   │       ├── bank_custom_button.dart
+│   │   │       └── bank_custom_card.dart
+│   │   ├── app_codemart
+│   │   │   ├── IMPLEMENTATION_SUMMARY.md
+│   │   │   ├── README_DATA_CENTER.md
+│   │   │   ├── UPDATE_LOG.md
+│   │   │   ├── app_codemart_tree_code_assets.txt
+│   │   │   ├── config_app_codemart
+│   │   │   │   ├── api_config_app_codemart.dart
+│   │   │   │   └── debug_config_app_codemart.dart
+│   │   │   ├── examples
+│   │   │   │   ├── app_data_center_usage_example.dart
+│   │   │   │   └── home_page_example.dart
+│   │   │   ├── localization_app_codemart
+│   │   │   │   ├── en_app_codemart.dart
+│   │   │   │   ├── localization_keys_app_codemart.dart
+│   │   │   │   └── zh_app_codemart.dart
+│   │   │   ├── main_app_codemart.dart
+│   │   │   ├── models_app_codemart
+│   │   │   │   ├── app_data_center_app_codemart.dart
+│   │   │   │   ├── codemart_enums.dart
+│   │   │   │   ├── codemart_types.dart
+│   │   │   │   └── user_model_app_codemart.dart
+│   │   │   ├── resources_app_codemart
+│   │   │   │   ├── colors_app_codemart.dart
+│   │   │   │   ├── components_app_codemart.dart
+│   │   │   │   ├── text_styles_app_codemart.dart
+│   │   │   │   └── theme_app_codemart.dart
+│   │   │   ├── router_app_codemart
+│   │   │   │   └── router_app_codemart.dart
+│   │   │   ├── services_app_codemart
+│   │   │   │   ├── auth_api_service_app_codemart.dart
+│   │   │   │   ├── codemart_api_base.dart
+│   │   │   │   ├── project_api_service_app_codemart.dart
+│   │   │   │   ├── task_api_service_app_codemart.dart
+│   │   │   │   └── user_api_service_app_codemart.dart
+│   │   │   └── views_app_codemart
+│   │   │       ├── architect
+│   │   │       │   └── architect_dashboard_view_app_codemart.dart
+│   │   │       ├── help
+│   │   │       │   ├── about_view_app_codemart.dart
+│   │   │       │   └── help_view_app_codemart.dart
+│   │   │       ├── home_view_app_codemart.dart
+│   │   │       ├── login_view_app_codemart.dart
+│   │   │       ├── notifications
+│   │   │       │   └── notifications_view_app_codemart.dart
+│   │   │       ├── profile
+│   │   │       │   └── profile_view_app_codemart.dart
+│   │   │       ├── projects
+│   │   │       │   ├── create_project_view_app_codemart.dart
+│   │   │       │   ├── edit_project_view_app_codemart.dart
+│   │   │       │   ├── project_details_view_app_codemart.dart
+│   │   │       │   ├── projects_view_app_codemart.dart
+│   │   │       │   └── proposal_view_app_codemart.dart
+│   │   │       ├── register_flow_view_app_codemart.dart
+│   │   │       ├── register_view_app_codemart.dart
+│   │   │       ├── registration_flow
+│   │   │       │   └── registration_flow_view_app_codemart.dart
+│   │   │       ├── reviews
+│   │   │       │   └── review_view_app_codemart.dart
+│   │   │       ├── search
+│   │   │       │   └── search_view_app_codemart.dart
+│   │   │       ├── settings
+│   │   │       │   ├── language_settings_view_app_codemart.dart
+│   │   │       │   ├── notification_settings_view_app_codemart.dart
+│   │   │       │   ├── privacy_settings_view_app_codemart.dart
+│   │   │       │   └── settings_view_app_codemart.dart
+│   │   │       ├── task
+│   │   │       │   └── publish_task_view_app_codemart.dart
+│   │   │       ├── tasks
+│   │   │       │   ├── my_tasks_view_app_codemart.dart
+│   │   │       │   ├── submit_task_view_app_codemart.dart
+│   │   │       │   ├── task_details_view_app_codemart.dart
+│   │   │       │   └── task_hall_view_app_codemart.dart
+│   │   │       └── wallet
+│   │   │           └── wallet_view_app_codemart.dart
+│   │   ├── app_example
+│   │   │   ├── app_example_tree.md
+│   │   │   ├── app_example_tree_code_assets.txt
+│   │   │   ├── build_config.ini
+│   │   │   ├── config_app_example
+│   │   │   │   ├── api_config_app_example.dart
+│   │   │   │   ├── api_data_models_app_example.dart
+│   │   │   │   ├── api_endpoints_app_example.dart
+│   │   │   │   ├── app_config_app_example.dart
+│   │   │   │   ├── constants_app_example.dart
+│   │   │   │   ├── prefs_app_example.dart
+│   │   │   │   ├── provider_app_example.dart
+│   │   │   │   ├── storage_app_example.dart
+│   │   │   │   └── storage_initialization_example.dart
+│   │   │   ├── controller_app_example
+│   │   │   │   ├── auth_controller_app_example.dart
+│   │   │   │   ├── profile_controller_app_example.dart
+│   │   │   │   ├── settings_controller_app_example.dart
+│   │   │   │   └── splash_controller_app_example.dart
+│   │   │   ├── features_app_example
+│   │   │   │   ├── about
+│   │   │   │   │   ├── about_screen.dart
+│   │   │   │   │   └── actions
+│   │   │   │   │       └── .gitkeep
+│   │   │   │   ├── authentication
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   ├── .gitkeep
+│   │   │   │   │   │   └── auth_actions.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── congratulation_screen.dart
+│   │   │   │   │       ├── create_pin_screen.dart
+│   │   │   │   │       ├── forgot_screen.dart
+│   │   │   │   │       ├── resetpassword_screen.dart
+│   │   │   │   │       ├── select_country.dart
+│   │   │   │   │       ├── signin_up_screen.dart
+│   │   │   │   │       ├── verify_screen.dart
+│   │   │   │   │       └── welcom_screen.dart
+│   │   │   │   ├── bookmark
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── bookmark_screen.dart
+│   │   │   │   ├── comming
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── coming_screen.dart
+│   │   │   │   ├── common_widgets
+│   │   │   │   │   ├── bar_menu
+│   │   │   │   │   │   └── home_bar.dart
+│   │   │   │   │   ├── home_widget
+│   │   │   │   │   │   ├── tab_widget.dart
+│   │   │   │   │   │   └── top_section.dart
+│   │   │   │   │   ├── route_navigation_example.dart
+│   │   │   │   │   └── settings_item
+│   │   │   │   │       ├── settings_arrow_item.dart
+│   │   │   │   │       ├── settings_badge_item.dart
+│   │   │   │   │       ├── settings_dropdown_item.dart
+│   │   │   │   │       ├── settings_group.dart
+│   │   │   │   │       └── settings_switch_item.dart
+│   │   │   │   ├── dashboard
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── navigation_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── dashboard_screen.dart
+│   │   │   │   │   │   └── inbox_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── appbar.dart
+│   │   │   │   ├── donation
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── doantion_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── donation_all_screen.dart
+│   │   │   │   │       └── donation_screen.dart
+│   │   │   │   ├── fundraising
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       ├── activity_model.dart
+│   │   │   │   │   │       ├── fundraising_model.dart
+│   │   │   │   │   │       └── my_fundraising_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── activity_screen.dart
+│   │   │   │   │   │   ├── create_new_fundraising.dart
+│   │   │   │   │   │   ├── edit_fundaising.dart
+│   │   │   │   │   │   ├── fundraising_ditails.dart
+│   │   │   │   │   │   ├── fundrasing.dart
+│   │   │   │   │   │   ├── fundrasing_screen.dart
+│   │   │   │   │   │   └── my_fudrasing_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── card_widget.dart
+│   │   │   │   │       └── create_fundraisig_image_widget.dart
+│   │   │   │   ├── help
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── help_data_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── about_us_screen.dart
+│   │   │   │   │   │   ├── contact_screen.dart
+│   │   │   │   │   │   ├── fqa_screen.dart
+│   │   │   │   │   │   ├── privacy_policy.dart
+│   │   │   │   │   │   └── themes_conditions.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── fqa_widet.dart
+│   │   │   │   ├── home
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   ├── all_screen_model.dart
+│   │   │   │   │   │   │   ├── banner_model.dart
+│   │   │   │   │   │   │   ├── comingto_model.dart
+│   │   │   │   │   │   │   ├── fund_rising_model.dart
+│   │   │   │   │   │   │   ├── medical_model.dart
+│   │   │   │   │   │   │   ├── notification_model.dart
+│   │   │   │   │   │   │   ├── prayer_model.dart
+│   │   │   │   │   │   │   ├── urgetnt_fundrasing_model.dart
+│   │   │   │   │   │   │   └── wacth_impact_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       ├── banner_service.dart
+│   │   │   │   │   │       ├── home_service_interface.dart
+│   │   │   │   │   │       └── product_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── home_screen.dart
+│   │   │   │   │   │   ├── play_video_screen.dart
+│   │   │   │   │   │   ├── prayer_screen.dart
+│   │   │   │   │   │   ├── urgent_fundraising.dart
+│   │   │   │   │   │   └── watch_impact.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── actions_widget.dart
+│   │   │   │   │       ├── all_screen.dart
+│   │   │   │   │       ├── banner_widget.dart
+│   │   │   │   │       ├── coming_list.dart
+│   │   │   │   │       ├── coming_widget.dart
+│   │   │   │   │       ├── disaster_screen.dart
+│   │   │   │   │       ├── education_screen.dart
+│   │   │   │   │       ├── fund_rising_listview.dart
+│   │   │   │   │       ├── fund_rising_widget.dart
+│   │   │   │   │       ├── health_screen.dart
+│   │   │   │   │       ├── home_title.dart
+│   │   │   │   │       ├── logined_func_widget.dart
+│   │   │   │   │       ├── logined_wordgroup_widget.dart
+│   │   │   │   │       ├── medical_screen.dart
+│   │   │   │   │       ├── prayer_listview.dart
+│   │   │   │   │       ├── prayer_widget.dart
+│   │   │   │   │       ├── prayerfrom_pepole.dart
+│   │   │   │   │       ├── urgent_fund_rising_widget.dart
+│   │   │   │   │       ├── urgentfunding_widget.dart
+│   │   │   │   │       ├── watch_impact_list.dart
+│   │   │   │   │       └── watch_impact_widget.dart
+│   │   │   │   ├── home_login
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── home_login_view.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       └── home_login_widget.dart
+│   │   │   │   ├── inbox
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── inbox_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── chat_screen.dart
+│   │   │   │   ├── interest
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── select_interest.dart
+│   │   │   │   ├── invite_friend
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── invite_friend_screen.dart
+│   │   │   │   ├── language
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── language_selector.dart
+│   │   │   │   ├── notification
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── notificaiton_screen.dart
+│   │   │   │   ├── onbording
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controller
+│   │   │   │   │   │   └── home_controller.dart
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── on_boarding_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── onbording_screen.dart
+│   │   │   │   ├── prayer
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── prayer_screen.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── profile_controller_app_example.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       ├── about_model.dart
+│   │   │   │   │   │       └── select_insterest_model.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── profile_model_app_example.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── edit_profile.dart
+│   │   │   │   │       ├── profile_screen.dart
+│   │   │   │   │       └── profile_view_screen.dart
+│   │   │   │   ├── profile_two
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── add_card_screen.dart
+│   │   │   │   │   │   ├── profile_two_screen.dart
+│   │   │   │   │   │   ├── set_withdraw_mail_screen.dart
+│   │   │   │   │   │   ├── top_up_screen.dart
+│   │   │   │   │   │   ├── topup_method_screen.dart
+│   │   │   │   │   │   ├── wallet_center_screen.dart
+│   │   │   │   │   │   └── withdraw_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── interest_widget.dart
+│   │   │   │   │       ├── setting_widget.dart
+│   │   │   │   │       └── top_card_widget.dart
+│   │   │   │   ├── search
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── search_screen.dart
+│   │   │   │   ├── setting
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── invite_friend_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── help_screen.dart
+│   │   │   │   │   │   ├── notification_setting.dart
+│   │   │   │   │   │   ├── security_screen.dart
+│   │   │   │   │   │   └── setting_screen_view.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── card_widget.dart
+│   │   │   │   │       └── notification_setting_widget.dart
+│   │   │   │   ├── social_feed
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── post_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── social_feed_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── feed_header.dart
+│   │   │   │   │       └── post_card.dart
+│   │   │   │   ├── splash
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── splash_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── slide_to_start_button.dart
+│   │   │   │   ├── tab
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── all_screen.dart
+│   │   │   │   │       └── medical_screen.dart
+│   │   │   │   ├── top_menu
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── top_menu.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── custom_icon_label.dart
+│   │   │   │   │       └── custom_icon_label_group.dart
+│   │   │   │   ├── word_card
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controller
+│   │   │   │   │   │   └── word_card_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   ├── word_card_model.dart
+│   │   │   │   │   │   ├── word_card_model.g.dart
+│   │   │   │   │   │   └── word_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── word_card_screen.dart
+│   │   │   │   │       └── word_card_style_test.dart
+│   │   │   │   └── word_cards
+│   │   │   │       ├── actions
+│   │   │   │       │   └── .gitkeep
+│   │   │   │       ├── types
+│   │   │   │       │   └── words_types.dart
+│   │   │   │       └── views
+│   │   │   │           └── word_cards_screen.dart
+│   │   │   ├── localization_app_example
+│   │   │   │   ├── en_app_example.dart
+│   │   │   │   ├── localization_keys_app_example.dart
+│   │   │   │   └── zh_app_example.dart
+│   │   │   ├── main_app_example.dart
+│   │   │   ├── model_app_example
+│   │   │   │   └── user_model.dart
+│   │   │   ├── providers_app_example
+│   │   │   │   └── example_user_provider.dart
+│   │   │   ├── resources_app_example
+│   │   │   │   ├── assets_icons_app_example.dart
+│   │   │   │   ├── assets_images_app_example.dart
+│   │   │   │   ├── assets_launch_app_example.dart
+│   │   │   │   ├── test_file.dart
+│   │   │   │   ├── text_styles_app_example.dart
+│   │   │   │   └── theme_extensions_app_example.dart
+│   │   │   ├── router_app_example
+│   │   │   │   ├── route_test_helper.dart
+│   │   │   │   ├── router_app_example.dart
+│   │   │   │   ├── router_legacy_qy.dart
+│   │   │   │   └── routes_provider_app_example.dart
+│   │   │   ├── services_app_example
+│   │   │   │   ├── app_example_service_manager.dart
+│   │   │   │   ├── auth_api_app_example_service.dart
+│   │   │   │   ├── product_api_app_example_service.dart
+│   │   │   │   ├── service_app_example.dart
+│   │   │   │   ├── services_app_example.dart
+│   │   │   │   └── user_api_app_example_service.dart
+│   │   │   ├── settings_app_example
+│   │   │   │   └── settings_app_example.dart
+│   │   │   └── utils_app_example
+│   │   │       └── utils_app_example.dart
+│   │   ├── app_main
+│   │   │   ├── app_main_tree_code_assets.txt
+│   │   │   ├── apps_bootstrap_main.dart
+│   │   │   ├── build_config.ini
+│   │   │   ├── config_app_main
+│   │   │   │   ├── app_config_app_main.dart
+│   │   │   │   ├── prefs_app_main.dart
+│   │   │   │   └── storage_app_main.dart
+│   │   │   ├── error.txt
+│   │   │   ├── features_app_main
+│   │   │   │   ├── all_apps_showcase
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── all_apps_showcase_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── all_apps_showcase_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── all_apps_showcase_screen.dart
+│   │   │   │   ├── main_about
+│   │   │   │   │   └── views
+│   │   │   │   │       └── main_about_screen.dart
+│   │   │   │   ├── main_home
+│   │   │   │   │   └── views
+│   │   │   │   │       └── main_home_screen.dart
+│   │   │   │   └── main_settings
+│   │   │   │       └── views
+│   │   │   │           └── main_settings_screen.dart
+│   │   │   ├── localization_app_main
+│   │   │   │   ├── en_app_main.dart
+│   │   │   │   ├── localization_keys_app_main.dart
+│   │   │   │   └── zh_app_main.dart
+│   │   │   ├── main_app_main.dart
+│   │   │   ├── provider_app_main.dart
+│   │   │   ├── resources_app_main
+│   │   │   │   ├── assets_fonts_app_main.dart
+│   │   │   │   ├── assets_icons_app_main.dart
+│   │   │   │   ├── assets_images_app_main.dart
+│   │   │   │   ├── assets_launch_app_main.dart
+│   │   │   │   └── assets_manager_app_main.dart
+│   │   │   └── router_app_main
+│   │   │       └── routes_provider_app_main.dart
+│   │   ├── app_qy
+│   │   │   ├── ARCHITECTURE_GUIDE.md
+│   │   │   ├── CLEANUP_README.md
+│   │   │   ├── CLEANUP_REPORT.json
+│   │   │   ├── CLEANUP_RESULTS_ACTUAL.json
+│   │   │   ├── CLEANUP_RESULTS_DRY_RUN.json
+│   │   │   ├── CLEANUP_SUMMARY.md
+│   │   │   ├── CLEANUP_SUMMARY_EN.md
+│   │   │   ├── DEVELOPMENT_ROADMAP.md
+│   │   │   ├── IMPLEMENTATION_STATUS.md
+│   │   │   ├── IMPLEMENTATION_SUMMARY.md
+│   │   │   ├── PAGES_PROGRESS.md
+│   │   │   ├── PROJECT_SUMMARY.md
+│   │   │   ├── PROVIDER_SETUP_EXAMPLE.dart
+│   │   │   ├── QUICK_START.md
+│   │   │   ├── QUICK_START_EN.md
+│   │   │   ├── README.MD
+│   │   │   ├── README_AUTHENTICATION.md
+│   │   │   ├── SESSION_SUMMARY.md
+│   │   │   ├── TECHNICAL_ARCHITECTURE.md
+│   │   │   ├── _prompts
+│   │   │   │   ├── AI_COLLABORATION_BRIDGE_QY.json
+│   │   │   │   ├── a.txt
+│   │   │   │   ├── build_log.txt
+│   │   │   │   ├── flutter_error_ament.txt
+│   │   │   │   ├── page_promt_process.txt
+│   │   │   │   ├── prompts.md
+│   │   │   │   ├── qy_bankend.txt
+│   │   │   │   ├── qy_frontend.txt
+│   │   │   │   ├── task.txt
+│   │   │   │   └── testapp.txt
+│   │   │   ├── app_qy_tree.md
+│   │   │   ├── app_qy_tree_code_assets.txt
+│   │   │   ├── build_config.ini
+│   │   │   ├── cleanup_analysis.py
+│   │   │   ├── cleanup_analysis_en.py
+│   │   │   ├── cleanup_execute.py
+│   │   │   ├── cleanup_execute_en.py
+│   │   │   ├── config_app_qy
+│   │   │   │   ├── api_config_app_qy.dart
+│   │   │   │   ├── api_data_models_app_qy.dart
+│   │   │   │   ├── api_endpoints_app_qy.dart
+│   │   │   │   ├── app_config_app_qy.dart
+│   │   │   │   ├── constants_app_qy.dart
+│   │   │   │   ├── prefs_app_qy.dart
+│   │   │   │   ├── provider_app_qy.dart
+│   │   │   │   ├── storage_app_qy.dart
+│   │   │   │   └── storage_initialization_example.dart
+│   │   │   ├── controller_app_qy
+│   │   │   │   ├── auth_controller_app_qy.dart
+│   │   │   │   ├── profile_controller_app_qy.dart
+│   │   │   │   ├── settings_controller_app_qy.dart
+│   │   │   │   └── splash_controller_app_qy.dart
+│   │   │   ├── docs
+│   │   │   │   ├── OCR_PROCESSING_REPORT.md
+│   │   │   │   ├── OCR_UPGRADE_REPORT.md
+│   │   │   │   ├── REPLACEMENT_REPORT.md
+│   │   │   │   ├── about.jpg
+│   │   │   │   ├── about_info.json
+│   │   │   │   ├── account_settings.jpg
+│   │   │   │   ├── account_settings_1.jpg
+│   │   │   │   ├── account_settings_1_info.json
+│   │   │   │   ├── account_settings_info.json
+│   │   │   │   ├── certificate_center.jpg
+│   │   │   │   ├── certificate_center_info.json
+│   │   │   │   ├── checkin_challenge.jpg
+│   │   │   │   ├── checkin_challenge_info.json
+│   │   │   │   ├── course_ielts.jpg
+│   │   │   │   ├── course_ielts_1.jpg
+│   │   │   │   ├── course_ielts_1_info.json
+│   │   │   │   ├── course_ielts_2.jpg
+│   │   │   │   ├── course_ielts_2_info.json
+│   │   │   │   ├── course_ielts_3.jpg
+│   │   │   │   ├── course_ielts_3_info.json
+│   │   │   │   ├── course_ielts_4.jpg
+│   │   │   │   ├── course_ielts_4_info.json
+│   │   │   │   ├── course_ielts_info.json
+│   │   │   │   ├── course_plans.jpg
+│   │   │   │   ├── course_plans_info.json
+│   │   │   │   ├── course_python.jpg
+│   │   │   │   ├── course_python_1.jpg
+│   │   │   │   ├── course_python_1_info.json
+│   │   │   │   ├── course_python_info.json
+│   │   │   │   ├── display_mode.jpg
+│   │   │   │   ├── display_mode_info.json
+│   │   │   │   ├── docs_tree.md
+│   │   │   │   ├── home_search.jpg
+│   │   │   │   ├── home_search_info.json
+│   │   │   │   ├── home_study.jpg
+│   │   │   │   ├── home_study_info.json
+│   │   │   │   ├── image_001.jpg
+│   │   │   │   ├── image_001_info.json
+│   │   │   │   ├── login_phone.jpg
+│   │   │   │   ├── login_phone_info.json
+│   │   │   │   ├── message_center.jpg
+│   │   │   │   ├── message_center_info.json
+│   │   │   │   ├── more_features.jpg
+│   │   │   │   ├── more_features_1.jpg
+│   │   │   │   ├── more_features_1_info.json
+│   │   │   │   ├── more_features_info.json
+│   │   │   │   ├── recommend_settings.jpg
+│   │   │   │   ├── recommend_settings_info.json
+│   │   │   │   ├── reminder_settings.jpg
+│   │   │   │   ├── reminder_settings_info.json
+│   │   │   │   ├── settings.jpg
+│   │   │   │   ├── settings_info.json
+│   │   │   │   ├── word_book.jpg
+│   │   │   │   ├── word_book_info.json
+│   │   │   │   ├── word_listening.jpg
+│   │   │   │   ├── word_listening_1.jpg
+│   │   │   │   ├── word_listening_1_info.json
+│   │   │   │   ├── word_listening_ai_explain.jpg
+│   │   │   │   ├── word_listening_ai_explain_info.json
+│   │   │   │   ├── word_listening_dictation.jpg
+│   │   │   │   ├── word_listening_dictation_1.jpg
+│   │   │   │   ├── word_listening_dictation_1_info.json
+│   │   │   │   ├── word_listening_dictation_2.jpg
+│   │   │   │   ├── word_listening_dictation_2_info.json
+│   │   │   │   ├── word_listening_dictation_3.jpg
+│   │   │   │   ├── word_listening_dictation_3_info.json
+│   │   │   │   ├── word_listening_dictation_info.json
+│   │   │   │   ├── word_listening_free.jpg
+│   │   │   │   ├── word_listening_free_info.json
+│   │   │   │   ├── word_listening_info.json
+│   │   │   │   ├── word_listening_sleep.jpg
+│   │   │   │   └── word_listening_sleep_info.json
+│   │   │   ├── features_app_qy
+│   │   │   │   ├── about
+│   │   │   │   │   ├── about_screen.dart
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── views
+│   │   │   │   │       └── about_screen.dart
+│   │   │   │   ├── ai_study
+│   │   │   │   │   └── views
+│   │   │   │   │       └── ai_study_screen_app_qy.dart
+│   │   │   │   ├── auth
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── auth_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── auth_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── auth_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── login_phone_screen_app_qy.dart
+│   │   │   │   ├── authentication
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   ├── .gitkeep
+│   │   │   │   │   │   └── auth_actions.dart
+│   │   │   │   │   ├── auth_config_app_qy.dart
+│   │   │   │   │   ├── auth_routes_app_qy.dart
+│   │   │   │   │   ├── auth_service_app_qy.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── congratulation_screen.dart
+│   │   │   │   │   │   ├── create_pin_screen.dart
+│   │   │   │   │   │   ├── forgot_screen.dart
+│   │   │   │   │   │   ├── login_screen_app_qy.dart
+│   │   │   │   │   │   ├── login_screen_v2_app_qy.dart
+│   │   │   │   │   │   ├── resetpassword_screen.dart
+│   │   │   │   │   │   ├── select_country.dart
+│   │   │   │   │   │   ├── signin_up_screen.dart
+│   │   │   │   │   │   ├── verify_screen.dart
+│   │   │   │   │   │   └── welcom_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── agreement_checkbox.dart
+│   │   │   │   │       ├── phone_login_button.dart
+│   │   │   │   │       └── wechat_login_button.dart
+│   │   │   │   ├── bookmark
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── bookmark_screen.dart
+│   │   │   │   ├── certificate
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── certificate_model.dart
+│   │   │   │   │   ├── services
+│   │   │   │   │   │   └── certificate_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── certificate_center_screen.dart
+│   │   │   │   ├── checkin
+│   │   │   │   │   └── views
+│   │   │   │   │       └── checkin_challenge_screen.dart
+│   │   │   │   ├── comming
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── coming_screen.dart
+│   │   │   │   ├── common_widgets
+│   │   │   │   │   ├── bar_menu
+│   │   │   │   │   │   └── home_bar.dart
+│   │   │   │   │   ├── home_widget
+│   │   │   │   │   │   ├── tab_widget.dart
+│   │   │   │   │   │   └── top_section.dart
+│   │   │   │   │   ├── route_navigation_example.dart
+│   │   │   │   │   └── settings_item
+│   │   │   │   │       ├── settings_arrow_item.dart
+│   │   │   │   │       ├── settings_badge_item.dart
+│   │   │   │   │       ├── settings_dropdown_item.dart
+│   │   │   │   │       ├── settings_group.dart
+│   │   │   │   │       └── settings_switch_item.dart
+│   │   │   │   ├── course
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── course_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── course_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── course_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── course_certificate_screen_app_qy.dart
+│   │   │   │   │       ├── course_detail_screen_app_qy.dart
+│   │   │   │   │       ├── course_ielts_1_screen_app_qy.dart
+│   │   │   │   │       ├── course_ielts_2_screen_app_qy.dart
+│   │   │   │   │       ├── course_ielts_3_screen_app_qy.dart
+│   │   │   │   │       ├── course_ielts_4_screen_app_qy.dart
+│   │   │   │   │       ├── course_ielts_screen_app_qy.dart
+│   │   │   │   │       ├── course_lesson_screen_app_qy.dart
+│   │   │   │   │       ├── course_plans_screen_app_qy.dart
+│   │   │   │   │       ├── course_progress_screen_app_qy.dart
+│   │   │   │   │       ├── course_python_1_screen_app_qy.dart
+│   │   │   │   │       ├── course_python_screen_app_qy.dart
+│   │   │   │   │       ├── course_review_screen_app_qy.dart
+│   │   │   │   │       └── course_search_screen_app_qy.dart
+│   │   │   │   ├── courses
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── models
+│   │   │   │   │   │   │   └── course_model.dart
+│   │   │   │   │   │   └── services
+│   │   │   │   │   │       └── course_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── course_ielts_screen.dart
+│   │   │   │   │       ├── course_plans_screen.dart
+│   │   │   │   │       ├── course_python_screen.dart
+│   │   │   │   │       └── courses_screen.dart
+│   │   │   │   ├── dashboard
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── navigation_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── dashboard_screen.dart
+│   │   │   │   │   │   └── inbox_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── appbar.dart
+│   │   │   │   ├── dictionary_recommend
+│   │   │   │   │   ├── data
+│   │   │   │   │   │   └── mock_dictionaries.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── dictionary_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── dictionary_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── dictionary_recommend_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── dictionary_card.dart
+│   │   │   │   │       └── waterfall_grid.dart
+│   │   │   │   ├── discover
+│   │   │   │   │   └── views
+│   │   │   │   │       └── discover_screen_app_qy.dart
+│   │   │   │   ├── donation
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── doantion_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── donation_all_screen.dart
+│   │   │   │   │       └── donation_screen.dart
+│   │   │   │   ├── fundraising
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       ├── activity_model.dart
+│   │   │   │   │   │       ├── fundraising_model.dart
+│   │   │   │   │   │       └── my_fundraising_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── activity_screen.dart
+│   │   │   │   │   │   ├── create_new_fundraising.dart
+│   │   │   │   │   │   ├── edit_fundaising.dart
+│   │   │   │   │   │   ├── fundraising_ditails.dart
+│   │   │   │   │   │   ├── fundrasing.dart
+│   │   │   │   │   │   ├── fundrasing_screen.dart
+│   │   │   │   │   │   └── my_fudrasing_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── card_widget.dart
+│   │   │   │   │       └── create_fundraisig_image_widget.dart
+│   │   │   │   ├── help
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── help_data_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── about_us_screen.dart
+│   │   │   │   │   │   ├── contact_screen.dart
+│   │   │   │   │   │   ├── fqa_screen.dart
+│   │   │   │   │   │   ├── privacy_policy.dart
+│   │   │   │   │   │   └── themes_conditions.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── fqa_widet.dart
+│   │   │   │   ├── home
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   ├── home_controller_app_qy.dart
+│   │   │   │   │   │   └── learning_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   ├── all_screen_model.dart
+│   │   │   │   │   │   │   ├── banner_model.dart
+│   │   │   │   │   │   │   ├── comingto_model.dart
+│   │   │   │   │   │   │   ├── fund_rising_model.dart
+│   │   │   │   │   │   │   ├── learning_stats_model.dart
+│   │   │   │   │   │   │   ├── medical_model.dart
+│   │   │   │   │   │   │   ├── notification_model.dart
+│   │   │   │   │   │   │   ├── prayer_model.dart
+│   │   │   │   │   │   │   ├── urgetnt_fundrasing_model.dart
+│   │   │   │   │   │   │   └── wacth_impact_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       ├── banner_service.dart
+│   │   │   │   │   │       ├── home_service_interface.dart
+│   │   │   │   │   │       ├── learning_service.dart
+│   │   │   │   │   │       └── product_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── home_daily_task_screen_app_qy.dart
+│   │   │   │   │   │   ├── home_screen.dart
+│   │   │   │   │   │   ├── home_screen_app_qy.dart
+│   │   │   │   │   │   ├── home_search_screen_app_qy.dart
+│   │   │   │   │   │   ├── home_streak_screen_app_qy.dart
+│   │   │   │   │   │   ├── home_study_screen_app_qy.dart
+│   │   │   │   │   │   ├── play_video_screen.dart
+│   │   │   │   │   │   ├── prayer_screen.dart
+│   │   │   │   │   │   ├── urgent_fundraising.dart
+│   │   │   │   │   │   └── watch_impact.dart
+│   │   │   │   │   ├── widget
+│   │   │   │   │   │   ├── actions_widget.dart
+│   │   │   │   │   │   ├── all_screen.dart
+│   │   │   │   │   │   ├── banner_widget.dart
+│   │   │   │   │   │   ├── coming_list.dart
+│   │   │   │   │   │   ├── coming_widget.dart
+│   │   │   │   │   │   ├── disaster_screen.dart
+│   │   │   │   │   │   ├── education_screen.dart
+│   │   │   │   │   │   ├── fund_rising_listview.dart
+│   │   │   │   │   │   ├── fund_rising_widget.dart
+│   │   │   │   │   │   ├── health_screen.dart
+│   │   │   │   │   │   ├── home_title.dart
+│   │   │   │   │   │   ├── logined_func_widget.dart
+│   │   │   │   │   │   ├── logined_wordgroup_widget.dart
+│   │   │   │   │   │   ├── medical_screen.dart
+│   │   │   │   │   │   ├── prayer_listview.dart
+│   │   │   │   │   │   ├── prayer_widget.dart
+│   │   │   │   │   │   ├── prayerfrom_pepole.dart
+│   │   │   │   │   │   ├── urgent_fund_rising_widget.dart
+│   │   │   │   │   │   ├── urgentfunding_widget.dart
+│   │   │   │   │   │   ├── watch_impact_list.dart
+│   │   │   │   │   │   └── watch_impact_widget.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── feature_grid.dart
+│   │   │   │   │       ├── study_progress_card.dart
+│   │   │   │   │       └── study_stats_card.dart
+│   │   │   │   ├── home_login
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── home_login_view.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       └── home_login_widget.dart
+│   │   │   │   ├── inbox
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── inbox_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── chat_screen.dart
+│   │   │   │   │       └── message_center_screen.dart
+│   │   │   │   ├── interest
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── select_interest.dart
+│   │   │   │   ├── invite_friend
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── invite_friend_screen.dart
+│   │   │   │   ├── language
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── language_selector.dart
+│   │   │   │   ├── more_features
+│   │   │   │   │   └── views
+│   │   │   │   │       └── more_features_screen.dart
+│   │   │   │   ├── notification
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── notificaiton_screen.dart
+│   │   │   │   ├── onbording
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controller
+│   │   │   │   │   │   └── home_controller.dart
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── on_boarding_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── onbording_screen.dart
+│   │   │   │   ├── other
+│   │   │   │   │   └── views
+│   │   │   │   │       └── image_001_screen_app_qy.dart
+│   │   │   │   ├── prayer
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── prayer_screen.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── profile_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   ├── about_model.dart
+│   │   │   │   │   │   │   ├── profile_model.dart
+│   │   │   │   │   │   │   └── select_insterest_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── profile_service.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── profile_model_app_qy.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── about_screen_app_qy.dart
+│   │   │   │   │       ├── certificate_center_screen_app_qy.dart
+│   │   │   │   │       ├── edit_profile.dart
+│   │   │   │   │       ├── more_features_1_screen_app_qy.dart
+│   │   │   │   │       ├── more_features_screen_app_qy.dart
+│   │   │   │   │       ├── profile_achievements_screen_app_qy.dart
+│   │   │   │   │       ├── profile_screen.dart
+│   │   │   │   │       ├── profile_stats_screen_app_qy.dart
+│   │   │   │   │       └── profile_view_screen.dart
+│   │   │   │   ├── profile_two
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── add_card_screen.dart
+│   │   │   │   │   │   ├── profile_two_screen.dart
+│   │   │   │   │   │   ├── set_withdraw_mail_screen.dart
+│   │   │   │   │   │   ├── top_up_screen.dart
+│   │   │   │   │   │   ├── topup_method_screen.dart
+│   │   │   │   │   │   ├── wallet_center_screen.dart
+│   │   │   │   │   │   └── withdraw_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── interest_widget.dart
+│   │   │   │   │       ├── setting_widget.dart
+│   │   │   │   │       └── top_card_widget.dart
+│   │   │   │   ├── search
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── search_screen.dart
+│   │   │   │   ├── setting
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   └── model
+│   │   │   │   │   │       └── invite_friend_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── help_screen.dart
+│   │   │   │   │   │   ├── notification_setting.dart
+│   │   │   │   │   │   ├── security_screen.dart
+│   │   │   │   │   │   └── setting_screen_view.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── card_widget.dart
+│   │   │   │   │       └── notification_setting_widget.dart
+│   │   │   │   ├── settings
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── settings_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── settings_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── settings_service.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── about_screen_app_qy.dart
+│   │   │   │   │   │   ├── account_settings_1_screen_app_qy.dart
+│   │   │   │   │   │   ├── account_settings_screen.dart
+│   │   │   │   │   │   ├── account_settings_screen_app_qy.dart
+│   │   │   │   │   │   ├── display_mode_screen_app_qy.dart
+│   │   │   │   │   │   ├── display_settings_screen.dart
+│   │   │   │   │   │   ├── help_center_screen_app_qy.dart
+│   │   │   │   │   │   ├── learning_preferences_screen_app_qy.dart
+│   │   │   │   │   │   ├── notifications_screen_app_qy.dart
+│   │   │   │   │   │   ├── recommend_settings_screen.dart
+│   │   │   │   │   │   ├── recommend_settings_screen_app_qy.dart
+│   │   │   │   │   │   ├── reminder_settings_screen.dart
+│   │   │   │   │   │   ├── reminder_settings_screen_app_qy.dart
+│   │   │   │   │   │   ├── settings_screen.dart
+│   │   │   │   │   │   └── settings_screen_app_qy.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── settings_section.dart
+│   │   │   │   │       └── settings_tile.dart
+│   │   │   │   ├── social
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── social_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── social_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── social_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── checkin_challenge_screen_app_qy.dart
+│   │   │   │   │       ├── message_center_screen_app_qy.dart
+│   │   │   │   │       ├── social_ranking_screen_app_qy.dart
+│   │   │   │   │       └── social_study_group_screen_app_qy.dart
+│   │   │   │   ├── social_feed
+│   │   │   │   │   ├── model
+│   │   │   │   │   │   └── post_model.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── social_feed_screen.dart
+│   │   │   │   │   └── widget
+│   │   │   │   │       ├── feed_header.dart
+│   │   │   │   │       └── post_card.dart
+│   │   │   │   ├── splash
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── splash_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── slide_to_start_button.dart
+│   │   │   │   ├── tab
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── all_screen.dart
+│   │   │   │   │       └── medical_screen.dart
+│   │   │   │   ├── top_menu
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── top_menu.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── custom_icon_label.dart
+│   │   │   │   │       └── custom_icon_label_group.dart
+│   │   │   │   ├── word
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── word_controller_app_qy.dart
+│   │   │   │   │   ├── domain
+│   │   │   │   │   │   ├── model
+│   │   │   │   │   │   │   └── word_model.dart
+│   │   │   │   │   │   └── service
+│   │   │   │   │   │       └── word_service.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── word_book_screen_app_qy.dart
+│   │   │   │   │       ├── word_dictation_screen_app_qy.dart
+│   │   │   │   │       ├── word_flashcard_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_1_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_ai_explain_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_dictation_1_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_dictation_2_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_dictation_3_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_dictation_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_free_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_screen_app_qy.dart
+│   │   │   │   │       ├── word_listening_sleep_screen_app_qy.dart
+│   │   │   │   │       ├── word_review_screen_app_qy.dart
+│   │   │   │   │       ├── word_spelling_screen_app_qy.dart
+│   │   │   │   │       └── word_test_screen_app_qy.dart
+│   │   │   │   ├── word_book
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   └── word_models.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── widgets
+│   │   │   │   │   │   │   ├── word_list_view.dart
+│   │   │   │   │   │   │   ├── word_search_bar.dart
+│   │   │   │   │   │   │   └── word_stats_card.dart
+│   │   │   │   │   │   └── word_book_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── word_item_card.dart
+│   │   │   │   │       ├── word_list_view.dart
+│   │   │   │   │       ├── word_search_bar.dart
+│   │   │   │   │       └── word_stats_card.dart
+│   │   │   │   ├── word_card
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── controller
+│   │   │   │   │   │   └── word_card_controller.dart
+│   │   │   │   │   ├── models
+│   │   │   │   │   │   ├── word_card_model.dart
+│   │   │   │   │   │   ├── word_card_model.g.dart
+│   │   │   │   │   │   └── word_model.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── word_card_screen.dart
+│   │   │   │   │       └── word_card_style_test.dart
+│   │   │   │   ├── word_cards
+│   │   │   │   │   ├── actions
+│   │   │   │   │   │   └── .gitkeep
+│   │   │   │   │   ├── types
+│   │   │   │   │   │   └── words_types.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       └── word_cards_screen.dart
+│   │   │   │   └── word_listening
+│   │   │   │       ├── views
+│   │   │   │       │   ├── widgets
+│   │   │   │       │   │   ├── category_list.dart
+│   │   │   │       │   │   ├── current_word_card.dart
+│   │   │   │       │   │   └── playback_controls.dart
+│   │   │   │       │   ├── word_listening_ai_explain_screen.dart
+│   │   │   │       │   ├── word_listening_dictation_2_screen.dart
+│   │   │   │       │   ├── word_listening_dictation_3_screen.dart
+│   │   │   │       │   ├── word_listening_dictation_practice_screen.dart
+│   │   │   │       │   ├── word_listening_dictation_screen.dart
+│   │   │   │       │   ├── word_listening_free_screen.dart
+│   │   │   │       │   ├── word_listening_screen.dart
+│   │   │   │       │   └── word_listening_sleep_screen.dart
+│   │   │   │       └── widgets
+│   │   │   │           ├── category_list.dart
+│   │   │   │           ├── current_word_card.dart
+│   │   │   │           └── playback_controls.dart
+│   │   │   ├── localization_app_qy
+│   │   │   │   ├── en_app_qy.dart
+│   │   │   │   ├── localization_keys_app_qy.dart
+│   │   │   │   └── zh_app_qy.dart
+│   │   │   ├── main_app_qy.dart
+│   │   │   ├── missing_keys.txt
+│   │   │   ├── model_app_qy
+│   │   │   │   └── user_model.dart
+│   │   │   ├── models_app_qy
+│   │   │   │   └── user_model_app_qy.dart
+│   │   │   ├── noerror.txt
+│   │   │   ├── provider_app_qy
+│   │   │   │   └── user_provider_app_qy.dart
+│   │   │   ├── providers_app_qy
+│   │   │   │   └── qy_user_provider.dart
+│   │   │   ├── pubspec.yaml
+│   │   │   ├── resources_app_qy
+│   │   │   │   ├── assets_icons_app_qy.dart
+│   │   │   │   ├── assets_images_app_qy.dart
+│   │   │   │   ├── assets_launch_app_qy.dart
+│   │   │   │   ├── text_styles_app_qy.dart
+│   │   │   │   └── theme_extensions_app_qy.dart
+│   │   │   ├── router_app_qy
+│   │   │   │   ├── route_test_helper.dart
+│   │   │   │   ├── router_app_qy.dart
+│   │   │   │   ├── router_legacy_qy.dart
+│   │   │   │   └── routes_provider_app_qy.dart
+│   │   │   ├── services_app_qy
+│   │   │   │   ├── api_service_app_qy.dart
+│   │   │   │   ├── app_qy_service_manager.dart
+│   │   │   │   ├── auth_api_app_qy_service.dart
+│   │   │   │   ├── cache_service_app_qy.dart
+│   │   │   │   ├── product_api_app_qy_service.dart
+│   │   │   │   ├── service_app_qy.dart
+│   │   │   │   ├── services_app_qy.dart
+│   │   │   │   └── user_api_app_qy_service.dart
+│   │   │   ├── settings_app_qy
+│   │   │   │   └── settings_app_qy.dart
+│   │   │   ├── utils_app_qy
+│   │   │   │   └── utils_app_qy.dart
+│   │   │   └── widgets_app_qy
+│   │   │       └── bottom_navigation_app_qy.dart
+│   │   ├── app_travel
+│   │   │   ├── DEVELOPMENT_PLAN.md
+│   │   │   ├── IMPORT_PATH_GUIDE.md
+│   │   │   ├── MIGRATION_PLAN.md
+│   │   │   ├── MODEL_CENTRALIZATION_ANALYSIS.md
+│   │   │   ├── PROJECT_STATUS.md
+│   │   │   ├── R.jpg
+│   │   │   ├── app_travel_tree.md
+│   │   │   ├── app_travel_tree_code_assets.txt
+│   │   │   ├── build_config.ini
+│   │   │   ├── config_app_travel
+│   │   │   │   ├── app_config_app_travel.dart
+│   │   │   │   ├── constants_app_travel.dart
+│   │   │   │   ├── prefs_app_travel.dart
+│   │   │   │   └── provider_app_travel.dart
+│   │   │   ├── constants_app_travel
+│   │   │   │   └── cities_app_travel.dart
+│   │   │   ├── doc
+│   │   │   │   ├── Weixin Image_20251031061859_1_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061900_2_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061901_3_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061902_4_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061902_5_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061903_6_4.jpg
+│   │   │   │   ├── Weixin Image_20251031061903_7_4.jpg
+│   │   │   │   ├── a.png
+│   │   │   │   ├── chat.png
+│   │   │   │   ├── icons
+│   │   │   │   │   ├── icon_1.png
+│   │   │   │   │   ├── icon_2.png
+│   │   │   │   │   ├── icon_3.png
+│   │   │   │   │   ├── icon_4.png
+│   │   │   │   │   └── icon_5.png
+│   │   │   │   ├── kf1.jpg
+│   │   │   │   ├── kfto.jpg
+│   │   │   │   ├── process_image.py
+│   │   │   │   ├── to;.png
+│   │   │   │   ├── xiaoguo.png
+│   │   │   │   ├── 微信图片_20251106000816.jpg
+│   │   │   │   ├── 微信图片_20251106000816.png
+│   │   │   │   ├── 微信图片_20251106001713.jpg
+│   │   │   │   ├── 微信截图_20251105144532.png
+│   │   │   │   ├── 微信截图_20251105145756.png
+│   │   │   │   ├── 微信截图_20251106001724.png
+│   │   │   │   ├── 微信截图_20251106202439.png
+│   │   │   │   ├── 微信截图_20251107013225.png
+│   │   │   │   └── 航空公司图标1.png
+│   │   │   ├── features_app_travel
+│   │   │   │   ├── authentication
+│   │   │   │   │   └── views
+│   │   │   │   │       └── login_screen.dart
+│   │   │   │   ├── bookmarks
+│   │   │   │   │   └── views
+│   │   │   │   │       └── bookmarks_screen.dart
+│   │   │   │   ├── city
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── city_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       └── city_search_widget.dart
+│   │   │   │   ├── explore
+│   │   │   │   │   └── views
+│   │   │   │   │       └── explore_screen.dart
+│   │   │   │   ├── favorites
+│   │   │   │   │   └── views
+│   │   │   │   │       └── favorites_screen.dart
+│   │   │   │   ├── flight_detail
+│   │   │   │   │   └── flight_order_detail_page.dart
+│   │   │   │   ├── home
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── home_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── home_content_mix.dart
+│   │   │   │   │       ├── home_grid_nav.dart
+│   │   │   │   │       ├── home_grid_nav_section.dart
+│   │   │   │   │       ├── home_header.dart
+│   │   │   │   │       ├── home_header.dart.bak
+│   │   │   │   │       ├── home_local_hot.dart
+│   │   │   │   │       ├── home_local_nav.dart
+│   │   │   │   │       ├── home_location_prompt.dart
+│   │   │   │   │       ├── home_popular.dart
+│   │   │   │   │       ├── home_recommend.dart
+│   │   │   │   │       ├── home_subnav.dart
+│   │   │   │   │       ├── home_swiper.dart
+│   │   │   │   │       ├── home_waterfall.dart
+│   │   │   │   │       ├── home_waterfall_item.dart
+│   │   │   │   │       └── home_welcome.dart
+│   │   │   │   ├── journey
+│   │   │   │   │   ├── README.md
+│   │   │   │   │   ├── REFACTORING_COMPARISON.md
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   └── journey_screen.dart
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── all_orders_tab.dart
+│   │   │   │   │       ├── date_header.dart
+│   │   │   │   │       ├── flight_itinerary_card.dart
+│   │   │   │   │       ├── itinerary_timeline_view.dart
+│   │   │   │   │       ├── my_itinerary_tab.dart
+│   │   │   │   │       ├── my_itinerary_tab.dart.bak
+│   │   │   │   │       └── wechat_subscribe_banner.dart
+│   │   │   │   ├── main_scaffold
+│   │   │   │   │   └── main_scaffold.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   └── views
+│   │   │   │   │       └── profile_screen.dart
+│   │   │   │   ├── search
+│   │   │   │   │   └── views
+│   │   │   │   │       └── search_screen.dart
+│   │   │   │   ├── service
+│   │   │   │   │   └── views
+│   │   │   │   │       └── service_screen.dart
+│   │   │   │   ├── settings
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── settings_screen.dart
+│   │   │   │   │       └── traveler_management_screen.dart
+│   │   │   │   └── sight
+│   │   │   │       └── views
+│   │   │   │           └── sight_detail_screen.dart
+│   │   │   ├── localization_app_travel
+│   │   │   │   ├── en_app_travel.dart
+│   │   │   │   ├── localization_keys_app_travel.dart
+│   │   │   │   └── zh_app_travel.dart
+│   │   │   ├── main_app_travel.dart
+│   │   │   ├── migration_analysis.json
+│   │   │   ├── models_app_travel
+│   │   │   │   ├── city_model.dart
+│   │   │   │   ├── city_model.g.dart
+│   │   │   │   ├── grid_nav_model.dart
+│   │   │   │   ├── grid_nav_model.g.dart
+│   │   │   │   ├── home_data_model.dart
+│   │   │   │   ├── home_data_model.g.dart
+│   │   │   │   ├── hot_content_model.dart
+│   │   │   │   ├── itinerary_model.dart
+│   │   │   │   ├── local_hot_model.dart
+│   │   │   │   ├── local_hot_model.g.dart
+│   │   │   │   ├── local_nav_model.dart
+│   │   │   │   ├── local_nav_model.g.dart
+│   │   │   │   ├── order_model.dart
+│   │   │   │   ├── popular_item_model.dart
+│   │   │   │   ├── popular_item_model.g.dart
+│   │   │   │   ├── recommend_item_model.dart
+│   │   │   │   ├── recommend_item_model.g.dart
+│   │   │   │   ├── sight_model.dart
+│   │   │   │   ├── sight_model.g.dart
+│   │   │   │   ├── sight_model_app_travel.dart
+│   │   │   │   ├── subnav_model.dart
+│   │   │   │   ├── subnav_model.g.dart
+│   │   │   │   ├── swiper_item_model.dart
+│   │   │   │   ├── swiper_item_model.g.dart
+│   │   │   │   ├── travel_inspiration_model.dart
+│   │   │   │   ├── travel_map_model.dart
+│   │   │   │   ├── traveler_model.dart
+│   │   │   │   ├── user_model_app_travel.dart
+│   │   │   │   └── user_model_app_travel.g.dart
+│   │   │   ├── new_order
+│   │   │   │   ├── INTEGRATION_GUIDE.md
+│   │   │   │   ├── README.md
+│   │   │   │   ├── UNIFIED_NAVIGATION_SYSTEM.md
+│   │   │   │   ├── UPDATES_2025_11_06.md
+│   │   │   │   ├── airto.png
+│   │   │   │   ├── data
+│   │   │   │   │   └── order_detail_test_data.dart
+│   │   │   │   ├── example
+│   │   │   │   │   └── order_detail_demo.dart
+│   │   │   │   ├── hotel_detail_page.dart
+│   │   │   │   ├── jiudianxiaotu.png
+│   │   │   │   ├── list
+│   │   │   │   │   ├── a.png
+│   │   │   │   │   ├── b.png
+│   │   │   │   │   ├── c.png
+│   │   │   │   │   ├── d.png
+│   │   │   │   │   └── list_tree.md
+│   │   │   │   ├── models
+│   │   │   │   │   ├── order_detail_model.dart
+│   │   │   │   │   └── order_detail_test_data.dart
+│   │   │   │   ├── new1.jpg
+│   │   │   │   ├── new2.jpg
+│   │   │   │   ├── new3.jpg
+│   │   │   │   ├── new4.jpg
+│   │   │   │   ├── new5.jpg
+│   │   │   │   ├── new6.jpg
+│   │   │   │   ├── new7.jpg
+│   │   │   │   ├── new_a.jpg
+│   │   │   │   ├── newdone.png
+│   │   │   │   ├── order_detail_page.dart
+│   │   │   │   ├── tuijian1.png
+│   │   │   │   ├── tuijian2.png
+│   │   │   │   ├── tuijian3.png
+│   │   │   │   ├── utils
+│   │   │   │   │   └── order_converter.dart
+│   │   │   │   ├── widgets
+│   │   │   │   │   ├── bottom_action_button.dart
+│   │   │   │   │   ├── checkin_info_card.dart
+│   │   │   │   │   ├── faq_buttons_grid.dart
+│   │   │   │   │   ├── guest_info_card.dart
+│   │   │   │   │   ├── hotel_main_info_card.dart
+│   │   │   │   │   ├── hotel_recommendation_list.dart
+│   │   │   │   │   ├── order_detail_app_bar.dart
+│   │   │   │   │   ├── order_status_card.dart
+│   │   │   │   │   ├── payment_info_card.dart
+│   │   │   │   │   └── services_card.dart
+│   │   │   │   ├── yy.png
+│   │   │   │   └── 微信截图_20251107010729.png
+│   │   │   ├── provider_app_travel
+│   │   │   │   ├── city_provider_app_travel.dart
+│   │   │   │   ├── current_itinerary_provider.dart
+│   │   │   │   ├── home_provider_app_travel.dart
+│   │   │   │   ├── search_provider_app_travel.dart
+│   │   │   │   ├── traveler_provider_app_travel.dart
+│   │   │   │   └── user_provider_app_travel.dart
+│   │   │   ├── repositories_app_travel
+│   │   │   │   ├── city_repository.dart
+│   │   │   │   └── home_repository.dart
+│   │   │   ├── resources_app_travel
+│   │   │   │   ├── assets_icons_app_travel.dart
+│   │   │   │   ├── assets_images_app_travel.dart
+│   │   │   │   └── colors_app_travel.dart
+│   │   │   ├── router_app_travel
+│   │   │   │   ├── router_app_travel.dart
+│   │   │   │   └── routes_provider_app_travel.dart
+│   │   │   ├── services_app_travel
+│   │   │   │   ├── cache_service.dart
+│   │   │   │   ├── data_service.dart
+│   │   │   │   └── journey_service.dart
+│   │   │   ├── task.txt
+│   │   │   ├── testdata
+│   │   │   │   ├── journey_data.dart
+│   │   │   │   ├── orders_data.dart
+│   │   │   │   └── travel_map_data.dart
+│   │   │   └── widgets
+│   │   │       └── travel_icons.dart
+│   │   ├── app_vipclub
+│   │   │   ├── _prompts
+│   │   │   │   └── task.txt
+│   │   │   ├── app_vipclub_tree_code_assets.txt
+│   │   │   ├── config_app_vipclub
+│   │   │   │   ├── app_config.dart
+│   │   │   │   └── constants.dart
+│   │   │   ├── controller_app_vipclub
+│   │   │   │   ├── settings_controller_app_vipclub.dart
+│   │   │   │   └── splash_controller_app_vipclub.dart
+│   │   │   ├── doc
+│   │   │   │   ├── 1.png
+│   │   │   │   ├── 2.png
+│   │   │   │   └── military_tactical_theme.md
+│   │   │   ├── features_app_vipclub
+│   │   │   │   ├── articles
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── article_detail_screen.dart
+│   │   │   │   │       └── articles_list_screen.dart
+│   │   │   │   ├── auth
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── auth_controller.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── login_screen.dart
+│   │   │   │   │       ├── login_screen.dart.backup
+│   │   │   │   │       ├── register_screen.dart
+│   │   │   │   │       └── splash_screen.dart
+│   │   │   │   ├── bookings
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── booking_controller.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── booking_detail_screen.dart
+│   │   │   │   │       ├── bookings_list_screen.dart
+│   │   │   │   │       └── create_booking_screen.dart
+│   │   │   │   ├── golf
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── golf_controller.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── golf_detail_screen.dart
+│   │   │   │   │       └── golf_list_screen.dart
+│   │   │   │   ├── home
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── home_controller.dart
+│   │   │   │   │   ├── views
+│   │   │   │   │   │   ├── home_screen.dart
+│   │   │   │   │   │   ├── home_screen.dart.backup3
+│   │   │   │   │   │   └── home_screen_old.dart.backup
+│   │   │   │   │   └── widgets
+│   │   │   │   │       ├── article_card.dart
+│   │   │   │   │       ├── banner_carousel.dart
+│   │   │   │   │       ├── facility_card.dart
+│   │   │   │   │       ├── facility_project_card.dart
+│   │   │   │   │       ├── price_tier_tab.dart
+│   │   │   │   │       └── vip_status_card.dart
+│   │   │   │   ├── hotel
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── hotel_controller.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── hotel_detail_screen.dart
+│   │   │   │   │       └── hotel_list_screen.dart
+│   │   │   │   ├── membership
+│   │   │   │   │   └── views
+│   │   │   │   │       └── membership_tiers_screen.dart
+│   │   │   │   ├── payments
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── payment_history_screen.dart
+│   │   │   │   │       └── payment_screen.dart
+│   │   │   │   ├── profile
+│   │   │   │   │   └── views
+│   │   │   │   │       └── profile_screen.dart
+│   │   │   │   ├── settings
+│   │   │   │   │   └── views
+│   │   │   │   │       └── settings_screen.dart
+│   │   │   │   ├── shooting
+│   │   │   │   │   ├── controllers
+│   │   │   │   │   │   └── shooting_controller.dart
+│   │   │   │   │   └── views
+│   │   │   │   │       ├── shooting_detail_screen.dart
+│   │   │   │   │       └── shooting_list_screen.dart
+│   │   │   │   ├── splash
+│   │   │   │   │   └── views
+│   │   │   │   │       └── splash_intro_screen.dart
+│   │   │   │   ├── support
+│   │   │   │   │   └── views
+│   │   │   │   │       └── customer_service_screen.dart
+│   │   │   │   ├── vip_benefits
+│   │   │   │   │   └── views
+│   │   │   │   │       └── vip_benefits_screen.dart
+│   │   │   │   └── vip_card
+│   │   │   │       └── views
+│   │   │   │           └── vip_card_screen.dart
+│   │   │   ├── localization_app_vipclub
+│   │   │   │   ├── en_app_vipclub.dart
+│   │   │   │   ├── localization_keys_app_vipclub.dart
+│   │   │   │   └── zh_app_vipclub.dart
+│   │   │   ├── main_app_vipclub.dart
+│   │   │   ├── main_app_vipclub.dart.backup
+│   │   │   ├── models_app_vipclub
+│   │   │   │   ├── article_model_app_vipclub.dart
+│   │   │   │   ├── banner_model_app_vipclub.dart
+│   │   │   │   ├── booking_model_app_vipclub.dart
+│   │   │   │   ├── facility_model_app_vipclub.dart
+│   │   │   │   ├── payment_model_app_vipclub.dart
+│   │   │   │   ├── price_tier_model_app_vipclub.dart
+│   │   │   │   ├── splash_model_app_vipclub.dart
+│   │   │   │   ├── support_model_app_vipclub.dart
+│   │   │   │   ├── user_model_app_vipclub.dart
+│   │   │   │   └── vip_card_model_app_vipclub.dart
+│   │   │   ├── provider_app_vipclub
+│   │   │   │   ├── app_data_provider_app_vipclub.dart
+│   │   │   │   └── user_provider_app_vipclub.dart
+│   │   │   ├── repositories_app_vipclub
+│   │   │   │   └── booking_repository.dart
+│   │   │   ├── resources_app_vipclub
+│   │   │   │   ├── assets_icons_app_vipclub.dart
+│   │   │   │   └── assets_images_app_vipclub.dart
+│   │   │   ├── router_app_vipclub
+│   │   │   │   └── router_app_vipclub.dart
+│   │   │   ├── services_app_vipclub
+│   │   │   │   ├── articles_api_service_app_vipclub.dart
+│   │   │   │   ├── membership_api_service_app_vipclub.dart
+│   │   │   │   ├── payments_api_service_app_vipclub.dart
+│   │   │   │   ├── support_api_service_app_vipclub.dart
+│   │   │   │   ├── vipclub_auth_adapter.dart
+│   │   │   │   ├── vipclub_auth_api_service.dart
+│   │   │   │   ├── vipclub_public_api_service.dart
+│   │   │   │   └── vipclub_storage_service.dart
+│   │   │   ├── settings_app_vipclub
+│   │   │   │   └── settings_app_vipclub.dart
+│   │   │   ├── theme_app_vipclub
+│   │   │   │   └── vipclub_theme.dart
+│   │   │   └── utils_app_vipclub
+│   │   │       └── splash_helper.dart
+│   │   └── app_wuy
+│   │       ├── Claude_development_result.md
+│   │       ├── _prompts
+│   │       │   ├── AI_COLLABORATION_BRIDGE_WY.json
+│   │       │   ├── claude.prompt
+│   │       │   ├── cursor.prompt
+│   │       │   ├── promize.txt
+│   │       │   ├── prompts.md
+│   │       │   ├── qy_bankend.txt
+│   │       │   ├── qy_frontend.txt
+│   │       │   ├── task.txt
+│   │       │   └── testapp.txt
+│   │       ├── app_wuy_tree_code_assets.txt
+│   │       ├── build_config.ini
+│   │       ├── config_app_wuy
+│   │       │   ├── api_config_app_wuy.dart
+│   │       │   ├── api_endpoints_app_wuy.dart
+│   │       │   ├── app_config_app_wuy.dart
+│   │       │   ├── storage_app_wuy.dart
+│   │       │   └── storage_config_app_wuy.dart
+│   │       ├── controller_app_wuy
+│   │       │   └── settings_controller_app_wuy.dart
+│   │       ├── doc
+│   │       │   ├── Task.md
+│   │       │   ├── app_wuy_review_20251008_codex.txt
+│   │       │   ├── awuy.base64.txt
+│   │       │   ├── claude_development_analysis_report.md
+│   │       │   ├── cursor_architecture_analysis_report.md
+│   │       │   ├── cursor_development_progress.md
+│   │       │   ├── cursor_implementation_summary.md
+│   │       │   ├── logo.png
+│   │       │   ├── pageviews
+│   │       │   │   ├── 01_profile_page.png
+│   │       │   │   ├── 02_about_us_page.png
+│   │       │   │   ├── 03_history_tracking_page.png
+│   │       │   │   ├── 04_map_page.png
+│   │       │   │   ├── 05_friend_info_page.png
+│   │       │   │   ├── 06_friends_list_page.png
+│   │       │   │   ├── 07_my_profile_page.png
+│   │       │   │   ├── 08_find_friends_page.png
+│   │       │   │   ├── 09_registration_page.png
+│   │       │   │   ├── 10_add_friend_page.png
+│   │       │   │   ├── 11_login_page.png
+│   │       │   │   ├── 12_network_records_page.png
+│   │       │   │   ├── 13_chat_page.png
+│   │       │   │   ├── 14_search_functionality.png
+│   │       │   │   ├── OCR_RECOGNITION_REPORT.md
+│   │       │   │   ├── bg.png
+│   │       │   │   ├── create_composite_image.py
+│   │       │   │   ├── login.html
+│   │       │   │   ├── logo.png
+│   │       │   │   ├── screenshots_catalog.md
+│   │       │   │   └── wuy_screenshots_composite.png
+│   │       │   ├── pageviewshtmlclaude
+│   │       │   │   ├── 02_bottom_navigation.html
+│   │       │   │   ├── 03_menu_drawer_open.html
+│   │       │   │   ├── 04_settings_page.html
+│   │       │   │   ├── 05_account_settings.html
+│   │       │   │   ├── 06_display_settings.html
+│   │       │   │   ├── 07_notification_settings.html
+│   │       │   │   └── 08_privacy_settings.html
+│   │       │   ├── pageviewshtmlcodebuddy
+│   │       │   │   ├── about.html
+│   │       │   │   ├── add-friend.html
+│   │       │   │   ├── chat.html
+│   │       │   │   ├── friend-info.html
+│   │       │   │   ├── friends-list.html
+│   │       │   │   ├── history-tracks.html
+│   │       │   │   ├── login.html
+│   │       │   │   ├── logo.base64.txt
+│   │       │   │   ├── map.html
+│   │       │   │   ├── mine.html
+│   │       │   │   ├── modify-info.html
+│   │       │   │   ├── network-records.html
+│   │       │   │   ├── pages_overview.md
+│   │       │   │   ├── personal-info.html
+│   │       │   │   ├── register.html
+│   │       │   │   ├── search-friend.html
+│   │       │   │   └── settings.html
+│   │       │   ├── pageviewshtmlcodex
+│   │       │   │   ├── 01_homepage_main_view.full.html
+│   │       │   │   ├── 02_bottom_navigation.full.html
+│   │       │   │   ├── 03_menu_drawer_open.full.html
+│   │       │   │   ├── 04_settings_page.full.html
+│   │       │   │   ├── 05_account_settings.full.html
+│   │       │   │   ├── 06_display_settings.full.html
+│   │       │   │   ├── 07_notification_settings.full.html
+│   │       │   │   ├── 08_privacy_settings.full.html
+│   │       │   │   ├── 09_data_storage_settings.full.html
+│   │       │   │   ├── 10_help_feedback_page.full.html
+│   │       │   │   ├── 11_about_page.full.html
+│   │       │   │   ├── 12_theme_selection_dialog.full.html
+│   │       │   │   ├── 13_font_size_adjustment.full.html
+│   │       │   │   ├── 14_language_settings.full.html
+│   │       │   │   ├── 15_search_functionality.full.html
+│   │       │   │   ├── 16_app_info_details.full.html
+│   │       │   │   └── index.full.html
+│   │       │   └── ui.md
+│   │       ├── error.txt
+│   │       ├── features_app_wuy
+│   │       │   ├── about
+│   │       │   │   └── views
+│   │       │   │       └── about_screen.dart
+│   │       │   ├── authentication
+│   │       │   │   └── views
+│   │       │   │       ├── login_entry_screen.dart
+│   │       │   │       ├── login_register_screen.dart
+│   │       │   │       ├── login_screen.dart
+│   │       │   │       ├── phone_login_screen.dart
+│   │       │   │       └── register_screen.dart
+│   │       │   ├── chat
+│   │       │   │   └── views
+│   │       │   │       └── chat_screen.dart
+│   │       │   ├── dashboard
+│   │       │   │   └── views
+│   │       │   │       └── dashboard_screen.dart
+│   │       │   ├── friends
+│   │       │   │   └── views
+│   │       │   │       ├── add_friend_screen.dart
+│   │       │   │       ├── friend_info_screen.dart
+│   │       │   │       └── friends_list_screen.dart
+│   │       │   ├── history
+│   │       │   │   └── views
+│   │       │   │       └── history_tracking_screen.dart
+│   │       │   ├── home
+│   │       │   │   ├── .gitkeep
+│   │       │   │   └── views
+│   │       │   │       └── home_screen.dart
+│   │       │   ├── map
+│   │       │   │   └── views
+│   │       │   │       └── map_screen.dart
+│   │       │   ├── network
+│   │       │   │   └── views
+│   │       │   │       └── network_records_screen.dart
+│   │       │   ├── profile
+│   │       │   │   └── views
+│   │       │   │       ├── personal_info_screen.dart
+│   │       │   │       └── profile_screen.dart
+│   │       │   ├── search
+│   │       │   │   └── views
+│   │       │   │       └── search_screen.dart
+│   │       │   ├── settings
+│   │       │   │   └── views
+│   │       │   │       └── settings_screen.dart
+│   │       │   └── splash
+│   │       │       └── views
+│   │       │           └── splash_screen.dart
+│   │       ├── localization_app_wuy
+│   │       │   ├── en_app_wuy.dart
+│   │       │   ├── localization_keys_app_wuy.dart
+│   │       │   └── zh_app_wuy.dart
+│   │       ├── main_app_wuy.dart
+│   │       ├── models_app_wuy
+│   │       │   ├── auth_models_app_wuy.dart
+│   │       │   ├── chat_message_model_app_wuy.dart
+│   │       │   ├── friend_model_app_wuy.dart
+│   │       │   ├── health_data_model_app_wuy.dart
+│   │       │   ├── history_record_model_app_wuy.dart
+│   │       │   ├── location_model_app_wuy.dart
+│   │       │   ├── network_record_model_app_wuy.dart
+│   │       │   ├── phone_report_model_app_wuy.dart
+│   │       │   ├── search_filter_model_app_wuy.dart
+│   │       │   ├── search_history_model_app_wuy.dart
+│   │       │   └── user_model_app_wuy.dart
+│   │       ├── providers_app_wuy
+│   │       │   ├── app_prefs_app_wuy.dart
+│   │       │   ├── friends_provider_app_wuy.dart
+│   │       │   └── wu_user_provider.dart
+│   │       ├── resources_app_wuy
+│   │       │   ├── assets_icons_app_wuy.dart
+│   │       │   ├── assets_images_app_wuy.dart
+│   │       │   └── assets_launch_app_wuy.dart
+│   │       ├── router_app_wuy
+│   │       │   └── router_app_wuy.dart
+│   │       ├── services_app_wuy
+│   │       │   ├── wuy_api_client.dart
+│   │       │   ├── wuy_api_integration_test.dart
+│   │       │   ├── wuy_api_response.dart
+│   │       │   ├── wuy_api_service_manager.dart
+│   │       │   ├── wuy_auth_api_service.dart
+│   │       │   ├── wuy_auth_state_manager.dart
+│   │       │   ├── wuy_avatar_service.dart
+│   │       │   ├── wuy_fake_data_generator.dart
+│   │       │   ├── wuy_friends_api_service.dart
+│   │       │   ├── wuy_sqlite_storage_service.dart
+│   │       │   ├── wuy_unified_service.dart
+│   │       │   └── wuy_user_api_service.dart
+│   │       ├── settings_app_wuy
+│   │       │   └── settings_app_wuy.dart
+│   │       ├── task.txt
+│   │       ├── task2.txt
+│   │       ├── theme_app_wuy
+│   │       │   └── theme_config_app_wuy.dart
+│   │       ├── utils_app_wuy
+│   │       │   ├── app_info_app_wuy.dart
+│   │       │   └── auth_guard.dart
+│   │       └── widgets_app_wuy
+│   │           ├── wuy_background_decoration.dart
+│   │           ├── wuy_bottom_navigation.dart
+│   │           ├── wuy_common_background.dart
+│   │           ├── wuy_common_logo.dart
+│   │           ├── wuy_enhanced_friend_list_item.dart
+│   │           ├── wuy_gradient_button.dart
+│   │           ├── wuy_health_data_card.dart
+│   │           ├── wuy_location_history_item.dart
+│   │           ├── wuy_modern_input_field.dart
+│   │           ├── wuy_phone_report_card.dart
+│   │           └── wuy_system_message_bubble.dart
+│   ├── common
+│   │   ├── README.md
+│   │   ├── app
+│   │   │   └── main_common.dart
+│   │   ├── assets
+│   │   │   ├── common_assets_icons.dart
+│   │   │   ├── common_assets_images.dart
+│   │   │   └── common_assets_launch.dart
+│   │   ├── auth_v2
+│   │   │   ├── README.md
+│   │   │   ├── auth_config.dart
+│   │   │   ├── auth_interface.dart
+│   │   │   ├── auth_manager.dart
+│   │   │   ├── auth_models.dart
+│   │   │   ├── auth_provider_factory.dart
+│   │   │   ├── auth_v2.dart
+│   │   │   └── providers
+│   │   │       ├── github_auth_provider.dart
+│   │   │       ├── google_auth_provider.dart
+│   │   │       ├── phone_auth_provider.dart
+│   │   │       ├── qq_auth_provider.dart
+│   │   │       └── wechat_auth_provider.dart
+│   │   ├── cache_manager
+│   │   │   └── cache_manager.dart
+│   │   ├── common.dart
+│   │   ├── common_tree.md
+│   │   ├── constants
+│   │   │   └── app_constants.dart
+│   │   ├── controller
+│   │   │   └── settings_controller.dart
+│   │   ├── database
+│   │   │   ├── database_manager.dart
+│   │   │   ├── idb
+│   │   │   │   └── idb_service.dart
+│   │   │   ├── interfaces
+│   │   │   │   └── database_interface.dart
+│   │   │   ├── models
+│   │   │   │   └── base_model.dart
+│   │   │   └── sqlite
+│   │   │       └── sqlite_service.dart
+│   │   ├── i18n
+│   │   │   ├── i18n_service.dart
+│   │   │   └── translations.dart
+│   │   ├── iframe
+│   │   │   └── iframe_listner.dart
+│   │   ├── localization
+│   │   │   ├── common_en.dart
+│   │   │   ├── common_zh.dart
+│   │   │   ├── localization.dart
+│   │   │   ├── localization_keys.dart
+│   │   │   ├── localization_manager.dart
+│   │   │   └── map_locales.dart
+│   │   ├── map
+│   │   │   ├── location_service.dart
+│   │   │   ├── map_service.dart
+│   │   │   └── map_utils.dart
+│   │   ├── media
+│   │   │   ├── audio
+│   │   │   │   ├── audio_player.dart
+│   │   │   │   └── audio_recorder.dart
+│   │   │   ├── media_utils.dart
+│   │   │   └── video
+│   │   │       ├── video_player.dart
+│   │   │       └── video_recorder.dart
+│   │   ├── model
+│   │   │   ├── bank_user_model.dart
+│   │   │   ├── messages.dart
+│   │   │   └── word_list_types.dart
+│   │   ├── network
+│   │   │   ├── NETWORKREADME.md
+│   │   │   ├── auth
+│   │   │   │   └── unified_auth_manager.dart
+│   │   │   ├── controller
+│   │   │   │   └── auth_controller.dart
+│   │   │   ├── core
+│   │   │   │   ├── endpoint_network_models.dart
+│   │   │   │   ├── network_config.dart
+│   │   │   │   ├── network_queue_and_offline.dart
+│   │   │   │   ├── network_retry_manager.dart
+│   │   │   │   ├── network_service_locator.dart
+│   │   │   │   ├── network_types.dart
+│   │   │   │   └── unified_network_client.dart
+│   │   │   ├── doc
+│   │   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   │   ├── INDEX.md
+│   │   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   │   ├── PHASE4_AUTH_AND_FINAL_CLEANUP.md
+│   │   │   │   ├── REFACTORING_LOG.md
+│   │   │   │   └── REFACTORING_SUMMARY.md
+│   │   │   ├── endpoints
+│   │   │   │   ├── endpoint_config.dart
+│   │   │   │   └── laravel_endpoints.dart
+│   │   │   ├── integration
+│   │   │   │   └── network_user_integration.dart
+│   │   │   ├── interceptors
+│   │   │   │   ├── auth_interceptor.dart
+│   │   │   │   ├── error_interceptor.dart
+│   │   │   │   ├── logging_interceptor.dart
+│   │   │   │   └── network_interceptors.dart
+│   │   │   ├── models
+│   │   │   │   ├── api_config.dart
+│   │   │   │   └── api_response.dart
+│   │   │   ├── network.dart
+│   │   │   ├── network_framework.dart
+│   │   │   ├── parsers
+│   │   │   │   └── adaptive_data_parser.dart
+│   │   │   ├── security
+│   │   │   │   └── device_security_manager.dart
+│   │   │   ├── services
+│   │   │   │   └── advanced_network_service.dart
+│   │   │   ├── storage
+│   │   │   │   └── secure_storage.dart
+│   │   │   ├── ui
+│   │   │   │   └── global_loading_system.dart
+│   │   │   ├── utils
+│   │   │   │   └── network_utils.dart
+│   │   │   ├── websocket
+│   │   │   │   ├── WEBSOCKET_USAGE.dart
+│   │   │   │   ├── websocket_client.dart
+│   │   │   │   ├── websocket_config.dart
+│   │   │   │   ├── websocket_interceptor.dart
+│   │   │   │   └── websocket_types.dart
+│   │   │   └── widgets
+│   │   │       └── adaptive_loading_widgets.dart
+│   │   ├── network_v2
+│   │   │   ├── README.md
+│   │   │   ├── auth
+│   │   │   │   ├── auth_coordinator.dart
+│   │   │   │   ├── auth_registry.dart
+│   │   │   │   ├── auth_strategy.dart
+│   │   │   │   ├── composite_auth_strategy.dart
+│   │   │   │   ├── header_key_auth_strategy.dart
+│   │   │   │   ├── jwt_auth_strategy.dart
+│   │   │   │   ├── login_manager.dart
+│   │   │   │   ├── session_auth_strategy.dart
+│   │   │   │   └── user_provider_auth_coordinator.dart
+│   │   │   ├── cache
+│   │   │   │   ├── cache_entry.dart
+│   │   │   │   ├── cache_store.dart
+│   │   │   │   └── memory_cache_store.dart
+│   │   │   ├── core
+│   │   │   │   ├── http_client.dart
+│   │   │   │   └── network_manager.dart
+│   │   │   ├── endpoints
+│   │   │   │   ├── endpoint_catalog.dart
+│   │   │   │   └── endpoint_presets.dart
+│   │   │   ├── example_usage.dart
+│   │   │   ├── loading
+│   │   │   │   ├── loading_controller.dart
+│   │   │   │   └── loading_state.dart
+│   │   │   ├── models
+│   │   │   │   ├── auth_context.dart
+│   │   │   │   ├── auth_payload.dart
+│   │   │   │   ├── auth_requirement.dart
+│   │   │   │   ├── cache_policy.dart
+│   │   │   │   ├── endpoint_descriptor.dart
+│   │   │   │   ├── endpoint_group.dart
+│   │   │   │   ├── http_method.dart
+│   │   │   │   ├── network_environment.dart
+│   │   │   │   ├── network_error.dart
+│   │   │   │   ├── network_request.dart
+│   │   │   │   ├── network_response.dart
+│   │   │   │   ├── network_session_state.dart
+│   │   │   │   ├── request_options.dart
+│   │   │   │   └── retry_policy.dart
+│   │   │   ├── network_v2.dart
+│   │   │   ├── parsing
+│   │   │   │   ├── response_parser.dart
+│   │   │   │   └── schema_registry.dart
+│   │   │   ├── queue
+│   │   │   │   ├── queued_request.dart
+│   │   │   │   └── request_queue.dart
+│   │   │   └── utils
+│   │   │       └── id_generator.dart
+│   │   ├── provider_status
+│   │   │   ├── base_provider.dart
+│   │   │   ├── screen_size_provider.dart
+│   │   │   └── user_provider.dart
+│   │   ├── repo
+│   │   │   └── splash_repo.dart
+│   │   ├── sdk
+│   │   │   ├── azure_maps
+│   │   │   │   ├── azure_maps_config.dart
+│   │   │   │   ├── azure_maps_flutter_integration.dart
+│   │   │   │   ├── azure_maps_sdk.dart
+│   │   │   │   └── azure_maps_service.dart
+│   │   │   └── tencent_maps
+│   │   │       ├── tencent_maps_config.dart
+│   │   │       ├── tencent_maps_flutter_integration.dart
+│   │   │       ├── tencent_maps_sdk.dart
+│   │   │       └── tencent_maps_service.dart
+│   │   ├── services
+│   │   │   └── settings_service.dart
+│   │   ├── settings
+│   │   │   ├── configs
+│   │   │   │   └── base_settings.dart
+│   │   │   ├── models
+│   │   │   │   └── setting_item.dart
+│   │   │   └── storage
+│   │   │       └── settings_storage_manager.dart
+│   │   ├── storage
+│   │   │   ├── adapters
+│   │   │   │   ├── storage_adapter_factory.dart
+│   │   │   │   ├── storage_adapter_unified.dart
+│   │   │   │   └── web_storage_adapter.dart
+│   │   │   ├── app_prefs_base.dart
+│   │   │   ├── app_storage_base.dart
+│   │   │   ├── cleanup
+│   │   │   │   └── storage_cleanup_tool.dart
+│   │   │   ├── implementations
+│   │   │   │   ├── hive_storage.dart
+│   │   │   │   └── sqlite_storage_v1.dart
+│   │   │   ├── interfaces
+│   │   │   │   └── storage_interface.dart
+│   │   │   ├── migration
+│   │   │   │   └── hive_to_sqlite_migration.dart
+│   │   │   ├── models
+│   │   │   │   └── storage_models.dart
+│   │   │   ├── storage_manager.dart
+│   │   │   ├── storage_migration_tool.dart
+│   │   │   ├── storage_provider.dart
+│   │   │   └── unified_storage.dart
+│   │   ├── storagev2
+│   │   │   ├── README.md
+│   │   │   ├── application
+│   │   │   │   └── storage_application_service.dart
+│   │   │   ├── business
+│   │   │   │   ├── config_service.dart
+│   │   │   │   ├── security_service.dart
+│   │   │   │   ├── storage_service.dart
+│   │   │   │   ├── sync_service.dart
+│   │   │   │   └── user_service.dart
+│   │   │   ├── config
+│   │   │   │   └── storage_config.dart
+│   │   │   ├── data_access
+│   │   │   │   ├── cache_adapter.dart
+│   │   │   │   ├── encryption_adapter.dart
+│   │   │   │   ├── storage_adapter.dart
+│   │   │   │   └── storage_data_access.dart
+│   │   │   ├── di
+│   │   │   │   └── storage_container.dart
+│   │   │   ├── exceptions
+│   │   │   │   └── storage_exceptions.dart
+│   │   │   ├── flutter_storage.dart
+│   │   │   ├── infrastructure
+│   │   │   │   ├── hive_storage.dart
+│   │   │   │   ├── memory_cache.dart
+│   │   │   │   └── sqlite_storage.dart
+│   │   │   ├── interfaces
+│   │   │   │   ├── cache_service_interface.dart
+│   │   │   │   ├── encryption_service_interface.dart
+│   │   │   │   ├── storage_adapter_interface.dart
+│   │   │   │   └── storage_repository_interface.dart
+│   │   │   ├── migration
+│   │   │   │   └── storage_migration.dart
+│   │   │   ├── models
+│   │   │   │   ├── config_entity.dart
+│   │   │   │   ├── storage_entity.dart
+│   │   │   │   ├── storage_result.dart
+│   │   │   │   └── user_entity.dart
+│   │   │   ├── repository
+│   │   │   │   └── storage_repository_impl.dart
+│   │   │   └── utils
+│   │   │       └── storage_utils.dart
+│   │   ├── theme
+│   │   │   ├── app_theme.dart
+│   │   │   ├── base
+│   │   │   │   ├── theme_animations.dart
+│   │   │   │   ├── theme_colors.dart
+│   │   │   │   ├── theme_constants.dart
+│   │   │   │   ├── theme_dimensions.dart
+│   │   │   │   ├── theme_effects.dart
+│   │   │   │   ├── theme_extensions.dart
+│   │   │   │   ├── theme_gradients.dart
+│   │   │   │   ├── theme_shadow.dart
+│   │   │   │   └── theme_text_styles.dart
+│   │   │   ├── compatibility
+│   │   │   │   ├── gradient_compatibility.dart
+│   │   │   │   └── theme_compatibility.dart
+│   │   │   ├── extensions
+│   │   │   │   └── gradient_extensions.dart
+│   │   │   ├── platforms
+│   │   │   │   ├── desktop
+│   │   │   │   │   ├── desktop_dark_theme.dart
+│   │   │   │   │   └── desktop_light_theme.dart
+│   │   │   │   ├── mobile
+│   │   │   │   │   ├── mobile_dark_theme.dart
+│   │   │   │   │   └── mobile_light_theme.dart
+│   │   │   │   └── web
+│   │   │   │       ├── web_dark_theme.dart
+│   │   │   │       └── web_light_theme.dart
+│   │   │   ├── theme.dart
+│   │   │   └── theme_manager.dart
+│   │   ├── utils
+│   │   │   ├── common
+│   │   │   │   ├── price_converter.dart
+│   │   │   │   └── toaster_helper.dart
+│   │   │   ├── compatibility
+│   │   │   │   └── legacy_imports.dart
+│   │   │   ├── database
+│   │   │   │   └── cache_operations.dart
+│   │   │   ├── date
+│   │   │   │   └── date_converter.dart
+│   │   │   ├── device_utils.dart
+│   │   │   ├── display
+│   │   │   │   ├── display_helper.dart
+│   │   │   │   └── responsive_helper.dart
+│   │   │   ├── image
+│   │   │   │   ├── image_loader.dart
+│   │   │   │   └── image_size_checker.dart
+│   │   │   ├── mobile
+│   │   │   │   ├── native_splash.dart
+│   │   │   │   └── notification_helper.dart
+│   │   │   ├── platform
+│   │   │   │   └── get_platform.dart
+│   │   │   ├── text
+│   │   │   │   └── text_utils.dart
+│   │   │   ├── utils.dart
+│   │   │   ├── validation
+│   │   │   │   ├── email_checker.dart
+│   │   │   │   └── phone_checker.dart
+│   │   │   └── web
+│   │   │       ├── web_tools.dart
+│   │   │       ├── web_tools_non_web.dart
+│   │   │       ├── web_tools_web.dart
+│   │   │       └── webabs.dart
+│   │   └── widgets
+│   │       ├── README.md
+│   │       ├── action_bar.dart
+│   │       ├── animated_custom_dialog.dart
+│   │       ├── animations
+│   │       │   └── animation_utils.dart
+│   │       ├── back_app_bar.dart
+│   │       ├── badges
+│   │       │   ├── badges_chips.dart
+│   │       │   └── premium_badges.dart
+│   │       ├── bank_bottom_navigation.dart
+│   │       ├── bank_scaffold.dart
+│   │       ├── buttons
+│   │       │   ├── premium_buttons.dart
+│   │       │   └── primary_button.dart
+│   │       ├── cards
+│   │       │   ├── custom_cards.dart
+│   │       │   └── premium_cards.dart
+│   │       ├── config.dart
+│   │       ├── confirmation_dialog.dart
+│   │       ├── country_picker.dart
+│   │       ├── custom_app_bar.dart
+│   │       ├── custom_bottom_navigation.dart
+│   │       ├── custom_button.dart
+│   │       ├── custom_calender.dart
+│   │       ├── custom_card.dart
+│   │       ├── custom_date_picker.dart
+│   │       ├── custom_delegate.dart
+│   │       ├── custom_divider.dart
+│   │       ├── custom_drawer.dart
+│   │       ├── custom_drop_down_item.dart
+│   │       ├── custom_gradient_text.dart
+│   │       ├── custom_icon_label.dart
+│   │       ├── custom_icon_label_group.dart
+│   │       ├── custom_image.dart
+│   │       ├── custom_image_icon_label.dart
+│   │       ├── custom_image_icon_label_group.dart
+│   │       ├── custom_loader.dart
+│   │       ├── custom_search_input.dart
+│   │       ├── custom_slider_button.dart
+│   │       ├── custom_snackbar.dart
+│   │       ├── custom_swipable_button
+│   │       │   ├── swipeable_button_view.dart
+│   │       │   └── swipeable_widget.dart
+│   │       ├── custom_text_field.dart
+│   │       ├── custom_title.dart
+│   │       ├── dialogs
+│   │       │   └── custom_dialogs.dart
+│   │       ├── digital_payment_dialog.dart
+│   │       ├── enhanced_bottom_navigation.dart
+│   │       ├── enhanced_top_menu.dart
+│   │       ├── floating_avatar_header.dart
+│   │       ├── glassmorphism_card.dart
+│   │       ├── gradient_button.dart
+│   │       ├── image_dialog.dart
+│   │       ├── info_row_widget.dart
+│   │       ├── inputs
+│   │       │   └── custom_text_fields.dart
+│   │       ├── lists
+│   │       │   └── list_items.dart
+│   │       ├── navigation_widgets.dart
+│   │       ├── network_connection_dialog.dart
+│   │       ├── no_data_screen.dart
+│   │       ├── open_map.dart
+│   │       ├── outelineborder.dart
+│   │       ├── paginated_list_view.dart
+│   │       ├── payment_item_info.dart
+│   │       ├── progress
+│   │       │   └── progress_indicators.dart
+│   │       ├── responsive_layout.dart
+│   │       ├── segmented_button.dart
+│   │       ├── settings_page_example.dart
+│   │       ├── states
+│   │       │   └── empty_state.dart
+│   │       ├── type_button_widget.dart
+│   │       └── widgets.dart
+│   ├── error.txt
+│   ├── lib_tree.md
+│   └── main.dart
+└── pubspec.yaml

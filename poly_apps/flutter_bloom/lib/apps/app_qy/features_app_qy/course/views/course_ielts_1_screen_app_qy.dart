@@ -10,43 +10,113 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Course Ielts 1 Screen for QY App
+/// Course Ielts 1 Screen for QY App - Refactored with centralized theme and common components
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
-class CourseIelts1ScreenAppQy extends StatefulWidget {
-  const CourseIelts1ScreenAppQy({super.key});
+class CourseIelts1ScreenRefactoredAppQy extends StatefulWidget {
+  const CourseIelts1ScreenRefactoredAppQy({super.key});
 
   @override
-  State<CourseIelts1ScreenAppQy> createState() => _CourseIelts1ScreenAppQyState();
+  State<CourseIelts1ScreenRefactoredAppQy> createState() =>
+      _CourseIelts1ScreenRefactoredAppQyState();
 }
 
-class _CourseIelts1ScreenAppQyState extends State<CourseIelts1ScreenAppQy> {
+class _CourseIelts1ScreenRefactoredAppQyState
+    extends State<CourseIelts1ScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Course Ielts 1',
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
-        ),
-        backgroundColor: ThemeColors.surface,
-        elevation: 0,
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: _buildBentoBoxLayout(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient:
+                ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
             children: [
-              _buildContent(),
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: ColorsAppQy.qyTextPrimary),
+                onPressed: () => context.pop(),
+              ),
+              const SizedBox(width: ThemeDimensions.spacing8),
+              Expanded(
+                child: Text(
+                  '${QyAppLocalizationKeys.qyCourse.tr(context)} IELTS 1',
+                  style: ThemeTextStyles.title1.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -54,31 +124,75 @@ class _CourseIelts1ScreenAppQyState extends State<CourseIelts1ScreenAppQy> {
     );
   }
 
-  Widget _buildContent() {
-    return Center(
+  Widget _buildBentoBoxLayout() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.construction,
-            size: 64,
-            color: ThemeColors.primary.withOpacity(0.5),
-          ),
-          SizedBox(height: Dimensions.spacingMedium),
-          Text(
-            'Course Ielts 1 - Coming Soon',
-            style: TextStyles.body1.copyWith(
-              color: ThemeColors.textSecondary,
-            ),
-          ),
-          SizedBox(height: Dimensions.spacingSmall),
-          Text(
-            'This page is under development',
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.textTertiary,
-            ),
-          ),
+          _buildBentoGrid(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBentoGrid() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: ThemeDimensions.spacing16,
+      mainAxisSpacing: ThemeDimensions.spacing16,
+      childAspectRatio: 1.2,
+      children: [
+        _buildBentoCard(
+          title: QyAppLocalizationKeys.qyPending.tr(context),
+          icon: Icons.construction,
+          gradient: ColorsAppQy.qyPrimaryGradient,
+        ),
+        _buildBentoCard(
+          title: QyAppLocalizationKeys.qyLoading.tr(context),
+          icon: Icons.build,
+          gradient: ColorsAppQy.qySecondaryGradient,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBentoCard({
+    required String title,
+    required IconData icon,
+    required Gradient gradient,
+  }) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: Colors.white,
+            ),
+            const SizedBox(height: ThemeDimensions.spacing12),
+            Text(
+              title,
+              style: ThemeTextStyles.body1.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/task_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class TaskHallViewAppCodemart extends StatefulWidget {
   const TaskHallViewAppCodemart({super.key});
@@ -61,7 +62,7 @@ class _TaskHallViewAppCodemartState extends State<TaskHallViewAppCodemart> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartTaskHall)),
+        title: Text(LocalizationKeysAppCodemart.codemartTaskHall.tr(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -84,14 +85,14 @@ class _TaskHallViewAppCodemartState extends State<TaskHallViewAppCodemart> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadTasks,
-                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartRetry)),
+                        child: Text(LocalizationKeysAppCodemart.codemartRetry.tr(context)),
                       ),
                     ],
                   ),
                 )
               : _tasks.isEmpty
                   ? Center(
-                      child: Text(context.tr(LocalizationKeysAppCodemart.codemartNoData)),
+                      child: Text(LocalizationKeysAppCodemart.codemartNoData.tr(context)),
                     )
                   : RefreshIndicator(
                       onRefresh: _loadTasks,

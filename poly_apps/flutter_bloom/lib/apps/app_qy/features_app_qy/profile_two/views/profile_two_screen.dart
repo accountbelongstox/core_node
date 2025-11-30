@@ -25,6 +25,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class ProfileTwoScreen extends StatelessWidget {
   const ProfileTwoScreen({super.key});
@@ -58,7 +59,8 @@ class ProfileTwoScreen extends StatelessWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultSize),
+        padding:
+            const EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultSize),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -69,24 +71,29 @@ class ProfileTwoScreen extends StatelessWidget {
               defaultImage: CommonAssetsIcons.profileIcon,
             ),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: ThemeDimensions.sizeTwenty),
+              padding: const EdgeInsets.symmetric(
+                  vertical: ThemeDimensions.sizeTwenty),
               child: Text(
-                userProvider.user?.name ?? 'Adam Smith',
-                style: ThemeTextStyles.textBold.copyWith(fontSize: ThemeDimensions.fontSizeDefault),
+                userProvider.user?.name ??
+                    QyAppLocalizationKeys.qyProfileDefaultName.tr(context),
+                style: ThemeTextStyles.textBold
+                    .copyWith(fontSize: ThemeDimensions.fontSizeDefault),
               ),
             ),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 FollowerCardWidget(
                   followers: '67.5K',
+                  labelKey: QyAppLocalizationKeys.qyProfileFollowers,
                 ),
                 FollowerCardWidget(
                   followers: '80.5K',
+                  labelKey: QyAppLocalizationKeys.qyProfileFollowing,
                 ),
                 FollowerCardWidget(
                   followers: '93.5K',
+                  labelKey: QyAppLocalizationKeys.qyProfilePosts,
                 ),
               ],
             ),
@@ -105,8 +112,8 @@ class ProfileTwoScreen extends StatelessWidget {
             Align(
                 alignment: Alignment.topLeft,
                 child: Text(QyAppLocalizationKeys.qyAbout.tr(context),
-                    style: ThemeTextStyles.textBold.copyWith(
-                        fontSize: ThemeDimensions.fontSizeDefault))),
+                    style: ThemeTextStyles.textBold
+                        .copyWith(fontSize: ThemeDimensions.fontSizeDefault))),
             const SizedBox(
               height: ThemeDimensions.defaultSize,
             ),
@@ -120,34 +127,41 @@ class ProfileTwoScreen extends StatelessWidget {
             Row(
               children: [
                 Text(QyAppLocalizationKeys.qyInterest.tr(context),
-                    style: ThemeTextStyles.textBold.copyWith(
-                        fontSize: ThemeDimensions.fontSizeDefault)),
+                    style: ThemeTextStyles.textBold
+                        .copyWith(fontSize: ThemeDimensions.fontSizeDefault)),
                 const SizedBox(width: ThemeDimensions.defaultSize),
-                const Icon(
+                Icon(
                   Icons.edit,
-                  color: Colors.green,
+                  color: ColorsAppQy.qyPrimary,
                 )
               ],
             ),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: ThemeDimensions.defaultSize),
+              padding: const EdgeInsets.symmetric(
+                  vertical: ThemeDimensions.defaultSize),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InterestWidget(interest: QyAppLocalizationKeys.qyMedical.tr(context)),
-                  InterestWidget(interest: QyAppLocalizationKeys.qyDisaster.tr(context)),
-                  InterestWidget(interest: QyAppLocalizationKeys.qyEducation.tr(context)),
-                  InterestWidget(interest: 'social.title'.tr(context)),
+                  InterestWidget(
+                      interest: QyAppLocalizationKeys.qyMedical.tr(context)),
+                  InterestWidget(
+                      interest: QyAppLocalizationKeys.qyDisaster.tr(context)),
+                  InterestWidget(
+                      interest: QyAppLocalizationKeys.qyEducation.tr(context)),
+                  InterestWidget(
+                      interest: QyAppLocalizationKeys.qySocial.tr(context)),
                 ],
               ),
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                InterestWidget(interest: QyAppLocalizationKeys.qyOrphanage.tr(context)),
-                InterestWidget(interest: QyAppLocalizationKeys.qyHumanity.tr(context)),
-                InterestWidget(interest: QyAppLocalizationKeys.qyEnvironment.tr(context)),
+                InterestWidget(
+                    interest: QyAppLocalizationKeys.qyOrphanage.tr(context)),
+                InterestWidget(
+                    interest: QyAppLocalizationKeys.qyHumanity.tr(context)),
+                InterestWidget(
+                    interest: QyAppLocalizationKeys.qyEnvironment.tr(context)),
               ],
             ),
           ],

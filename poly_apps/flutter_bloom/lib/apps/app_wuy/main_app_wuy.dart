@@ -21,6 +21,7 @@ import 'localization_app_wuy/zh_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
+import 'providers_app_wuy/friends_provider_app_wuy.dart';
 import 'services_app_wuy/wuy_unified_service.dart';
 import 'services_app_wuy/wuy_auth_state_manager.dart';
 import 'models_app_wuy/user_model_app_wuy.dart';
@@ -57,6 +58,9 @@ Future<void> main() async {
   // Create app-specific user provider first
   final WuUserProvider userProvider = WuUserProvider();
 
+  // Create friends provider
+  final FriendsProviderAppWuy friendsProvider = FriendsProviderAppWuy();
+
   // Initialize unified data manager
   final WuyUnifiedService dataManager = WuyUnifiedService();
 
@@ -84,6 +88,8 @@ Future<void> main() async {
     additionalProviders: [
       // Register WuUserProvider as a specific type for AuthGuard access
       ChangeNotifierProvider<WuUserProvider>.value(value: userProvider),
+      // Register FriendsProviderAppWuy for friends list management
+      ChangeNotifierProvider<FriendsProviderAppWuy>.value(value: friendsProvider),
     ],
     initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + SQLite)
   );

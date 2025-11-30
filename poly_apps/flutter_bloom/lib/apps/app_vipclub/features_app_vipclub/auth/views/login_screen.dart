@@ -15,6 +15,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_vipclub/resources_app_vipclub/assets_images_app_vipclub.dart';
 import 'package:qyflutter/apps/app_vipclub/services_app_vipclub/vipclub_auth_adapter.dart';
 import 'package:qyflutter/common/auth_v2/auth_v2.dart';
+import 'package:qyflutter/common/widgets/custom_button.dart';
 
 enum LoginMethod {
   usernamePassword,

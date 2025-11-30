@@ -6,17 +6,14 @@ It replaces the Windows PowerShell-only implementation with a Python-based solut
 on both Windows and Linux.
 
 Main Components:
-- special_software_env_manager.py: Main logic
+- special_software_env_manager.py: Main entry point and logic
 - common_utils.py: Common menu functions and utilities
 - config_manager.py: Configuration management for all tools
 - command_content_generator_windows.py: Windows command generator
 - command_content_generator_linux.py: Linux command generator
-- main.py: Package entry point
 
 Usage:
-    python -m special_software_env_manager
-    or
-    python special_software_env_manager/main.py
+    python special_software_env_manager.py
 """
 
 __version__ = '1.0.0'

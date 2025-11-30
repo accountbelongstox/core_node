@@ -84,6 +84,25 @@ class LocalizationKeysAppCodemart {
   static const String codemartUser = 'codemart_user';
   static const String codemartRetry = 'codemart_retry';
   static const String codemartAdd = 'codemart_add';
+  static const String codemartWelcomeBackTitle = 'codemart_welcome_back_title';
+  static const String codemartWelcomeBackSubtitle = 'codemart_welcome_back_subtitle';
+  static const String codemartMetricActiveProjects = 'codemart_metric_active_projects';
+  static const String codemartMetricCompleted = 'codemart_metric_completed';
+  static const String codemartMetricBudget = 'codemart_metric_budget';
+  static const String codemartMetricPendingReviews = 'codemart_metric_pending_reviews';
+  static const String codemartQuickActionTaskHallSubtitle = 'codemart_quick_action_task_hall_subtitle';
+  static const String codemartQuickActionTasksSubtitle = 'codemart_quick_action_tasks_subtitle';
+  static const String codemartQuickActionCreateProjectSubtitle = 'codemart_quick_action_create_project_subtitle';
+  static const String codemartQuickActionProjectsSubtitle = 'codemart_quick_action_projects_subtitle';
+  static const String codemartQuickActionWalletSubtitle = 'codemart_quick_action_wallet_subtitle';
+  static const String codemartModeDeveloperSubtitle = 'codemart_mode_developer_subtitle';
+  static const String codemartModeClientSubtitle = 'codemart_mode_client_subtitle';
+  static const String codemartLoginHeroTitle = 'codemart_login_hero_title';
+  static const String codemartLoginHeroSubtitle = 'codemart_login_hero_subtitle';
+  static const String codemartLoginFeatureDelivery = 'codemart_login_feature_delivery';
+  static const String codemartLoginFeatureEscrow = 'codemart_login_feature_escrow';
+  static const String codemartLoginFeatureRealtime = 'codemart_login_feature_realtime';
+  static const String codemartLoginDebugBanner = 'codemart_login_debug_banner';
 
   // Login & Registration
   static const String codemartDontHaveAccount = 'codemart_dont_have_account';

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.382222+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "possible",
+        "laos": "ເປັນໄປໄດ້",
+        "jp": "可能です",
+        "vie": "có thể",
+        "en_pronunciation": "/ˈpɑsəbəl/",
+        "laos_pronunciation": "penpaidai",
+        "jp_pronunciation": "kanou desu",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "Something that can be done",
+        "zh": "可以做的事"
+      }
+    },
+    {
+      "word": {
+        "en": "poverty",
+        "laos": "ຄວາມທົກ",
+        "jp": "貧困",
+        "vie": "nghèo đói",
+        "en_pronunciation": "/ˈpɑvərti/",
+        "laos_pronunciation": "khuaamthok",
+        "jp_pronunciation": "hinkon",
+        "vie_pronunciation": "ngheo doi"
+      },
+      "means": {
+        "en": "The state of having little or no money and few or no material possessions",
+        "zh": "钱很少或没有，物质财富很少或没有的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "popularity",
+        "laos": "ຄວາມນິຍົມ",
+        "jp": "人気",
+        "vie": "sự nổi tiếng",
+        "en_pronunciation": "/ˌpɑpjəˈlɛrəti/",
+        "laos_pronunciation": "khuaamninyom",
+        "jp_pronunciation": "ninki",
+        "vie_pronunciation": "su noi tieng"
+      },
+      "means": {
+        "en": "The quality of being widely admired or accepted or sought after",
+        "zh": "被广泛钦佩或接受或追捧的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "populous",
+        "laos": "ເປັນແນວ",
+        "jp": "人口の多い",
+        "vie": "đông dân",
+        "en_pronunciation": "/ˈpɑpjələs/",
+        "laos_pronunciation": "penaenv",
+        "jp_pronunciation": "jinkou no ooi",
+        "vie_pronunciation": "dong dan"
+      },
+      "means": {
+        "en": "Densely populated",
+        "zh": "人口稠密"
+      }
+    },
+    {
+      "word": {
+        "en": "portable",
+        "laos": "ທີ່ Portable",
+        "jp": "ポータブル",
+        "vie": "xách tay",
+        "en_pronunciation": "/ˈpɔrtəbəl/",
+        "laos_pronunciation": "thi Portable",
+        "jp_pronunciation": "pootaburu",
+        "vie_pronunciation": "xach tay"
+      },
+      "means": {
+        "en": "A small light typewriter; usually with a case in which it can be carried",
+        "zh": "小型轻型打字机；"
+      }
+    },
+    {
+      "word": {
+        "en": "portrayal",
+        "laos": "ການສະຫລັກກະກຸນ",
+        "jp": "描写",
+        "vie": "miêu tả",
+        "en_pronunciation": "/pɔrˈtreɪəl/",
+        "laos_pronunciation": "kansa lak kakun",
+        "jp_pronunciation": "byousha",
+        "vie_pronunciation": "mieu ta"
+      },
+      "means": {
+        "en": "A word picture of a person's appearance and character",
+        "zh": "通常带有可以携带的箱子"
+      }
+    },
+    {
+      "word": {
+        "en": "posture",
+        "laos": "ທ່າ",
+        "jp": "姿勢",
+        "vie": "tư thế",
+        "en_pronunciation": "/ˈpɑsʧər/",
+        "laos_pronunciation": "tha",
+        "jp_pronunciation": "shisei",
+        "vie_pronunciation": "tu the"
+      },
+      "means": {
+        "en": "The arrangement of the body and its limbs",
+        "zh": "一个人的相貌性格文字图片"
+      }
+    },
+    {
+      "word": {
+        "en": "possession",
+        "laos": "ການຄອບຄອງ",
+        "jp": "所有物",
+        "vie": "sở hữu",
+        "en_pronunciation": "/pəˈzɛʃən/",
+        "laos_pronunciation": "kankhobkhong",
+        "jp_pronunciation": "shoyuubutsu",
+        "vie_pronunciation": "so huu"
+      },
+      "means": {
+        "en": "The act of having and controlling property",
+        "zh": "身体及其四肢的布置"
+      }
+    },
+    {
+      "word": {
+        "en": "possibility",
+        "laos": "ຄວາມອາດຈະເປັນໄປໄດ້",
+        "jp": "可能性",
+        "vie": "khả năng",
+        "en_pronunciation": "/ˌpɑsəˈbɪləˌti/",
+        "laos_pronunciation": "khuaam adchapenpaidai",
+        "jp_pronunciation": "kanousei",
+        "vie_pronunciation": "kha nang"
+      },
+      "means": {
+        "en": "A future prospect or potential",
+        "zh": "拥有和控制财产的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "populate",
+        "laos": "ປະຊາກອນ",
+        "jp": "人口を投入する",
+        "vie": "cư trú",
+        "en_pronunciation": "/ˈpɑpjəˌleɪt/",
+        "laos_pronunciation": "pasakon",
+        "jp_pronunciation": "jinkou wo tounyuu suru",
+        "vie_pronunciation": "cu tru"
+      },
+      "means": {
+        "en": "Inhabit or live in; be an inhabitant of",
+        "zh": "未来的前景或潜力"
+      }
+    },
+    {
+      "word": {
+        "en": "porter",
+        "laos": "ຊ່າງຄ້າ",
+        "jp": "ポーター",
+        "vie": "người khuân vác",
+        "en_pronunciation": "/ˈpɔrtər/",
+        "laos_pronunciation": "sangkha",
+        "jp_pronunciation": "pootaa",
+        "vie_pronunciation": "nguoi khuan vac"
+      },
+      "means": {
+        "en": "A person employed to carry luggage and supplies",
+        "zh": "居住或生活在；"
+      }
+    },
+    {
+      "word": {
+        "en": "portrait",
+        "laos": "ຮູບສະຖິຕິ",
+        "jp": "肖像画",
+        "vie": "chân dung",
+        "en_pronunciation": "/ˈpɔrtrət/",
+        "laos_pronunciation": "hubsathiti",
+        "jp_pronunciation": "shouzouga",
+        "vie_pronunciation": "chan dung"
+      },
+      "means": {
+        "en": "A word picture of a person's appearance and character",
+        "zh": "是 的居民"
+      }
+    },
+    {
+      "word": {
+        "en": "possessive",
+        "laos": "ຄອບຄອງ",
+        "jp": "所有的な",
+        "vie": "sở hữu",
+        "en_pronunciation": "/pəˈzɛsɪv/",
+        "laos_pronunciation": "khobkhong",
+        "jp_pronunciation": "shoyuu tekina",
+        "vie_pronunciation": "so huu"
+      },
+      "means": {
+        "en": "The case expressing ownership",
+        "zh": "受雇搬运行李和用品的人"
+      }
+    },
+    {
+      "word": {
+        "en": "possibly",
+        "laos": "ກວັກ",
+        "jp": "おそらく",
+        "vie": "có thể",
+        "en_pronunciation": "/ˈpɑsəbli/",
+        "laos_pronunciation": "kvak",
+        "jp_pronunciation": "osoraku",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "By chance",
+        "zh": "一个人的相貌性格文字图片"
+      }
+    },
+    {
+      "word": {
+        "en": "post",
+        "laos": "ດ່ານ",
+        "jp": "ポスト",
+        "vie": "bài đăng",
+        "en_pronunciation": "/poʊst/",
+        "laos_pronunciation": "dan",
+        "jp_pronunciation": "posuto",
+        "vie_pronunciation": "bai dang"
+      },
+      "means": {
+        "en": "The position where someone (as a guard or sentry) stands or is assigned to stand",
+        "zh": "表明所有权的情况"
+      }
+    },
+    {
+      "word": {
+        "en": "postage",
+        "laos": "ໄປສະນີ",
+        "jp": "送料",
+        "vie": "bưu phí",
+        "en_pronunciation": "/ˈpoʊstɪʤ/",
+        "laos_pronunciation": "paisani",
+        "jp_pronunciation": "souryou",
+        "vie_pronunciation": "buu phi"
+      },
+      "means": {
+        "en": "The charge for mailing something",
+        "zh": "偶然"
+      }
+    },
+    {
+      "word": {
+        "en": "postman",
+        "laos": "ຜູ້ໄປສະນີ",
+        "jp": "郵便屋さん",
+        "vie": "người đưa thư",
+        "en_pronunciation": "/ˈpoʊstmən/",
+        "laos_pronunciation": "phupaisani",
+        "jp_pronunciation": "yuubinya san",
+        "vie_pronunciation": "nguoi dua thu"
+      },
+      "means": {
+        "en": "A man who delivers the mail",
+        "zh": "某人（作为警卫或哨兵）站立或被指派站立的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "postcard",
+        "laos": "ໄປສະນີ",
+        "jp": "ポストカード",
+        "vie": "bưu thiếp",
+        "en_pronunciation": "/ˈpoʊˌskɑrd/",
+        "laos_pronunciation": "paisani",
+        "jp_pronunciation": "posutokaado",
+        "vie_pronunciation": "buu thiep"
+      },
+      "means": {
+        "en": "A card for sending messages by post without an envelope",
+        "zh": "邮寄东西的费用"
+      }
+    },
+    {
+      "word": {
+        "en": "poster",
+        "laos": "ໂປໂລຍ",
+        "jp": "ポスター",
+        "vie": "áp phích",
+        "en_pronunciation": "/ˈpoʊstər/",
+        "laos_pronunciation": "op olny",
+        "jp_pronunciation": "posutaa",
+        "vie_pronunciation": "ap phich"
+      },
+      "means": {
+        "en": "A sign posted in a public place as an advertisement",
+        "zh": "一个送邮件的人"
+      }
+    },
+    {
+      "word": {
+        "en": "postpone",
+        "laos": "ເລື່ອນໄປ",
+        "jp": "延期する",
+        "vie": "trì hoãn",
+        "en_pronunciation": "/poʊstˈpoʊn/",
+        "laos_pronunciation": "leuonpai",
+        "jp_pronunciation": "enki suru",
+        "vie_pronunciation": "tri hoan"
+      },
+      "means": {
+        "en": "Hold back to a later time",
+        "zh": "无需信封即可邮寄消息的卡片"
+      }
+    },
+    {
+      "word": {
+        "en": "postponement",
+        "laos": "ການເລື່ອນເວລາ",
+        "jp": "延期",
+        "vie": "sự trì hoãn",
+        "en_pronunciation": "/poʊstˈpoʊnmənt/",
+        "laos_pronunciation": "kan leuonuaela",
+        "jp_pronunciation": "enki",
+        "vie_pronunciation": "su tri hoan"
+      },
+      "means": {
+        "en": "Time during which some action is awaited",
+        "zh": "在公共场所张贴的作为广告的标志"
+      }
+    },
+    {
+      "word": {
+        "en": "pot",
+        "laos": "ຫມໍ້",
+        "jp": "鍋",
+        "vie": "cái nồi",
+        "en_pronunciation": "/pɑt/",
+        "laos_pronunciation": "mo",
+        "jp_pronunciation": "nabe",
+        "vie_pronunciation": "cai noi"
+      },
+      "means": {
+        "en": "Metal or earthenware cooking vessel that is usually round and deep; often has a handle and lid",
+        "zh": "留到稍后时间"
+      }
+    },
+    {
+      "word": {
+        "en": "potato",
+        "laos": "ມັນຝລັ່ງ",
+        "jp": "ジャガイモ",
+        "vie": "khoai tây",
+        "en_pronunciation": "/pəˈteɪˌtoʊ/",
+        "laos_pronunciation": "manflang",
+        "jp_pronunciation": "jagaimo",
+        "vie_pronunciation": "khoai tay"
+      },
+      "means": {
+        "en": "An edible tuber native to South America; a staple food of Ireland",
+        "zh": "等待某些操作的时间"
+      }
+    },
+    {
+      "word": {
+        "en": "potent",
+        "laos": "ສົມທານ",
+        "jp": "強力な",
+        "vie": "mạnh mẽ",
+        "en_pronunciation": "/ˈpoʊtənt/",
+        "laos_pronunciation": "somthan",
+        "jp_pronunciation": "kyouryoku na",
+        "vie_pronunciation": "manh me"
+      },
+      "means": {
+        "en": "Having great influence",
+        "zh": "金属或陶器烹饪容器通常是圆形且深的；"
+      }
+    },
+    {
+      "word": {
+        "en": "potential",
+        "laos": "ມີທ່າແຮງ",
+        "jp": "可能性",
+        "vie": "tiềm năng",
+        "en_pronunciation": "/pəˈtɛnʃəl/",
+        "laos_pronunciation": "mithaaehng",
+        "jp_pronunciation": "kanousei",
+        "vie_pronunciation": "tiem nang"
+      },
+      "means": {
+        "en": "The inherent capacity for coming into being",
+        "zh": "通常有把手和盖子"
+      }
+    },
+    {
+      "word": {
+        "en": "potentiality",
+        "laos": "ທ່າແຮງ",
+        "jp": "可能性",
+        "vie": "tiềm năng",
+        "en_pronunciation": "/potentiality/",
+        "laos_pronunciation": "thaaehng",
+        "jp_pronunciation": "kanousei",
+        "vie_pronunciation": "tiem nang"
+      },
+      "means": {
+        "en": "The inherent capacity for coming into being",
+        "zh": "原产于南美洲的可食用块茎；"
+      }
+    },
+    {
+      "word": {
+        "en": "pottery",
+        "laos": "ເຄື່ອງປັ້ນດິນເຜົາ",
+        "jp": "陶器",
+        "vie": "đồ gốm",
+        "en_pronunciation": "/ˈpɑtəri/",
+        "laos_pronunciation": "kheuong pan dinphao",
+        "jp_pronunciation": "touki",
+        "vie_pronunciation": "do gom"
+      },
+      "means": {
+        "en": "Ceramic ware made from clay and baked in a kiln",
+        "zh": "爱尔兰的主食"
+      }
+    },
+    {
+      "word": {
+        "en": "poultry",
+        "laos": "ປັກສິນ",
+        "jp": "家禽",
+        "vie": "gia cầm",
+        "en_pronunciation": "/ˈpoʊltri/",
+        "laos_pronunciation": "paksin",
+        "jp_pronunciation": "kakin",
+        "vie_pronunciation": "gia cam"
+      },
+      "means": {
+        "en": "A domesticated gallinaceous bird thought to be descended from the red jungle fowl",
+        "zh": "具有较大影响力"
+      }
+    },
+    {
+      "word": {
+        "en": "pound",
+        "laos": "ຕອກ",
+        "jp": "ポンド",
+        "vie": "bảng Anh",
+        "en_pronunciation": "/paʊnd/",
+        "laos_pronunciation": "tok",
+        "jp_pronunciation": "pondo",
+        "vie_pronunciation": "bang Anh"
+      },
+      "means": {
+        "en": "16 ounces avoirdupois",
+        "zh": "产生的内在能力"
+      }
+    },
+    {
+      "word": {
+        "en": "pour",
+        "laos": "ເທ",
+        "jp": "注ぐ",
+        "vie": "đổ",
+        "en_pronunciation": "/pɔr/",
+        "laos_pronunciation": "the",
+        "jp_pronunciation": "sosogu",
+        "vie_pronunciation": "do"
+      },
+      "means": {
+        "en": "Cause to run",
+        "zh": "产生的内在能力"
+      }
+    },
+    {
+      "word": {
+        "en": "powder",
+        "laos": "ຜັດແປ້ງ",
+        "jp": "粉",
+        "vie": "bột",
+        "en_pronunciation": "/ˈpaʊdər/",
+        "laos_pronunciation": "phadaepng",
+        "jp_pronunciation": "kona",
+        "vie_pronunciation": "bot"
+      },
+      "means": {
+        "en": "A solid substance in the form of tiny loose particles; a solid that has been pulverized",
+        "zh": "由粘土制成并在窑中烘烤的陶瓷器皿"
+      }
+    },
+    {
+      "word": {
+        "en": "power",
+        "laos": "ພະເດດ",
+        "jp": "力",
+        "vie": "quyền lực",
+        "en_pronunciation": "/paʊər/",
+        "laos_pronunciation": "phaded",
+        "jp_pronunciation": "chikara",
+        "vie_pronunciation": "quyen luc"
+      },
+      "means": {
+        "en": "Possession of controlling influence",
+        "zh": "一种家养鸡类鸟类，被认为是红原鸡的后代"
+      }
+    },
+    {
+      "word": {
+        "en": "practise",
+        "laos": "ການປະຕິບັດ",
+        "jp": "練習する",
+        "vie": "luyện tập",
+        "en_pronunciation": "/ˈpræktɪs/",
+        "laos_pronunciation": "kanpatibad",
+        "jp_pronunciation": "renshuu suru",
+        "vie_pronunciation": "luyen tap"
+      },
+      "means": {
+        "en": "Engage in a rehearsal (of)",
+        "zh": "16 盎司常量"
+      }
+    },
+    {
+      "word": {
+        "en": "practice",
+        "laos": "ການປະຕິບັດ",
+        "jp": "練習する",
+        "vie": "luyện tập",
+        "en_pronunciation": "/ˈpræktɪs/",
+        "laos_pronunciation": "kanpatibad",
+        "jp_pronunciation": "renshuu suru",
+        "vie_pronunciation": "luyen tap"
+      },
+      "means": {
+        "en": "A customary way of operation or behavior",
+        "zh": "导致运行"
+      }
+    },
+    {
+      "word": {
+        "en": "powerful",
+        "laos": "ມີອໍານາດ",
+        "jp": "強力な",
+        "vie": "mạnh mẽ",
+        "en_pronunciation": "/ˈpaʊərfəl/",
+        "laos_pronunciation": "mioanad",
+        "jp_pronunciation": "kyouryoku na",
+        "vie_pronunciation": "manh me"
+      },
+      "means": {
+        "en": "Having great power or force or potency or effect",
+        "zh": "微小松散颗粒形式的固体物质；"
+      }
+    },
+    {
+      "word": {
+        "en": "practicable",
+        "laos": "ປະຕິບັດໄດ້",
+        "jp": "実用的な",
+        "vie": "có thể thực hiện được",
+        "en_pronunciation": "/ˈpræktəkəbəl/",
+        "laos_pronunciation": "patibaddai",
+        "jp_pronunciation": "jitsuyouteki na",
+        "vie_pronunciation": "co the thuc hien duoc"
+      },
+      "means": {
+        "en": "Usable for a specific purpose",
+        "zh": "已粉碎的固体"
+      }
+    },
+    {
+      "word": {
+        "en": "practical",
+        "laos": "ທີ່ໃຊ້ໄດ້",
+        "jp": "実用的な",
+        "vie": "thiết thực",
+        "en_pronunciation": "/ˈpræktɪkəl/",
+        "laos_pronunciation": "thisaidai",
+        "jp_pronunciation": "jitsuyouteki na",
+        "vie_pronunciation": "thiet thuc"
+      },
+      "means": {
+        "en": "Concerned with actual use or practice",
+        "zh": "拥有控制影响力"
+      }
+    },
+    {
+      "word": {
+        "en": "practicality",
+        "laos": "ປະການ",
+        "jp": "実用性",
+        "vie": "tính thực tiễn",
+        "en_pronunciation": "/ˌpræktɪˈkæləti/",
+        "laos_pronunciation": "pakan",
+        "jp_pronunciation": "jitsuyousei",
+        "vie_pronunciation": "tinh thuc tien"
+      },
+      "means": {
+        "en": "Concerned with actual use rather than theoretical possibilities",
+        "zh": "参加排练（的）"
+      }
+    },
+    {
+      "word": {
+        "en": "practitioner",
+        "laos": "ຜູ້ປະຕິບັດ",
+        "jp": "実践者",
+        "vie": "người hành nghề",
+        "en_pronunciation": "/prækˈtɪʃənər/",
+        "laos_pronunciation": "phupatibad",
+        "jp_pronunciation": "jissen mono",
+        "vie_pronunciation": "nguoi hanh nghe"
+      },
+      "means": {
+        "en": "Someone who practices a learned profession",
+        "zh": "习惯的操作方式或行为"
+      }
+    },
+    {
+      "word": {
+        "en": "praise",
+        "laos": "ການຢົກຢ້ອງ",
+        "jp": "賞賛する",
+        "vie": "khen ngợi",
+        "en_pronunciation": "/preɪz/",
+        "laos_pronunciation": "kan yok yong",
+        "jp_pronunciation": "shousan suru",
+        "vie_pronunciation": "khen ngoi"
+      },
+      "means": {
+        "en": "An expression of approval and commendation",
+        "zh": "具有巨大的力量或力量或效力或效果"
+      }
+    },
+    {
+      "word": {
+        "en": "pray",
+        "laos": "ຊຸໄຫວ",
+        "jp": "祈る",
+        "vie": "cầu nguyện",
+        "en_pronunciation": "/preɪ/",
+        "laos_pronunciation": "suhaiv",
+        "jp_pronunciation": "inoru",
+        "vie_pronunciation": "cau nguyen"
+      },
+      "means": {
+        "en": "Address a deity, a prophet, a saint or an object of worship; say a prayer",
+        "zh": "可用于特定目的"
+      }
+    },
+    {
+      "word": {
+        "en": "prayer",
+        "laos": "ຄໍາອະທິຖານ",
+        "jp": "祈り",
+        "vie": "cầu nguyện",
+        "en_pronunciation": "/prɛr/",
+        "laos_pronunciation": "khoa athithan",
+        "jp_pronunciation": "inori",
+        "vie_pronunciation": "cau nguyen"
+      },
+      "means": {
+        "en": "The act of communicating with a deity (especially as a petition or in adoration or contrition or thanksgiving)",
+        "zh": "关心实际使用或实践"
+      }
+    },
+    {
+      "word": {
+        "en": "preach",
+        "laos": "ເທດສະຫນາ",
+        "jp": "説教する",
+        "vie": "rao giảng",
+        "en_pronunciation": "/priʧ/",
+        "laos_pronunciation": "thedsana",
+        "jp_pronunciation": "sekkyou suru",
+        "vie_pronunciation": "rao giang"
+      },
+      "means": {
+        "en": "Deliver a sermon",
+        "zh": "关注实际使用而不是理论上的可能性"
+      }
+    },
+    {
+      "word": {
+        "en": "preacher",
+        "laos": "ນັກເທດ",
+        "jp": "説教者",
+        "vie": "nhà thuyết giáo",
+        "en_pronunciation": "/ˈpriʧər/",
+        "laos_pronunciation": "nakthed",
+        "jp_pronunciation": "sekkyou mono",
+        "vie_pronunciation": "nha thuyet giao"
+      },
+      "means": {
+        "en": "Someone whose occupation is preaching the gospel",
+        "zh": "从事博学职业的人"
+      }
+    },
+    {
+      "word": {
+        "en": "precaution",
+        "laos": "ການລ່ວງລະເມີດ",
+        "jp": "予防措置",
+        "vie": "đề phòng",
+        "en_pronunciation": "/priˈkɔʃən/",
+        "laos_pronunciation": "kanluanglamoed",
+        "jp_pronunciation": "yobousochi",
+        "vie_pronunciation": "de phong"
+      },
+      "means": {
+        "en": "A precautionary measure warding off impending danger or damage or injury etc.",
+        "zh": "表示认可和赞扬"
+      }
+    },
+    {
+      "word": {
+        "en": "precautionary",
+        "laos": "ສິຣົບ",
+        "jp": "予防的な",
+        "vie": "đề phòng",
+        "en_pronunciation": "/prɪˈkɔʃənɛri/",
+        "laos_pronunciation": "sirob",
+        "jp_pronunciation": "yobou tekina",
+        "vie_pronunciation": "de phong"
+      },
+      "means": {
+        "en": "Taken in advance to protect against possible danger or failure",
+        "zh": "称呼神祇、先知、圣人或崇拜对象；"
+      }
+    },
+    {
+      "word": {
+        "en": "precede",
+        "laos": "ລ່ວງຫນ້າ",
+        "jp": "先行する",
+        "vie": "đi trước",
+        "en_pronunciation": "/prɪˈsid/",
+        "laos_pronunciation": "luangna",
+        "jp_pronunciation": "senkou suru",
+        "vie_pronunciation": "di truoc"
+      },
+      "means": {
+        "en": "Be earlier in time; go back further",
+        "zh": "祈祷"
+      }
+    },
+    {
+      "word": {
+        "en": "preceding",
+        "laos": "ກ່ອນຂຶ້ນກ່ອນ",
+        "jp": "前の",
+        "vie": "trước",
+        "en_pronunciation": "/priˈsidɪŋ/",
+        "laos_pronunciation": "kon khunkon",
+        "jp_pronunciation": "mae no",
+        "vie_pronunciation": "truoc"
+      },
+      "means": {
+        "en": "Be earlier in time; go back further",
+        "zh": "与神灵沟通的行为（尤其是作为请愿或崇拜或忏悔或感恩）"
+      }
+    },
+    {
+      "word": {
+        "en": "precedent",
+        "laos": "ສະບັບກ່ອນ",
+        "jp": "先例",
+        "vie": "tiền lệ",
+        "en_pronunciation": "/ˈprɛsɪdənt/",
+        "laos_pronunciation": "sababkon",
+        "jp_pronunciation": "senrei",
+        "vie_pronunciation": "tien le"
+      },
+      "means": {
+        "en": "An example that is used to justify similar occurrences at a later time",
+        "zh": "发表讲道"
+      }
+    },
+    {
+      "word": {
+        "en": "precious",
+        "laos": "ມີຄ່າ",
+        "jp": "貴重な",
+        "vie": "quý giá",
+        "en_pronunciation": "/ˈprɛʃəs/",
+        "laos_pronunciation": "mikha",
+        "jp_pronunciation": "kichou na",
+        "vie_pronunciation": "quy gia"
+      },
+      "means": {
+        "en": "Characterized by feeling or showing fond affection for",
+        "zh": "以传福音为职业的人"
+      }
+    },
+    {
+      "word": {
+        "en": "precise",
+        "laos": "ທີ່ຊັດເຈນ",
+        "jp": "正確な",
+        "vie": "chính xác",
+        "en_pronunciation": "/prɪˈsaɪs/",
+        "laos_pronunciation": "thisadchen",
+        "jp_pronunciation": "seikaku na",
+        "vie_pronunciation": "chinh xac"
+      },
+      "means": {
+        "en": "Sharply exact or accurate or delimited",
+        "zh": "避免即将发生的危险、损坏或伤害等的预防措施。"
+      }
+    },
+    {
+      "word": {
+        "en": "predator",
+        "laos": "ຜູ້ລ້າ",
+        "jp": "捕食者",
+        "vie": "kẻ săn mồi",
+        "en_pronunciation": "/ˈprɛdətər/",
+        "laos_pronunciation": "phula",
+        "jp_pronunciation": "hoshoku mono",
+        "vie_pronunciation": "ke san moi"
+      },
+      "means": {
+        "en": "Someone who attacks in search of booty",
+        "zh": "提前采取措施以防止可能的危险或故障"
+      }
+    },
+    {
+      "word": {
+        "en": "predecessor",
+        "laos": "ກ່ອນໄວ",
+        "jp": "前任者",
+        "vie": "người tiền nhiệm",
+        "en_pronunciation": "/ˈprɛdəˌsɛsər/",
+        "laos_pronunciation": "konuaai",
+        "jp_pronunciation": "zenninsha",
+        "vie_pronunciation": "nguoi tien nhiem"
+      },
+      "means": {
+        "en": "One who precedes you in time (as in holding a position or office)",
+        "zh": "时间要早一些；"
+      }
+    },
+    {
+      "word": {
+        "en": "predict",
+        "laos": "ຄາດຄະເນ",
+        "jp": "予測する",
+        "vie": "dự đoán",
+        "en_pronunciation": "/prɪˈdɪkt/",
+        "laos_pronunciation": "khadkhane",
+        "jp_pronunciation": "yosoku suru",
+        "vie_pronunciation": "du doan"
+      },
+      "means": {
+        "en": "Make a prediction about; tell in advance",
+        "zh": "再往前走"
+      }
+    },
+    {
+      "word": {
+        "en": "predominate",
+        "laos": "ເດັ່ນ",
+        "jp": "優勢な",
+        "vie": "chiếm ưu thế",
+        "en_pronunciation": "/prɪˈdɑməˌneɪt/",
+        "laos_pronunciation": "den",
+        "jp_pronunciation": "yuusei na",
+        "vie_pronunciation": "chiem uu the"
+      },
+      "means": {
+        "en": "Be larger in number, quantity, power, status or importance",
+        "zh": "时间要早一些；"
+      }
+    },
+    {
+      "word": {
+        "en": "preface",
+        "laos": "ຄໍາແນະນໍາ",
+        "jp": "序文",
+        "vie": "lời nói đầu",
+        "en_pronunciation": "/ˈprɛfəs/",
+        "laos_pronunciation": "khoanaenoa",
+        "jp_pronunciation": "jobun",
+        "vie_pronunciation": "loi noi dau"
+      },
+      "means": {
+        "en": "A short introductory essay preceding the text of a book",
+        "zh": "再往前走"
+      }
+    },
+    {
+      "word": {
+        "en": "prefer",
+        "laos": "ມັກຫຼາຢກ່ວາ",
+        "jp": "好む",
+        "vie": "thích hơn",
+        "en_pronunciation": "/prɪˈfər/",
+        "laos_pronunciation": "mak ra ykuaa",
+        "jp_pronunciation": "konomu",
+        "vie_pronunciation": "thich hon"
+      },
+      "means": {
+        "en": "Like better; value more highly",
+        "zh": "用于证明以后发生类似情况的示例"
+      }
+    },
+    {
+      "word": {
+        "en": "pregnant",
+        "laos": "ຖືພາ",
+        "jp": "妊娠中",
+        "vie": "mang thai",
+        "en_pronunciation": "/ˈprɛgnənt/",
+        "laos_pronunciation": "thupha",
+        "jp_pronunciation": "ninshinchuu",
+        "vie_pronunciation": "mang thai"
+      },
+      "means": {
+        "en": "Carrying developing offspring within the body or being about to produce new life",
+        "zh": "特点是对以下事物感到或表现出喜爱之情"
+      }
+    },
+    {
+      "word": {
+        "en": "prejudice",
+        "laos": "ອະຄະຕິ",
+        "jp": "偏見",
+        "vie": "định kiến",
+        "en_pronunciation": "/ˈprɛʤədɪs/",
+        "laos_pronunciation": "akhati",
+        "jp_pronunciation": "henken",
+        "vie_pronunciation": "dinh kien"
+      },
+      "means": {
+        "en": "A partiality that prevents objective consideration of an issue or situation",
+        "zh": "非常精确或准确或有界线"
+      }
+    },
+    {
+      "word": {
+        "en": "preliminary",
+        "laos": "ເບື້ອງຕົ້ນ",
+        "jp": "予備的な",
+        "vie": "sơ bộ",
+        "en_pronunciation": "/prɪˈlɪməˌnɛri/",
+        "laos_pronunciation": "beuongton",
+        "jp_pronunciation": "yobiteki na",
+        "vie_pronunciation": "so bo"
+      },
+      "means": {
+        "en": "A minor match preceding the main event",
+        "zh": "为寻找战利品而发起攻击的人"
+      }
+    },
+    {
+      "word": {
+        "en": "premature",
+        "laos": "ກ່ອນກໍານົດ",
+        "jp": "時期尚早の",
+        "vie": "sớm",
+        "en_pronunciation": "/ˌpriməˈʧʊr/",
+        "laos_pronunciation": "konkoanod",
+        "jp_pronunciation": "jikishousou no",
+        "vie_pronunciation": "som"
+      },
+      "means": {
+        "en": "Born after a gestation period of less than the normal time",
+        "zh": "在时间上领先于你的人（例如担任职位或办公室）"
+      }
+    },
+    {
+      "word": {
+        "en": "premier",
+        "laos": "ນາຍົກ",
+        "jp": "プレミア",
+        "vie": "thủ tướng",
+        "en_pronunciation": "/prɛˈmɪr/",
+        "laos_pronunciation": "naiok",
+        "jp_pronunciation": "puremia",
+        "vie_pronunciation": "thu tuong"
+      },
+      "means": {
+        "en": "The person who holds the position of head of the government in the United Kingdom",
+        "zh": "做出预测；"
+      }
+    },
+    {
+      "word": {
+        "en": "premise",
+        "laos": "ສະຖານທີ່",
+        "jp": "前提",
+        "vie": "tiền đề",
+        "en_pronunciation": "/ˈprɛmɪs/",
+        "laos_pronunciation": "sathanthi",
+        "jp_pronunciation": "zentei",
+        "vie_pronunciation": "tien de"
+      },
+      "means": {
+        "en": "A statement that is assumed to be true and from which a conclusion can be drawn",
+        "zh": "提前告知"
+      }
+    },
+    {
+      "word": {
+        "en": "premium",
+        "laos": "ເບັ້ຽກັນ",
+        "jp": "プレミアム",
+        "vie": "phí bảo hiểm",
+        "en_pronunciation": "/ˈprimiəm/",
+        "laos_pronunciation": "beiakan",
+        "jp_pronunciation": "puremiamu",
+        "vie_pronunciation": "phi bao hiem"
+      },
+      "means": {
+        "en": "Payment for insurance",
+        "zh": "在数量、数量、权力、地位或重要性上更大"
+      }
+    },
+    {
+      "word": {
+        "en": "preoccupy",
+        "laos": "ທັມມະໃຈ",
+        "jp": "夢中になる",
+        "vie": "bận tâm",
+        "en_pronunciation": "/priˈɑkjəˌpaɪ/",
+        "laos_pronunciation": "thammachai",
+        "jp_pronunciation": "muchuu ninaru",
+        "vie_pronunciation": "ban tam"
+      },
+      "means": {
+        "en": "Engage or engross the interest or attention of beforehand or occupy urgently or obsessively",
+        "zh": "一本书正文之前的简短介绍性文章"
+      }
+    },
+    {
+      "word": {
+        "en": "prepare",
+        "laos": "ກະກຽມ",
+        "jp": "準備する",
+        "vie": "chuẩn bị",
+        "en_pronunciation": "/priˈpɛr/",
+        "laos_pronunciation": "kakiam",
+        "jp_pronunciation": "junbi suru",
+        "vie_pronunciation": "chuan bi"
+      },
+      "means": {
+        "en": "Make ready or suitable or equip in advance for a particular purpose or for some use, event, etc",
+        "zh": "更喜欢；"
+      }
+    },
+    {
+      "word": {
+        "en": "preposition",
+        "laos": "ຂໍ້ຄວາມໃດໆ",
+        "jp": "前置詞",
+        "vie": "giới từ",
+        "en_pronunciation": "/preposition/",
+        "laos_pronunciation": "khokhuaamdai",
+        "jp_pronunciation": "zenchishi",
+        "vie_pronunciation": "gioi tu"
+      },
+      "means": {
+        "en": "A function word that combines with a noun or pronoun or noun phrase to form a prepositional phrase that can have an adverbial or adjectival relation to some other word",
+        "zh": "价值更高"
+      }
+    },
+    {
+      "word": {
+        "en": "prerequisite",
+        "laos": "ທີ່ຕ້ອງການເງື່ອນໄຂ",
+        "jp": "前提条件",
+        "vie": "điều kiện tiên quyết",
+        "en_pronunciation": "/priˈrɛkwəzət/",
+        "laos_pronunciation": "thitongkanngeuonkhai",
+        "jp_pronunciation": "zenteijouken",
+        "vie_pronunciation": "dieu kien tien quyet"
+      },
+      "means": {
+        "en": "Something that is required in advance",
+        "zh": "体内携带正在发育的后代或即将产生新生命"
+      }
+    },
+    {
+      "word": {
+        "en": "prescribe",
+        "laos": "ກໍານົດ",
+        "jp": "処方する",
+        "vie": "quy định",
+        "en_pronunciation": "/prəˈskraɪb/",
+        "laos_pronunciation": "koanod",
+        "jp_pronunciation": "shohou suru",
+        "vie_pronunciation": "quy dinh"
+      },
+      "means": {
+        "en": "Issue commands or orders for",
+        "zh": "妨碍客观考虑问题或情况的偏见"
+      }
+    },
+    {
+      "word": {
+        "en": "precision",
+        "laos": "ຄວາມຊັດເຈນ",
+        "jp": "精度",
+        "vie": "độ chính xác",
+        "en_pronunciation": "/priˈsɪʒən/",
+        "laos_pronunciation": "khuaamsadchen",
+        "jp_pronunciation": "seido",
+        "vie_pronunciation": "do chinh xac"
+      },
+      "means": {
+        "en": "The quality of being reproducible in amount or performance",
+        "zh": "主赛事之前的一场小比赛"
+      }
+    },
+    {
+      "word": {
+        "en": "predatory",
+        "laos": "ສັດຕະການ",
+        "jp": "略奪的な",
+        "vie": "săn mồi",
+        "en_pronunciation": "/ˈprɛdəˌtɔri/",
+        "laos_pronunciation": "sadtakan",
+        "jp_pronunciation": "ryakudatsu tekina",
+        "vie_pronunciation": "san moi"
+      },
+      "means": {
+        "en": "Characterized by plundering or pillaging or marauding",
+        "zh": "妊娠期短于正常时间后出生"
+      }
+    },
+    {
+      "word": {
+        "en": "prediction",
+        "laos": "ການຄາດເດົາ",
+        "jp": "予測",
+        "vie": "dự đoán",
+        "en_pronunciation": "/priˈdɪkʃən/",
+        "laos_pronunciation": "kan khaddao",
+        "jp_pronunciation": "yosoku",
+        "vie_pronunciation": "du doan"
+      },
+      "means": {
+        "en": "The act of predicting (as by reasoning about the future)",
+        "zh": "在英国担任政府首脑职务的人"
+      }
+    },
+    {
+      "word": {
+        "en": "predominance",
+        "laos": "ຄວາມໂດດເດັ່ນ",
+        "jp": "優位性",
+        "vie": "ưu thế",
+        "en_pronunciation": "/prɪˈdɑmənəns/",
+        "laos_pronunciation": "khuaamoddden",
+        "jp_pronunciation": "yuuisei",
+        "vie_pronunciation": "uu the"
+      },
+      "means": {
+        "en": "The state of being predominant over others",
+        "zh": "假设为真实并可从中得出结论的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "preferable",
+        "laos": "ຍືນຍົງ",
+        "jp": "好ましい",
+        "vie": "thích hợp hơn",
+        "en_pronunciation": "/ˈprɛfərəbəl/",
+        "laos_pronunciation": "nyunnyong",
+        "jp_pronunciation": "konomashii",
+        "vie_pronunciation": "thich hop hon"
+      },
+      "means": {
+        "en": "More desirable than another",
+        "zh": "支付保险费"
+      }
+    },
+    {
+      "word": {
+        "en": "pregnancy",
+        "laos": "ການຖືພາມານ",
+        "jp": "妊娠",
+        "vie": "mang thai",
+        "en_pronunciation": "/ˈprɛgnənsi/",
+        "laos_pronunciation": "kan thuphaman",
+        "jp_pronunciation": "ninshin",
+        "vie_pronunciation": "mang thai"
+      },
+      "means": {
+        "en": "The state of being pregnant; the period from conception to birth when a woman carries a developing fetus in her uterus",
+        "zh": "预先引起或吸引或紧急或着迷地占据兴趣或注意力"
+      }
+    },
+    {
+      "word": {
+        "en": "preoccupied",
+        "laos": "preoccupied",
+        "jp": "夢中になっている",
+        "vie": "bận tâm",
+        "en_pronunciation": "/priˈɑkjəˌpaɪd/",
+        "laos_pronunciation": "preoccupied",
+        "jp_pronunciation": "muchuu ninatteiru",
+        "vie_pronunciation": "ban tam"
+      },
+      "means": {
+        "en": "Engage or engross the interest or attention of beforehand or occupy urgently or obsessively",
+        "zh": "为特定目的或某些用途、事件等提前准备或适合或装备"
+      }
+    },
+    {
+      "word": {
+        "en": "preparation",
+        "laos": "ການຈັດແຈງ",
+        "jp": "準備",
+        "vie": "sự chuẩn bị",
+        "en_pronunciation": "/ˌprɛpərˈeɪʃən/",
+        "laos_pronunciation": "kanchadaechng",
+        "jp_pronunciation": "junbi",
+        "vie_pronunciation": "su chuan bi"
+      },
+      "means": {
+        "en": "The activity of putting or setting in order in advance of some act or purpose",
+        "zh": "与名词或代词或名词短语组合形成介词短语的功能词，可以与其他单词具有状语或形容词关系"
+      }
+    },
+    {
+      "word": {
+        "en": "prescription",
+        "laos": "ໃບປົກຕິກາດ",
+        "jp": "処方箋",
+        "vie": "toa thuốc",
+        "en_pronunciation": "/prəˈskrɪpʃən/",
+        "laos_pronunciation": "bai poktikad",
+        "jp_pronunciation": "shohousen",
+        "vie_pronunciation": "toa thuoc"
+      },
+      "means": {
+        "en": "Directions prescribed beforehand; the action of prescribing authoritative rules or directions",
+        "zh": "提前需要的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "precisely",
+        "laos": "ທີ່ແນ່ນອນ",
+        "jp": "正確に",
+        "vie": "chính xác",
+        "en_pronunciation": "/prɪˈsaɪsli/",
+        "laos_pronunciation": "thiaennon",
+        "jp_pronunciation": "seikaku ni",
+        "vie_pronunciation": "chinh xac"
+      },
+      "means": {
+        "en": "Indicating exactness or preciseness",
+        "zh": "发出命令或命令"
+      }
+    },
+    {
+      "word": {
+        "en": "predictable",
+        "laos": "ທີ່ຄາດຄະເນໄວ້",
+        "jp": "予測可能な",
+        "vie": "có thể dự đoán được",
+        "en_pronunciation": "/prɪˈdɪktəbəl/",
+        "laos_pronunciation": "thi khadkhaneuaai",
+        "jp_pronunciation": "yosoku kanouna",
+        "vie_pronunciation": "co the du doan duoc"
+      },
+      "means": {
+        "en": "Capable of being foretold",
+        "zh": "数量或性能可复制的质量"
+      }
+    },
+    {
+      "word": {
+        "en": "predominant",
+        "laos": "ທີ່ມີອໍານາດ",
+        "jp": "支配的な",
+        "vie": "chiếm ưu thế",
+        "en_pronunciation": "/prɪˈdɑmənənt/",
+        "laos_pronunciation": "thimioanad",
+        "jp_pronunciation": "shihaiteki na",
+        "vie_pronunciation": "chiem uu the"
+      },
+      "means": {
+        "en": "Most frequent or common",
+        "zh": "以掠夺或掠夺为特征"
+      }
+    },
+    {
+      "word": {
+        "en": "preference",
+        "laos": "ຄວາມຕ້ອງການ",
+        "jp": "好み",
+        "vie": "sở thích",
+        "en_pronunciation": "/ˈprɛfərəns/",
+        "laos_pronunciation": "khuaamtongkan",
+        "jp_pronunciation": "konomi",
+        "vie_pronunciation": "so thich"
+      },
+      "means": {
+        "en": "A strong liking",
+        "zh": "预测的行为（如通过推理未来）"
+      }
+    },
+    {
+      "word": {
+        "en": "preparatory",
+        "laos": "ການກະກຽມໄວ້",
+        "jp": "準備的な",
+        "vie": "chuẩn bị",
+        "en_pronunciation": "/ˈprɛprəˌtɔri/",
+        "laos_pronunciation": "kankakiamuaai",
+        "jp_pronunciation": "junbi tekina",
+        "vie_pronunciation": "chuan bi"
+      },
+      "means": {
+        "en": "Preceding and preparing for something",
+        "zh": "凌驾于他人之上的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "preferential",
+        "laos": "ບຸຣຸດທີ່",
+        "jp": "優遇",
+        "vie": "ưu đãi",
+        "en_pronunciation": "/ˌprɛfərˈɛnʃəl/",
+        "laos_pronunciation": "burudthi",
+        "jp_pronunciation": "yuuguu",
+        "vie_pronunciation": "uu dai"
+      },
+      "means": {
+        "en": "Manifesting partiality",
+        "zh": "比另一个更令人向往"
+      }
+    },
+    {
+      "word": {
+        "en": "present",
+        "laos": "ຍື້ນ",
+        "jp": "現在",
+        "vie": "hiện tại",
+        "en_pronunciation": "/ˈprɛzənt/",
+        "laos_pronunciation": "nyun",
+        "jp_pronunciation": "genzai",
+        "vie_pronunciation": "hien tai"
+      },
+      "means": {
+        "en": "The period of time that is happening now; any continuous stretch of time including the moment of speech",
+        "zh": "怀孕状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "presence",
+        "laos": "ການຍູ່",
+        "jp": "存在感",
+        "vie": "sự hiện diện",
+        "en_pronunciation": "/ˈprɛzəns/",
+        "laos_pronunciation": "kan nyu",
+        "jp_pronunciation": "sonzaikan",
+        "vie_pronunciation": "su hien dien"
+      },
+      "means": {
+        "en": "The state of being present; current existence",
+        "zh": "从受孕到分娩期间，妇女在子宫内怀有发育中的胎儿"
+      }
+    },
+    {
+      "word": {
+        "en": "presentation",
+        "laos": "ການມອບໃຫ້",
+        "jp": "プレゼンテーション",
+        "vie": "trình bày",
+        "en_pronunciation": "/ˌprɛzənˈteɪʃən/",
+        "laos_pronunciation": "kanmobhai",
+        "jp_pronunciation": "purezenteeshon",
+        "vie_pronunciation": "trinh bay"
+      },
+      "means": {
+        "en": "The activity of formally presenting something (as a prize or reward)",
+        "zh": "预先引起或吸引或紧急或着迷地占据兴趣或注意力"
+      }
+    },
+    {
+      "word": {
+        "en": "presently",
+        "laos": "ປະຈຸບັນ",
+        "jp": "現在",
+        "vie": "hiện tại",
+        "en_pronunciation": "/ˈprɛzəntli/",
+        "laos_pronunciation": "pachuban",
+        "jp_pronunciation": "genzai",
+        "vie_pronunciation": "hien tai"
+      },
+      "means": {
+        "en": "In the near future",
+        "zh": "在某些行为或目的之前进行整理或安排的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "preserve",
+        "laos": "ຮັກສາໄວ້",
+        "jp": "保存する",
+        "vie": "bảo tồn",
+        "en_pronunciation": "/prɪˈzərv/",
+        "laos_pronunciation": "haksauaai",
+        "jp_pronunciation": "hozon suru",
+        "vie_pronunciation": "bao ton"
+      },
+      "means": {
+        "en": "A domain that seems to be specially reserved for someone",
+        "zh": "事先规定的方向；"
+      }
+    },
+    {
+      "word": {
+        "en": "preservation",
+        "laos": "ການອະນຸຮູ້",
+        "jp": "保存",
+        "vie": "bảo quản",
+        "en_pronunciation": "/ˌprɛzərˈveɪʃən/",
+        "laos_pronunciation": "kan anuhu",
+        "jp_pronunciation": "hozon",
+        "vie_pronunciation": "bao quan"
+      },
+      "means": {
+        "en": "The activity of protecting something from loss or danger",
+        "zh": "规定权威规则或指示的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "preservative",
+        "laos": "ທີ່ສະຫງວນໄວ້",
+        "jp": "防腐剤",
+        "vie": "chất bảo quản",
+        "en_pronunciation": "/priˈzərvətɪv/",
+        "laos_pronunciation": "thi sanguanuaai",
+        "jp_pronunciation": "boufuzai",
+        "vie_pronunciation": "chat bao quan"
+      },
+      "means": {
+        "en": "A chemical compound that is added to protect against decay or decomposition",
+        "zh": "表示准确或精确"
+      }
+    },
+    {
+      "word": {
+        "en": "preside",
+        "laos": "ທີ່ເປັນປະທານ",
+        "jp": "主宰する",
+        "vie": "chủ trì",
+        "en_pronunciation": "/prɪˈzaɪd/",
+        "laos_pronunciation": "thipenpathan",
+        "jp_pronunciation": "shusai suru",
+        "vie_pronunciation": "chu tri"
+      },
+      "means": {
+        "en": "Act as president",
+        "zh": "能够被预言"
+      }
+    },
+    {
+      "word": {
+        "en": "president",
+        "laos": "ປະທານາທິບໍດີ",
+        "jp": "社長",
+        "vie": "chủ tịch",
+        "en_pronunciation": "/ˈprɛzɪdənt/",
+        "laos_pronunciation": "pathanathibodi",
+        "jp_pronunciation": "shachou",
+        "vie_pronunciation": "chu tich"
+      },
+      "means": {
+        "en": "An executive officer of a firm or corporation",
+        "zh": "最常见或最常见的"
+      }
+    },
+    {
+      "word": {
+        "en": "presidency",
+        "laos": "ຄວາມເປັນປະທານ",
+        "jp": "大統領職",
+        "vie": "tổng thống",
+        "en_pronunciation": "/ˈprɛzɪdənsi/",
+        "laos_pronunciation": "khuaampenpathan",
+        "jp_pronunciation": "daitouryou shoku",
+        "vie_pronunciation": "tong thong"
+      },
+      "means": {
+        "en": "The tenure of a president",
+        "zh": "强烈的喜欢"
+      }
+    },
+    {
+      "word": {
+        "en": "presidential",
+        "laos": "ປະທານາທິບໍດີ",
+        "jp": "大統領",
+        "vie": "tổng thống",
+        "en_pronunciation": "/ˌprɛzɪˈdɛnʃəl/",
+        "laos_pronunciation": "pathanathibodi",
+        "jp_pronunciation": "daitouryou",
+        "vie_pronunciation": "tong thong"
+      },
+      "means": {
+        "en": "Relating to a president or presidency",
+        "zh": "为某事做准备"
+      }
+    },
+    {
+      "word": {
+        "en": "press",
+        "laos": "ເລ່ງທວງ",
+        "jp": "押す",
+        "vie": "nhấn",
+        "en_pronunciation": "/prɛs/",
+        "laos_pronunciation": "lengthuang",
+        "jp_pronunciation": "osu",
+        "vie_pronunciation": "nhan"
+      },
+      "means": {
+        "en": "The state of demanding notice or attention",
+        "zh": "表现出偏袒"
+      }
+    },
+    {
+      "word": {
+        "en": "pressure",
+        "laos": "ຄວາມກົດດັນ",
+        "jp": "圧力",
+        "vie": "áp lực",
+        "en_pronunciation": "/ˈprɛʃər/",
+        "laos_pronunciation": "khuaamkoddan",
+        "jp_pronunciation": "atsuryoku",
+        "vie_pronunciation": "ap luc"
+      },
+      "means": {
+        "en": "The force applied to a unit area of surface; measured in pascals (SI unit) or in dynes (cgs unit)",
+        "zh": "现在正在发生的一段时间；"
+      }
+    },
+    {
+      "word": {
+        "en": "pressing",
+        "laos": "ການບີບ",
+        "jp": "押す",
+        "vie": "ép",
+        "en_pronunciation": "/ˈprɛsɪŋ/",
+        "laos_pronunciation": "kanbib",
+        "jp_pronunciation": "osu",
+        "vie_pronunciation": "ep"
+      },
+      "means": {
+        "en": "The act of pressing; the exertion of pressure",
+        "zh": "任何连续的时间段，包括讲话时刻"
+      }
+    },
+    {
+      "word": {
+        "en": "prestige",
+        "laos": "ກຽດ",
+        "jp": "威信",
+        "vie": "uy tín",
+        "en_pronunciation": "/prɛˈstiʒ/",
+        "laos_pronunciation": "kiad",
+        "jp_pronunciation": "ishin",
+        "vie_pronunciation": "uy tin"
+      },
+      "means": {
+        "en": "A high standing achieved through success or influence or wealth etc.",
+        "zh": "存在的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "prestigious",
+        "laos": "ຊື່ສັດ",
+        "jp": "権威ある",
+        "vie": "có uy tín",
+        "en_pronunciation": "/pərˈstiʤəs/",
+        "laos_pronunciation": "susad",
+        "jp_pronunciation": "ken'i aru",
+        "vie_pronunciation": "co uy tin"
+      },
+      "means": {
+        "en": "Having an illustrious reputation; respected",
+        "zh": "当前存在"
+      }
+    }
+  ]
+}

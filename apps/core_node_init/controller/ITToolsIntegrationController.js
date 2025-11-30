@@ -107,6 +107,17 @@ class ITToolsIntegrationController {
             return;
         }
 
+        // Health check endpoint for singleton detection
+        this.itToolsInstance.httpServer.app.get('/health/ping', (req, res) => {
+            res.json({
+                success: true,
+                status: 'ok',
+                service: 'core_node_init_mcp',
+                timestamp: new Date().toISOString(),
+                uptime: process.uptime()
+            });
+        });
+
         // Core API routes
         this.itToolsInstance.httpServer.app.get('/api/integration/status', (req, res) => {
             try {

@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.249884+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "assess",
+        "laos": "ປະເມີນ",
+        "jp": "評価する",
+        "vie": "đánh giá",
+        "en_pronunciation": "/əˈsɛs/",
+        "laos_pronunciation": "pamoen",
+        "jp_pronunciation": "hyouka suru",
+        "vie_pronunciation": "danh gia"
+      },
+      "means": {
+        "en": "Evaluate or estimate the nature, quality, ability, extent, or significance of",
+        "zh": "评估或估计事物的性质、质量、能力、范围或重要性"
+      }
+    },
+    {
+      "word": {
+        "en": "assessment",
+        "laos": "ການປະເມີນຜົນ",
+        "jp": "評価",
+        "vie": "đánh giá",
+        "en_pronunciation": "/əˈsɛsmənt/",
+        "laos_pronunciation": "kanpamoenphon",
+        "jp_pronunciation": "hyouka",
+        "vie_pronunciation": "danh gia"
+      },
+      "means": {
+        "en": "The classification of someone or something with respect to its worth",
+        "zh": "根据某人或某物的价值对其进行分类"
+      }
+    },
+    {
+      "word": {
+        "en": "asset",
+        "laos": "ຊັບສິນ",
+        "jp": "資産",
+        "vie": "tài sản",
+        "en_pronunciation": "/ˈæˌsɛt/",
+        "laos_pronunciation": "sabsin",
+        "jp_pronunciation": "shisan",
+        "vie_pronunciation": "tai san"
+      },
+      "means": {
+        "en": "A useful or valuable quality",
+        "zh": "有用或有价值的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "assign",
+        "laos": "ມອບຫມາຍ",
+        "jp": "割り当てる",
+        "vie": "chỉ định",
+        "en_pronunciation": "/əˈsaɪn/",
+        "laos_pronunciation": "mobmai",
+        "jp_pronunciation": "wariateru",
+        "vie_pronunciation": "chi dinh"
+      },
+      "means": {
+        "en": "Give an assignment to (a person) to a post, or assign a task to (a person)",
+        "zh": "将某个职位分配给（一个人），或将一个任务分配给（一个人）"
+      }
+    },
+    {
+      "word": {
+        "en": "assignment",
+        "laos": "ການມອບຫມາຍ",
+        "jp": "割り当て",
+        "vie": "nhiệm vụ",
+        "en_pronunciation": "/əˈsaɪnmənt/",
+        "laos_pronunciation": "kanmobmai",
+        "jp_pronunciation": "wariate",
+        "vie_pronunciation": "nhiem vu"
+      },
+      "means": {
+        "en": "A duty that you are assigned to perform (especially in the armed forces)",
+        "zh": "您被指派执行的职责（尤其是在武装部队中）"
+      }
+    },
+    {
+      "word": {
+        "en": "assimilate",
+        "laos": "ສົມມຸດຕິສານ",
+        "jp": "同化する",
+        "vie": "đồng hóa",
+        "en_pronunciation": "/əˈsɪməˌleɪt/",
+        "laos_pronunciation": "sommud tisan",
+        "jp_pronunciation": "douka suru",
+        "vie_pronunciation": "dong hoa"
+      },
+      "means": {
+        "en": "Take up mentally",
+        "zh": "精神上振作起来"
+      }
+    },
+    {
+      "word": {
+        "en": "assimilation",
+        "laos": "Assimilation",
+        "jp": "同化",
+        "vie": "sự đồng hóa",
+        "en_pronunciation": "/əˌsɪməˈleɪʃən/",
+        "laos_pronunciation": "Assimilation",
+        "jp_pronunciation": "douka",
+        "vie_pronunciation": "su dong hoa"
+      },
+      "means": {
+        "en": "The state of being assimilated; people of different backgrounds come to see themselves as part of a larger national family",
+        "zh": "被同化的状态；"
+      }
+    },
+    {
+      "word": {
+        "en": "assist",
+        "laos": "ຊ່ວຍ",
+        "jp": "助ける",
+        "vie": "hỗ trợ",
+        "en_pronunciation": "/əˈsɪst/",
+        "laos_pronunciation": "suany",
+        "jp_pronunciation": "tasuke ru",
+        "vie_pronunciation": "ho tro"
+      },
+      "means": {
+        "en": "The activity of contributing to the fulfillment of a need or furtherance of an effort or purpose",
+        "zh": "不同背景的人开始将自己视为一个更大的民族家庭的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "assistance",
+        "laos": "ການປ້ອງກັນ",
+        "jp": "援助",
+        "vie": "sự giúp đỡ",
+        "en_pronunciation": "/əˈsɪstəns/",
+        "laos_pronunciation": "kanpongkan",
+        "jp_pronunciation": "enjo",
+        "vie_pronunciation": "su giup do"
+      },
+      "means": {
+        "en": "The activity of contributing to the fulfillment of a need or furtherance of an effort or purpose",
+        "zh": "为满足需求或促进努力或目的做出贡献的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "assistant",
+        "laos": "ຜູ້ຊ່ວຍ",
+        "jp": "アシスタント",
+        "vie": "trợ lý",
+        "en_pronunciation": "/əˈsɪstənt/",
+        "laos_pronunciation": "phusuany",
+        "jp_pronunciation": "ashisutanto",
+        "vie_pronunciation": "tro ly"
+      },
+      "means": {
+        "en": "A person who contributes to the fulfillment of a need or furtherance of an effort or purpose",
+        "zh": "为满足需求或促进努力或目的做出贡献的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "associate",
+        "laos": "ຜູ້ຢິງຮ່ວມນໍາ",
+        "jp": "アソシエイト",
+        "vie": "cộng tác viên",
+        "en_pronunciation": "/əˈsoʊʃiˌeɪt/",
+        "laos_pronunciation": "phu yinghuamnoa",
+        "jp_pronunciation": "asoshieito",
+        "vie_pronunciation": "cong tac vien"
+      },
+      "means": {
+        "en": "A person who joins with others in some activity or endeavor",
+        "zh": "为满足需求或促进努力或目的做出贡献的人"
+      }
+    },
+    {
+      "word": {
+        "en": "association",
+        "laos": "ສະມາຄົມ",
+        "jp": "協会",
+        "vie": "hiệp hội",
+        "en_pronunciation": "/əˌsoʊʃiˈeɪʃən/",
+        "laos_pronunciation": "samakhom",
+        "jp_pronunciation": "kyoukai",
+        "vie_pronunciation": "hiep hoi"
+      },
+      "means": {
+        "en": "A formal organization of people or groups of people",
+        "zh": "与他人一起从事某项活动或努力的人"
+      }
+    },
+    {
+      "word": {
+        "en": "assorted",
+        "laos": "ທີ່ຈັດອອກ",
+        "jp": "盛り合わせ",
+        "vie": "các loại",
+        "en_pronunciation": "/əˈsɔrtɪd/",
+        "laos_pronunciation": "thi chdook",
+        "jp_pronunciation": "mori awa se",
+        "vie_pronunciation": "cac loai"
+      },
+      "means": {
+        "en": "Keep company with; hang out with",
+        "zh": "人或团体的正式组织"
+      }
+    },
+    {
+      "word": {
+        "en": "assortment",
+        "laos": "ການເລື່ອກສານ",
+        "jp": "品揃え",
+        "vie": "phân loại",
+        "en_pronunciation": "/əˈsɔrtmənt/",
+        "laos_pronunciation": "kan leuoksan",
+        "jp_pronunciation": "shinazoroe",
+        "vie_pronunciation": "phan loai"
+      },
+      "means": {
+        "en": "A collection containing a variety of sorts of things",
+        "zh": "陪伴；"
+      }
+    },
+    {
+      "word": {
+        "en": "assume",
+        "laos": "ສົມມຸດ",
+        "jp": "仮定する",
+        "vie": "giả sử",
+        "en_pronunciation": "/əˈsum/",
+        "laos_pronunciation": "sommud",
+        "jp_pronunciation": "katei suru",
+        "vie_pronunciation": "gia su"
+      },
+      "means": {
+        "en": "Take to be the case or to be true; accept without verification or proof",
+        "zh": "和一起出去玩"
+      }
+    },
+    {
+      "word": {
+        "en": "assumption",
+        "laos": "ການພິສູດ",
+        "jp": "仮定",
+        "vie": "giả định",
+        "en_pronunciation": "/əˈsəmpʃən/",
+        "laos_pronunciation": "kanphisud",
+        "jp_pronunciation": "katei",
+        "vie_pronunciation": "gia dinh"
+      },
+      "means": {
+        "en": "A statement that is assumed to be true and from which a conclusion can be drawn",
+        "zh": "包含各种事物的集合"
+      }
+    },
+    {
+      "word": {
+        "en": "assure",
+        "laos": "ປະກັນ",
+        "jp": "保証します",
+        "vie": "đảm bảo",
+        "en_pronunciation": "/əˈʃʊr/",
+        "laos_pronunciation": "pakan",
+        "jp_pronunciation": "hoshou shimasu",
+        "vie_pronunciation": "dam bao"
+      },
+      "means": {
+        "en": "Make certain of",
+        "zh": "认为情况属实或属实；"
+      }
+    },
+    {
+      "word": {
+        "en": "assurance",
+        "laos": "ການປະກັນໄພ",
+        "jp": "保証",
+        "vie": "sự đảm bảo",
+        "en_pronunciation": "/əˈʃʊrəns/",
+        "laos_pronunciation": "kanpakanphai",
+        "jp_pronunciation": "hoshou",
+        "vie_pronunciation": "su dam bao"
+      },
+      "means": {
+        "en": "Freedom from doubt; belief in yourself and your abilities",
+        "zh": "无需验证或证明即可接受"
+      }
+    },
+    {
+      "word": {
+        "en": "astonish",
+        "laos": "ປະຫລາດໃຈ",
+        "jp": "驚くべき",
+        "vie": "kinh ngạc",
+        "en_pronunciation": "/əˈstɑnɪʃ/",
+        "laos_pronunciation": "paladchai",
+        "jp_pronunciation": "odoroku beki",
+        "vie_pronunciation": "kinh ngac"
+      },
+      "means": {
+        "en": "Affect with wonder",
+        "zh": "假设为真实并可从中得出结论的陈述"
+      }
+    },
+    {
+      "word": {
+        "en": "astonishment",
+        "laos": "ຄວາມປະຫຼາດໃຈ",
+        "jp": "驚き",
+        "vie": "sự kinh ngạc",
+        "en_pronunciation": "/əˈstɑnɪʃmənt/",
+        "laos_pronunciation": "khuaam paradchai",
+        "jp_pronunciation": "odoroki",
+        "vie_pronunciation": "su kinh ngac"
+      },
+      "means": {
+        "en": "The feeling that accompanies something extremely surprising",
+        "zh": "确定"
+      }
+    },
+    {
+      "word": {
+        "en": "astray",
+        "laos": "ໃນທາງທີ່ຜິດ",
+        "jp": "迷った",
+        "vie": "lạc lối",
+        "en_pronunciation": "/əˈstreɪ/",
+        "laos_pronunciation": "naithangthiphid",
+        "jp_pronunciation": "mayotsu ta",
+        "vie_pronunciation": "lac loi"
+      },
+      "means": {
+        "en": "Away from the right path or direction",
+        "zh": "免于怀疑；"
+      }
+    },
+    {
+      "word": {
+        "en": "astronaut",
+        "laos": "ນັກອາວະກາດ",
+        "jp": "宇宙飛行士",
+        "vie": "phi hành gia",
+        "en_pronunciation": "/ˈæstrəˌnɑt/",
+        "laos_pronunciation": "nkoauaakad",
+        "jp_pronunciation": "uchuuhikoushi",
+        "vie_pronunciation": "phi hanh gia"
+      },
+      "means": {
+        "en": "A person trained to travel in a spacecraft",
+        "zh": "对自己和自己的能力有信心"
+      }
+    },
+    {
+      "word": {
+        "en": "astronomy",
+        "laos": "ດາຣາສາດ",
+        "jp": "天文学",
+        "vie": "thiên văn học",
+        "en_pronunciation": "/əˈstrɑnəmi/",
+        "laos_pronunciation": "darasad",
+        "jp_pronunciation": "tenmongaku",
+        "vie_pronunciation": "thien van hoc"
+      },
+      "means": {
+        "en": "The branch of physics that studies celestial bodies and the universe as a whole",
+        "zh": "令人惊奇的影响"
+      }
+    },
+    {
+      "word": {
+        "en": "astronomer",
+        "laos": "ນັກດາລາສາດ",
+        "jp": "天文学者",
+        "vie": "nhà thiên văn học",
+        "en_pronunciation": "/əˈstrɑnəmər/",
+        "laos_pronunciation": "nak dalasad",
+        "jp_pronunciation": "tenmongakusha",
+        "vie_pronunciation": "nha thien van hoc"
+      },
+      "means": {
+        "en": "A physicist who studies astronomy",
+        "zh": "伴随着极其令人惊讶的事情的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "astronomical",
+        "laos": "ດານີ",
+        "jp": "天文学的な",
+        "vie": "thiên văn học",
+        "en_pronunciation": "/ˌæstrəˈnɑmɪkəl/",
+        "laos_pronunciation": "dani",
+        "jp_pronunciation": "tenmongakuteki na",
+        "vie_pronunciation": "thien van hoc"
+      },
+      "means": {
+        "en": "Relating or belonging to the science of astronomy",
+        "zh": "远离正确的道路或方向"
+      }
+    },
+    {
+      "word": {
+        "en": "asylum",
+        "laos": "ບ່ອນພັກເຊົາ",
+        "jp": "亡命",
+        "vie": "tị nạn",
+        "en_pronunciation": "/əˈsaɪləm/",
+        "laos_pronunciation": "bon phaksao",
+        "jp_pronunciation": "boumei",
+        "vie_pronunciation": "ti nan"
+      },
+      "means": {
+        "en": "A shelter from danger or hardship",
+        "zh": "接受过乘坐宇宙飞船旅行训练的人"
+      }
+    },
+    {
+      "word": {
+        "en": "at",
+        "laos": "ທີ່",
+        "jp": "で",
+        "vie": "tại",
+        "en_pronunciation": "/æt/",
+        "laos_pronunciation": "thi",
+        "jp_pronunciation": "de",
+        "vie_pronunciation": "tai"
+      },
+      "means": {
+        "en": "A highly unstable radioactive element (the heaviest of the halogen series); a decay product of uranium and thorium",
+        "zh": "研究天体和整个宇宙的物理学分支"
+      }
+    },
+    {
+      "word": {
+        "en": "athlete",
+        "laos": "ນັກກິລາ",
+        "jp": "スポーツ選手",
+        "vie": "vận động viên",
+        "en_pronunciation": "/ˈæθˌlit/",
+        "laos_pronunciation": "nakkila",
+        "jp_pronunciation": "supootsu senshu",
+        "vie_pronunciation": "van dong vien"
+      },
+      "means": {
+        "en": "A person trained to compete in sports",
+        "zh": "研究天文学的物理学家"
+      }
+    },
+    {
+      "word": {
+        "en": "athletic",
+        "laos": "ກິລາ",
+        "jp": "アスレチック",
+        "vie": "thể thao",
+        "en_pronunciation": "/æθˈlɛtɪk/",
+        "laos_pronunciation": "kila",
+        "jp_pronunciation": "asurechikku",
+        "vie_pronunciation": "the thao"
+      },
+      "means": {
+        "en": "Relating to or befitting athletics or athletes",
+        "zh": "与天文学相关或属于天文学"
+      }
+    },
+    {
+      "word": {
+        "en": "atlas",
+        "laos": "ATLAS",
+        "jp": "アトラス",
+        "vie": "tập bản đồ",
+        "en_pronunciation": "/ˈætləs/",
+        "laos_pronunciation": "ATLAS",
+        "jp_pronunciation": "atorasu",
+        "vie_pronunciation": "tap ban do"
+      },
+      "means": {
+        "en": "(Greek mythology) a Titan who was forced by Zeus to bear the sky on his shoulders",
+        "zh": "躲避危险或困难的避难所"
+      }
+    },
+    {
+      "word": {
+        "en": "atmosphere",
+        "laos": "ບັນຍາກາດ",
+        "jp": "雰囲気",
+        "vie": "bầu không khí",
+        "en_pronunciation": "/ˈætməsˌfɪr/",
+        "laos_pronunciation": "bnaiakad",
+        "jp_pronunciation": "fun'iki",
+        "vie_pronunciation": "bau khong khi"
+      },
+      "means": {
+        "en": "A particular environment or surrounding influence",
+        "zh": "高度不稳定的放射性元素（卤素系列中最重的元素）；"
+      }
+    },
+    {
+      "word": {
+        "en": "atmospheric",
+        "laos": "ບັນຍາກາດ",
+        "jp": "大気中の",
+        "vie": "khí quyển",
+        "en_pronunciation": "/ˌætməsˈfɛrɪk/",
+        "laos_pronunciation": "bnaiakad",
+        "jp_pronunciation": "taikichuu no",
+        "vie_pronunciation": "khi quyen"
+      },
+      "means": {
+        "en": "Relating to or located in the atmosphere",
+        "zh": "铀和钍的衰变产物"
+      }
+    },
+    {
+      "word": {
+        "en": "atom",
+        "laos": "ປະຣະມານູ",
+        "jp": "原子",
+        "vie": "nguyên tử",
+        "en_pronunciation": "/ˈætəm/",
+        "laos_pronunciation": "pa ra manu",
+        "jp_pronunciation": "genshi",
+        "vie_pronunciation": "nguyen tu"
+      },
+      "means": {
+        "en": "(physics and chemistry) the smallest component of an element having the chemical properties of the element",
+        "zh": "受过体育比赛训练的人"
+      }
+    },
+    {
+      "word": {
+        "en": "atomic",
+        "laos": "ປະລະມານູ",
+        "jp": "原子",
+        "vie": "nguyên tử",
+        "en_pronunciation": "/əˈtɑmɪk/",
+        "laos_pronunciation": "pala manu",
+        "jp_pronunciation": "genshi",
+        "vie_pronunciation": "nguyen tu"
+      },
+      "means": {
+        "en": "Of or relating to or comprising atoms",
+        "zh": "与田径运动或运动员有关或适合的"
+      }
+    },
+    {
+      "word": {
+        "en": "atop",
+        "laos": "ການ",
+        "jp": "上に",
+        "vie": "trên đỉnh",
+        "en_pronunciation": "/əˈtɑp/",
+        "laos_pronunciation": "kan",
+        "jp_pronunciation": "ueni",
+        "vie_pronunciation": "tren dinh"
+      },
+      "means": {
+        "en": "On, to, or at the top",
+        "zh": "（希腊神话）被宙斯强迫肩负天空的泰坦"
+      }
+    },
+    {
+      "word": {
+        "en": "atrocity",
+        "laos": "ຄວາມໂຫດຮ້າຢ",
+        "jp": "残虐行為",
+        "vie": "sự tàn ác",
+        "en_pronunciation": "/əˈtrɑsəti/",
+        "laos_pronunciation": "khuaam ohd hay",
+        "jp_pronunciation": "zangyakukoui",
+        "vie_pronunciation": "su tan ac"
+      },
+      "means": {
+        "en": "The quality of being shockingly cruel and inhumane",
+        "zh": "特定的环境或周围的影响"
+      }
+    },
+    {
+      "word": {
+        "en": "atrocious",
+        "laos": "ທີ່ໂຫດຮ້າຍອອກ",
+        "jp": "ひどい",
+        "vie": "tàn ác",
+        "en_pronunciation": "/əˈtroʊʃəs/",
+        "laos_pronunciation": "thi ohdhaiook",
+        "jp_pronunciation": "hidoi",
+        "vie_pronunciation": "tan ac"
+      },
+      "means": {
+        "en": "Shockingly brutal or cruel",
+        "zh": "与大气有关或位于大气中"
+      }
+    },
+    {
+      "word": {
+        "en": "attach",
+        "laos": "ຄັດ",
+        "jp": "付ける",
+        "vie": "đính kèm",
+        "en_pronunciation": "/əˈtæʧ/",
+        "laos_pronunciation": "khad",
+        "jp_pronunciation": "tsukeru",
+        "vie_pronunciation": "dinh kem"
+      },
+      "means": {
+        "en": "Cause to be attached",
+        "zh": "（物理和化学）具有元素化学性质的元素的最小成分"
+      }
+    },
+    {
+      "word": {
+        "en": "attachment",
+        "laos": "ການຜູກມັດ",
+        "jp": "アタッチメント",
+        "vie": "tập tin đính kèm",
+        "en_pronunciation": "/əˈtæʧmənt/",
+        "laos_pronunciation": "kanphukmad",
+        "jp_pronunciation": "atatchimento",
+        "vie_pronunciation": "tap tin dinh kem"
+      },
+      "means": {
+        "en": "A feeling of affection for a person or an institution",
+        "zh": "属于原子或与原子有关或包含原子"
+      }
+    },
+    {
+      "word": {
+        "en": "attack",
+        "laos": "ການໂຈມຕີ",
+        "jp": "攻撃する",
+        "vie": "tấn công",
+        "en_pronunciation": "/əˈtæk/",
+        "laos_pronunciation": "kanochmti",
+        "jp_pronunciation": "kougeki suru",
+        "vie_pronunciation": "tan cong"
+      },
+      "means": {
+        "en": "(military) an offensive against an enemy (using weapons)",
+        "zh": "在顶部、到顶部或在顶部"
+      }
+    },
+    {
+      "word": {
+        "en": "attain",
+        "laos": "ລຸ",
+        "jp": "達成する",
+        "vie": "đạt được",
+        "en_pronunciation": "/əˈteɪn/",
+        "laos_pronunciation": "lu",
+        "jp_pronunciation": "tassei suru",
+        "vie_pronunciation": "dat duoc"
+      },
+      "means": {
+        "en": "To gain with effort",
+        "zh": "令人震惊的残忍和不人道的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "attainment",
+        "laos": "ຄວາມໄດ້ມາ",
+        "jp": "達成",
+        "vie": "sự đạt được",
+        "en_pronunciation": "/əˈteɪnmənt/",
+        "laos_pronunciation": "khuaamdaima",
+        "jp_pronunciation": "tassei",
+        "vie_pronunciation": "su dat duoc"
+      },
+      "means": {
+        "en": "The act of achieving an aim",
+        "zh": "极其残忍或残忍"
+      }
+    },
+    {
+      "word": {
+        "en": "attempt",
+        "laos": "ຄວາມພະລຸນາ",
+        "jp": "試みる",
+        "vie": "cố gắng",
+        "en_pronunciation": "/əˈtɛmpt/",
+        "laos_pronunciation": "khuaam phaluna",
+        "jp_pronunciation": "kokoromi ru",
+        "vie_pronunciation": "co gang"
+      },
+      "means": {
+        "en": "Earnest and conscientious activity intended to do or accomplish something",
+        "zh": "原因要附上"
+      }
+    },
+    {
+      "word": {
+        "en": "attend",
+        "laos": "ເຂົ້າຮ່ວມ",
+        "jp": "出席する",
+        "vie": "tham dự",
+        "en_pronunciation": "/əˈtɛnd/",
+        "laos_pronunciation": "khaohuam",
+        "jp_pronunciation": "shusseki suru",
+        "vie_pronunciation": "tham du"
+      },
+      "means": {
+        "en": "Be present at (meetings, church services, university), etc.",
+        "zh": "对一个人或一个机构的感情"
+      }
+    },
+    {
+      "word": {
+        "en": "attendance",
+        "laos": "ອະພິນັນ",
+        "jp": "出席",
+        "vie": "sự tham dự",
+        "en_pronunciation": "/əˈtɛndəns/",
+        "laos_pronunciation": "aphinan",
+        "jp_pronunciation": "shusseki",
+        "vie_pronunciation": "su tham du"
+      },
+      "means": {
+        "en": "The act of being present (at a meeting or event etc.)",
+        "zh": "（军事）对敌人的进攻（使用武器）"
+      }
+    },
+    {
+      "word": {
+        "en": "attendant",
+        "laos": "ຜູ້ຊາຢບໍລິການ",
+        "jp": "従者",
+        "vie": "tiếp viên",
+        "en_pronunciation": "/əˈtɛndənt/",
+        "laos_pronunciation": "phu saybolikan",
+        "jp_pronunciation": "juusha",
+        "vie_pronunciation": "tiep vien"
+      },
+      "means": {
+        "en": "Someone who waits on or tends to or attends to the needs of another",
+        "zh": "通过努力去收获"
+      }
+    },
+    {
+      "word": {
+        "en": "attention",
+        "laos": "ຄວາມສົນໃຈ",
+        "jp": "注意",
+        "vie": "chú ý",
+        "en_pronunciation": "/əˈtɛnʃən/",
+        "laos_pronunciation": "khuaamsonchai",
+        "jp_pronunciation": "chuui",
+        "vie_pronunciation": "chu y"
+      },
+      "means": {
+        "en": "The process whereby a person concentrates on some features of the environment to the (relative) exclusion of others",
+        "zh": "实现目标的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "attentive",
+        "laos": "ເອົາໃຈໃສ່",
+        "jp": "気配りのある",
+        "vie": "chú ý",
+        "en_pronunciation": "/əˈtɛntɪv/",
+        "laos_pronunciation": "aochaisai",
+        "jp_pronunciation": "kikubari noaru",
+        "vie_pronunciation": "chu y"
+      },
+      "means": {
+        "en": "(often followed by `to') giving care or attention",
+        "zh": "旨在做或完成某事的认真和认真的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "attic",
+        "laos": "ຄ່ວນ",
+        "jp": "屋根裏部屋",
+        "vie": "gác mái",
+        "en_pronunciation": "/ˈætɪk/",
+        "laos_pronunciation": "khuan",
+        "jp_pronunciation": "yaneurabeya",
+        "vie_pronunciation": "gac mai"
+      },
+      "means": {
+        "en": "Floor consisting of open space at the top of a house just below roof; often used for storage",
+        "zh": "出席（会议、教堂礼拜、大学）等。"
+      }
+    },
+    {
+      "word": {
+        "en": "attitude",
+        "laos": "ທ່າທາງ",
+        "jp": "態度",
+        "vie": "thái độ",
+        "en_pronunciation": "/ˈætəˌtud/",
+        "laos_pronunciation": "thathang",
+        "jp_pronunciation": "taido",
+        "vie_pronunciation": "thai do"
+      },
+      "means": {
+        "en": "A complex mental state involving beliefs and feelings and values and dispositions to act in certain ways",
+        "zh": "出席的行为（参加会议或活动等）"
+      }
+    },
+    {
+      "word": {
+        "en": "attorney",
+        "laos": "ທະນາຍຄວາມ",
+        "jp": "弁護士",
+        "vie": "luật sư",
+        "en_pronunciation": "/əˈtərni/",
+        "laos_pronunciation": "thanaikhuaam",
+        "jp_pronunciation": "bengoshi",
+        "vie_pronunciation": "luat su"
+      },
+      "means": {
+        "en": "A professional person authorized to practice law; conducts lawsuits or gives legal advice",
+        "zh": "等待、照顾或照顾他人需要的人"
+      }
+    },
+    {
+      "word": {
+        "en": "attract",
+        "laos": "ດຶງດູດ",
+        "jp": "引き寄せる",
+        "vie": "thu hút",
+        "en_pronunciation": "/əˈtrækt/",
+        "laos_pronunciation": "dungdud",
+        "jp_pronunciation": "hiki yose ru",
+        "vie_pronunciation": "thu hut"
+      },
+      "means": {
+        "en": "Direct toward itself or oneself by means of some psychological power or physical attributes",
+        "zh": "一个人专注于环境的某些特征而（相对）排除其他特征的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "attraction",
+        "laos": "ຄວາມດຶງດູດ",
+        "jp": "アトラクション",
+        "vie": "sự hấp dẫn",
+        "en_pronunciation": "/əˈtrækʃən/",
+        "laos_pronunciation": "khuaamdungdud",
+        "jp_pronunciation": "atorakushon",
+        "vie_pronunciation": "su hap dan"
+      },
+      "means": {
+        "en": "The force by which one object attracts another",
+        "zh": "（通常后跟“to”）给予照顾或关注"
+      }
+    },
+    {
+      "word": {
+        "en": "attractive",
+        "laos": "ຜຸດຜາດ",
+        "jp": "魅力的な",
+        "vie": "hấp dẫn",
+        "en_pronunciation": "/əˈtræktɪv/",
+        "laos_pronunciation": "phudphad",
+        "jp_pronunciation": "miryokuteki na",
+        "vie_pronunciation": "hap dan"
+      },
+      "means": {
+        "en": "Pleasing to the eye or mind especially through beauty or charm",
+        "zh": "地板由屋顶下方房屋顶部的开放空间组成；"
+      }
+    },
+    {
+      "word": {
+        "en": "attribute",
+        "laos": "ຄຸນລັກສະນະ",
+        "jp": "属性",
+        "vie": "thuộc tính",
+        "en_pronunciation": "/əˈtrɪˌbjut/",
+        "laos_pronunciation": "khunlaksana",
+        "jp_pronunciation": "zokusei",
+        "vie_pronunciation": "thuoc tinh"
+      },
+      "means": {
+        "en": "A construct whereby objects or individuals can be distinguished",
+        "zh": "常用于存储"
+      }
+    },
+    {
+      "word": {
+        "en": "attributable",
+        "laos": "ໄດ້ຮັບຜົນປະໂຫຍດ",
+        "jp": "起因する",
+        "vie": "có thể quy cho",
+        "en_pronunciation": "/əˈtrɪbjətəbəl/",
+        "laos_pronunciation": "daihabphonpaojd",
+        "jp_pronunciation": "kiin suru",
+        "vie_pronunciation": "co the quy cho"
+      },
+      "means": {
+        "en": "Capable of being attributed",
+        "zh": "一种复杂的心理状态，涉及信念、感受、价值观以及以某种方式行事的倾向"
+      }
+    },
+    {
+      "word": {
+        "en": "attributive",
+        "laos": "ບູຊາ",
+        "jp": "限定的な",
+        "vie": "thuộc tính",
+        "en_pronunciation": "/attributive/",
+        "laos_pronunciation": "busa",
+        "jp_pronunciation": "genteiteki na",
+        "vie_pronunciation": "thuoc tinh"
+      },
+      "means": {
+        "en": "Of adjectives; placed before the nouns they modify",
+        "zh": "获授权执业的专业人士；"
+      }
+    },
+    {
+      "word": {
+        "en": "auction",
+        "laos": "ການປະມູນ",
+        "jp": "オークション",
+        "vie": "đấu giá",
+        "en_pronunciation": "/ˈɔkʃən/",
+        "laos_pronunciation": "kanpamun",
+        "jp_pronunciation": "ookushon",
+        "vie_pronunciation": "dau gia"
+      },
+      "means": {
+        "en": "A variety of bridge in which tricks made in excess of the contract are scored toward game; now generally superseded by contract bridge",
+        "zh": "进行诉讼或提供法律建议"
+      }
+    },
+    {
+      "word": {
+        "en": "auctioneer",
+        "laos": "ຜູ້ປະມູນ",
+        "jp": "競売人",
+        "vie": "người bán đấu giá",
+        "en_pronunciation": "/ˌɑkʃəˈnɪr/",
+        "laos_pronunciation": "phupamun",
+        "jp_pronunciation": "kyoubai nin",
+        "vie_pronunciation": "nguoi ban dau gia"
+      },
+      "means": {
+        "en": "An agent who conducts an auction",
+        "zh": "通过某种心理力量或身体属性直接针对自己或自己"
+      }
+    },
+    {
+      "word": {
+        "en": "audience",
+        "laos": "ຜູ້ຊົມ",
+        "jp": "観客",
+        "vie": "khán giả",
+        "en_pronunciation": "/ˈɔdiəns/",
+        "laos_pronunciation": "phusom",
+        "jp_pronunciation": "kankyaku",
+        "vie_pronunciation": "khan gia"
+      },
+      "means": {
+        "en": "A gathering of spectators or listeners at a (usually public) performance",
+        "zh": "一个物体吸引另一个物体的力"
+      }
+    },
+    {
+      "word": {
+        "en": "audio",
+        "laos": "ເຄື່ອງສຽງ",
+        "jp": "オーディオ",
+        "vie": "âm thanh",
+        "en_pronunciation": "/ˈɑdiˌoʊ/",
+        "laos_pronunciation": "kheuongsiang",
+        "jp_pronunciation": "oodio",
+        "vie_pronunciation": "am thanh"
+      },
+      "means": {
+        "en": "The audible part of a transmitted signal",
+        "zh": "赏心悦目，特别是通过美丽或魅力"
+      }
+    },
+    {
+      "word": {
+        "en": "audit",
+        "laos": "ການກວດສອບ",
+        "jp": "監査",
+        "vie": "kiểm toán",
+        "en_pronunciation": "/ˈɔdɪt/",
+        "laos_pronunciation": "kankuadsob",
+        "jp_pronunciation": "kansa",
+        "vie_pronunciation": "kiem toan"
+      },
+      "means": {
+        "en": "An inspection of the accounting procedures and records by a trained accountant or CPA",
+        "zh": "可以区分物体或个体的构造"
+      }
+    },
+    {
+      "word": {
+        "en": "auditorium",
+        "laos": "ຫ້ອງປະຊົມ",
+        "jp": "講堂",
+        "vie": "khán phòng",
+        "en_pronunciation": "/ˌɔdəˈtɔriəm/",
+        "laos_pronunciation": "hong pasom",
+        "jp_pronunciation": "koudou",
+        "vie_pronunciation": "khan phong"
+      },
+      "means": {
+        "en": "The area of a theater or concert hall where the audience sits",
+        "zh": "能够被归因"
+      }
+    },
+    {
+      "word": {
+        "en": "auditing",
+        "laos": "ການກວດສອບ",
+        "jp": "監査",
+        "vie": "kiểm toán",
+        "en_pronunciation": "/ˈɑdətɪŋ/",
+        "laos_pronunciation": "kankuadsob",
+        "jp_pronunciation": "kansa",
+        "vie_pronunciation": "kiem toan"
+      },
+      "means": {
+        "en": "Examine carefully for accuracy with the intent of verification",
+        "zh": "形容词；"
+      }
+    },
+    {
+      "word": {
+        "en": "auditor",
+        "laos": "ຜູ້ກວດສອບ",
+        "jp": "監査人",
+        "vie": "kiểm toán viên",
+        "en_pronunciation": "/ˈɔdɪtər/",
+        "laos_pronunciation": "phukuadsob",
+        "jp_pronunciation": "kansanin",
+        "vie_pronunciation": "kiem toan vien"
+      },
+      "means": {
+        "en": "Someone who listens attentively",
+        "zh": "放在所修饰的名词之前"
+      }
+    },
+    {
+      "word": {
+        "en": "augment",
+        "laos": "ການເພີ້ມ",
+        "jp": "増強する",
+        "vie": "tăng thêm",
+        "en_pronunciation": "/ɔgˈmɛnt/",
+        "laos_pronunciation": "kanphoem",
+        "jp_pronunciation": "zoukyou suru",
+        "vie_pronunciation": "tang them"
+      },
+      "means": {
+        "en": "Enlarge or increase",
+        "zh": "各种桥牌，其中超出合同的技巧将被计入比赛；"
+      }
+    },
+    {
+      "word": {
+        "en": "august",
+        "laos": "ສິງຫາ",
+        "jp": "8月",
+        "vie": "tháng tám",
+        "en_pronunciation": "/ˈɔgəst/",
+        "laos_pronunciation": "singha",
+        "jp_pronunciation": "8 gatsu",
+        "vie_pronunciation": "thang tam"
+      },
+      "means": {
+        "en": "The month following July and preceding September",
+        "zh": "现在通常被合约桥取代"
+      }
+    },
+    {
+      "word": {
+        "en": "aunt",
+        "laos": "ປ້າ",
+        "jp": "叔母さん",
+        "vie": "dì",
+        "en_pronunciation": "/ɔnt/",
+        "laos_pronunciation": "pa",
+        "jp_pronunciation": "oba san",
+        "vie_pronunciation": "di"
+      },
+      "means": {
+        "en": "The sister of your father or mother; the wife of your uncle",
+        "zh": "进行拍卖的代理人"
+      }
+    },
+    {
+      "word": {
+        "en": "augmentation",
+        "laos": "ການເພີ້ມ",
+        "jp": "増強",
+        "vie": "tăng thêm",
+        "en_pronunciation": "/ˌɑgmɛnˈteɪʃən/",
+        "laos_pronunciation": "kanphoem",
+        "jp_pronunciation": "zoukyou",
+        "vie_pronunciation": "tang them"
+      },
+      "means": {
+        "en": "The amount by which something increases",
+        "zh": "在（通常是公开的）表演中聚集的观众或听众"
+      }
+    },
+    {
+      "word": {
+        "en": "auntie",
+        "laos": "ປ້າ",
+        "jp": "おばちゃん",
+        "vie": "dì",
+        "en_pronunciation": "/ˈɔnti/",
+        "laos_pronunciation": "pa",
+        "jp_pronunciation": "obachan",
+        "vie_pronunciation": "di"
+      },
+      "means": {
+        "en": "The sister of your father or mother; the wife of your uncle",
+        "zh": "传输信号的可听部分"
+      }
+    },
+    {
+      "word": {
+        "en": "authentic",
+        "laos": "ແທ້",
+        "jp": "本物の",
+        "vie": "đích thực",
+        "en_pronunciation": "/əˈθɛnɪk/",
+        "laos_pronunciation": "aeth",
+        "jp_pronunciation": "honmono no",
+        "vie_pronunciation": "dich thuc"
+      },
+      "means": {
+        "en": "Conforming to fact and therefore worthy of belief",
+        "zh": "由经过培训的会计师或注册会计师检查会计程序和记录"
+      }
+    },
+    {
+      "word": {
+        "en": "author",
+        "laos": "ກະວີ",
+        "jp": "著者",
+        "vie": "tác giả",
+        "en_pronunciation": "/ˈɔθər/",
+        "laos_pronunciation": "kavi",
+        "jp_pronunciation": "chosha",
+        "vie_pronunciation": "tac gia"
+      },
+      "means": {
+        "en": "Writes (books or stories or articles or the like) professionally (for pay)",
+        "zh": "剧院或音乐厅观众坐的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "authenticity",
+        "laos": "ອະນຸມູນບຸນ",
+        "jp": "信憑性",
+        "vie": "tính xác thực",
+        "en_pronunciation": "/ˌɔθənˈtɪsɪti/",
+        "laos_pronunciation": "anu munbun",
+        "jp_pronunciation": "shinpyousei",
+        "vie_pronunciation": "tinh xac thuc"
+      },
+      "means": {
+        "en": "Undisputed credibility",
+        "zh": "出于验证目的仔细检查准确性"
+      }
+    },
+    {
+      "word": {
+        "en": "authority",
+        "laos": "ເຈົ້າອໍານາດ",
+        "jp": "権威",
+        "vie": "thẩm quyền",
+        "en_pronunciation": "/əˈθɔrəti/",
+        "laos_pronunciation": "chaooanad",
+        "jp_pronunciation": "ken'i",
+        "vie_pronunciation": "tham quyen"
+      },
+      "means": {
+        "en": "The power or right to give orders or make decisions",
+        "zh": "一个认真倾听的人"
+      }
+    },
+    {
+      "word": {
+        "en": "authorize",
+        "laos": "ອະນຸມັດ",
+        "jp": "許可する",
+        "vie": "ủy quyền",
+        "en_pronunciation": "/ˈɔθərˌaɪz/",
+        "laos_pronunciation": "anumad",
+        "jp_pronunciation": "kyoka suru",
+        "vie_pronunciation": "uy quyen"
+      },
+      "means": {
+        "en": "Grant authorization or clearance for",
+        "zh": "放大或增加"
+      }
+    },
+    {
+      "word": {
+        "en": "authorise",
+        "laos": "ອະນຸມັດ",
+        "jp": "許可する",
+        "vie": "ủy quyền",
+        "en_pronunciation": "/authorise/",
+        "laos_pronunciation": "anumad",
+        "jp_pronunciation": "kyoka suru",
+        "vie_pronunciation": "uy quyen"
+      },
+      "means": {
+        "en": "Give or delegate power or authority to",
+        "zh": "7 月之后和 9 月之前的月份"
+      }
+    },
+    {
+      "word": {
+        "en": "auto",
+        "laos": "ອົແຮ່",
+        "jp": "自動",
+        "vie": "tự động",
+        "en_pronunciation": "/ˈɔtoʊ/",
+        "laos_pronunciation": "oaeh",
+        "jp_pronunciation": "jidou",
+        "vie_pronunciation": "tu dong"
+      },
+      "means": {
+        "en": "A motor vehicle with four wheels; usually propelled by an internal combustion engine",
+        "zh": "你父亲或母亲的姐妹；"
+      }
+    },
+    {
+      "word": {
+        "en": "automobile",
+        "laos": "ລົດຢົນ",
+        "jp": "自動車",
+        "vie": "ô tô",
+        "en_pronunciation": "/ˌɔtəmoʊˈbil/",
+        "laos_pronunciation": "lod yon",
+        "jp_pronunciation": "jidousha",
+        "vie_pronunciation": "o to"
+      },
+      "means": {
+        "en": "A motor vehicle with four wheels; usually propelled by an internal combustion engine",
+        "zh": "你叔叔的妻子"
+      }
+    },
+    {
+      "word": {
+        "en": "authoritative",
+        "laos": "ທີ່ມີສິດອໍານາດ",
+        "jp": "権威ある",
+        "vie": "có thẩm quyền",
+        "en_pronunciation": "/əˈθɔrəˌteɪtɪv/",
+        "laos_pronunciation": "thimisidoanad",
+        "jp_pronunciation": "ken'i aru",
+        "vie_pronunciation": "co tham quyen"
+      },
+      "means": {
+        "en": "Having authority or ascendancy or influence",
+        "zh": "某物增加的量"
+      }
+    },
+    {
+      "word": {
+        "en": "authorization",
+        "laos": "ການໄດ້ຮັບອໍານາດ",
+        "jp": "認可",
+        "vie": "ủy quyền",
+        "en_pronunciation": "/ˌɔθərəˈzeɪʃən/",
+        "laos_pronunciation": "kan daihbooanad",
+        "jp_pronunciation": "ninka",
+        "vie_pronunciation": "uy quyen"
+      },
+      "means": {
+        "en": "A document giving an official instruction or command",
+        "zh": "你父亲或母亲的姐妹；"
+      }
+    },
+    {
+      "word": {
+        "en": "authorisation",
+        "laos": "ການໄດ້ຮັບອໍານາດ",
+        "jp": "認可",
+        "vie": "ủy quyền",
+        "en_pronunciation": "/authorisation/",
+        "laos_pronunciation": "kan daihbooanad",
+        "jp_pronunciation": "ninka",
+        "vie_pronunciation": "uy quyen"
+      },
+      "means": {
+        "en": "A document giving an official instruction or command",
+        "zh": "你叔叔的妻子"
+      }
+    },
+    {
+      "word": {
+        "en": "autobiography",
+        "laos": "ຊີວະປະຫວັດ",
+        "jp": "自伝",
+        "vie": "tự truyện",
+        "en_pronunciation": "/ˌɔtəbaɪˈɑgrəfi/",
+        "laos_pronunciation": "siuaapavad",
+        "jp_pronunciation": "jiden",
+        "vie_pronunciation": "tu truyen"
+      },
+      "means": {
+        "en": "A biography of yourself",
+        "zh": "符合事实，因此值得相信"
+      }
+    },
+    {
+      "word": {
+        "en": "autobiographic",
+        "laos": "autobiographic",
+        "jp": "自伝",
+        "vie": "tự truyện",
+        "en_pronunciation": "/autobiographic/",
+        "laos_pronunciation": "autobiographic",
+        "jp_pronunciation": "jiden",
+        "vie_pronunciation": "tu truyen"
+      },
+      "means": {
+        "en": "Of or relating to or characteristic of an autobiographer",
+        "zh": "专业写作（书籍、故事或文章等）（有偿）"
+      }
+    },
+    {
+      "word": {
+        "en": "autobiographical",
+        "laos": "ຊີວະປະຫວັດ",
+        "jp": "自伝的な",
+        "vie": "tự truyện",
+        "en_pronunciation": "/ˌɔtəˌbaɪəˈgræfɪkəl/",
+        "laos_pronunciation": "siuaapavad",
+        "jp_pronunciation": "jiden tekina",
+        "vie_pronunciation": "tu truyen"
+      },
+      "means": {
+        "en": "Of or relating to or characteristic of an autobiographer",
+        "zh": "无可争议的可信度"
+      }
+    },
+    {
+      "word": {
+        "en": "automate",
+        "laos": "ຜູ້ລຽນເວລາ",
+        "jp": "自動化する",
+        "vie": "tự động hóa",
+        "en_pronunciation": "/ˈɔtəˌmeɪt/",
+        "laos_pronunciation": "phu lianuaela",
+        "jp_pronunciation": "jidouka suru",
+        "vie_pronunciation": "tu dong hoa"
+      },
+      "means": {
+        "en": "Make automatic or control or operate automatically",
+        "zh": "下达命令或做出决定的权力或权利"
+      }
+    },
+    {
+      "word": {
+        "en": "autonomous",
+        "laos": "ຕົນເອງໂດຍປົກຄອງ",
+        "jp": "自律的",
+        "vie": "tự trị",
+        "en_pronunciation": "/ɔˈtɑnəməs/",
+        "laos_pronunciation": "tonoeng odnypokkhong",
+        "jp_pronunciation": "jiritsuteki",
+        "vie_pronunciation": "tu tri"
+      },
+      "means": {
+        "en": "(of political bodies) not controlled by outside forces",
+        "zh": "授予授权或许可"
+      }
+    },
+    {
+      "word": {
+        "en": "autumn",
+        "laos": "ລະດູໃບໄມ້ລົ່ນ",
+        "jp": "秋",
+        "vie": "mùa thu",
+        "en_pronunciation": "/ˈɔtəm/",
+        "laos_pronunciation": "ladu baimailon",
+        "jp_pronunciation": "aki",
+        "vie_pronunciation": "mua thu"
+      },
+      "means": {
+        "en": "The season when the leaves fall from the trees",
+        "zh": "授予或委托权力或授权给"
+      }
+    },
+    {
+      "word": {
+        "en": "automation",
+        "laos": "ອັດຕະໂນມັດ",
+        "jp": "自動化",
+        "vie": "tự động hóa",
+        "en_pronunciation": "/ɔtəˈmeɪʃən/",
+        "laos_pronunciation": "adtaonmad",
+        "jp_pronunciation": "jidouka",
+        "vie_pronunciation": "tu dong hoa"
+      },
+      "means": {
+        "en": "The act of implementing the control of equipment with advanced technology; usually involving electronic hardware",
+        "zh": "四轮机动车辆；"
+      }
+    },
+    {
+      "word": {
+        "en": "autonomy",
+        "laos": "ອັດຕະຫິດ",
+        "jp": "自律性",
+        "vie": "quyền tự chủ",
+        "en_pronunciation": "/əˈtɑnəmi/",
+        "laos_pronunciation": "adtahid",
+        "jp_pronunciation": "jiritsu sei",
+        "vie_pronunciation": "quyen tu chu"
+      },
+      "means": {
+        "en": "Immunity from arbitrary exercise of authority: political independence",
+        "zh": "通常由内燃机驱动"
+      }
+    },
+    {
+      "word": {
+        "en": "automatic",
+        "laos": "ອັດຕະໂນມັດ",
+        "jp": "自動",
+        "vie": "tự động",
+        "en_pronunciation": "/ˌɔtəˈmætɪk/",
+        "laos_pronunciation": "adtaonmad",
+        "jp_pronunciation": "jidou",
+        "vie_pronunciation": "tu dong"
+      },
+      "means": {
+        "en": "Light machine gun",
+        "zh": "四轮机动车辆；"
+      }
+    },
+    {
+      "word": {
+        "en": "automatically",
+        "laos": "ອັດຕະໂນມັດ",
+        "jp": "自動的に",
+        "vie": "tự động",
+        "en_pronunciation": "/ˌɔtəˈmætɪkli/",
+        "laos_pronunciation": "adtaonmad",
+        "jp_pronunciation": "jidouteki ni",
+        "vie_pronunciation": "tu dong"
+      },
+      "means": {
+        "en": "In a reflex manner",
+        "zh": "通常由内燃机驱动"
+      }
+    },
+    {
+      "word": {
+        "en": "auxiliary",
+        "laos": "ສໍາເລັດ",
+        "jp": "補助的な",
+        "vie": "phụ trợ",
+        "en_pronunciation": "/ɑgˈzɪljəri/",
+        "laos_pronunciation": "soaled",
+        "jp_pronunciation": "hojoteki na",
+        "vie_pronunciation": "phu tro"
+      },
+      "means": {
+        "en": "Someone who acts as assistant",
+        "zh": "拥有权威、优势或影响力"
+      }
+    },
+    {
+      "word": {
+        "en": "avail",
+        "laos": "ທີ່ໄດ້ຮັບ",
+        "jp": "利用する",
+        "vie": "tận dụng",
+        "en_pronunciation": "/əˈveɪl/",
+        "laos_pronunciation": "thidaihab",
+        "jp_pronunciation": "riyou suru",
+        "vie_pronunciation": "tan dung"
+      },
+      "means": {
+        "en": "A means of serving",
+        "zh": "给出正式指示或命令的文件"
+      }
+    },
+    {
+      "word": {
+        "en": "available",
+        "laos": "ມີໄວ້",
+        "jp": "利用可能",
+        "vie": "có sẵn",
+        "en_pronunciation": "/əˈveɪləbəl/",
+        "laos_pronunciation": "miuaai",
+        "jp_pronunciation": "riyoukanou",
+        "vie_pronunciation": "co san"
+      },
+      "means": {
+        "en": "Obtainable or accessible and ready for use or service",
+        "zh": "给出正式指示或命令的文件"
+      }
+    },
+    {
+      "word": {
+        "en": "availability",
+        "laos": "ຄວາມສາມາດ",
+        "jp": "可用性",
+        "vie": "sẵn có",
+        "en_pronunciation": "/əˌveɪləˈbɪlɪti/",
+        "laos_pronunciation": "khuaamsamad",
+        "jp_pronunciation": "kayousei",
+        "vie_pronunciation": "san co"
+      },
+      "means": {
+        "en": "The quality of being at hand when needed",
+        "zh": "你自己的传记"
+      }
+    },
+    {
+      "word": {
+        "en": "avenge",
+        "laos": "ແກ້ແຄ້ນ",
+        "jp": "復讐する",
+        "vie": "trả thù",
+        "en_pronunciation": "/əˈvɛnʤ/",
+        "laos_pronunciation": "aekaekhn",
+        "jp_pronunciation": "fukushuu suru",
+        "vie_pronunciation": "tra thu"
+      },
+      "means": {
+        "en": "Take revenge for a perceived wrong",
+        "zh": "自传作家的或与之相关的或自传作家的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "avenue",
+        "laos": "ຖະຫນົນ",
+        "jp": "大通り",
+        "vie": "đại lộ",
+        "en_pronunciation": "/ˈævəˌnu/",
+        "laos_pronunciation": "thanon",
+        "jp_pronunciation": "oodoori",
+        "vie_pronunciation": "dai lo"
+      },
+      "means": {
+        "en": "A line of approach",
+        "zh": "自传作家的或与之相关的或自传作家的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "average",
+        "laos": "ສະເລ່ຍ",
+        "jp": "平均的な",
+        "vie": "trung bình",
+        "en_pronunciation": "/ˈævərɪʤ/",
+        "laos_pronunciation": "saleny",
+        "jp_pronunciation": "heikinteki na",
+        "vie_pronunciation": "trung binh"
+      },
+      "means": {
+        "en": "A statistic describing the location of a distribution",
+        "zh": "实现自动化或自动控制或运行"
+      }
+    },
+    {
+      "word": {
+        "en": "avert",
+        "laos": "ຫລີກລ້ຽງ",
+        "jp": "避ける",
+        "vie": "tránh xa",
+        "en_pronunciation": "/əˈvərt/",
+        "laos_pronunciation": "likliang",
+        "jp_pronunciation": "sake ru",
+        "vie_pronunciation": "tranh xa"
+      },
+      "means": {
+        "en": "Prevent the occurrence of; prevent from happening",
+        "zh": "（政治机构的）不受外部势力控制的"
+      }
+    },
+    {
+      "word": {
+        "en": "aversion",
+        "laos": "ອະນຸກຸນມະການ",
+        "jp": "嫌悪感",
+        "vie": "ác cảm",
+        "en_pronunciation": "/əˈvərʒən/",
+        "laos_pronunciation": "anu kun makan",
+        "jp_pronunciation": "ken'okan",
+        "vie_pronunciation": "ac cam"
+      },
+      "means": {
+        "en": "A feeling of intense dislike",
+        "zh": "树叶从树上落下的季节"
+      }
+    }
+  ]
+}

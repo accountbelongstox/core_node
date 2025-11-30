@@ -1,0 +1,629 @@
+================================================================================
+UNIFIED MCP BACKEND TOOLS REFERENCE
+================================================================================
+
+This document describes all tools extracted from pycore/pyctl/mcpctl and
+migrated to ncore/mcp_server/unifiedmcp.
+
+Total Tools: 22
+- Meta Tools: 3
+- File Processing Tools: 4
+- Database Tools: 7
+- Codebase Tools: 8
+
+Backend: Accesses both pycore and ncore services
+Note: Backend implementation will be added later
+
+================================================================================
+META TOOLS (3 tools)
+================================================================================
+
+1. backend_info
+   Description: Get backend metadata (ID, ports, status)
+   Sync: true (immediate response)
+   Parameters: None
+   Returns:
+     - backend_id (string): Backend identifier
+     - status (string): Backend status
+     - ports (object): Port configuration
+
+   Usage Example:
+     const result = await backend.backendInfo();
+
+2. backend_state
+   Description: Get backend processing state (IDLE/BUSY)
+   Sync: true (immediate response)
+   Parameters: None
+   Returns:
+     - state (string): Current processing state
+
+   Usage Example:
+     const result = await backend.backendState();
+
+3. tools_list
+   Description: List all available MCP tools
+   Sync: true (immediate response)
+   Parameters: None
+   Returns:
+     - tools (array): List of available tools
+
+   Usage Example:
+     const result = await backend.toolsList();
+
+================================================================================
+FILE PROCESSING TOOLS (4 tools)
+================================================================================
+
+1. get_file_info
+   Description: Extract file info with OCR/document parsing
+                Supports: images (PNG, JPG, etc.), PDFs, documents (DOCX, etc.)
+   Sync: false (async - ACK mechanism due to OCR processing time)
+
+   Parameters:
+     - file_path (string, required): Path to the file to analyze
+     - use_cache (boolean, optional, default: true): Use cached results if available
+     - include_pixel_matrix (boolean, optional, default: false): Include pixel matrix data for images
+     - ocr_model_type (string, optional, default: 'general'): OCR model type (general, dense, etc.)
+     - num_colors (number, optional, default: 10): Number of dominant colors to extract from images
+     - extract_images (boolean, optional, default: true): Extract images from documents
+     - extract_tables (boolean, optional, default: true): Extract tables from documents
+     - extract_hyperlinks (boolean, optional, default: true): Extract hyperlinks from documents
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - file_path (string): Path to analyzed file
+     - file_type (string): Detected file type
+     - ocr_text (string): Extracted text via OCR
+     - color_analysis (object): Dominant colors and statistics
+     - document_metadata (object): Document properties and metadata
+     - images (array): Extracted images from document
+     - tables (array): Extracted tables from document
+     - hyperlinks (array): Extracted hyperlinks from document
+
+   Backend Requirements:
+     - OCR engine (cnocr or paddleocr)
+     - Document parser (PyMuPDF, python-docx, etc.)
+     - Image processing (Pillow)
+     - Color analysis capabilities
+
+   Usage Example:
+     const result = await backend.getFileInfo({
+       file_path: '/path/to/file.pdf',
+       extract_images: true,
+       extract_tables: true
+     });
+
+2. generate_placeholder_image
+   Description: Generate placeholder image with OCR
+   Sync: true (immediate response)
+
+   Parameters:
+     - original_image_path (string, required): Path to original image
+     - output_path (string, required): Output path for placeholder image
+     - placeholder_text (string, optional): Custom text to display on placeholder
+     - background_color (string, optional, default: '#CCCCCC'): Background color (hex format)
+     - text_color (string, optional, default: '#333333'): Text color (hex format)
+     - font_size (number, optional, default: 20): Font size in pixels
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - output_path (string): Path to generated placeholder image
+
+   Backend Requirements:
+     - Image generation capabilities (Pillow)
+     - OCR for extracting text from original image
+
+   Usage Example:
+     const result = await backend.generatePlaceholderImage({
+       original_image_path: '/path/to/original.jpg',
+       output_path: '/path/to/placeholder.jpg',
+       placeholder_text: 'Loading...'
+     });
+
+3. query_file_processing_history
+   Description: Query file processing history
+   Sync: true (immediate response)
+
+   Parameters:
+     - file_type (string, optional): Filter by file type
+     - date_from (string, optional): Filter by start date (ISO format)
+     - date_to (string, optional): Filter by end date (ISO format)
+     - limit (number, optional, default: 100): Maximum number of results
+     - offset (number, optional, default: 0): Offset for pagination
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - history (array): Processing history records
+     - total (number): Total number of records
+
+   Backend Requirements:
+     - Database or file-based storage for processing history
+     - Query and filtering capabilities
+
+   Usage Example:
+     const result = await backend.queryFileProcessingHistory({
+       file_type: 'pdf',
+       limit: 50
+     });
+
+4. clear_file_cache
+   Description: Clear file processing cache
+   Sync: true (immediate response)
+
+   Parameters:
+     - file_path (string, optional): Specific file path to clear (if not provided, clears all)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - cleared_count (number): Number of cache entries cleared
+
+   Backend Requirements:
+     - Cache management system
+     - File-based or memory-based cache
+
+   Usage Example:
+     const result = await backend.clearFileCache({
+       file_path: '/path/to/file.pdf'
+     });
+
+================================================================================
+DATABASE TOOLS (7 tools)
+================================================================================
+
+1. database_namespace_negotiation
+   Description: Database namespace negotiation - create and negotiate database
+                namespace for client isolation
+   Sync: true (immediate response)
+
+   Parameters:
+     - client_identifier (string, optional, default: 'default_client'): Client identifier for namespace isolation
+     - custom_namespace (string, optional): Custom namespace (if not provided, auto-generated)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - namespace (string): Assigned namespace
+
+   Backend Requirements:
+     - Namespace management system
+     - Client isolation capabilities
+     - Auto-generation of unique namespaces
+
+   Usage Example:
+     const result = await backend.databaseNamespaceNegotiation({
+       client_identifier: 'claude_instance_1'
+     });
+
+2. database_register_and_connect
+   Description: Register and connect to database
+   Sync: true (immediate response)
+
+   Parameters:
+     - namespace (string, required): Database namespace
+     - database_name (string, required): Database name
+     - connection_string (string, required): Database connection string
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - connection_id (string): Connection identifier
+
+   Backend Requirements:
+     - Database connection pool management
+     - Support for multiple database types (SQLite, PostgreSQL, MySQL, etc.)
+     - Connection string parsing and validation
+
+   Usage Example:
+     const result = await backend.databaseRegisterAndConnect({
+       namespace: 'my_namespace',
+       database_name: 'my_database',
+       connection_string: 'sqlite:///path/to/database.db'
+     });
+
+3. database_execute_query
+   Description: Execute database query with safety checks
+   Sync: true (immediate response)
+
+   Parameters:
+     - namespace (string, required): Database namespace
+     - database_name (string, required): Database name
+     - query (string, required): SQL query to execute
+     - params (object, optional): Query parameters for parameterized queries
+     - max_rows (number, optional, default: 1000): Maximum number of rows to return
+     - timeout_seconds (number, optional, default: 30): Query timeout in seconds
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - rows (array): Query result rows
+     - row_count (number): Number of rows returned
+     - columns (array): Column names
+
+   Backend Requirements:
+     - SQL query execution engine
+     - Parameterized query support
+     - Query timeout management
+     - Safety checks (prevent DROP, TRUNCATE, etc. in production)
+     - Row limit enforcement
+
+   Usage Example:
+     const result = await backend.databaseExecuteQuery({
+       namespace: 'my_namespace',
+       database_name: 'my_database',
+       query: 'SELECT * FROM users WHERE id = ?',
+       params: { id: 1 },
+       max_rows: 100
+     });
+
+4. database_batch_operations
+   Description: Database batch operations (INSERT, UPDATE, DELETE)
+   Sync: true (immediate response)
+
+   Parameters:
+     - namespace (string, required): Database namespace
+     - database_name (string, required): Database name
+     - operation_type (string, required): Operation type (INSERT, UPDATE, DELETE)
+     - table_name (string, required): Target table name
+     - data (array, required): Array of data objects for batch operation
+     - batch_size (number, optional, default: 100): Batch size for processing
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - affected_rows (number): Number of affected rows
+
+   Backend Requirements:
+     - Batch operation support
+     - Transaction management
+     - Rollback on error
+     - Performance optimization for large batches
+
+   Usage Example:
+     const result = await backend.databaseBatchOperations({
+       namespace: 'my_namespace',
+       database_name: 'my_database',
+       operation_type: 'INSERT',
+       table_name: 'users',
+       data: [
+         { name: 'John', email: 'john@example.com' },
+         { name: 'Jane', email: 'jane@example.com' }
+       ],
+       batch_size: 100
+     });
+
+5. database_schema_inspection
+   Description: Database schema inspection - get table structures, columns, indexes
+   Sync: true (immediate response)
+
+   Parameters:
+     - namespace (string, required): Database namespace
+     - database_name (string, required): Database name
+     - table_pattern (string, optional): Filter tables by pattern (supports wildcards)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - tables (array): List of tables
+     - schema (object): Detailed schema information
+
+   Backend Requirements:
+     - Schema introspection capabilities
+     - Support for multiple database types
+     - Pattern matching for table filtering
+
+   Usage Example:
+     const result = await backend.databaseSchemaInspection({
+       namespace: 'my_namespace',
+       database_name: 'my_database',
+       table_pattern: 'user%'
+     });
+
+6. database_get_statistics
+   Description: Get database statistics (size, table counts, row counts)
+   Sync: true (immediate response)
+
+   Parameters:
+     - namespace (string, required): Database namespace
+     - database_name (string, required): Database name
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - statistics (object): Database statistics
+     - table_count (number): Number of tables
+     - total_rows (number): Total number of rows
+     - database_size (string): Database size in human-readable format
+
+   Backend Requirements:
+     - Statistics collection capabilities
+     - File size calculation
+     - Row count aggregation
+
+   Usage Example:
+     const result = await backend.databaseGetStatistics({
+       namespace: 'my_namespace',
+       database_name: 'my_database'
+     });
+
+7. database_health_check
+   Description: Database health check
+   Sync: true (immediate response)
+
+   Parameters: None
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - status (string): Health status
+     - connected_databases (number): Number of connected databases
+
+   Backend Requirements:
+     - Health check capabilities
+     - Connection monitoring
+
+   Usage Example:
+     const result = await backend.databaseHealthCheck();
+
+================================================================================
+CODEBASE TOOLS (8 tools)
+================================================================================
+
+1. codebase_get_directory_tree
+   Description: Get codebase directory tree with multiple output formats
+   Sync: true (immediate response)
+
+   Parameters:
+     - target_path (string, optional): Target directory path (defaults to current working directory)
+     - max_depth (number, optional, default: 5): Maximum depth to traverse
+     - include_files (boolean, optional, default: true): Include files in the tree
+     - include_hidden (boolean, optional, default: false): Include hidden files and directories
+     - output_format (string, optional, default: 'both'): Output format (tree, json, both)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - tree_text (string): Tree representation in text format
+     - tree_json (object): Tree representation in JSON format
+
+   Backend Requirements:
+     - File system traversal
+     - Tree generation in multiple formats
+     - Respect for .gitignore patterns
+
+   Usage Example:
+     const result = await backend.codebaseGetDirectoryTree({
+       target_path: '/path/to/project',
+       max_depth: 3,
+       include_files: true,
+       output_format: 'both'
+     });
+
+2. codebase_find_files_by_pattern
+   Description: Find files by filename pattern
+   Sync: true (immediate response)
+
+   Parameters:
+     - filename_pattern (string, required): Filename pattern to search for
+     - search_path (string, optional): Search path (defaults to current working directory)
+     - exact_match (boolean, optional, default: false): Exact match or pattern matching
+     - case_sensitive (boolean, optional, default: false): Case sensitive search
+     - max_results (number, optional, default: 100): Maximum number of results
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - files (array): List of matching files
+     - count (number): Number of files found
+
+   Backend Requirements:
+     - Pattern matching (glob, regex)
+     - Recursive file search
+     - Case sensitivity support
+
+   Usage Example:
+     const result = await backend.codebaseFindFilesByPattern({
+       filename_pattern: '*.js',
+       search_path: '/path/to/project',
+       max_results: 50
+     });
+
+3. codebase_search_content
+   Description: Search content in codebase files
+   Sync: true (immediate response)
+
+   Parameters:
+     - search_text (string, required): Text to search for
+     - search_path (string, optional): Search path (defaults to current working directory)
+     - file_pattern (string, optional): Filter by file pattern (e.g., "*.js", "*.py")
+     - case_sensitive (boolean, optional, default: false): Case sensitive search
+     - context_lines (number, optional, default: 0): Number of context lines to include
+     - max_results (number, optional, default: 100): Maximum number of results
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - matches (array): List of matches with file path, line number, and content
+     - count (number): Number of matches found
+
+   Backend Requirements:
+     - Content search (grep-like functionality)
+     - Context lines extraction
+     - File pattern filtering
+     - Case sensitivity support
+
+   Usage Example:
+     const result = await backend.codebaseSearchContent({
+       search_text: 'TODO',
+       search_path: '/path/to/project',
+       file_pattern: '*.js',
+       context_lines: 2,
+       max_results: 50
+     });
+
+4. codebase_get_file_content
+   Description: Get file content with comprehensive analysis
+                (supports text, images, documents)
+   Sync: true (immediate response)
+
+   Parameters:
+     - file_path (string, required): Path to the file
+     - max_chars (number, optional, default: 16000): Maximum characters to return
+     - include_ocr (boolean, optional, default: true): Include OCR analysis for images
+     - include_color_analysis (boolean, optional, default: true): Include color analysis for images
+     - include_document_metadata (boolean, optional, default: true): Include document metadata
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - file_path (string): Path to the file
+     - content (string): File content
+     - file_type (string): Detected file type
+     - size (number): File size in bytes
+     - ocr_text (string): Extracted text via OCR (if applicable)
+     - color_analysis (object): Dominant colors (if applicable)
+     - metadata (object): File metadata
+
+   Backend Requirements:
+     - File reading capabilities
+     - OCR engine (for images)
+     - Document parsing (for PDFs, DOCX, etc.)
+     - Color analysis (for images)
+     - Metadata extraction
+
+   Usage Example:
+     const result = await backend.codebaseGetFileContent({
+       file_path: '/path/to/file.js',
+       max_chars: 10000
+     });
+
+5. codebase_analyze_statistics
+   Description: Analyze codebase statistics (file counts, sizes, languages)
+   Sync: true (immediate response)
+
+   Parameters:
+     - target_path (string, optional): Target directory path (defaults to current working directory)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - statistics (object): Codebase statistics
+     - file_count (number): Total number of files
+     - total_size (number): Total size in bytes
+     - languages (object): Language distribution
+
+   Backend Requirements:
+     - File counting and size calculation
+     - Language detection (based on file extensions)
+     - Statistics aggregation
+
+   Usage Example:
+     const result = await backend.codebaseAnalyzeStatistics({
+       target_path: '/path/to/project'
+     });
+
+6. codebase_describe_directory
+   Description: Describe directory structure with summary statistics
+   Sync: true (immediate response)
+
+   Parameters:
+     - directory_path (string, required): Directory path to describe
+     - include_file_count (boolean, optional, default: true): Include file count statistics
+     - include_size_stats (boolean, optional, default: true): Include size statistics
+     - include_type_distribution (boolean, optional, default: true): Include file type distribution
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - description (string): Human-readable description
+     - file_count (number): Number of files
+     - size_stats (object): Size statistics
+     - type_distribution (object): File type distribution
+
+   Backend Requirements:
+     - Directory analysis
+     - File type categorization
+     - Statistics generation
+
+   Usage Example:
+     const result = await backend.codebaseDescribeDirectory({
+       directory_path: '/path/to/directory',
+       include_file_count: true,
+       include_type_distribution: true
+     });
+
+7. codebase_scan_framework_apps
+   Description: Scan for framework applications (Node.js, Laravel, Flutter, etc.)
+   Sync: true (immediate response)
+
+   Parameters:
+     - scan_path (string, optional): Path to scan (defaults to current working directory)
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - applications (array): List of detected applications with framework info
+     - count (number): Number of applications found
+
+   Backend Requirements:
+     - Framework detection (package.json, composer.json, pubspec.yaml, etc.)
+     - Dependency parsing
+     - Application categorization
+
+   Usage Example:
+     const result = await backend.codebaseScanFrameworkApps({
+       scan_path: '/path/to/project'
+     });
+
+8. codebase_health_check
+   Description: Codebase health check
+   Sync: true (immediate response)
+
+   Parameters: None
+
+   Returns:
+     - success (boolean): Operation success status
+     - backend_id (string): Backend identifier
+     - status (string): Health status
+
+   Backend Requirements:
+     - Health check capabilities
+
+   Usage Example:
+     const result = await backend.codebaseHealthCheck();
+
+================================================================================
+IMPLEMENTATION NOTES
+================================================================================
+
+1. Backend Communication:
+   - All tools will communicate with pycore and ncore backends via RPC
+   - Support for both sync (immediate) and async (ACK mechanism) operations
+   - Backend routing based on tool capabilities
+
+2. Error Handling:
+   - All tools return success/error status
+   - Detailed error messages with backend_id for debugging
+   - Graceful degradation when backends are unavailable
+
+3. Parameter Validation:
+   - Type checking for all parameters
+   - Required parameter enforcement
+   - Default value application
+
+4. Backend Requirements:
+   - Each tool specifies its backend requirements
+   - Backend implementation will be added later
+   - Support for multiple backend instances
+
+5. Testing:
+   - Unit tests for parameter validation
+   - Integration tests with mock backends
+   - End-to-end tests with real backends
+
+================================================================================
+END OF REFERENCE
+================================================================================

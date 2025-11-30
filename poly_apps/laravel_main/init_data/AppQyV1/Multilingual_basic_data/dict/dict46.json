@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.356510+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "meaty",
+        "laos": "ຊີ້ນ",
+        "jp": "肉々しい",
+        "vie": "nhiều thịt",
+        "en_pronunciation": "/ˈmiti/",
+        "laos_pronunciation": "sin",
+        "jp_pronunciation": "nikunikushii",
+        "vie_pronunciation": "nhieu thit"
+      },
+      "means": {
+        "en": "Like or containing meat",
+        "zh": "喜欢或含有肉"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanic",
+        "laos": "ຊ່າງເມືອງ",
+        "jp": "メカニック",
+        "vie": "thợ cơ khí",
+        "en_pronunciation": "/mɪˈkænɪk/",
+        "laos_pronunciation": "sangmeuong",
+        "jp_pronunciation": "mekanikku",
+        "vie_pronunciation": "tho co khi"
+      },
+      "means": {
+        "en": "A craftsman skilled in operating machine tools",
+        "zh": "熟练操作机床的工匠"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanical",
+        "laos": "ອັດຕະຖານວ່າ",
+        "jp": "機械的",
+        "vie": "cơ khí",
+        "en_pronunciation": "/məˈkænɪkəl/",
+        "laos_pronunciation": "adtathanva",
+        "jp_pronunciation": "kikaiteki",
+        "vie_pronunciation": "co khi"
+      },
+      "means": {
+        "en": "Using (or as if using) mechanisms or tools or devices",
+        "zh": "使用（或好像使用）机制、工具或设备"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanics",
+        "laos": "ເຄື່ອງກ້າວ",
+        "jp": "力学",
+        "vie": "cơ khí",
+        "en_pronunciation": "/məˈkænɪks/",
+        "laos_pronunciation": "kheuongkav",
+        "jp_pronunciation": "rikigaku",
+        "vie_pronunciation": "co khi"
+      },
+      "means": {
+        "en": "The branch of physics concerned with the motion of bodies in a frame of reference",
+        "zh": "物理学的一个分支，研究物体在参考系中的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanism",
+        "laos": "ກົນໄກ",
+        "jp": "仕組み",
+        "vie": "cơ chế",
+        "en_pronunciation": "/ˈmɛkəˌnɪzəm/",
+        "laos_pronunciation": "konkai",
+        "jp_pronunciation": "shikumi",
+        "vie_pronunciation": "co che"
+      },
+      "means": {
+        "en": "The atomic process that occurs during a chemical reaction",
+        "zh": "化学反应过程中发生的原子过程"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanize",
+        "laos": "ມີຄວາມເສຍຫາຍ",
+        "jp": "機械化する",
+        "vie": "cơ giới hóa",
+        "en_pronunciation": "/ˈmɛkəˌnaɪz/",
+        "laos_pronunciation": "mikhuaamsiahai",
+        "jp_pronunciation": "kikaika suru",
+        "vie_pronunciation": "co gioi hoa"
+      },
+      "means": {
+        "en": "Equip with armed and armored motor vehicles",
+        "zh": "配备武装和装甲机动车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanise",
+        "laos": "ຜະພາບ",
+        "jp": "機械化する",
+        "vie": "máy móc",
+        "en_pronunciation": "/mechanise/",
+        "laos_pronunciation": "phaphab",
+        "jp_pronunciation": "kikaika suru",
+        "vie_pronunciation": "may moc"
+      },
+      "means": {
+        "en": "Equip with armed and armored motor vehicles",
+        "zh": "配备武装和装甲机动车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanization",
+        "laos": "ກົນຈັກ",
+        "jp": "機械化",
+        "vie": "cơ giới hóa",
+        "en_pronunciation": "/ˌmɛkənəˈzeɪʃən/",
+        "laos_pronunciation": "konchak",
+        "jp_pronunciation": "kikaika",
+        "vie_pronunciation": "co gioi hoa"
+      },
+      "means": {
+        "en": "The condition of having a highly technical implementation",
+        "zh": "具有高度技术性实施的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "mechanisation",
+        "laos": "ກົນຈັກ",
+        "jp": "機械化",
+        "vie": "cơ giới hóa",
+        "en_pronunciation": "/mechanisation/",
+        "laos_pronunciation": "konchak",
+        "jp_pronunciation": "kikaika",
+        "vie_pronunciation": "co gioi hoa"
+      },
+      "means": {
+        "en": "The condition of having a highly technical implementation",
+        "zh": "具有高度技术性实施的条件"
+      }
+    },
+    {
+      "word": {
+        "en": "medal",
+        "laos": "ຄໍາຕອບ",
+        "jp": "メダル",
+        "vie": "huy chương",
+        "en_pronunciation": "/ˈmɛdəl/",
+        "laos_pronunciation": "khoatob",
+        "jp_pronunciation": "medaru",
+        "vie_pronunciation": "huy chuong"
+      },
+      "means": {
+        "en": "An award for winning a championship or commemorating some other event",
+        "zh": "为赢得冠军或纪念其他事件而颁发的奖项"
+      }
+    },
+    {
+      "word": {
+        "en": "mediate",
+        "laos": "ໄກ່ເກັ່ຍ",
+        "jp": "仲介する",
+        "vie": "làm trung gian",
+        "en_pronunciation": "/ˈmidiˌeɪt/",
+        "laos_pronunciation": "kai keny",
+        "jp_pronunciation": "chuukai suru",
+        "vie_pronunciation": "lam trung gian"
+      },
+      "means": {
+        "en": "Act between parties with a view to reconciling differences",
+        "zh": "各方之间采取行动以调和分歧"
+      }
+    },
+    {
+      "word": {
+        "en": "mediation",
+        "laos": "ການຍ້ອມສີ",
+        "jp": "調停",
+        "vie": "hòa giải",
+        "en_pronunciation": "/ˌmidiˈeɪʃən/",
+        "laos_pronunciation": "kan nyomsi",
+        "jp_pronunciation": "choutei",
+        "vie_pronunciation": "hoa giai"
+      },
+      "means": {
+        "en": "A negotiation to resolve differences that is conducted by some impartial party",
+        "zh": "由某个公正方进行的解决分歧的谈判"
+      }
+    },
+    {
+      "word": {
+        "en": "mediator",
+        "laos": "ຜູ້ໄກ່ເກັ່ຍ",
+        "jp": "仲介者",
+        "vie": "người hòa giải",
+        "en_pronunciation": "/ˈmidiˌeɪtər/",
+        "laos_pronunciation": "phu kai keny",
+        "jp_pronunciation": "chuukaisha",
+        "vie_pronunciation": "nguoi hoa giai"
+      },
+      "means": {
+        "en": "A negotiator who acts as a link between parties",
+        "zh": "充当各方之间纽带作用的谈判者"
+      }
+    },
+    {
+      "word": {
+        "en": "medical",
+        "laos": "ທາງການແພດ",
+        "jp": "医療",
+        "vie": "y tế",
+        "en_pronunciation": "/ˈmɛdɪkəl/",
+        "laos_pronunciation": "thangkanaephd",
+        "jp_pronunciation": "iryou",
+        "vie_pronunciation": "y te"
+      },
+      "means": {
+        "en": "A thorough physical examination; includes a variety of tests depending on the age and sex and health of the person",
+        "zh": "彻底的身体检查；"
+      }
+    },
+    {
+      "word": {
+        "en": "medicare",
+        "laos": "Medicare",
+        "jp": "メディケア",
+        "vie": "thuốc men",
+        "en_pronunciation": "/ˈmɛdəˌkɛr/",
+        "laos_pronunciation": "Medicare",
+        "jp_pronunciation": "medikea",
+        "vie_pronunciation": "thuoc men"
+      },
+      "means": {
+        "en": "Health care for the aged; a federally administered system of health insurance available to persons aged 65 and over",
+        "zh": "包括根据人的年龄、性别和健康状况进行的各种测试"
+      }
+    },
+    {
+      "word": {
+        "en": "medication",
+        "laos": "ຢາຮົມ",
+        "jp": "薬",
+        "vie": "thuốc men",
+        "en_pronunciation": "/ˌmɛdəˈkeɪʃən/",
+        "laos_pronunciation": "yahom",
+        "jp_pronunciation": "kusuri",
+        "vie_pronunciation": "thuoc men"
+      },
+      "means": {
+        "en": "(medicine) something that treats or prevents or alleviates the symptoms of disease",
+        "zh": "老年人保健；"
+      }
+    },
+    {
+      "word": {
+        "en": "medicine",
+        "laos": "​ຢາ",
+        "jp": "薬",
+        "vie": "y học",
+        "en_pronunciation": "/ˈmɛdəsən/",
+        "laos_pronunciation": "ya",
+        "jp_pronunciation": "kusuri",
+        "vie_pronunciation": "y hoc"
+      },
+      "means": {
+        "en": "The branches of medical science that deal with nonsurgical techniques",
+        "zh": "为 65 岁及以上人士提供联邦管理的健康保险系统"
+      }
+    },
+    {
+      "word": {
+        "en": "medicinal",
+        "laos": "ເປັນຢາ",
+        "jp": "薬用",
+        "vie": "y học",
+        "en_pronunciation": "/məˈdɪsənəl/",
+        "laos_pronunciation": "penya",
+        "jp_pronunciation": "yakuyou",
+        "vie_pronunciation": "y hoc"
+      },
+      "means": {
+        "en": "Having the properties of medicine",
+        "zh": "（药物）治疗、预防或减轻疾病症状的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "medieval",
+        "laos": "ເຂາະ",
+        "jp": "中世の",
+        "vie": "thời trung cổ",
+        "en_pronunciation": "/mɪˈdjivəl/",
+        "laos_pronunciation": "kho",
+        "jp_pronunciation": "chuusei no",
+        "vie_pronunciation": "thoi trung co"
+      },
+      "means": {
+        "en": "Relating to or belonging to the Middle Ages",
+        "zh": "涉及非手术技术的医学分支"
+      }
+    },
+    {
+      "word": {
+        "en": "medium",
+        "laos": "ກາງ",
+        "jp": "中程度",
+        "vie": "trung bình",
+        "en_pronunciation": "/ˈmidiəm/",
+        "laos_pronunciation": "kang",
+        "jp_pronunciation": "chuuteido",
+        "vie_pronunciation": "trung binh"
+      },
+      "means": {
+        "en": "A means or instrumentality for storing or communicating information",
+        "zh": "具有药性"
+      }
+    },
+    {
+      "word": {
+        "en": "media",
+        "laos": "ສື່ມວນຊົນ",
+        "jp": "メディア",
+        "vie": "phương tiện truyền thông",
+        "en_pronunciation": "/ˈmidiə/",
+        "laos_pronunciation": "sumuanson",
+        "jp_pronunciation": "media",
+        "vie_pronunciation": "phuong tien truyen thong"
+      },
+      "means": {
+        "en": "A means or instrumentality for storing or communicating information",
+        "zh": "与中世纪有关或属于中世纪"
+      }
+    },
+    {
+      "word": {
+        "en": "meet",
+        "laos": "ປະຈົບ",
+        "jp": "会う",
+        "vie": "gặp gỡ",
+        "en_pronunciation": "/mit/",
+        "laos_pronunciation": "pachob",
+        "jp_pronunciation": "au",
+        "vie_pronunciation": "gap go"
+      },
+      "means": {
+        "en": "A meeting at which a number of athletic contests are held",
+        "zh": "存储或交流信息的手段或工具"
+      }
+    },
+    {
+      "word": {
+        "en": "meeting",
+        "laos": "ການປະຊຸມ",
+        "jp": "会議",
+        "vie": "cuộc họp",
+        "en_pronunciation": "/ˈmitɪŋ/",
+        "laos_pronunciation": "kanpasum",
+        "jp_pronunciation": "kaigi",
+        "vie_pronunciation": "cuoc hop"
+      },
+      "means": {
+        "en": "A formally arranged gathering",
+        "zh": "存储或交流信息的手段或工具"
+      }
+    },
+    {
+      "word": {
+        "en": "melody",
+        "laos": "ບົດເພັງ",
+        "jp": "メロディー",
+        "vie": "giai điệu",
+        "en_pronunciation": "/ˈmɛlədi/",
+        "laos_pronunciation": "bodpheng",
+        "jp_pronunciation": "merodii",
+        "vie_pronunciation": "giai dieu"
+      },
+      "means": {
+        "en": "A succession of notes forming a distinctive sequence",
+        "zh": "举行多项体育比赛的会议"
+      }
+    },
+    {
+      "word": {
+        "en": "melodious",
+        "laos": "ເປັນຕາກຽດ",
+        "jp": "メロディアスな",
+        "vie": "du dương",
+        "en_pronunciation": "/məˈloʊdiəs/",
+        "laos_pronunciation": "pentakiad",
+        "jp_pronunciation": "merodiasu na",
+        "vie_pronunciation": "du duong"
+      },
+      "means": {
+        "en": "Having a musical sound; especially a pleasing tune",
+        "zh": "正式安排的聚会"
+      }
+    },
+    {
+      "word": {
+        "en": "melon",
+        "laos": "ຫມາກໂມ",
+        "jp": "メロン",
+        "vie": "dưa",
+        "en_pronunciation": "/ˈmɛlən/",
+        "laos_pronunciation": "makom",
+        "jp_pronunciation": "meron",
+        "vie_pronunciation": "dua"
+      },
+      "means": {
+        "en": "Any of numerous fruits of the gourd family having a hard rind and sweet juicy flesh",
+        "zh": "一系列音符形成独特的序列"
+      }
+    },
+    {
+      "word": {
+        "en": "melt",
+        "laos": "ລະງັບ",
+        "jp": "溶ける",
+        "vie": "tan chảy",
+        "en_pronunciation": "/mɛlt/",
+        "laos_pronunciation": "langab",
+        "jp_pronunciation": "toke ru",
+        "vie_pronunciation": "tan chay"
+      },
+      "means": {
+        "en": "The process whereby heat changes something from a solid to a liquid",
+        "zh": "具有音乐性的声音；"
+      }
+    },
+    {
+      "word": {
+        "en": "member",
+        "laos": "ສະມາຊິກ",
+        "jp": "メンバー",
+        "vie": "thành viên",
+        "en_pronunciation": "/ˈmɛmbər/",
+        "laos_pronunciation": "samasik",
+        "jp_pronunciation": "menbaa",
+        "vie_pronunciation": "thanh vien"
+      },
+      "means": {
+        "en": "One of the persons who compose a social group (especially individuals who have joined and participate in a group organization)",
+        "zh": "尤其是悦耳的曲调"
+      }
+    },
+    {
+      "word": {
+        "en": "membership",
+        "laos": "ສະມາຊິກ",
+        "jp": "メンバーシップ",
+        "vie": "tư cách thành viên",
+        "en_pronunciation": "/ˈmɛmbərˌʃɪp/",
+        "laos_pronunciation": "samasik",
+        "jp_pronunciation": "menbaashippu",
+        "vie_pronunciation": "tu cach thanh vien"
+      },
+      "means": {
+        "en": "The body of members of an organization or group",
+        "zh": "葫芦科的众多水果之一，具有坚硬的外皮和甜多汁的果肉"
+      }
+    },
+    {
+      "word": {
+        "en": "memorandum",
+        "laos": "ອະນຸສອນ",
+        "jp": "覚書",
+        "vie": "bản ghi nhớ",
+        "en_pronunciation": "/ˌmɛmərˈændəm/",
+        "laos_pronunciation": "anuson",
+        "jp_pronunciation": "oboegaki",
+        "vie_pronunciation": "ban ghi nho"
+      },
+      "means": {
+        "en": "A written proposal or reminder",
+        "zh": "热量将某种物质从固体转变为液体的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "memo",
+        "laos": "ໂມເດັມ",
+        "jp": "メモ",
+        "vie": "bản ghi nhớ",
+        "en_pronunciation": "/ˈmɛˌmoʊ/",
+        "laos_pronunciation": "om dem",
+        "jp_pronunciation": "memo",
+        "vie_pronunciation": "ban ghi nho"
+      },
+      "means": {
+        "en": "A written proposal or reminder",
+        "zh": "组成社会团体的人之一（特别是加入和参与团体组织的个人）"
+      }
+    },
+    {
+      "word": {
+        "en": "memorial",
+        "laos": "ອະນຸສາວະລີ",
+        "jp": "記念碑",
+        "vie": "đài tưởng niệm",
+        "en_pronunciation": "/məˈmɔriəl/",
+        "laos_pronunciation": "anusauaali",
+        "jp_pronunciation": "kinenhi",
+        "vie_pronunciation": "dai tuong niem"
+      },
+      "means": {
+        "en": "A recognition of meritorious service",
+        "zh": "组织或团体的成员团体"
+      }
+    },
+    {
+      "word": {
+        "en": "memory",
+        "laos": "ຄວາມຈໍາ",
+        "jp": "記憶",
+        "vie": "trí nhớ",
+        "en_pronunciation": "/ˈmɛməri/",
+        "laos_pronunciation": "khuaamchoa",
+        "jp_pronunciation": "kioku",
+        "vie_pronunciation": "tri nho"
+      },
+      "means": {
+        "en": "Something that is remembered",
+        "zh": "书面建议或提醒"
+      }
+    },
+    {
+      "word": {
+        "en": "memorize",
+        "laos": "ຈົດຈໍາ",
+        "jp": "暗記する",
+        "vie": "ghi nhớ",
+        "en_pronunciation": "/ˈmɛmərˌaɪz/",
+        "laos_pronunciation": "chodchoa",
+        "jp_pronunciation": "anki suru",
+        "vie_pronunciation": "ghi nho"
+      },
+      "means": {
+        "en": "Commit to memory; learn by heart",
+        "zh": "书面建议或提醒"
+      }
+    },
+    {
+      "word": {
+        "en": "memorise",
+        "laos": "ຈົດຈໍາ",
+        "jp": "暗記する",
+        "vie": "ghi nhớ",
+        "en_pronunciation": "/memorise/",
+        "laos_pronunciation": "chodchoa",
+        "jp_pronunciation": "anki suru",
+        "vie_pronunciation": "ghi nho"
+      },
+      "means": {
+        "en": "Commit to memory; learn by heart",
+        "zh": "对功绩的认可"
+      }
+    },
+    {
+      "word": {
+        "en": "menace",
+        "laos": "ຂູ່ໃຫ້ຢ້ານ",
+        "jp": "脅威",
+        "vie": "sự đe dọa",
+        "en_pronunciation": "/ˈmɛnɪs/",
+        "laos_pronunciation": "khu haiyan",
+        "jp_pronunciation": "kyoui",
+        "vie_pronunciation": "su de doa"
+      },
+      "means": {
+        "en": "Something that is a source of danger",
+        "zh": "被记住的事"
+      }
+    },
+    {
+      "word": {
+        "en": "mend",
+        "laos": "ບັງຄັບ",
+        "jp": "直す",
+        "vie": "sửa chữa",
+        "en_pronunciation": "/mɛnd/",
+        "laos_pronunciation": "bangkhab",
+        "jp_pronunciation": "naosu",
+        "vie_pronunciation": "sua chua"
+      },
+      "means": {
+        "en": "Sewing that repairs a worn or torn hole (especially in a garment)",
+        "zh": "牢记于心；"
+      }
+    },
+    {
+      "word": {
+        "en": "mental",
+        "laos": "ໃນໃຈ",
+        "jp": "精神的な",
+        "vie": "tinh thần",
+        "en_pronunciation": "/ˈmɛntəl/",
+        "laos_pronunciation": "naichai",
+        "jp_pronunciation": "seishinteki na",
+        "vie_pronunciation": "tinh than"
+      },
+      "means": {
+        "en": "Involving the mind or an intellectual process",
+        "zh": "用心学习"
+      }
+    },
+    {
+      "word": {
+        "en": "mentality",
+        "laos": "ຈິດໃຈ",
+        "jp": "精神性",
+        "vie": "tâm lý",
+        "en_pronunciation": "/mɛnˈtælɪti/",
+        "laos_pronunciation": "chidchai",
+        "jp_pronunciation": "seishin sei",
+        "vie_pronunciation": "tam ly"
+      },
+      "means": {
+        "en": "A habitual or characteristic mental attitude that determines how you will interpret and respond to situations",
+        "zh": "牢记于心；"
+      }
+    },
+    {
+      "word": {
+        "en": "mention",
+        "laos": "ກ່າວເຖິງ",
+        "jp": "言及",
+        "vie": "đề cập đến",
+        "en_pronunciation": "/ˈmɛnʃən/",
+        "laos_pronunciation": "kauathoeng",
+        "jp_pronunciation": "genkyuu",
+        "vie_pronunciation": "de cap den"
+      },
+      "means": {
+        "en": "A remark that calls attention to something or someone",
+        "zh": "用心学习"
+      }
+    },
+    {
+      "word": {
+        "en": "mentor",
+        "laos": "ຜູ້ແນະນໍາ",
+        "jp": "メンター",
+        "vie": "người hướng dẫn",
+        "en_pronunciation": "/ˈmɛnˌtɔr/",
+        "laos_pronunciation": "phunaenoa",
+        "jp_pronunciation": "mentaa",
+        "vie_pronunciation": "nguoi huong dan"
+      },
+      "means": {
+        "en": "A wise and trusted guide and advisor",
+        "zh": "危险来源的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "menu",
+        "laos": "ເມນູ",
+        "jp": "メニュー",
+        "vie": "thực đơn",
+        "en_pronunciation": "/ˈmɛnju/",
+        "laos_pronunciation": "menu",
+        "jp_pronunciation": "menyuu",
+        "vie_pronunciation": "thuc don"
+      },
+      "means": {
+        "en": "A list of dishes available at a restaurant",
+        "zh": "修复磨损或撕裂的洞（尤其是衣服上的洞）的缝纫"
+      }
+    },
+    {
+      "word": {
+        "en": "merchandise",
+        "laos": "ສິນຄ້າ",
+        "jp": "商品",
+        "vie": "hàng hóa",
+        "en_pronunciation": "/ˈmərʧənˌdaɪz/",
+        "laos_pronunciation": "sinkha",
+        "jp_pronunciation": "shouhin",
+        "vie_pronunciation": "hang hoa"
+      },
+      "means": {
+        "en": "Commodities offered for sale",
+        "zh": "涉及思想或智力过程"
+      }
+    },
+    {
+      "word": {
+        "en": "merchant",
+        "laos": "ພໍ່ຄ້າ",
+        "jp": "商人",
+        "vie": "thương gia",
+        "en_pronunciation": "/ˈmərʧənt/",
+        "laos_pronunciation": "phokha",
+        "jp_pronunciation": "shounin",
+        "vie_pronunciation": "thuong gia"
+      },
+      "means": {
+        "en": "A businessperson engaged in retail trade",
+        "zh": "决定您如何解释和应对情况的习惯性或特有的心理态度"
+      }
+    },
+    {
+      "word": {
+        "en": "mercury",
+        "laos": "ອະົ້ວ",
+        "jp": "水銀",
+        "vie": "thủy ngân",
+        "en_pronunciation": "/ˈmərkjəri/",
+        "laos_pronunciation": "aov",
+        "jp_pronunciation": "suigin",
+        "vie_pronunciation": "thuy ngan"
+      },
+      "means": {
+        "en": "A heavy silvery toxic univalent and bivalent metallic element; the only metal that is liquid at ordinary temperatures",
+        "zh": "引起人们对某事或某人的注意的评论"
+      }
+    },
+    {
+      "word": {
+        "en": "mercy",
+        "laos": "ເມດຕາ",
+        "jp": "慈悲",
+        "vie": "lòng thương xót",
+        "en_pronunciation": "/ˈmərsi/",
+        "laos_pronunciation": "medta",
+        "jp_pronunciation": "jihi",
+        "vie_pronunciation": "long thuong xot"
+      },
+      "means": {
+        "en": "Leniency and compassion shown toward offenders by a person or agency charged with administering justice",
+        "zh": "明智且值得信赖的向导和顾问"
+      }
+    },
+    {
+      "word": {
+        "en": "merciful",
+        "laos": "ບໍລິບູນ",
+        "jp": "慈悲深い",
+        "vie": "nhân từ",
+        "en_pronunciation": "/ˈmərsɪfəl/",
+        "laos_pronunciation": "bolibun",
+        "jp_pronunciation": "jihi fukai",
+        "vie_pronunciation": "nhan tu"
+      },
+      "means": {
+        "en": "Showing or giving mercy",
+        "zh": "餐厅提供的菜肴列表"
+      }
+    },
+    {
+      "word": {
+        "en": "mere",
+        "laos": "ກ່າງນີ້",
+        "jp": "ただの",
+        "vie": "chỉ",
+        "en_pronunciation": "/mɪr/",
+        "laos_pronunciation": "kangni",
+        "jp_pronunciation": "tadano",
+        "vie_pronunciation": "chi"
+      },
+      "means": {
+        "en": "A small pond of standing water",
+        "zh": "出售的商品"
+      }
+    },
+    {
+      "word": {
+        "en": "merely",
+        "laos": "ເທົ່ານັ້ນ",
+        "jp": "ただ",
+        "vie": "chỉ đơn thuần là",
+        "en_pronunciation": "/ˈmɪrli/",
+        "laos_pronunciation": "theoanan",
+        "jp_pronunciation": "tada",
+        "vie_pronunciation": "chi don thuan la"
+      },
+      "means": {
+        "en": "And nothing more",
+        "zh": "从事零售贸易的商人"
+      }
+    },
+    {
+      "word": {
+        "en": "merge",
+        "laos": "ຂ້ຽວອອກ",
+        "jp": "マージ",
+        "vie": "hợp nhất",
+        "en_pronunciation": "/mərʤ/",
+        "laos_pronunciation": "khiauaook",
+        "jp_pronunciation": "maaji",
+        "vie_pronunciation": "hop nhat"
+      },
+      "means": {
+        "en": "Become one",
+        "zh": "一种重质银色有毒一价和二价金属元素；"
+      }
+    },
+    {
+      "word": {
+        "en": "merger",
+        "laos": "ການຮ່ວມກັນ",
+        "jp": "合併",
+        "vie": "sáp nhập",
+        "en_pronunciation": "/ˈmərʤər/",
+        "laos_pronunciation": "kanhuamkan",
+        "jp_pronunciation": "gappei",
+        "vie_pronunciation": "sap nhap"
+      },
+      "means": {
+        "en": "The combination of two or more commercial companies",
+        "zh": "唯一在常温下呈液态的金属"
+      }
+    },
+    {
+      "word": {
+        "en": "merit",
+        "laos": "ບຸນ",
+        "jp": "メリット",
+        "vie": "công đức",
+        "en_pronunciation": "/ˈmɛrət/",
+        "laos_pronunciation": "bun",
+        "jp_pronunciation": "meritto",
+        "vie_pronunciation": "cong duc"
+      },
+      "means": {
+        "en": "Any admirable quality or attribute",
+        "zh": "负责司法的个人或机构对罪犯表现出宽大和同情心"
+      }
+    },
+    {
+      "word": {
+        "en": "meritorious",
+        "laos": "ສຸພະກອນ",
+        "jp": "功績のある",
+        "vie": "có công",
+        "en_pronunciation": "/ˌmɛrəˈtɔriəs/",
+        "laos_pronunciation": "su phakon",
+        "jp_pronunciation": "kouseki noaru",
+        "vie_pronunciation": "co cong"
+      },
+      "means": {
+        "en": "Deserving reward or praise",
+        "zh": "表现出或给予怜悯"
+      }
+    },
+    {
+      "word": {
+        "en": "merry",
+        "laos": "ມ່ວນ",
+        "jp": "陽気な",
+        "vie": "vui vẻ",
+        "en_pronunciation": "/ˈmɛri/",
+        "laos_pronunciation": "muan",
+        "jp_pronunciation": "youki na",
+        "vie_pronunciation": "vui ve"
+      },
+      "means": {
+        "en": "Full of or showing high-spirited merriment; ; - Wordsworth",
+        "zh": "一个小池塘积水"
+      }
+    },
+    {
+      "word": {
+        "en": "merriment",
+        "laos": "ການນາ",
+        "jp": "陽気な",
+        "vie": "niềm vui",
+        "en_pronunciation": "/merriment/",
+        "laos_pronunciation": "kanna",
+        "jp_pronunciation": "youki na",
+        "vie_pronunciation": "niem vui"
+      },
+      "means": {
+        "en": "A gay feeling",
+        "zh": "仅此而已"
+      }
+    },
+    {
+      "word": {
+        "en": "mess",
+        "laos": "ຍ່າງລັງກິນອາຫານ",
+        "jp": "混乱",
+        "vie": "lộn xộn",
+        "en_pronunciation": "/mɛs/",
+        "laos_pronunciation": "nyang lang kinoahan",
+        "jp_pronunciation": "konran",
+        "vie_pronunciation": "lon xon"
+      },
+      "means": {
+        "en": "A state of confusion and disorderliness",
+        "zh": "成为一体"
+      }
+    },
+    {
+      "word": {
+        "en": "messy",
+        "laos": "ຄວາມສົກ",
+        "jp": "乱雑な",
+        "vie": "lộn xộn",
+        "en_pronunciation": "/ˈmɛsi/",
+        "laos_pronunciation": "khuaamsok",
+        "jp_pronunciation": "ranzatsu na",
+        "vie_pronunciation": "lon xon"
+      },
+      "means": {
+        "en": "Dirty and disorderly",
+        "zh": "两个或两个以上商业公司的合并"
+      }
+    },
+    {
+      "word": {
+        "en": "message",
+        "laos": "ຂໍ້ຄວາມ",
+        "jp": "メッセージ",
+        "vie": "tin nhắn",
+        "en_pronunciation": "/ˈmɛsɪʤ/",
+        "laos_pronunciation": "khokhuaam",
+        "jp_pronunciation": "messeeji",
+        "vie_pronunciation": "tin nhan"
+      },
+      "means": {
+        "en": "A communication (usually brief) that is written or spoken or signaled",
+        "zh": "任何令人钦佩的品质或属性"
+      }
+    },
+    {
+      "word": {
+        "en": "messenger",
+        "laos": "ຜູ້ຖືຈົດຫມາຍ",
+        "jp": "メッセンジャー",
+        "vie": "sứ giả",
+        "en_pronunciation": "/ˈmɛsɪnʤər/",
+        "laos_pronunciation": "phu thuchodmai",
+        "jp_pronunciation": "messenjaa",
+        "vie_pronunciation": "su gia"
+      },
+      "means": {
+        "en": "A person who carries a message",
+        "zh": "值得奖励或赞扬"
+      }
+    },
+    {
+      "word": {
+        "en": "metabolism",
+        "laos": "ການເຜົາຜານອາຫານ",
+        "jp": "代謝",
+        "vie": "sự trao đổi chất",
+        "en_pronunciation": "/məˈtæbəˌlɪzəm/",
+        "laos_pronunciation": "kan phaophanoahan",
+        "jp_pronunciation": "taisha",
+        "vie_pronunciation": "su trao doi chat"
+      },
+      "means": {
+        "en": "The marked and rapid transformation of a larva into an adult that occurs in some animals",
+        "zh": "充满或表现出兴高采烈的欢乐；"
+      }
+    },
+    {
+      "word": {
+        "en": "metabolic",
+        "laos": "Metabolic",
+        "jp": "代謝的な",
+        "vie": "trao đổi chất",
+        "en_pronunciation": "/ˌmɛtəˈbɑlɪk/",
+        "laos_pronunciation": "Metabolic",
+        "jp_pronunciation": "taisha tekina",
+        "vie_pronunciation": "trao doi chat"
+      },
+      "means": {
+        "en": "Of or relating to metabolism",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "metal",
+        "laos": "ໂລຫະ",
+        "jp": "金属",
+        "vie": "kim loại",
+        "en_pronunciation": "/ˈmɛtəl/",
+        "laos_pronunciation": "olha",
+        "jp_pronunciation": "kinzoku",
+        "vie_pronunciation": "kim loai"
+      },
+      "means": {
+        "en": "Any of several chemical elements that are usually shiny solids that conduct heat or electricity and can be formed into sheets etc.",
+        "zh": "——华兹华斯"
+      }
+    },
+    {
+      "word": {
+        "en": "metallic",
+        "laos": "ໂລຫະ",
+        "jp": "メタリックな",
+        "vie": "kim loại",
+        "en_pronunciation": "/məˈtælɪk/",
+        "laos_pronunciation": "olha",
+        "jp_pronunciation": "metarikku na",
+        "vie_pronunciation": "kim loai"
+      },
+      "means": {
+        "en": "A fabric made of a yarn that is partly or entirely of metal",
+        "zh": "一种同性恋的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "metaphor",
+        "laos": "ການປຽບທຽບ",
+        "jp": "比喩",
+        "vie": "ẩn dụ",
+        "en_pronunciation": "/ˈmɛtəfɔr/",
+        "laos_pronunciation": "kanpiabthiab",
+        "jp_pronunciation": "hiyu",
+        "vie_pronunciation": "an du"
+      },
+      "means": {
+        "en": "A figure of speech in which an expression is used to refer to something that it does not literally denote in order to suggest a similarity",
+        "zh": "混乱无序的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "meter",
+        "laos": "ແມັດ",
+        "jp": "メーター",
+        "vie": "mét",
+        "en_pronunciation": "/ˈmitər/",
+        "laos_pronunciation": "maed",
+        "jp_pronunciation": "meetaa",
+        "vie_pronunciation": "met"
+      },
+      "means": {
+        "en": "The basic unit of length adopted under the Systeme International d'Unites (approximately 1.094 yards)",
+        "zh": "又脏又乱"
+      }
+    },
+    {
+      "word": {
+        "en": "metre",
+        "laos": "ແມັດ",
+        "jp": "メーター",
+        "vie": "mét",
+        "en_pronunciation": "/ˈmitər/",
+        "laos_pronunciation": "maed",
+        "jp_pronunciation": "meetaa",
+        "vie_pronunciation": "met"
+      },
+      "means": {
+        "en": "The basic unit of length adopted under the Systeme International d'Unites (approximately 1.094 yards)",
+        "zh": "以书面、口头或信号形式进行的交流（通常很简短）"
+      }
+    },
+    {
+      "word": {
+        "en": "metaphorical",
+        "laos": "ເພນີນີ",
+        "jp": "比喩的な",
+        "vie": "ẩn dụ",
+        "en_pronunciation": "/ˌmɛtəˈfɔrɪkəl/",
+        "laos_pronunciation": "phenini",
+        "jp_pronunciation": "hiyuteki na",
+        "vie_pronunciation": "an du"
+      },
+      "means": {
+        "en": "Expressing one thing in terms normally denoting another",
+        "zh": "一个传递信息的人"
+      }
+    },
+    {
+      "word": {
+        "en": "metric",
+        "laos": "ໂລຫະ",
+        "jp": "メートル法",
+        "vie": "thước đo",
+        "en_pronunciation": "/ˈmɛtrɪk/",
+        "laos_pronunciation": "olha",
+        "jp_pronunciation": "meetoru hou",
+        "vie_pronunciation": "thuoc do"
+      },
+      "means": {
+        "en": "A function of a topological space that gives, for any two points in the space, a value equal to the distance between them",
+        "zh": "某些动物中幼虫显着而快速地转变为成虫"
+      }
+    },
+    {
+      "word": {
+        "en": "method",
+        "laos": "ວິທີການ",
+        "jp": "方法",
+        "vie": "phương pháp",
+        "en_pronunciation": "/ˈmɛθəd/",
+        "laos_pronunciation": "vithikan",
+        "jp_pronunciation": "houhou",
+        "vie_pronunciation": "phuong phap"
+      },
+      "means": {
+        "en": "A way of doing something, especially a systematic way; implies an orderly logical arrangement (usually in steps)",
+        "zh": "属于新陈代谢的或与新陈代谢有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "methodical",
+        "laos": "ວິທີການ",
+        "jp": "几帳面な",
+        "vie": "có phương pháp",
+        "en_pronunciation": "/məˈθɑdɪkəl/",
+        "laos_pronunciation": "vithikan",
+        "jp_pronunciation": "kichoumen na",
+        "vie_pronunciation": "co phuong phap"
+      },
+      "means": {
+        "en": "Characterized by method and orderliness",
+        "zh": "几种化学元素中的任何一种，通常是有光泽的固体，可以导热或导电，可以形成片材等。"
+      }
+    },
+    {
+      "word": {
+        "en": "methodology",
+        "laos": "ວິທີການ",
+        "jp": "方法論",
+        "vie": "phương pháp luận",
+        "en_pronunciation": "/ˌmɛθəˈdɑləʤi/",
+        "laos_pronunciation": "vithikan",
+        "jp_pronunciation": "houhouron",
+        "vie_pronunciation": "phuong phap luan"
+      },
+      "means": {
+        "en": "The branch of philosophy that analyzes the principles and procedures of inquiry in a particular discipline",
+        "zh": "由部分或全部金属纱线制成的织物"
+      }
+    },
+    {
+      "word": {
+        "en": "meticulous",
+        "laos": "ພິເສດ",
+        "jp": "几帳面な",
+        "vie": "tỉ mỉ",
+        "en_pronunciation": "/məˈtɪkjələs/",
+        "laos_pronunciation": "phised",
+        "jp_pronunciation": "kichoumen na",
+        "vie_pronunciation": "ti mi"
+      },
+      "means": {
+        "en": "Marked by precise accordance with details",
+        "zh": "一种修辞手法，其中的表达方式用于指代并非字面意思的事物，以暗示相似性"
+      }
+    },
+    {
+      "word": {
+        "en": "metro",
+        "laos": "ຢາໃຕ້",
+        "jp": "地下鉄",
+        "vie": "tàu điện ngầm",
+        "en_pronunciation": "/ˈmɛˌtroʊ/",
+        "laos_pronunciation": "yatai",
+        "jp_pronunciation": "chikatetsu",
+        "vie_pronunciation": "tau dien ngam"
+      },
+      "means": {
+        "en": "An electric railway operating below the surface of the ground (usually in a city)",
+        "zh": "Systeme International d'Unites 采用的基本长度单位（约 1.094 码）"
+      }
+    },
+    {
+      "word": {
+        "en": "metropolitan",
+        "laos": "metropolitan",
+        "jp": "大都市圏",
+        "vie": "đô thị",
+        "en_pronunciation": "/ˌmɛtrəˈpɑlətən/",
+        "laos_pronunciation": "metropolitan",
+        "jp_pronunciation": "daitoshiken",
+        "vie_pronunciation": "do thi"
+      },
+      "means": {
+        "en": "In the Eastern Orthodox Church this title is given to a position between bishop and patriarch; equivalent to archbishop in western Christianity",
+        "zh": "Systeme International d'Unites 采用的基本长度单位（约 1.094 码）"
+      }
+    },
+    {
+      "word": {
+        "en": "microphone",
+        "laos": "ໄມໂຄຣໂຟນ",
+        "jp": "マイク",
+        "vie": "micro",
+        "en_pronunciation": "/ˈmaɪkrəˌfoʊn/",
+        "laos_pronunciation": "maiokhrofn",
+        "jp_pronunciation": "maiku",
+        "vie_pronunciation": "micro"
+      },
+      "means": {
+        "en": "Device for converting sound waves into electrical energy",
+        "zh": "用通常表示另一事物的术语来表达另一事物"
+      }
+    },
+    {
+      "word": {
+        "en": "microscope",
+        "laos": "ກ້ອງຈຸລັງ",
+        "jp": "顕微鏡",
+        "vie": "kính hiển vi",
+        "en_pronunciation": "/ˈmaɪkrəˌskoʊp/",
+        "laos_pronunciation": "kongchulang",
+        "jp_pronunciation": "kenbikyou",
+        "vie_pronunciation": "kinh hien vi"
+      },
+      "means": {
+        "en": "Magnifier of the image of small objects",
+        "zh": "拓扑空间的函数，对于空间中的任意两点，其给出的值等于它们之间的距离"
+      }
+    },
+    {
+      "word": {
+        "en": "microscopic",
+        "laos": "ກ້ວາງຂວາງ",
+        "jp": "顕微鏡的な",
+        "vie": "kính hiển vi",
+        "en_pronunciation": "/ˌmaɪkrəˈskɑpɪk/",
+        "laos_pronunciation": "kuaangkhuaang",
+        "jp_pronunciation": "kenbikyou tekina",
+        "vie_pronunciation": "kinh hien vi"
+      },
+      "means": {
+        "en": "Of or relating to or used in microscopy",
+        "zh": "做某事的一种方式，尤指一种系统的方式；"
+      }
+    },
+    {
+      "word": {
+        "en": "microwave",
+        "laos": "ໄມໂຄເວຟ",
+        "jp": "電子レンジ",
+        "vie": "lò vi sóng",
+        "en_pronunciation": "/ˈmaɪkrəˌweɪv/",
+        "laos_pronunciation": "maiokh vef",
+        "jp_pronunciation": "denshirenji",
+        "vie_pronunciation": "lo vi song"
+      },
+      "means": {
+        "en": "A short electromagnetic wave (longer than infrared but shorter than radio waves); used for radar and microwave ovens and for transmitting telephone, facsimile, video and data",
+        "zh": "意味着有序的逻辑安排（通常按步骤）"
+      }
+    },
+    {
+      "word": {
+        "en": "microwavable",
+        "laos": "ພະວົງໂຄຈອນ",
+        "jp": "電子レンジ対応",
+        "vie": "có thể nấu bằng lò vi sóng",
+        "en_pronunciation": "/ˌmaɪkroʊˈweɪvəbəl/",
+        "laos_pronunciation": "pha vong okhchon",
+        "jp_pronunciation": "denshirenji taiou",
+        "vie_pronunciation": "co the nau bang lo vi song"
+      },
+      "means": {
+        "en": "Microwavable is an English word referring to 'microwavable'.",
+        "zh": "特点是有方法、有秩序"
+      }
+    },
+    {
+      "word": {
+        "en": "midday",
+        "laos": "ທ່ຽງວັນ",
+        "jp": "正午",
+        "vie": "giữa trưa",
+        "en_pronunciation": "/ˈmɪdˌdeɪ/",
+        "laos_pronunciation": "thiangvan",
+        "jp_pronunciation": "shougo",
+        "vie_pronunciation": "giua trua"
+      },
+      "means": {
+        "en": "The middle of the day",
+        "zh": "分析特定学科的探究原则和程序的哲学分支"
+      }
+    },
+    {
+      "word": {
+        "en": "middle",
+        "laos": "ກາງ",
+        "jp": "真ん中",
+        "vie": "ở giữa",
+        "en_pronunciation": "/ˈmɪdəl/",
+        "laos_pronunciation": "kang",
+        "jp_pronunciation": "mannaka",
+        "vie_pronunciation": "o giua"
+      },
+      "means": {
+        "en": "An area that is approximately central within some larger region",
+        "zh": "精确符合细节标记"
+      }
+    },
+    {
+      "word": {
+        "en": "middle-class",
+        "laos": "ຊັ້ນກາງ",
+        "jp": "中流階級",
+        "vie": "tầng lớp trung lưu",
+        "en_pronunciation": "/ˈmɪdəlˈklæs/",
+        "laos_pronunciation": "sankang",
+        "jp_pronunciation": "chuuryuu kaikyuu",
+        "vie_pronunciation": "tang lop trung luu"
+      },
+      "means": {
+        "en": "Occupying a socioeconomic position intermediate between those of the lower classes and the wealthy",
+        "zh": "在地表以下运行的电气铁路（通常在城市中）"
+      }
+    },
+    {
+      "word": {
+        "en": "midnight",
+        "laos": "ທ່ຽງຄືນ",
+        "jp": "真夜中",
+        "vie": "nửa đêm",
+        "en_pronunciation": "/ˈmɪdˌnaɪt/",
+        "laos_pronunciation": "thiangkhun",
+        "jp_pronunciation": "mayonaka",
+        "vie_pronunciation": "nua dem"
+      },
+      "means": {
+        "en": "12 o'clock at night; the middle of the night",
+        "zh": "在东正教教会中，这个头衔是指介于主教和族长之间的职位。"
+      }
+    },
+    {
+      "word": {
+        "en": "midst",
+        "laos": "ທ່າມ",
+        "jp": "真ん中",
+        "vie": "ở giữa",
+        "en_pronunciation": "/mɪst/",
+        "laos_pronunciation": "tham",
+        "jp_pronunciation": "mannaka",
+        "vie_pronunciation": "o giua"
+      },
+      "means": {
+        "en": "The location of something surrounded by other things",
+        "zh": "相当于西方基督教中的大主教"
+      }
+    },
+    {
+      "word": {
+        "en": "midwife",
+        "laos": "ແພດຜະດຸງຄັນ",
+        "jp": "助産師",
+        "vie": "bà đỡ",
+        "en_pronunciation": "/ˈmɪdˌwaɪf/",
+        "laos_pronunciation": "aephd pha dungkhan",
+        "jp_pronunciation": "josan shi",
+        "vie_pronunciation": "ba do"
+      },
+      "means": {
+        "en": "A woman skilled in aiding the delivery of babies",
+        "zh": "将声波转换成电能的装置"
+      }
+    },
+    {
+      "word": {
+        "en": "might",
+        "laos": "ອາດຈະ",
+        "jp": "かもしれない",
+        "vie": "có thể",
+        "en_pronunciation": "/maɪt/",
+        "laos_pronunciation": "adcha",
+        "jp_pronunciation": "kamoshirenai",
+        "vie_pronunciation": "co the"
+      },
+      "means": {
+        "en": "Physical strength",
+        "zh": "小物体图像放大镜"
+      }
+    },
+    {
+      "word": {
+        "en": "mighty",
+        "laos": "ນະວະນ້ອຍ",
+        "jp": "強力な",
+        "vie": "hùng mạnh",
+        "en_pronunciation": "/ˈmaɪti/",
+        "laos_pronunciation": "na vanony",
+        "jp_pronunciation": "kyouryoku na",
+        "vie_pronunciation": "hung manh"
+      },
+      "means": {
+        "en": "Having or showing great strength or force or intensity; ; ; - Bulwer-Lytton",
+        "zh": "属于或与显微镜有关或用于显微镜的"
+      }
+    },
+    {
+      "word": {
+        "en": "migrate",
+        "laos": "ຢ້າຢອອກ",
+        "jp": "移行する",
+        "vie": "di cư",
+        "en_pronunciation": "/ˈmaɪˌgreɪt/",
+        "laos_pronunciation": "ya yook",
+        "jp_pronunciation": "ikou suru",
+        "vie_pronunciation": "di cu"
+      },
+      "means": {
+        "en": "Move from one country or region to another and settle there",
+        "zh": "短电磁波（比红外线长但比无线电波短）；"
+      }
+    },
+    {
+      "word": {
+        "en": "migration",
+        "laos": "ການກົນອົບ",
+        "jp": "移行",
+        "vie": "di cư",
+        "en_pronunciation": "/maɪˈgreɪʃən/",
+        "laos_pronunciation": "kan konob",
+        "jp_pronunciation": "ikou",
+        "vie_pronunciation": "di cu"
+      },
+      "means": {
+        "en": "The movement of persons from one country or locality to another",
+        "zh": "用于雷达和微波炉以及传输电话、传真、视频和数据"
+      }
+    },
+    {
+      "word": {
+        "en": "migrant",
+        "laos": "ຜູ້ອົບພະຢົບ",
+        "jp": "移民",
+        "vie": "người di cư",
+        "en_pronunciation": "/ˈmaɪgrənt/",
+        "laos_pronunciation": "phu ob pha yob",
+        "jp_pronunciation": "imin",
+        "vie_pronunciation": "nguoi di cu"
+      },
+      "means": {
+        "en": "Traveler who moves from one region or country to another",
+        "zh": "Microwavable 是一个英文单词，指的是“microwavable”。"
+      }
+    },
+    {
+      "word": {
+        "en": "mild",
+        "laos": "ອ່ອນ",
+        "jp": "穏やかな",
+        "vie": "nhẹ nhàng",
+        "en_pronunciation": "/maɪld/",
+        "laos_pronunciation": "n",
+        "jp_pronunciation": "odaya kana",
+        "vie_pronunciation": "nhe nhang"
+      },
+      "means": {
+        "en": "Moderate in type or degree or effect or force; far from extreme",
+        "zh": "中午"
+      }
+    },
+    {
+      "word": {
+        "en": "mile",
+        "laos": "ໄມ",
+        "jp": "マイル",
+        "vie": "dặm",
+        "en_pronunciation": "/maɪl/",
+        "laos_pronunciation": "mai",
+        "jp_pronunciation": "mairu",
+        "vie_pronunciation": "dam"
+      },
+      "means": {
+        "en": "A unit of length equal to 1,760 yards or 5,280 feet; exactly 1609.344 meters",
+        "zh": "大约位于某个较大区域中心的区域"
+      }
+    },
+    {
+      "word": {
+        "en": "mileage",
+        "laos": "ໄມ",
+        "jp": "走行距離",
+        "vie": "số dặm",
+        "en_pronunciation": "/ˈmaɪlɪʤ/",
+        "laos_pronunciation": "mai",
+        "jp_pronunciation": "soukoukyori",
+        "vie_pronunciation": "so dam"
+      },
+      "means": {
+        "en": "Distance measured in miles",
+        "zh": "社会经济地位介于下层阶级和富人之间"
+      }
+    },
+    {
+      "word": {
+        "en": "milestone",
+        "laos": "ມິດຕະລົກ",
+        "jp": "マイルストーン",
+        "vie": "cột mốc quan trọng",
+        "en_pronunciation": "/ˈmaɪlˌstoʊn/",
+        "laos_pronunciation": "midtalok",
+        "jp_pronunciation": "mairusutoon",
+        "vie_pronunciation": "cot moc quan trong"
+      },
+      "means": {
+        "en": "Stone post at side of a road to show distances",
+        "zh": "晚上12点；"
+      }
+    },
+    {
+      "word": {
+        "en": "militant",
+        "laos": "ພວກຫົວຮຸນແຮງ",
+        "jp": "好戦的な",
+        "vie": "dân quân",
+        "en_pronunciation": "/ˈmɪlətənt/",
+        "laos_pronunciation": "phuakhuahunaehng",
+        "jp_pronunciation": "kousenteki na",
+        "vie_pronunciation": "dan quan"
+      },
+      "means": {
+        "en": "A militant reformer",
+        "zh": "半夜"
+      }
+    },
+    {
+      "word": {
+        "en": "militancy",
+        "laos": "ໂມທິ",
+        "jp": "好戦性",
+        "vie": "quân sự",
+        "en_pronunciation": "/ˈmɪlətənsi/",
+        "laos_pronunciation": "omthi",
+        "jp_pronunciation": "kousen sei",
+        "vie_pronunciation": "quan su"
+      },
+      "means": {
+        "en": "A militant aggressiveness",
+        "zh": "某事物被其他事物包围的位置"
+      }
+    },
+    {
+      "word": {
+        "en": "military",
+        "laos": "ການທະຫານ",
+        "jp": "軍事",
+        "vie": "quân sự",
+        "en_pronunciation": "/ˈmɪlɪˌtɛri/",
+        "laos_pronunciation": "kanthahan",
+        "jp_pronunciation": "gunji",
+        "vie_pronunciation": "quan su"
+      },
+      "means": {
+        "en": "The military forces of a nation",
+        "zh": "擅长助产的妇女"
+      }
+    },
+    {
+      "word": {
+        "en": "militia",
+        "laos": "ກອງຮ້າE",
+        "jp": "民兵",
+        "vie": "dân quân",
+        "en_pronunciation": "/mɪˈlɪʃə/",
+        "laos_pronunciation": "kong haE",
+        "jp_pronunciation": "minpei",
+        "vie_pronunciation": "dan quan"
+      },
+      "means": {
+        "en": "Civilians trained as soldiers but not part of the regular army",
+        "zh": "体力"
+      }
+    },
+    {
+      "word": {
+        "en": "milk",
+        "laos": "ນ້ໍານົມ",
+        "jp": "牛乳",
+        "vie": "sữa",
+        "en_pronunciation": "/mɪlk/",
+        "laos_pronunciation": "noanom",
+        "jp_pronunciation": "gyuunyuu",
+        "vie_pronunciation": "sua"
+      },
+      "means": {
+        "en": "A white nutritious liquid secreted by mammals and used as food by human beings",
+        "zh": "具有或表现出强大的力量、力量或强度；"
+      }
+    },
+    {
+      "word": {
+        "en": "milky",
+        "laos": "ມຸກເທື່ອ",
+        "jp": "乳白色の",
+        "vie": "sữa",
+        "en_pronunciation": "/ˈmɪlki/",
+        "laos_pronunciation": "muk theu",
+        "jp_pronunciation": "nyuuhakushoku no",
+        "vie_pronunciation": "sua"
+      },
+      "means": {
+        "en": "Resembling milk in color not clear",
+        "zh": ";"
+      }
+    }
+  ]
+}

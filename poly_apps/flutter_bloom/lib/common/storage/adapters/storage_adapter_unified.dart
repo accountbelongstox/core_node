@@ -13,7 +13,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -38,6 +38,13 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<void> init({String? appName, String? subDirectory}) async {
     if (_isInitialized) return;
+
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'UnifiedSQLiteStorageAdapter cannot be used on web platform. '
+        'Use WebStorageAdapter instead.',
+      );
+    }
 
     _appName = appName ?? 'flutter_bloom';
     _subDirectory = subDirectory ?? 'storage_unified';
@@ -70,6 +77,18 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
       _isInitialized = true;
       debugPrint('UnifiedSQLiteStorageAdapter initialized successfully: $dbPath');
     } catch (e) {
+      // Handle MissingPluginException gracefully
+      if (e.toString().contains('MissingPluginException') || 
+          e.toString().contains('getApplicationDocumentsDirectory')) {
+        debugPrint('UnifiedSQLiteStorageAdapter: path_provider plugin not available. '
+            'This is expected on web platform or when plugin is not properly initialized. '
+            'Storage will use fallback mechanism.');
+        // Don't rethrow on web or when plugin is missing - let the app continue
+        if (kIsWeb) {
+          _isInitialized = false;
+          return;
+        }
+      }
       debugPrint('UnifiedSQLiteStorageAdapter initialization failed: $e');
       rethrow;
     }
@@ -418,6 +437,10 @@ class UnifiedSQLiteStorageAdapter implements KeyValueStorageInterface {
 
   /// Get database file size
   Future<int> _getDatabaseSize() async {
+    if (kIsWeb) {
+      return 0;
+    }
+    
     try {
       final documentsDirectory = await getApplicationDocumentsDirectory();
       final dbPath = join(

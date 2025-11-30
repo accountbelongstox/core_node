@@ -22,6 +22,10 @@ DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
 WSL_USERS_PATH="/mnt/c/Users"
 
+# Detected actual desktop user (when running as root)
+ACTUAL_DESKTOP_USER=""
+ACTUAL_DESKTOP_USER_HOME=""
+
 # Check and set sudo
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
@@ -119,8 +123,98 @@ detect_desktop_environment() {
     fi
 }
 
+# Function to detect actual desktop user when running as root
+# This is useful for services that need to interact with the desktop user's session
+detect_actual_desktop_user() {
+    # If not running as root, return current user
+    if [ "$(id -u)" -ne 0 ]; then
+        ACTUAL_DESKTOP_USER="$USER"
+        ACTUAL_DESKTOP_USER_HOME="$HOME"
+        return 0
+    fi
+
+    local detected_user=""
+    local detected_home=""
+
+    # Priority 1: Check SUDO_USER environment variable
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        detected_user="$SUDO_USER"
+        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$detected_home" ] && [ -d "$detected_home" ]; then
+            ACTUAL_DESKTOP_USER="$detected_user"
+            ACTUAL_DESKTOP_USER_HOME="$detected_home"
+            return 0
+        fi
+    fi
+
+    # Priority 2: Find user with active desktop session
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            detected_user="$(basename "$user_home")"
+
+            # Check if user has active desktop session process
+            if pgrep -u "$detected_user" -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session" >/dev/null 2>&1; then
+                detected_home="$user_home"
+                ACTUAL_DESKTOP_USER="$detected_user"
+                ACTUAL_DESKTOP_USER_HOME="$detected_home"
+                return 0
+            fi
+        fi
+    done
+
+    # Priority 3: Find user with Desktop folder (typical desktop user)
+    for user_home in /home/*; do
+        if [ -d "$user_home/Desktop" ]; then
+            detected_user="$(basename "$user_home")"
+            detected_home="$user_home"
+            ACTUAL_DESKTOP_USER="$detected_user"
+            ACTUAL_DESKTOP_USER_HOME="$detected_home"
+            return 0
+        fi
+    done
+
+    # Priority 4: Find user with most running processes (likely the active user)
+    local max_processes=0
+    local best_user=""
+    local best_home=""
+    for user_home in /home/*; do
+        if [ -d "$user_home" ]; then
+            detected_user="$(basename "$user_home")"
+            local proc_count=$(pgrep -u "$detected_user" 2>/dev/null | wc -l)
+            if [ "$proc_count" -gt "$max_processes" ]; then
+                max_processes=$proc_count
+                best_user="$detected_user"
+                best_home="$user_home"
+            fi
+        fi
+    done
+
+    if [ -n "$best_user" ] && [ "$max_processes" -gt 0 ]; then
+        ACTUAL_DESKTOP_USER="$best_user"
+        ACTUAL_DESKTOP_USER_HOME="$best_home"
+        return 0
+    fi
+
+    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
+    while IFS=: read -r username _ uid _ _ homedir _; do
+        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ]; then
+            ACTUAL_DESKTOP_USER="$username"
+            ACTUAL_DESKTOP_USER_HOME="$homedir"
+            return 0
+        fi
+    done < /etc/passwd
+
+    # Fallback: return empty (no user detected)
+    ACTUAL_DESKTOP_USER=""
+    ACTUAL_DESKTOP_USER_HOME=""
+    return 1
+}
+
 # Detect desktop environment first
 detect_desktop_environment
+
+# Detect actual desktop user (if running as root)
+detect_actual_desktop_user
 
 # Check if running in WSL
 if [ -d "$WSL_USERS_PATH" ]; then
@@ -820,6 +914,9 @@ GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
 # Function to map paths based on environment (using get_base_data_directory)
+# SYNC WARNING: This function MUST be kept in sync with:
+# - Python version: pycore/pyfoundations/system_paths.py::map_web_path()
+# - All mappings must produce identical results across Shell and Python
 map_web_path() {
     local path_key="$1"
     local sub_path="$2"
@@ -835,14 +932,24 @@ map_web_path() {
     elif [ "$IS_PRODUCTION" = true ]; then
         base_path="/www"
     else
-        # Use data base directory + www
-        base_path="$data_base/www"
+        # Desktop environment: use data base + /www, unless data base is already /www
+        if [ "$data_base" = "/www" ]; then
+            base_path="/www"
+        else
+            base_path="$data_base/www"
+        fi
     fi
 
     # Map paths using common base path
     case "$path_key" in
         "wwwroot")
             mapped_path="$base_path/wwwroot"
+            ;;
+        "pycore_db")
+            mapped_path="$base_path/wwwroot/pycore_db"
+            ;;
+        "laravel_db")
+            mapped_path="$base_path/wwwroot/laravel_db"
             ;;
         "nginxconfig")
             mapped_path="$base_path/nginxconfig"
@@ -858,36 +965,23 @@ map_web_path() {
             ;;
         "compile_dir")
             # Compile directory for development languages
-            # Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
-            # Production server: /usr/system_version
-            # Format: _ubuntu_24, _debian_12, _centos_8 (development) or ubuntu_24, debian_12 (production)
+            # All environments: _system_version (with underscore prefix)
+            # Format: _ubuntu_24, _debian_12, _centos_8
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-
-            # Check if this is development environment (same logic as get_core_node_project_root)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                # Development: base_dir/_system_version (with underscore prefix)
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}"
-            else
-                # Production server without desktop/NTFS: /usr/system_version
-                mapped_path="/usr/${sys_name}_${sys_version}"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
         "applications_dir")
             # Applications directory - same location as compile_dir for consistency
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-
-            # Check if this is development environment (same logic as compile_dir)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                # Development: base_dir/_system_version/applications (with underscore prefix)
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
-            else
-                # Production server without desktop/NTFS: /usr/_core_node/applications
-                mapped_path="/usr/_core_node/applications"
-            fi
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version/applications for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
             ;;
         "nginx")
             # Keep /etc/nginx in Linux filesystem
@@ -900,6 +994,43 @@ map_web_path() {
         "logs")
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
+            ;;
+        "programing")
+            # Programming/development directory under base_path
+            mapped_path="$base_path/programing"
+            ;;
+        "core_node")
+            # Core node project directory under programing
+            mapped_path="$base_path/programing/core_node"
+            ;;
+        "npm_global")
+            # NPM global packages directory (in compile_dir)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version/npm-global for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
+            ;;
+        "dev_system")
+            # Development system directory (same as compile_dir)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            local data_base=$(get_base_data_directory)
+            
+            # Use base_dir/_system_version for all environments
+            mapped_path="${data_base}/_${sys_name}_${sys_version}"
+            ;;
+        "dev_system_old")
+            # Old development system directory naming (dev_ubuntu24 style - no underscore prefix)
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/dev_${sys_name}${sys_version}"
+            else
+                mapped_path="/usr/dev_${sys_name}${sys_version}"
+            fi
             ;;
         *)
             # Default: return the key as-is (assume it's already a path)
@@ -923,7 +1054,7 @@ map_web_path() {
         "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"compile_dir")
             # Only auto-create if no sub_path is provided (these are the target installation paths)
             if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
-                echo "Creating directory: $mapped_path"
+                echo "Creating directory: $mapped_path" >&2
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
@@ -937,7 +1068,7 @@ map_web_path() {
             # Callers should use ensure_web_directory() for sub-paths like "mysql", "code-server", etc.
             # Only create the base www directory itself if no sub_path
             if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
-                echo "Creating directory: $mapped_path"
+                echo "Creating directory: $mapped_path" >&2
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
@@ -963,7 +1094,7 @@ ensure_web_directory() {
 
     # Create directory if it doesn't exist
     if [ ! -d "$actual_path" ]; then
-        echo "Creating directory: $actual_path (mapped from key: $path_key)"
+        echo "Creating directory: $actual_path (mapped from key: $path_key)" >&2
         $USE_SUDO mkdir -p "$actual_path"
     fi
 
@@ -1522,8 +1653,8 @@ COMPILE_DIR=$(map_web_path "compile_dir")
 POETRY_HOME="$COMPILE_DIR/poetry"
 POETRY_LINK="$COMPILE_DIR/bin/poetry"
 NODE_INSTALL_DIR="$COMPILE_DIR/node"
-NODE_SHORT_VERSION="22"
-NODE_VERSION="v22.21.0"
+NODE_SHORT_VERSION="24"
+NODE_VERSION="v24.11.1"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
 NODE_BIN="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/node"
 

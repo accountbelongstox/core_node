@@ -24,10 +24,12 @@ class AccountSettings1ScreenAppQy extends StatefulWidget {
   const AccountSettings1ScreenAppQy({super.key});
 
   @override
-  State<AccountSettings1ScreenAppQy> createState() => _AccountSettings1ScreenAppQyState();
+  State<AccountSettings1ScreenAppQy> createState() =>
+      _AccountSettings1ScreenAppQyState();
 }
 
-class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQy> {
+class _AccountSettings1ScreenAppQyState
+    extends State<AccountSettings1ScreenAppQy> {
   final List<Map<String, dynamic>> _quickSections;
   final List<Map<String, dynamic>> _otherOptions;
   bool _isNightModeEnabled;
@@ -72,12 +74,12 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
           },
           {
             'title': QyAppLocalizationKeys.qyCheckForUpdate,
-            'subtitle': '已是最新版本',
+            'subtitle': QyAppLocalizationKeys.qyLatestVersion.tr(context),
             'icon': Icons.system_update_alt,
           },
           {
             'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
-            'subtitle': 'Wi-Fi · 稳定',
+            'subtitle': QyAppLocalizationKeys.qyNetworkStable.tr(context),
             'icon': Icons.wifi_tethering,
           },
         ],
@@ -86,7 +88,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
   void _handleSectionTap(Map<String, dynamic> section) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${section['title'].tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
+        content: Text(
+            '${section['title'].tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
       ),
     );
   }
@@ -138,8 +141,9 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '设置中心',
-          style: TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+          QyAppLocalizationKeys.qySettingsCenter.tr(context),
+          style:
+              TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
         ),
         SizedBox(height: Dimensions.spacingSmall),
         GridView.builder(
@@ -171,7 +175,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
                       padding: EdgeInsets.all(Dimensions.paddingSmall),
                       decoration: BoxDecoration(
                         color: (section['color'] as Color).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusSmall),
                       ),
                       child: Icon(
                         section['icon'] as IconData,
@@ -189,7 +194,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
                     SizedBox(height: Dimensions.spacingXSmall),
                     Text(
                       section['description'] as String,
-                      style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                      style: TextStyles.caption
+                          .copyWith(color: ThemeColors.textSecondary),
                     ),
                   ],
                 ),
@@ -228,8 +234,12 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
                     ),
                     SizedBox(height: Dimensions.spacingXSmall),
                     Text(
-                      _isNightModeEnabled ? '护眼模式已开启' : '普通模式 · 保护视力',
-                      style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                      _isNightModeEnabled
+                          ? QyAppLocalizationKeys.qyNightModeEnabled.tr(context)
+                          : QyAppLocalizationKeys.qyNormalModeProtectEyes
+                              .tr(context),
+                      style: TextStyles.caption
+                          .copyWith(color: ThemeColors.textSecondary),
                     ),
                   ],
                 ),
@@ -258,13 +268,15 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
                 SizedBox(width: Dimensions.spacingSmall),
                 Expanded(
                   child: Text(
-                    '建议夜晚开启护眼模式，自动降低屏幕亮度并调整色温。',
-                    style: TextStyles.caption.copyWith(color: ThemeColors.primary),
+                    QyAppLocalizationKeys.qyNightModeTip.tr(context),
+                    style:
+                        TextStyles.caption.copyWith(color: ThemeColors.primary),
                   ),
                 ),
                 Text(
-                  '普通模式',
-                  style: TextStyles.caption.copyWith(color: ThemeColors.primary),
+                  QyAppLocalizationKeys.qyNormalMode.tr(context),
+                  style:
+                      TextStyles.caption.copyWith(color: ThemeColors.primary),
                 ),
                 const Icon(Icons.chevron_right, color: Colors.blueGrey),
               ],
@@ -308,7 +320,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
                         SizedBox(height: Dimensions.spacingXSmall),
                         Text(
                           option['subtitle'] as String,
-                          style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+                          style: TextStyles.caption
+                              .copyWith(color: ThemeColors.textSecondary),
                         ),
                       ],
                     ),
@@ -318,7 +331,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
               ),
               if (index != _otherOptions.length - 1)
                 Padding(
-                  padding: EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
+                  padding:
+                      EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
                   child: Divider(color: ThemeColors.border),
                 ),
             ],
@@ -342,7 +356,8 @@ class _AccountSettings1ScreenAppQyState extends State<AccountSettings1ScreenAppQ
         children: [
           Text(
             'ICP 备案号',
-            style: TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+            style:
+                TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
           ),
           SizedBox(height: Dimensions.spacingXSmall),
           Text(

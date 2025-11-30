@@ -1,0 +1,281 @@
+<?php
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+namespace App\Helpers;
+
+/**
+ * Web Path Helper - Matches gvar_common.sh map_web_path() logic
+ *
+ * This helper ensures that Laravel applications use the same path mapping
+ * logic as the gvar_common.sh bash scripts, maintaining consistency
+ * across the entire system.
+ *
+ * IMPORTANT: When modifying path logic, also update:
+ * - /mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh
+ * - DatabasePathHelper.php
+ * - All related configuration files
+ */
+class WebPathHelper
+{
+    /**
+     * Get optimal base data directory (matches get_base_data_directory in gvar_common.sh)
+     */
+    private static function getBaseDataDirectory(): string
+    {
+        // Check if we're in WSL environment
+        if (PHP_OS_FAMILY === 'Windows') {
+            return 'D:';
+        }
+
+        // Check for mounted data disk
+        if (is_dir('/mnt/d')) {
+            return '/mnt/d';
+        }
+
+        if (is_dir('/mnt/data')) {
+            return '/mnt/data';
+        }
+
+        // Fallback to /usr for production
+        if (is_dir('/usr')) {
+            return '/usr';
+        }
+
+        return '/mnt/dev_sdb3'; // Last resort
+    }
+
+    /**
+     * Check if this is a WSL environment
+     */
+    private static function isWsl(): bool
+    {
+        // Check for WSL indicators
+        return PHP_OS_FAMILY === 'Windows' ||
+               file_exists('/proc/version') && strpos(file_get_contents('/proc/version'), 'Microsoft') !== false ||
+               file_exists('/proc/sys/fs/binfmt_misc/WSLInterop');
+    }
+
+    /**
+     * Check if this is a production environment
+     */
+    private static function isProduction(): bool
+    {
+        // Production servers typically don't have desktop environments
+        return !file_exists('/usr/bin/gnome-session') &&
+               !file_exists('/usr/bin/startx') &&
+               !file_exists('/usr/bin/unity') &&
+               file_exists('/etc/nginx') &&
+               file_exists('/var/www');
+    }
+
+    /**
+     * Map web path key to actual path (matches map_web_path() in gvar_common.sh)
+     */
+    public static function mapWebPath(string $pathKey, string $subPath = ''): string
+    {
+        $mappedPath = '';
+        $basePath = '';
+
+        // Get optimal base directory
+        $dataBase = self::getBaseDataDirectory();
+
+        // Determine base path for www based on environment
+        if (self::isWsl()) {
+            $basePath = $dataBase . '/www';
+        } elseif (self::isProduction()) {
+            $basePath = '/www';
+        } else {
+            // Use data base directory + www
+            $basePath = $dataBase . '/www';
+        }
+
+        // Map paths using common base path (matches bash case statement)
+        switch ($pathKey) {
+            case 'wwwroot':
+                $mappedPath = $basePath . '/wwwroot';
+                break;
+            case 'nginxconfig':
+                $mappedPath = $basePath . '/nginxconfig';
+                break;
+            case 'shared-data':
+                $mappedPath = $basePath . '/shared-data';
+                break;
+            case 'backup':
+                $mappedPath = $basePath . '/backup';
+                break;
+            case 'www':
+                $mappedPath = $basePath;
+                break;
+            case 'compile_dir':
+                // Compile directory for development languages
+                // Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
+                // Production server: /usr/system_version
+                $sysName = php_uname('s');
+                $sysVersion = explode('.', php_uname('r'))[0];
+
+                // Check if this is development environment
+                if (self::isWsl() || !self::isProduction()) {
+                    // Development: base_dir/_system_version (with underscore prefix)
+                    $mappedPath = $dataBase . "/_{$sysName}_{$sysVersion}";
+                } else {
+                    // Production: /usr/system_version
+                    $mappedPath = "/usr/{$sysName}_{$sysVersion}";
+                }
+                break;
+            default:
+                // Default: treat as subdirectory under www
+                $mappedPath = $basePath . '/' . $pathKey;
+                break;
+        }
+
+        // Add subpath if provided
+        if (!empty($subPath)) {
+            $mappedPath = rtrim($mappedPath, '/') . '/' . ltrim($subPath, '/');
+        }
+
+        return $mappedPath;
+    }
+
+    /**
+     * Get web root directory (for backward compatibility)
+     */
+    public static function getWwwRoot(): string
+    {
+        return self::mapWebPath('wwwroot');
+    }
+
+    /**
+     * Get nginx config directory
+     */
+    public static function getNginxConfig(): string
+    {
+        return self::mapWebPath('nginxconfig');
+    }
+
+    /**
+     * Get SSL certificate directory
+     */
+    public static function getSSLDir(): string
+    {
+        return self::mapWebPath('nginxconfig') . '/ssl';
+    }
+
+    /**
+     * Get sites-available directory
+     */
+    public static function getSitesAvailable(): string
+    {
+        return self::mapWebPath('nginxconfig') . '/sites-available';
+    }
+
+    /**
+     * Get sites-enabled directory
+     */
+    public static function getSitesEnabled(): string
+    {
+        return self::mapWebPath('nginxconfig') . '/sites-enabled';
+    }
+
+    /**
+     * Get shared data directory
+     */
+    public static function getSharedData(): string
+    {
+        return self::mapWebPath('shared-data');
+    }
+
+    /**
+     * Get backup directory
+     */
+    public static function getBackupDir(): string
+    {
+        return self::mapWebPath('backup');
+    }
+
+    /**
+     * Validate that a path exists and is writable
+     */
+    public static function validatePath(string $path): array
+    {
+        $result = [
+            'exists' => false,
+            'isDirectory' => false,
+            'isWritable' => false,
+            'isReadable' => false,
+            'error' => null
+        ];
+
+        if (file_exists($path)) {
+            $result['exists'] = true;
+
+            if (is_dir($path)) {
+                $result['isDirectory'] = true;
+                $result['isWritable'] = is_writable($path);
+                $result['isReadable'] = is_readable($path);
+            } else {
+                $result['error'] = 'Path exists but is not a directory';
+            }
+        } else {
+            $result['error'] = 'Path does not exist';
+        }
+
+        return $result;
+    }
+
+    /**
+     * Ensure a directory exists with proper permissions
+     */
+    public static function ensureDirectory(string $path, int $permissions = 0755): bool
+    {
+        if (!is_dir($path)) {
+            if (!mkdir($path, $permissions, true)) {
+                return false;
+            }
+        }
+
+        // Try to set permissions (may fail in WSL)
+        @chmod($path, $permissions);
+
+        return is_dir($path);
+    }
+
+    /**
+     * Get path diagnostics for debugging
+     */
+    public static function getDiagnostics(): array
+    {
+        return [
+            'environment' => [
+                'isWsl' => self::isWsl(),
+                'isProduction' => self::isProduction(),
+                'osFamily' => PHP_OS_FAMILY,
+                'baseDataDir' => self::getBaseDataDirectory(),
+            ],
+            'paths' => [
+                'wwwroot' => self::getWwwRoot(),
+                'nginxconfig' => self::getNginxConfig(),
+                'ssl' => self::getSSLDir(),
+                'sites_available' => self::getSitesAvailable(),
+                'sites_enabled' => self::getSitesEnabled(),
+                'shared_data' => self::getSharedData(),
+                'backup' => self::getBackupDir(),
+            ],
+            'validation' => [
+                'wwwroot' => self::validatePath(self::getWwwRoot()),
+                'nginxconfig' => self::validatePath(self::getNginxConfig()),
+                'ssl' => self::validatePath(self::getSSLDir()),
+                'sites_available' => self::validatePath(self::getSitesAvailable()),
+            ]
+        ];
+    }
+}

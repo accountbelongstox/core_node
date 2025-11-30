@@ -22,6 +22,8 @@ import 'provider_app_travel/user_provider_app_travel.dart';
 import 'provider_app_travel/home_provider_app_travel.dart';
 import 'provider_app_travel/city_provider_app_travel.dart';
 import 'provider_app_travel/search_provider_app_travel.dart';
+import 'provider_app_travel/current_itinerary_provider.dart';
+import 'provider_app_travel/traveler_provider_app_travel.dart';
 
 void main() {
   runTravelApp();
@@ -49,6 +51,13 @@ Future<void> runTravelApp() async {
     cacheService: cacheService,
   );
 
+  // Initialize current itinerary provider
+  final CurrentItineraryProvider currentItineraryProvider = CurrentItineraryProvider();
+  await currentItineraryProvider.initialize();
+
+  // Initialize traveler provider
+  final TravelerProviderAppTravel travelerProvider = TravelerProviderAppTravel();
+
   final router = RouterAppTravel.createRouter();
 
   runCommonApp(
@@ -63,6 +72,8 @@ Future<void> runTravelApp() async {
       ChangeNotifierProvider<HomeProviderAppTravel>.value(value: homeProvider),
       ChangeNotifierProvider<CityProviderAppTravel>.value(value: cityProvider),
       ChangeNotifierProvider<SearchProviderAppTravel>.value(value: searchProvider),
+      ChangeNotifierProvider<CurrentItineraryProvider>.value(value: currentItineraryProvider),
+      ChangeNotifierProvider<TravelerProviderAppTravel>.value(value: travelerProvider),
     ],
   );
 }

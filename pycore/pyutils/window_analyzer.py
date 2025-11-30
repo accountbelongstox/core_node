@@ -13,32 +13,42 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import (
+    get_third_package_win32gui,
+    get_third_package_win32con,
+    get_third_package_win32api,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_pyautogui,
+    get_third_package_uiautomation
+)
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
-
-import win32gui
-import win32con
-import win32api
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32api = get_third_package_win32api()
+PIL_Image_module = get_third_package_PIL_Image()
+PIL_ImageDraw = get_third_package_PIL_ImageDraw()
+PIL_ImageFont = get_third_package_PIL_ImageFont()
+pyautogui = get_third_package_pyautogui()
+uiautomation = get_third_package_uiautomation()
 import win32process
-from PIL import Image, ImageDraw, ImageFont
-import pyautogui
-import uiautomation as auto
 
-from providor.providor_second import DEBUG_DIR
-from pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
+Image = PIL_Image_module
+ImageDraw = PIL_ImageDraw
+ImageFont = PIL_ImageFont
+auto = uiautomation
+
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pygvar import PYTOOLS_TMP_DIR
 
 
 class WindowAnalyzer:
     """Analyzes window interface and extracts UI elements using UI Automation"""
-    
+
     def __init__(self):
-        self.debug_dir = DEBUG_DIR
+        self.debug_dir = PYTOOLS_TMP_DIR
         self.elements = []
         self.window_handle = None
         self.target_window = None
@@ -60,114 +70,128 @@ class WindowAnalyzer:
 
                     if cached_info:
                         hwnd = cached_info.get("hwnd")
-                        # Validate cached window
-                        if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                            # Create SimpleWindow from cached info
-                            class SimpleWindow:
-                                def __init__(self, hwnd, title, cached_info):
-                                    self._hWnd = int(hwnd)
-                                    self.title = title
-                                    # Get current window rect (may have changed)
-                                    try:
-                                        rect = win32gui.GetWindowRect(hwnd)
-                                        self.left = rect[0]
-                                        self.top = rect[1]
-                                        self.width = rect[2] - rect[0]
-                                        self.height = rect[3] - rect[1]
-                                        # Update cache with new position
-                                        cached_info.update({
-                                            "rect": rect,
-                                            "left": rect[0],
-                                            "top": rect[1],
-                                            "right": rect[2],
-                                            "bottom": rect[3],
-                                            "width": rect[2] - rect[0],
-                                            "height": rect[3] - rect[1]
-                                        })
-                                        ENCYCLOPEDIA.add(cache_key, cached_info)
-                                    except:
-                                        self.left = cached_info.get("left", 0)
-                                        self.top = cached_info.get("top", 0)
-                                        self.width = cached_info.get("width", 0)
-                                        self.height = cached_info.get("height", 0)
-                                    self.isActive = False
-                                    self.isMaximized = False
-                                    self.isMinimized = False
+                        # Validate cached window with error handling
+                        try:
+                            if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                                # Create SimpleWindow from cached info
+                                class SimpleWindow:
+                                    def __init__(self, hwnd, title, cached_info):
+                                        self._hWnd = int(hwnd)
+                                        self.title = title
+                                        # Get current window rect (may have changed)
+                                        try:
+                                            rect = win32gui.GetWindowRect(hwnd)
+                                            self.left = rect[0]
+                                            self.top = rect[1]
+                                            self.width = rect[2] - rect[0]
+                                            self.height = rect[3] - rect[1]
+                                            # Update cache with new position
+                                            cached_info.update({
+                                                "rect": rect,
+                                                "left": rect[0],
+                                                "top": rect[1],
+                                                "right": rect[2],
+                                                "bottom": rect[3],
+                                                "width": rect[2] - rect[0],
+                                                "height": rect[3] - rect[1]
+                                            })
+                                            ENCYCLOPEDIA.add(cache_key, cached_info)
+                                        except:
+                                            self.left = cached_info.get("left", 0)
+                                            self.top = cached_info.get("top", 0)
+                                            self.width = cached_info.get("width", 0)
+                                            self.height = cached_info.get("height", 0)
+                                        self.isActive = False
+                                        self.isMaximized = False
+                                        self.isMinimized = False
 
-                                def activate(self):
-                                    try:
-                                        import win32con
-                                        win32gui.SetForegroundWindow(self._hWnd)
-                                        win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
-                                        return True
-                                    except:
-                                        return False
+                                    def activate(self):
+                                        try:
+                                            import win32con
+                                            win32gui.SetForegroundWindow(self._hWnd)
+                                            win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
+                                            return True
+                                        except:
+                                            return False
 
-                            found_window = SimpleWindow(hwnd, cached_info.get("title"), cached_info)
-                            ColorPrint.green(f"[CACHE] Using cached window: '{cached_info.get('title')}' (Handle: {hwnd})")
-                            return found_window
-                        else:
-                            ColorPrint.yellow(f"[CACHE] Cached window invalid for '{title}', searching...")
+                                found_window = SimpleWindow(hwnd, cached_info.get("title"), cached_info)
+                                ColorPrint.green(f"[CACHE] Using cached window: '{cached_info.get('title')}' (Handle: {hwnd})")
+                                return found_window
+                            else:
+                                ColorPrint.yellow(f"[CACHE] Cached window invalid for '{title}', searching...")
+                        except Exception as cache_validation_error:
+                            ColorPrint.yellow(f"[CACHE] Error validating cached window: {cache_validation_error}")
+                            # Continue to fresh search
 
             # If not found in cache or cache invalid, search for window
             def enum_windows_callback(hwnd, lparam):
                 nonlocal found_window
-                if win32gui.IsWindowVisible(hwnd):
-                    window_title = win32gui.GetWindowText(hwnd)
-                    for title in window_titles:
-                        if title in window_title:
-                            # Create a simple window object
-                            class SimpleWindow:
-                                def __init__(self, hwnd, title):
-                                    self._hWnd = int(hwnd)  # Ensure it's an integer
-                                    self.title = title
-                                    # Get window rect
-                                    try:
-                                        rect = win32gui.GetWindowRect(hwnd)
-                                        self.left = rect[0]
-                                        self.top = rect[1]
-                                        self.width = rect[2] - rect[0]
-                                        self.height = rect[3] - rect[1]
+                try:
+                    if win32gui.IsWindowVisible(hwnd):
+                        window_title = win32gui.GetWindowText(hwnd)
+                        for title in window_titles:
+                            if title in window_title:
+                                # Create a simple window object
+                                class SimpleWindow:
+                                    def __init__(self, hwnd, title):
+                                        self._hWnd = int(hwnd)  # Ensure it's an integer
+                                        self.title = title
+                                        # Get window rect
+                                        try:
+                                            rect = win32gui.GetWindowRect(hwnd)
+                                            self.left = rect[0]
+                                            self.top = rect[1]
+                                            self.width = rect[2] - rect[0]
+                                            self.height = rect[3] - rect[1]
 
-                                        # Cache the window info
-                                        cache_key = f"window_cache_{title.lower()}"
-                                        window_info = {
-                                            "hwnd": hwnd,
-                                            "title": window_title,
-                                            "rect": rect,
-                                            "left": rect[0],
-                                            "top": rect[1],
-                                            "right": rect[2],
-                                            "bottom": rect[3],
-                                            "width": rect[2] - rect[0],
-                                            "height": rect[3] - rect[1],
-                                            "class_name": win32gui.GetClassName(hwnd)
-                                        }
-                                        ENCYCLOPEDIA.add(cache_key, window_info)
-                                        ColorPrint.blue(f"[CACHE] Cached window info for '{title}'")
-                                    except:
-                                        self.left = 0
-                                        self.top = 0
-                                        self.width = 0
-                                        self.height = 0
-                                    self.isActive = False
-                                    self.isMaximized = False
-                                    self.isMinimized = False
+                                            # Cache the window info
+                                            cache_key = f"window_cache_{title.lower()}"
+                                            window_info = {
+                                                "hwnd": hwnd,
+                                                "title": window_title,
+                                                "rect": rect,
+                                                "left": rect[0],
+                                                "top": rect[1],
+                                                "right": rect[2],
+                                                "bottom": rect[3],
+                                                "width": rect[2] - rect[0],
+                                                "height": rect[3] - rect[1],
+                                                "class_name": win32gui.GetClassName(hwnd)
+                                            }
+                                            ENCYCLOPEDIA.add(cache_key, window_info)
+                                            ColorPrint.blue(f"[CACHE] Cached window info for '{title}'")
+                                        except:
+                                            self.left = 0
+                                            self.top = 0
+                                            self.width = 0
+                                            self.height = 0
+                                        self.isActive = False
+                                        self.isMaximized = False
+                                        self.isMinimized = False
 
-                                def activate(self):
-                                    try:
-                                        import win32con
-                                        win32gui.SetForegroundWindow(self._hWnd)
-                                        win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
-                                        return True
-                                    except:
-                                        return False
+                                    def activate(self):
+                                        try:
+                                            import win32con
+                                            win32gui.SetForegroundWindow(self._hWnd)
+                                            win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
+                                            return True
+                                        except:
+                                            return False
 
-                            found_window = SimpleWindow(hwnd, window_title)
-                            return False  # Stop enumeration
+                                found_window = SimpleWindow(hwnd, window_title)
+                                return False  # Stop enumeration
+                except:
+                    pass  # Ignore errors in individual window checks
                 return True
 
-            win32gui.EnumWindows(enum_windows_callback, None)
+            # Try EnumWindows with error handling
+            try:
+                win32gui.EnumWindows(enum_windows_callback, None)
+            except Exception as enum_error:
+                ColorPrint.yellow(f"[WARN] EnumWindows failed: {enum_error}")
+                # EnumWindows failed, but we might have found the window before the error
+                pass
+
             if found_window:
                 return found_window
 

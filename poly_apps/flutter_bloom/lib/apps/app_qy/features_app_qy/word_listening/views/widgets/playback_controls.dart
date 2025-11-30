@@ -1,7 +1,12 @@
+/// Playback controls widget for word listening
+/// Follows Flutter Bloom architecture: theme centralization, glassmorphism
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
+import 'package:qyflutter/common/widgets/animations/animation_utils.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class PlaybackControls extends StatelessWidget {
   final bool isPlaying;
@@ -19,46 +24,50 @@ class PlaybackControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (onPrevious != null)
-            IconButton(
-              icon: const Icon(Icons.skip_previous),
-              iconSize: 36,
-              color: AppTheme.primaryGreen,
-              onPressed: onPrevious,
-            ),
-          const SizedBox(width: 20),
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.primaryGreen,
-                  AppTheme.secondaryGreen,
-                ],
+    return GlassCard(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (onPrevious != null)
+              BouncingButton(
+                onPressed: onPrevious,
+                child: Icon(
+                  Icons.skip_previous,
+                  size: ThemeDimensions.iconSizeXL,
+                  color: ColorsAppQy.qyPrimary,
+                ),
+              ),
+            SizedBox(width: ThemeDimensions.spacing20),
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: ColorsAppQy.qyPrimaryGradient,
+              ),
+              child: BouncingButton(
+                onPressed: onPlayPause,
+                child: Icon(
+                  isPlaying ? Icons.pause : Icons.play_arrow,
+                  size: ThemeDimensions.iconSizeXXL,
+                  color: ColorsAppQy.qyTextOnPrimary,
+                ),
               ),
             ),
-            child: IconButton(
-              icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-              iconSize: 48,
-              color: Colors.white,
-              onPressed: onPlayPause,
-            ),
-          ),
-          const SizedBox(width: 20),
-          if (onNext != null)
-            IconButton(
-              icon: const Icon(Icons.skip_next),
-              iconSize: 36,
-              color: AppTheme.primaryGreen,
-              onPressed: onNext,
-            ),
-        ],
+            SizedBox(width: ThemeDimensions.spacing20),
+            if (onNext != null)
+              BouncingButton(
+                onPressed: onNext,
+                child: Icon(
+                  Icons.skip_next,
+                  size: ThemeDimensions.iconSizeXL,
+                  color: ColorsAppQy.qyPrimary,
+                ),
+              ),
+          ],
+        ),
       ),
+      borderRadius: ThemeDimensions.borderRadiusL,
     );
   }
 }

@@ -85,10 +85,13 @@ $global:ScriptFiles = @("start.ps1", "start.bat", "install.ps1", "deploy.ps1", "
 # Poly apps directory
 $PolyApps = Join-Path $rootDir "poly_apps"
 
-# Generate pyStart command
+# Py apps directory
+$PyApps = Join-Path $rootDir "pyapps"
+
+# Generate pyStart command (for general Python apps with main.py)
 function Get-PyStartCommand {
     param([string]$AppPath)
-    
+
     $mainPyPath = Join-Path $AppPath "main.py"
     if (Test-Path $mainPyPath) {
         $absolutePath = (Resolve-Path $mainPyPath).Path
@@ -97,10 +100,30 @@ function Get-PyStartCommand {
     return $null
 }
 
+# Generate pycoreStart command (for pycore apps using pymain.py launcher)
+function Get-PycoreStartCommand {
+    param([string]$AppPath)
+
+    $appName = Split-Path $AppPath -Leaf
+    $rootDirPath = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+    $pymainPath = Join-Path $rootDirPath "pymain.py"
+
+    # Check if app has main.py or {appname}_main.py
+    $mainPyPath = Join-Path $AppPath "main.py"
+    $appMainPyPath = Join-Path $AppPath "$($appName)_main.py"
+
+    if ((Test-Path $mainPyPath) -or (Test-Path $appMainPyPath)) {
+        if (Test-Path $pymainPath) {
+            return "python `"$pymainPath`" app=$appName"
+        }
+    }
+    return $null
+}
+
 # Generate ncoreStart command
 function Get-NcoreStartCommand {
     param([string]$AppPath)
-    
+
     $mainJsPath = Join-Path $AppPath "main.js"
     if (Test-Path $mainJsPath) {
         $appName = Split-Path $AppPath -Leaf
@@ -154,11 +177,29 @@ function Get-NuxtStartCommand {
 # Generate phpStart command
 function Get-PhpStartCommand {
     param([string]$AppPath)
-    
+
     $indexPhpPath = Join-Path $AppPath "index.php"
     if (Test-Path $indexPhpPath) {
         $absolutePath = (Resolve-Path $indexPhpPath).Path
         return "php -S localhost:8000 -t `"$(Split-Path $absolutePath)`""
+    }
+    return $null
+}
+
+# Generate Ncore/Pycore/Installer command (unified installer for both ncore and pycore)
+function Get-TInstallerCommand {
+    param([string]$AppPath, [string]$AppType)
+
+    if ($AppType -eq "ncoreApp") {
+        $startCommand = Get-NcoreStartCommand -AppPath $AppPath
+        if ($startCommand) {
+            return $startCommand
+        }
+    } elseif ($AppType -eq "pycoreApp") {
+        $startCommand = Get-PycoreStartCommand -AppPath $AppPath
+        if ($startCommand) {
+            return $startCommand
+        }
     }
     return $null
 }
@@ -188,10 +229,10 @@ function Step1-ScanNcoreApps {
 # Step 2: Scan $rootDir/poly_apps and get poly_apps list with appType
 function Step2-ScanPolyApps {
     Write-Host "Step 2: Scanning $rootDir/poly_apps directory..." -ForegroundColor Cyan
-    
+
     $polyAppsPath = Join-Path $rootDir "poly_apps"
     $polyApps = @()
-    
+
     if (Test-Path $polyAppsPath) {
         $appDirectories = Get-ChildItem -Path $polyAppsPath -Directory
         foreach ($dir in $appDirectories) {
@@ -203,29 +244,64 @@ function Step2-ScanPolyApps {
     } else {
         Write-Host "  Directory not found: $polyAppsPath" -ForegroundColor Red
     }
-    
+
     return $polyApps
+}
+
+# Step 2.5: Scan $rootDir/pyapps and get pycoreApp list with appType
+function Step2_5-ScanPyApps {
+    Write-Host "Step 2.5: Scanning $rootDir/pyapps directory..." -ForegroundColor Cyan
+
+    $pyAppsPath = Join-Path $rootDir "pyapps"
+    $pyApps = @()
+
+    if (Test-Path $pyAppsPath) {
+        $appDirectories = Get-ChildItem -Path $pyAppsPath -Directory
+        foreach ($dir in $appDirectories) {
+            # Skip hidden and system directories
+            if ($dir.Name.StartsWith('.') -or $dir.Name.StartsWith('__')) {
+                continue
+            }
+
+            # Check if it has a valid entry point (main.py or {appname}_main.py)
+            $mainPyPath = Join-Path $dir.FullName "main.py"
+            $appMainPyPath = Join-Path $dir.FullName "$($dir.Name)_main.py"
+
+            if ((Test-Path $mainPyPath) -or (Test-Path $appMainPyPath)) {
+                $app = [AppInfo]::new($dir.Name, $dir.FullName, "pycoreApp")
+                $pyApps += $app
+                Write-Host "  Found: $($app.Name) [pycoreApp]" -ForegroundColor Gray
+            } else {
+                Write-Host "  Skipped: $($dir.Name) (no valid entry point)" -ForegroundColor DarkGray
+            }
+        }
+        Write-Host "  Total pycoreApps: $($pyApps.Count)" -ForegroundColor Green
+    } else {
+        Write-Host "  Directory not found: $pyAppsPath" -ForegroundColor Red
+    }
+
+    return $pyApps
 }
 
 # Step 3: Generate native startup commands and set first toggle item for each list
 function Step3-GenerateNativeStartup {
     param([array]$AppList)
-    
+
     Write-Host "Step 3: Generating native startup commands..." -ForegroundColor Cyan
-    
+
     foreach ($app in $AppList) {
         $app.AvailableScripts = @()
         $foundNative = $false
-        
-        # Priority 1: ncoreStart for ncoreApp with main.js
-        if ($app.AppType -eq "ncoreApp" -and $app.HasMainJs) {
-            $startCommand = Get-NcoreStartCommand -AppPath $app.Path
-            if ($startCommand) {
-                $app.AvailableScripts += "ncoreStart"
-                $app.CurrentScript = "ncoreStart"
-                $app.ScriptIndex = 0
-                $foundNative = $true
-                Write-Host "  $($app.Name): ncoreStart - $startCommand" -ForegroundColor Magenta
+
+        # Priority 1: Removed - ncoreStart&Installer merged into Ncore/Pycore/Installer
+        # Priority 1.5: Removed - pycoreStart&Installer merged into Ncore/Pycore/Installer
+
+        # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
+        if ($app.AppType -eq "ncoreApp" -or $app.AppType -eq "pycoreApp") {
+            $tCommand = Get-TInstallerCommand -AppPath $app.Path -AppType $app.AppType
+            if ($tCommand) {
+                $app.AvailableScripts += "Ncore/Pycore/Installer"
+                Write-Host "  $($app.Name): Ncore/Pycore/Installer (unified) - $tCommand" -ForegroundColor Magenta
             }
         }
         
@@ -317,18 +393,19 @@ function Step3-GenerateNativeStartup {
     }
 }
 
-# Step 4: Integrate two lists into one data
+# Step 4: Integrate three lists into one data
 function Step4-IntegrateData {
-    param([array]$NcoreApps, [array]$PolyApps)
-    
+    param([array]$NcoreApps, [array]$PolyApps, [array]$PyApps)
+
     Write-Host "Step 4: Integrating data..." -ForegroundColor Cyan
-    
+
     $allApps = @()
     $allApps += $NcoreApps
     $allApps += $PolyApps
-    
+    $allApps += $PyApps
+
     Write-Host "  Total apps: $($allApps.Count)" -ForegroundColor Green
-    
+
     return $allApps
 }
 
@@ -400,27 +477,35 @@ function Scan-Apps {
     Write-Host ""
     Write-Host "=== Starting Application Scan ===" -ForegroundColor Yellow
     Write-Host ""
-    
+
     # Step 1: Scan ncoreApps
     $ncoreApps = Step1-ScanNcoreApps
     Write-Host ""
-    
+
     # Step 2: Scan poly_apps
     $polyApps = Step2-ScanPolyApps
     Write-Host ""
-    
+
+    # Step 2.5: Scan pyapps
+    $pyApps = Step2_5-ScanPyApps
+    Write-Host ""
+
     # Step 3: Generate native startup for ncoreApps
     Step3-GenerateNativeStartup -AppList $ncoreApps
     Write-Host ""
-    
+
     # Step 3: Generate native startup for poly_apps
     Step3-GenerateNativeStartup -AppList $polyApps
     Write-Host ""
-    
-    # Step 4: Integrate data
-    $allApps = Step4-IntegrateData -NcoreApps $ncoreApps -PolyApps $polyApps
+
+    # Step 3: Generate native startup for pyapps
+    Step3-GenerateNativeStartup -AppList $pyApps
     Write-Host ""
-    
+
+    # Step 4: Integrate data
+    $allApps = Step4-IntegrateData -NcoreApps $ncoreApps -PolyApps $polyApps -PyApps $pyApps
+    Write-Host ""
+
     # Step 5: Scan scripts directories
     Step5-ScanScriptsDirectory -AllApps $allApps
     Write-Host ""
@@ -608,17 +693,32 @@ function Launch-CurrentApp {
     Write-Host ""
     
     # Check if it's a native startup
-    $nativeStartups = @("ncoreStart", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
+    $nativeStartups = @("ncoreStart", "pycoreStart", "Ncore/Pycore/Installer", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
     $isNativeStartup = $nativeStartups -contains $app.CurrentScript
-    
+
     if ($isNativeStartup) {
         # Generate command based on startup type
         $command = $null
         $workingDir = $null
-        
-        switch ($app.CurrentScript) {
-            "ncoreStart" {
+        $needsInstall = $false
+
+        # Check if this is an &Installer variant
+        if ($app.CurrentScript -like "*&Installer") {
+            $needsInstall = $true
+        }
+
+        switch -Wildcard ($app.CurrentScript) {
+            "Ncore/Pycore/Installer" {
+                $command = Get-TInstallerCommand -AppPath $app.Path -AppType $app.AppType
+                $workingDir = $rootDir
+                $needsInstall = $true
+            }
+            "ncoreStart*" {
                 $command = Get-NcoreStartCommand -AppPath $app.Path
+                $workingDir = $rootDir
+            }
+            "pycoreStart*" {
+                $command = Get-PycoreStartCommand -AppPath $app.Path
                 $workingDir = $rootDir
             }
             "pyStart" {
@@ -657,10 +757,61 @@ function Launch-CurrentApp {
             }
             
             # Create temporary batch file
-            $tempBatFile = Join-Path $tempScriptDir "$($app.Name)_$($app.CurrentScript).bat"
-            
+            # Clean script name for use in filename (replace invalid characters)
+            $cleanScriptName = $app.CurrentScript -replace '[/\\:*?"<>|]', '_'
+            $tempBatFile = Join-Path $tempScriptDir "$($app.Name)_$cleanScriptName.bat"
+
             # Generate batch file content
-            $batContent = @"
+            if ($needsInstall) {
+                # Check if this is Ncore/Pycore/Installer for enhanced installation
+                $isFullInstaller = ($app.CurrentScript -eq "Ncore/Pycore/Installer")
+
+                if ($isFullInstaller) {
+                    # Ncore/Pycore/Installer: Call the standalone installer script
+                    $installerScript = Join-Path $scriptPath "ncore_pycore_installer.ps1"
+                    $batContent = @"
+@echo off
+echo Launching unified installer...
+powershell -ExecutionPolicy Bypass -File "$installerScript" -AppName "$($app.Name)" -AppType "$($app.AppType)" -StartCommand "$command" -WorkingDir "$workingDir" -RootDir "$rootDir"
+pause
+"@
+                } else {
+                    # Standard &Installer: Basic pnpm install only
+                    $batContent = @"
+@echo off
+echo ========================================
+echo Installing dependencies...
+echo ========================================
+cd /d "$rootDir"
+echo Running: pnpm install
+pnpm install
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo Installation failed! Check the error messages above.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo ========================================
+echo Dependencies installed successfully
+echo ========================================
+echo.
+
+echo ========================================
+echo Starting $($app.Name) with $($app.CurrentScript)...
+echo ========================================
+cd /d "$workingDir"
+echo Working Directory: %CD%
+echo.
+$command
+pause
+"@
+                }
+            } else {
+                # No installation needed
+                $batContent = @"
 @echo off
 cd /d "$workingDir"
 echo Starting $($app.Name) with $($app.CurrentScript)...
@@ -669,7 +820,8 @@ echo.
 $command
 pause
 "@
-            
+            }
+
             # Write batch file
             $batContent | Out-File -FilePath $tempBatFile -Encoding ASCII -Force
             

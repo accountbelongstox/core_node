@@ -5,6 +5,7 @@ import '../../main_app_codemart.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ProposalViewAppCodemart extends StatefulWidget {
   final int projectId;
@@ -75,7 +76,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
@@ -274,7 +275,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                               TextButton(
                                                 onPressed: () => Navigator.pop(context),
                                                 child: Text(
-                                                  context.tr(LocalizationKeysAppCodemart.codemartCancel),
+                                                  LocalizationKeysAppCodemart.codemartCancel.tr(context),
                                                 ),
                                               ),
                                               FilledButton(
@@ -283,7 +284,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                                   _handleAcceptProposal();
                                                 },
                                                 child: Text(
-                                                  context.tr(LocalizationKeysAppCodemart.codemartConfirm),
+                                                  LocalizationKeysAppCodemart.codemartConfirm.tr(context),
                                                 ),
                                               ),
                                             ],

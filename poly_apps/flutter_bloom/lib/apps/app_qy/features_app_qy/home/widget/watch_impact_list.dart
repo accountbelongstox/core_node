@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/wacth_impact_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/watch_impact_data.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/watch_impact_widget.dart';
 
 class WatchImpactList extends StatelessWidget {
@@ -19,14 +19,15 @@ class WatchImpactList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final watchImpacts = WatchImpactData.getMockWatchImpacts();
     return SizedBox(
       height: 200,
       child: ListView.builder(
-          itemCount: watchImpactList.length,
+          itemCount: watchImpacts.length,
           shrinkWrap: true,
           scrollDirection: Axis.horizontal,
           itemBuilder: (context, index) =>
-              WatchImpactWidget(watchImpactModel: watchImpactList[index])),
+              WatchImpactWidget(watchImpactModel: watchImpacts[index])),
     );
   }
 }

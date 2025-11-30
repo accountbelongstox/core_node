@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-06 02:22:49
+Generated: 2025-11-28 14:45:05
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -10,15 +10,15 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 
 app_qy [code_assets]
 ├── lib/apps/app_qy/
-│   ├── DEVELOPMENT_ROADMAP.md
-│   ├── IMPLEMENTATION_SUMMARY.md
-│   ├── PROJECT_SUMMARY.md
+│   ├── DEVPROGRESS.txt
 │   ├── README.MD
-│   ├── README_AUTHENTICATION.md
-│   ├── TECHNICAL_ARCHITECTURE.md
+│   ├── SETTINGS_IMPLEMENTATION.txt
 │   ├── _prompts
 │   │   ├── AI_COLLABORATION_BRIDGE_QY.json
+│   │   ├── a.txt
+│   │   ├── build_log.txt
 │   │   ├── flutter_error_ament.txt
+│   │   ├── page_promt_process.txt
 │   │   ├── prompts.md
 │   │   ├── qy_bankend.txt
 │   │   ├── qy_frontend.txt
@@ -39,9 +39,51 @@ app_qy [code_assets]
 │   │   └── storage_initialization_example.dart
 │   ├── controller_app_qy
 │   │   ├── auth_controller_app_qy.dart
+│   │   ├── learning_controller_app_qy.dart
 │   │   ├── profile_controller_app_qy.dart
 │   │   ├── settings_controller_app_qy.dart
+│   │   ├── settings_controller_refactored_app_qy.dart
 │   │   └── splash_controller_app_qy.dart
+│   ├── design_docs_and_progress
+│   │   ├── 1_concept_designs
+│   │   │   ├── README.md
+│   │   │   ├── architecture.md
+│   │   │   ├── data_model.md
+│   │   │   ├── images
+│   │   │   │   ├── README.md
+│   │   │   │   └── example_architecture.png
+│   │   │   └── user_flows.md
+│   │   ├── 2_page_designs_rough
+│   │   │   ├── README.md
+│   │   │   ├── example_home_page_rough.md
+│   │   │   ├── example_profile_page_rough.md
+│   │   │   └── images
+│   │   │       ├── README.md
+│   │   │       └── example_home_wireframe.png
+│   │   ├── 3_page_designs_detailed
+│   │   │   ├── README.md
+│   │   │   └── example_home_page
+│   │   │       ├── README.md
+│   │   │       ├── design_specs.md
+│   │   │       └── images
+│   │   │           ├── README.md
+│   │   │           └── example_mockup.png
+│   │   ├── README.md
+│   │   ├── backend_bridge
+│   │   │   └── sample_bridge
+│   │   │       └── progress.md
+│   │   ├── feature_progress
+│   │   │   └── sample_module
+│   │   │       └── progress.md
+│   │   ├── final_designs
+│   │   │   └── pageview_map.json
+│   │   ├── pageview_map.json
+│   │   └── progress_logs
+│   │       ├── concept_progress.md
+│   │       ├── design_progress.md
+│   │       ├── flow_progress.md
+│   │       ├── ui_dev_progress.md
+│   │       └── wireframe_progress.md
 │   ├── docs
 │   │   ├── OCR_PROCESSING_REPORT.md
 │   │   ├── OCR_UPGRADE_REPORT.md
@@ -122,6 +164,21 @@ app_qy [code_assets]
 │   │   │   │   └── .gitkeep
 │   │   │   └── views
 │   │   │       └── about_screen.dart
+│   │   ├── ai_study
+│   │   │   └── views
+│   │   │       └── ai_study_screen_app_qy.dart
+│   │   ├── auth
+│   │   │   ├── controllers
+│   │   │   │   └── auth_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── auth_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── auth_service.dart
+│   │   │   └── views
+│   │   │       ├── language_selection_screen_app_qy.dart
+│   │   │       ├── login_phone_screen_app_qy.dart
+│   │   │       └── login_screen_refactored_app_qy.dart
 │   │   ├── authentication
 │   │   │   ├── actions
 │   │   │   │   ├── .gitkeep
@@ -175,6 +232,29 @@ app_qy [code_assets]
 │   │   │       ├── settings_dropdown_item.dart
 │   │   │       ├── settings_group.dart
 │   │   │       └── settings_switch_item.dart
+│   │   ├── course
+│   │   │   ├── controllers
+│   │   │   │   └── course_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── course_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── course_service.dart
+│   │   │   └── views
+│   │   │       ├── course_certificate_screen_app_qy.dart
+│   │   │       ├── course_detail_screen_app_qy.dart
+│   │   │       ├── course_ielts_1_screen_app_qy.dart
+│   │   │       ├── course_ielts_2_screen_app_qy.dart
+│   │   │       ├── course_ielts_3_screen_app_qy.dart
+│   │   │       ├── course_ielts_4_screen_app_qy.dart
+│   │   │       ├── course_ielts_screen_app_qy.dart
+│   │   │       ├── course_lesson_screen_app_qy.dart
+│   │   │       ├── course_plans_screen_app_qy.dart
+│   │   │       ├── course_progress_screen_app_qy.dart
+│   │   │       ├── course_python_1_screen_app_qy.dart
+│   │   │       ├── course_python_screen_app_qy.dart
+│   │   │       ├── course_review_screen_app_qy.dart
+│   │   │       └── course_search_screen_app_qy.dart
 │   │   ├── courses
 │   │   │   ├── domain
 │   │   │   │   ├── models
@@ -196,6 +276,20 @@ app_qy [code_assets]
 │   │   │   │   └── inbox_screen.dart
 │   │   │   └── widgets
 │   │   │       └── appbar.dart
+│   │   ├── dictionary_recommend
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── dictionary_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── dictionary_service.dart
+│   │   │   ├── views
+│   │   │   │   └── dictionary_recommend_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── dictionary_card.dart
+│   │   │       └── waterfall_grid.dart
+│   │   ├── discover
+│   │   │   └── views
+│   │   │       └── discover_screen_app_qy.dart
 │   │   ├── donation
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -240,12 +334,16 @@ app_qy [code_assets]
 │   │   ├── home
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
+│   │   │   ├── controllers
+│   │   │   │   ├── home_controller_app_qy.dart
+│   │   │   │   └── learning_controller_app_qy.dart
 │   │   │   ├── domain
 │   │   │   │   ├── model
 │   │   │   │   │   ├── all_screen_model.dart
 │   │   │   │   │   ├── banner_model.dart
 │   │   │   │   │   ├── comingto_model.dart
 │   │   │   │   │   ├── fund_rising_model.dart
+│   │   │   │   │   ├── learning_stats_model.dart
 │   │   │   │   │   ├── medical_model.dart
 │   │   │   │   │   ├── notification_model.dart
 │   │   │   │   │   ├── prayer_model.dart
@@ -254,10 +352,16 @@ app_qy [code_assets]
 │   │   │   │   └── service
 │   │   │   │       ├── banner_service.dart
 │   │   │   │       ├── home_service_interface.dart
+│   │   │   │       ├── learning_service.dart
 │   │   │   │       └── product_service.dart
 │   │   │   ├── views
+│   │   │   │   ├── home_daily_task_screen_app_qy.dart
 │   │   │   │   ├── home_screen.dart
 │   │   │   │   ├── home_screen_app_qy.dart
+│   │   │   │   ├── home_search_screen_app_qy.dart
+│   │   │   │   ├── home_streak_screen_app_qy.dart
+│   │   │   │   ├── home_study_screen_app_qy.dart
+│   │   │   │   ├── home_study_screen_refactored_app_qy.dart
 │   │   │   │   ├── play_video_screen.dart
 │   │   │   │   ├── prayer_screen.dart
 │   │   │   │   ├── urgent_fundraising.dart
@@ -314,6 +418,10 @@ app_qy [code_assets]
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
 │   │   │   └── language_selector.dart
+│   │   ├── learning
+│   │   │   └── views
+│   │   │       ├── learning_languages_screen_app_qy.dart
+│   │   │       └── vocabulary_collections_screen_app_qy.dart
 │   │   ├── more_features
 │   │   │   └── views
 │   │   │       └── more_features_screen.dart
@@ -330,6 +438,9 @@ app_qy [code_assets]
 │   │   │   │   └── on_boarding_model.dart
 │   │   │   └── views
 │   │   │       └── onbording_screen.dart
+│   │   ├── other
+│   │   │   └── views
+│   │   │       └── image_001_screen_app_qy.dart
 │   │   ├── prayer
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -340,14 +451,23 @@ app_qy [code_assets]
 │   │   │   ├── controllers
 │   │   │   │   └── profile_controller_app_qy.dart
 │   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       ├── about_model.dart
-│   │   │   │       └── select_insterest_model.dart
+│   │   │   │   ├── model
+│   │   │   │   │   ├── about_model.dart
+│   │   │   │   │   ├── profile_model.dart
+│   │   │   │   │   └── select_insterest_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── profile_service.dart
 │   │   │   ├── models
 │   │   │   │   └── profile_model_app_qy.dart
 │   │   │   └── views
+│   │   │       ├── about_screen_app_qy.dart
+│   │   │       ├── certificate_center_screen_app_qy.dart
 │   │   │       ├── edit_profile.dart
+│   │   │       ├── more_features_1_screen_app_qy.dart
+│   │   │       ├── more_features_screen_app_qy.dart
+│   │   │       ├── profile_achievements_screen_app_qy.dart
 │   │   │       ├── profile_screen.dart
+│   │   │       ├── profile_stats_screen_app_qy.dart
 │   │   │       └── profile_view_screen.dart
 │   │   ├── profile_two
 │   │   │   ├── actions
@@ -383,15 +503,47 @@ app_qy [code_assets]
 │   │   │       ├── card_widget.dart
 │   │   │       └── notification_setting_widget.dart
 │   │   ├── settings
+│   │   │   ├── controllers
+│   │   │   │   └── settings_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── settings_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── settings_service.dart
 │   │   │   ├── views
+│   │   │   │   ├── about_screen_app_qy.dart
+│   │   │   │   ├── account_settings_1_screen_app_qy.dart
 │   │   │   │   ├── account_settings_screen.dart
+│   │   │   │   ├── account_settings_screen_app_qy.dart
+│   │   │   │   ├── display_mode_screen_app_qy.dart
 │   │   │   │   ├── display_settings_screen.dart
+│   │   │   │   ├── help_center_screen_app_qy.dart
+│   │   │   │   ├── learning_preferences_screen_app_qy.dart
+│   │   │   │   ├── notifications_screen_app_qy.dart
 │   │   │   │   ├── recommend_settings_screen.dart
+│   │   │   │   ├── recommend_settings_screen_app_qy.dart
 │   │   │   │   ├── reminder_settings_screen.dart
-│   │   │   │   └── settings_screen.dart
+│   │   │   │   ├── reminder_settings_screen_app_qy.dart
+│   │   │   │   ├── settings_screen.dart
+│   │   │   │   ├── settings_screen_app_qy.dart
+│   │   │   │   ├── settings_screen_refactored_app_qy.dart
+│   │   │   │   └── settings_screen_v2_refactored_app_qy.dart
 │   │   │   └── widgets
 │   │   │       ├── settings_section.dart
 │   │   │       └── settings_tile.dart
+│   │   ├── social
+│   │   │   ├── controllers
+│   │   │   │   └── social_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── social_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── social_service.dart
+│   │   │   └── views
+│   │   │       ├── checkin_challenge_screen_app_qy.dart
+│   │   │       ├── message_center_screen_app_qy.dart
+│   │   │       ├── social_ranking_screen_app_qy.dart
+│   │   │       └── social_study_group_screen_app_qy.dart
 │   │   ├── social_feed
 │   │   │   ├── model
 │   │   │   │   └── post_model.dart
@@ -420,6 +572,30 @@ app_qy [code_assets]
 │   │   │   └── widgets
 │   │   │       ├── custom_icon_label.dart
 │   │   │       └── custom_icon_label_group.dart
+│   │   ├── word
+│   │   │   ├── controllers
+│   │   │   │   └── word_controller_app_qy.dart
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   └── word_model.dart
+│   │   │   │   └── service
+│   │   │   │       └── word_service.dart
+│   │   │   └── views
+│   │   │       ├── word_book_screen_app_qy.dart
+│   │   │       ├── word_dictation_screen_app_qy.dart
+│   │   │       ├── word_flashcard_screen_app_qy.dart
+│   │   │       ├── word_listening_1_screen_app_qy.dart
+│   │   │       ├── word_listening_ai_explain_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_1_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_2_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_3_screen_app_qy.dart
+│   │   │       ├── word_listening_dictation_screen_app_qy.dart
+│   │   │       ├── word_listening_free_screen_app_qy.dart
+│   │   │       ├── word_listening_screen_app_qy.dart
+│   │   │       ├── word_listening_sleep_screen_app_qy.dart
+│   │   │       ├── word_review_screen_app_qy.dart
+│   │   │       ├── word_spelling_screen_app_qy.dart
+│   │   │       └── word_test_screen_app_qy.dart
 │   │   ├── word_book
 │   │   │   ├── models
 │   │   │   │   └── word_models.dart
@@ -441,7 +617,6 @@ app_qy [code_assets]
 │   │   │   │   └── word_card_controller.dart
 │   │   │   ├── models
 │   │   │   │   ├── word_card_model.dart
-│   │   │   │   ├── word_card_model.g.dart
 │   │   │   │   └── word_model.dart
 │   │   │   └── views
 │   │   │       ├── word_card_screen.dart
@@ -476,8 +651,34 @@ app_qy [code_assets]
 │   │   ├── localization_keys_app_qy.dart
 │   │   └── zh_app_qy.dart
 │   ├── main_app_qy.dart
+│   ├── missing_keys.txt
 │   ├── model_app_qy
 │   │   └── user_model.dart
+│   ├── models_app_qy
+│   │   ├── settings_model_app_qy.dart
+│   │   ├── user_model_app_qy.dart
+│   │   └── vocabulary_models_app_qy.dart
+│   ├── noerror.txt
+│   ├── old_doc
+│   │   ├── ARCHITECTURE_GUIDE.md
+│   │   ├── CLEANUP_README.md
+│   │   ├── CLEANUP_SUMMARY.md
+│   │   ├── CLEANUP_SUMMARY_EN.md
+│   │   ├── DEVELOPMENT_ROADMAP.md
+│   │   ├── IMPLEMENTATION_STATUS.md
+│   │   ├── IMPLEMENTATION_SUMMARY.md
+│   │   ├── PAGES_PROGRESS.md
+│   │   ├── PROJECT_SUMMARY.md
+│   │   ├── PROVIDER_SETUP_EXAMPLE.dart
+│   │   ├── QUICK_START.md
+│   │   ├── QUICK_START_EN.md
+│   │   ├── README_AUTHENTICATION.md
+│   │   ├── SESSION_SUMMARY.md
+│   │   ├── TECHNICAL_ARCHITECTURE.md
+│   │   ├── cleanup_analysis.py
+│   │   ├── cleanup_analysis_en.py
+│   │   ├── cleanup_execute.py
+│   │   └── cleanup_execute_en.py
 │   ├── provider_app_qy
 │   │   └── user_provider_app_qy.dart
 │   ├── providers_app_qy
@@ -487,6 +688,7 @@ app_qy [code_assets]
 │   │   ├── assets_icons_app_qy.dart
 │   │   ├── assets_images_app_qy.dart
 │   │   ├── assets_launch_app_qy.dart
+│   │   ├── colors_app_qy.dart
 │   │   ├── text_styles_app_qy.dart
 │   │   └── theme_extensions_app_qy.dart
 │   ├── router_app_qy
@@ -495,17 +697,24 @@ app_qy [code_assets]
 │   │   ├── router_legacy_qy.dart
 │   │   └── routes_provider_app_qy.dart
 │   ├── services_app_qy
+│   │   ├── api_service_app_qy.dart
 │   │   ├── app_qy_service_manager.dart
 │   │   ├── auth_api_app_qy_service.dart
+│   │   ├── auth_service_app_qy.dart
 │   │   ├── cache_service_app_qy.dart
 │   │   ├── product_api_app_qy_service.dart
 │   │   ├── service_app_qy.dart
 │   │   ├── services_app_qy.dart
-│   │   └── user_api_app_qy_service.dart
+│   │   ├── settings_service_app_qy.dart
+│   │   ├── user_api_app_qy_service.dart
+│   │   ├── vocabulary_recommendation_service_app_qy.dart
+│   │   └── vocabulary_service_app_qy.dart
 │   ├── settings_app_qy
 │   │   └── settings_app_qy.dart
-│   └── utils_app_qy
-│       └── utils_app_qy.dart
+│   ├── utils_app_qy
+│   │   └── utils_app_qy.dart
+│   └── widgets_app_qy
+│       └── bottom_navigation_app_qy.dart
 ├── lib/common/
 │   ├── README.md
 │   ├── app
@@ -554,6 +763,7 @@ app_qy [code_assets]
 │   ├── localization
 │   │   ├── common_en.dart
 │   │   ├── common_zh.dart
+│   │   ├── localization.dart
 │   │   ├── localization_keys.dart
 │   │   ├── localization_manager.dart
 │   │   └── map_locales.dart
@@ -611,6 +821,7 @@ app_qy [code_assets]
 │   │   ├── models
 │   │   │   ├── api_config.dart
 │   │   │   └── api_response.dart
+│   │   ├── network.dart
 │   │   ├── network_framework.dart
 │   │   ├── parsers
 │   │   │   └── adaptive_data_parser.dart
@@ -644,10 +855,6 @@ app_qy [code_assets]
 │   │   │   ├── login_manager.dart
 │   │   │   ├── session_auth_strategy.dart
 │   │   │   └── user_provider_auth_coordinator.dart
-│   │   ├── cache
-│   │   │   ├── cache_entry.dart
-│   │   │   ├── cache_store.dart
-│   │   │   └── memory_cache_store.dart
 │   │   ├── core
 │   │   │   ├── http_client.dart
 │   │   │   └── network_manager.dart
@@ -912,28 +1119,20 @@ app_qy [code_assets]
 │       └── widgets.dart
 ├── assets/apps/app_qy/
 │   ├── icons
-│   │   ├── ic_launcher.backup.png
 │   │   ├── ic_launcher.png
-│   │   ├── logo.backup.png
 │   │   ├── logo.png
 │   │   ├── notification_icon.png
-│   │   ├── raw-logo.backup.png
 │   │   ├── raw-logo.png
-│   │   ├── splash_logo.backup.png
 │   │   └── splash_logo.png
 │   ├── images
 │   │   ├── .gitkeep
 │   │   └── one.jpg
 │   └── launch
 │       ├── .gitkeep
-│       ├── background.backup.jpg
 │       ├── background.jpg
 │       ├── background_converted.png
-│       ├── dark_launch.backup.png
 │       ├── dark_launch.png
-│       ├── light_launch.backup.png
 │       ├── light_launch.png
-│       ├── light_launch_1.backup.jpg
 │       └── light_launch_1.jpg
 └── assets/common/
     ├── fonts
@@ -966,14 +1165,11 @@ app_qy [code_assets]
     │   ├── google.png
     │   ├── guest.png
     │   ├── health.png
-    │   ├── ic_launcher.backup.png
     │   ├── ic_launcher.png
     │   ├── ic_username.png
     │   ├── init_trip.png
     │   ├── inventor.png
-    │   ├── logo.backup.png
     │   ├── logo.png
-    │   ├── maintenance.backup.png
     │   ├── maintenance.png
     │   ├── menu.png
     │   ├── name.png
@@ -985,7 +1181,6 @@ app_qy [code_assets]
     │   ├── onbording1.png
     │   ├── onbording2.png
     │   ├── onbording3.png
-    │   ├── one_bg.backup.jpg
     │   ├── one_bg.jpg
     │   ├── password.png
     │   ├── people.png
@@ -994,15 +1189,11 @@ app_qy [code_assets]
     │   ├── placeholder.jpg
     │   ├── placeholder.png
     │   ├── profile_icon.png
-    │   ├── raw-logo.backup.png
     │   ├── raw-logo.png
-    │   ├── registry_logo_1.backup.png
     │   ├── registry_logo_1.png
-    │   ├── registry_logo_2.backup.png
     │   ├── registry_logo_2.png
     │   ├── social.png
     │   ├── splash.png
-    │   ├── splash_logo.backup.png
     │   ├── splash_logo.png
     │   ├── twitter.png
     │   ├── united_kingdom.png
@@ -1011,7 +1202,6 @@ app_qy [code_assets]
     │   ├── weclom.png
     │   ├── weibo-circle-fill.png
     │   ├── welcm.png
-    │   ├── welcom.backup.png
     │   ├── welcom.png
     │   ├── welcome.jpg
     │   └── youtube.png
@@ -1021,9 +1211,7 @@ app_qy [code_assets]
     │   └── user.png
     └── launch
         ├── .gitkeep
-        ├── dark_launch.backup.jpg
         ├── dark_launch.jpg
-        ├── light_launch.backup.jpg
         ├── light_launch.jpg
         ├── splash_bg.png
         ├── splash_logo.png

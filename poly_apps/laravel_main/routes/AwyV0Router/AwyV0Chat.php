@@ -15,10 +15,10 @@ use Illuminate\Support\Facades\Route;
 
 // AwyV0 Chat Management Routes
 Route::prefix('awy-v0/chat')->middleware('auth:sanctum')->group(function () {
-    Route::get('/conversations', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'conversations']);
-    Route::get('/messages/{conversationId}', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'messages']);
-    Route::post('/send', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'send']);
-    Route::get('/history/{friendId}', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'history']);
-    Route::delete('/message/{messageId}', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'deleteMessage']);
-    Route::put('/message/{messageId}/read', [App\Apps\AwyV0\Controllers\AwyV0ChatCtl::class, 'markAsRead']);
+    Route::get('/conversations', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'conversations']);
+    Route::get('/messages/{conversationId}', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'messages']);
+    Route::post('/send', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'send']);
+    Route::get('/history/{friendId}', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'history']);
+    Route::delete('/message/{messageId}', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'deleteMessage']);
+    Route::put('/message/{messageId}/read', [App\Apps\AwyV0\AwyV0Controllers\AwyV0ChatCtl::class, 'markAsRead']);
 });

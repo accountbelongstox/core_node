@@ -8,12 +8,13 @@ import os
 import sys
 import time
 import signal
-import psutil
 import webbrowser
 import subprocess
 import threading
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+from third_party import psutil
 
 # Import using relative path from build_scripts root
 from shared.data_exchange.unified_variable_system import unified_vars

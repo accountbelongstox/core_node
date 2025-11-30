@@ -6,6 +6,7 @@ import '../../models_app_codemart/codemart_enums.dart';
 import '../../models_app_codemart/codemart_types.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
 import '../../services_app_codemart/project_api_service_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class EditProjectViewAppCodemart extends StatefulWidget {
   final int projectId;
@@ -103,7 +104,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr(LocalizationKeysAppCodemart.codemartSuccess)),
+            content: Text(LocalizationKeysAppCodemart.codemartSuccess.tr(context)),
             backgroundColor: Colors.green,
           ),
         );
@@ -133,7 +134,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartEdit)),
+        title: Text(LocalizationKeysAppCodemart.codemartEdit.tr(context)),
         actions: [
           if (!_isLoading && _project != null)
             IconButton(
@@ -171,7 +172,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
                       TextFormField(
                         controller: _titleController,
                         decoration: InputDecoration(
-                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectTitle),
+                          labelText: LocalizationKeysAppCodemart.codemartProjectTitle.tr(context),
                           prefixIcon: const Icon(Icons.title),
                         ),
                         validator: (value) {
@@ -188,7 +189,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
                         controller: _descriptionController,
                         maxLines: 4,
                         decoration: InputDecoration(
-                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectDescription),
+                          labelText: LocalizationKeysAppCodemart.codemartProjectDescription.tr(context),
                           prefixIcon: const Icon(Icons.description),
                           alignLabelWithHint: true,
                         ),
@@ -206,7 +207,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
                         controller: _budgetController,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
-                          labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
+                          labelText: LocalizationKeysAppCodemart.codemartProjectBudget.tr(context),
                           prefixIcon: const Icon(Icons.attach_money),
                         ),
                         validator: (value) {
@@ -226,7 +227,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
                         DropdownButtonFormField<ProjectStatus>(
                           value: _status,
                           decoration: InputDecoration(
-                            labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectStatus),
+                            labelText: LocalizationKeysAppCodemart.codemartProjectStatus.tr(context),
                             prefixIcon: const Icon(Icons.info),
                           ),
                           items: ProjectStatus.values.map((type) {
@@ -252,7 +253,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
                                 width: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Text(context.tr(LocalizationKeysAppCodemart.codemartSave)),
+                            : Text(LocalizationKeysAppCodemart.codemartSave.tr(context)),
                       ),
                     ],
                   ),

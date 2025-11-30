@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
-import '../../main_app_codemart.dart';
 
 class AboutViewAppCodemart extends StatelessWidget {
   const AboutViewAppCodemart({super.key});
@@ -33,7 +33,7 @@ class AboutViewAppCodemart extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  context.tr(LocalizationKeysAppCodemart.codemartAppName),
+                  LocalizationKeysAppCodemart.codemartAppName.tr(context),
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),

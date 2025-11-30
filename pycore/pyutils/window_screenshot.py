@@ -12,25 +12,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-# Add parent directory to path for dependency checking
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_PIL, get_third_package_pyautogui, get_third_package_mss
 
-# Check and install dependencies before importing third-party packages
-from pycore import check_and_install_dependencies
-check_and_install_dependencies()
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+PIL = get_third_package_PIL()
+pyautogui = get_third_package_pyautogui()
+mss = get_third_package_mss()
 
-import win32gui
-import win32con
-from PIL import ImageGrab, Image
-import pyautogui
-import mss
-
-from pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pyutils.window_activator import WindowActivator
-from pyutils.common.window_finder import WindowFinder
-from pygvar.global_var_manager import PYTOOLS_TMP_DIR
+ImageGrab = PIL.ImageGrab
+Image = PIL.Image
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 
 
 class WindowScreenshot:

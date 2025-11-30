@@ -15,24 +15,26 @@
 namespace App\Http\Controllers\Auth;
 
 use Laravolt\Avatar\Avatar;
+use App\Providers\PathMapper;
 
 class AvatarPublic
 {
     private $saveDir = "avatars";
     public static function createAvatar($user, $save = false)
     {
-        $avatarDir = public_path('avatars');
+        $avatarDir = PathMapper::getLaravelAvatarsDir();
         if (!file_exists($avatarDir)) {
             mkdir($avatarDir, 0755, true);
         }
         if (!$user->avatar) {
-            $avatarPath = 'avatars/' . $user->id . '.png';
-            if (!file_exists($avatarPath)) {
+            $avatarFileName = $user->id . '.png';
+            $avatarFullPath = $avatarDir . '/' . $avatarFileName;
+            if (!file_exists($avatarFullPath)) {
                 $avatarCreator = new Avatar();
                 $avatarCreator->create($user->username);
-                $avatarCreator->save(public_path($avatarPath), 80);
+                $avatarCreator->save($avatarFullPath, 80);
             }
-            $user->avatar = $avatarPath;
+            $user->avatar = '/avatars/' . $avatarFileName;
         }
         if ($save) {
             $user->save();
