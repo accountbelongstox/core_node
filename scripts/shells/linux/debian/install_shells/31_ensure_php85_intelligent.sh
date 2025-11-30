@@ -474,7 +474,7 @@ cleanup_old_php_versions() {
     echo -e "${CYAN}$SCRIPT_INDEX Step 4: Cleaning PHP-specific environment variables...${NC}"
     # Also clean up any PHP-specific environment variables for old versions
     if [ -f /etc/environment ]; then
-        for old_version in 74 80 81 82 83; do
+        for old_version in 74 80 81 82 83 84; do
             local php_var="PHP${old_version}_HOME"
             if grep -q "$php_var=" /etc/environment 2>/dev/null; then
                 echo -e "${YELLOW}$SCRIPT_INDEX Removing old PHP environment variable: $php_var${NC}"
