@@ -89,6 +89,35 @@ check_swoole_configuration() {
     fi
 }
 
+ensure_php_symlink() {
+    echo -e "${BLUE}$SCRIPT_INDEX Ensuring PHP 8.4 symlink exists...${NC}"
+
+    if [ ! -f "/usr/bin/php" ] || ! /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.4"; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 symlink missing or incorrect, fixing...${NC}"
+
+        if [ -f "/usr/bin/php8.4" ]; then
+            $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
+            $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.4 84
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.4
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 set as default${NC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary not found at /usr/bin/php8.4${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php84_intelligent.sh first${NC}"
+            return 1
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 symlink already exists${NC}"
+    fi
+
+    if /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.4"; then
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP 8.4 is available at /usr/bin/php${NC}"
+        return 0
+    else
+        echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.4 as default${NC}"
+        return 1
+    fi
+}
+
 install_swoole_dependencies() {
     echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole build dependencies...${NC}"
 
@@ -107,6 +136,9 @@ install_swoole_dependencies() {
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Dependencies installed${NC}"
+
+        ensure_php_symlink || return 1
+
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX Failed to install dependencies${NC}"
@@ -174,7 +206,7 @@ verify_swoole() {
 
     if php -m | grep -q "swoole"; then
         local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?Swoole installed successfully${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Swoole installed successfully${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX   Version: $swoole_version${NC}"
 
         echo ""
@@ -183,7 +215,7 @@ verify_swoole() {
 
         return 0
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?Swoole verification failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?Swoole verification failed${NC}"
         return 1
     fi
 }

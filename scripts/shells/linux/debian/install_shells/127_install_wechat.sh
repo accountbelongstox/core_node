@@ -1,0 +1,416 @@
+#!/bin/bash
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+#==============================================================================
+# WeChat for Linux Installation Script
+#==============================================================================
+# This script installs WeChat for Linux via AppImage
+# - Only installs on desktop systems (skips on servers)
+# - Downloads from official source or uses Downloads directory
+# - Creates desktop icons, launchers, and symlinks
+# - Supports re-running to fix/repair installation
+#==============================================================================
+
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+SCRIPT_INDEX="127"
+
+# Source common files
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Declare variables
+APP_NAME="WeChat"
+EXEC_NAME="wechat"
+DOWNLOAD_URL="https://dldir1v6.qq.com/weixin/Universal/Linux/WeChatLinux_x86_64.AppImage"
+APPIMAGE_DIR=$(map_web_path "compile_dir" "applications/appimages")
+INSTALL_DIR="$APPIMAGE_DIR/$EXEC_NAME"
+APPIMAGE_FILE="$INSTALL_DIR/${EXEC_NAME}.AppImage"
+EXTRACTED_DIR="$INSTALL_DIR/extracted"
+APPRUN_PATH="$EXTRACTED_DIR/squashfs-root/AppRun"
+WRAPPER_SCRIPT="/usr/local/super_scripts/${EXEC_NAME}.sh"
+DESKTOP_FILE="/usr/share/applications/${EXEC_NAME}.desktop"
+
+# Desktop entry configuration
+DESKTOP_NAME="WeChat"
+DESKTOP_COMMENT="WeChat for Linux"
+DESKTOP_CATEGORIES="Network;InstantMessaging;"
+STARTUP_WM_CLASS="WeChat"
+
+echo "=========================================="
+echo "[$SCRIPT_INDEX] WeChat Installation"
+echo "=========================================="
+echo ""
+
+# Check if desktop environment exists
+if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+    print_info_from_common_functions "Non-desktop system detected - skipping WeChat installation"
+    print_info_from_common_functions "WeChat is designed for desktop systems with GUI"
+    echo ""
+    print_success_from_common_functions "Skipping installation automatically"
+    exit 0
+fi
+
+print_info_from_common_functions "Desktop system detected - proceeding with WeChat installation"
+echo ""
+
+# Function to check if WeChat is installed
+check_wechat_installed() {
+    if [ -f "/usr/local/bin/$EXEC_NAME" ] && [ -x "/usr/local/bin/$EXEC_NAME" ]; then
+        print_info_from_common_functions "WeChat is already installed"
+        return 0
+    fi
+    return 1
+}
+
+# Function to install libfuse2 (required for AppImage)
+install_libfuse2() {
+    if ! dpkg -l | grep -q "^ii.*libfuse2"; then
+        print_step_from_common_functions "Installing libfuse2 (required for AppImage)..."
+        $USE_SUDO apt-get update -qq
+        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" \
+            libfuse2 || print_warning_from_common_functions "Failed to install libfuse2"
+    fi
+}
+
+# Function to download WeChat AppImage
+download_wechat_appimage() {
+    print_step_from_common_functions "Downloading WeChat AppImage..."
+
+    # Try to find in Downloads directory first
+    local downloads_file=$(find_file_in_downloads_from_common_functions "WeChatLinux*.AppImage" "newest")
+
+    if [[ -n "$downloads_file" ]] && [[ -f "$downloads_file" ]]; then
+        print_success_from_common_functions "Found WeChat AppImage in Downloads: $downloads_file"
+        $USE_SUDO cp "$downloads_file" "$APPIMAGE_FILE"
+        return 0
+    fi
+
+    # Try automatic download
+    print_info_from_common_functions "Attempting to download from: $DOWNLOAD_URL"
+    if $USE_SUDO wget --progress=bar:force -O "$APPIMAGE_FILE" "$DOWNLOAD_URL" 2>&1; then
+        print_success_from_common_functions "WeChat AppImage downloaded successfully"
+        return 0
+    else
+        print_warning_from_common_functions "Automatic download failed"
+
+        # Prompt user to download manually
+        print_info_from_common_functions "Please download WeChat manually"
+
+        local manual_file=$(prompt_and_wait_for_download_from_common_functions \
+            "$DOWNLOAD_URL" \
+            "WeChatLinux*.AppImage" \
+            0)
+
+        if [[ -z "$manual_file" ]]; then
+            print_error_from_common_functions "Failed to obtain WeChat AppImage"
+            return 1
+        fi
+
+        $USE_SUDO cp "$manual_file" "$APPIMAGE_FILE"
+        print_success_from_common_functions "WeChat AppImage obtained from Downloads"
+        return 0
+    fi
+}
+
+# Function to extract AppImage
+extract_appimage() {
+    print_step_from_common_functions "Extracting WeChat AppImage..."
+
+    $USE_SUDO mkdir -p "$EXTRACTED_DIR"
+
+    cd "$EXTRACTED_DIR" || return 1
+
+    if $USE_SUDO "$APPIMAGE_FILE" --appimage-extract >/dev/null 2>&1; then
+        print_success_from_common_functions "AppImage extracted successfully"
+        cd - >/dev/null
+        return 0
+    else
+        print_warning_from_common_functions "AppImage extraction failed, will use AppImage directly"
+        cd - >/dev/null
+        APPRUN_PATH="$APPIMAGE_FILE"
+        return 0
+    fi
+}
+
+# Function to fix chrome-sandbox permissions (critical for Electron apps)
+fix_chrome_sandbox_permissions() {
+    if [ ! -d "$EXTRACTED_DIR/squashfs-root" ]; then
+        return 0
+    fi
+
+    print_step_from_common_functions "Fixing chrome-sandbox permissions..."
+
+    local chrome_sandbox_paths=(
+        "$EXTRACTED_DIR/squashfs-root/chrome-sandbox"
+        "$EXTRACTED_DIR/squashfs-root/usr/lib/chrome-sandbox"
+    )
+
+    # Find chrome-sandbox in opt directories
+    for sandbox_pattern in "$EXTRACTED_DIR/squashfs-root/opt/"*"/chrome-sandbox"; do
+        if [ -f "$sandbox_pattern" ]; then
+            chrome_sandbox_paths+=("$sandbox_pattern")
+        fi
+    done
+
+    local fixed_count=0
+    for sandbox_path in "${chrome_sandbox_paths[@]}"; do
+        if [ -f "$sandbox_path" ]; then
+            print_info_from_common_functions "Fixing: $sandbox_path"
+            $USE_SUDO chown root:root "$sandbox_path" 2>/dev/null || true
+            $USE_SUDO chmod 4755 "$sandbox_path" 2>/dev/null || true
+            ((fixed_count++))
+        fi
+    done
+
+    if [ $fixed_count -gt 0 ]; then
+        print_success_from_common_functions "Fixed $fixed_count chrome-sandbox file(s)"
+    fi
+}
+
+# Function to create wrapper script
+create_wrapper_script() {
+    print_step_from_common_functions "Creating wrapper script..."
+
+    $USE_SUDO mkdir -p "/usr/local/super_scripts"
+
+    # Determine which executable to use
+    local exec_target=""
+    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
+        exec_target="$APPRUN_PATH"
+        print_info_from_common_functions "Using extracted AppRun: $exec_target"
+    else
+        exec_target="$APPIMAGE_FILE"
+        print_info_from_common_functions "Using AppImage directly: $exec_target"
+    fi
+
+    # Create wrapper script
+    cat << 'WRAPPER_EOF' | $USE_SUDO tee "$WRAPPER_SCRIPT" > /dev/null
+#!/bin/bash
+# WeChat Launcher Script (AppImage Installation)
+
+EXEC_PATH="EXEC_TARGET_PLACEHOLDER"
+
+if [[ ! -f "$EXEC_PATH" ]]; then
+    echo "Error: WeChat executable not found at $EXEC_PATH"
+    echo "Please reinstall WeChat"
+    exit 1
+fi
+
+# Launch WeChat
+exec "$EXEC_PATH" "$@"
+WRAPPER_EOF
+
+    # Replace placeholder with actual path
+    $USE_SUDO sed -i "s|EXEC_TARGET_PLACEHOLDER|$exec_target|g" "$WRAPPER_SCRIPT"
+
+    $USE_SUDO chmod +x "$WRAPPER_SCRIPT"
+
+    print_success_from_common_functions "Wrapper script created: $WRAPPER_SCRIPT"
+}
+
+# Function to create symlink
+create_symlink() {
+    print_step_from_common_functions "Creating system symlink..."
+
+    $USE_SUDO ln -sf "$WRAPPER_SCRIPT" "/usr/local/bin/$EXEC_NAME"
+
+    print_success_from_common_functions "Symlink created: /usr/local/bin/$EXEC_NAME"
+}
+
+# Function to find icon
+find_icon() {
+    local icon_path="$EXEC_NAME"
+
+    if [ -d "$EXTRACTED_DIR/squashfs-root" ]; then
+        # Try to find icon in multiple common locations
+        local found_icon=$(find "$EXTRACTED_DIR/squashfs-root" \
+            \( -name "${EXEC_NAME}.png" -o -name "${EXEC_NAME}.svg" -o -name "icon.png" -o -name "wechat.png" -o -name "*.png" \) \
+            -type f 2>/dev/null | head -1)
+
+        if [ -n "$found_icon" ]; then
+            icon_path="$found_icon"
+            print_info_from_common_functions "Using icon: $icon_path"
+        fi
+    fi
+
+    echo "$icon_path"
+}
+
+# Function to create desktop entry
+create_desktop_entry() {
+    print_step_from_common_functions "Creating desktop entry..."
+
+    local icon_path=$(find_icon)
+
+    # Check if desktop_entry_manager.sh exists
+    local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
+
+    if [[ -x "$desktop_manager_script" ]]; then
+        print_info_from_common_functions "Creating desktop entry via desktop_entry_manager.sh"
+
+        # Detect desktop user
+        local desktop_user="${SUDO_USER:-$USER}"
+        local desktop_home="$(getent passwd "$desktop_user" | cut -d: -f6)"
+        if [[ -z "$desktop_home" ]] || [[ ! -d "$desktop_home" ]]; then
+            desktop_home="$HOME"
+        fi
+
+        # Run desktop_entry_manager as actual user
+        local run_cmd=""
+        if [[ -n "$desktop_user" ]] && [[ "$desktop_user" != "root" ]] && [[ "$desktop_user" != "$USER" ]]; then
+            run_cmd="sudo -u $desktop_user"
+        fi
+
+        # Determine exec target
+        local exec_target=""
+        if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
+            exec_target="$APPRUN_PATH"
+        else
+            exec_target="$APPIMAGE_FILE"
+        fi
+
+        # Create desktop entry
+        $run_cmd bash "$desktop_manager_script" --create-app \
+            "$EXEC_NAME" \
+            "$DESKTOP_NAME" \
+            "$exec_target" \
+            "$icon_path" \
+            "$DESKTOP_CATEGORIES" \
+            "$DESKTOP_COMMENT" \
+            "$STARTUP_WM_CLASS"
+
+        print_success_from_common_functions "Desktop entry created via desktop_entry_manager.sh"
+    else
+        print_warning_from_common_functions "desktop_entry_manager.sh not found, using fallback method"
+
+        # Fallback: create desktop file manually
+        cat << DESKTOP_EOF | $USE_SUDO tee "$DESKTOP_FILE" > /dev/null
+[Desktop Entry]
+Name=$DESKTOP_NAME
+Comment=$DESKTOP_COMMENT
+GenericName=$DESKTOP_NAME
+Exec=/usr/local/bin/$EXEC_NAME
+Icon=$icon_path
+Type=Application
+Terminal=false
+Categories=$DESKTOP_CATEGORIES
+StartupNotify=true
+StartupWMClass=$STARTUP_WM_CLASS
+Keywords=wechat;weixin;chat;messaging;
+DESKTOP_EOF
+
+        $USE_SUDO chmod 644 "$DESKTOP_FILE"
+
+        # Update desktop database
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
+        fi
+
+        print_success_from_common_functions "Desktop entry created: $DESKTOP_FILE"
+    fi
+}
+
+# Function to repair installation (fix icons, links, etc.)
+repair_installation() {
+    print_step_from_common_functions "Repairing WeChat installation..."
+
+    # Recreate wrapper script if missing or different
+    if [ ! -f "$WRAPPER_SCRIPT" ] || ! grep -q "WeChat" "$WRAPPER_SCRIPT" 2>/dev/null; then
+        create_wrapper_script
+    fi
+
+    # Recreate symlink if missing or broken
+    if [ ! -L "/usr/local/bin/$EXEC_NAME" ] || [ ! -e "/usr/local/bin/$EXEC_NAME" ]; then
+        create_symlink
+    fi
+
+    # Recreate/update desktop entry
+    create_desktop_entry
+
+    # Fix permissions
+    fix_chrome_sandbox_permissions
+
+    print_success_from_common_functions "Installation repaired successfully"
+}
+
+# Main installation logic
+main() {
+    print_step_from_common_functions "Starting WeChat installation process..."
+    echo ""
+
+    # Check if already installed
+    local is_installed=false
+    if check_wechat_installed; then
+        is_installed=true
+        print_info_from_common_functions "WeChat is already installed, will repair/update installation"
+        echo ""
+    fi
+
+    # Install dependencies
+    install_libfuse2
+
+    # Create directory structure
+    $USE_SUDO mkdir -p "$INSTALL_DIR"
+    $USE_SUDO mkdir -p "$EXTRACTED_DIR"
+
+    # Download or use existing AppImage
+    if [ ! -f "$APPIMAGE_FILE" ] || [ ! -s "$APPIMAGE_FILE" ]; then
+        if ! download_wechat_appimage; then
+            print_error_from_common_functions "Failed to download WeChat AppImage"
+            exit 1
+        fi
+    else
+        print_info_from_common_functions "Using existing AppImage: $APPIMAGE_FILE"
+    fi
+
+    # Make executable
+    $USE_SUDO chmod +x "$APPIMAGE_FILE"
+
+    # Extract AppImage
+    extract_appimage
+
+    # Fix permissions
+    fix_chrome_sandbox_permissions
+
+    # Create wrapper script
+    create_wrapper_script
+
+    # Create symlink
+    create_symlink
+
+    # Create desktop entry
+    create_desktop_entry
+
+    echo ""
+    print_success_from_common_functions "=========================================="
+    print_success_from_common_functions "WeChat Installation Completed Successfully"
+    print_success_from_common_functions "=========================================="
+    echo ""
+    print_info_from_common_functions "Installation Details:"
+    print_info_from_common_functions "  AppImage: $APPIMAGE_FILE"
+    print_info_from_common_functions "  Wrapper: $WRAPPER_SCRIPT"
+    print_info_from_common_functions "  Symlink: /usr/local/bin/$EXEC_NAME"
+    print_info_from_common_functions "  Desktop: $DESKTOP_FILE"
+    echo ""
+    print_info_from_common_functions "You can now launch WeChat from:"
+    print_info_from_common_functions "  - Application menu"
+    print_info_from_common_functions "  - Terminal: wechat"
+    echo ""
+}
+
+# Run main function
+main

@@ -1176,3 +1176,444 @@ update_wrapper_script_paths_from_common_functions() {
     return 0
 }
 
+# ============================================================================
+# DOWNLOADS DIRECTORY SEARCH FUNCTIONS
+# ============================================================================
+
+# Find all Downloads directories for all users
+# Returns: Array of Downloads directory paths
+find_all_downloads_dirs_from_common_functions() {
+    local search_dirs=()
+
+    # Add current user's Downloads
+    if [[ -n "$HOME" ]] && [[ -d "$HOME/Downloads" ]]; then
+        search_dirs+=("$HOME/Downloads")
+    fi
+
+    # Add all other users' Downloads directories
+    if [[ -d "/home" ]]; then
+        for user_home in /home/*; do
+            if [[ -d "$user_home/Downloads" ]]; then
+                search_dirs+=("$user_home/Downloads")
+            fi
+        done
+    fi
+
+    # Add root's Downloads
+    if [[ -d "/root/Downloads" ]]; then
+        search_dirs+=("/root/Downloads")
+    fi
+
+    # Return unique directories
+    printf '%s\n' "${search_dirs[@]}" | sort -u
+}
+
+# Find a specific file pattern in all Downloads directories
+# Usage: find_file_in_downloads_from_common_functions <pattern> [newest|oldest]
+# Pattern: Glob pattern to match (e.g., "*.deb", "code_*.deb", "cursor-*.AppImage")
+# Sort: "newest" (default) or "oldest" - return newest or oldest matching file
+# Returns: Full path to the found file, or empty string if not found
+find_file_in_downloads_from_common_functions() {
+    local pattern="$1"
+    local sort_order="${2:-newest}"  # Default to newest
+    local found_files=()
+
+    # Get all Downloads directories
+    local search_dirs=($(find_all_downloads_dirs_from_common_functions))
+
+    if [[ ${#search_dirs[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    # Search for files matching pattern
+    for dir in "${search_dirs[@]}"; do
+        while IFS= read -r -d '' file; do
+            if [[ -f "$file" ]]; then
+                found_files+=("$file")
+            fi
+        done < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0 2>/dev/null)
+    done
+
+    if [[ ${#found_files[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    # Sort files by modification time
+    local sorted_file
+    if [[ "$sort_order" == "oldest" ]]; then
+        # Oldest first
+        sorted_file=$(printf '%s\n' "${found_files[@]}" | xargs -r ls -t -r | head -n 1)
+    else
+        # Newest first (default)
+        sorted_file=$(printf '%s\n' "${found_files[@]}" | xargs -r ls -t | head -n 1)
+    fi
+
+    if [[ -n "$sorted_file" ]] && [[ -f "$sorted_file" ]]; then
+        echo "$sorted_file"
+        return 0
+    fi
+
+    return 1
+}
+
+# Find multiple files matching a pattern in Downloads directories
+# Usage: find_files_in_downloads_from_common_functions <pattern> [max_results]
+# Pattern: Glob pattern to match
+# Max results: Maximum number of results to return (default: unlimited)
+# Returns: Array of file paths, sorted by modification time (newest first)
+find_files_in_downloads_from_common_functions() {
+    local pattern="$1"
+    local max_results="${2:-0}"  # 0 means unlimited
+    local found_files=()
+
+    # Get all Downloads directories
+    local search_dirs=($(find_all_downloads_dirs_from_common_functions))
+
+    if [[ ${#search_dirs[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    # Search for files matching pattern
+    for dir in "${search_dirs[@]}"; do
+        while IFS= read -r -d '' file; do
+            if [[ -f "$file" ]]; then
+                found_files+=("$file")
+            fi
+        done < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0 2>/dev/null)
+    done
+
+    if [[ ${#found_files[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    # Sort by modification time (newest first) and limit results
+    if [[ $max_results -gt 0 ]]; then
+        printf '%s\n' "${found_files[@]}" | xargs -r ls -t | head -n "$max_results"
+    else
+        printf '%s\n' "${found_files[@]}" | xargs -r ls -t
+    fi
+
+    return 0
+}
+
+# Prompt user to download a file and wait for it to appear in Downloads
+# Usage: prompt_and_wait_for_download_from_common_functions <url> <pattern> [timeout_seconds]
+# URL: Download URL to show to user
+# Pattern: File pattern to search for (e.g., "*.deb", "cursor-*.AppImage")
+# Timeout: Maximum time to wait in seconds (default: 0 = infinite wait)
+# Returns: Path to downloaded file, or returns error code if cancelled
+# NOTE: This function loops FOREVER with auto-detection every 2 seconds until file found or user cancels
+prompt_and_wait_for_download_from_common_functions() {
+    local download_url="$1"
+    local file_pattern="$2"
+    local timeout_seconds="${3:-0}"  # 0 means infinite wait
+    local start_time=$(date +%s)
+    local check_interval=2  # Auto-check every 2 seconds
+    local last_check=0
+
+    print_step_from_common_functions "Manual download required"
+    print_info_from_common_functions "Download URL: $download_url"
+    print_info_from_common_functions "Save the file to any /home/*/Downloads directory"
+    print_info_from_common_functions "Expected file pattern: $file_pattern"
+
+    # Try to open URL in browser
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$download_url" 2>/dev/null &
+    elif command -v open >/dev/null 2>&1; then
+        open "$download_url" 2>/dev/null &
+    fi
+
+    echo ""
+    if [[ $timeout_seconds -gt 0 ]]; then
+        print_info_from_common_functions "Auto-scanning every ${check_interval}s (timeout: ${timeout_seconds}s)"
+    else
+        print_info_from_common_functions "Auto-scanning every ${check_interval}s (waiting indefinitely)"
+    fi
+    print_info_from_common_functions "Type 'quit' to cancel anytime"
+    echo ""
+
+    # Infinite while loop - only exits when file found or user cancels
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        # Auto-check at regular intervals
+        if [[ $((current_time - last_check)) -ge $check_interval ]]; then
+            local found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
+            if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+                echo ""
+                print_success_from_common_functions "Auto-detected downloaded file: $found_file"
+                echo "$found_file"
+                return 0
+            fi
+            last_check=$current_time
+
+            # Show progress every auto-check
+            echo "[${elapsed}s] Scanning Downloads directories for: $file_pattern"
+        fi
+
+        # Check timeout (if set)
+        if [[ $timeout_seconds -gt 0 ]] && [[ $elapsed -ge $timeout_seconds ]]; then
+            echo ""
+            print_error_from_common_functions "Download timeout after ${timeout_seconds}s"
+            return 1
+        fi
+
+        # Non-blocking input check (1 second timeout)
+        read -r -t 1 user_input 2>/dev/null || true
+
+        if [[ -n "$user_input" ]]; then
+            case "${user_input,,}" in
+                quit|q|exit|cancel)
+                    echo ""
+                    print_warning_from_common_functions "Download cancelled by user"
+                    return 1
+                    ;;
+                yes|y|check)
+                    # Force immediate check
+                    local found_file=$(find_file_in_downloads_from_common_functions "$file_pattern" "newest")
+                    if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+                        echo ""
+                        print_success_from_common_functions "Found file: $found_file"
+                        echo "$found_file"
+                        return 0
+                    else
+                        print_warning_from_common_functions "File not found yet, continuing auto-scan..."
+                    fi
+                    ;;
+            esac
+        fi
+    done
+
+    # This line should never be reached due to infinite loop
+    return 1
+}
+
+# ============================================================================
+# NODE.JS TOOLS EXECUTION FUNCTIONS
+# ============================================================================
+
+# Execute node with absolute path and proper environment
+# Usage: run_node_from_common_functions [args...]
+# Returns: node exit code
+run_node_from_common_functions() {
+    # Ensure NODE_BIN is set
+    if [[ -z "$NODE_BIN" ]] || [[ ! -x "$NODE_BIN" ]]; then
+        # Fallback to system node
+        if command -v node >/dev/null 2>&1; then
+            node "$@"
+            return $?
+        else
+            echo "Error: Node.js not found. Please install Node.js first." >&2
+            return 127
+        fi
+    fi
+
+    # Execute with absolute path
+    "$NODE_BIN" "$@"
+    return $?
+}
+
+# Execute npm with absolute path and proper environment
+# Usage: run_npm_from_common_functions [args...]
+# Returns: npm exit code
+run_npm_from_common_functions() {
+    # Ensure NPM_BIN is set
+    if [[ -z "$NPM_BIN" ]] || [[ ! -x "$NPM_BIN" ]]; then
+        # Fallback to system npm
+        if command -v npm >/dev/null 2>&1; then
+            npm "$@"
+            return $?
+        else
+            echo "Error: npm not found. Please install npm first." >&2
+            return 127
+        fi
+    fi
+
+    # Add NODE_BIN_DIR to PATH for this execution
+    local old_path="$PATH"
+    export PATH="$NODE_BIN_DIR:$PATH"
+
+    # Execute with absolute path
+    "$NPM_BIN" "$@"
+    local exit_code=$?
+
+    # Restore PATH
+    export PATH="$old_path"
+
+    return $exit_code
+}
+
+# Execute pnpm with absolute path and proper environment
+# Usage: run_pnpm_from_common_functions [args...]
+# Returns: pnpm exit code
+run_pnpm_from_common_functions() {
+    # Ensure PNPM_BIN is set
+    if [[ -z "$PNPM_BIN" ]]; then
+        # Try to find pnpm in NODE_BIN_DIR
+        if [[ -n "$NODE_BIN_DIR" ]] && [[ -x "$NODE_BIN_DIR/pnpm" ]]; then
+            PNPM_BIN="$NODE_BIN_DIR/pnpm"
+        elif command -v pnpm >/dev/null 2>&1; then
+            # Fallback to system pnpm
+            pnpm "$@"
+            return $?
+        else
+            echo "Error: pnpm not found. Please install pnpm first." >&2
+            return 127
+        fi
+    fi
+
+    # Check if pnpm is installed
+    if [[ ! -x "$PNPM_BIN" ]]; then
+        # Try fallback
+        if command -v pnpm >/dev/null 2>&1; then
+            pnpm "$@"
+            return $?
+        else
+            echo "Error: pnpm not found at $PNPM_BIN" >&2
+            return 127
+        fi
+    fi
+
+    # Add NODE_BIN_DIR and PNPM_GLOBAL_BIN_DIR to PATH for this execution
+    local old_path="$PATH"
+    if [[ -n "$PNPM_GLOBAL_BIN_DIR" ]]; then
+        export PATH="$PNPM_GLOBAL_BIN_DIR:$NODE_BIN_DIR:$PATH"
+    else
+        export PATH="$NODE_BIN_DIR:$PATH"
+    fi
+
+    # Execute with absolute path
+    "$PNPM_BIN" "$@"
+    local exit_code=$?
+
+    # Restore PATH
+    export PATH="$old_path"
+
+    return $exit_code
+}
+
+# Execute yarn with absolute path and proper environment
+# Usage: run_yarn_from_common_functions [args...]
+# Returns: yarn exit code
+run_yarn_from_common_functions() {
+    # Ensure YARN_BIN is set
+    if [[ -z "$YARN_BIN" ]]; then
+        # Try to find yarn in NODE_BIN_DIR
+        if [[ -n "$NODE_BIN_DIR" ]] && [[ -x "$NODE_BIN_DIR/yarn" ]]; then
+            YARN_BIN="$NODE_BIN_DIR/yarn"
+        elif command -v yarn >/dev/null 2>&1; then
+            # Fallback to system yarn
+            yarn "$@"
+            return $?
+        else
+            echo "Error: yarn not found. Please install yarn first." >&2
+            return 127
+        fi
+    fi
+
+    # Check if yarn is installed
+    if [[ ! -x "$YARN_BIN" ]]; then
+        # Try fallback
+        if command -v yarn >/dev/null 2>&1; then
+            yarn "$@"
+            return $?
+        else
+            echo "Error: yarn not found at $YARN_BIN" >&2
+            return 127
+        fi
+    fi
+
+    # Add NODE_BIN_DIR to PATH for this execution
+    local old_path="$PATH"
+    export PATH="$NODE_BIN_DIR:$PATH"
+
+    # Execute with absolute path
+    "$YARN_BIN" "$@"
+    local exit_code=$?
+
+    # Restore PATH
+    export PATH="$old_path"
+
+    return $exit_code
+}
+
+# Execute npx with absolute path and proper environment
+# Usage: run_npx_from_common_functions [args...]
+# Returns: npx exit code
+run_npx_from_common_functions() {
+    # Ensure NPX_BIN is set
+    if [[ -z "$NPX_BIN" ]] || [[ ! -x "$NPX_BIN" ]]; then
+        # Fallback to system npx
+        if command -v npx >/dev/null 2>&1; then
+            npx "$@"
+            return $?
+        else
+            echo "Error: npx not found. Please install npx first." >&2
+            return 127
+        fi
+    fi
+
+    # Add NODE_BIN_DIR to PATH for this execution
+    local old_path="$PATH"
+    export PATH="$NODE_BIN_DIR:$PATH"
+
+    # Execute with absolute path
+    "$NPX_BIN" "$@"
+    local exit_code=$?
+
+    # Restore PATH
+    export PATH="$old_path"
+
+    return $exit_code
+}
+
+# Ensure pnpm global bin directory is in PATH
+# Usage: ensure_pnpm_path_from_common_functions
+# Returns: 0 on success, 1 on failure
+ensure_pnpm_path_from_common_functions() {
+    if [[ -z "$PNPM_GLOBAL_BIN_DIR" ]]; then
+        echo "Warning: PNPM_GLOBAL_BIN_DIR not set" >&2
+        return 1
+    fi
+
+    # Check if already in current PATH
+    if echo "$PATH" | grep -q "$PNPM_GLOBAL_BIN_DIR"; then
+        return 0
+    fi
+
+    # Add to current session
+    export PATH="$PNPM_GLOBAL_BIN_DIR:$PATH"
+
+    # Add to /etc/environment for persistence
+    if [[ ! -f /etc/environment ]]; then
+        echo "PATH=\"$PNPM_GLOBAL_BIN_DIR:$NODE_BIN_DIR:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee /etc/environment > /dev/null
+    else
+        # Check if pnpm bin dir is in /etc/environment
+        if ! grep -q "$PNPM_GLOBAL_BIN_DIR" /etc/environment 2>/dev/null; then
+            local current_path=$(grep "^PATH=" /etc/environment | sed 's/^PATH="//' | sed 's/"$//')
+            if [[ -n "$current_path" ]]; then
+                # Update existing PATH
+                $USE_SUDO sed -i "s|^PATH=\"|PATH=\"$PNPM_GLOBAL_BIN_DIR:|" /etc/environment
+            else
+                # Add new PATH
+                echo "PATH=\"$PNPM_GLOBAL_BIN_DIR:$NODE_BIN_DIR:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee -a /etc/environment > /dev/null
+            fi
+        fi
+    fi
+
+    # Also ensure NODE_BIN_DIR is in PATH
+    if ! echo "$PATH" | grep -q "$NODE_BIN_DIR"; then
+        export PATH="$NODE_BIN_DIR:$PATH"
+
+        if [[ -f /etc/environment ]] && ! grep -q "$NODE_BIN_DIR" /etc/environment 2>/dev/null; then
+            local current_path=$(grep "^PATH=" /etc/environment | sed 's/^PATH="//' | sed 's/"$//')
+            if [[ -n "$current_path" ]]; then
+                $USE_SUDO sed -i "s|^PATH=\"|PATH=\"$NODE_BIN_DIR:|" /etc/environment
+            fi
+        fi
+    fi
+
+    return 0
+}
+

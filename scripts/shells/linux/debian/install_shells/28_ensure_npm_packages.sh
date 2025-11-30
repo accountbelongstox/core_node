@@ -73,11 +73,11 @@ migrate_old_npm_installation() {
 get_installed_packages() {
     # Use the Node.js script to get the package list
     if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
-        GLOBAL_PACKAGES=$(node "$CHECK_PACKAGES_SCRIPT" list)
+        GLOBAL_PACKAGES=$(run_node_from_common_functions "$CHECK_PACKAGES_SCRIPT" list)
     else
         echo "Warning: check_global_packages.js not found at $CHECK_PACKAGES_SCRIPT"
         echo "Falling back to pnpm list command"
-        GLOBAL_PACKAGES=$(pnpm list -g --depth=0 2>/dev/null || npm list -g --depth=0)
+        GLOBAL_PACKAGES=$(run_pnpm_from_common_functions list -g --depth=0 2>/dev/null || run_npm_from_common_functions list -g --depth=0)
     fi
     echo "$GLOBAL_PACKAGES" | grep -v 'pnpm@\|npm@' | sed -n 's/.*\([@/][^@]*\)@.*/\1/p' | sed 's/^[@/]*//'
 }
@@ -86,11 +86,11 @@ get_installed_packages() {
 is_package_installed() {
     local package_name=$1
 
-    if ! pnpm list -g "$package_name" >/dev/null 2>&1; then
+    if ! run_pnpm_from_common_functions list -g "$package_name" >/dev/null 2>&1; then
         return 1
     fi
 
-    local pnpm_bin_dir=$(pnpm bin -g 2>/dev/null)
+    local pnpm_bin_dir=$(run_pnpm_from_common_functions bin -g 2>/dev/null)
     if [ -z "$pnpm_bin_dir" ] || [ ! -d "$pnpm_bin_dir" ]; then
         return 1
     fi
@@ -138,7 +138,7 @@ ensure_package() {
     if [ "$package" = "puppeteer" ]; then
         # Install puppeteer with PUPPETEER_SKIP_DOWNLOAD to avoid chromium installation
         # This is safer and faster than trying to install system chromium
-        if PUPPETEER_SKIP_DOWNLOAD=true pnpm add -g "$package"; then
+        if PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions add -g "$package"; then
             echo "[$SCRIPT_INDEX] $package installed successfully"
             echo "[$SCRIPT_INDEX] Note: Puppeteer installed in skip-download mode. Chromium binary will be downloaded on first use."
             return 0
@@ -148,7 +148,7 @@ ensure_package() {
         fi
     else
         # Install regular package
-        if pnpm add -g "$package"; then
+        if run_pnpm_from_common_functions add -g "$package"; then
             echo "[$SCRIPT_INDEX] $package installed successfully"
             return 0
         else
@@ -162,25 +162,77 @@ echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
 
 migrate_old_npm_installation
 
+# Function to configure pnpm global directories
+configure_pnpm_global_dirs() {
+    # Use global variables from gvar_common.sh
+    local pnpm_global_dir_target="$PNPM_GLOBAL_DIR"
+    local pnpm_global_bin_target="$PNPM_GLOBAL_BIN_DIR"
+
+    # Check current pnpm config
+    local pnpm_global_bin=$(run_pnpm_from_common_functions config get global-bin-dir 2>/dev/null)
+    local pnpm_global_dir=$(run_pnpm_from_common_functions config get global-dir 2>/dev/null)
+
+    if [ -z "$pnpm_global_bin" ] || [ "$pnpm_global_bin" = "undefined" ] || [ "$pnpm_global_bin" != "$pnpm_global_bin_target" ]; then
+        echo "[$SCRIPT_INDEX] Configuring pnpm global directories..."
+        echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir_target"
+        echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin_target"
+
+        # Set pnpm config using absolute paths
+        run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
+        run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
+
+        # Create directories
+        mkdir -p "$pnpm_global_dir_target"
+        mkdir -p "$pnpm_global_bin_target"
+
+        echo "[$SCRIPT_INDEX] pnpm global directories configured"
+    else
+        echo "[$SCRIPT_INDEX] pnpm global directories already configured:"
+        echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir"
+        echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin"
+    fi
+
+    # Ensure PATH is set (using common function)
+    echo "[$SCRIPT_INDEX] Ensuring pnpm paths are in PATH..."
+    if ensure_pnpm_path_from_common_functions; then
+        echo "[$SCRIPT_INDEX] pnpm paths configured in PATH"
+    else
+        echo "[$SCRIPT_INDEX] Warning: Could not configure pnpm paths"
+    fi
+}
+
 # Ensure pnpm is installed first (bootstrap)
 echo "[$SCRIPT_INDEX] Ensuring pnpm is installed..."
-if ! command -v pnpm >/dev/null 2>&1; then
+
+# Check if pnpm exists using absolute path
+if [ -x "$PNPM_BIN" ]; then
+    echo "[$SCRIPT_INDEX] pnpm is already installed: $(run_pnpm_from_common_functions --version)"
+elif command -v pnpm >/dev/null 2>&1; then
+    echo "[$SCRIPT_INDEX] pnpm found in PATH: $(pnpm --version)"
+else
     echo "[$SCRIPT_INDEX] pnpm not found, installing via npm..."
-    if command -v npm >/dev/null 2>&1; then
+
+    # Use npm from absolute path
+    if [ -x "$NPM_BIN" ]; then
+        run_npm_from_common_functions install -g pnpm
+        echo "[$SCRIPT_INDEX] pnpm installed successfully"
+    elif command -v npm >/dev/null 2>&1; then
         npm install -g pnpm
-        # Create symlink
-        node_bin_dir=$(dirname $(which node))
-        if [ -f "$node_bin_dir/pnpm" ]; then
-            $USE_SUDO ln -sf "$node_bin_dir/pnpm" /usr/local/bin/pnpm
-            echo "[$SCRIPT_INDEX] pnpm installed successfully"
-        fi
+        echo "[$SCRIPT_INDEX] pnpm installed successfully"
     else
         echo "[$SCRIPT_INDEX] ERROR: npm not found, cannot install pnpm"
         exit 1
     fi
-else
-    echo "[$SCRIPT_INDEX] pnpm is already installed: $(pnpm --version)"
+
+    # Create symlink if not exists
+    if [ -f "$NODE_BIN_DIR/pnpm" ] && [ ! -L /usr/local/bin/pnpm ]; then
+        $USE_SUDO ln -sf "$NODE_BIN_DIR/pnpm" /usr/local/bin/pnpm
+        echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/pnpm"
+    fi
 fi
+
+# Configure pnpm global directories
+configure_pnpm_global_dirs
 
 echo "[$SCRIPT_INDEX] Checking currently installed global packages..."
 

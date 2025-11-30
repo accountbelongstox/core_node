@@ -20,20 +20,18 @@ SCRIPT_INDEX="30"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
-# Source repository manager
-source "$PARENT_DIR_LEVEL_1/debian_com/repository_manager.sh"
-
 INSTALL_EDGE=$(get_var "INSTALL_EDGE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
+EDGE_DOWNLOAD_URL="https://go.microsoft.com/fwlink?linkid=2149051&brand=M102"
 
 echo "[$SCRIPT_INDEX] Microsoft Edge Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_EDGE: $INSTALL_EDGE, INSTALL_MODE: $INSTALL_MODE"
 
 if [ "$INSTALL_EDGE" = "false" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_EDGE is false - Edge repository should be removed by 12_update.sh"
+    echo "[$SCRIPT_INDEX] INSTALL_EDGE is false - skipping Edge installation"
     echo "[$SCRIPT_INDEX] Checking if Edge is still installed..."
-    
-    # Check if Edge is still installed despite repository removal
+
+    # Check if Edge is still installed
     if command -v microsoft-edge &> /dev/null; then
         echo "[$SCRIPT_INDEX] Edge is still installed, removing..."
         $USE_SUDO apt remove -y microsoft-edge-stable 2>/dev/null || true
@@ -42,22 +40,16 @@ if [ "$INSTALL_EDGE" = "false" ]; then
     else
         echo "[$SCRIPT_INDEX] Edge is not installed"
     fi
-    
+
     # Clean up any remaining Edge-related files
     $USE_SUDO rm -f "/usr/local/bin/microsoft-edge" 2>/dev/null || true
-    
+
     # Clear stored variables
     set_var "EDGE_BIN" ""
     set_var "EDGE_VERSION" ""
-    
+
     echo "[$SCRIPT_INDEX] Microsoft Edge cleanup completed"
     exit 0
-fi
-
-# Check repository status before proceeding (only when installing)
-if ! verify_edge_repo_for_install; then
-    echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
-    exit 1
 fi
 
 # Function to kill hanging Edge processes
@@ -85,21 +77,100 @@ check_edge_version() {
 # Install Edge if not present
 install_edge() {
     echo "[$SCRIPT_INDEX] Installing Microsoft Edge..."
-    
-    # Repository should already be added by 12_update.sh
-    echo "[$SCRIPT_INDEX] Installing Edge from pre-configured repository..."
-    
-    # Update package list and install Edge
-    echo "[$SCRIPT_INDEX] Updating package list and installing Edge..."
-    $USE_SUDO apt update
-    $USE_SUDO apt install -y microsoft-edge-stable
-    
+
+    local edge_deb=""
+
+    # Try to find in Downloads directory first
+    echo "[$SCRIPT_INDEX] Searching for Edge .deb in Downloads directories..."
+    edge_deb=$(find_file_in_downloads_from_common_functions "microsoft-edge-stable*.deb" "newest")
+
+    if [[ -z "$edge_deb" ]]; then
+        echo "[$SCRIPT_INDEX] No Edge .deb found in Downloads, downloading automatically..."
+
+        # Detect actual user and use their Downloads directory
+        if [ -z "$ACTUAL_DESKTOP_USER_HOME" ]; then
+            detect_actual_desktop_user
+        fi
+
+        local downloads_dir
+        if [ -n "$ACTUAL_DESKTOP_USER_HOME" ] && [ -d "$ACTUAL_DESKTOP_USER_HOME" ]; then
+            downloads_dir="$ACTUAL_DESKTOP_USER_HOME/Downloads"
+            echo "[$SCRIPT_INDEX] Using actual user's Downloads directory: $downloads_dir"
+            mkdir -p "$downloads_dir" 2>/dev/null || {
+                echo "[$SCRIPT_INDEX] Warning: Cannot create Downloads directory, using /tmp"
+                downloads_dir="/tmp"
+            }
+        else
+            echo "[$SCRIPT_INDEX] Warning: Cannot detect actual user, using /tmp"
+            downloads_dir="/tmp"
+        fi
+
+        local download_target="$downloads_dir/microsoft-edge-stable.deb"
+
+        echo "[$SCRIPT_INDEX] Download target: $download_target"
+        echo "[$SCRIPT_INDEX] Download URL: $EDGE_DOWNLOAD_URL"
+
+        # Try automatic download with progress bar
+        if wget --show-progress --progress=bar:force -O "$download_target" "$EDGE_DOWNLOAD_URL"; then
+            if [ -f "$download_target" ] && [ -s "$download_target" ]; then
+                edge_deb="$download_target"
+                echo "[$SCRIPT_INDEX] Edge package downloaded successfully"
+                echo "[$SCRIPT_INDEX] Package saved to: $edge_deb"
+                echo "[$SCRIPT_INDEX] (Package will be preserved for future installations)"
+            else
+                echo "[$SCRIPT_INDEX] Download completed but file is empty or missing"
+                rm -f "$download_target"
+                edge_deb=""
+            fi
+        else
+            echo "[$SCRIPT_INDEX] Automatic download failed"
+            rm -f "$download_target"
+            edge_deb=""
+        fi
+
+        # If download failed, prompt user to download manually
+        if [[ -z "$edge_deb" ]]; then
+            echo "[$SCRIPT_INDEX] Please download manually from: https://www.microsoft.com/edge"
+
+            edge_deb=$(prompt_and_wait_for_download_from_common_functions \
+                "https://www.microsoft.com/edge" \
+                "microsoft-edge-stable*.deb" \
+                0)
+
+            if [[ -z "$edge_deb" ]]; then
+                echo "[$SCRIPT_INDEX] Failed to obtain Edge package"
+                return 1
+            fi
+        fi
+    else
+        echo "[$SCRIPT_INDEX] Found Edge .deb: $edge_deb"
+    fi
+
+    # Install the package
+    echo "[$SCRIPT_INDEX] Installing Edge from: $edge_deb"
+    if $USE_SUDO dpkg -i "$edge_deb" 2>&1 | tee /tmp/edge_install.log; then
+        echo "[$SCRIPT_INDEX] Microsoft Edge installed successfully"
+    else
+        echo "[$SCRIPT_INDEX] dpkg installation had issues, fixing dependencies..."
+        $USE_SUDO apt-get install -f -y
+
+        # Verify installation after fix
+        if ! check_edge_version; then
+            echo "[$SCRIPT_INDEX] Error: Failed to install Microsoft Edge"
+            cat /tmp/edge_install.log 2>/dev/null
+            return 1
+        fi
+    fi
+
+    # Note: Do NOT delete the downloaded .deb file - keep it for future use
+
     # Verify installation
     if check_edge_version; then
         echo "[$SCRIPT_INDEX] Microsoft Edge installed successfully"
+        return 0
     else
         echo "[$SCRIPT_INDEX] Error: Failed to install Microsoft Edge"
-        exit 1
+        return 1
     fi
 }
 
