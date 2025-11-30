@@ -1125,6 +1125,14 @@ def get_third_package_pyaudio():
 
 
 # GUI packages
+def get_third_package_tkinter():
+    """Get tkinter module (lazy load)"""
+    if 'tkinter' not in _PACKAGE_CACHE:
+        import tkinter as _tkinter_module
+        _PACKAGE_CACHE['tkinter'] = _tkinter_module
+    return _PACKAGE_CACHE['tkinter']
+
+
 def get_third_package_pyside6():
     """Get PySide6 package (lazy load)"""
     return _lazy_import('PySide6', 'import PySide6')
@@ -1318,6 +1326,7 @@ __all__ = [
     'get_third_package_eng_to_ipa',
     'get_third_package_pyaudio',
     # GUI packages
+    'get_third_package_tkinter',
     'get_third_package_pyside6',
     # Windows-only packages
     'get_third_package_win32gui',
