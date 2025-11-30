@@ -10,13 +10,13 @@ class HomeWelcome extends StatelessWidget {
   const HomeWelcome({
     super.key,
     required this.cityName,
-    this.temperature = '35',
+    this.temperature = '32',
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10.0),
+      margin: EdgeInsets.zero,
       height: 32.0,
       alignment: Alignment.center,
       child: Stack(

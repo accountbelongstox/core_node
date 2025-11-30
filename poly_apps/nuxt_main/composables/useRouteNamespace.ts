@@ -18,6 +18,7 @@ import devConfig from '@/configs/dev.config';
 import adminSubsiteConfig from '@/configs/subsite-admin.config';
 import dashboardConfig from '@/configs/dashboard.config';
 import pymatrixConfig from '@/configs/pymatrix.config';
+import mainsiteConfig from '@/configs/mainsite.config';
 
 // Route namespace configuration
 export interface RouteNamespaceConfig {
@@ -100,6 +101,25 @@ const namespaceRegistry: Record<string, RouteNamespaceConfig> = {
       'pymatrix-groups'
     ],
     theme: pymatrixConfig.theme
+  },
+  ittools: {
+    namespace: 'ittools',
+    prefix: '/ittools',
+    config: { name: 'IT Tools', namespace: 'ittools', routes: { prefix: '/ittools', pages: [] }, theme: { primary: '#3b82f6', secondary: '#8b5cf6', layout: 'default' }, features: {}, api: { baseUrl: '/api/ittools', endpoints: {} } },
+    pages: [
+      'ittools',
+      'ittools-tools'
+    ],
+    theme: { primary: '#3b82f6', secondary: '#8b5cf6', layout: 'default' }
+  },
+  main: {
+    namespace: 'main',
+    prefix: '/main',
+    config: mainsiteConfig,
+    pages: [
+      'main'
+    ],
+    theme: mainsiteConfig.theme
   }
 };
 
@@ -171,6 +191,15 @@ export const useRouteNamespace = () => {
           { path: '/pymatrix', label: 'Devices' },
           { path: '/pymatrix/groups', label: 'Groups' },
           { path: '/pymatrix/settings', label: 'Settings' }
+        ];
+      case 'ittools':
+        return [
+          { path: '/ittools', label: 'Home' },
+          { path: '/ittools/tools', label: 'Tools' }
+        ];
+      case 'main':
+        return [
+          { path: '/main', label: 'Home' }
         ];
       default:
         return [];

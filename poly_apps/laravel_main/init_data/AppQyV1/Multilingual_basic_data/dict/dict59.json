@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.390560+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "queue",
+        "laos": "ລຽນຫນອນ",
+        "jp": "待ち行列",
+        "vie": "xếp hàng",
+        "en_pronunciation": "/kju/",
+        "laos_pronunciation": "liannon",
+        "jp_pronunciation": "machigyouretsu",
+        "vie_pronunciation": "xep hang"
+      },
+      "means": {
+        "en": "A line of people or vehicles waiting for something",
+        "zh": "排队等待某事的人或车辆"
+      }
+    },
+    {
+      "word": {
+        "en": "quick",
+        "laos": "ວ່ອງໄວ",
+        "jp": "早い",
+        "vie": "nhanh chóng",
+        "en_pronunciation": "/kwɪk/",
+        "laos_pronunciation": "vonguaai",
+        "jp_pronunciation": "hayai",
+        "vie_pronunciation": "nhanh chong"
+      },
+      "means": {
+        "en": "Any area of the body that is highly sensitive to pain (as the flesh underneath the skin or a fingernail or toenail)",
+        "zh": "身体对疼痛高度敏感的任何部位（如皮肤下的肉或手指甲或脚趾甲）"
+      }
+    },
+    {
+      "word": {
+        "en": "quiet",
+        "laos": "ສະຫງົບງຽບ",
+        "jp": "静かな",
+        "vie": "yên tĩnh",
+        "en_pronunciation": "/kwaɪət/",
+        "laos_pronunciation": "sangobngiab",
+        "jp_pronunciation": "shizuka na",
+        "vie_pronunciation": "yen tinh"
+      },
+      "means": {
+        "en": "A period of calm weather",
+        "zh": "一段平静的天气"
+      }
+    },
+    {
+      "word": {
+        "en": "quit",
+        "laos": "ເຊົາ",
+        "jp": "やめる",
+        "vie": "bỏ cuộc",
+        "en_pronunciation": "/kwɪt/",
+        "laos_pronunciation": "sao",
+        "jp_pronunciation": "yameru",
+        "vie_pronunciation": "bo cuoc"
+      },
+      "means": {
+        "en": "Put an end to a state or an activity",
+        "zh": "结束某种状态或活动"
+      }
+    },
+    {
+      "word": {
+        "en": "quite",
+        "laos": "ຂ້ອນຂ້າງ",
+        "jp": "かなり",
+        "vie": "khá",
+        "en_pronunciation": "/kwaɪt/",
+        "laos_pronunciation": "khonkhang",
+        "jp_pronunciation": "kanari",
+        "vie_pronunciation": "kha"
+      },
+      "means": {
+        "en": "To a degree (not used with a negative)",
+        "zh": "在某种程度上（不与否定一起使用）"
+      }
+    },
+    {
+      "word": {
+        "en": "quiver",
+        "laos": "ລົດເປົ່າ",
+        "jp": "震える",
+        "vie": "run rẩy",
+        "en_pronunciation": "/kˈwɪvər/",
+        "laos_pronunciation": "lodpeoa",
+        "jp_pronunciation": "furue ru",
+        "vie_pronunciation": "run ray"
+      },
+      "means": {
+        "en": "An almost pleasurable sensation of fright",
+        "zh": "一种近乎愉悦的恐惧感"
+      }
+    },
+    {
+      "word": {
+        "en": "quiz",
+        "laos": "ສອບ",
+        "jp": "クイズ",
+        "vie": "câu đố",
+        "en_pronunciation": "/kwɪz/",
+        "laos_pronunciation": "sob",
+        "jp_pronunciation": "kuizu",
+        "vie_pronunciation": "cau do"
+      },
+      "means": {
+        "en": "An examination consisting of a few short questions",
+        "zh": "由几个简短问题组成的考试"
+      }
+    },
+    {
+      "word": {
+        "en": "quota",
+        "laos": "ໂກຕ້າ",
+        "jp": "割り当て",
+        "vie": "hạn ngạch",
+        "en_pronunciation": "/kˈwoʊtə/",
+        "laos_pronunciation": "okta",
+        "jp_pronunciation": "wariate",
+        "vie_pronunciation": "han ngach"
+      },
+      "means": {
+        "en": "A prescribed number",
+        "zh": "规定数量"
+      }
+    },
+    {
+      "word": {
+        "en": "quote",
+        "laos": "ອ້າງ",
+        "jp": "引用",
+        "vie": "trích dẫn",
+        "en_pronunciation": "/kwoʊt/",
+        "laos_pronunciation": "ang",
+        "jp_pronunciation": "inyou",
+        "vie_pronunciation": "trich dan"
+      },
+      "means": {
+        "en": "A punctuation mark used to attribute the enclosed text to someone else",
+        "zh": "用于将所附文本归因于其他人的标点符号"
+      }
+    },
+    {
+      "word": {
+        "en": "quotation",
+        "laos": "ຄໍາອ້າງ",
+        "jp": "見積書",
+        "vie": "trích dẫn",
+        "en_pronunciation": "/kwoʊˈteɪʃən/",
+        "laos_pronunciation": "khoaang",
+        "jp_pronunciation": "mitsumorisho",
+        "vie_pronunciation": "trich dan"
+      },
+      "means": {
+        "en": "A short note recognizing a source of information or of a quoted passage",
+        "zh": "识别信息来源或引用段落的简短说明"
+      }
+    },
+    {
+      "word": {
+        "en": "rabbit",
+        "laos": "ກະຕ່າຍ",
+        "jp": "ウサギ",
+        "vie": "con thỏ",
+        "en_pronunciation": "/ˈræbɪt/",
+        "laos_pronunciation": "katai",
+        "jp_pronunciation": "usagi",
+        "vie_pronunciation": "con tho"
+      },
+      "means": {
+        "en": "Any of various burrowing animals of the family Leporidae having long ears and short tails; some domesticated and raised for pets or food",
+        "zh": "兔科的各种穴居动物，有长耳朵和短尾巴；"
+      }
+    },
+    {
+      "word": {
+        "en": "race",
+        "laos": "ເຊື້ອຊາດ",
+        "jp": "レース",
+        "vie": "cuộc đua",
+        "en_pronunciation": "/reɪs/",
+        "laos_pronunciation": "seuosad",
+        "jp_pronunciation": "reesu",
+        "vie_pronunciation": "cuoc dua"
+      },
+      "means": {
+        "en": "Any competition",
+        "zh": "有些被驯养和饲养作为宠物或食物"
+      }
+    },
+    {
+      "word": {
+        "en": "racial",
+        "laos": "ພວກເລວັນ",
+        "jp": "人種的な",
+        "vie": "chủng tộc",
+        "en_pronunciation": "/ˈreɪʃəl/",
+        "laos_pronunciation": "phuak levan",
+        "jp_pronunciation": "jinshuteki na",
+        "vie_pronunciation": "chung toc"
+      },
+      "means": {
+        "en": "Of or related to genetically distinguished groups of people",
+        "zh": "任何比赛"
+      }
+    },
+    {
+      "word": {
+        "en": "racism",
+        "laos": "ຈໍາແນກເຊື້ອຊາດ",
+        "jp": "人種差別",
+        "vie": "phân biệt chủng tộc",
+        "en_pronunciation": "/ˈreɪˌsɪzəm/",
+        "laos_pronunciation": "choaaenkseuosad",
+        "jp_pronunciation": "jinshusabetsu",
+        "vie_pronunciation": "phan biet chung toc"
+      },
+      "means": {
+        "en": "The prejudice that members of one race are intrinsically superior to members of other races",
+        "zh": "属于或与遗传特征不同的人群有关"
+      }
+    },
+    {
+      "word": {
+        "en": "racist",
+        "laos": "ຄົນເວນ",
+        "jp": "人種差別主義者",
+        "vie": "phân biệt chủng tộc",
+        "en_pronunciation": "/ˈreɪsɪst/",
+        "laos_pronunciation": "khonuaen",
+        "jp_pronunciation": "jinshusabetsu shugisha",
+        "vie_pronunciation": "phan biet chung toc"
+      },
+      "means": {
+        "en": "A person with a prejudiced belief that one race is superior to others",
+        "zh": "认为某一种族的成员本质上优于其他种族的成员的偏见"
+      }
+    },
+    {
+      "word": {
+        "en": "rack",
+        "laos": "ແຢ່ງ",
+        "jp": "ラック",
+        "vie": "giá đỡ",
+        "en_pronunciation": "/ræk/",
+        "laos_pronunciation": "aeyng",
+        "jp_pronunciation": "rakku",
+        "vie_pronunciation": "gia do"
+      },
+      "means": {
+        "en": "Framework for holding objects",
+        "zh": "持有偏见，认为某个种族优于其他种族的人"
+      }
+    },
+    {
+      "word": {
+        "en": "radar",
+        "laos": "Radar",
+        "jp": "レーダー",
+        "vie": "rađa",
+        "en_pronunciation": "/ˈreɪˌdɑr/",
+        "laos_pronunciation": "Radar",
+        "jp_pronunciation": "reedaa",
+        "vie_pronunciation": "rada"
+      },
+      "means": {
+        "en": "Measuring instrument in which the echo of a pulse of microwave radiation is used to detect and locate distant objects",
+        "zh": "用于容纳物体的框架"
+      }
+    },
+    {
+      "word": {
+        "en": "radiate",
+        "laos": "ການແຜ່ຂະຫຍາຍ Flash",
+        "jp": "放射する",
+        "vie": "tỏa ra",
+        "en_pronunciation": "/ˈreɪdiˌeɪt/",
+        "laos_pronunciation": "kanaephkhajai Flash",
+        "jp_pronunciation": "housha suru",
+        "vie_pronunciation": "toa ra"
+      },
+      "means": {
+        "en": "Send out rays or waves",
+        "zh": "使用微波辐射脉冲的回波来检测和定位远处物体的测量仪器"
+      }
+    },
+    {
+      "word": {
+        "en": "radiation",
+        "laos": "ສີລັງໄສ",
+        "jp": "放射線",
+        "vie": "bức xạ",
+        "en_pronunciation": "/ˌreɪdiˈeɪʃən/",
+        "laos_pronunciation": "si langsai",
+        "jp_pronunciation": "houshasen",
+        "vie_pronunciation": "buc xa"
+      },
+      "means": {
+        "en": "Energy that is radiated or transmitted in the form of rays or waves or particles",
+        "zh": "发出射线或波"
+      }
+    },
+    {
+      "word": {
+        "en": "radiator",
+        "laos": "ເຄື່ອງປ້ອງກັນແສງ",
+        "jp": "ラジエーター",
+        "vie": "tản nhiệt",
+        "en_pronunciation": "/ˈreɪdiˌeɪtər/",
+        "laos_pronunciation": "kheuong pongkanaesng",
+        "jp_pronunciation": "rajieetaa",
+        "vie_pronunciation": "tan nhiet"
+      },
+      "means": {
+        "en": "Any object that radiates energy",
+        "zh": "以射线、波或粒子形式辐射或传输的能量"
+      }
+    },
+    {
+      "word": {
+        "en": "radiant",
+        "laos": "ແວວວາວ",
+        "jp": "輝く",
+        "vie": "rạng rỡ",
+        "en_pronunciation": "/ˈreɪˌdiənt/",
+        "laos_pronunciation": "aeuauauaav",
+        "jp_pronunciation": "kagayaku",
+        "vie_pronunciation": "rang ro"
+      },
+      "means": {
+        "en": "Radiating or as if radiating light",
+        "zh": "任何辐射能量的物体"
+      }
+    },
+    {
+      "word": {
+        "en": "radical",
+        "laos": "ອະນຸບານ",
+        "jp": "ラジカル",
+        "vie": "cấp tiến",
+        "en_pronunciation": "/ˈrædɪkəl/",
+        "laos_pronunciation": "anuban",
+        "jp_pronunciation": "rajikaru",
+        "vie_pronunciation": "cap tien"
+      },
+      "means": {
+        "en": "(chemistry) two or more atoms bound together as a single unit and forming part of a molecule",
+        "zh": "辐射或仿佛辐射光"
+      }
+    },
+    {
+      "word": {
+        "en": "radio",
+        "laos": "ວິທະຍຸ",
+        "jp": "ラジオ",
+        "vie": "đài phát thanh",
+        "en_pronunciation": "/ˈreɪdiˌoʊ/",
+        "laos_pronunciation": "vithanyu",
+        "jp_pronunciation": "rajio",
+        "vie_pronunciation": "dai phat thanh"
+      },
+      "means": {
+        "en": "Medium for communication",
+        "zh": "（化学）两个或多个原子结合在一起作为一个单元并形成分子的一部分"
+      }
+    },
+    {
+      "word": {
+        "en": "radioactive",
+        "laos": "ທີ່ມີສີແດງ",
+        "jp": "放射性物質",
+        "vie": "phóng xạ",
+        "en_pronunciation": "/ˌreɪdioʊˈæktɪv/",
+        "laos_pronunciation": "thimisiaedng",
+        "jp_pronunciation": "houshaseibusshitsu",
+        "vie_pronunciation": "phong xa"
+      },
+      "means": {
+        "en": "Exhibiting or caused by radioactivity",
+        "zh": "沟通媒介"
+      }
+    },
+    {
+      "word": {
+        "en": "radioactivity",
+        "laos": "ທີ່ມີລັງສີ",
+        "jp": "放射能",
+        "vie": "tính phóng xạ",
+        "en_pronunciation": "/ˌreɪdioʊˌækˈtɪvəˌti/",
+        "laos_pronunciation": "thimilangsi",
+        "jp_pronunciation": "houshanou",
+        "vie_pronunciation": "tinh phong xa"
+      },
+      "means": {
+        "en": "The spontaneous emission of a stream of particles or electromagnetic rays in nuclear decay",
+        "zh": "展示或由放射性引起"
+      }
+    },
+    {
+      "word": {
+        "en": "rag",
+        "laos": "ໂລວິດ",
+        "jp": "雑巾",
+        "vie": "giẻ rách",
+        "en_pronunciation": "/ræg/",
+        "laos_pronunciation": "olvid",
+        "jp_pronunciation": "zoukin",
+        "vie_pronunciation": "gie rach"
+      },
+      "means": {
+        "en": "A small piece of cloth or paper",
+        "zh": "核衰变中粒子流或电磁射线的自发发射"
+      }
+    },
+    {
+      "word": {
+        "en": "ragged",
+        "laos": "ragged ໄດ້",
+        "jp": "ぼろぼろの",
+        "vie": "rách rưới",
+        "en_pronunciation": "/ˈrægəd/",
+        "laos_pronunciation": "ragged dai",
+        "jp_pronunciation": "boroborono",
+        "vie_pronunciation": "rach ruoi"
+      },
+      "means": {
+        "en": "Treat cruelly",
+        "zh": "一小块布或纸"
+      }
+    },
+    {
+      "word": {
+        "en": "raggedly",
+        "laos": "raggedly ໄດ້",
+        "jp": "ボロボロに",
+        "vie": "một cách rách rưới",
+        "en_pronunciation": "/raggedly/",
+        "laos_pronunciation": "raggedly dai",
+        "jp_pronunciation": "boroboro ni",
+        "vie_pronunciation": "mot cach rach ruoi"
+      },
+      "means": {
+        "en": "In a ragged uneven manner",
+        "zh": "残酷对待"
+      }
+    },
+    {
+      "word": {
+        "en": "rage",
+        "laos": "ຄວາມຮື້",
+        "jp": "激怒",
+        "vie": "cơn thịnh nộ",
+        "en_pronunciation": "/reɪʤ/",
+        "laos_pronunciation": "khuaamhu",
+        "jp_pronunciation": "gekido",
+        "vie_pronunciation": "con thinh no"
+      },
+      "means": {
+        "en": "A feeling of intense anger",
+        "zh": "以一种参差不齐的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "raging",
+        "laos": "ທີ່ໂຫດຮ້າຢ",
+        "jp": "荒れ狂う",
+        "vie": "hoành hành",
+        "en_pronunciation": "/ˈreɪʤɪŋ/",
+        "laos_pronunciation": "thi ohd hay",
+        "jp_pronunciation": "are kuruu",
+        "vie_pronunciation": "hoanh hanh"
+      },
+      "means": {
+        "en": "Behave violently, as if in state of a great anger",
+        "zh": "一种强烈的愤怒的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "raid",
+        "laos": "ການໂຈມຕີ",
+        "jp": "襲撃",
+        "vie": "cuộc đột kích",
+        "en_pronunciation": "/reɪd/",
+        "laos_pronunciation": "kanochmti",
+        "jp_pronunciation": "shuugeki",
+        "vie_pronunciation": "cuoc dot kich"
+      },
+      "means": {
+        "en": "A sudden short attack",
+        "zh": "表现得很暴力，好像处于非常愤怒的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "rail",
+        "laos": "ລາງລົດໄຟ",
+        "jp": "レール",
+        "vie": "đường sắt",
+        "en_pronunciation": "/reɪl/",
+        "laos_pronunciation": "langlodfai",
+        "jp_pronunciation": "reeru",
+        "vie_pronunciation": "duong sat"
+      },
+      "means": {
+        "en": "A barrier consisting of a horizontal bar and supports",
+        "zh": "突然的短暂攻击"
+      }
+    },
+    {
+      "word": {
+        "en": "railway",
+        "laos": "ທາງລົດໄຟ",
+        "jp": "鉄道",
+        "vie": "đường sắt",
+        "en_pronunciation": "/ˈreɪlˌweɪ/",
+        "laos_pronunciation": "thanglodfai",
+        "jp_pronunciation": "tetsudou",
+        "vie_pronunciation": "duong sat"
+      },
+      "means": {
+        "en": "Line that is the commercial organization responsible for operating a system of transportation for trains that pull passengers or freight",
+        "zh": "由单杠和支撑物组成的屏障"
+      }
+    },
+    {
+      "word": {
+        "en": "railroad",
+        "laos": "ທາງລົດໄຟ",
+        "jp": "鉄道",
+        "vie": "đường sắt",
+        "en_pronunciation": "/ˈreɪˌlroʊd/",
+        "laos_pronunciation": "thanglodfai",
+        "jp_pronunciation": "tetsudou",
+        "vie_pronunciation": "duong sat"
+      },
+      "means": {
+        "en": "Line that is the commercial organization responsible for operating a system of transportation for trains that pull passengers or freight",
+        "zh": "线路是负责运营拉动乘客或货物的火车运输系统的商业组织"
+      }
+    },
+    {
+      "word": {
+        "en": "rain",
+        "laos": "ຝົນຕົກ",
+        "jp": "雨",
+        "vie": "mưa",
+        "en_pronunciation": "/reɪn/",
+        "laos_pronunciation": "fontok",
+        "jp_pronunciation": "ame",
+        "vie_pronunciation": "mua"
+      },
+      "means": {
+        "en": "Water falling in drops from vapor condensed in the atmosphere",
+        "zh": "线路是负责运营拉动乘客或货物的火车运输系统的商业组织"
+      }
+    },
+    {
+      "word": {
+        "en": "rainy",
+        "laos": "ມີຝົນ",
+        "jp": "雨の",
+        "vie": "nhiều mưa",
+        "en_pronunciation": "/ˈreɪni/",
+        "laos_pronunciation": "mifon",
+        "jp_pronunciation": "ame no",
+        "vie_pronunciation": "nhieu mua"
+      },
+      "means": {
+        "en": "(of weather) wet by periods of rain",
+        "zh": "水蒸气在大气中凝结而成的水滴"
+      }
+    },
+    {
+      "word": {
+        "en": "rainbow",
+        "laos": "ຮຸງ",
+        "jp": "虹",
+        "vie": "cầu vồng",
+        "en_pronunciation": "/ˈreɪnˌboʊ/",
+        "laos_pronunciation": "hung",
+        "jp_pronunciation": "niji",
+        "vie_pronunciation": "cau vong"
+      },
+      "means": {
+        "en": "An arc of colored light in the sky caused by refraction of the sun's rays by rain",
+        "zh": "（天气）因下雨而潮湿"
+      }
+    },
+    {
+      "word": {
+        "en": "raincoat",
+        "laos": "ເສື້ອກັນຝົນ",
+        "jp": "レインコート",
+        "vie": "áo mưa",
+        "en_pronunciation": "/ˈreɪnˌkoʊt/",
+        "laos_pronunciation": "seu kanfon",
+        "jp_pronunciation": "reinkooto",
+        "vie_pronunciation": "ao mua"
+      },
+      "means": {
+        "en": "A water-resistant coat",
+        "zh": "天空中由于太阳光线被雨水折射而形成的彩色光弧"
+      }
+    },
+    {
+      "word": {
+        "en": "raise",
+        "laos": "ໂງຂຶ້ນ",
+        "jp": "上げる",
+        "vie": "nâng cao",
+        "en_pronunciation": "/reɪz/",
+        "laos_pronunciation": "ongkhun",
+        "jp_pronunciation": "age ru",
+        "vie_pronunciation": "nang cao"
+      },
+      "means": {
+        "en": "The amount a salary is increased",
+        "zh": "防水外套"
+      }
+    },
+    {
+      "word": {
+        "en": "rally",
+        "laos": "ລ່ຽນໄຫລ",
+        "jp": "集会する",
+        "vie": "cuộc biểu tình",
+        "en_pronunciation": "/ˈræli/",
+        "laos_pronunciation": "lianhail",
+        "jp_pronunciation": "shuukai suru",
+        "vie_pronunciation": "cuoc bieu tinh"
+      },
+      "means": {
+        "en": "A large gathering of people intended to arouse enthusiasm",
+        "zh": "工资金额增加"
+      }
+    },
+    {
+      "word": {
+        "en": "ranch",
+        "laos": "ຜ້າດາກ",
+        "jp": "牧場",
+        "vie": "trang trại",
+        "en_pronunciation": "/rænʧ/",
+        "laos_pronunciation": "phadak",
+        "jp_pronunciation": "bokujou",
+        "vie_pronunciation": "trang trai"
+      },
+      "means": {
+        "en": "Farm consisting of a large tract of land along with facilities needed to raise livestock (especially cattle)",
+        "zh": "一大群人聚集，旨在激发热情"
+      }
+    },
+    {
+      "word": {
+        "en": "random",
+        "laos": "ໂດຢບັງເອີນ",
+        "jp": "ランダム",
+        "vie": "ngẫu nhiên",
+        "en_pronunciation": "/ˈrændəm/",
+        "laos_pronunciation": "odybangooen",
+        "jp_pronunciation": "randamu",
+        "vie_pronunciation": "ngau nhien"
+      },
+      "means": {
+        "en": "Lacking any definite plan or order or purpose; governed by or depending on chance",
+        "zh": "农场由大片土地以及饲养牲畜（尤其是牛）所需的设施组成"
+      }
+    },
+    {
+      "word": {
+        "en": "range",
+        "laos": "ກ້ອບ",
+        "jp": "範囲",
+        "vie": "phạm vi",
+        "en_pronunciation": "/reɪnʤ/",
+        "laos_pronunciation": "kob",
+        "jp_pronunciation": "han'i",
+        "vie_pronunciation": "pham vi"
+      },
+      "means": {
+        "en": "An area in which something acts or operates or has power or control:",
+        "zh": "缺乏任何明确的计划、命令或目的；"
+      }
+    },
+    {
+      "word": {
+        "en": "rank",
+        "laos": "ຈັດລຽງ",
+        "jp": "ランク",
+        "vie": "cấp bậc",
+        "en_pronunciation": "/ræŋk/",
+        "laos_pronunciation": "chadliang",
+        "jp_pronunciation": "ranku",
+        "vie_pronunciation": "cap bac"
+      },
+      "means": {
+        "en": "A row or line of people (especially soldiers or police) standing abreast of one another",
+        "zh": "受机会支配或取决于机会"
+      }
+    },
+    {
+      "word": {
+        "en": "rap",
+        "laos": "ຮື້",
+        "jp": "ラップ",
+        "vie": "rap",
+        "en_pronunciation": "/ræp/",
+        "laos_pronunciation": "hu",
+        "jp_pronunciation": "rappu",
+        "vie_pronunciation": "rap"
+      },
+      "means": {
+        "en": "A reproach for some lapse or misdeed",
+        "zh": "某物起作用或运作或拥有权力或控制的区域："
+      }
+    },
+    {
+      "word": {
+        "en": "rape",
+        "laos": "ຂົ່ມຂືນ",
+        "jp": "レイプ",
+        "vie": "hiếp dâm",
+        "en_pronunciation": "/reɪp/",
+        "laos_pronunciation": "khomkhun",
+        "jp_pronunciation": "reipu",
+        "vie_pronunciation": "hiep dam"
+      },
+      "means": {
+        "en": "Eurasian plant cultivated for its seed and as a forage crop",
+        "zh": "一排或一排人（尤其是士兵或警察）并排站立"
+      }
+    },
+    {
+      "word": {
+        "en": "rapid",
+        "laos": "ວ່ອງໄວ",
+        "jp": "急速な",
+        "vie": "nhanh chóng",
+        "en_pronunciation": "/ˈræpɪd/",
+        "laos_pronunciation": "vonguaai",
+        "jp_pronunciation": "kyuusoku na",
+        "vie_pronunciation": "nhanh chong"
+      },
+      "means": {
+        "en": "A part of a river where the current is very fast",
+        "zh": "对某些失误或不当行为的责备"
+      }
+    },
+    {
+      "word": {
+        "en": "rare",
+        "laos": "ທີ່ຫາຍາກ",
+        "jp": "珍しい",
+        "vie": "hiếm",
+        "en_pronunciation": "/rɛr/",
+        "laos_pronunciation": "thihaiak",
+        "jp_pronunciation": "mezurashii",
+        "vie_pronunciation": "hiem"
+      },
+      "means": {
+        "en": "Not widely known; especially valued for its uncommonness",
+        "zh": "欧亚植物，因其种子和饲料作物而栽培"
+      }
+    },
+    {
+      "word": {
+        "en": "rash",
+        "laos": "ຜຶນ",
+        "jp": "発疹",
+        "vie": "phát ban",
+        "en_pronunciation": "/ræʃ/",
+        "laos_pronunciation": "phun",
+        "jp_pronunciation": "hasshin",
+        "vie_pronunciation": "phat ban"
+      },
+      "means": {
+        "en": "Any red eruption of the skin",
+        "zh": "河流中水流非常快的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "rat",
+        "laos": "ຫນູ",
+        "jp": "ネズミ",
+        "vie": "chuột",
+        "en_pronunciation": "/ræt/",
+        "laos_pronunciation": "nu",
+        "jp_pronunciation": "nezumi",
+        "vie_pronunciation": "chuot"
+      },
+      "means": {
+        "en": "Any of various long-tailed rodents similar to but larger than a mouse",
+        "zh": "不广为人知；"
+      }
+    },
+    {
+      "word": {
+        "en": "rate",
+        "laos": "ອັດຕາ",
+        "jp": "レート",
+        "vie": "tỷ lệ",
+        "en_pronunciation": "/reɪt/",
+        "laos_pronunciation": "adta",
+        "jp_pronunciation": "reeto",
+        "vie_pronunciation": "ty le"
+      },
+      "means": {
+        "en": "A magnitude or frequency relative to a time unit",
+        "zh": "因其不寻常而受到特别重视"
+      }
+    },
+    {
+      "word": {
+        "en": "rather",
+        "laos": "ແທນທີ່ຈະ",
+        "jp": "むしろ",
+        "vie": "đúng hơn",
+        "en_pronunciation": "/ˈrəðər/",
+        "laos_pronunciation": "aethnthicha",
+        "jp_pronunciation": "mushiro",
+        "vie_pronunciation": "dung hon"
+      },
+      "means": {
+        "en": "On the contrary",
+        "zh": "皮肤出现任何红疹"
+      }
+    },
+    {
+      "word": {
+        "en": "ratify",
+        "laos": "ສັດຕະລ່າງ",
+        "jp": "批准する",
+        "vie": "phê chuẩn",
+        "en_pronunciation": "/ˈrætəˌfaɪ/",
+        "laos_pronunciation": "sadtalang",
+        "jp_pronunciation": "hijun suru",
+        "vie_pronunciation": "phe chuan"
+      },
+      "means": {
+        "en": "Approve and express assent, responsibility, or obligation",
+        "zh": "与老鼠相似但比老鼠大的各种长尾啮齿动物"
+      }
+    },
+    {
+      "word": {
+        "en": "ratio",
+        "laos": "ອັດຕາສ່ວນ",
+        "jp": "比率",
+        "vie": "tỷ lệ",
+        "en_pronunciation": "/ˈreɪʃiˌoʊ/",
+        "laos_pronunciation": "adtasuan",
+        "jp_pronunciation": "hiritsu",
+        "vie_pronunciation": "ty le"
+      },
+      "means": {
+        "en": "The relative magnitudes of two quantities (usually expressed as a quotient)",
+        "zh": "相对于时间单位的幅度或频率"
+      }
+    },
+    {
+      "word": {
+        "en": "ration",
+        "laos": "ອັດຕາ",
+        "jp": "配給",
+        "vie": "khẩu phần ăn",
+        "en_pronunciation": "/ˈræʃən/",
+        "laos_pronunciation": "adta",
+        "jp_pronunciation": "haikyuu",
+        "vie_pronunciation": "khau phan an"
+      },
+      "means": {
+        "en": "The food allowance for one day (especially for service personnel)",
+        "zh": "相反"
+      }
+    },
+    {
+      "word": {
+        "en": "rational",
+        "laos": "ທີ່ຄິດໄລ່",
+        "jp": "合理的",
+        "vie": "hợp lý",
+        "en_pronunciation": "/ˈræʃənəl/",
+        "laos_pronunciation": "thikhidlai",
+        "jp_pronunciation": "gouriteki",
+        "vie_pronunciation": "hop ly"
+      },
+      "means": {
+        "en": "An integer or a fraction",
+        "zh": "批准并明确同意、责任或义务"
+      }
+    },
+    {
+      "word": {
+        "en": "rattle",
+        "laos": "ສະນອງ",
+        "jp": "ガラガラ",
+        "vie": "tiếng lạch cạch",
+        "en_pronunciation": "/ˈrætəl/",
+        "laos_pronunciation": "sanong",
+        "jp_pronunciation": "garagara",
+        "vie_pronunciation": "tieng lach cach"
+      },
+      "means": {
+        "en": "A rapid series of short loud sounds (as might be heard with a stethoscope in some types of respiratory disorders)",
+        "zh": "两个量的相对大小（通常表示为商）"
+      }
+    },
+    {
+      "word": {
+        "en": "raw",
+        "laos": "ດິບ",
+        "jp": "生の",
+        "vie": "thô",
+        "en_pronunciation": "/rɑ/",
+        "laos_pronunciation": "dib",
+        "jp_pronunciation": "uno",
+        "vie_pronunciation": "tho"
+      },
+      "means": {
+        "en": "Informal terms for nakedness",
+        "zh": "一日伙食费（特别是服务人员）"
+      }
+    },
+    {
+      "word": {
+        "en": "ray",
+        "laos": "ແສງສະຫວ່າງ",
+        "jp": "光線",
+        "vie": "tia",
+        "en_pronunciation": "/reɪ/",
+        "laos_pronunciation": "aesngsavang",
+        "jp_pronunciation": "kousen",
+        "vie_pronunciation": "tia"
+      },
+      "means": {
+        "en": "A column of light (as from a beacon)",
+        "zh": "整数或分数"
+      }
+    },
+    {
+      "word": {
+        "en": "reach",
+        "laos": "ເຂົ້າເຖິງ",
+        "jp": "届く",
+        "vie": "đạt được",
+        "en_pronunciation": "/riʧ/",
+        "laos_pronunciation": "khaothoeng",
+        "jp_pronunciation": "todoku",
+        "vie_pronunciation": "dat duoc"
+      },
+      "means": {
+        "en": "The limits within which something can be effective",
+        "zh": "一系列快速的短而响亮的声音（在某些类型的呼吸系统疾病中用听诊器可能会听到）"
+      }
+    },
+    {
+      "word": {
+        "en": "react",
+        "laos": "ປະຕິກິລິຍາ",
+        "jp": "反応する",
+        "vie": "phản ứng",
+        "en_pronunciation": "/riækt/",
+        "laos_pronunciation": "patikilinya",
+        "jp_pronunciation": "hannou suru",
+        "vie_pronunciation": "phan ung"
+      },
+      "means": {
+        "en": "Show a response or a reaction to something",
+        "zh": "裸体的非正式术语"
+      }
+    },
+    {
+      "word": {
+        "en": "read",
+        "laos": "ອ່ານ",
+        "jp": "読む",
+        "vie": "đọc",
+        "en_pronunciation": "/rɛd/",
+        "laos_pronunciation": "an",
+        "jp_pronunciation": "yomu",
+        "vie_pronunciation": "doc"
+      },
+      "means": {
+        "en": "Something that is read",
+        "zh": "一柱光（如来自灯塔的光）"
+      }
+    },
+    {
+      "word": {
+        "en": "ready",
+        "laos": "ກຽມພ້ອມ",
+        "jp": "準備完了",
+        "vie": "sẵn sàng",
+        "en_pronunciation": "/ˈrɛdi/",
+        "laos_pronunciation": "kiamphom",
+        "jp_pronunciation": "junbikanryou",
+        "vie_pronunciation": "san sang"
+      },
+      "means": {
+        "en": "Poised for action",
+        "zh": "某事物有效的限度"
+      }
+    },
+    {
+      "word": {
+        "en": "real",
+        "laos": "ທີ່ແທ້ຈິງ",
+        "jp": "本物の",
+        "vie": "thực",
+        "en_pronunciation": "/ril/",
+        "laos_pronunciation": "thiaethching",
+        "jp_pronunciation": "honmono no",
+        "vie_pronunciation": "thuc"
+      },
+      "means": {
+        "en": "Any rational or irrational number",
+        "zh": "表现出对某事的反应或反应"
+      }
+    },
+    {
+      "word": {
+        "en": "realistic",
+        "laos": "ຄວາມຈິງ",
+        "jp": "現実的な",
+        "vie": "thực tế",
+        "en_pronunciation": "/ˌriəˈlɪstɪk/",
+        "laos_pronunciation": "khuaamching",
+        "jp_pronunciation": "genjitsuteki na",
+        "vie_pronunciation": "thuc te"
+      },
+      "means": {
+        "en": "Aware or expressing awareness of things as they really are",
+        "zh": "读过的东西"
+      }
+    },
+    {
+      "word": {
+        "en": "realize",
+        "laos": "ຮູ້ວ່າ",
+        "jp": "気づく",
+        "vie": "nhận ra",
+        "en_pronunciation": "/ˈriəˌlaɪz/",
+        "laos_pronunciation": "huva",
+        "jp_pronunciation": "kizu ku",
+        "vie_pronunciation": "nhan ra"
+      },
+      "means": {
+        "en": "Be fully aware or cognizant of",
+        "zh": "准备行动"
+      }
+    },
+    {
+      "word": {
+        "en": "realise",
+        "laos": "ຮູ້ວ່າ",
+        "jp": "気づく",
+        "vie": "nhận ra",
+        "en_pronunciation": "/ˈriəˌlaɪz/",
+        "laos_pronunciation": "huva",
+        "jp_pronunciation": "kizu ku",
+        "vie_pronunciation": "nhan ra"
+      },
+      "means": {
+        "en": "Earn on some commercial or business transaction; earn as salary or wages",
+        "zh": "任何有理数或无理数"
+      }
+    },
+    {
+      "word": {
+        "en": "realm",
+        "laos": "ເພື່ອງ",
+        "jp": "レルム",
+        "vie": "vương quốc",
+        "en_pronunciation": "/rɛlm/",
+        "laos_pronunciation": "pheuong",
+        "jp_pronunciation": "rerumu",
+        "vie_pronunciation": "vuong quoc"
+      },
+      "means": {
+        "en": "A domain in which something is dominant",
+        "zh": "意识到或表达对事物真实情况的认识"
+      }
+    },
+    {
+      "word": {
+        "en": "reap",
+        "laos": "ເກັບກ່ຽວ",
+        "jp": "刈り取る",
+        "vie": "gặt",
+        "en_pronunciation": "/rip/",
+        "laos_pronunciation": "kebkiav",
+        "jp_pronunciation": "kari toru",
+        "vie_pronunciation": "gat"
+      },
+      "means": {
+        "en": "Gather, as of natural products",
+        "zh": "充分了解或认识到"
+      }
+    },
+    {
+      "word": {
+        "en": "rear",
+        "laos": "ຂໍ້ຫລັງ",
+        "jp": "後部",
+        "vie": "phía sau",
+        "en_pronunciation": "/rɪr/",
+        "laos_pronunciation": "kholang",
+        "jp_pronunciation": "koubu",
+        "vie_pronunciation": "phia sau"
+      },
+      "means": {
+        "en": "The back of a military formation or procession",
+        "zh": "通过某些商业或商业交易赚取收入；"
+      }
+    },
+    {
+      "word": {
+        "en": "rapidity",
+        "laos": "ຄວາມວົດ",
+        "jp": "素早さ",
+        "vie": "sự nhanh chóng",
+        "en_pronunciation": "/rəˈpɪdəti/",
+        "laos_pronunciation": "khuaam vod",
+        "jp_pronunciation": "subayasa",
+        "vie_pronunciation": "su nhanh chong"
+      },
+      "means": {
+        "en": "A rate that is rapid",
+        "zh": "赚取薪水或工资"
+      }
+    },
+    {
+      "word": {
+        "en": "rarely",
+        "laos": "ບໍ່ມີ",
+        "jp": "まれに",
+        "vie": "hiếm khi",
+        "en_pronunciation": "/ˈrɛrli/",
+        "laos_pronunciation": "bomi",
+        "jp_pronunciation": "mareni",
+        "vie_pronunciation": "hiem khi"
+      },
+      "means": {
+        "en": "Not often",
+        "zh": "某事物占主导地位的领域"
+      }
+    },
+    {
+      "word": {
+        "en": "rarity",
+        "laos": "ທີ່ຫາຍາກ",
+        "jp": "希少性",
+        "vie": "hiếm có",
+        "en_pronunciation": "/ˈrɛrɪti/",
+        "laos_pronunciation": "thihaiak",
+        "jp_pronunciation": "kishou sei",
+        "vie_pronunciation": "hiem co"
+      },
+      "means": {
+        "en": "Noteworthy scarcity",
+        "zh": "收集，如天然产物"
+      }
+    },
+    {
+      "word": {
+        "en": "rating",
+        "laos": "ການໃຫ້ຄະແນນ",
+        "jp": "評価",
+        "vie": "đánh giá",
+        "en_pronunciation": "/ˈreɪtɪŋ/",
+        "laos_pronunciation": "kanhaikhaaenn",
+        "jp_pronunciation": "hyouka",
+        "vie_pronunciation": "danh gia"
+      },
+      "means": {
+        "en": "An appraisal of the value of something",
+        "zh": "军事编队或游行队伍的后面"
+      }
+    },
+    {
+      "word": {
+        "en": "ratification",
+        "laos": "ການຍາດເອົາສັດຢ",
+        "jp": "批准",
+        "vie": "phê chuẩn",
+        "en_pronunciation": "/ˌrætəfəˈkeɪʃən/",
+        "laos_pronunciation": "kan nyadoao sady",
+        "jp_pronunciation": "hijun",
+        "vie_pronunciation": "phe chuan"
+      },
+      "means": {
+        "en": "Making something valid by formally ratifying or confirming it",
+        "zh": "速度很快"
+      }
+    },
+    {
+      "word": {
+        "en": "reaction",
+        "laos": "ປະຕິບັດຕິພາບ",
+        "jp": "反応",
+        "vie": "phản ứng",
+        "en_pronunciation": "/riˈækʃən/",
+        "laos_pronunciation": "patibadtiphab",
+        "jp_pronunciation": "hannou",
+        "vie_pronunciation": "phan ung"
+      },
+      "means": {
+        "en": "(chemistry) a process in which one or more substances are changed into others",
+        "zh": "不经常"
+      }
+    },
+    {
+      "word": {
+        "en": "reactionary",
+        "laos": "ປະຕິກິລິຍາ",
+        "jp": "反動的な",
+        "vie": "phản động",
+        "en_pronunciation": "/riˈækʃəˌnɛri/",
+        "laos_pronunciation": "patikilinya",
+        "jp_pronunciation": "handou tekina",
+        "vie_pronunciation": "phan dong"
+      },
+      "means": {
+        "en": "An extreme conservative; an opponent of progress or liberalism",
+        "zh": "值得注意的稀缺性"
+      }
+    },
+    {
+      "word": {
+        "en": "reading",
+        "laos": "ການອ່ານ",
+        "jp": "読書",
+        "vie": "đọc sách",
+        "en_pronunciation": "/ˈrɛdɪŋ/",
+        "laos_pronunciation": "kanan",
+        "jp_pronunciation": "dokusho",
+        "vie_pronunciation": "doc sach"
+      },
+      "means": {
+        "en": "The cognitive process of understanding a written linguistic message",
+        "zh": "对某事物的价值的评价"
+      }
+    },
+    {
+      "word": {
+        "en": "reader",
+        "laos": "ຜູ້ອ່ານ",
+        "jp": "読者",
+        "vie": "người đọc",
+        "en_pronunciation": "/ˈridər/",
+        "laos_pronunciation": "phuan",
+        "jp_pronunciation": "dokusha",
+        "vie_pronunciation": "nguoi doc"
+      },
+      "means": {
+        "en": "A person who enjoys reading",
+        "zh": "通过正式批准或确认某事而使其有效"
+      }
+    },
+    {
+      "word": {
+        "en": "readily",
+        "laos": "ພື່ນ",
+        "jp": "すぐに",
+        "vie": "dễ dàng",
+        "en_pronunciation": "/ˈrɛdəli/",
+        "laos_pronunciation": "phun",
+        "jp_pronunciation": "suguni",
+        "vie_pronunciation": "de dang"
+      },
+      "means": {
+        "en": "Without much difficulty",
+        "zh": "（化学）一种或多种物质转变为其他物质的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "really",
+        "laos": "ແທ້ຈິງ",
+        "jp": "本当に",
+        "vie": "thực sự",
+        "en_pronunciation": "/ˈrɪli/",
+        "laos_pronunciation": "aethching",
+        "jp_pronunciation": "hontou ni",
+        "vie_pronunciation": "thuc su"
+      },
+      "means": {
+        "en": "In accordance with truth or fact or reality",
+        "zh": "极端保守；"
+      }
+    },
+    {
+      "word": {
+        "en": "reality",
+        "laos": "ຄວາມເປັນຈິງ",
+        "jp": "現実",
+        "vie": "thực tế",
+        "en_pronunciation": "/ˌriˈæləˌti/",
+        "laos_pronunciation": "khuaampenching",
+        "jp_pronunciation": "genjitsu",
+        "vie_pronunciation": "thuc te"
+      },
+      "means": {
+        "en": "All of your experiences that determine how things appear to you",
+        "zh": "进步或自由主义的反对者"
+      }
+    },
+    {
+      "word": {
+        "en": "realism",
+        "laos": "ຄວາມເປັນຈິງ",
+        "jp": "リアリズム",
+        "vie": "chủ nghĩa hiện thực",
+        "en_pronunciation": "/ˈriəlɪzm/",
+        "laos_pronunciation": "khuaampenching",
+        "jp_pronunciation": "riarizumu",
+        "vie_pronunciation": "chu nghia hien thuc"
+      },
+      "means": {
+        "en": "The attribute of accepting the facts of life and favoring practicality and literal truth",
+        "zh": "理解书面语言信息的认知过程"
+      }
+    },
+    {
+      "word": {
+        "en": "realization",
+        "laos": "ການຮູ້ຈັກ",
+        "jp": "実現",
+        "vie": "hiện thực hóa",
+        "en_pronunciation": "/ˈriləˈzeɪʃən/",
+        "laos_pronunciation": "kanhuchak",
+        "jp_pronunciation": "jitsugen",
+        "vie_pronunciation": "hien thuc hoa"
+      },
+      "means": {
+        "en": "Coming to understand something clearly and distinctly",
+        "zh": "一个喜欢读书的人"
+      }
+    },
+    {
+      "word": {
+        "en": "realisation",
+        "laos": "ການຮູ້ຈັກ",
+        "jp": "実現",
+        "vie": "hiện thực hóa",
+        "en_pronunciation": "/ˈriləˈzeɪʃən/",
+        "laos_pronunciation": "kanhuchak",
+        "jp_pronunciation": "jitsugen",
+        "vie_pronunciation": "hien thuc hoa"
+      },
+      "means": {
+        "en": "A musical composition that has been completed or enriched by someone other than the composer",
+        "zh": "没有太大困难"
+      }
+    },
+    {
+      "word": {
+        "en": "reason",
+        "laos": "ເຫດຜົນ",
+        "jp": "理由",
+        "vie": "lý do",
+        "en_pronunciation": "/ˈrizən/",
+        "laos_pronunciation": "hedphon",
+        "jp_pronunciation": "riyuu",
+        "vie_pronunciation": "ly do"
+      },
+      "means": {
+        "en": "A rational motive for a belief or action",
+        "zh": "根据真相或事实或现实"
+      }
+    },
+    {
+      "word": {
+        "en": "reasonable",
+        "laos": "ສົມເຫດສົມຜົນ",
+        "jp": "合理的な",
+        "vie": "hợp lý",
+        "en_pronunciation": "/ˈrizənəbəl/",
+        "laos_pronunciation": "somhedsomphon",
+        "jp_pronunciation": "gouriteki na",
+        "vie_pronunciation": "hop ly"
+      },
+      "means": {
+        "en": "Showing reason or sound judgment",
+        "zh": "你所有的经历决定了事情对你的看法"
+      }
+    },
+    {
+      "word": {
+        "en": "reassure",
+        "laos": "ເຮັດໃຫ້ແນ່ໃຈ",
+        "jp": "安心させる",
+        "vie": "trấn an",
+        "en_pronunciation": "/ˌriəˈʃʊr/",
+        "laos_pronunciation": "hedhaiaenchai",
+        "jp_pronunciation": "anshinsa seru",
+        "vie_pronunciation": "tran an"
+      },
+      "means": {
+        "en": "Cause to feel sure; give reassurance to",
+        "zh": "接受生活事实并偏爱实用性和字面真理的属性"
+      }
+    },
+    {
+      "word": {
+        "en": "reassurance",
+        "laos": "ຄວາມຮັບຮູ້",
+        "jp": "安心感",
+        "vie": "sự trấn an",
+        "en_pronunciation": "/ˌriəˈʃʊrəns/",
+        "laos_pronunciation": "khuaamhabhu",
+        "jp_pronunciation": "anshinkan",
+        "vie_pronunciation": "su tran an"
+      },
+      "means": {
+        "en": "The act of reassuring; restoring someone's confidence",
+        "zh": "清晰明确地理解某事"
+      }
+    },
+    {
+      "word": {
+        "en": "rebel",
+        "laos": "ຄົນກະບົດ",
+        "jp": "反逆者",
+        "vie": "nổi loạn",
+        "en_pronunciation": "/ˈrɛbəl/",
+        "laos_pronunciation": "khon kabod",
+        "jp_pronunciation": "hangyakusha",
+        "vie_pronunciation": "noi loan"
+      },
+      "means": {
+        "en": "`Johnny' was applied as a nickname for Confederate soldiers by the Federal soldiers in the American Civil War; `greyback' derived from their grey Confederate uniforms",
+        "zh": "由作曲家以外的其他人完成或丰富的音乐作品"
+      }
+    },
+    {
+      "word": {
+        "en": "rebellion",
+        "laos": "ການກະບົດ",
+        "jp": "反乱",
+        "vie": "nổi loạn",
+        "en_pronunciation": "/rɪˈbɛljən/",
+        "laos_pronunciation": "kan kabod",
+        "jp_pronunciation": "hanran",
+        "vie_pronunciation": "noi loan"
+      },
+      "means": {
+        "en": "Refusal to accept some authority or code or convention",
+        "zh": "信念或行动的理性动机"
+      }
+    },
+    {
+      "word": {
+        "en": "rebellious",
+        "laos": "ທີ່ດື້ດ້ານ",
+        "jp": "反抗的な",
+        "vie": "nổi loạn",
+        "en_pronunciation": "/rɪˈbɛljəs/",
+        "laos_pronunciation": "thi dudan",
+        "jp_pronunciation": "hankou tekina",
+        "vie_pronunciation": "noi loan"
+      },
+      "means": {
+        "en": "Resisting control or authority",
+        "zh": "表现出理由或合理的判断"
+      }
+    },
+    {
+      "word": {
+        "en": "recall",
+        "laos": "ຈື່ໄດ້",
+        "jp": "思い出す",
+        "vie": "nhớ lại",
+        "en_pronunciation": "/ˈriˌkɔl/",
+        "laos_pronunciation": "chudai",
+        "jp_pronunciation": "omoidasu",
+        "vie_pronunciation": "nho lai"
+      },
+      "means": {
+        "en": "A request by the manufacturer of a defective product to return the product (as for replacement or repair)",
+        "zh": "使人感到确定；"
+      }
+    },
+    {
+      "word": {
+        "en": "recede",
+        "laos": "ຖອຢ",
+        "jp": "後退する",
+        "vie": "rút đi",
+        "en_pronunciation": "/rɪˈsid/",
+        "laos_pronunciation": "thoy",
+        "jp_pronunciation": "koutai suru",
+        "vie_pronunciation": "rut di"
+      },
+      "means": {
+        "en": "Pull back or move away or backward",
+        "zh": "使人放心"
+      }
+    },
+    {
+      "word": {
+        "en": "receive",
+        "laos": "ໄດ້ຮັບ",
+        "jp": "受け取る",
+        "vie": "nhận được",
+        "en_pronunciation": "/rɪˈsiv/",
+        "laos_pronunciation": "daihab",
+        "jp_pronunciation": "uketoru",
+        "vie_pronunciation": "nhan duoc"
+      },
+      "means": {
+        "en": "Get something; come into possession of",
+        "zh": "安抚行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "recent",
+        "laos": "ທີ່ໃຊ້ໄດ້",
+        "jp": "最近の",
+        "vie": "gần đây",
+        "en_pronunciation": "/ˈrisənt/",
+        "laos_pronunciation": "thisaidai",
+        "jp_pronunciation": "saikin no",
+        "vie_pronunciation": "gan day"
+      },
+      "means": {
+        "en": "Approximately the last 10,000 years",
+        "zh": "恢复某人的信心"
+      }
+    },
+    {
+      "word": {
+        "en": "reception",
+        "laos": "ການຕ້ອນຮັບ",
+        "jp": "受付",
+        "vie": "tiếp tân",
+        "en_pronunciation": "/rɪˈsɛpʃən/",
+        "laos_pronunciation": "kantonhab",
+        "jp_pronunciation": "uketsuke",
+        "vie_pronunciation": "tiep tan"
+      },
+      "means": {
+        "en": "The manner in which something is greeted",
+        "zh": "在美国内战期间，“约翰尼”被联邦士兵用作南部邦联士兵的昵称；"
+      }
+    },
+    {
+      "word": {
+        "en": "recession",
+        "laos": "ການຖົດຮວມ",
+        "jp": "不況",
+        "vie": "suy thoái kinh tế",
+        "en_pronunciation": "/ˌriˈsɛʃən/",
+        "laos_pronunciation": "kan thodhuam",
+        "jp_pronunciation": "fukyou",
+        "vie_pronunciation": "suy thoai kinh te"
+      },
+      "means": {
+        "en": "The state of the economy declines; a widespread decline in the GDP and employment and trade lasting from six months to a year",
+        "zh": "“灰背”源自他们的灰色邦联制服"
+      }
+    },
+    {
+      "word": {
+        "en": "recipe",
+        "laos": "ສູດທີ່",
+        "jp": "レシピ",
+        "vie": "công thức",
+        "en_pronunciation": "/ˈrɛsəpi/",
+        "laos_pronunciation": "sudthi",
+        "jp_pronunciation": "reshipi",
+        "vie_pronunciation": "cong thuc"
+      },
+      "means": {
+        "en": "Directions for making something",
+        "zh": "拒绝接受某些权威、准则或惯例"
+      }
+    },
+    {
+      "word": {
+        "en": "receipt",
+        "laos": "ໃບຮັບເງິນ",
+        "jp": "領収書",
+        "vie": "biên nhận",
+        "en_pronunciation": "/rɪˈsit/",
+        "laos_pronunciation": "bai hab ngoen",
+        "jp_pronunciation": "ryoushuusho",
+        "vie_pronunciation": "bien nhan"
+      },
+      "means": {
+        "en": "The act of receiving",
+        "zh": "抵制控制或权威"
+      }
+    }
+  ]
+}

@@ -250,15 +250,35 @@ function Get-DefaultRemote {
     }
 }
 
-# Default remote (primary) - this will be restored after each operation
-$DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
+# Load remote configurations from git_remotes.conf
+function Load-RemoteConfigs {
+    $configFile = Join-Path $PSScriptRoot "git_remotes.conf"
+    $remoteConfigs = @{}
+    
+    if (-not (Test-Path $configFile)) {
+        Write-Error "Configuration file not found: $configFile"
+        exit 1
+    }
+    
+    Get-Content $configFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            if ($line -match '^([^=]+)=(.+)$') {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                $remoteConfigs[$key] = $value
+            }
+        }
+    }
+    
+    return $remoteConfigs
+}
 
 # Remote configurations
-$remoteConfigs = @{
-    "gitee" = "git@gitee.com:accountbelongstox/$projectName.git"
-    "github" = "git@github.com:accountbelongstox/$projectName.git"
-    "local" = "ssh://git@git.local.12gm.com:17004/adminroot/$projectName.git"
-}
+$remoteConfigs = Load-RemoteConfigs
+
+# Default remote (primary) - this will be restored after each operation
+$DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
 function Get-ExecutionOrder {
@@ -586,6 +606,13 @@ function Invoke-GitOperations {
                     }
                     Write-Host ""
 
+                    # Ask if user wants to skip encryption
+                    Write-Host "Skip encryption? (y/N): " -NoNewline -ForegroundColor Yellow
+                    $skipResponse = Read-Host
+                    if ($skipResponse -eq 'y' -or $skipResponse -eq 'Y') {
+                        Write-ColorText "Skipping encryption as requested." -ForegroundColor Yellow
+                    } else {
+
                     Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
 
                 # Find disguise.js in scripts directory
@@ -677,6 +704,7 @@ function Invoke-GitOperations {
                     Write-ColorText "WARNING: disguise.js not found in scripts directory." -ForegroundColor Yellow
                     Write-ColorText "Continuing with git push. Please encrypt sensitive files manually." -ForegroundColor Yellow
                 }
+                    } # End of else block for "Skip encryption? N"
             } else {
                 Write-ColorText "SUCCESS: No unencrypted sensitive files found." -ForegroundColor Green
             }

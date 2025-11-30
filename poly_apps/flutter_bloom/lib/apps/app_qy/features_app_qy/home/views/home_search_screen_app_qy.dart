@@ -5,90 +5,229 @@
 // 3. Never create or update documentation (*.md).
 // 4. Never write summaries during development or thinking process.
 // 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// Home Search Screen for QY App
+/// Refactored Home Search Screen for QY App - with proper architecture
 library;
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../../../common/theme/base/theme_colors.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
+import '../../../../../../common/widgets/glassmorphism_card.dart';
+import '../../../../../../common/widgets/buttons/primary_button.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
+import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
+import '../controllers/learning_controller_app_qy.dart';
 
-class HomeSearchScreenAppQy extends StatefulWidget {
-  const HomeSearchScreenAppQy({super.key});
+class HomeSearchScreenRefactoredAppQy extends StatefulWidget {
+  const HomeSearchScreenRefactoredAppQy({super.key});
 
   @override
-  State<HomeSearchScreenAppQy> createState() => _HomeSearchScreenAppQyState();
+  State<HomeSearchScreenRefactoredAppQy> createState() =>
+      _HomeSearchScreenRefactoredAppQyState();
 }
 
-class _HomeSearchScreenAppQyState extends State<HomeSearchScreenAppQy> {
-  final TextEditingController _searchController;
-  int _checkInDays;
-  int _newWordsProgress;
-  int _newWordsTotal;
-  int _reviewWordsProgress;
-  int _reviewWordsTotal;
-  int _learnedWords;
-  int _totalWords;
-  double _learningProgress;
+class _HomeSearchScreenRefactoredAppQyState
+    extends State<HomeSearchScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+  final StorageAppQy _storage = StorageAppQy.instance;
+  final TextEditingController _searchController = TextEditingController();
 
-  _HomeSearchScreenAppQyState()
-      : _searchController = TextEditingController(),
-        _checkInDays = 0,
-        _newWordsProgress = 0,
-        _newWordsTotal = 200,
-        _reviewWordsProgress = 0,
-        _reviewWordsTotal = 27,
-        _learnedWords = 27,
-        _totalWords = 16952,
-        _learningProgress = 0.1;
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+    _loadLearningStatsFromStorage();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LearningControllerAppQy>().loadLearningStats();
+    });
+  }
+
+  Future<void> _loadLearningStatsFromStorage() async {
+    try {
+      final cachedStats = await _storage.getApp<Map<String, dynamic>>(
+        '${StorageAppQy.keyUserProgress}_learning_stats',
+      );
+      if (cachedStats != null && mounted) {
+        // Stats will be loaded by controller
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
 
   @override
   void dispose() {
+    _shimmerController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _handleSearch(String query) {
-    // TODO: Implement search functionality
+  void _handleSearch() {
+    final query = _searchController.text;
+    if (query.trim().isEmpty) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${QyAppLocalizationKeys.qySearching.tr(context)}: $query')),
+    );
   }
 
   void _handleStartLearning() {
-    // TODO: Navigate to learning screen
-  }
-
-  void _handleWordBook() {
-    // TODO: Navigate to word book
+    context.read<LearningControllerAppQy>().startLearning();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildSearchBar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(Dimensions.paddingMedium),
-                child: Column(
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          _buildBackgroundGradient(),
+          SafeArea(
+            child: Consumer<LearningControllerAppQy>(
+              builder: (context, controller, child) {
+                return Column(
                   children: [
-                    _buildCheckInCard(),
-                    SizedBox(height: Dimensions.spacingMedium),
-                    _buildCourseProgressCard(),
-                    SizedBox(height: Dimensions.spacingMedium),
-                    _buildLearningStats(),
-                    SizedBox(height: Dimensions.spacingLarge),
-                    _buildStartLearningButton(),
+                    _buildHeader(),
+                    _buildSearchBar(),
+                    Expanded(
+                      child: controller.isLoading
+                          ? Center(
+                              child: CircularProgressIndicator(
+                                color: ColorsAppQy.qyPrimary,
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: controller.refreshStats,
+                              color: ColorsAppQy.qyPrimary,
+                              child: SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+                                child: Column(
+                                  children: [
+                                    _buildCheckInCard(controller.learningStats),
+                                    const SizedBox(height: ThemeDimensions.spacing16),
+                                    _buildWordBookCard(controller.learningStats),
+                                    const SizedBox(height: ThemeDimensions.spacing16),
+                                    _buildLearningStats(controller.learningStats),
+                                    const SizedBox(height: ThemeDimensions.spacing24),
+                                    _buildStartButton(controller),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                    const BottomNavigationAppQy(currentIndex: 0),
                   ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundGradient() {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyDynamicShimmerGradient(_shimmerController.value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+          decoration: BoxDecoration(
+            gradient: ColorsAppQy.qyFrostedGlassGradient,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                DateTime.now().hour.toString().padLeft(2, '0') +
+                    ':' +
+                    DateTime.now().minute.toString().padLeft(2, '0'),
+                style: ThemeTextStyles.h3.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+              Icon(
+                Icons.notifications_outlined,
+                color: ColorsAppQy.qyTextPrimary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
+      child: GlassmorphismCard(
+        borderRadius: ThemeDimensions.radiusLarge,
+        blur: 15,
+        opacity: 0.2,
+        padding: const EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search,
+              color: ColorsAppQy.qyTextSecondary,
+            ),
+            const SizedBox(width: ThemeDimensions.spacing12),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ColorsAppQy.qyTextPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: QyAppLocalizationKeys.qySearchPlaceholder.tr(context),
+                  hintStyle: ThemeTextStyles.body1.copyWith(
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (_) => _handleSearch(),
+              ),
+            ),
+            IconButton(
+              onPressed: _handleSearch,
+              icon: Icon(
+                Icons.mic,
+                color: ColorsAppQy.qyTextSecondary,
               ),
             ),
           ],
@@ -97,147 +236,96 @@ class _HomeSearchScreenAppQyState extends State<HomeSearchScreenAppQy> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.shadow.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _searchController,
-        onSubmitted: _handleSearch,
-        style: TextStyles.body1.copyWith(color: ThemeColors.textPrimary),
-        decoration: InputDecoration(
-          hintText: QyAppLocalizationKeys.qySearchPlaceholder.tr(context),
-          hintStyle: TextStyles.body2.copyWith(color: ThemeColors.textTertiary),
-          prefixIcon: Icon(Icons.search, color: ThemeColors.textSecondary),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear, color: ThemeColors.textSecondary),
-                  onPressed: () {
-                    setState(() {
-                      _searchController.clear();
-                    });
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: ThemeColors.background,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-            borderSide: BorderSide(color: ThemeColors.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-            borderSide: BorderSide(color: ThemeColors.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-            borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: Dimensions.paddingMedium,
-            vertical: Dimensions.paddingSmall,
-          ),
+  Widget _buildCheckInCard(dynamic stats) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: ColorsAppQy.qyPrimaryGradient,
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        ),
+        padding: const EdgeInsets.all(ThemeDimensions.spacing24),
+        child: Column(
+          children: [
+            Text(
+              QyAppLocalizationKeys.qyHomeCheckInDays.tr(context),
+              style: ThemeTextStyles.body1.copyWith(
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+            const SizedBox(height: ThemeDimensions.spacing16),
+            Text(
+              stats.checkInDays.toString(),
+              style: ThemeTextStyles.display1.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 72,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCheckInCard() {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
+  Widget _buildWordBookCard(dynamic stats) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            QyAppLocalizationKeys.qyHomeCheckInDays.tr(context),
-            style: TextStyles.body2.copyWith(color: ThemeColors.textSecondary),
-          ),
-          SizedBox(height: Dimensions.spacingMedium),
-          Text(
-            '$_checkInDays',
-            style: TextStyles.h1.copyWith(
-              color: ThemeColors.primary,
-              fontSize: 72,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCourseProgressCard() {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
                   'COCA ${QyAppLocalizationKeys.qyCorpus.tr(context)} 20000',
-                  style: TextStyles.body1.copyWith(
-                    color: ThemeColors.textPrimary,
+                  style: ThemeTextStyles.h4.copyWith(
+                    color: ColorsAppQy.qyTextPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: Dimensions.spacingXSmall),
-                Text(
-                  '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} $_learningProgress%',
-                  style: TextStyles.body2.copyWith(
-                    color: ThemeColors.textSecondary,
-                  ),
+              ),
+              Text(
+                QyAppLocalizationKeys.qyWordBook.tr(context),
+                style: ThemeTextStyles.button.copyWith(
+                  color: ColorsAppQy.qyPrimary,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          InkWell(
-            onTap: _handleWordBook,
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: Dimensions.paddingSmall,
-                vertical: Dimensions.paddingXSmall,
+          const SizedBox(height: ThemeDimensions.spacing16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${QyAppLocalizationKeys.qyHomeLearned.tr(context)} ${stats.learnedPercentage}%',
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
               ),
-              decoration: BoxDecoration(
-                color: ThemeColors.background,
-                borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                border: Border.all(color: ThemeColors.border),
+              Text(
+                '${stats.learnedWords}/${stats.totalWords}${QyAppLocalizationKeys.qyWords.tr(context)}',
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ColorsAppQy.qyTextSecondary,
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    QyAppLocalizationKeys.qyWordBook.tr(context),
-                    style: TextStyles.caption.copyWith(
-                      color: ThemeColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    '$_learnedWords/$_totalWords${QyAppLocalizationKeys.qyWords.tr(context)}',
-                    style: TextStyles.caption.copyWith(
-                      color: ThemeColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
+            ],
+          ),
+          const SizedBox(height: ThemeDimensions.spacing12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+            child: LinearProgressIndicator(
+              value: stats.learnedPercentage / 100,
+              minHeight: 6,
+              backgroundColor: Colors.white.withOpacity(0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
             ),
           ),
         ],
@@ -245,80 +333,66 @@ class _HomeSearchScreenAppQyState extends State<HomeSearchScreenAppQy> {
     );
   }
 
-  Widget _buildLearningStats() {
+  Widget _buildLearningStats(dynamic stats) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeNewWords.tr(context),
-            '$_newWordsProgress/$_newWordsTotal',
-            ThemeColors.success,
+            '${stats.newWordsToday}/${stats.newWordsTarget}',
+            ColorsAppQy.qyPrimary,
           ),
         ),
-        SizedBox(width: Dimensions.spacingMedium),
+        const SizedBox(width: ThemeDimensions.spacing12),
         Expanded(
           child: _buildStatCard(
             QyAppLocalizationKeys.qyHomeReviewWords.tr(context),
-            '$_reviewWordsProgress/$_reviewWordsTotal',
-            ThemeColors.warning,
+            '${stats.reviewWordsToday}/${stats.reviewWordsTarget}',
+            ColorsAppQy.qySecondary,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color accentColor) {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-        border: Border.all(color: ThemeColors.border),
-      ),
+  Widget _buildStatCard(String title, String value, Color color) {
+    return GlassmorphismCard(
+      borderRadius: ThemeDimensions.radiusLarge,
+      blur: 15,
+      opacity: 0.2,
+      padding: const EdgeInsets.all(ThemeDimensions.spacing16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.textSecondary,
+            style: ThemeTextStyles.body2.copyWith(
+              color: ColorsAppQy.qyTextSecondary,
             ),
+            textAlign: TextAlign.center,
           ),
-          SizedBox(height: Dimensions.spacingSmall),
+          const SizedBox(height: ThemeDimensions.spacing8),
           Text(
             value,
-            style: TextStyles.h3.copyWith(
-              color: accentColor,
+            style: ThemeTextStyles.h3.copyWith(
+              color: color,
               fontWeight: FontWeight.bold,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStartLearningButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _handleStartLearning,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ThemeColors.primary,
-          foregroundColor: ThemeColors.onPrimary,
-          padding: EdgeInsets.symmetric(vertical: Dimensions.paddingMedium),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-          ),
-          elevation: 2,
-        ),
-        child: Text(
-          QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
-          style: TextStyles.button.copyWith(
-            color: ThemeColors.onPrimary,
-            fontSize: 18,
-          ),
-        ),
-      ),
+  Widget _buildStartButton(LearningControllerAppQy controller) {
+    return PrimaryButton(
+      text: QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
+      onPressed: controller.isLoading ? null : _handleStartLearning,
+      backgroundColor: ColorsAppQy.qyPrimary,
+      foregroundColor: ColorsAppQy.qyTextOnPrimary,
+      isFullWidth: true,
+      isLoading: controller.isLoading,
     );
   }
+
 }

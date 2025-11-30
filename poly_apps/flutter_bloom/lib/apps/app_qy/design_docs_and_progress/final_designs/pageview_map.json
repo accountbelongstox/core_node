@@ -1,0 +1,38 @@
+{
+  "image_file": "",
+  "page_key": "",
+  "elements": [
+    {
+      "type": "text",
+      "text": "",
+      "bbox": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "color": "#000000",
+      "notes": "Add details here"
+    }
+  ],
+  "descriptions": {
+    "purpose": "This file maps UI elements from design wireframes for Flutter implementation",
+    "specifications": {
+      "architecture": "Follow MVVM pattern: separate UI layer and Data layer with distinct responsibilities",
+      "naming_conventions": {
+        "widgets": "UpperCamelCase for widget classes",
+        "variables": "lowerCamelCase for variables and functions",
+        "files": "snake_case for files and folders",
+        "constants": "UPPER_SNAKE_CASE for constants"
+      },
+      "ui_guidelines": {
+        "responsive": "Ensure adaptive design for multiple screen sizes",
+        "accessibility": "Support screen readers and semantic labels",
+        "performance": "Use const constructors, avoid rebuilds, leverage Impeller rendering"
+      },
+      "documentation": "Clearly describe architectural decisions and design patterns for team onboarding"
+    },
+    "version": "2025",
+    "reference": "https://docs.flutter.dev/app-architecture"
+  }
+}

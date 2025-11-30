@@ -4,10 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/controllers/home_controller.dart';
-import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/facility_card.dart';
+import 'package:qyflutter/apps/app_vipclub/provider_app_vipclub/user_provider_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/provider_app_vipclub/app_data_provider_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/banner_model_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/article_model_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/banner_carousel.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/facility_project_card.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/article_card.dart';
+import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/price_tier_tab.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/vip_status_card.dart';
 import 'package:qyflutter/apps/app_vipclub/router_app_vipclub/router_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/resources_app_vipclub/assets_images_app_vipclub.dart';
 
 class VipClubHomeScreen extends StatefulWidget {
   const VipClubHomeScreen({super.key});
@@ -17,361 +24,396 @@ class VipClubHomeScreen extends StatefulWidget {
 }
 
 class _VipClubHomeScreenState extends State<VipClubHomeScreen> {
-  int _selectedIndex = 0;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VipClubHomeController>().initialize();
+      context.read<VipClubAppDataProvider>().loadMockData();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottomNavBar(),
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(),
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBannerSection(),
+                _buildFacilityProjectsSection(),
+                _buildVipZoneSection(),
+                _buildNewsArticlesSection(),
+                _buildPriceTiersSection(),
+                SizedBox(height: ThemeDimensions.extraLargePadding),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildBody() {
-    return Consumer<VipClubHomeController>(
-      builder: (context, controller, child) {
-        if (controller.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        if (controller.errorMessage != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  controller.errorMessage!,
-                  style: ThemeTextStyles.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: ThemeDimensions.mediumPadding),
-                ElevatedButton(
-                  onPressed: () => controller.refresh(),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () => controller.refresh(),
-          child: CustomScrollView(
-            slivers: [
-              _buildAppBar(controller),
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (controller.isLoggedIn && controller.isVipMember)
-                      _buildVipSection(controller),
-                    _buildQuickActions(context),
-                    _buildFeaturedFacilities(controller),
-                    SizedBox(height: ThemeDimensions.largePadding),
-                  ],
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      floating: true,
+      pinned: true,
+      expandedHeight: 80,
+      backgroundColor: ThemeColors.neutralWhite,
+      elevation: 2,
+      shadowColor: ThemeColors.neutralBlack.withOpacity(0.1),
+      flexibleSpace: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ThemeDimensions.defaultPadding,
+            vertical: ThemeDimensions.smallPadding,
+          ),
+          child: Row(
+            children: [
+              Image.asset(
+                VipClubAssetsImages.vipclubLogo,
+                height: 40,
+                width: 40,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: ThemeColors.primaryBlue,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.diamond,
+                      color: ThemeColors.neutralWhite,
+                    ),
+                  );
+                },
+              ),
+              SizedBox(width: ThemeDimensions.smallPadding),
+              Text(
+                'VIP Club',
+                style: ThemeTextStyles.headingMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ThemeColors.primaryBlue,
                 ),
               ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.share_outlined),
+                onPressed: () {},
+                color: ThemeColors.neutralDarkGrey,
+              ),
+              Consumer<VipClubUserProvider>(
+                builder: (context, userProvider, child) {
+                  return IconButton(
+                    icon: Stack(
+                      children: [
+                        const Icon(Icons.card_membership),
+                        if (userProvider.user?.isVipMember ?? false)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: ThemeColors.accentOrange,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    onPressed: () => context.push(VipClubRoutes.vipZone),
+                    color: ThemeColors.accentOrange,
+                  );
+                },
+              ),
+              Consumer<VipClubUserProvider>(
+                builder: (context, userProvider, child) {
+                  final user = userProvider.user;
+                  return GestureDetector(
+                    onTap: () => context.push(VipClubRoutes.profile),
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: ThemeColors.primaryBlue.withOpacity(0.1),
+                      backgroundImage: user?.avatar != null
+                          ? NetworkImage(user!.avatar!)
+                          : null,
+                      child: user?.avatar == null
+                          ? Icon(
+                              Icons.person,
+                              size: 20,
+                              color: ThemeColors.primaryBlue,
+                            )
+                          : null,
+                    ),
+                  );
+                },
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBannerSection() {
+    return Consumer<VipClubAppDataProvider>(
+      builder: (context, appData, child) {
+        if (appData.banners.isEmpty) {
+          return _buildMockBanners();
+        }
+        return VipClubBannerCarousel(
+          banners: appData.banners,
+        );
+      },
+    );
+  }
+
+  Widget _buildMockBanners() {
+    return VipClubBannerCarousel(
+      banners: [
+        VipClubBannerModel(
+          id: '1',
+          imageUrl: 'assets/apps/app_vipclub/images/banner_1.jpg',
+          title: 'Welcome to Elite VIP Club',
+          subtitle: 'Exclusive benefits await you',
+          order: 1,
+        ),
+        VipClubBannerModel(
+          id: '2',
+          imageUrl: 'assets/apps/app_vipclub/images/banner_2.jpg',
+          title: 'Premium Golf Experience',
+          subtitle: 'Book your tee time now',
+          order: 2,
+        ),
+        VipClubBannerModel(
+          id: '3',
+          imageUrl: 'assets/apps/app_vipclub/images/banner_3.jpg',
+          title: 'Luxury Hotel Stays',
+          subtitle: 'Special member discounts',
+          order: 3,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFacilityProjectsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          child: Text(
+            'Premium Facilities',
+            style: ThemeTextStyles.headingLarge.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 180,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.only(left: ThemeDimensions.defaultPadding),
+            children: [
+              VipClubFacilityProjectCard(
+                icon: Icons.gps_fixed,
+                title: 'Shooting Range',
+                subtitle: 'Professional training facilities',
+                iconColor: ThemeColors.accentOrange,
+                onViewDetails: () => context.push(VipClubRoutes.shooting),
+                onBook: () => context.push(VipClubRoutes.createBooking),
+              ),
+              VipClubFacilityProjectCard(
+                icon: Icons.golf_course,
+                title: 'Golf Course',
+                subtitle: '18-hole championship course',
+                iconColor: ThemeColors.accentGreen,
+                onViewDetails: () => context.push(VipClubRoutes.golf),
+                onBook: () => context.push(VipClubRoutes.createBooking),
+              ),
+              VipClubFacilityProjectCard(
+                icon: Icons.hotel,
+                title: 'Luxury Hotel',
+                subtitle: '5-star accommodation',
+                iconColor: ThemeColors.primaryBlue,
+                onViewDetails: () => context.push(VipClubRoutes.hotel),
+                onBook: () => context.push(VipClubRoutes.createBooking),
+              ),
+              VipClubFacilityProjectCard(
+                icon: Icons.fitness_center,
+                title: 'Fitness Center',
+                subtitle: 'State-of-the-art equipment',
+                iconColor: ThemeColors.accentPurple,
+                onViewDetails: () {},
+                onBook: () => context.push(VipClubRoutes.createBooking),
+              ),
+              VipClubFacilityProjectCard(
+                icon: Icons.people,
+                title: 'Social Club',
+                subtitle: 'Exclusive member events',
+                iconColor: ThemeColors.accentOrange,
+                onViewDetails: () {},
+                onBook: () {},
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVipZoneSection() {
+    return Consumer<VipClubUserProvider>(
+      builder: (context, userProvider, child) {
+        final user = userProvider.user;
+        if (user == null || !user.isVipMember) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          child: VipStatusCard(
+            memberType: user.memberType,
+            points: user.vipPoints,
+            discountRate: user.discountRate,
+            onTap: () => context.push(VipClubRoutes.vipZone),
           ),
         );
       },
     );
   }
 
-  Widget _buildAppBar(VipClubHomeController controller) {
-    return SliverAppBar(
-      expandedHeight: 120,
-      floating: false,
-      pinned: true,
-      flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          controller.getGreeting(),
-          style: ThemeTextStyles.headingMedium.copyWith(
-            color: ThemeColors.neutralWhite,
-          ),
-        ),
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                ThemeColors.primaryBlue,
-                ThemeColors.primaryBlue.withOpacity(0.8),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  controller.getUserDisplayName(),
-                  style: ThemeTextStyles.headingLarge.copyWith(
-                    color: ThemeColors.neutralWhite,
+  Widget _buildNewsArticlesSection() {
+    return Consumer<VipClubAppDataProvider>(
+      builder: (context, appData, child) {
+        final articles = appData.featuredArticles;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Latest News',
+                    style: ThemeTextStyles.headingLarge.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                Text(
-                  controller.getMembershipBadge(),
-                  style: ThemeTextStyles.bodySmall.copyWith(
-                    color: ThemeColors.neutralWhite.withOpacity(0.9),
+                  TextButton(
+                    onPressed: () => context.push(VipClubRoutes.articles),
+                    child: const Text('View All'),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
-      ),
-      actions: [
-        if (controller.isLoggedIn)
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          onPressed: () => context.push(VipClubRoutes.settings),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVipSection(VipClubHomeController controller) {
-    return Padding(
-      padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-      child: VipStatusCard(
-        memberType: controller.currentUser!.memberType,
-        points: controller.getUserPoints(),
-        discountRate: controller.getUserDiscount(),
-        onTap: () => context.push(VipClubRoutes.vipZone),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: ThemeDimensions.defaultPadding,
-        vertical: ThemeDimensions.smallPadding,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Access',
-            style: ThemeTextStyles.headingMedium,
-          ),
-          SizedBox(height: ThemeDimensions.defaultPadding),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildQuickActionCard(
-                context,
-                icon: Icons.my_location,
-                label: 'Shooting',
-                color: ThemeColors.accentOrange,
-                onTap: () => context.push(VipClubRoutes.shooting),
-              ),
-              _buildQuickActionCard(
-                context,
-                icon: Icons.golf_course,
-                label: 'Golf',
-                color: ThemeColors.accentGreen,
-                onTap: () => context.push(VipClubRoutes.golf),
-              ),
-              _buildQuickActionCard(
-                context,
-                icon: Icons.hotel,
-                label: 'Hotel',
-                color: ThemeColors.primaryBlue,
-                onTap: () => context.push(VipClubRoutes.hotel),
-              ),
-              _buildQuickActionCard(
-                context,
-                icon: Icons.book_online,
-                label: 'Bookings',
-                color: ThemeColors.accentPurple,
-                onTap: () => context.push(VipClubRoutes.bookings),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: EdgeInsets.symmetric(
-            horizontal: ThemeDimensions.tinyPadding,
-          ),
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(ThemeDimensions.defaultRadius),
-            border: Border.all(
-              color: color.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                color: color,
-                size: 32,
-              ),
-              SizedBox(height: ThemeDimensions.tinyPadding),
-              Text(
-                label,
-                style: ThemeTextStyles.caption1.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeaturedFacilities(VipClubHomeController controller) {
-    if (controller.featuredFacilities.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: ThemeDimensions.defaultPadding,
-        vertical: ThemeDimensions.mediumPadding,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Featured Facilities',
-                style: ThemeTextStyles.headingMedium,
-              ),
-              TextButton(
-                onPressed: () => context.push(VipClubRoutes.facilities),
-                child: Text('View All'),
-              ),
-            ],
-          ),
-          SizedBox(height: ThemeDimensions.defaultPadding),
-          SizedBox(
-            height: 220,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: controller.featuredFacilities.length,
-              itemBuilder: (context, index) {
-                final facility = controller.featuredFacilities[index];
-                return FacilityCard(
-                  facility: facility,
-                  onTap: () {
-                    String route;
-                    switch (facility.type) {
-                      case 'shooting':
-                        route = VipClubRoutes.shootingDetails
-                            .replaceAll(':id', facility.id);
-                        break;
-                      case 'golf':
-                        route = VipClubRoutes.golfDetails
-                            .replaceAll(':id', facility.id);
-                        break;
-                      case 'hotel':
-                        route = VipClubRoutes.hotelDetails
-                            .replaceAll(':id', facility.id);
-                        break;
-                      default:
-                        return;
-                    }
-                    context.push(route);
+            if (articles.isEmpty)
+              _buildMockArticles()
+            else
+              SizedBox(
+                height: 280,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.only(left: ThemeDimensions.defaultPadding),
+                  itemCount: articles.length,
+                  itemBuilder: (context, index) {
+                    return VipClubArticleCard(
+                      article: articles[index],
+                      onTap: () => context.push(
+                        VipClubRoutes.articleDetail,
+                        extra: articles[index],
+                      ),
+                    );
                   },
-                );
-              },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMockArticles() {
+    return SizedBox(
+      height: 280,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.only(left: ThemeDimensions.defaultPadding),
+        children: [
+          VipClubArticleCard(
+            article: VipClubArticleModel(
+              id: '1',
+              title: 'New VIP Benefits Announced',
+              summary: 'Discover our latest member perks and exclusive offers',
+              content: '',
+              category: 'news',
+              author: 'VIP Club',
+              publishDate: DateTime.now().subtract(const Duration(hours: 2)),
+              isFeatured: true,
+              coverImageUrl: 'https://picsum.photos/300/200?random=1',
             ),
+            onTap: () {},
+          ),
+          VipClubArticleCard(
+            article: VipClubArticleModel(
+              id: '2',
+              title: 'Golf Tournament Results',
+              summary: 'See who won this month\'s championship',
+              content: '',
+              category: 'news',
+              author: 'VIP Club',
+              publishDate: DateTime.now().subtract(const Duration(days: 1)),
+              isFeatured: true,
+              coverImageUrl: 'https://picsum.photos/300/200?random=2',
+            ),
+            onTap: () {},
+          ),
+          VipClubArticleCard(
+            article: VipClubArticleModel(
+              id: '3',
+              title: 'Member Spotlight',
+              summary: 'Meet our distinguished members of the month',
+              content: '',
+              category: 'news',
+              author: 'VIP Club',
+              publishDate: DateTime.now().subtract(const Duration(days: 3)),
+              isFeatured: true,
+              coverImageUrl: 'https://picsum.photos/300/200?random=3',
+            ),
+            onTap: () {},
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomNavBar() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: ThemeColors.primaryBlue,
-      unselectedItemColor: ThemeColors.neutralGrey,
-      onTap: (index) {
-        setState(() {
-          _selectedIndex = index;
-        });
-
-        switch (index) {
-          case 0:
-            break;
-          case 1:
-            context.push(VipClubRoutes.facilities);
-            break;
-          case 2:
-            context.push(VipClubRoutes.bookings);
-            break;
-          case 3:
-            context.push(VipClubRoutes.profile);
-            break;
+  Widget _buildPriceTiersSection() {
+    return Consumer<VipClubAppDataProvider>(
+      builder: (context, appData, child) {
+        if (appData.priceTiers.isEmpty) {
+          return const SizedBox.shrink();
         }
+
+        final membershipTiers =
+            appData.getPriceTiersByCategory('membership');
+
+        return VipClubPriceTierTab(
+          tiers: membershipTiers,
+          onSelectTier: (tier) {
+            context.push(
+              VipClubRoutes.membershipSubscribe,
+              extra: tier.toJson(),
+            );
+          },
+        );
       },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.location_on_outlined),
-          activeIcon: Icon(Icons.location_on),
-          label: 'Facilities',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.book_outlined),
-          activeIcon: Icon(Icons.book),
-          label: 'Bookings',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
     );
   }
 }

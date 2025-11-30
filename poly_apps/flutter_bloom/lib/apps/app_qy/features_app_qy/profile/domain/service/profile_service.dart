@@ -24,7 +24,8 @@ class ProfileService {
   Future<UserProfileModel> getProfile() async {
     try {
       final response = await _apiService.get('/api/v1/profile');
-      return UserProfileModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return UserProfileModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return UserProfileModel.mock();
     }
@@ -57,8 +58,10 @@ class ProfileService {
   Future<List<CertificateModel>> getCertificates() async {
     try {
       final response = await _apiService.get('/api/v1/profile/certificates');
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['certificates'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) =>
               CertificateModel.fromJson(json as Map<String, dynamic>))
           .toList();
@@ -70,7 +73,8 @@ class ProfileService {
   Future<CertificateModel?> getCertificateById(String id) async {
     try {
       final response = await _apiService.get('/api/v1/profile/certificates/$id');
-      return CertificateModel.fromJson(response.data as Map<String, dynamic>);
+      final data = response['data'] ?? response;
+      return CertificateModel.fromJson(data as Map<String, dynamic>);
     } catch (e) {
       return null;
     }
@@ -79,8 +83,10 @@ class ProfileService {
   Future<List<AchievementModel>> getAchievements() async {
     try {
       final response = await _apiService.get('/api/v1/profile/achievements');
-      final data = response.data as List<dynamic>;
-      return data
+      final responseData = response['data'] ?? response;
+      final data = (responseData is List) ? responseData : (responseData['achievements'] ?? responseData['items'] ?? []);
+      final dataList = data as List<dynamic>;
+      return dataList
           .map((json) =>
               AchievementModel.fromJson(json as Map<String, dynamic>))
           .toList();
@@ -92,7 +98,8 @@ class ProfileService {
   Future<Map<String, dynamic>> getStats() async {
     try {
       final response = await _apiService.get('/api/v1/profile/stats');
-      return response.data as Map<String, dynamic>;
+      final data = response['data'] ?? response;
+      return data as Map<String, dynamic>;
     } catch (e) {
       return {
         'total_study_time': 12345,

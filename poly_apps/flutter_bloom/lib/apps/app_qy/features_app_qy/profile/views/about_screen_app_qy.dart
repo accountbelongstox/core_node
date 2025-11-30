@@ -5,12 +5,11 @@
 // 3. Never create or update documentation (*.md).
 // 4. Never write summaries during development or thinking process.
 // 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/// About Screen for QY App
 library;
 
 import 'package:flutter/material.dart';
@@ -20,39 +19,43 @@ import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
-class AboutScreenAppQy extends StatefulWidget {
-  const AboutScreenAppQy({super.key});
+class AboutScreenRefactoredAppQy extends StatefulWidget {
+  const AboutScreenRefactoredAppQy({super.key});
 
   @override
-  State<AboutScreenAppQy> createState() => _AboutScreenAppQyState();
+  State<AboutScreenRefactoredAppQy> createState() =>
+      _AboutScreenRefactoredAppQyState();
 }
 
-class _AboutScreenAppQyState extends State<AboutScreenAppQy> {
-  final String _version;
-  final String _buildNumber;
+class _AboutScreenRefactoredAppQyState
+    extends State<AboutScreenRefactoredAppQy> {
+  final String _appVersion = '1.0.0';
+  final String _buildNumber = '100';
+  final List<Map<String, String>> _teamMembers = [];
+  final List<Map<String, String>> _features = [];
 
-  _AboutScreenAppQyState()
-      : _version = '1.0.0',
-        _buildNumber = '100';
-
-  void _handleRateApp() {
-    // TODO: Open app store for rating
+  @override
+  void initState() {
+    super.initState();
+    _initTeamMembers();
+    _initFeatures();
   }
 
-  void _handleFeedback() {
-    // TODO: Open feedback form
+  void _initTeamMembers() {
+    _teamMembers.addAll([
+      {'name': 'Development Team', 'role': 'Engineering'},
+      {'name': 'Design Team', 'role': 'UI/UX'},
+      {'name': 'Content Team', 'role': 'Education'},
+    ]);
   }
 
-  void _handlePrivacyPolicy() {
-    // TODO: Open privacy policy
-  }
-
-  void _handleTermsOfService() {
-    // TODO: Open terms of service
-  }
-
-  void _handleContactUs() {
-    // TODO: Open contact form
+  void _initFeatures() {
+    _features.addAll([
+      {'title': 'Word Learning', 'icon': 'book'},
+      {'title': 'Listening Practice', 'icon': 'headset'},
+      {'title': 'Reading Courses', 'icon': 'article'},
+      {'title': 'AI Assistance', 'icon': 'psychology'},
+    ]);
   }
 
   @override
@@ -61,220 +64,460 @@ class _AboutScreenAppQyState extends State<AboutScreenAppQy> {
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          QyAppLocalizationKeys.qyAbout.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          QyAppLocalizationKeys.qySettingsAbout.tr(context),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
+        ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+      body: ListView(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+        children: [
+          _buildAppHeader(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildVersionInfo(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildFeaturesSection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildTeamSection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildLinksSection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+          _buildLegalSection(),
+          SizedBox(height: ThemeDimensions.spacingLarge),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppHeader() {
+    return Container(
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ThemeColors.primary,
+            ThemeColors.primary.withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: ThemeColors.surface,
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+            ),
+            child: Icon(
+              Icons.school,
+              size: 48,
+              color: ThemeColors.primary,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacingMedium),
+          Text(
+            'QY English',
+            style: ThemeTextStyles.h2.copyWith(
+              color: ThemeColors.surface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: ThemeDimensions.spacingXSmall),
+          Text(
+            QyAppLocalizationKeys.qyAboutTagline.tr(context),
+            style: ThemeTextStyles.body1.copyWith(
+              color: ThemeColors.surface.withOpacity(0.9),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVersionInfo() {
+    return Container(
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        children: [
+          _buildInfoRow(
+            Icons.info_outline,
+            QyAppLocalizationKeys.qyAboutVersion.tr(context),
+            _appVersion,
+          ),
+          Divider(color: ThemeColors.border),
+          _buildInfoRow(
+            Icons.build_circle_outlined,
+            QyAppLocalizationKeys.qyAboutBuild.tr(context),
+            _buildNumber,
+          ),
+          Divider(color: ThemeColors.border),
+          _buildInfoRow(
+            Icons.update,
+            QyAppLocalizationKeys.qyAboutLastUpdate.tr(context),
+            '2025-11-06',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
+      child: Row(
+        children: [
+          Icon(icon, color: ThemeColors.primary, size: 20),
+          SizedBox(width: ThemeDimensions.spacingMedium),
+          Expanded(
+            child: Text(
+              label,
+              style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+            ),
+          ),
+          Text(
+            value,
+            style: ThemeTextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeaturesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qyAboutFeatures.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: ThemeDimensions.spacingMedium,
+            mainAxisSpacing: ThemeDimensions.spacingMedium,
+            childAspectRatio: 1.5,
+          ),
+          itemCount: _features.length,
+          itemBuilder: (context, index) {
+            final feature = _features[index];
+            return _buildFeatureCard(feature['title']!, _getIcon(feature['icon']!));
+          },
+        ),
+      ],
+    );
+  }
+
+  IconData _getIcon(String iconName) {
+    switch (iconName) {
+      case 'book':
+        return Icons.menu_book;
+      case 'headset':
+        return Icons.headset;
+      case 'article':
+        return Icons.article;
+      case 'psychology':
+        return Icons.psychology;
+      default:
+        return Icons.star;
+    }
+  }
+
+  Widget _buildFeatureCard(String title, IconData icon) {
+    return Container(
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 32, color: ThemeColors.primary),
+          SizedBox(height: ThemeDimensions.spacingSmall),
+          Text(
+            title,
+            style: ThemeTextStyles.body2.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qyAboutTeam.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.border),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            children: _teamMembers.asMap().entries.map((entry) {
+              final index = entry.key;
+              final member = entry.value;
+              return Column(
+                children: [
+                  if (index > 0) Divider(color: ThemeColors.border),
+                  _buildTeamMemberRow(member['name']!, member['role']!),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamMemberRow(String name, String role) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: ThemeColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.person, color: ThemeColors.primary, size: 24),
+          ),
+          SizedBox(width: ThemeDimensions.spacingMedium),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: ThemeTextStyles.body1.copyWith(
+                    color: ThemeColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  role,
+                  style: ThemeTextStyles.caption.copyWith(
+                    color: ThemeColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinksSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          QyAppLocalizationKeys.qyAboutLinks.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.border),
+          ),
+          child: Column(
             children: [
-              SizedBox(height: Dimensions.spacingXLarge),
-              _buildAppLogo(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildAppInfo(),
-              SizedBox(height: Dimensions.spacingXLarge),
-              _buildActionButtons(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildLegalLinks(),
-              SizedBox(height: Dimensions.spacingLarge),
-              _buildCopyright(),
+              _buildLinkTile(
+                Icons.web,
+                QyAppLocalizationKeys.qyAboutWebsite.tr(context),
+                'https://qyenglish.com',
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildLinkTile(
+                Icons.email,
+                QyAppLocalizationKeys.qyAboutContact.tr(context),
+                'support@qyenglish.com',
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildLinkTile(
+                Icons.bug_report,
+                QyAppLocalizationKeys.qyAboutFeedback.tr(context),
+                QyAppLocalizationKeys.qyAboutReportIssue.tr(context),
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAppLogo() {
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        color: ThemeColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-      ),
-      child: Icon(
-        Icons.book,
-        size: 64,
-        color: ThemeColors.primary,
-      ),
-    );
-  }
-
-  Widget _buildAppInfo() {
-    return Column(
-      children: [
-        Text(
-          QyAppLocalizationKeys.qyAppName.tr(context),
-          style: TextStyles.h2.copyWith(
-            color: ThemeColors.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: Dimensions.spacingSmall),
-        Text(
-          QyAppLocalizationKeys.qyAppDescription.tr(context),
-          textAlign: TextAlign.center,
-          style: TextStyles.body2.copyWith(
-            color: ThemeColors.textSecondary,
-          ),
-        ),
-        SizedBox(height: Dimensions.spacingMedium),
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: Dimensions.paddingMedium,
-            vertical: Dimensions.paddingSmall,
-          ),
-          decoration: BoxDecoration(
-            color: ThemeColors.surface,
-            borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-            border: Border.all(color: ThemeColors.border),
-          ),
-          child: Text(
-            '${QyAppLocalizationKeys.qyVersion.tr(context)} $_version ($_buildNumber)',
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.textSecondary,
-            ),
-          ),
-        ),
       ],
     );
   }
 
-  Widget _buildActionButtons() {
-    return Column(
-      children: [
-        _buildActionButton(
-          Icons.star,
-          QyAppLocalizationKeys.qyRateApp.tr(context),
-          QyAppLocalizationKeys.qyRateAppDesc.tr(context),
-          _handleRateApp,
-        ),
-        SizedBox(height: Dimensions.spacingSmall),
-        _buildActionButton(
-          Icons.feedback,
-          QyAppLocalizationKeys.qyFeedback.tr(context),
-          QyAppLocalizationKeys.qyFeedbackDesc.tr(context),
-          _handleFeedback,
-        ),
-        SizedBox(height: Dimensions.spacingSmall),
-        _buildActionButton(
-          Icons.email,
-          QyAppLocalizationKeys.qyContactUs.tr(context),
-          QyAppLocalizationKeys.qyContactUsDesc.tr(context),
-          _handleContactUs,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(
-    IconData icon,
-    String title,
-    String subtitle,
-    VoidCallback onTap,
-  ) {
+  Widget _buildLinkTile(IconData icon, String title, String subtitle) {
     return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
-        decoration: BoxDecoration(
-          color: ThemeColors.surface,
-          borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-          border: Border.all(color: ThemeColors.border),
-        ),
+      onTap: () {},
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(Dimensions.paddingSmall),
+              padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
               decoration: BoxDecoration(
                 color: ThemeColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
               ),
-              child: Icon(
-                icon,
-                color: ThemeColors.primary,
-                size: 24,
-              ),
+              child: Icon(icon, size: 20, color: ThemeColors.primary),
             ),
-            SizedBox(width: Dimensions.spacingMedium),
+            SizedBox(width: ThemeDimensions.spacingMedium),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: TextStyles.body1.copyWith(
+                    style: ThemeTextStyles.body1.copyWith(
                       color: ThemeColors.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: Dimensions.spacingXSmall),
+                  SizedBox(height: ThemeDimensions.spacingXSmall),
                   Text(
                     subtitle,
-                    style: TextStyles.caption.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: ThemeColors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: ThemeColors.textTertiary,
-              size: 16,
-            ),
+            Icon(Icons.chevron_right, color: ThemeColors.textTertiary),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLegalLinks() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildLegalSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextButton(
-          onPressed: _handlePrivacyPolicy,
-          child: Text(
-            QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.primary,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
         Text(
-          ' | ',
-          style: TextStyles.caption.copyWith(
-            color: ThemeColors.textTertiary,
+          QyAppLocalizationKeys.qyAboutLegal.tr(context),
+          style: ThemeTextStyles.h4.copyWith(
+            color: ThemeColors.textPrimary,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        TextButton(
-          onPressed: _handleTermsOfService,
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: ThemeColors.surface,
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+            border: Border.all(color: ThemeColors.border),
+          ),
+          child: Column(
+            children: [
+              _buildLegalTile(
+                Icons.description,
+                QyAppLocalizationKeys.qyAboutTerms.tr(context),
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildLegalTile(
+                Icons.privacy_tip,
+                QyAppLocalizationKeys.qySettingsPrivacy.tr(context),
+              ),
+              Divider(height: 1, color: ThemeColors.border),
+              _buildLegalTile(
+                Icons.copyright,
+                QyAppLocalizationKeys.qyAboutLicense.tr(context),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacingMedium),
+        Center(
           child: Text(
-            QyAppLocalizationKeys.qyTermsOfService.tr(context),
-            style: TextStyles.caption.copyWith(
-              color: ThemeColors.primary,
-              decoration: TextDecoration.underline,
+            '© 2025 QY English. All rights reserved.',
+            style: ThemeTextStyles.caption.copyWith(
+              color: ThemeColors.textTertiary,
             ),
+            textAlign: TextAlign.center,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCopyright() {
-    return Text(
-      '© 2025 QY. ${QyAppLocalizationKeys.qyAllRightsReserved.tr(context)}',
-      textAlign: TextAlign.center,
-      style: TextStyles.caption.copyWith(
-        color: ThemeColors.textTertiary,
+  Widget _buildLegalTile(IconData icon, String title) {
+    return InkWell(
+      onTap: () {},
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: ThemeColors.textSecondary),
+            SizedBox(width: ThemeDimensions.spacingMedium),
+            Expanded(
+              child: Text(
+                title,
+                style: ThemeTextStyles.body1.copyWith(
+                  color: ThemeColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: ThemeColors.textTertiary),
+          ],
+        ),
       ),
     );
   }

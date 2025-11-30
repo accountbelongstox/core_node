@@ -62,7 +62,12 @@ class CommonAuthService
         }
         // Authenticate by username/password
         elseif ($username && $password) {
-            $user = User::where('username', $username)->first();
+            $user = User::where(function($query) use ($username) {
+                $query->where('username', $username)
+                    ->orWhere('email', $username)
+                    ->orWhere('phone', $username);
+            })->first();
+
             if ($user && !Hash::check($password, $user->password)) {
                 $user = null;
             }
@@ -115,34 +120,6 @@ class CommonAuthService
         $token = Str::random(self::USER_TOKEN_LENGTH);
         $expiresAt = Carbon::now()->addDays(self::USER_TOKEN_EXPIRES_DAYS);
 
-        // Check if user already has a token for this app
-        $existingToken = DB::table('user_tokens')
-            ->where('user_id', $userId)
-            ->where('app_name', $appName)
-            ->first();
-
-        if ($existingToken) {
-            // Update existing token
-            DB::table('user_tokens')
-                ->where('id', $existingToken->id)
-                ->update([
-                    'token' => $token,
-                    'expires_at' => $expiresAt,
-                    'updated_at' => Carbon::now()
-                ]);
-        } else {
-            // Create new token
-            DB::table('user_tokens')->insert([
-                'user_id' => $userId,
-                'app_name' => $appName,
-                'token' => $token,
-                'expires_at' => $expiresAt,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
-            ]);
-        }
-
-        // Update user table with the token for backward compatibility
         User::where('id', $userId)->update(['user_token' => $token]);
 
         return [
@@ -177,17 +154,6 @@ class CommonAuthService
      */
     public static function getUserByUserToken($userToken)
     {
-        // Check in user_tokens table first
-        $tokenRecord = DB::table('user_tokens')
-            ->where('token', $userToken)
-            ->where('expires_at', '>', Carbon::now())
-            ->first();
-
-        if ($tokenRecord) {
-            return User::find($tokenRecord->user_id);
-        }
-
-        // Fallback to user table for backward compatibility
         return User::where('user_token', $userToken)->first();
     }
 
@@ -200,19 +166,7 @@ class CommonAuthService
      */
     public static function revokeUserToken($userId, $appName = null)
     {
-        $query = DB::table('user_tokens')->where('user_id', $userId);
-        
-        if ($appName) {
-            $query->where('app_name', $appName);
-        }
-        
-        $query->delete();
-
-        // Also clear user table token for backward compatibility
-        if (!$appName) {
-            User::where('id', $userId)->update(['user_token' => null]);
-        }
-
+        User::where('id', $userId)->update(['user_token' => null]);
         return true;
     }
 

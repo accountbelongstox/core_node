@@ -14,7 +14,7 @@
 use Illuminate\Support\Facades\Route;
 
 # -----------------------------Manager-------------------------------
-use App\Apps\AppQyV1\Controllers\AppQyV1Group\AppQyV1WordGroupManagementController as DGMController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupManagementController as DGMController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/'.$version;
 Route::prefix($apiVersionPrefix)->group(function () {

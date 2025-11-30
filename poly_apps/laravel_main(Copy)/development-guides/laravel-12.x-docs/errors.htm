@@ -1,0 +1,263 @@
+<!doctypehtml tml tml><html lang=en><title>Error Handling - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Error Handling<ul><li><a href=#introduction>Introduction</a><li><a href=#configuration>Configuration</a><li><a href=#handling-exceptions>Handling Exceptions</a> <ul><li><a href=#reporting-exceptions>Reporting Exceptions</a><li><a href=#exception-log-levels>Exception Log Levels</a><li><a href=#ignoring-exceptions-by-type>Ignoring Exceptions by Type</a><li><a href=#rendering-exceptions>Rendering Exceptions</a><li><a href=#renderable-exceptions>Reportable and Renderable Exceptions</a></ul><li><a href=#throttling-reported-exceptions>Throttling Reported Exceptions</a><li><a href=#http-exceptions>HTTP Exceptions</a> <ul><li><a href=#custom-http-error-pages>Custom HTTP Error Pages</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>When you start a new Laravel project, error and exception handling is already configured for you; however, at any point, you may use the <code>withExceptions</code> method in your application's <code>bootstrap/app.php</code> to manage how exceptions are reported and rendered by your application.<p>The <code>$exceptions</code> object provided to the <code>withExceptions</code> closure is an instance of <code>Illuminate\Foundation\Configuration\Exceptions</code> and is responsible for managing exception handling in your application. We'll dive deeper into this object throughout this documentation.<h2><a href=#configuration>Configuration</a></h2><p>The <code>debug</code> option in your <code>config/app.php</code> configuration file determines how much information about an error is actually displayed to the user. By default, this option is set to respect the value of the <code>APP_DEBUG</code> environment variable, which is stored in your <code>.env</code> file.<p>During local development, you should set the <code>APP_DEBUG</code> environment variable to <code>true</code>. <strong>In your production environment, this value should always be <code>false</code>. If the value is set to <code>true</code> in production, you risk exposing sensitive configuration values to your application's end users.</strong><h2><a href=#handling-exceptions>Handling Exceptions</a></h2><h3><a href=#reporting-exceptions>Reporting Exceptions</a></h3><p>In Laravel, exception reporting is used to log exceptions or send them to an external service like <a href=https://github.com/getsentry/sentry-laravel>Sentry</a> or <a href=https://flareapp.io/>Flare</a>. By default, exceptions will be logged based on your <a href=logging.htm>logging</a> configuration. However, you are free to log exceptions however you wish.<p>If you need to report different types of exceptions in different ways, you may use the <code>report</code> exception method in your application's <code>bootstrap/app.php</code> to register a closure that should be executed when an exception of a given type needs to be reported. Laravel will determine what type of exception the closure reports by examining the type-hint of the closure:<div><pre><code>1use App\Exceptions\InvalidOrderException;2 3->withExceptions(function(Exceptions$exceptions) {4$exceptions->report(function(InvalidOrderException$e) {5// ...6    });7})
+use App\Exceptions\InvalidOrderException;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->report(function (InvalidOrderException $e) {
+        // ...
+    });
+})</code></pre></div><p>When you register a custom exception reporting callback using the <code>report</code> method, Laravel will still log the exception using the default logging configuration for the application. If you wish to stop the propagation of the exception to the default logging stack, you may use the <code>stop</code> method when defining your reporting callback or return <code>false</code> from the callback:<div><pre><code> 1use App\Exceptions\InvalidOrderException; 2  3->withExceptions(function(Exceptions$exceptions) { 4$exceptions->report(function(InvalidOrderException$e) { 5// ... 6    })->stop(); 7  8$exceptions->report(function(InvalidOrderException$e) { 9returnfalse;10    });11})
+use App\Exceptions\InvalidOrderException;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->report(function (InvalidOrderException $e) {
+        // ...
+    })->stop();
+
+    $exceptions->report(function (InvalidOrderException $e) {
+        return false;
+    });
+})</code></pre></div><div><p>To customize the exception reporting for a given exception, you may also utilize <a href=errors.htm#renderable-exceptions>reportable exceptions</a>.</div><h4><a href=#global-log-context>Global Log Context</a></h4><p>If available, Laravel automatically adds the current user's ID to every exception's log message as contextual data. You may define your own global contextual data using the <code>context</code> exception method in your application's <code>bootstrap/app.php</code> file. This information will be included in every exception's log message written by your application:<div><pre><code>1->withExceptions(function(Exceptions$exceptions) {2$exceptions->context(fn() => [3'foo'=>'bar',4    ]);5})
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->context(fn () => [
+        'foo' => 'bar',
+    ]);
+})</code></pre></div><h4><a href=#exception-log-context>Exception Log Context</a></h4><p>While adding context to every log message can be useful, sometimes a particular exception may have unique context that you would like to include in your logs. By defining a <code>context</code> method on one of your application's exceptions, you may specify any data relevant to that exception that should be added to the exception's log entry:<div><pre><code> 1&lt;?php 2  3namespace App\Exceptions; 4  5useException; 6  7classInvalidOrderExceptionextendsException 8{ 9// ...10 11/**12     * Get the exception's context information.13     *14     * @returnarray&lt;string, mixed>15*/16publicfunctioncontext():array17    {18return ['order_id'=>$this->orderId];19    }20}
+&lt;?php
+
+namespace App\Exceptions;
+
+use Exception;
+
+class InvalidOrderException extends Exception
+{
+    // ...
+
+    /**
+     * Get the exception's context information.
+     *
+     * @return array&lt;string, mixed>
+     */
+    public function context(): array
+    {
+        return ['order_id' => $this->orderId];
+    }
+}</code></pre></div><h4><a href=#the-report-helper>The <code>report</code> Helper</a></h4><p>Sometimes you may need to report an exception but continue handling the current request. The <code>report</code> helper function allows you to quickly report an exception without rendering an error page to the user:<div><pre><code> 1publicfunctionisValid(string$value):bool 2{ 3try { 4// Validate the value... 5    } catch(Throwable$e) { 6report($e); 7  8returnfalse; 9    }10}
+public function isValid(string $value): bool
+{
+    try {
+        // Validate the value...
+    } catch (Throwable $e) {
+        report($e);
+
+        return false;
+    }
+}</code></pre></div><h4><a href=#deduplicating-reported-exceptions>Deduplicating Reported Exceptions</a></h4><p>If you are using the <code>report</code> function throughout your application, you may occasionally report the same exception multiple times, creating duplicate entries in your logs.<p>If you would like to ensure that a single instance of an exception is only ever reported once, you may invoke the <code>dontReportDuplicates</code> exception method in your application's <code>bootstrap/app.php</code> file:<div><pre><code>1->withExceptions(function(Exceptions$exceptions) {2$exceptions->dontReportDuplicates();3})
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->dontReportDuplicates();
+})</code></pre></div><p>Now, when the <code>report</code> helper is called with the same instance of an exception, only the first call will be reported:<div><pre><code> 1$original=newRuntimeException('Whoops!'); 2  3report($original); // reported 4  5try { 6throw$original; 7} catch(Throwable$caught) { 8report($caught); // ignored 9}10 11report($original); // ignored12report($caught); // ignored
+$original = new RuntimeException('Whoops!');
+
+report($original); // reported
+
+try {
+    throw $original;
+} catch (Throwable $caught) {
+    report($caught); // ignored
+}
+
+report($original); // ignored
+report($caught); // ignored</code></pre></div><h3><a href=#exception-log-levels>Exception Log Levels</a></h3><p>When messages are written to your application's <a href=logging.htm>logs</a>, the messages are written at a specified <a href=logging.htm#log-levels>log level</a>, which indicates the severity or importance of the message being logged.<p>As noted above, even when you register a custom exception reporting callback using the <code>report</code> method, Laravel will still log the exception using the default logging configuration for the application; however, since the log level can sometimes influence the channels on which a message is logged, you may wish to configure the log level that certain exceptions are logged at.<p>To accomplish this, you may use the <code>level</code> exception method in your application's <code>bootstrap/app.php</code> file. This method receives the exception type as its first argument and the log level as its second argument:<div><pre><code>1usePDOException;2use Psr\Log\LogLevel;3 4->withExceptions(function(Exceptions$exceptions) {5$exceptions->level(PDOException::class, LogLevel::CRITICAL);6})
+use PDOException;
+use Psr\Log\LogLevel;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->level(PDOException::class, LogLevel::CRITICAL);
+})</code></pre></div><h3><a href=#ignoring-exceptions-by-type>Ignoring Exceptions by Type</a></h3><p>When building your application, there will be some types of exceptions you never want to report. To ignore these exceptions, you may use the <code>dontReport</code> exception method in your application's <code>bootstrap/app.php</code> file. Any class provided to this method will never be reported; however, they may still have custom rendering logic:<div><pre><code>1use App\Exceptions\InvalidOrderException;2 3->withExceptions(function(Exceptions$exceptions) {4$exceptions->dontReport([5InvalidOrderException::class,6    ]);7})
+use App\Exceptions\InvalidOrderException;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->dontReport([
+        InvalidOrderException::class,
+    ]);
+})</code></pre></div><p>Alternatively, you may simply "mark" an exception class with the <code>Illuminate\Contracts\Debug\ShouldntReport</code> interface. When an exception is marked with this interface, it will never be reported by Laravel's exception handler:<div><pre><code> 1&lt;?php 2  3namespace App\Exceptions; 4  5useException; 6use Illuminate\Contracts\Debug\ShouldntReport; 7  8classPodcastProcessingExceptionextendsExceptionimplementsShouldntReport 9{10//11}
+&lt;?php
+
+namespace App\Exceptions;
+
+use Exception;
+use Illuminate\Contracts\Debug\ShouldntReport;
+
+class PodcastProcessingException extends Exception implements ShouldntReport
+{
+    //
+}</code></pre></div><p>If you need even more control over when a particular type of exception is ignored, you may provide a closure to the <code>dontReportWhen</code> method:<div><pre><code>1use App\Exceptions\InvalidOrderException;2useThrowable;3 4->withExceptions(function(Exceptions$exceptions) {5$exceptions->dontReportWhen(function(Throwable$e) {6return$einstanceofPodcastProcessingException&&7$e->reason() ==='Subscription expired';8    });9})
+use App\Exceptions\InvalidOrderException;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->dontReportWhen(function (Throwable $e) {
+        return $e instanceof PodcastProcessingException &&
+               $e->reason() === 'Subscription expired';
+    });
+})</code></pre></div><p>Internally, Laravel already ignores some types of errors for you, such as exceptions resulting from 404 HTTP errors or 419 HTTP responses generated by invalid CSRF tokens. If you would like to instruct Laravel to stop ignoring a given type of exception, you may use the <code>stopIgnoring</code> exception method in your application's <code>bootstrap/app.php</code> file:<div><pre><code>1use Symfony\Component\HttpKernel\Exception\HttpException;2 3->withExceptions(function(Exceptions$exceptions) {4$exceptions->stopIgnoring(HttpException::class);5})
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->stopIgnoring(HttpException::class);
+})</code></pre></div><h3><a href=#rendering-exceptions>Rendering Exceptions</a></h3><p>By default, the Laravel exception handler will convert exceptions into an HTTP response for you. However, you are free to register a custom rendering closure for exceptions of a given type. You may accomplish this by using the <code>render</code> exception method in your application's <code>bootstrap/app.php</code> file.<p>The closure passed to the <code>render</code> method should return an instance of <code>Illuminate\Http\Response</code>, which may be generated via the <code>response</code> helper. Laravel will determine what type of exception the closure renders by examining the type-hint of the closure:<div><pre><code>1use App\Exceptions\InvalidOrderException;2use Illuminate\Http\Request;3 4->withExceptions(function(Exceptions$exceptions) {5$exceptions->render(function(InvalidOrderException$e, Request$request) {6returnresponse()->view('errors.invalid-order', status: 500);7    });8})
+use App\Exceptions\InvalidOrderException;
+use Illuminate\Http\Request;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->render(function (InvalidOrderException $e, Request $request) {
+        return response()->view('errors.invalid-order', status: 500);
+    });
+})</code></pre></div><p>You may also use the <code>render</code> method to override the rendering behavior for built-in Laravel or Symfony exceptions such as <code>NotFoundHttpException</code>. If the closure given to the <code>render</code> method does not return a value, Laravel's default exception rendering will be utilized:<div><pre><code> 1use Illuminate\Http\Request; 2use Symfony\Component\HttpKernel\Exception\NotFoundHttpException; 3  4->withExceptions(function(Exceptions$exceptions) { 5$exceptions->render(function(NotFoundHttpException$e, Request$request) { 6if ($request->is('api/*')) { 7returnresponse()->json([ 8'message'=>'Record not found.' 9            ], 404);10        }11    });12})
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+        if ($request->is('api/*')) {
+            return response()->json([
+                'message' => 'Record not found.'
+            ], 404);
+        }
+    });
+})</code></pre></div><h4><a href=#rendering-exceptions-as-json>Rendering Exceptions as JSON</a></h4><p>When rendering an exception, Laravel will automatically determine if the exception should be rendered as an HTML or JSON response based on the <code>Accept</code> header of the request. If you would like to customize how Laravel determines whether to render HTML or JSON exception responses, you may utilize the <code>shouldRenderJsonWhen</code> method:<div><pre><code> 1use Illuminate\Http\Request; 2useThrowable; 3  4->withExceptions(function(Exceptions$exceptions) { 5$exceptions->shouldRenderJsonWhen(function(Request$request, Throwable$e) { 6if ($request->is('admin/*')) { 7returntrue; 8        } 9 10return$request->expectsJson();11    });12})
+use Illuminate\Http\Request;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
+        if ($request->is('admin/*')) {
+            return true;
+        }
+
+        return $request->expectsJson();
+    });
+})</code></pre></div><h4><a href=#customizing-the-exception-response>Customizing the Exception Response</a></h4><p>Rarely, you may need to customize the entire HTTP response rendered by Laravel's exception handler. To accomplish this, you may register a response customization closure using the <code>respond</code> method:<div><pre><code> 1use Symfony\Component\HttpFoundation\Response; 2  3->withExceptions(function(Exceptions$exceptions) { 4$exceptions->respond(function(Response$response) { 5if ($response->getStatusCode() ===419) { 6returnback()->with([ 7'message'=>'The page expired, please try again.', 8            ]); 9        }10 11return$response;12    });13})
+use Symfony\Component\HttpFoundation\Response;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->respond(function (Response $response) {
+        if ($response->getStatusCode() === 419) {
+            return back()->with([
+                'message' => 'The page expired, please try again.',
+            ]);
+        }
+
+        return $response;
+    });
+})</code></pre></div><h3><a href=#renderable-exceptions>Reportable and Renderable Exceptions</a></h3><p>Instead of defining custom reporting and rendering behavior in your application's <code>bootstrap/app.php</code> file, you may define <code>report</code> and <code>render</code> methods directly on your application's exceptions. When these methods exist, they will automatically be called by the framework:<div><pre><code> 1&lt;?php 2  3namespace App\Exceptions; 4  5useException; 6use Illuminate\Http\Request; 7use Illuminate\Http\Response; 8  9classInvalidOrderExceptionextendsException10{11/**12     * Report the exception.13*/14publicfunctionreport():void15    {16// ...17    }18 19/**20     * Render the exception as an HTTP response.21*/22publicfunctionrender(Request$request):Response23    {24returnresponse(/* ... */);25    }26}
+&lt;?php
+
+namespace App\Exceptions;
+
+use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+
+class InvalidOrderException extends Exception
+{
+    /**
+     * Report the exception.
+     */
+    public function report(): void
+    {
+        // ...
+    }
+
+    /**
+     * Render the exception as an HTTP response.
+     */
+    public function render(Request $request): Response
+    {
+        return response(/* ... */);
+    }
+}</code></pre></div><p>If your exception extends an exception that is already renderable, such as a built-in Laravel or Symfony exception, you may return <code>false</code> from the exception's <code>render</code> method to render the exception's default HTTP response:<div><pre><code> 1/** 2 * Render the exception as an HTTP response. 3*/ 4publicfunctionrender(Request$request):Response|bool 5{ 6if (/** Determine if the exception needs custom rendering */) { 7  8returnresponse(/* ... */); 9    }10 11returnfalse;12}
+/**
+ * Render the exception as an HTTP response.
+ */
+public function render(Request $request): Response|bool
+{
+    if (/** Determine if the exception needs custom rendering */) {
+
+        return response(/* ... */);
+    }
+
+    return false;
+}</code></pre></div><p>If your exception contains custom reporting logic that is only necessary when certain conditions are met, you may need to instruct Laravel to sometimes report the exception using the default exception handling configuration. To accomplish this, you may return <code>false</code> from the exception's <code>report</code> method:<div><pre><code> 1/** 2 * Report the exception. 3*/ 4publicfunctionreport():bool 5{ 6if (/** Determine if the exception needs custom reporting */) { 7  8// ... 9 10returntrue;11    }12 13returnfalse;14}
+/**
+ * Report the exception.
+ */
+public function report(): bool
+{
+    if (/** Determine if the exception needs custom reporting */) {
+
+        // ...
+
+        return true;
+    }
+
+    return false;
+}</code></pre></div><div><p>You may type-hint any required dependencies of the <code>report</code> method and they will automatically be injected into the method by Laravel's <a href=container.htm>service container</a>.</div><h3><a href=#throttling-reported-exceptions>Throttling Reported Exceptions</a></h3><p>If your application reports a very large number of exceptions, you may want to throttle how many exceptions are actually logged or sent to your application's external error tracking service.<p>To take a random sample rate of exceptions, you may use the <code>throttle</code> exception method in your application's <code>bootstrap/app.php</code> file. The <code>throttle</code> method receives a closure that should return a <code>Lottery</code> instance:<div><pre><code>1use Illuminate\Support\Lottery;2useThrowable;3 4->withExceptions(function(Exceptions$exceptions) {5$exceptions->throttle(function(Throwable$e) {6returnLottery::odds(1, 1000);7    });8})
+use Illuminate\Support\Lottery;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->throttle(function (Throwable $e) {
+        return Lottery::odds(1, 1000);
+    });
+})</code></pre></div><p>It is also possible to conditionally sample based on the exception type. If you would like to only sample instances of a specific exception class, you may return a <code>Lottery</code> instance only for that class:<div><pre><code> 1use App\Exceptions\ApiMonitoringException; 2use Illuminate\Support\Lottery; 3useThrowable; 4  5->withExceptions(function(Exceptions$exceptions) { 6$exceptions->throttle(function(Throwable$e) { 7if ($einstanceofApiMonitoringException) { 8returnLottery::odds(1, 1000); 9        }10    });11})
+use App\Exceptions\ApiMonitoringException;
+use Illuminate\Support\Lottery;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->throttle(function (Throwable $e) {
+        if ($e instanceof ApiMonitoringException) {
+            return Lottery::odds(1, 1000);
+        }
+    });
+})</code></pre></div><p>You may also rate limit exceptions logged or sent to an external error tracking service by returning a <code>Limit</code> instance instead of a <code>Lottery</code>. This is useful if you want to protect against sudden bursts of exceptions flooding your logs, for example, when a third-party service used by your application is down:<div><pre><code> 1use Illuminate\Broadcasting\BroadcastException; 2use Illuminate\Cache\RateLimiting\Limit; 3useThrowable; 4  5->withExceptions(function(Exceptions$exceptions) { 6$exceptions->throttle(function(Throwable$e) { 7if ($einstanceofBroadcastException) { 8returnLimit::perMinute(300); 9        }10    });11})
+use Illuminate\Broadcasting\BroadcastException;
+use Illuminate\Cache\RateLimiting\Limit;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->throttle(function (Throwable $e) {
+        if ($e instanceof BroadcastException) {
+            return Limit::perMinute(300);
+        }
+    });
+})</code></pre></div><p>By default, limits will use the exception's class as the rate limit key. You can customize this by specifying your own key using the <code>by</code> method on the <code>Limit</code>:<div><pre><code> 1use Illuminate\Broadcasting\BroadcastException; 2use Illuminate\Cache\RateLimiting\Limit; 3useThrowable; 4  5->withExceptions(function(Exceptions$exceptions) { 6$exceptions->throttle(function(Throwable$e) { 7if ($einstanceofBroadcastException) { 8returnLimit::perMinute(300)->by($e->getMessage()); 9        }10    });11})
+use Illuminate\Broadcasting\BroadcastException;
+use Illuminate\Cache\RateLimiting\Limit;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->throttle(function (Throwable $e) {
+        if ($e instanceof BroadcastException) {
+            return Limit::perMinute(300)->by($e->getMessage());
+        }
+    });
+})</code></pre></div><p>Of course, you may return a mixture of <code>Lottery</code> and <code>Limit</code> instances for different exceptions:<div><pre><code> 1use App\Exceptions\ApiMonitoringException; 2use Illuminate\Broadcasting\BroadcastException; 3use Illuminate\Cache\RateLimiting\Limit; 4use Illuminate\Support\Lottery; 5useThrowable; 6  7->withExceptions(function(Exceptions$exceptions) { 8$exceptions->throttle(function(Throwable$e) { 9returnmatch (true) {10$einstanceofBroadcastException=>Limit::perMinute(300),11$einstanceofApiMonitoringException=>Lottery::odds(1, 1000),12default=>Limit::none(),13        };14    });15})
+use App\Exceptions\ApiMonitoringException;
+use Illuminate\Broadcasting\BroadcastException;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Lottery;
+use Throwable;
+
+->withExceptions(function (Exceptions $exceptions) {
+    $exceptions->throttle(function (Throwable $e) {
+        return match (true) {
+            $e instanceof BroadcastException => Limit::perMinute(300),
+            $e instanceof ApiMonitoringException => Lottery::odds(1, 1000),
+            default => Limit::none(),
+        };
+    });
+})</code></pre></div><h2><a href=#http-exceptions>HTTP Exceptions</a></h2><p>Some exceptions describe HTTP error codes from the server. For example, this may be a "page not found" error (404), an "unauthorized error" (401), or even a developer generated 500 error. In order to generate such a response from anywhere in your application, you may use the <code>abort</code> helper:<div><pre><code>1abort(404);
+abort(404);</code></pre></div><h3><a href=#custom-http-error-pages>Custom HTTP Error Pages</a></h3><p>Laravel makes it easy to display custom error pages for various HTTP status codes. For example, to customize the error page for 404 HTTP status codes, create a <code>resources/views/errors/404.blade.php</code> view template. This view will be rendered for all 404 errors generated by your application. The views within this directory should be named to match the HTTP status code they correspond to. The <code>Symfony\Component\HttpKernel\Exception\HttpException</code> instance raised by the <code>abort</code> function will be passed to the view as an <code>$exception</code> variable:<div><pre><code>1&lt;h2>{{$exception->getMessage() }}&lt;/h2>
+&lt;h2>{{ $exception->getMessage() }}&lt;/h2></code></pre></div><p>You may publish Laravel's default error page templates using the <code>vendor:publish</code> Artisan command. Once the templates have been published, you may customize them to your liking:<div><pre><code>1php artisanvendor:publish--tag=laravel-errors
+php artisan vendor:publish --tag=laravel-errors</code></pre></div><h4><a href=#fallback-http-error-pages>Fallback HTTP Error Pages</a></h4><p>You may also define a "fallback" error page for a given series of HTTP status codes. This page will be rendered if there is not a corresponding page for the specific HTTP status code that occurred. To accomplish this, define a <code>4xx.blade.php</code> template and a <code>5xx.blade.php</code> template in your application's <code>resources/views/errors</code> directory.<p>When defining fallback error pages, the fallback pages will not affect <code>404</code>, <code>500</code>, and <code>503</code> error responses since Laravel has internal, dedicated pages for these status codes. To customize the pages rendered for these status codes, you should define a custom error page for each of them individually.</div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a><li><a href=#configuration> Configuration </a><li><a href=#handling-exceptions> Handling Exceptions </a> <ul><li><a href=#reporting-exceptions> Reporting Exceptions </a><li><a href=#exception-log-levels> Exception Log Levels </a><li><a href=#ignoring-exceptions-by-type> Ignoring Exceptions by Type </a><li><a href=#rendering-exceptions> Rendering Exceptions </a><li><a href=#renderable-exceptions> Reportable and Renderable Exceptions </a></ul><li><a href=#throttling-reported-exceptions> Throttling Reported Exceptions </a><li><a href=#http-exceptions> HTTP Exceptions </a> <ul><li><a href=#custom-http-error-pages> Custom HTTP Error Pages </a></ul></ul></div></div></div></div></div></div></div></div></div>

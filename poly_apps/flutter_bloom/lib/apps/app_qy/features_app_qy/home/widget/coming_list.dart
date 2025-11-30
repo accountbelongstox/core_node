@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/comingto_model.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/coming_end_data.dart';
 
 import 'coming_widget.dart';
 
@@ -22,14 +23,15 @@ class ComingListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final comingEnds = ComingEndData.getMockComingEnds();
     return SizedBox(
       height: 290,
       child: ListView.builder(
-          itemCount: comingModelList.length,
+          itemCount: comingEnds.length,
           shrinkWrap: true,
           scrollDirection: Axis.horizontal,
           itemBuilder: (context, index) {
-            final model = comingModelList[index];
+            final model = comingEnds[index];
             return ComingEndWidget(
               comingEndModel: ComingEndModel(
                 days: model.days ?? '',

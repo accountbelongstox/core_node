@@ -1,4 +1,9 @@
 class VipClubAssetsImages {
+  static const String vipclubLogo = 'assets/apps/app_vipclub/images/logo.png';
+  static const String vipclubBanner1 = 'assets/apps/app_vipclub/images/banner_1.jpg';
+  static const String vipclubBanner2 = 'assets/apps/app_vipclub/images/banner_2.jpg';
+  static const String vipclubBanner3 = 'assets/apps/app_vipclub/images/banner_3.jpg';
+
   static const String vipclubSplash1 = 'vipclub_splash_1';
   static const String vipclubSplash2 = 'vipclub_splash_2';
 

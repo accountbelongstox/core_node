@@ -16,6 +16,7 @@ const http = require('http');
 const EventEmitter = require('events');
 const WebSocket = require('ws');
 const logger = require('#@logger');
+const { getThreadBus } = require('#@thread_bus');
 
 let sharedInstance = null;
 let sharedStartPromise = null;
@@ -113,12 +114,29 @@ class TampermonkeyServer extends EventEmitter {
                     this.statistics.startTime = new Date();
                     logger.success(`[TAMPERMONKEY-SERVER] Listening on http://${this.host}:${this.port}`);
                     this.setupWebSocketServer();
+
+                    // Register with ThreadBus
+                    const threadBus = getThreadBus();
+                    threadBus.register('tampermonkey-server', {
+                        priority: 30,
+                        onShutdown: async () => {
+                            logger.info('[TAMPERMONKEY-SERVER] ThreadBus shutdown signal received');
+                            await this.stop();
+                        }
+                    });
+
                     resolve(this);
                 });
 
                 this.server.on('error', (error) => {
-                    this.handleServerError(error);
-                    reject(error);
+                    if (error.code === 'EADDRINUSE') {
+                        logger.warn(`[TAMPERMONKEY-SERVER] Port ${this.port} is already in use, skipping start`);
+                        this.isRunning = false;
+                        resolve(this);
+                    } else {
+                        this.handleServerError(error);
+                        reject(error);
+                    }
                 });
             } catch (error) {
                 this.handleServerError(error);
@@ -141,6 +159,10 @@ class TampermonkeyServer extends EventEmitter {
         if (!this.server || !this.isRunning) {
             return;
         }
+
+        // Unregister from ThreadBus
+        const threadBus = getThreadBus();
+        threadBus.unregister('tampermonkey-server');
 
         await new Promise((resolve) => {
             this.server.close(() => {

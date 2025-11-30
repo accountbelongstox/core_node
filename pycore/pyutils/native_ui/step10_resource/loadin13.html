@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>loadin13 • Bouncing Dots</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1e1e1e;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+        .loader {
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 30px, 0 -30px;
+            border-radius: 4px;
+            background: currentColor;
+            display: block;
+            position: relative;
+            color: #FFF;
+            transform: translateY(30px);
+            box-sizing: border-box;
+            animation: animloader13 2s ease infinite;
+        }
+        .loader::after,
+        .loader::before {
+            content: '';
+            box-sizing: border-box;
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 30px, 0 -30px;
+            border-radius: 4px;
+            background: currentColor;
+            color: #FFF;
+            position: absolute;
+            left: 30px;
+            top: 0;
+            animation: animloader13 2s 0.2s ease infinite;
+        }
+        .loader::before {
+            animation-delay: 0.4s;
+            left: 60px;
+        }
+        @keyframes animloader13 {
+            0% { top: 0; color: white; }
+            50% { top: 30px; color: rgba(255, 255, 255, 0.2); }
+            100% { top: 0; color: white; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="loader" role="status" aria-label="Bouncing dots loading animation"></div>
+    </div>
+</body>
+</html>

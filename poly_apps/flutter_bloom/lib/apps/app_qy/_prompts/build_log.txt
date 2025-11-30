@@ -1,0 +1,59 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20251107052435
+Username: DESKTOP-VCKBGQ9\MPC
+RunAs User: DESKTOP-VCKBGQ9\MPC
+Configuration Name: 
+Machine: DESKTOP-VCKBGQ9 (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\programing\core_node\poly_apps\flutter_bloom\scripts\start.ps1
+Process ID: 46544
+PSVersion: 5.1.26100.6899
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.6899
+BuildVersion: 10.0.26100.6899
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+             ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/profile/domain/service/profile_service.dart:19:9: Error: 'ApiServiceAppQy' isn't a type.
+  final ApiServiceAppQy _apiService;
+        ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/profile/domain/service/profile_service.dart:21:34: Error: 'ApiServiceAppQy' isn't a type.
+  const ProfileService({required ApiServiceAppQy apiService})
+                                 ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/settings/domain/service/settings_service.dart:19:9: Error: 'ApiServiceAppQy' isn't a type.
+  final ApiServiceAppQy _apiService;
+        ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/settings/domain/service/settings_service.dart:21:35: Error: 'ApiServiceAppQy' isn't a type.
+  const SettingsService({required ApiServiceAppQy apiService})
+                                  ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/social/domain/service/social_service.dart:19:9: Error: 'ApiServiceAppQy' isn't a type.
+  final ApiServiceAppQy _apiService;
+        ^^^^^^^^^^^^^^^
+lib/apps/app_qy/features_app_qy/social/domain/service/social_service.dart:21:33: Error: 'ApiServiceAppQy' isn't a type.
+  const SocialService({required ApiServiceAppQy apiService})
+                                ^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildRelease'.
+> Process 'command 'D:\.dev_win11\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 34s
+Running Gradle task 'assembleRelease'...                           35.3s
+Gradle task assembleRelease failed with exit code 1
+**********************
+Windows PowerShell transcript end
+End time: 20251107052517
+**********************

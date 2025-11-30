@@ -19,6 +19,7 @@ SCRIPT_PATH="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_PATH/../.." && pwd)"
 NCORE_APPS="$ROOT_DIR/apps"
 POLY_APPS="$ROOT_DIR/poly_apps"
+PY_APPS="$ROOT_DIR/pyapps"
 
 # Source gvar_common.sh to get CORE_NODE_DATA_DIR
 source "$ROOT_DIR/scripts/shells/linux/common/gvar_common.sh"
@@ -43,7 +44,7 @@ MAX_APP_NAME_WIDTH=0
 SCRIPT_FILES=("start.sh" "install.sh" "deploy.sh")
 
 # Native startup types
-NATIVE_STARTUPS=("ncoreStart" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
+NATIVE_STARTUPS=("ncoreStart" "pycoreStart" "Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
 
 # Debug output for paths
 echo "Script Path: $SCRIPT_PATH"
@@ -58,13 +59,29 @@ mkdir -p "$TEMP_SCRIPT_DIR"
 
 #region Functions
 
-# Generate pyStart command
+# Generate pyStart command (for general Python apps with main.py)
 get_py_start_command() {
     local app_path="$1"
     local main_py="$app_path/main.py"
-    
+
     if [ -f "$main_py" ]; then
         echo "python \"$main_py\""
+    fi
+}
+
+# Generate pycoreStart command (for pycore apps using pymain.py launcher)
+get_pycore_start_command() {
+    local app_path="$1"
+    local app_name="$(basename "$app_path")"
+    local pymain="$ROOT_DIR/pymain.py"
+    local main_py="$app_path/main.py"
+    local app_main_py="$app_path/${app_name}_main.py"
+
+    # Check if app has main.py or {appname}_main.py
+    if [ -f "$main_py" ] || [ -f "$app_main_py" ]; then
+        if [ -f "$pymain" ]; then
+            echo "python \"$pymain\" app=$app_name"
+        fi
     fi
 }
 
@@ -72,7 +89,7 @@ get_py_start_command() {
 get_ncore_start_command() {
     local app_path="$1"
     local main_js="$app_path/main.js"
-    
+
     if [ -f "$main_js" ]; then
         local app_name="$(basename "$app_path")"
         local root_main_js="$ROOT_DIR/main.js"
@@ -115,9 +132,21 @@ get_nuxt_start_command() {
 get_php_start_command() {
     local app_path="$1"
     local index_php="$app_path/index.php"
-    
+
     if [ -f "$index_php" ]; then
         echo "php -S localhost:8000 -t \"$app_path\""
+    fi
+}
+
+# Generate Ncore/Pycore/Installer command (unified installer for both ncore and pycore)
+get_t_installer_command() {
+    local app_path="$1"
+    local app_type="$2"
+
+    if [ "$app_type" = "ncoreApp" ]; then
+        get_ncore_start_command "$app_path"
+    elif [ "$app_type" = "pycoreApp" ]; then
+        get_pycore_start_command "$app_path"
     fi
 }
 
@@ -167,9 +196,9 @@ step1_scan_ncore_apps() {
 # Step 2: Scan poly_apps
 step2_scan_poly_apps() {
     echo -e "\033[36mStep 2: Scanning $POLY_APPS directory...\033[0m" >&2
-    
+
     local poly_apps=()
-    
+
     if [ -d "$POLY_APPS" ]; then
         for dir in "$POLY_APPS"/*; do
             if [ -d "$dir" ]; then
@@ -182,8 +211,44 @@ step2_scan_poly_apps() {
     else
         echo -e "  \033[31mDirectory not found: $POLY_APPS\033[0m" >&2
     fi
-    
+
     printf '%s\n' "${poly_apps[@]}"
+}
+
+# Step 2.5: Scan pyapps
+step2_5_scan_py_apps() {
+    echo -e "\033[36mStep 2.5: Scanning $PY_APPS directory...\033[0m" >&2
+
+    local py_apps=()
+
+    if [ -d "$PY_APPS" ]; then
+        for dir in "$PY_APPS"/*; do
+            if [ -d "$dir" ]; then
+                local app_name="$(basename "$dir")"
+
+                # Skip hidden and system directories
+                if [[ "$app_name" == .* ]] || [[ "$app_name" == __* ]]; then
+                    continue
+                fi
+
+                # Check if it has a valid entry point (main.py or {appname}_main.py)
+                local main_py="$dir/main.py"
+                local app_main_py="$dir/${app_name}_main.py"
+
+                if [ -f "$main_py" ] || [ -f "$app_main_py" ]; then
+                    py_apps+=("$app_name|$dir|pycoreApp")
+                    echo -e "  \033[90mFound: $app_name [pycoreApp]\033[0m" >&2
+                else
+                    echo -e "  \033[90mSkipped: $app_name (no valid entry point)\033[0m" >&2
+                fi
+            fi
+        done
+        echo -e "  \033[32mTotal pycoreApps: ${#py_apps[@]}\033[0m" >&2
+    else
+        echo -e "  \033[31mDirectory not found: $PY_APPS\033[0m" >&2
+    fi
+
+    printf '%s\n' "${py_apps[@]}"
 }
 
 # Step 3: Generate native startup commands
@@ -203,18 +268,18 @@ step3_generate_native_startup() {
         # Check native files
         read -r has_main_py has_main_js has_pubspec has_composer has_nuxt_config has_index_php <<< "$(check_native_files "$app_path")"
         
-        # Priority 1: ncoreStart for ncoreApp with main.js
-        if [ "$app_type" = "ncoreApp" ] && [ "$has_main_js" -eq 1 ]; then
-            local cmd="$(get_ncore_start_command "$app_path")"
-            if [ -n "$cmd" ]; then
-                available_scripts+=("ncoreStart")
-                current_script="ncoreStart"
-                script_index=0
-                found_native=1
-                echo -e "  \033[35m$app_name: ncoreStart - $cmd\033[0m" >&2
+        # Priority 1: Removed - ncoreStart&Installer merged into Ncore/Pycore/Installer
+        # Priority 1.5: Removed - pycoreStart&Installer merged into Ncore/Pycore/Installer
+
+        # Priority 1.9: Add Ncore/Pycore/Installer for both ncoreApp and pycoreApp
+        if [ "$app_type" = "ncoreApp" ] || [ "$app_type" = "pycoreApp" ]; then
+            local t_cmd="$(get_t_installer_command "$app_path" "$app_type")"
+            if [ -n "$t_cmd" ]; then
+                available_scripts+=("Ncore/Pycore/Installer")
+                echo -e "  \033[35m$app_name: Ncore/Pycore/Installer (unified) - $t_cmd\033[0m" >&2
             fi
         fi
-        
+
         # Priority 2: Framework-specific starts for poly_apps
         if [ "$app_type" = "poly_apps" ]; then
             # Flutter
@@ -493,18 +558,22 @@ scan_apps() {
     echo ""
     echo -e "\033[33m=== Starting Application Scan ===\033[0m"
     echo ""
-    
+
     # Step 1: Scan ncoreApps
     mapfile -t ncore_apps < <(step1_scan_ncore_apps)
     echo ""
-    
+
     # Step 2: Scan poly_apps
     mapfile -t poly_apps < <(step2_scan_poly_apps)
     echo ""
-    
+
+    # Step 2.5: Scan pyapps
+    mapfile -t py_apps < <(step2_5_scan_py_apps)
+    echo ""
+
     # Combine apps
-    local all_apps=("${ncore_apps[@]}" "${poly_apps[@]}")
-    
+    local all_apps=("${ncore_apps[@]}" "${poly_apps[@]}" "${py_apps[@]}")
+
     # Step 3: Generate native startup
     mapfile -t apps_with_native < <(step3_generate_native_startup "${all_apps[@]}")
     echo ""
@@ -678,10 +747,25 @@ launch_current_app() {
         # Native startup
         local command=""
         local working_dir=""
-        
+        local needs_install=0
+
+        # Check if this is an &Installer variant
+        if [[ "$current_script" == *"&Installer" ]]; then
+            needs_install=1
+        fi
+
         case "$current_script" in
-            "ncoreStart")
+            "Ncore/Pycore/Installer")
+                command="$(get_t_installer_command "$app_path" "$app_type")"
+                working_dir="$ROOT_DIR"
+                needs_install=1
+                ;;
+            ncoreStart*)
                 command="$(get_ncore_start_command "$app_path")"
+                working_dir="$ROOT_DIR"
+                ;;
+            pycoreStart*)
+                command="$(get_pycore_start_command "$app_path")"
                 working_dir="$ROOT_DIR"
                 ;;
             "pyStart")
@@ -705,24 +789,72 @@ launch_current_app() {
                 working_dir="$app_path"
                 ;;
         esac
-        
+
         if [ -n "$command" ]; then
             echo -e "\033[90mWorking Directory: $working_dir\033[0m"
             echo -e "\033[90mCommand: $command\033[0m"
             echo ""
             read -p "Press any key to continue, or 'n' to cancel..." -n 1 -r
             echo ""
-            
+
             if [[ $REPLY =~ ^[Nn]$ ]]; then
                 echo -e "\033[33mLaunch cancelled\033[0m"
                 sleep 1
                 return
             fi
-            
+
             # Create temporary shell script
-            local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${current_script}.sh"
-            
-            cat > "$temp_script" << EOF
+            # Clean script name for use in filename (replace invalid characters)
+            local clean_script_name="${current_script//[\/\\:*?\"<>|]/_}"
+            local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${clean_script_name}.sh"
+
+            if [ $needs_install -eq 1 ]; then
+                # Check if this is Ncore/Pycore/Installer for enhanced installation
+                if [ "$current_script" = "Ncore/Pycore/Installer" ]; then
+                    # Ncore/Pycore/Installer: Call the standalone installer script
+                    local installer_script="$SCRIPT_PATH/ncore_pycore_installer.sh"
+                    cat > "$temp_script" << EOF
+#!/bin/bash
+echo "Launching unified installer..."
+bash "$installer_script" "$app_name" "$app_type" "$command" "$working_dir" "$ROOT_DIR"
+EOF
+                else
+                    # Standard &Installer: Basic pnpm install only
+                    cat > "$temp_script" << EOF
+#!/bin/bash
+echo "========================================"
+echo "Installing dependencies..."
+echo "========================================"
+cd "$ROOT_DIR"
+echo "Running: pnpm install"
+pnpm install
+if [ \$? -ne 0 ]; then
+    echo ""
+    echo "Installation failed! Check the error messages above."
+    echo ""
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+
+echo ""
+echo "========================================"
+echo "Dependencies installed successfully"
+echo "========================================"
+echo ""
+
+echo "========================================"
+echo "Starting $app_name with $current_script..."
+echo "========================================"
+cd "$working_dir"
+echo "Working Directory: \$(pwd)"
+echo ""
+$command
+read -p "Press Enter to exit..."
+EOF
+                fi
+            else
+                # No installation needed
+                cat > "$temp_script" << EOF
 #!/bin/bash
 cd "$working_dir"
 echo "Starting $app_name with $current_script..."
@@ -731,7 +863,8 @@ echo ""
 $command
 read -p "Press Enter to exit..."
 EOF
-            
+            fi
+
             chmod +x "$temp_script"
             
             echo -e "\033[32mLaunching $app_name...\033[0m"

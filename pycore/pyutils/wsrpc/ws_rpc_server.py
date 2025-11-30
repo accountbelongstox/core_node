@@ -9,16 +9,16 @@ import json
 import uuid
 from typing import Dict, Callable, Optional, Any, List
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.gvar.ws_rpc_constants import WS_RPC_CONSTANTS
+from pycore.pygvar import WS_RPC_CONSTANTS
 
-from .libs.heartbeat_manager import HeartbeatManager
-from .libs.middleware_chain import MiddlewareChain
-from .libs.auth_manager import AuthManager
-from .libs.rate_limiter import RateLimiter
-from .libs.performance_monitor import PerformanceMonitor
-from .libs.namespace_manager import NamespaceManager
-from .libs.message_compressor import MessageCompressor
-from .libs.interceptor_manager import InterceptorManager
+from pycore.pyutils.wsrpc.libs.heartbeat_manager import HeartbeatManager
+from pycore.pyutils.wsrpc.libs.middleware_chain import MiddlewareChain
+from pycore.pyutils.wsrpc.libs.auth_manager import AuthManager
+from pycore.pyutils.wsrpc.libs.rate_limiter import RateLimiter
+from pycore.pyutils.wsrpc.libs.performance_monitor import PerformanceMonitor
+from pycore.pyutils.wsrpc.libs.namespace_manager import NamespaceManager
+from pycore.pyutils.wsrpc.libs.message_compressor import MessageCompressor
+from pycore.pyutils.wsrpc.libs.interceptor_manager import InterceptorManager
 
 try:
     import websockets
@@ -207,7 +207,7 @@ class WsRpcServer:
 
         if target_client_id:
             ws = self.clients.get(target_client_id)
-            if ws and not ws.closed:
+            if ws:
                 await ws.send(json.dumps(message))
         else:
             await self.broadcast(message)
@@ -225,7 +225,7 @@ class WsRpcServer:
             Response from client
         """
         ws = self.clients.get(client_id)
-        if not ws or ws.closed:
+        if not ws:
             raise Exception(f"Client {client_id} not connected")
 
         request_id = str(uuid.uuid4())
@@ -263,7 +263,7 @@ class WsRpcServer:
         """
         message_str = json.dumps(message)
         for client_id, ws in list(self.clients.items()):
-            if not ws.closed:
+            if ws:
                 try:
                     await ws.send(message_str)
                 except Exception as error:
@@ -275,7 +275,7 @@ class WsRpcServer:
         message_str = json.dumps(message)
         for client_id in clients:
             ws = self.clients.get(client_id)
-            if ws and not ws.closed:
+            if ws:
                 await ws.send(message_str)
 
     async def broadcast_to_room(self, room: str, message: Dict, namespace: str = 'default'):
@@ -284,7 +284,7 @@ class WsRpcServer:
         message_str = json.dumps(message)
         for client_id in clients:
             ws = self.clients.get(client_id)
-            if ws and not ws.closed:
+            if ws:
                 await ws.send(message_str)
 
     def get_clients(self) -> List[str]:
@@ -331,7 +331,7 @@ class WsRpcServer:
             'client_count': len(self.clients)
         }
 
-    async def _handle_connection(self, websocket: WebSocketServerProtocol, path: str):
+    async def _handle_connection(self, websocket: WebSocketServerProtocol):
         """Handle new WebSocket connection"""
         client_id = str(uuid.uuid4())
         self.clients[client_id] = websocket
@@ -466,7 +466,7 @@ class WsRpcServer:
     async def _send_response(self, client_id: str, request_id: str, success: bool, result: Any = None, code: Optional[str] = None, error: Optional[str] = None):
         """Send response to client"""
         ws = self.clients.get(client_id)
-        if ws and not ws.closed:
+        if ws:
             await ws.send(json.dumps({
                 'type': MSG_TYPES['RESPONSE'],
                 'id': request_id,
@@ -480,7 +480,7 @@ class WsRpcServer:
     async def _send_error(self, client_id: str, code: str, message: str):
         """Send error to client"""
         ws = self.clients.get(client_id)
-        if ws and not ws.closed:
+        if ws:
             await ws.send(json.dumps({
                 'type': MSG_TYPES['ERROR'],
                 'code': code,
@@ -518,7 +518,7 @@ class WsRpcServer:
         result = await self.auth.authenticate(client_id, credentials)
 
         ws = self.clients.get(client_id)
-        if ws and not ws.closed:
+        if ws:
             await ws.send(json.dumps({
                 'type': MSG_TYPES['AUTH_RESPONSE'],
                 **result,

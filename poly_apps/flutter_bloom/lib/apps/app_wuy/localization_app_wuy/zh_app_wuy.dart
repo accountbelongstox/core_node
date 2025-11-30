@@ -39,6 +39,8 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyStatusSuccess: '成功！',
     LocalizationKeysAppWuy.wuyStatusError: '发生错误',
     LocalizationKeysAppWuy.wuyStatusNoData: '暂无数据',
+    LocalizationKeysAppWuy.wuyStatusOnline: '在线',
+    LocalizationKeysAppWuy.wuyStatusOffline: '离线',
 
     LocalizationKeysAppWuy.wuyValidationRequired: '此字段为必填项',
     LocalizationKeysAppWuy.wuyValidationInvalidEmail: '请输入有效的邮箱地址',
@@ -52,6 +54,10 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyFriendsAddFriend: '添加好友',
     LocalizationKeysAppWuy.wuyFriendsOnline: '在线',
     LocalizationKeysAppWuy.wuyFriendsOffline: '离线',
+    LocalizationKeysAppWuy.wuyMonitoringEnabled: '已开启监控',
+    LocalizationKeysAppWuy.wuyMonitoringDisabled: '已关闭监控',
+    LocalizationKeysAppWuy.wuyMonitoringError: '更新监控状态失败',
+    LocalizationKeysAppWuy.wuyLastLocation: '最后位置',
 
     // Chat related
     LocalizationKeysAppWuy.wuyChatTitle: '聊天',
@@ -588,6 +594,13 @@ class WuyZhTranslations {
 
     // Search screen specific
     LocalizationKeysAppWuy.wuySearchPlaceholder: '搜索...',
+    LocalizationKeysAppWuy.wuySearchHistory: '搜索历史',
+    LocalizationKeysAppWuy.wuySearchRecentlyViewed: '最近查看',
+    LocalizationKeysAppWuy.wuySearchRecommended: '推荐好友',
+    LocalizationKeysAppWuy.wuySearchClearHistory: '清空历史',
+    LocalizationKeysAppWuy.wuySearchAllGender: '全部',
+    LocalizationKeysAppWuy.wuySearchShareIcon: '分享',
+    LocalizationKeysAppWuy.wuySearchNotificationIcon: '通知',
 
     // Map screen specific
     LocalizationKeysAppWuy.wuyMapNoLocation: '暂无位置信息',

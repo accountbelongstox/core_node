@@ -15,6 +15,8 @@
 const logger = require('#@logger');
 const IBrowser = require('../interfaces/IBrowser');
 const IPage = require('../interfaces/IPage');
+const SessionPersistence = require('../utils/session/SessionPersistence');
+const RealBrowserMiddleware = require('../utils/browser/RealBrowserMiddleware');
 
 class ChromeBrowser extends IBrowser {
     constructor() {
@@ -22,14 +24,15 @@ class ChromeBrowser extends IBrowser {
         this.type = 'chrome';
         this.finder = null;
         this.config = null;
+        this.sessionPersistence = null;
     }
 
     async launch(options = {}) {
         try {
             const ChromeFinder = require('../implementations/browsers/ChromeFinder');
-            
+
             this.finder = new ChromeFinder();
-            
+
             let executablePath = await this.finder.find();
             if (!executablePath) {
                 logger.warn('Chrome browser not found. Attempting to install...');
@@ -37,30 +40,38 @@ class ChromeBrowser extends IBrowser {
                 const installer = new ChromeInstaller();
                 await installer.install();
                 executablePath = await this.finder.find();
-                
+
                 if (!executablePath) {
                     throw new Error('Failed to install Chrome browser');
                 }
             }
-            
-            const puppeteer = require('puppeteer');
-            this.browser = await puppeteer.launch({
+
+            // Session persistence setup
+            const profileName = options.profileName || 'default';
+            this.sessionPersistence = new SessionPersistence(profileName);
+            const userDataDir = options.userDataDir || this.sessionPersistence.getUserDataDir();
+
+            // Use RealBrowserMiddleware for anti-detection
+            const realBrowserArgs = RealBrowserMiddleware.getRealBrowserArgs({ browserType: 'chrome' });
+            const userArgs = options.args || [];
+            const mergedArgs = [...new Set([...realBrowserArgs, ...userArgs])];
+
+            // Use puppeteer-extra if available
+            this.browser = await RealBrowserMiddleware.launchRealBrowser({
                 executablePath,
                 headless: options.headless !== false,
-                args: options.args || [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-web-security',
-                    '--disable-features=VizDisplayCompositor'
-                ],
+                userDataDir: userDataDir,
+                args: mergedArgs,
+                ignoreDefaultArgs: ['--enable-automation'],
+                defaultViewport: RealBrowserMiddleware.getDefaultViewport(),
                 ...options
             });
-            
+
             this.isLaunched = true;
             this.version = await this.getVersion();
-            
+
             logger.info(`Chrome browser launched: ${this.version}`);
+            logger.info(`[SessionPersistence] Using profile: ${profileName}`);
             return this.browser;
         } catch (error) {
             logger.error('Failed to launch Chrome browser:', error);
@@ -70,6 +81,11 @@ class ChromeBrowser extends IBrowser {
 
     async close() {
         try {
+            // Cleanup session persistence (auto-save already saved data)
+            if (this.sessionPersistence) {
+                this.sessionPersistence.cleanup();
+            }
+
             if (this.browser) {
                 await this.browser.close();
                 this.browser = null;
@@ -80,6 +96,14 @@ class ChromeBrowser extends IBrowser {
             logger.error('Failed to close Chrome browser:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get session persistence instance
+     * @returns {SessionPersistence}
+     */
+    getSessionPersistence() {
+        return this.sessionPersistence;
     }
 
     async newPage(options = {}) {
@@ -145,14 +169,15 @@ class EdgeBrowser extends IBrowser {
         this.type = 'edge';
         this.finder = null;
         this.config = null;
+        this.sessionPersistence = null;
     }
 
     async launch(options = {}) {
         try {
             const EdgeFinder = require('../implementations/browsers/EdgeFinder');
-            
+
             this.finder = new EdgeFinder();
-            
+
             let executablePath = await this.finder.find();
             if (!executablePath) {
                 logger.warn('Edge browser not found. Attempting to install...');
@@ -160,47 +185,38 @@ class EdgeBrowser extends IBrowser {
                 const installer = new EdgeInstaller();
                 await installer.install();
                 executablePath = await this.finder.find();
-                
+
                 if (!executablePath) {
                     throw new Error('Failed to install Edge browser');
                 }
             }
-            
-            const puppeteer = require('puppeteer');
-            
-            // Filter Edge-compatible arguments
-            const edgeArgs = (options.args || []).filter(arg => {
-                // Remove Chrome-specific arguments that Edge doesn't support
-                return !arg.includes('--user-data-dir') && 
-                       !arg.includes('--disable-gpu') &&
-                       !arg.includes('--disable-accelerated-2d-canvas') &&
-                       !arg.includes('--no-first-run') &&
-                       !arg.includes('--no-zygote');
-            });
-            
-            // Add Edge-specific arguments
-            const defaultArgs = [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor',
-                '--disable-extensions',
-                '--disable-plugins',
-                '--disable-images'
-            ];
-            
-            this.browser = await puppeteer.launch({
+
+            // Session persistence setup
+            const profileName = options.profileName || 'default';
+            this.sessionPersistence = new SessionPersistence(profileName);
+            const userDataDir = options.userDataDir || this.sessionPersistence.getUserDataDir();
+
+            // Use RealBrowserMiddleware for anti-detection
+            const realBrowserArgs = RealBrowserMiddleware.getRealBrowserArgs({ browserType: 'edge' });
+            const userArgs = options.args || [];
+            const mergedArgs = [...new Set([...realBrowserArgs, ...userArgs])];
+
+            // Use puppeteer-extra if available
+            this.browser = await RealBrowserMiddleware.launchRealBrowser({
                 executablePath,
                 headless: options.headless !== false,
-                args: [...defaultArgs, ...edgeArgs],
+                userDataDir: userDataDir,
+                args: mergedArgs,
+                ignoreDefaultArgs: ['--enable-automation'],
+                defaultViewport: RealBrowserMiddleware.getDefaultViewport(),
                 ...options
             });
-            
+
             this.isLaunched = true;
             this.version = await this.getVersion();
-            
+
             logger.info(`Edge browser launched: ${this.version}`);
+            logger.info(`[SessionPersistence] Using profile: ${profileName}`);
             return this.browser;
         } catch (error) {
             logger.error('Failed to launch Edge browser:', error);
@@ -210,6 +226,11 @@ class EdgeBrowser extends IBrowser {
 
     async close() {
         try {
+            // Cleanup session persistence (auto-save already saved data)
+            if (this.sessionPersistence) {
+                this.sessionPersistence.cleanup();
+            }
+
             if (this.browser) {
                 await this.browser.close();
                 this.browser = null;
@@ -220,6 +241,14 @@ class EdgeBrowser extends IBrowser {
             logger.error('Failed to close Edge browser:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get session persistence instance
+     * @returns {SessionPersistence}
+     */
+    getSessionPersistence() {
+        return this.sessionPersistence;
     }
 
     async newPage(options = {}) {

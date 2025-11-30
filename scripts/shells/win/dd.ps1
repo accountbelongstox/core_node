@@ -220,13 +220,13 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "Get the latest git version"
+        Text              = "Git Management"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = "GIT_UPDATE_TYPE"
         Action            = {
             Set-GlobalVar -Key "GIT_UPDATE_TYPE" -Value "default"
-            Show-GitSourceSubMenu
+            Show-GitManagementMenu
         }
     },
     @{
@@ -236,6 +236,17 @@ $script:MenuItems = @(
         Key               = $null
         Action            = {
             Show-SpecialSoftwareEnvMenu
+        }
+    },
+    @{
+        Text              = "Windows Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $windowsManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WindowsManagementManager.ps1"
+            Write-ColorMessage -Message "Launching Windows Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $windowsManagementScript
         }
     },
     @{
@@ -515,19 +526,26 @@ function Store-GlobalPaths {
 }
 
 
+# DEPRECATED: Create-Symlink function is no longer used
+# Instead of creating a symlink at C:\Program Files\dd.ps1,
+# we add PROJECT_DIR to PATH so dd.cmd can be run from anywhere
+# This function is kept for reference but should not be called
 function Create-Symlink {
-    if (Test-Path $script:script_symlink_path) {
-        if ((Get-Item $script:script_symlink_path).LinkType -ne "SymbolicLink" -or 
-            (Get-Item $script:script_symlink_path).Target -ne $script:script_path) {
-            Write-ColorMessage -Message "Removing existing $($script:script_symlink_path) as it is not a symlink to the current script." -Type "Warning"
-            Remove-Item $script:script_symlink_path -Force
-        }
-    }
+    Write-ColorMessage -Message "Create-Symlink is deprecated. PROJECT_DIR is added to PATH instead." -Type "Warning"
+    return
 
-    if (-not (Test-Path $script:script_symlink_path)) {
-        $null = New-Item -ItemType SymbolicLink -Path $script:script_symlink_path -Target $script:script_path -Force
-        Write-ColorMessage -Message "Symbolic link created: $($script:script_symlink_path) -> $($script:script_path)" -Type "Success"
-    }
+    # Old implementation (deprecated):
+    # if (Test-Path $script:script_symlink_path) {
+    #     if ((Get-Item $script:script_symlink_path).LinkType -ne "SymbolicLink" -or
+    #         (Get-Item $script:script_symlink_path).Target -ne $script:script_path) {
+    #         Write-ColorMessage -Message "Removing existing $($script:script_symlink_path) as it is not a symlink to the current script." -Type "Warning"
+    #         Remove-Item $script:script_symlink_path -Force
+    #     }
+    # }
+    # if (-not (Test-Path $script:script_symlink_path)) {
+    #     $null = New-Item -ItemType SymbolicLink -Path $script:script_symlink_path -Target $script:script_path -Force
+    #     Write-ColorMessage -Message "Symbolic link created: $($script:script_symlink_path) -> $($script:script_path)" -Type "Success"
+    # }
 }
 
 function Detect-SystemVersion {
@@ -556,10 +574,63 @@ function Detect-SystemVersion {
 }
 
 function Show-GitSourceSubMenu {
-    # Direct execution since gitput_unified.ps1 has automatic remote detection
-    Write-ColorMessage -Message "Using automatic remote source detection based on your region settings" -Type "Info"
-    Write-ColorMessage -Message "The system will automatically choose GitHub (Global region) or Gitee (China region)" -Type "Info"
-    Get-LatestGitVersion
+    # Backward compatibility wrapper to new Git Management menu
+    Show-GitManagementMenu
+}
+
+function Invoke-GitBackupPrompt {
+    $backupChoice = Read-Host "Run Backup Management before git operation? (yes/no)"
+    if ($backupChoice -eq "yes") {
+        $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
+        Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+    } else {
+        Write-ColorMessage -Message "Skipping backup before git operation." -Type "Warning"
+    }
+}
+
+function Invoke-GitCommitAllChanges {
+    param(
+        [Parameter()] [string]$DefaultMessage = "chore: save local changes"
+    )
+    Set-Location $CORE_NODE_DIR
+    $statusOutput = git status --porcelain
+    if (-not [string]::IsNullOrWhiteSpace($statusOutput)) {
+        Write-ColorMessage -Message "Local changes detected. Preparing to add and commit before pull." -Type "Info"
+        $shouldCommit = Read-Host "Stage and commit all changes? (yes/no)"
+        if ($shouldCommit -eq "yes") {
+            $commitMessage = Read-Host "Commit message (default: $DefaultMessage)"
+            if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+                $commitMessage = $DefaultMessage
+            }
+            git add .
+            git commit -m $commitMessage
+        } else {
+            Write-ColorMessage -Message "Skipping commit; pull may fail if conflicts occur." -Type "Warning"
+        }
+    } else {
+        Write-ColorMessage -Message "No local changes detected. Continuing." -Type "Info"
+    }
+}
+
+function Invoke-RegionAwarePull {
+    Set-Location $CORE_NODE_DIR
+    $currentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
+        Write-ColorMessage -Message "Unable to determine current branch." -Type "Error"
+        return
+    }
+
+    $remoteUrl = Get-RegionCloneURL
+    Write-ColorMessage -Message "Using region-aware remote: $remoteUrl" -Type "Info"
+    Write-ColorMessage -Message "Pulling branch: $currentBranch" -Type "Info"
+
+    git pull $remoteUrl $currentBranch
+    if ($LASTEXITCODE -eq 0) {
+        Write-ColorMessage -Message "Git pull completed." -Type "Success"
+    } else {
+        Write-ColorMessage -Message "Git pull failed. Please review the output above." -Type "Error"
+    }
 }
 
 function Get-LatestGitVersion {
@@ -569,21 +640,50 @@ function Get-LatestGitVersion {
         return
     }
     
-    Write-ColorMessage -Message "Starting SAFE git pull operation..." -Type "Info"
-    $UnifiedGitScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\gitput_unified.ps1"
+    Write-ColorMessage -Message "Starting region-aware git pull with pre-checks..." -Type "Info"
     
-    Write-ColorMessage -Message "Using unified git script for safe pull: $UnifiedGitScript" -Type "Info"
-    Write-ColorMessage -Message "Script will automatically select the appropriate remote source" -Type "Info"
-    
-    # Execute safe pull using unified script with auto remote detection
-    Set-Location $CORE_NODE_DIR
-    & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript -Pull
-    
+    Invoke-GitBackupPrompt
+    Invoke-GitCommitAllChanges
+    Invoke-RegionAwarePull
+
     if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Safe git pull operation completed successfully!" -Type "Success"
+        Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
         Make-PsExecutable
     } else {
-        Write-ColorMessage -Message "Safe git pull operation failed. Please check the output above for resolution options." -Type "Error"
+        Write-ColorMessage -Message "Git pull operation failed. Please check the output above." -Type "Error"
+    }
+}
+
+function Show-GitManagementMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host ""
+        Write-ColorMessage -Message "==================== Git Management ====================" -Type "Info"
+        Write-Host "  1. Get the latest git version (backup + commit + pull)"
+        Write-Host "  2. Git time travel"
+        Write-Host "  3. Back"
+        Write-ColorMessage -Message "========================================================" -Type "Info"
+        $choice = Read-Host "Select an option (1-3)"
+
+        switch ($choice) {
+            "1" {
+                Get-LatestGitVersion
+                Read-Host "Press Enter to return to Git Management menu"
+            }
+            "2" {
+                $gitTimeTravelScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_time_travel.ps1"
+                Write-ColorMessage -Message "Launching Git Time Travel..." -Type "Info"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $gitTimeTravelScript
+                Read-Host "Press Enter to return to Git Management menu"
+            }
+            "3" {
+                return
+            }
+            default {
+                Write-ColorMessage -Message "Invalid option. Please try again." -Type "Warning"
+                Start-Sleep -Seconds 1
+            }
+        }
     }
 }
 
@@ -1146,6 +1246,47 @@ function Show-WSLUbuntuSubMenu {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
 }
 
+function Set-CommonEnvironmentVariables {
+    <#
+    .SYNOPSIS
+        Sets common environment variables for Claude Code and other AI tools
+    
+    .DESCRIPTION
+        This function sets essential environment variables to prevent Claude Code 
+        auto-updates and configure other AI tools properly. It's called during 
+        dd.ps1 initialization to ensure consistent environment across all tools.
+    #>
+    Write-ColorMessage -Message "Setting common environment variables..." -Type "Info"
+    
+    try {
+        # Claude Code configuration - disable auto-updates
+        $env:DISABLE_AUTOUPDATER = "1"
+        $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+        Write-ColorMessage -Message "Set DISABLE_AUTOUPDATER=1 (Claude Code auto-update disabled)" -Type "Success"
+        Write-ColorMessage -Message "Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1" -Type "Success"
+        
+        # Python UTF-8 configuration
+        $env:PYTHONIOENCODING = "utf-8"
+        $env:PYTHONUTF8 = "1"
+        Write-ColorMessage -Message "Set Python UTF-8 encoding variables" -Type "Success"
+        
+        # Locale configuration
+        $env:LC_ALL = "C.UTF-8"
+        Write-ColorMessage -Message "Set LC_ALL=C.UTF-8" -Type "Success"
+        
+        # Add project root to environment if not already set
+        if (-not $env:CORE_NODE_PROJECT_ROOT -and $Global:CORE_NODE_DIR) {
+            $env:CORE_NODE_PROJECT_ROOT = $Global:CORE_NODE_DIR
+            Write-ColorMessage -Message "Set CORE_NODE_PROJECT_ROOT=$($Global:CORE_NODE_DIR)" -Type "Success"
+        }
+        
+        Write-ColorMessage -Message "Common environment variables configured successfully" -Type "Success"
+        
+    } catch {
+        Write-ColorMessage -Message "Warning: Failed to set some environment variables: $($_.Exception.Message)" -Type "Warning"
+    }
+}
+
 function Show-SpecialSoftwareEnvMenu {
     $specialEnvManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\dd.ps1"
     Write-ColorMessage -Message "Launching Special Software Environment Variables Manager..." -Type "Info"
@@ -1154,9 +1295,19 @@ function Show-SpecialSoftwareEnvMenu {
 }
 
 
+
 #region Main Execution
 Initialize-Environment
+Set-CommonEnvironmentVariables
 Check-AdminPrivileges
+
+# Set working directory to project directory
+if (Test-Path $Global:PROJECT_DIR) {
+    Set-Location $Global:PROJECT_DIR
+    Write-ColorMessage -Message "Working directory set to: $Global:PROJECT_DIR" -Type "Info"
+} else {
+    Write-ColorMessage -Message "WARNING: Project directory not found: $Global:PROJECT_DIR" -Type "Warning"
+}
 
 # Load common functions
 $commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommonFunc.ps1"
@@ -1172,25 +1323,25 @@ if (-not $SkipInitialization) {
     Ensure-GlobalVarsEncoding
     Store-GlobalPaths
     Make-PsExecutable
-    Create-Symlink
-    
+    # PROJECT_DIR is already added to PATH by Set-ProjectEnvironmentVariables
+    # This allows running dd.cmd from anywhere without creating symlinks or syncing scripts
+
     # Check and ensure desktop shortcut exists
     $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
     if (Test-Path $shortcutCheckScript) {
         Write-ColorMessage -Message "Checking desktop shortcut..." -Type "Info"
         try {
             & powershell -NoProfile -ExecutionPolicy Bypass -File $shortcutCheckScript
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "Desktop shortcut check completed" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "Desktop shortcut check completed with warnings" -Type "Warning"
-            }
         } catch {
             Write-ColorMessage -Message "Failed to check desktop shortcut: $($_.Exception.Message)" -Type "Warning"
         }
     } else {
         Write-ColorMessage -Message "Shortcut check script not found: $shortcutCheckScript" -Type "Warning"
     }
+
+    # Check for encrypted secrets and prompt for decryption
+    $secretDecryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretDecryptionCheck.ps1"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretDecryptCheckScript
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }
@@ -1206,4 +1357,3 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
 
 Initialize-MenuItems
 Start-MainLoop
-

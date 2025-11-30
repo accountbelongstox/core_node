@@ -23,6 +23,13 @@ class AppQyV1DictionaryModel extends Model
     use HasFactory;
 
     /**
+     * The database connection name for the model.
+     *
+     * @var string
+     */
+    protected $connection = 'AppQyV1';
+
+    /**
      * The table associated with the model.
      *
      * @var string

@@ -7,7 +7,7 @@ Intelligent image scaling and cropping utility for platform-specific requirement
 import os
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
-from PIL import Image, ImageOps
+from third_party import Image, ImageOps
 import math
 
 

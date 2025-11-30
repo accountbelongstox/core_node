@@ -4,6 +4,18 @@
 import { defineStore } from 'pinia';
 import type { Tool } from '../types_app_ittools';
 import { ALL_TOOLS, getToolsByCategory, searchTools, TOOLS_BY_CATEGORY, type ToolCategory } from '../constants_app_ittools/complete-tools';
+import { LocalStorageManager } from '@/common/utils/localStorage';
+
+// Storage keys - using common LocalStorageManager prefix
+const STORAGE_KEYS = {
+  FAVORITES: 'ittools_favorites',
+  HISTORY: 'ittools_history',
+  RECENT_VISITS: 'ittools_recent_tool_visits',
+  API_BASE_URL: 'ittools_api_base_url',
+  THEME: 'ittools_theme',
+  LAST_TOOL: 'ittools_last_tool_id',
+  EXPANDED_CATEGORIES: 'ittools_expanded_categories'
+} as const;
 
 export interface ItToolsState {
   // Tools data
@@ -19,6 +31,7 @@ export interface ItToolsState {
 
   // User preferences
   favorites: string[];
+  recentToolVisits: string[];
   history: Array<{
     toolId: string;
     timestamp: number;
@@ -36,6 +49,9 @@ export interface ItToolsState {
   // Loading and error state
   loading: boolean;
   error: string | null;
+
+  // Last used tool
+  lastToolId: string | null;
 }
 
 export const useItToolsStore = defineStore('ittools', {
@@ -53,6 +69,7 @@ export const useItToolsStore = defineStore('ittools', {
 
     // User preferences
     favorites: [],
+    recentToolVisits: [],
     history: [],
 
     // UI state
@@ -64,7 +81,9 @@ export const useItToolsStore = defineStore('ittools', {
 
     // Loading and error state
     loading: false,
-    error: null
+    error: null,
+
+    lastToolId: null
   }),
 
   getters: {
@@ -113,6 +132,19 @@ export const useItToolsStore = defineStore('ittools', {
         .slice(0, 10)
         .map(item => state.allTools.find(tool => tool.id === item.toolId))
         .filter(Boolean) as Tool[];
+    },
+
+    recentlyOpenedTools: (state) => {
+      return state.recentToolVisits
+        .map(id => state.allTools.find(tool => tool.id === id))
+        .filter(Boolean) as Tool[];
+    },
+
+    lastUsedTool: (state) => {
+      if (!state.lastToolId) {
+        return null;
+      }
+      return state.allTools.find(tool => tool.id === state.lastToolId) || null;
     },
 
     /**
@@ -251,6 +283,12 @@ export const useItToolsStore = defineStore('ittools', {
       const tool = this.allTools.find(t => t.id === toolId) || null;
       this.selectedTool = tool;
       this.activeToolId = tool ? tool.id : null;
+
+      if (toolId) {
+        this.recordToolVisit(toolId);
+        this.lastToolId = toolId;
+        this.saveLastUsedTool();
+      }
     },
 
     /**
@@ -304,6 +342,18 @@ export const useItToolsStore = defineStore('ittools', {
       this.saveHistory();
     },
 
+    recordToolVisit(toolId: string): void {
+      const existingIndex = this.recentToolVisits.indexOf(toolId);
+      if (existingIndex > -1) {
+        this.recentToolVisits.splice(existingIndex, 1);
+      }
+      this.recentToolVisits.unshift(toolId);
+      if (this.recentToolVisits.length > 10) {
+        this.recentToolVisits = this.recentToolVisits.slice(0, 10);
+      }
+      this.saveRecentToolVisits();
+    },
+
     /**
      * Clear history
      */
@@ -350,28 +400,38 @@ export const useItToolsStore = defineStore('ittools', {
     },
 
     /**
-     * Load preferences from localStorage
+     * Load preferences from localStorage (using common LocalStorageManager)
      */
     loadPreferences(): void {
       try {
-        const savedFavorites = localStorage.getItem('ittools_favorites');
+        const savedFavorites = LocalStorageManager.getItem<string[]>(STORAGE_KEYS.FAVORITES);
         if (savedFavorites) {
-          this.favorites = JSON.parse(savedFavorites);
+          this.favorites = savedFavorites;
         }
 
-        const savedHistory = localStorage.getItem('ittools_history');
+        const savedHistory = LocalStorageManager.getItem<typeof this.history>(STORAGE_KEYS.HISTORY);
         if (savedHistory) {
-          this.history = JSON.parse(savedHistory);
+          this.history = savedHistory;
         }
 
-        const savedApiUrl = localStorage.getItem('ittools_api_base_url');
+        const savedRecentVisits = LocalStorageManager.getItem<string[]>(STORAGE_KEYS.RECENT_VISITS);
+        if (savedRecentVisits) {
+          this.recentToolVisits = savedRecentVisits;
+        }
+
+        const savedApiUrl = LocalStorageManager.getItem<string>(STORAGE_KEYS.API_BASE_URL);
         if (savedApiUrl) {
           this.apiBaseUrl = savedApiUrl;
         }
 
-        const savedTheme = localStorage.getItem('ittools_theme') as 'light' | 'dark';
+        const savedTheme = LocalStorageManager.getItem<'light' | 'dark'>(STORAGE_KEYS.THEME);
         if (savedTheme) {
           this.theme = savedTheme;
+        }
+
+        const savedLastTool = LocalStorageManager.getItem<string>(STORAGE_KEYS.LAST_TOOL);
+        if (savedLastTool) {
+          this.lastToolId = savedLastTool;
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
@@ -379,24 +439,28 @@ export const useItToolsStore = defineStore('ittools', {
     },
 
     /**
-     * Save favorites to localStorage
+     * Save favorites to localStorage (using common LocalStorageManager)
      */
     saveFavorites(): void {
-      try {
-        localStorage.setItem('ittools_favorites', JSON.stringify(this.favorites));
-      } catch (error) {
-        console.error('Error saving favorites:', error);
-      }
+      LocalStorageManager.setItem(STORAGE_KEYS.FAVORITES, this.favorites);
     },
 
     /**
      * Save history to localStorage
      */
     saveHistory(): void {
-      try {
-        localStorage.setItem('ittools_history', JSON.stringify(this.history));
-      } catch (error) {
-        console.error('Error saving history:', error);
+      LocalStorageManager.setItem(STORAGE_KEYS.HISTORY, this.history);
+    },
+
+    saveRecentToolVisits(): void {
+      LocalStorageManager.setItem(STORAGE_KEYS.RECENT_VISITS, this.recentToolVisits);
+    },
+
+    saveLastUsedTool(): void {
+      if (this.lastToolId) {
+        LocalStorageManager.setItem(STORAGE_KEYS.LAST_TOOL, this.lastToolId);
+      } else {
+        LocalStorageManager.removeItem(STORAGE_KEYS.LAST_TOOL);
       }
     },
 
@@ -404,22 +468,14 @@ export const useItToolsStore = defineStore('ittools', {
      * Save API base URL to localStorage
      */
     saveApiBaseUrl(): void {
-      try {
-        localStorage.setItem('ittools_api_base_url', this.apiBaseUrl);
-      } catch (error) {
-        console.error('Error saving API URL:', error);
-      }
+      LocalStorageManager.setItem(STORAGE_KEYS.API_BASE_URL, this.apiBaseUrl);
     },
 
     /**
      * Save theme to localStorage
      */
     saveTheme(): void {
-      try {
-        localStorage.setItem('ittools_theme', this.theme);
-      } catch (error) {
-        console.error('Error saving theme:', error);
-      }
+      LocalStorageManager.setItem(STORAGE_KEYS.THEME, this.theme);
     }
   }
 });

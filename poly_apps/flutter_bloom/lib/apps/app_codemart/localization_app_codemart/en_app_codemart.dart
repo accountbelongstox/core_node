@@ -1,6 +1,6 @@
 import 'localization_keys_app_codemart.dart';
 
-final Map<String, String> enAppCodemart = {
+Map<String, String> enAppCodemart = {
   LocalizationKeysAppCodemart.codemartAppName: 'CodeMart',
   LocalizationKeysAppCodemart.codemartWelcome: 'Welcome to CodeMart',
   LocalizationKeysAppCodemart.codemartLogin: 'Login',
@@ -80,6 +80,27 @@ final Map<String, String> enAppCodemart = {
   LocalizationKeysAppCodemart.codemartUser: 'User',
   LocalizationKeysAppCodemart.codemartRetry: 'Retry',
   LocalizationKeysAppCodemart.codemartAdd: 'Add',
+  LocalizationKeysAppCodemart.codemartWelcomeBackTitle: 'Realtime build intelligence is live',
+  LocalizationKeysAppCodemart.codemartWelcomeBackSubtitle:
+      'Deploy cross-border squads, monitor funding lanes and unblock reviews from a single pane.',
+  LocalizationKeysAppCodemart.codemartMetricActiveProjects: 'Active Streams',
+  LocalizationKeysAppCodemart.codemartMetricCompleted: 'Completed Drops',
+  LocalizationKeysAppCodemart.codemartMetricBudget: 'Open Budget',
+  LocalizationKeysAppCodemart.codemartMetricPendingReviews: 'Review Queue',
+  LocalizationKeysAppCodemart.codemartQuickActionTaskHallSubtitle: 'Bid on curated neural tasks',
+  LocalizationKeysAppCodemart.codemartQuickActionTasksSubtitle: 'Track briefs, handoffs and QA gates',
+  LocalizationKeysAppCodemart.codemartQuickActionCreateProjectSubtitle: 'Draft multi-market launch briefs',
+  LocalizationKeysAppCodemart.codemartQuickActionProjectsSubtitle: 'Monitor progress and approvals',
+  LocalizationKeysAppCodemart.codemartQuickActionWalletSubtitle: 'Multi-currency escrow and payouts',
+  LocalizationKeysAppCodemart.codemartModeDeveloperSubtitle: 'Ship AI-native deliverables with squads',
+  LocalizationKeysAppCodemart.codemartModeClientSubtitle: 'Spin up task forces and budgets faster',
+  LocalizationKeysAppCodemart.codemartLoginHeroTitle: 'Build with the TechFang cloud ops stack',
+  LocalizationKeysAppCodemart.codemartLoginHeroSubtitle:
+      'Curated engineers, adaptive governance and transparent financial tooling.',
+  LocalizationKeysAppCodemart.codemartLoginFeatureDelivery: '2-week delivery cadences with predictive QA',
+  LocalizationKeysAppCodemart.codemartLoginFeatureEscrow: 'Escrow-protected payouts and compliance guardrails',
+  LocalizationKeysAppCodemart.codemartLoginFeatureRealtime: 'Realtime observability across sprint artifacts',
+  LocalizationKeysAppCodemart.codemartLoginDebugBanner: 'Debug sandbox — mock data only',
 
   // Login & Registration
   LocalizationKeysAppCodemart.codemartDontHaveAccount: "Don't have an account? ",

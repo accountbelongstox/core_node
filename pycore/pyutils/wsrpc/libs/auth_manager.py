@@ -12,7 +12,7 @@ import json
 import base64
 from typing import Dict, Optional, Callable, List
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.gvar.ws_rpc_constants import WS_RPC_CONSTANTS
+from pycore.pygvar import WS_RPC_CONSTANTS
 
 ERROR_CODES = WS_RPC_CONSTANTS.ERROR_CODES
 

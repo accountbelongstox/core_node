@@ -1,0 +1,407 @@
+<!doctypehtml tml tml><html lang=en><title>HTTP Client - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>HTTP Client<ul><li><a href=#introduction>Introduction</a><li><a href=#making-requests>Making Requests</a> <ul><li><a href=#request-data>Request Data</a><li><a href=#headers>Headers</a><li><a href=#authentication>Authentication</a><li><a href=#timeout>Timeout</a><li><a href=#retries>Retries</a><li><a href=#error-handling>Error Handling</a><li><a href=#guzzle-middleware>Guzzle Middleware</a><li><a href=#guzzle-options>Guzzle Options</a></ul><li><a href=#concurrent-requests>Concurrent Requests</a><li><a href=#macros>Macros</a><li><a href=#testing>Testing</a> <ul><li><a href=#faking-responses>Faking Responses</a><li><a href=#inspecting-requests>Inspecting Requests</a><li><a href=#preventing-stray-requests>Preventing Stray Requests</a></ul><li><a href=#events>Events</a></ul><h2><a href=#introduction>Introduction</a></h2><p>Laravel provides an expressive, minimal API around the <a href=http://docs.guzzlephp.org/en/stable/>Guzzle HTTP client</a>, allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Laravel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.<h2><a href=#making-requests>Making Requests</a></h2><p>To make requests, you may use the <code>head</code>, <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, and <code>delete</code> methods provided by the <code>Http</code> facade. First, let's examine how to make a basic <code>GET</code> request to another URL:<div><pre><code>1use Illuminate\Support\Facades\Http;2 3$response=Http::get('http://example.com');
+use Illuminate\Support\Facades\Http;
+
+$response = Http::get('http://example.com');</code></pre></div><p>The <code>get</code> method returns an instance of <code>Illuminate\Http\Client\Response</code>, which provides a variety of methods that may be used to inspect the response:<div><pre><code> 1$response->body() : string; 2$response->json($key=null, $default=null) : mixed; 3$response->object() : object; 4$response->collect($key=null) : Illuminate\Support\Collection; 5$response->resource() : resource; 6$response->status() : int; 7$response->successful() : bool; 8$response->redirect(): bool; 9$response->failed() : bool;10$response->clientError() : bool;11$response->header($header) : string;12$response->headers() : array;
+$response->body() : string;
+$response->json($key = null, $default = null) : mixed;
+$response->object() : object;
+$response->collect($key = null) : Illuminate\Support\Collection;
+$response->resource() : resource;
+$response->status() : int;
+$response->successful() : bool;
+$response->redirect(): bool;
+$response->failed() : bool;
+$response->clientError() : bool;
+$response->header($header) : string;
+$response->headers() : array;</code></pre></div><p>The <code>Illuminate\Http\Client\Response</code> object also implements the PHP <code>ArrayAccess</code> interface, allowing you to access JSON response data directly on the response:<div><pre><code>1returnHttp::get('http://example.com/users/1')['name'];
+return Http::get('http://example.com/users/1')['name'];</code></pre></div><p>In addition to the response methods listed above, the following methods may be used to determine if the response has a specific status code:<div><pre><code> 1$response->ok() : bool;                  // 200 OK 2$response->created() : bool;             // 201 Created 3$response->accepted() : bool;            // 202 Accepted 4$response->noContent() : bool;           // 204 No Content 5$response->movedPermanently() : bool;    // 301 Moved Permanently 6$response->found() : bool;               // 302 Found 7$response->badRequest() : bool;          // 400 Bad Request 8$response->unauthorized() : bool;        // 401 Unauthorized 9$response->paymentRequired() : bool;     // 402 Payment Required10$response->forbidden() : bool;           // 403 Forbidden11$response->notFound() : bool;            // 404 Not Found12$response->requestTimeout() : bool;      // 408 Request Timeout13$response->conflict() : bool;            // 409 Conflict14$response->unprocessableEntity() : bool; // 422 Unprocessable Entity15$response->tooManyRequests() : bool;     // 429 Too Many Requests16$response->serverError() : bool;         // 500 Internal Server Error
+$response->ok() : bool;                  // 200 OK
+$response->created() : bool;             // 201 Created
+$response->accepted() : bool;            // 202 Accepted
+$response->noContent() : bool;           // 204 No Content
+$response->movedPermanently() : bool;    // 301 Moved Permanently
+$response->found() : bool;               // 302 Found
+$response->badRequest() : bool;          // 400 Bad Request
+$response->unauthorized() : bool;        // 401 Unauthorized
+$response->paymentRequired() : bool;     // 402 Payment Required
+$response->forbidden() : bool;           // 403 Forbidden
+$response->notFound() : bool;            // 404 Not Found
+$response->requestTimeout() : bool;      // 408 Request Timeout
+$response->conflict() : bool;            // 409 Conflict
+$response->unprocessableEntity() : bool; // 422 Unprocessable Entity
+$response->tooManyRequests() : bool;     // 429 Too Many Requests
+$response->serverError() : bool;         // 500 Internal Server Error</code></pre></div><h4><a href=#uri-templates>URI Templates</a></h4><p>The HTTP client also allows you to construct request URLs using the <a href=https://www.rfc-editor.org/rfc/rfc6570>URI template specification</a>. To define the URL parameters that can be expanded by your URI template, you may use the <code>withUrlParameters</code> method:<div><pre><code>1Http::withUrlParameters([2'endpoint'=>'https://laravel.com',3'page'=>'docs',4'version'=>'12.x',5'topic'=>'validation',6])->get('{+endpoint}/{page}/{version}/{topic}');
+Http::withUrlParameters([
+    'endpoint' => 'https://laravel.com',
+    'page' => 'docs',
+    'version' => '12.x',
+    'topic' => 'validation',
+])->get('{+endpoint}/{page}/{version}/{topic}');</code></pre></div><h4><a href=#dumping-requests>Dumping Requests</a></h4><p>If you would like to dump the outgoing request instance before it is sent and terminate the script's execution, you may add the <code>dd</code> method to the beginning of your request definition:<div><pre><code>1returnHttp::dd()->get('http://example.com');
+return Http::dd()->get('http://example.com');</code></pre></div><h3><a href=#request-data>Request Data</a></h3><p>Of course, it is common when making <code>POST</code>, <code>PUT</code>, and <code>PATCH</code> requests to send additional data with your request, so these methods accept an array of data as their second argument. By default, data will be sent using the <code>application/json</code> content type:<div><pre><code>1use Illuminate\Support\Facades\Http;2 3$response=Http::post('http://example.com/users', [4'name'=>'Steve',5'role'=>'Network Administrator',6]);
+use Illuminate\Support\Facades\Http;
+
+$response = Http::post('http://example.com/users', [
+    'name' => 'Steve',
+    'role' => 'Network Administrator',
+]);</code></pre></div><h4><a href=#get-request-query-parameters>GET Request Query Parameters</a></h4><p>When making <code>GET</code> requests, you may either append a query string to the URL directly or pass an array of key / value pairs as the second argument to the <code>get</code> method:<div><pre><code>1$response=Http::get('http://example.com/users', [2'name'=>'Taylor',3'page'=>1,4]);
+$response = Http::get('http://example.com/users', [
+    'name' => 'Taylor',
+    'page' => 1,
+]);</code></pre></div><p>Alternatively, the <code>withQueryParameters</code> method may be used:<div><pre><code>1Http::retry(3, 100)->withQueryParameters([2'name'=>'Taylor',3'page'=>1,4])->get('http://example.com/users');
+Http::retry(3, 100)->withQueryParameters([
+    'name' => 'Taylor',
+    'page' => 1,
+])->get('http://example.com/users');</code></pre></div><h4><a href=#sending-form-url-encoded-requests>Sending Form URL Encoded Requests</a></h4><p>If you would like to send data using the <code>application/x-www-form-urlencoded</code> content type, you should call the <code>asForm</code> method before making your request:<div><pre><code>1$response=Http::asForm()->post('http://example.com/users', [2'name'=>'Sara',3'role'=>'Privacy Consultant',4]);
+$response = Http::asForm()->post('http://example.com/users', [
+    'name' => 'Sara',
+    'role' => 'Privacy Consultant',
+]);</code></pre></div><h4><a href=#sending-a-raw-request-body>Sending a Raw Request Body</a></h4><p>You may use the <code>withBody</code> method if you would like to provide a raw request body when making a request. The content type may be provided via the method's second argument:<div><pre><code>1$response=Http::withBody(2base64_encode($photo), 'image/jpeg'3)->post('http://example.com/photo');
+$response = Http::withBody(
+    base64_encode($photo), 'image/jpeg'
+)->post('http://example.com/photo');</code></pre></div><h4><a href=#multi-part-requests>Multi-Part Requests</a></h4><p>If you would like to send files as multi-part requests, you should call the <code>attach</code> method before making your request. This method accepts the name of the file and its contents. If needed, you may provide a third argument which will be considered the file's filename, while a fourth argument may be used to provide headers associated with the file:<div><pre><code>1$response=Http::attach(2'attachment', file_get_contents('photo.jpg'), 'photo.jpg', ['Content-Type'=>'image/jpeg']3)->post('http://example.com/attachments');
+$response = Http::attach(
+    'attachment', file_get_contents('photo.jpg'), 'photo.jpg', ['Content-Type' => 'image/jpeg']
+)->post('http://example.com/attachments');</code></pre></div><p>Instead of passing the raw contents of a file, you may pass a stream resource:<div><pre><code>1$photo=fopen('photo.jpg','r');2 3$response=Http::attach(4'attachment', $photo, 'photo.jpg'5)->post('http://example.com/attachments');
+$photo = fopen('photo.jpg', 'r');
+
+$response = Http::attach(
+    'attachment', $photo, 'photo.jpg'
+)->post('http://example.com/attachments');</code></pre></div><h3><a href=#headers>Headers</a></h3><p>Headers may be added to requests using the <code>withHeaders</code> method. This <code>withHeaders</code> method accepts an array of key / value pairs:<div><pre><code>1$response=Http::withHeaders([2'X-First'=>'foo',3'X-Second'=>'bar'4])->post('http://example.com/users', [5'name'=>'Taylor',6]);
+$response = Http::withHeaders([
+    'X-First' => 'foo',
+    'X-Second' => 'bar'
+])->post('http://example.com/users', [
+    'name' => 'Taylor',
+]);</code></pre></div><p>You may use the <code>accept</code> method to specify the content type that your application is expecting in response to your request:<div><pre><code>1$response=Http::accept('application/json')->get('http://example.com/users');
+$response = Http::accept('application/json')->get('http://example.com/users');</code></pre></div><p>For convenience, you may use the <code>acceptJson</code> method to quickly specify that your application expects the <code>application/json</code> content type in response to your request:<div><pre><code>1$response=Http::acceptJson()->get('http://example.com/users');
+$response = Http::acceptJson()->get('http://example.com/users');</code></pre></div><p>The <code>withHeaders</code> method merges new headers into the request's existing headers. If needed, you may replace all of the headers entirely using the <code>replaceHeaders</code> method:<div><pre><code>1$response=Http::withHeaders([2'X-Original'=>'foo',3])->replaceHeaders([4'X-Replacement'=>'bar',5])->post('http://example.com/users', [6'name'=>'Taylor',7]);
+$response = Http::withHeaders([
+    'X-Original' => 'foo',
+])->replaceHeaders([
+    'X-Replacement' => 'bar',
+])->post('http://example.com/users', [
+    'name' => 'Taylor',
+]);</code></pre></div><h3><a href=#authentication>Authentication</a></h3><p>You may specify basic and digest authentication credentials using the <code>withBasicAuth</code> and <code>withDigestAuth</code> methods, respectively:<div><pre><code>1// Basic authentication...<div>2$response=Http::withBasicAuth('<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>', 'secret')->post(/* ... */);</div>3 4// Digest authentication...<div>5$response=Http::withDigestAuth('<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>', 'secret')->post(/* ... */);</div><div hidden>
+// Basic authentication...
+$response = Http::withBasicAuth('<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', 'secret')->post(/* ... */);
+
+// Digest authentication...
+$response = Http::withDigestAuth('<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>', 'secret')->post(/* ... */);</div></code></pre></div><h4><a href=#bearer-tokens>Bearer Tokens</a></h4><p>If you would like to quickly add a bearer token to the request's <code>Authorization</code> header, you may use the <code>withToken</code> method:<div><pre><code>1$response=Http::withToken('token')->post(/* ... */);
+$response = Http::withToken('token')->post(/* ... */);</code></pre></div><h3><a href=#timeout>Timeout</a></h3><p>The <code>timeout</code> method may be used to specify the maximum number of seconds to wait for a response. By default, the HTTP client will timeout after 30 seconds:<div><pre><code>1$response=Http::timeout(3)->get(/* ... */);
+$response = Http::timeout(3)->get(/* ... */);</code></pre></div><p>If the given timeout is exceeded, an instance of <code>Illuminate\Http\Client\ConnectionException</code> will be thrown.<p>You may specify the maximum number of seconds to wait while trying to connect to a server using the <code>connectTimeout</code> method. The default is 10 seconds:<div><pre><code>1$response=Http::connectTimeout(3)->get(/* ... */);
+$response = Http::connectTimeout(3)->get(/* ... */);</code></pre></div><h3><a href=#retries>Retries</a></h3><p>If you would like the HTTP client to automatically retry the request if a client or server error occurs, you may use the <code>retry</code> method. The <code>retry</code> method accepts the maximum number of times the request should be attempted and the number of milliseconds that Laravel should wait in between attempts:<div><pre><code>1$response=Http::retry(3, 100)->post(/* ... */);
+$response = Http::retry(3, 100)->post(/* ... */);</code></pre></div><p>If you would like to manually calculate the number of milliseconds to sleep between attempts, you may pass a closure as the second argument to the <code>retry</code> method:<div><pre><code>1useException;2 3$response=Http::retry(3, function(int$attempt, Exception$exception) {4return$attempt*100;5})->post(/* ... */);
+use Exception;
+
+$response = Http::retry(3, function (int $attempt, Exception $exception) {
+    return $attempt * 100;
+})->post(/* ... */);</code></pre></div><p>For convenience, you may also provide an array as the first argument to the <code>retry</code> method. This array will be used to determine how many milliseconds to sleep between subsequent attempts:<div><pre><code>1$response=Http::retry([100, 200])->post(/* ... */);
+$response = Http::retry([100, 200])->post(/* ... */);</code></pre></div><p>If needed, you may pass a third argument to the <code>retry</code> method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters an <code>ConnectionException</code>:<div><pre><code>1useException;2use Illuminate\Http\Client\PendingRequest;3 4$response=Http::retry(3, 100, function(Exception$exception, PendingRequest$request) {5return$exceptioninstanceofConnectionException;6})->post(/* ... */);
+use Exception;
+use Illuminate\Http\Client\PendingRequest;
+
+$response = Http::retry(3, 100, function (Exception $exception, PendingRequest $request) {
+    return $exception instanceof ConnectionException;
+})->post(/* ... */);</code></pre></div><p>If a request attempt fails, you may wish to make a change to the request before a new attempt is made. You can achieve this by modifying the request argument provided to the callable you provided to the <code>retry</code> method. For example, you might want to retry the request with a new authorization token if the first attempt returned an authentication error:<div><pre><code> 1useException; 2use Illuminate\Http\Client\PendingRequest; 3use Illuminate\Http\Client\RequestException; 4  5$response=Http::withToken($this->getToken())->retry(2, 0, function(Exception$exception, PendingRequest$request) { 6if (!$exceptioninstanceofRequestException||$exception->response->status() !==401) { 7returnfalse; 8    } 9 10$request->withToken($this->getNewToken());11 12returntrue;13})->post(/* ... */);
+use Exception;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
+
+$response = Http::withToken($this->getToken())->retry(2, 0, function (Exception $exception, PendingRequest $request) {
+    if (! $exception instanceof RequestException || $exception->response->status() !== 401) {
+        return false;
+    }
+
+    $request->withToken($this->getNewToken());
+
+    return true;
+})->post(/* ... */);</code></pre></div><p>If all of the requests fail, an instance of <code>Illuminate\Http\Client\RequestException</code> will be thrown. If you would like to disable this behavior, you may provide a <code>throw</code> argument with a value of <code>false</code>. When disabled, the last response received by the client will be returned after all retries have been attempted:<div><pre><code>1$response=Http::retry(3, 100, throw: false)->post(/* ... */);
+$response = Http::retry(3, 100, throw: false)->post(/* ... */);</code></pre></div><div><p>If all of the requests fail because of a connection issue, a <code>Illuminate\Http\Client\ConnectionException</code> will still be thrown even when the <code>throw</code> argument is set to <code>false</code>.</div><h3><a href=#error-handling>Error Handling</a></h3><p>Unlike Guzzle's default behavior, Laravel's HTTP client wrapper does not throw exceptions on client or server errors (<code>400</code> and <code>500</code> level responses from servers). You may determine if one of these errors was returned using the <code>successful</code>, <code>clientError</code>, or <code>serverError</code> methods:<div><pre><code> 1// Determine if the status code is >= 200 and &lt; 300... 2$response->successful(); 3  4// Determine if the status code is >= 400... 5$response->failed(); 6  7// Determine if the response has a 400 level status code... 8$response->clientError(); 9 10// Determine if the response has a 500 level status code...11$response->serverError();12 13// Immediately execute the given callback if there was a client or server error...14$response->onError(callable$callback);
+// Determine if the status code is >= 200 and &lt; 300...
+$response->successful();
+
+// Determine if the status code is >= 400...
+$response->failed();
+
+// Determine if the response has a 400 level status code...
+$response->clientError();
+
+// Determine if the response has a 500 level status code...
+$response->serverError();
+
+// Immediately execute the given callback if there was a client or server error...
+$response->onError(callable $callback);</code></pre></div><h4><a href=#throwing-exceptions>Throwing Exceptions</a></h4><p>If you have a response instance and would like to throw an instance of <code>Illuminate\Http\Client\RequestException</code> if the response status code indicates a client or server error, you may use the <code>throw</code> or <code>throwIf</code> methods:<div><pre><code> 1use Illuminate\Http\Client\Response; 2  3$response=Http::post(/* ... */); 4  5// Throw an exception if a client or server error occurred... 6$response->throw(); 7  8// Throw an exception if an error occurred and the given condition is true... 9$response->throwIf($condition);10 11// Throw an exception if an error occurred and the given closure resolves to true...12$response->throwIf(fn(Response$response) => true);13 14// Throw an exception if an error occurred and the given condition is false...15$response->throwUnless($condition);16 17// Throw an exception if an error occurred and the given closure resolves to false...18$response->throwUnless(fn(Response$response) => false);19 20// Throw an exception if the response has a specific status code...21$response->throwIfStatus(403);22 23// Throw an exception unless the response has a specific status code...24$response->throwUnlessStatus(200);25 26return$response['user']['id'];
+use Illuminate\Http\Client\Response;
+
+$response = Http::post(/* ... */);
+
+// Throw an exception if a client or server error occurred...
+$response->throw();
+
+// Throw an exception if an error occurred and the given condition is true...
+$response->throwIf($condition);
+
+// Throw an exception if an error occurred and the given closure resolves to true...
+$response->throwIf(fn (Response $response) => true);
+
+// Throw an exception if an error occurred and the given condition is false...
+$response->throwUnless($condition);
+
+// Throw an exception if an error occurred and the given closure resolves to false...
+$response->throwUnless(fn (Response $response) => false);
+
+// Throw an exception if the response has a specific status code...
+$response->throwIfStatus(403);
+
+// Throw an exception unless the response has a specific status code...
+$response->throwUnlessStatus(200);
+
+return $response['user']['id'];</code></pre></div><p>The <code>Illuminate\Http\Client\RequestException</code> instance has a public <code>$response</code> property which will allow you to inspect the returned response.<p>The <code>throw</code> method returns the response instance if no error occurred, allowing you to chain other operations onto the <code>throw</code> method:<div><pre><code>1returnHttp::post(/* ... */)->throw()->json();
+return Http::post(/* ... */)->throw()->json();</code></pre></div><p>If you would like to perform some additional logic before the exception is thrown, you may pass a closure to the <code>throw</code> method. The exception will be thrown automatically after the closure is invoked, so you do not need to re-throw the exception from within the closure:<div><pre><code>1use Illuminate\Http\Client\Response;2use Illuminate\Http\Client\RequestException;3 4returnHttp::post(/* ... */)->throw(function(Response$response, RequestException$e) {5// ...6})->json();
+use Illuminate\Http\Client\Response;
+use Illuminate\Http\Client\RequestException;
+
+return Http::post(/* ... */)->throw(function (Response $response, RequestException $e) {
+    // ...
+})->json();</code></pre></div><p>By default, <code>RequestException</code> messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the <code>truncateRequestExceptionsAt</code> and <code>dontTruncateRequestExceptions</code> methods when configuring your application's exception handling behavior in your <code>bootstrap/app.php</code> file:<div><pre><code>1use Illuminate\Foundation\Configuration\Exceptions;2 3->withExceptions(function(Exceptions$exceptions) {4// Truncate request exception messages to 240 characters...5$exceptions->truncateRequestExceptionsAt(240);6 7// Disable request exception message truncation...8$exceptions->dontTruncateRequestExceptions();9})
+use Illuminate\Foundation\Configuration\Exceptions;
+
+->withExceptions(function (Exceptions $exceptions) {
+    // Truncate request exception messages to 240 characters...
+    $exceptions->truncateRequestExceptionsAt(240);
+
+    // Disable request exception message truncation...
+    $exceptions->dontTruncateRequestExceptions();
+})</code></pre></div><p>Alternatively, you may customize the exception truncation behavior per request using the <code>truncateExceptionsAt</code> method:<div><pre><code>1returnHttp::truncateExceptionsAt(240)->post(/* ... */);
+return Http::truncateExceptionsAt(240)->post(/* ... */);</code></pre></div><h3><a href=#guzzle-middleware>Guzzle Middleware</a></h3><p>Since Laravel's HTTP client is powered by Guzzle, you may take advantage of <a href=https://docs.guzzlephp.org/en/stable/handlers-and-middleware.html>Guzzle Middleware</a> to manipulate the outgoing request or inspect the incoming response. To manipulate the outgoing request, register a Guzzle middleware via the <code>withRequestMiddleware</code> method:<div><pre><code>1use Illuminate\Support\Facades\Http;2use Psr\Http\Message\RequestInterface;3 4$response=Http::withRequestMiddleware(5function(RequestInterface$request) {6return$request->withHeader('X-Example', 'Value');7    }8)->get('http://example.com');
+use Illuminate\Support\Facades\Http;
+use Psr\Http\Message\RequestInterface;
+
+$response = Http::withRequestMiddleware(
+    function (RequestInterface $request) {
+        return $request->withHeader('X-Example', 'Value');
+    }
+)->get('http://example.com');</code></pre></div><p>Likewise, you can inspect the incoming HTTP response by registering a middleware via the <code>withResponseMiddleware</code> method:<div><pre><code> 1use Illuminate\Support\Facades\Http; 2use Psr\Http\Message\ResponseInterface; 3  4$response=Http::withResponseMiddleware( 5function(ResponseInterface$response) { 6$header=$response->getHeader('X-Example'); 7  8// ... 9 10return$response;11    }12)->get('http://example.com');
+use Illuminate\Support\Facades\Http;
+use Psr\Http\Message\ResponseInterface;
+
+$response = Http::withResponseMiddleware(
+    function (ResponseInterface $response) {
+        $header = $response->getHeader('X-Example');
+
+        // ...
+
+        return $response;
+    }
+)->get('http://example.com');</code></pre></div><h4><a href=#global-middleware>Global Middleware</a></h4><p>Sometimes, you may want to register a middleware that applies to every outgoing request and incoming response. To accomplish this, you may use the <code>globalRequestMiddleware</code> and <code>globalResponseMiddleware</code> methods. Typically, these methods should be invoked in the <code>boot</code> method of your application's <code>AppServiceProvider</code>:<div><pre><code>1use Illuminate\Support\Facades\Http;2 3Http::globalRequestMiddleware(fn($request) => $request->withHeader(4'User-Agent', 'Example Application/1.0'5));6 7Http::globalResponseMiddleware(fn($response) => $response->withHeader(8'X-Finished-At', now()->toDateTimeString()9));
+use Illuminate\Support\Facades\Http;
+
+Http::globalRequestMiddleware(fn ($request) => $request->withHeader(
+    'User-Agent', 'Example Application/1.0'
+));
+
+Http::globalResponseMiddleware(fn ($response) => $response->withHeader(
+    'X-Finished-At', now()->toDateTimeString()
+));</code></pre></div><h3><a href=#guzzle-options>Guzzle Options</a></h3><p>You may specify additional <a href=http://docs.guzzlephp.org/en/stable/request-options.html>Guzzle request options</a> for an outgoing request using the <code>withOptions</code> method. The <code>withOptions</code> method accepts an array of key / value pairs:<div><pre><code>1$response=Http::withOptions([2'debug'=>true,3])->get('http://example.com/users');
+$response = Http::withOptions([
+    'debug' => true,
+])->get('http://example.com/users');</code></pre></div><h4><a href=#global-options>Global Options</a></h4><p>To configure default options for every outgoing request, you may utilize the <code>globalOptions</code> method. Typically, this method should be invoked from the <code>boot</code> method of your application's <code>AppServiceProvider</code>:<div><pre><code> 1use Illuminate\Support\Facades\Http; 2  3/** 4 * Bootstrap any application services. 5*/ 6publicfunctionboot():void 7{ 8Http::globalOptions([ 9'allow_redirects'=>false,10    ]);11}
+use Illuminate\Support\Facades\Http;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Http::globalOptions([
+        'allow_redirects' => false,
+    ]);
+}</code></pre></div><h2><a href=#concurrent-requests>Concurrent Requests</a></h2><p>Sometimes, you may wish to make multiple HTTP requests concurrently. In other words, you want several requests to be dispatched at the same time instead of issuing the requests sequentially. This can lead to substantial performance improvements when interacting with slow HTTP APIs.<p>Thankfully, you may accomplish this using the <code>pool</code> method. The <code>pool</code> method accepts a closure which receives an <code>Illuminate\Http\Client\Pool</code> instance, allowing you to easily add requests to the request pool for dispatching:<div><pre><code> 1use Illuminate\Http\Client\Pool; 2use Illuminate\Support\Facades\Http; 3  4$responses=Http::pool(fn(Pool$pool) => [ 5$pool->get('http://localhost/first'), 6$pool->get('http://localhost/second'), 7$pool->get('http://localhost/third'), 8]); 9 10return$responses[0]->ok() &&11$responses[1]->ok() &&12$responses[2]->ok();
+use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Http;
+
+$responses = Http::pool(fn (Pool $pool) => [
+    $pool->get('http://localhost/first'),
+    $pool->get('http://localhost/second'),
+    $pool->get('http://localhost/third'),
+]);
+
+return $responses[0]->ok() &&
+       $responses[1]->ok() &&
+       $responses[2]->ok();</code></pre></div><p>As you can see, each response instance can be accessed based on the order it was added to the pool. If you wish, you can name the requests using the <code>as</code> method, which allows you to access the corresponding responses by name:<div><pre><code> 1use Illuminate\Http\Client\Pool; 2use Illuminate\Support\Facades\Http; 3  4$responses=Http::pool(fn(Pool$pool) => [ 5$pool->as('first')->get('http://localhost/first'), 6$pool->as('second')->get('http://localhost/second'), 7$pool->as('third')->get('http://localhost/third'), 8]); 9 10return$responses['first']->ok();
+use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Http;
+
+$responses = Http::pool(fn (Pool $pool) => [
+    $pool->as('first')->get('http://localhost/first'),
+    $pool->as('second')->get('http://localhost/second'),
+    $pool->as('third')->get('http://localhost/third'),
+]);
+
+return $responses['first']->ok();</code></pre></div><h4><a href=#customizing-concurrent-requests>Customizing Concurrent Requests</a></h4><p>The <code>pool</code> method cannot be chained with other HTTP client methods such as the <code>withHeaders</code> or <code>middleware</code> methods. If you want to apply custom headers or middleware to pooled requests, you should configure those options on each request in the pool:<div><pre><code> 1use Illuminate\Http\Client\Pool; 2use Illuminate\Support\Facades\Http; 3  4$headers= [ 5'X-Example'=>'example', 6]; 7  8$responses=Http::pool(fn(Pool$pool) => [ 9$pool->withHeaders($headers)->get('http://laravel.test/test'),10$pool->withHeaders($headers)->get('http://laravel.test/test'),11$pool->withHeaders($headers)->get('http://laravel.test/test'),12]);
+use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Http;
+
+$headers = [
+    'X-Example' => 'example',
+];
+
+$responses = Http::pool(fn (Pool $pool) => [
+    $pool->withHeaders($headers)->get('http://laravel.test/test'),
+    $pool->withHeaders($headers)->get('http://laravel.test/test'),
+    $pool->withHeaders($headers)->get('http://laravel.test/test'),
+]);</code></pre></div><h2><a href=#macros>Macros</a></h2><p>The Laravel HTTP client allows you to define "macros", which can serve as a fluent, expressive mechanism to configure common request paths and headers when interacting with services throughout your application. To get started, you may define the macro within the <code>boot</code> method of your application's <code>App\Providers\AppServiceProvider</code> class:<div><pre><code> 1use Illuminate\Support\Facades\Http; 2  3/** 4 * Bootstrap any application services. 5*/ 6publicfunctionboot():void 7{ 8Http::macro('github', function() { 9returnHttp::withHeaders([10'X-Example'=>'example',11        ])->baseUrl('https://github.com');12    });13}
+use Illuminate\Support\Facades\Http;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Http::macro('github', function () {
+        return Http::withHeaders([
+            'X-Example' => 'example',
+        ])->baseUrl('https://github.com');
+    });
+}</code></pre></div><p>Once your macro has been configured, you may invoke it from anywhere in your application to create a pending request with the specified configuration:<div><pre><code>1$response=Http::github()->get('/');
+$response = Http::github()->get('/');</code></pre></div><h2><a href=#testing>Testing</a></h2><p>Many Laravel services provide functionality to help you easily and expressively write tests, and Laravel's HTTP client is no exception. The <code>Http</code> facade's <code>fake</code> method allows you to instruct the HTTP client to return stubbed / dummy responses when requests are made.<h3><a href=#faking-responses>Faking Responses</a></h3><p>For example, to instruct the HTTP client to return empty, <code>200</code> status code responses for every request, you may call the <code>fake</code> method with no arguments:<div><pre><code>1use Illuminate\Support\Facades\Http;2 3Http::fake();4 5$response=Http::post(/* ... */);
+use Illuminate\Support\Facades\Http;
+
+Http::fake();
+
+$response = Http::post(/* ... */);</code></pre></div><h4><a href=#faking-specific-urls>Faking Specific URLs</a></h4><p>Alternatively, you may pass an array to the <code>fake</code> method. The array's keys should represent URL patterns that you wish to fake and their associated responses. The <code>*</code> character may be used as a wildcard character. You may use the <code>Http</code> facade's <code>response</code> method to construct stub / fake responses for these endpoints:<div><pre><code>1Http::fake([2// Stub a JSON response for GitHub endpoints...3'github.com/*'=>Http::response(['foo'=>'bar'], 200, $headers),4 5// Stub a string response for Google endpoints...6'google.com/*'=>Http::response('Hello World', 200, $headers),7]);
+Http::fake([
+    // Stub a JSON response for GitHub endpoints...
+    'github.com/*' => Http::response(['foo' => 'bar'], 200, $headers),
+
+    // Stub a string response for Google endpoints...
+    'google.com/*' => Http::response('Hello World', 200, $headers),
+]);</code></pre></div><p>Any requests made to URLs that have not been faked will actually be executed. If you would like to specify a fallback URL pattern that will stub all unmatched URLs, you may use a single <code>*</code> character:<div><pre><code>1Http::fake([2// Stub a JSON response for GitHub endpoints...3'github.com/*'=>Http::response(['foo'=>'bar'], 200, ['Headers']),4 5// Stub a string response for all other endpoints...6'*'=>Http::response('Hello World', 200, ['Headers']),7]);
+Http::fake([
+    // Stub a JSON response for GitHub endpoints...
+    'github.com/*' => Http::response(['foo' => 'bar'], 200, ['Headers']),
+
+    // Stub a string response for all other endpoints...
+    '*' => Http::response('Hello World', 200, ['Headers']),
+]);</code></pre></div><p>For convenience, simple string, JSON, and empty responses may be generated by providing a string, array, or integer as the response:<div><pre><code>1Http::fake([2'google.com/*'=>'Hello World',3'github.com/*'=> ['foo'=>'bar'],4'chatgpt.com/*'=>200,5]);
+Http::fake([
+    'google.com/*' => 'Hello World',
+    'github.com/*' => ['foo' => 'bar'],
+    'chatgpt.com/*' => 200,
+]);</code></pre></div><h4><a href=#faking-connection-exceptions>Faking Exceptions</a></h4><p>Sometimes you may need to test your application's behavior if the HTTP client encounters an <code>Illuminate\Http\Client\ConnectionException</code> when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the <code>failedConnection</code> method:<div><pre><code>1Http::fake([2'github.com/*'=>Http::failedConnection(),3]);
+Http::fake([
+    'github.com/*' => Http::failedConnection(),
+]);</code></pre></div><p>To test your application's behavior if a <code>Illuminate\Http\Client\RequestException</code> is thrown, you may use the <code>failedRequest</code> method:<div><pre><code>1Http::fake([2'github.com/*'=>Http::failedRequest(['code'=>'not_found'], 404),3]);
+Http::fake([
+    'github.com/*' => Http::failedRequest(['code' => 'not_found'], 404),
+]);</code></pre></div><h4><a href=#faking-response-sequences>Faking Response Sequences</a></h4><p>Sometimes you may need to specify that a single URL should return a series of fake responses in a specific order. You may accomplish this using the <code>Http::sequence</code> method to build the responses:<div><pre><code>1Http::fake([2// Stub a series of responses for GitHub endpoints...3'github.com/*'=>Http::sequence()4->push('Hello World', 200)5->push(['foo'=>'bar'], 200)6->pushStatus(404),7]);
+Http::fake([
+    // Stub a series of responses for GitHub endpoints...
+    'github.com/*' => Http::sequence()
+        ->push('Hello World', 200)
+        ->push(['foo' => 'bar'], 200)
+        ->pushStatus(404),
+]);</code></pre></div><p>When all the responses in a response sequence have been consumed, any further requests will cause the response sequence to throw an exception. If you would like to specify a default response that should be returned when a sequence is empty, you may use the <code>whenEmpty</code> method:<div><pre><code>1Http::fake([2// Stub a series of responses for GitHub endpoints...3'github.com/*'=>Http::sequence()4->push('Hello World', 200)5->push(['foo'=>'bar'], 200)6->whenEmpty(Http::response()),7]);
+Http::fake([
+    // Stub a series of responses for GitHub endpoints...
+    'github.com/*' => Http::sequence()
+        ->push('Hello World', 200)
+        ->push(['foo' => 'bar'], 200)
+        ->whenEmpty(Http::response()),
+]);</code></pre></div><p>If you would like to fake a sequence of responses but do not need to specify a specific URL pattern that should be faked, you may use the <code>Http::fakeSequence</code> method:<div><pre><code>1Http::fakeSequence()2->push('Hello World', 200)3->whenEmpty(Http::response());
+Http::fakeSequence()
+    ->push('Hello World', 200)
+    ->whenEmpty(Http::response());</code></pre></div><h4><a href=#fake-callback>Fake Callback</a></h4><p>If you require more complicated logic to determine what responses to return for certain endpoints, you may pass a closure to the <code>fake</code> method. This closure will receive an instance of <code>Illuminate\Http\Client\Request</code> and should return a response instance. Within your closure, you may perform whatever logic is necessary to determine what type of response to return:<div><pre><code>1use Illuminate\Http\Client\Request;2 3Http::fake(function(Request$request) {4returnHttp::response('Hello World', 200);5});
+use Illuminate\Http\Client\Request;
+
+Http::fake(function (Request $request) {
+    return Http::response('Hello World', 200);
+});</code></pre></div><h3><a href=#inspecting-requests>Inspecting Requests</a></h3><p>When faking responses, you may occasionally wish to inspect the requests the client receives in order to make sure your application is sending the correct data or headers. You may accomplish this by calling the <code>Http::assertSent</code> method after calling <code>Http::fake</code>.<p>The <code>assertSent</code> method accepts a closure which will receive an <code>Illuminate\Http\Client\Request</code> instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:<div><pre><code> 1use Illuminate\Http\Client\Request; 2use Illuminate\Support\Facades\Http; 3  4Http::fake(); 5  6Http::withHeaders([ 7'X-First'=>'foo', 8])->post('http://example.com/users', [ 9'name'=>'Taylor',10'role'=>'Developer',11]);12 13Http::assertSent(function(Request$request) {14return$request->hasHeader('X-First', 'foo') &&15$request->url() =='http://example.com/users'&&16$request['name'] =='Taylor'&&17$request['role'] =='Developer';18});
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+
+Http::fake();
+
+Http::withHeaders([
+    'X-First' => 'foo',
+])->post('http://example.com/users', [
+    'name' => 'Taylor',
+    'role' => 'Developer',
+]);
+
+Http::assertSent(function (Request $request) {
+    return $request->hasHeader('X-First', 'foo') &&
+           $request->url() == 'http://example.com/users' &&
+           $request['name'] == 'Taylor' &&
+           $request['role'] == 'Developer';
+});</code></pre></div><p>If needed, you may assert that a specific request was not sent using the <code>assertNotSent</code> method:<div><pre><code> 1use Illuminate\Http\Client\Request; 2use Illuminate\Support\Facades\Http; 3  4Http::fake(); 5  6Http::post('http://example.com/users', [ 7'name'=>'Taylor', 8'role'=>'Developer', 9]);10 11Http::assertNotSent(function(Request$request) {12return$request->url() ==='http://example.com/posts';13});
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+
+Http::fake();
+
+Http::post('http://example.com/users', [
+    'name' => 'Taylor',
+    'role' => 'Developer',
+]);
+
+Http::assertNotSent(function (Request $request) {
+    return $request->url() === 'http://example.com/posts';
+});</code></pre></div><p>You may use the <code>assertSentCount</code> method to assert how many requests were "sent" during the test:<div><pre><code>1Http::fake();2 3Http::assertSentCount(5);
+Http::fake();
+
+Http::assertSentCount(5);</code></pre></div><p>Or, you may use the <code>assertNothingSent</code> method to assert that no requests were sent during the test:<div><pre><code>1Http::fake();2 3Http::assertNothingSent();
+Http::fake();
+
+Http::assertNothingSent();</code></pre></div><h4><a href=#recording-requests-and-responses>Recording Requests / Responses</a></h4><p>You may use the <code>recorded</code> method to gather all requests and their corresponding responses. The <code>recorded</code> method returns a collection of arrays that contains instances of <code>Illuminate\Http\Client\Request</code> and <code>Illuminate\Http\Client\Response</code>:<div><pre><code> 1Http::fake([ 2'https://laravel.com'=>Http::response(status: 500), 3'https://nova.laravel.com/'=>Http::response(), 4]); 5  6Http::get('https://laravel.com'); 7Http::get('https://nova.laravel.com/'); 8  9$recorded=Http::recorded();10 11[$request, $response] =$recorded[0];
+Http::fake([
+    'https://laravel.com' => Http::response(status: 500),
+    'https://nova.laravel.com/' => Http::response(),
+]);
+
+Http::get('https://laravel.com');
+Http::get('https://nova.laravel.com/');
+
+$recorded = Http::recorded();
+
+[$request, $response] = $recorded[0];</code></pre></div><p>Additionally, the <code>recorded</code> method accepts a closure which will receive an instance of <code>Illuminate\Http\Client\Request</code> and <code>Illuminate\Http\Client\Response</code> and may be used to filter request / response pairs based on your expectations:<div><pre><code> 1use Illuminate\Http\Client\Request; 2use Illuminate\Http\Client\Response; 3  4Http::fake([ 5'https://laravel.com'=>Http::response(status: 500), 6'https://nova.laravel.com/'=>Http::response(), 7]); 8  9Http::get('https://laravel.com');10Http::get('https://nova.laravel.com/');11 12$recorded=Http::recorded(function(Request$request, Response$response) {13return$request->url() !=='https://laravel.com'&&14$response->successful();15});
+use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\Response;
+
+Http::fake([
+    'https://laravel.com' => Http::response(status: 500),
+    'https://nova.laravel.com/' => Http::response(),
+]);
+
+Http::get('https://laravel.com');
+Http::get('https://nova.laravel.com/');
+
+$recorded = Http::recorded(function (Request $request, Response $response) {
+    return $request->url() !== 'https://laravel.com' &&
+           $response->successful();
+});</code></pre></div><h3><a href=#preventing-stray-requests>Preventing Stray Requests</a></h3><p>If you would like to ensure that all requests sent via the HTTP client have been faked throughout your individual test or complete test suite, you can call the <code>preventStrayRequests</code> method. After calling this method, any requests that do not have a corresponding fake response will throw an exception rather than making the actual HTTP request:<div><pre><code> 1use Illuminate\Support\Facades\Http; 2  3Http::preventStrayRequests(); 4  5Http::fake([ 6'github.com/*'=>Http::response('ok'), 7]); 8  9// An "ok" response is returned...10Http::get('https://github.com/laravel/framework');11 12// An exception is thrown...13Http::get('https://laravel.com');
+use Illuminate\Support\Facades\Http;
+
+Http::preventStrayRequests();
+
+Http::fake([
+    'github.com/*' => Http::response('ok'),
+]);
+
+// An "ok" response is returned...
+Http::get('https://github.com/laravel/framework');
+
+// An exception is thrown...
+Http::get('https://laravel.com');</code></pre></div><h2><a href=#events>Events</a></h2><p>Laravel fires three events during the process of sending HTTP requests. The <code>RequestSending</code> event is fired prior to a request being sent, while the <code>ResponseReceived</code> event is fired after a response is received for a given request. The <code>ConnectionFailed</code> event is fired if no response is received for a given request.<p>The <code>RequestSending</code> and <code>ConnectionFailed</code> events both contain a public <code>$request</code> property that you may use to inspect the <code>Illuminate\Http\Client\Request</code> instance. Likewise, the <code>ResponseReceived</code> event contains a <code>$request</code> property as well as a <code>$response</code> property which may be used to inspect the <code>Illuminate\Http\Client\Response</code> instance. You may create <a href=events.htm>event listeners</a> for these events within your application:<div><pre><code> 1use Illuminate\Http\Client\Events\RequestSending; 2  3classLogRequest 4{ 5/** 6     * Handle the event. 7*/ 8publicfunctionhandle(RequestSending$event):void 9    {10// $event->request ...11    }12}
+use Illuminate\Http\Client\Events\RequestSending;
+
+class LogRequest
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(RequestSending $event): void
+    {
+        // $event->request ...
+    }
+}</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a><li><a href=#making-requests> Making Requests </a> <ul><li><a href=#request-data> Request Data </a><li><a href=#headers> Headers </a><li><a href=#authentication> Authentication </a><li><a href=#timeout> Timeout </a><li><a href=#retries> Retries </a><li><a href=#error-handling> Error Handling </a><li><a href=#guzzle-middleware> Guzzle Middleware </a><li><a href=#guzzle-options> Guzzle Options </a></ul><li><a href=#concurrent-requests> Concurrent Requests </a><li><a href=#macros> Macros </a><li><a href=#testing> Testing </a> <ul><li><a href=#faking-responses> Faking Responses </a><li><a href=#inspecting-requests> Inspecting Requests </a><li><a href=#preventing-stray-requests> Preventing Stray Requests </a></ul><li><a href=#events> Events </a></ul></div></div></div></div></div></div></div></div></div>

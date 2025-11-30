@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.404150+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "sanction",
+        "laos": "ການລົງໂທດ",
+        "jp": "制裁",
+        "vie": "sự trừng phạt",
+        "en_pronunciation": "/ˈsæŋkʃən/",
+        "laos_pronunciation": "kanlongothd",
+        "jp_pronunciation": "seisai",
+        "vie_pronunciation": "su trung phat"
+      },
+      "means": {
+        "en": "Formal and explicit approval",
+        "zh": "正式和明确的批准"
+      }
+    },
+    {
+      "word": {
+        "en": "sanctuary",
+        "laos": "ສິມ",
+        "jp": "聖域",
+        "vie": "thánh đường",
+        "en_pronunciation": "/ˈsæŋkʧuˌɛri/",
+        "laos_pronunciation": "sim",
+        "jp_pronunciation": "seiiki",
+        "vie_pronunciation": "thanh duong"
+      },
+      "means": {
+        "en": "A consecrated place where sacred objects are kept",
+        "zh": "保存圣物的神圣场所"
+      }
+    },
+    {
+      "word": {
+        "en": "sand",
+        "laos": "ດິນຊາຍ",
+        "jp": "砂",
+        "vie": "cát",
+        "en_pronunciation": "/sænd/",
+        "laos_pronunciation": "dinsai",
+        "jp_pronunciation": "suna",
+        "vie_pronunciation": "cat"
+      },
+      "means": {
+        "en": "A loose material consisting of grains of rock or coral",
+        "zh": "由岩石或珊瑚颗粒组成的松散材料"
+      }
+    },
+    {
+      "word": {
+        "en": "sandwich",
+        "laos": "ແຊະ",
+        "jp": "サンドイッチ",
+        "vie": "bánh sandwich",
+        "en_pronunciation": "/ˈsænwɪʧ/",
+        "laos_pronunciation": "sae",
+        "jp_pronunciation": "sandoitchi",
+        "vie_pronunciation": "banh sandwich"
+      },
+      "means": {
+        "en": "Two (or more) slices of bread with a filling between them",
+        "zh": "两片（或更多）片面包，中间有馅料"
+      }
+    },
+    {
+      "word": {
+        "en": "sanitation",
+        "laos": "ສຸຂາພິບານ",
+        "jp": "衛生",
+        "vie": "vệ sinh",
+        "en_pronunciation": "/ˌsænɪˈteɪʃən/",
+        "laos_pronunciation": "su kha phiban",
+        "jp_pronunciation": "eisei",
+        "vie_pronunciation": "ve sinh"
+      },
+      "means": {
+        "en": "The state of being clean and conducive to health",
+        "zh": "清洁有利于健康的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "sarcasm",
+        "laos": "Sarcasm",
+        "jp": "皮肉",
+        "vie": "sự mỉa mai",
+        "en_pronunciation": "/ˈsɑrˌkæzəm/",
+        "laos_pronunciation": "Sarcasm",
+        "jp_pronunciation": "hiniku",
+        "vie_pronunciation": "su mia mai"
+      },
+      "means": {
+        "en": "Witty language used to convey insults or scorn; ; ; --Jonathan Swift",
+        "zh": "用于表达侮辱或蔑视的诙谐语言；"
+      }
+    },
+    {
+      "word": {
+        "en": "sanitary",
+        "laos": "ກິນອະນາໄມ",
+        "jp": "衛生的な",
+        "vie": "vệ sinh",
+        "en_pronunciation": "/ˈsænɪˌtɛri/",
+        "laos_pronunciation": "kinoanamai",
+        "jp_pronunciation": "eiseiteki na",
+        "vie_pronunciation": "ve sinh"
+      },
+      "means": {
+        "en": "Free from filth and pathogens",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "sarcastic",
+        "laos": "ສຽດແທງ",
+        "jp": "皮肉な",
+        "vie": "mỉa mai",
+        "en_pronunciation": "/sɑrˈkæstɪk/",
+        "laos_pronunciation": "siadaethng",
+        "jp_pronunciation": "hiniku na",
+        "vie_pronunciation": "mia mai"
+      },
+      "means": {
+        "en": "Expressing or expressive of ridicule that wounds",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "satellite",
+        "laos": "ດາວທຽມ",
+        "jp": "衛星",
+        "vie": "vệ tinh",
+        "en_pronunciation": "/ˈsætəˌlaɪt/",
+        "laos_pronunciation": "dauathiam",
+        "jp_pronunciation": "eisei",
+        "vie_pronunciation": "ve tinh"
+      },
+      "means": {
+        "en": "Man-made equipment that orbits around the earth or the moon",
+        "zh": "——乔纳森·斯威夫特"
+      }
+    },
+    {
+      "word": {
+        "en": "satire",
+        "laos": "satire",
+        "jp": "風刺",
+        "vie": "châm biếm",
+        "en_pronunciation": "/ˈsæˌtaɪər/",
+        "laos_pronunciation": "satire",
+        "jp_pronunciation": "fuushi",
+        "vie_pronunciation": "cham biem"
+      },
+      "means": {
+        "en": "Witty language used to convey insults or scorn; ; ; --Jonathan Swift",
+        "zh": "无污垢和病原体"
+      }
+    },
+    {
+      "word": {
+        "en": "satirical",
+        "laos": "ສຽດແທງ",
+        "jp": "風刺的な",
+        "vie": "châm biếm",
+        "en_pronunciation": "/səˈtɪrɪkəl/",
+        "laos_pronunciation": "siadaethng",
+        "jp_pronunciation": "fuushi tekina",
+        "vie_pronunciation": "cham biem"
+      },
+      "means": {
+        "en": "Exposing human folly to ridicule",
+        "zh": "表达或表达伤害的嘲笑"
+      }
+    },
+    {
+      "word": {
+        "en": "satirist",
+        "laos": "ຄົນອ່ອຢ",
+        "jp": "風刺家",
+        "vie": "người châm biếm",
+        "en_pronunciation": "/ˈsætərəst/",
+        "laos_pronunciation": "khon y",
+        "jp_pronunciation": "fuushi ie",
+        "vie_pronunciation": "nguoi cham biem"
+      },
+      "means": {
+        "en": "A humorist who uses ridicule and irony and sarcasm",
+        "zh": "绕地球或月球运行的人造设备"
+      }
+    },
+    {
+      "word": {
+        "en": "satisfy",
+        "laos": "ພໍໃຈ",
+        "jp": "満足させる",
+        "vie": "thỏa mãn",
+        "en_pronunciation": "/ˈsætɪsˌfaɪ/",
+        "laos_pronunciation": "phochai",
+        "jp_pronunciation": "manzoku saseru",
+        "vie_pronunciation": "thoa man"
+      },
+      "means": {
+        "en": "Meet the requirements or expectations of",
+        "zh": "用于表达侮辱或蔑视的诙谐语言；"
+      }
+    },
+    {
+      "word": {
+        "en": "saturate",
+        "laos": "ຄົນອີ່ມຕົວ",
+        "jp": "飽和する",
+        "vie": "bão hòa",
+        "en_pronunciation": "/ˈsæʧərˌeɪt/",
+        "laos_pronunciation": "khon imtua",
+        "jp_pronunciation": "houwa suru",
+        "vie_pronunciation": "bao hoa"
+      },
+      "means": {
+        "en": "Cause (a chemical compound, vapour, solution, magnetic material) to unite with the greatest possible amount of another substance",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "satisfaction",
+        "laos": "ຄວາມເພິ່ງພໍໃຈ",
+        "jp": "満足",
+        "vie": "sự hài lòng",
+        "en_pronunciation": "/ˌsætɪsˈfækʃən/",
+        "laos_pronunciation": "khuaamphoengphochai",
+        "jp_pronunciation": "manzoku",
+        "vie_pronunciation": "su hai long"
+      },
+      "means": {
+        "en": "The contentment one feels when one has fulfilled a desire, need, or expectation",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "saturation",
+        "laos": "ອີ່ມຕົວ",
+        "jp": "飽和",
+        "vie": "bão hòa",
+        "en_pronunciation": "/ˌsæʧərˈeɪʃən/",
+        "laos_pronunciation": "imtua",
+        "jp_pronunciation": "houwa",
+        "vie_pronunciation": "bao hoa"
+      },
+      "means": {
+        "en": "The process of totally saturating something with a substance",
+        "zh": "——乔纳森·斯威夫特"
+      }
+    },
+    {
+      "word": {
+        "en": "satisfactory",
+        "laos": "ພໍໃຈ",
+        "jp": "満足のいく",
+        "vie": "thỏa đáng",
+        "en_pronunciation": "/ˌsætɪsˈfæktəri/",
+        "laos_pronunciation": "phochai",
+        "jp_pronunciation": "manzoku noiku",
+        "vie_pronunciation": "thoa dang"
+      },
+      "means": {
+        "en": "Giving satisfaction",
+        "zh": "揭露人类的愚蠢行为"
+      }
+    },
+    {
+      "word": {
+        "en": "saturday",
+        "laos": "ວັນເສົາ",
+        "jp": "土曜日",
+        "vie": "thứ bảy",
+        "en_pronunciation": "/ˈsæˌtɪˌdeɪ/",
+        "laos_pronunciation": "vansao",
+        "jp_pronunciation": "doyoubi",
+        "vie_pronunciation": "thu bay"
+      },
+      "means": {
+        "en": "The seventh and last day of the week; observed as the Sabbath by Jews and some Christians",
+        "zh": "一个使用嘲笑、讽刺和讽刺的幽默家"
+      }
+    },
+    {
+      "word": {
+        "en": "sauce",
+        "laos": "ນ້ໍາ",
+        "jp": "ソース",
+        "vie": "nước sốt",
+        "en_pronunciation": "/sɔs/",
+        "laos_pronunciation": "noa",
+        "jp_pronunciation": "soosu",
+        "vie_pronunciation": "nuoc sot"
+      },
+      "means": {
+        "en": "Flavorful relish or dressing or topping served as an accompaniment to food",
+        "zh": "满足以下要求或期望"
+      }
+    },
+    {
+      "word": {
+        "en": "sausage",
+        "laos": "ໄສ້ກອກ",
+        "jp": "ソーセージ",
+        "vie": "xúc xích",
+        "en_pronunciation": "/ˈsɔsɪʤ/",
+        "laos_pronunciation": "saikok",
+        "jp_pronunciation": "sooseeji",
+        "vie_pronunciation": "xuc xich"
+      },
+      "means": {
+        "en": "Highly seasoned minced meat stuffed in casings",
+        "zh": "使（化合物、蒸气、溶液、磁性材料）与尽可能多的另一种物质结合"
+      }
+    },
+    {
+      "word": {
+        "en": "savage",
+        "laos": "ອະນາຣິຍະ",
+        "jp": "野蛮な",
+        "vie": "dã man",
+        "en_pronunciation": "/ˈsævɪʤ/",
+        "laos_pronunciation": "anarinya",
+        "jp_pronunciation": "yaban na",
+        "vie_pronunciation": "da man"
+      },
+      "means": {
+        "en": "A member of an uncivilized people",
+        "zh": "当一个人的愿望、需要或期望得到满足时所感受到的满足感"
+      }
+    },
+    {
+      "word": {
+        "en": "save",
+        "laos": "ປະຢັດ",
+        "jp": "保存する",
+        "vie": "lưu lại",
+        "en_pronunciation": "/seɪv/",
+        "laos_pronunciation": "payad",
+        "jp_pronunciation": "hozon suru",
+        "vie_pronunciation": "luu lai"
+      },
+      "means": {
+        "en": "(sports) the act of preventing the opposition from scoring",
+        "zh": "用某种物质完全饱和某物的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "saving",
+        "laos": "ປະຢັດ",
+        "jp": "節約",
+        "vie": "tiết kiệm",
+        "en_pronunciation": "/ˈseɪvɪŋ/",
+        "laos_pronunciation": "payad",
+        "jp_pronunciation": "setsuyaku",
+        "vie_pronunciation": "tiet kiem"
+      },
+      "means": {
+        "en": "An act of economizing; reduction in cost",
+        "zh": "给予满足"
+      }
+    },
+    {
+      "word": {
+        "en": "say",
+        "laos": "ເວົ້າ",
+        "jp": "言う",
+        "vie": "nói",
+        "en_pronunciation": "/seɪ/",
+        "laos_pronunciation": "vao",
+        "jp_pronunciation": "iu",
+        "vie_pronunciation": "noi"
+      },
+      "means": {
+        "en": "The chance to speak",
+        "zh": "一周的第七天和最后一天；"
+      }
+    },
+    {
+      "word": {
+        "en": "scale",
+        "laos": "ມາດຕາ",
+        "jp": "スケール",
+        "vie": "quy mô",
+        "en_pronunciation": "/skeɪl/",
+        "laos_pronunciation": "madta",
+        "jp_pronunciation": "sukeeru",
+        "vie_pronunciation": "quy mo"
+      },
+      "means": {
+        "en": "An ordered reference standard",
+        "zh": "犹太人和一些基督徒遵守安息日"
+      }
+    },
+    {
+      "word": {
+        "en": "saying",
+        "laos": "ການເວົ້າ",
+        "jp": "言ってる",
+        "vie": "nói",
+        "en_pronunciation": "/seɪɪŋ/",
+        "laos_pronunciation": "kanuaao",
+        "jp_pronunciation": "itte ru",
+        "vie_pronunciation": "noi"
+      },
+      "means": {
+        "en": "A word or phrase that particular people use in particular situations",
+        "zh": "作为食物佐餐的美味佐料或调料或配料"
+      }
+    },
+    {
+      "word": {
+        "en": "scan",
+        "laos": "ສະແກນ",
+        "jp": "スキャン",
+        "vie": "quét",
+        "en_pronunciation": "/skæn/",
+        "laos_pronunciation": "saaekn",
+        "jp_pronunciation": "sukyan",
+        "vie_pronunciation": "quet"
+      },
+      "means": {
+        "en": "The act of scanning; systematic examination of a prescribed region",
+        "zh": "肠衣中塞入高度调味的肉末"
+      }
+    },
+    {
+      "word": {
+        "en": "scanner",
+        "laos": "ເຄື່ອງສະແກນເຄື່ອງສະແກນ",
+        "jp": "スキャナー",
+        "vie": "máy quét",
+        "en_pronunciation": "/ˈskænər/",
+        "laos_pronunciation": "kheuongsaaeknkheuongsaaekn",
+        "jp_pronunciation": "sukyanaa",
+        "vie_pronunciation": "may quet"
+      },
+      "means": {
+        "en": "Someone who scans verse to determine the number and prosodic value of the syllables",
+        "zh": "不文明民族的一员"
+      }
+    },
+    {
+      "word": {
+        "en": "scandal",
+        "laos": "ກະທູ້",
+        "jp": "スキャンダル",
+        "vie": "vụ bê bối",
+        "en_pronunciation": "/ˈskændəl/",
+        "laos_pronunciation": "kathu",
+        "jp_pronunciation": "sukyandaru",
+        "vie_pronunciation": "vu be boi"
+      },
+      "means": {
+        "en": "Disgraceful gossip about the private lives of other people",
+        "zh": "（体育）阻止对方得分的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "scar",
+        "laos": "ຮອຍແຜ",
+        "jp": "傷跡",
+        "vie": "vết sẹo",
+        "en_pronunciation": "/skɑr/",
+        "laos_pronunciation": "honyaeph",
+        "jp_pronunciation": "kizuato",
+        "vie_pronunciation": "vet seo"
+      },
+      "means": {
+        "en": "A mark left (usually on the skin) by the healing of injured tissue",
+        "zh": "节约的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "scarce",
+        "laos": "ເປັນບາດ",
+        "jp": "希少な",
+        "vie": "khan hiếm",
+        "en_pronunciation": "/skɛrs/",
+        "laos_pronunciation": "penbad",
+        "jp_pronunciation": "kishou na",
+        "vie_pronunciation": "khan hiem"
+      },
+      "means": {
+        "en": "Deficient in quantity or number compared with the demand",
+        "zh": "降低成本"
+      }
+    },
+    {
+      "word": {
+        "en": "scandalous",
+        "laos": "ກະທູ້",
+        "jp": "スキャンダラスな",
+        "vie": "tai tiếng",
+        "en_pronunciation": "/ˈskændələs/",
+        "laos_pronunciation": "kathu",
+        "jp_pronunciation": "sukyandarasu na",
+        "vie_pronunciation": "tai tieng"
+      },
+      "means": {
+        "en": "Giving offense to moral sensibilities and injurious to reputation; ; - Thackeray",
+        "zh": "发言的机会"
+      }
+    },
+    {
+      "word": {
+        "en": "scarcity",
+        "laos": "ຄວາມຂາດແຄນ",
+        "jp": "希少性",
+        "vie": "sự khan hiếm",
+        "en_pronunciation": "/ˈskɛrsɪti/",
+        "laos_pronunciation": "khuaamkhadaekhn",
+        "jp_pronunciation": "kishou sei",
+        "vie_pronunciation": "su khan hiem"
+      },
+      "means": {
+        "en": "A small and inadequate amount",
+        "zh": "有序参考标准"
+      }
+    },
+    {
+      "word": {
+        "en": "scarcely",
+        "laos": "ຂາດເຂົ້າ",
+        "jp": "ほとんどない",
+        "vie": "hiếm khi",
+        "en_pronunciation": "/ˈskɛrsli/",
+        "laos_pronunciation": "khadkhao",
+        "jp_pronunciation": "hotondonai",
+        "vie_pronunciation": "hiem khi"
+      },
+      "means": {
+        "en": "Only a very short time before; ; ; ; ; - W.B.Yeats",
+        "zh": "特定人在特定情况下使用的单词或短语"
+      }
+    },
+    {
+      "word": {
+        "en": "scare",
+        "laos": "ເຮັດໃຫ້ຍ້ານ",
+        "jp": "怖い",
+        "vie": "sợ hãi",
+        "en_pronunciation": "/skɛr/",
+        "laos_pronunciation": "hedhainyan",
+        "jp_pronunciation": "kowai",
+        "vie_pronunciation": "so hai"
+      },
+      "means": {
+        "en": "Sudden mass fear and anxiety over anticipated events",
+        "zh": "扫描行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "scary",
+        "laos": "ທີ່ຫນ້າຢ້ານ",
+        "jp": "怖い",
+        "vie": "đáng sợ",
+        "en_pronunciation": "/ˈskɛri/",
+        "laos_pronunciation": "thi nayan",
+        "jp_pronunciation": "kowai",
+        "vie_pronunciation": "dang so"
+      },
+      "means": {
+        "en": "Provoking fear terror",
+        "zh": "对指定区域进行系统检查"
+      }
+    },
+    {
+      "word": {
+        "en": "scatter",
+        "laos": "ຊະ",
+        "jp": "散らばる",
+        "vie": "rải rác",
+        "en_pronunciation": "/ˈskætər/",
+        "laos_pronunciation": "sa",
+        "jp_pronunciation": "chira baru",
+        "vie_pronunciation": "rai rac"
+      },
+      "means": {
+        "en": "A haphazard distribution in all directions",
+        "zh": "扫描诗歌以确定音节的数量和韵律值的人"
+      }
+    },
+    {
+      "word": {
+        "en": "scenario",
+        "laos": "ສະຖານະການ",
+        "jp": "シナリオ",
+        "vie": "kịch bản",
+        "en_pronunciation": "/sɪˈnɛrioʊ/",
+        "laos_pronunciation": "sathanakan",
+        "jp_pronunciation": "shinario",
+        "vie_pronunciation": "kich ban"
+      },
+      "means": {
+        "en": "An outline or synopsis of a play (or, by extension, of a literary work)",
+        "zh": "关于他人私生活的可耻八卦"
+      }
+    },
+    {
+      "word": {
+        "en": "scene",
+        "laos": "ສະຖານທີ່",
+        "jp": "シーン",
+        "vie": "bối cảnh",
+        "en_pronunciation": "/sin/",
+        "laos_pronunciation": "sathanthi",
+        "jp_pronunciation": "shiin",
+        "vie_pronunciation": "boi canh"
+      },
+      "means": {
+        "en": "The place where some action occurs",
+        "zh": "受伤组织愈合时留下的痕迹（通常在皮肤上）"
+      }
+    },
+    {
+      "word": {
+        "en": "scenery",
+        "laos": "ພູມິພາບ",
+        "jp": "風景",
+        "vie": "phong cảnh",
+        "en_pronunciation": "/ˈsinəri/",
+        "laos_pronunciation": "phumiphab",
+        "jp_pronunciation": "fuukei",
+        "vie_pronunciation": "phong canh"
+      },
+      "means": {
+        "en": "The painted structures of a stage set that are intended to suggest a particular locale",
+        "zh": "数量或数量与需求相比不足"
+      }
+    },
+    {
+      "word": {
+        "en": "scenic",
+        "laos": "ພາບທີ່ສວຍງາມ",
+        "jp": "風光明媚な",
+        "vie": "cảnh đẹp",
+        "en_pronunciation": "/ˈsinɪk/",
+        "laos_pronunciation": "phabthisuanyngam",
+        "jp_pronunciation": "fuukoumeibi na",
+        "vie_pronunciation": "canh dep"
+      },
+      "means": {
+        "en": "Used of locations; having beautiful natural scenery",
+        "zh": "冒犯道德情感并损害声誉；"
+      }
+    },
+    {
+      "word": {
+        "en": "scent",
+        "laos": "ກິ່ນ",
+        "jp": "香り",
+        "vie": "hương thơm",
+        "en_pronunciation": "/sɛnt/",
+        "laos_pronunciation": "kin",
+        "jp_pronunciation": "kaori",
+        "vie_pronunciation": "huong thom"
+      },
+      "means": {
+        "en": "A distinctive odor that is pleasant",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "schedule",
+        "laos": "ຕາລາງ",
+        "jp": "スケジュール",
+        "vie": "lịch trình",
+        "en_pronunciation": "/ˈskɛʤʊl/",
+        "laos_pronunciation": "talang",
+        "jp_pronunciation": "sukejuuru",
+        "vie_pronunciation": "lich trinh"
+      },
+      "means": {
+        "en": "A temporally organized plan for matters to be attended to",
+        "zh": "——萨克雷"
+      }
+    },
+    {
+      "word": {
+        "en": "scheme",
+        "laos": "ເລ້ກົນ",
+        "jp": "スキーム",
+        "vie": "kế hoạch",
+        "en_pronunciation": "/skim/",
+        "laos_pronunciation": "lekon",
+        "jp_pronunciation": "sukiimu",
+        "vie_pronunciation": "ke hoach"
+      },
+      "means": {
+        "en": "An elaborate and systematic plan of action",
+        "zh": "数量少且不足"
+      }
+    },
+    {
+      "word": {
+        "en": "scholar",
+        "laos": "ນັກສືກສາ",
+        "jp": "学者",
+        "vie": "học giả",
+        "en_pronunciation": "/ˈskɑlər/",
+        "laos_pronunciation": "naksuksa",
+        "jp_pronunciation": "gakusha",
+        "vie_pronunciation": "hoc gia"
+      },
+      "means": {
+        "en": "A learned person (especially in the humanities); someone who by long study has gained mastery in one or more disciplines",
+        "zh": "就在不久之前；"
+      }
+    },
+    {
+      "word": {
+        "en": "scholarly",
+        "laos": "ນັກວຽດ",
+        "jp": "学術的な",
+        "vie": "học thuật",
+        "en_pronunciation": "/ˈskɑlərli/",
+        "laos_pronunciation": "nakuaiad",
+        "jp_pronunciation": "gakujutsuteki na",
+        "vie_pronunciation": "hoc thuat"
+      },
+      "means": {
+        "en": "Characteristic of scholars or scholarship",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "scholarship",
+        "laos": "ທຶນການສຶກສາ",
+        "jp": "奨学金",
+        "vie": "học bổng",
+        "en_pronunciation": "/ˈskɑlərˌʃɪp/",
+        "laos_pronunciation": "thunkansuksa",
+        "jp_pronunciation": "shougakukin",
+        "vie_pronunciation": "hoc bong"
+      },
+      "means": {
+        "en": "Financial aid provided to a student on the basis of academic merit",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "scholastic",
+        "laos": "ການສຶກສາ",
+        "jp": "学力的な",
+        "vie": "mang tính học thuật",
+        "en_pronunciation": "/skəˈlæstɪk/",
+        "laos_pronunciation": "kansuksa",
+        "jp_pronunciation": "gakuryoku tekina",
+        "vie_pronunciation": "mang tinh hoc thuat"
+      },
+      "means": {
+        "en": "A person who pays more attention to formal rules and book learning than they merit",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "school",
+        "laos": "ໂຮງຮຽນ",
+        "jp": "学校",
+        "vie": "trường học",
+        "en_pronunciation": "/skul/",
+        "laos_pronunciation": "ohnghian",
+        "jp_pronunciation": "gakkou",
+        "vie_pronunciation": "truong hoc"
+      },
+      "means": {
+        "en": "An educational institution",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "schooling",
+        "laos": "ການຮຽນ",
+        "jp": "学校教育",
+        "vie": "đi học",
+        "en_pronunciation": "/ˈskulɪŋ/",
+        "laos_pronunciation": "kanhian",
+        "jp_pronunciation": "gakkoukyouiku",
+        "vie_pronunciation": "di hoc"
+      },
+      "means": {
+        "en": "The act of teaching at school",
+        "zh": "——叶芝"
+      }
+    },
+    {
+      "word": {
+        "en": "science",
+        "laos": "ວິທະຍາໄລ",
+        "jp": "科学",
+        "vie": "khoa học",
+        "en_pronunciation": "/saɪəns/",
+        "laos_pronunciation": "vithanyalai",
+        "jp_pronunciation": "kagaku",
+        "vie_pronunciation": "khoa hoc"
+      },
+      "means": {
+        "en": "A particular branch of scientific knowledge",
+        "zh": "对预期事件突然出现的大规模恐惧和焦虑"
+      }
+    },
+    {
+      "word": {
+        "en": "scientific",
+        "laos": "ວິທະຍາສາດ",
+        "jp": "科学的",
+        "vie": "khoa học",
+        "en_pronunciation": "/ˌsaɪənˈtɪfɪk/",
+        "laos_pronunciation": "vithanyasad",
+        "jp_pronunciation": "kagakuteki",
+        "vie_pronunciation": "khoa hoc"
+      },
+      "means": {
+        "en": "Of or relating to the practice of science",
+        "zh": "引发恐惧恐怖"
+      }
+    },
+    {
+      "word": {
+        "en": "scientist",
+        "laos": "ນັກວິທະຍາສາດ",
+        "jp": "科学者",
+        "vie": "nhà khoa học",
+        "en_pronunciation": "/ˈsaɪəntɪst/",
+        "laos_pronunciation": "nakvithanyasad",
+        "jp_pronunciation": "kagakusha",
+        "vie_pronunciation": "nha khoa hoc"
+      },
+      "means": {
+        "en": "A person with advanced knowledge of one or more sciences",
+        "zh": "各个方向随意分布"
+      }
+    },
+    {
+      "word": {
+        "en": "scissors",
+        "laos": "ມີດຕັດ",
+        "jp": "はさみ",
+        "vie": "kéo",
+        "en_pronunciation": "/ˈsɪzərz/",
+        "laos_pronunciation": "midtad",
+        "jp_pronunciation": "hasami",
+        "vie_pronunciation": "keo"
+      },
+      "means": {
+        "en": "An edge tool having two crossed pivoting blades",
+        "zh": "戏剧（或延伸至文学作品）的大纲或概要"
+      }
+    },
+    {
+      "word": {
+        "en": "scold",
+        "laos": "ປ້ອຍດ່າ",
+        "jp": "叱る",
+        "vie": "la mắng",
+        "en_pronunciation": "/skoʊld/",
+        "laos_pronunciation": "ponyda",
+        "jp_pronunciation": "shikaru",
+        "vie_pronunciation": "la mang"
+      },
+      "means": {
+        "en": "Someone (especially a woman) who annoys people by constantly finding fault",
+        "zh": "发生某些动作的地方"
+      }
+    },
+    {
+      "word": {
+        "en": "scope",
+        "laos": "ຂອບເຂດ",
+        "jp": "範囲",
+        "vie": "phạm vi",
+        "en_pronunciation": "/skoʊp/",
+        "laos_pronunciation": "khobkhed",
+        "jp_pronunciation": "han'i",
+        "vie_pronunciation": "pham vi"
+      },
+      "means": {
+        "en": "An area in which something acts or operates or has power or control:",
+        "zh": "舞台布景的彩绘结构旨在暗示特定的场所"
+      }
+    },
+    {
+      "word": {
+        "en": "score",
+        "laos": "ຄະແນນ",
+        "jp": "スコア",
+        "vie": "ghi điểm",
+        "en_pronunciation": "/skɔr/",
+        "laos_pronunciation": "khaaenn",
+        "jp_pronunciation": "sukoa",
+        "vie_pronunciation": "ghi diem"
+      },
+      "means": {
+        "en": "A number or letter indicating quality (especially of a student's performance)",
+        "zh": "用于地点；"
+      }
+    },
+    {
+      "word": {
+        "en": "scorn",
+        "laos": "ດູຖູກ",
+        "jp": "軽蔑する",
+        "vie": "khinh miệt",
+        "en_pronunciation": "/skɔrn/",
+        "laos_pronunciation": "duthuk",
+        "jp_pronunciation": "keibetsu suru",
+        "vie_pronunciation": "khinh miet"
+      },
+      "means": {
+        "en": "Lack of respect accompanied by a feeling of intense dislike",
+        "zh": "拥有美丽的自然风光"
+      }
+    },
+    {
+      "word": {
+        "en": "scornful",
+        "laos": "ທີ່ດູຖູກ",
+        "jp": "軽蔑的な",
+        "vie": "khinh bỉ",
+        "en_pronunciation": "/ˈskɔrnfəl/",
+        "laos_pronunciation": "thiduthuk",
+        "jp_pronunciation": "keibetsuteki na",
+        "vie_pronunciation": "khinh bi"
+      },
+      "means": {
+        "en": "Expressing extreme contempt",
+        "zh": "独特的气味令人愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "scout",
+        "laos": "ການເຝົ້າ",
+        "jp": "スカウト",
+        "vie": "trinh sát",
+        "en_pronunciation": "/skaʊt/",
+        "laos_pronunciation": "kanfao",
+        "jp_pronunciation": "sukauto",
+        "vie_pronunciation": "trinh sat"
+      },
+      "means": {
+        "en": "A person employed to keep watch for some anticipated event",
+        "zh": "临时组织的待办事项计划"
+      }
+    },
+    {
+      "word": {
+        "en": "scramble",
+        "laos": "Scramble",
+        "jp": "スクランブル",
+        "vie": "tranh giành",
+        "en_pronunciation": "/ˈskræmbəl/",
+        "laos_pronunciation": "Scramble",
+        "jp_pronunciation": "sukuranburu",
+        "vie_pronunciation": "tranh gianh"
+      },
+      "means": {
+        "en": "An unceremonious and disorganized struggle",
+        "zh": "详尽而系统的行动计划"
+      }
+    },
+    {
+      "word": {
+        "en": "scrap",
+        "laos": "ມ້ວນ",
+        "jp": "スクラップ",
+        "vie": "phế liệu",
+        "en_pronunciation": "/skræp/",
+        "laos_pronunciation": "muan",
+        "jp_pronunciation": "sukurappu",
+        "vie_pronunciation": "phe lieu"
+      },
+      "means": {
+        "en": "A small fragment of something broken off from the whole",
+        "zh": "一个有学问的人（尤其是人文学科）；"
+      }
+    },
+    {
+      "word": {
+        "en": "scrape",
+        "laos": "ຂູດ",
+        "jp": "こする",
+        "vie": "cạo",
+        "en_pronunciation": "/skreɪp/",
+        "laos_pronunciation": "khud",
+        "jp_pronunciation": "kosuru",
+        "vie_pronunciation": "cao"
+      },
+      "means": {
+        "en": "A harsh noise made by scraping",
+        "zh": "通过长期学习掌握一门或多门学科的人"
+      }
+    },
+    {
+      "word": {
+        "en": "scratch",
+        "laos": "ເກົາຂາ",
+        "jp": "スクラッチ",
+        "vie": "gãi",
+        "en_pronunciation": "/skræʧ/",
+        "laos_pronunciation": "kaokha",
+        "jp_pronunciation": "sukuratchi",
+        "vie_pronunciation": "gai"
+      },
+      "means": {
+        "en": "An abraded area where the skin is torn or worn off",
+        "zh": "学者或学术的特征"
+      }
+    },
+    {
+      "word": {
+        "en": "scream",
+        "laos": "ຮ້ອງ",
+        "jp": "叫ぶ",
+        "vie": "hét lên",
+        "en_pronunciation": "/skrim/",
+        "laos_pronunciation": "hong",
+        "jp_pronunciation": "sakebu",
+        "vie_pronunciation": "het len"
+      },
+      "means": {
+        "en": "Sharp piercing cry",
+        "zh": "根据学术成绩向学生提供经济援助"
+      }
+    },
+    {
+      "word": {
+        "en": "screen",
+        "laos": "ຫນ້າຈໍ",
+        "jp": "画面",
+        "vie": "màn hình",
+        "en_pronunciation": "/skrin/",
+        "laos_pronunciation": "nacho",
+        "jp_pronunciation": "gamen",
+        "vie_pronunciation": "man hinh"
+      },
+      "means": {
+        "en": "A white or silvered surface where pictures can be projected for viewing",
+        "zh": "一个人对正式规则和书本学习的关注超过了他们应有的程度"
+      }
+    },
+    {
+      "word": {
+        "en": "screw",
+        "laos": "ຕາບນວກສະໄລ",
+        "jp": "ネジ",
+        "vie": "vít",
+        "en_pronunciation": "/skru/",
+        "laos_pronunciation": "tab nuak salai",
+        "jp_pronunciation": "neji",
+        "vie_pronunciation": "vit"
+      },
+      "means": {
+        "en": "Someone who guards prisoners",
+        "zh": "一个教育机构"
+      }
+    },
+    {
+      "word": {
+        "en": "script",
+        "laos": "ບົດລະຄອນ",
+        "jp": "スクリプト",
+        "vie": "kịch bản",
+        "en_pronunciation": "/skrɪpt/",
+        "laos_pronunciation": "bodlakhon",
+        "jp_pronunciation": "sukuriputo",
+        "vie_pronunciation": "kich ban"
+      },
+      "means": {
+        "en": "A written version of a play or other dramatic composition; used in preparing for a performance",
+        "zh": "在学校的教学行为"
+      }
+    },
+    {
+      "word": {
+        "en": "scripture",
+        "laos": "ພຣະຄໍາພີ",
+        "jp": "経典",
+        "vie": "kinh thánh",
+        "en_pronunciation": "/ˈskrɪpʧər/",
+        "laos_pronunciation": "phrakhoaphi",
+        "jp_pronunciation": "kyouten",
+        "vie_pronunciation": "kinh thanh"
+      },
+      "means": {
+        "en": "The sacred writings of the Christian religions",
+        "zh": "科学知识的一个特定分支"
+      }
+    },
+    {
+      "word": {
+        "en": "scrub",
+        "laos": "ຂັດ",
+        "jp": "スクラブ",
+        "vie": "chà",
+        "en_pronunciation": "/skrəb/",
+        "laos_pronunciation": "khad",
+        "jp_pronunciation": "sukurabu",
+        "vie_pronunciation": "cha"
+      },
+      "means": {
+        "en": "Dense vegetation consisting of stunted trees or bushes",
+        "zh": "属于或与科学实践有关的"
+      }
+    },
+    {
+      "word": {
+        "en": "scrutiny",
+        "laos": "ກວດກາ",
+        "jp": "精査",
+        "vie": "sự xem xét kỹ lưỡng",
+        "en_pronunciation": "/ˈskrutəni/",
+        "laos_pronunciation": "kuadka",
+        "jp_pronunciation": "seisa",
+        "vie_pronunciation": "su xem xet ky luong"
+      },
+      "means": {
+        "en": "The act of examining something closely (as for mistakes)",
+        "zh": "具有一门或多门科学先进知识的人"
+      }
+    },
+    {
+      "word": {
+        "en": "scrutinize",
+        "laos": "ການກວດກາ",
+        "jp": "精査する",
+        "vie": "xem xét kỹ lưỡng",
+        "en_pronunciation": "/ˈskrutəˌnaɪz/",
+        "laos_pronunciation": "kankuadka",
+        "jp_pronunciation": "seisa suru",
+        "vie_pronunciation": "xem xet ky luong"
+      },
+      "means": {
+        "en": "To look at critically or searchingly, or in minute detail",
+        "zh": "具有两个交叉枢转刀片的边缘工具"
+      }
+    },
+    {
+      "word": {
+        "en": "scrutinise",
+        "laos": "ການກວດກາ",
+        "jp": "精査する",
+        "vie": "xem xét kỹ lưỡng",
+        "en_pronunciation": "/scrutinise/",
+        "laos_pronunciation": "kankuadka",
+        "jp_pronunciation": "seisa suru",
+        "vie_pronunciation": "xem xet ky luong"
+      },
+      "means": {
+        "en": "To look at critically or searchingly, or in minute detail",
+        "zh": "总是挑剔别人的毛病而惹恼别人的人（尤其是女人）"
+      }
+    },
+    {
+      "word": {
+        "en": "sculpture",
+        "laos": "ຮູບແກະ",
+        "jp": "彫刻",
+        "vie": "điêu khắc",
+        "en_pronunciation": "/ˈskəlpʧər/",
+        "laos_pronunciation": "hubkae",
+        "jp_pronunciation": "choukoku",
+        "vie_pronunciation": "dieu khac"
+      },
+      "means": {
+        "en": "A three-dimensional work of plastic art",
+        "zh": "某物起作用或运作或拥有权力或控制的区域："
+      }
+    },
+    {
+      "word": {
+        "en": "sea",
+        "laos": "ທະເລ",
+        "jp": "海",
+        "vie": "biển",
+        "en_pronunciation": "/si/",
+        "laos_pronunciation": "thale",
+        "jp_pronunciation": "umi",
+        "vie_pronunciation": "bien"
+      },
+      "means": {
+        "en": "A division of an ocean or a large body of salt water partially enclosed by land",
+        "zh": "表示质量（尤其是学生表现）的数字或字母"
+      }
+    },
+    {
+      "word": {
+        "en": "seal",
+        "laos": "ປະທັບຕາ",
+        "jp": "シール",
+        "vie": "con dấu",
+        "en_pronunciation": "/sil/",
+        "laos_pronunciation": "pathabta",
+        "jp_pronunciation": "shiiru",
+        "vie_pronunciation": "con dau"
+      },
+      "means": {
+        "en": "Fastener consisting of a resinous composition that is plastic when warm; used for sealing documents and parcels and letters",
+        "zh": "缺乏尊重并伴有强烈的厌恶感"
+      }
+    },
+    {
+      "word": {
+        "en": "search",
+        "laos": "ຄົ້ນຫາ",
+        "jp": "検索",
+        "vie": "tìm kiếm",
+        "en_pronunciation": "/sərʧ/",
+        "laos_pronunciation": "khonha",
+        "jp_pronunciation": "kensaku",
+        "vie_pronunciation": "tim kiem"
+      },
+      "means": {
+        "en": "The activity of looking thoroughly in order to find something or someone",
+        "zh": "表达极度蔑视"
+      }
+    },
+    {
+      "word": {
+        "en": "season",
+        "laos": "ລະດູການ",
+        "jp": "季節",
+        "vie": "mùa",
+        "en_pronunciation": "/ˈsizən/",
+        "laos_pronunciation": "ladukan",
+        "jp_pronunciation": "kisetsu",
+        "vie_pronunciation": "mua"
+      },
+      "means": {
+        "en": "A period of the year marked by special events or activities in some field",
+        "zh": "受雇监视某些预期事件的人"
+      }
+    },
+    {
+      "word": {
+        "en": "seasonal",
+        "laos": "ຮວາດ",
+        "jp": "季節限定",
+        "vie": "theo mùa",
+        "en_pronunciation": "/ˈsizənəl/",
+        "laos_pronunciation": "huaad",
+        "jp_pronunciation": "kisetsugentei",
+        "vie_pronunciation": "theo mua"
+      },
+      "means": {
+        "en": "A worker who finds employment only in certain seasons",
+        "zh": "一场无礼且无组织的斗争"
+      }
+    },
+    {
+      "word": {
+        "en": "seat",
+        "laos": "ບ່ອນນັ່ງ",
+        "jp": "座席",
+        "vie": "chỗ ngồi",
+        "en_pronunciation": "/sit/",
+        "laos_pronunciation": "bonnang",
+        "jp_pronunciation": "zaseki",
+        "vie_pronunciation": "cho ngoi"
+      },
+      "means": {
+        "en": "A space reserved for sitting (as in a theater or on a train or airplane)",
+        "zh": "从整体中分离出来的一小部分"
+      }
+    },
+    {
+      "word": {
+        "en": "second",
+        "laos": "ທີສອງ",
+        "jp": "2番目",
+        "vie": "thứ hai",
+        "en_pronunciation": "/ˈsɛkənd/",
+        "laos_pronunciation": "thisong",
+        "jp_pronunciation": "2 banme",
+        "vie_pronunciation": "thu hai"
+      },
+      "means": {
+        "en": "1/60 of a minute; the basic unit of time adopted under the Systeme International d'Unites",
+        "zh": "刮擦时发出刺耳的噪音"
+      }
+    },
+    {
+      "word": {
+        "en": "secondary",
+        "laos": "ມັດຕະບັນ",
+        "jp": "二次的",
+        "vie": "thứ cấp",
+        "en_pronunciation": "/ˈsɛkənˌdɛri/",
+        "laos_pronunciation": "mad taban",
+        "jp_pronunciation": "nijiteki",
+        "vie_pronunciation": "thu cap"
+      },
+      "means": {
+        "en": "The defensive football players who line up behind the linemen",
+        "zh": "皮肤被撕裂或磨损的磨损区域"
+      }
+    },
+    {
+      "word": {
+        "en": "second-hand",
+        "laos": ", ມືສອງ",
+        "jp": "中古品",
+        "vie": "đồ cũ",
+        "en_pronunciation": "/second-hand/",
+        "laos_pronunciation": "musong",
+        "jp_pronunciation": "chuukohin",
+        "vie_pronunciation": "do cu"
+      },
+      "means": {
+        "en": "Derived from what is primary or original; not firsthand",
+        "zh": "尖锐刺耳的哭声"
+      }
+    },
+    {
+      "word": {
+        "en": "secret",
+        "laos": "ຄວາມລັບ",
+        "jp": "秘密",
+        "vie": "bí mật",
+        "en_pronunciation": "/ˈsikrɪt/",
+        "laos_pronunciation": "khuaamlab",
+        "jp_pronunciation": "himitsu",
+        "vie_pronunciation": "bi mat"
+      },
+      "means": {
+        "en": "Something that should remain hidden from others (especially information that is not to be passed on)",
+        "zh": "可以投影图片以供观看的白色或银色表面"
+      }
+    },
+    {
+      "word": {
+        "en": "secrecy",
+        "laos": "ຄວາມລັບ",
+        "jp": "秘密",
+        "vie": "bí mật",
+        "en_pronunciation": "/ˈsikrəsi/",
+        "laos_pronunciation": "khuaamlab",
+        "jp_pronunciation": "himitsu",
+        "vie_pronunciation": "bi mat"
+      },
+      "means": {
+        "en": "The trait of keeping things secret",
+        "zh": "看守囚犯的人"
+      }
+    },
+    {
+      "word": {
+        "en": "secretive",
+        "laos": "ລຶກລັບ",
+        "jp": "秘密主義の",
+        "vie": "bí mật",
+        "en_pronunciation": "/ˈsikrətɪv/",
+        "laos_pronunciation": "luklab",
+        "jp_pronunciation": "himitsushugi no",
+        "vie_pronunciation": "bi mat"
+      },
+      "means": {
+        "en": "Inclined to secrecy or reticence about divulging information",
+        "zh": "戏剧或其他戏剧作品的书面版本；"
+      }
+    },
+    {
+      "word": {
+        "en": "secretary",
+        "laos": "ເລຂາ",
+        "jp": "秘書",
+        "vie": "thư ký",
+        "en_pronunciation": "/ˈsɛkrəˌtɛri/",
+        "laos_pronunciation": "lekha",
+        "jp_pronunciation": "hisho",
+        "vie_pronunciation": "thu ky"
+      },
+      "means": {
+        "en": "A person who is head of an administrative department of government",
+        "zh": "用于准备表演"
+      }
+    },
+    {
+      "word": {
+        "en": "secretarial",
+        "laos": "ຈໍານວນພາໂນໂລ",
+        "jp": "秘書",
+        "vie": "thư ký",
+        "en_pronunciation": "/ˌsɛkrəˈtɛriəl/",
+        "laos_pronunciation": "choanuan phaonol",
+        "jp_pronunciation": "hisho",
+        "vie_pronunciation": "thu ky"
+      },
+      "means": {
+        "en": "Of or relating to a secretary or to a secretary's work",
+        "zh": "基督教的神圣著作"
+      }
+    },
+    {
+      "word": {
+        "en": "section",
+        "laos": "ປ້ອມ",
+        "jp": "セクション",
+        "vie": "phần",
+        "en_pronunciation": "/ˈsɛkʃən/",
+        "laos_pronunciation": "pom",
+        "jp_pronunciation": "sekushon",
+        "vie_pronunciation": "phan"
+      },
+      "means": {
+        "en": "A self-contained part of a larger composition (written or musical)",
+        "zh": "由发育不良的树木或灌木组成的茂密植被"
+      }
+    },
+    {
+      "word": {
+        "en": "sector",
+        "laos": "ຂະແຫນງ",
+        "jp": "セクター",
+        "vie": "lĩnh vực",
+        "en_pronunciation": "/ˈsɛktər/",
+        "laos_pronunciation": "khaaenng",
+        "jp_pronunciation": "sekutaa",
+        "vie_pronunciation": "linh vuc"
+      },
+      "means": {
+        "en": "A plane figure bounded by two radii and the included arc of a circle",
+        "zh": "仔细检查某事的行为（至于错误）"
+      }
+    },
+    {
+      "word": {
+        "en": "secular",
+        "laos": "ໂລກທາງໂລກ",
+        "jp": "世俗的な",
+        "vie": "thế tục",
+        "en_pronunciation": "/ˈsɛkjələr/",
+        "laos_pronunciation": "olk thangolk",
+        "jp_pronunciation": "sezoku tekina",
+        "vie_pronunciation": "the tuc"
+      },
+      "means": {
+        "en": "Someone who is not a clergyman or a professional person",
+        "zh": "批判性地、探索性地、或细致地观察"
+      }
+    },
+    {
+      "word": {
+        "en": "secure",
+        "laos": "ປອດໄພ",
+        "jp": "安全な",
+        "vie": "an toàn",
+        "en_pronunciation": "/sɪˈkjʊr/",
+        "laos_pronunciation": "podphai",
+        "jp_pronunciation": "anzen na",
+        "vie_pronunciation": "an toan"
+      },
+      "means": {
+        "en": "Get by special effort",
+        "zh": "批判性地、探索性地、或细致地观察"
+      }
+    },
+    {
+      "word": {
+        "en": "security",
+        "laos": "ຄວາມປອດໄພ",
+        "jp": "セキュリティ",
+        "vie": "an ninh",
+        "en_pronunciation": "/sɪˈkjʊrəti/",
+        "laos_pronunciation": "khuaampodphai",
+        "jp_pronunciation": "sekyuritei",
+        "vie_pronunciation": "an ninh"
+      },
+      "means": {
+        "en": "The state of being free from danger or injury",
+        "zh": "三维造型艺术作品"
+      }
+    },
+    {
+      "word": {
+        "en": "seduce",
+        "laos": "ລໍ້ລວງ",
+        "jp": "誘惑する",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/sɪˈdus/",
+        "laos_pronunciation": "loluang",
+        "jp_pronunciation": "yuuwaku suru",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Induce to have sex",
+        "zh": "海洋或大片咸水体的一部分，部分被陆地包围"
+      }
+    },
+    {
+      "word": {
+        "en": "seduction",
+        "laos": "ການລໍ້ລວງ",
+        "jp": "誘惑",
+        "vie": "sự quyến rũ",
+        "en_pronunciation": "/sɪˈdəkʃən/",
+        "laos_pronunciation": "kan loluang",
+        "jp_pronunciation": "yuuwaku",
+        "vie_pronunciation": "su quyen ru"
+      },
+      "means": {
+        "en": "Enticing someone astray from right behavior",
+        "zh": "由树脂组合物组成的紧固件，加热时呈塑性；"
+      }
+    },
+    {
+      "word": {
+        "en": "seductive",
+        "laos": "ທີ່ລໍ້ໃຈ",
+        "jp": "魅惑的な",
+        "vie": "quyến rũ",
+        "en_pronunciation": "/sɪˈdəktɪv/",
+        "laos_pronunciation": "thi lochai",
+        "jp_pronunciation": "miwakuteki na",
+        "vie_pronunciation": "quyen ru"
+      },
+      "means": {
+        "en": "Tending to entice into a desired action or state",
+        "zh": "用于密封文件、包裹和信件"
+      }
+    },
+    {
+      "word": {
+        "en": "see",
+        "laos": "ເບິ່ງ",
+        "jp": "参照してください",
+        "vie": "xem",
+        "en_pronunciation": "/si/",
+        "laos_pronunciation": "boeng",
+        "jp_pronunciation": "sanshou shitekudasai",
+        "vie_pronunciation": "xem"
+      },
+      "means": {
+        "en": "The seat within a bishop's diocese where his cathedral is located",
+        "zh": "为了找到某事或某人而彻底寻找的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "seed",
+        "laos": "ແກ່ນ",
+        "jp": "種子",
+        "vie": "hạt giống",
+        "en_pronunciation": "/sid/",
+        "laos_pronunciation": "aekn",
+        "jp_pronunciation": "shushi",
+        "vie_pronunciation": "hat giong"
+      },
+      "means": {
+        "en": "A small hard fruit",
+        "zh": "一年中以某些领域的特殊事件或活动为标志的时期"
+      }
+    },
+    {
+      "word": {
+        "en": "seek",
+        "laos": "ຊອກ",
+        "jp": "求める",
+        "vie": "tìm kiếm",
+        "en_pronunciation": "/sik/",
+        "laos_pronunciation": "sok",
+        "jp_pronunciation": "motome ru",
+        "vie_pronunciation": "tim kiem"
+      },
+      "means": {
+        "en": "The movement of a read/write head to a specific data track on a disk",
+        "zh": "只在特定季节找到工作的工人"
+      }
+    },
+    {
+      "word": {
+        "en": "seedling",
+        "laos": "ການກ້າແກ່ນ",
+        "jp": "苗木",
+        "vie": "cây giống",
+        "en_pronunciation": "/ˈsidlɪŋ/",
+        "laos_pronunciation": "kan kaaekn",
+        "jp_pronunciation": "naegi",
+        "vie_pronunciation": "cay giong"
+      },
+      "means": {
+        "en": "Young plant or tree grown from a seed",
+        "zh": "为坐着预留的空间（如在剧院、火车或飞机上）"
+      }
+    }
+  ]
+}

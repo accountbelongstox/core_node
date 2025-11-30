@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 // AwyV0 Dashboard Routes
 Route::prefix('awy-v0/dashboard')->middleware('auth:sanctum')->group(function () {
-    Route::get('/stats', [App\Apps\AwyV0\Controllers\AwyV0DashboardCtl::class, 'stats']);
-    Route::get('/activity', [App\Apps\AwyV0\Controllers\AwyV0DashboardCtl::class, 'activityTimeline']);
-    Route::get('/insights', [App\Apps\AwyV0\Controllers\AwyV0DashboardCtl::class, 'insights']);
+    Route::get('/stats', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DashboardCtl::class, 'stats']);
+    Route::get('/activity', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DashboardCtl::class, 'activityTimeline']);
+    Route::get('/insights', [App\Apps\AwyV0\AwyV0Controllers\AwyV0DashboardCtl::class, 'insights']);
 });

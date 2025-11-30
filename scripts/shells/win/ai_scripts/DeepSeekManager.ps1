@@ -26,8 +26,14 @@
     Version: 1.0.0
 #>
 
-# Import common functions if available
-$commonFuncPath = Join-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) "win_common\CommonFunc.ps1"
+# Import GlobalVars and common functions
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
+$globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
+$commonFuncPath = Join-Path $winCommonDir "CommonFunc.ps1"
+
+if (Test-Path $globalVarsPath) {
+    . $globalVarsPath
+}
 if (Test-Path $commonFuncPath) {
     . $commonFuncPath
 }
@@ -230,6 +236,12 @@ function Get-DeepSeekConfig {
     String - Python command
 #>
 function Get-PythonCommand {
+    # Priority 1: Use absolute path from GlobalVars (Python 3.12 standalone)
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path $Global:PYTHON_EXE_PATH)) {
+        return $Global:PYTHON_EXE_PATH
+    }
+
+    # Priority 2: Try python command in PATH
     $pythonCmd = if ($script:IS_WINDOWS) { "python" } else { "python3" }
 
     try {
@@ -242,6 +254,7 @@ function Get-PythonCommand {
         Write-Host "Python not found with command: $pythonCmd" -ForegroundColor Yellow
     }
 
+    # Priority 3: Try py launcher on Windows
     if ($script:IS_WINDOWS) {
         try {
             $pythonVersion = & "py" --version 2>&1

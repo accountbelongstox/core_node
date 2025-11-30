@@ -32,7 +32,7 @@ class CitiesAppTravel {
     'Dalian',
     'Kunming',
     'Luoyang',
-    'Saipan',
+    '塞班',
   ];
 
   static const List<String> allCities = [
@@ -56,7 +56,7 @@ class CitiesAppTravel {
     'Dalian',
     'Kunming',
     'Luoyang',
-    'Saipan',
+    '塞班',
     'Harbin',
     'Jinan',
     'Fuzhou',
@@ -77,7 +77,7 @@ class CitiesAppTravel {
     'Sanya',
   ];
 
-  static const String defaultCity = 'Luoyang';
+  static const String defaultCity = '塞班';
 
   static bool isCityValid(String city) {
     return allCities.contains(city);

@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1OctaneServiceManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use Illuminate\Support\Facades\Log;
 
@@ -16,11 +17,12 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
      * The name and signature of the console command.
      */
     protected $signature = 'servermanager:website
-                            {action : Action to perform (add|list|summary|status|remove)}
+                            {action : Action to perform (add|list|summary|status|remove|cleanup)}
                             {domain? : Domain name (required for add, status, remove)}
                             {--type= : Website type (default: laravel)}
                             {--ssl= : SSL mode (auto|true|false, default: auto)}
-                            {--php-version= : PHP version (default: 8.2)}';
+                            {--php-version= : PHP version (default: 8.2)}
+                            {--php-mode= : PHP mode (fpm|swoole, default: fpm)}';
 
     /**
      * The console command description.
@@ -32,6 +34,10 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
      */
     public function handle(): int
     {
+        // PRE-REQUISITE: Fix PHP configuration before any operations
+        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        $this->initializeCommand();
+
         $action = $this->argument('action');
         $domain = $this->argument('domain');
 
@@ -41,6 +47,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             'summary' => $this->showSummary(),
             'status' => $this->showStatus($domain),
             'remove' => $this->removeWebsite($domain),
+            'cleanup' => $this->cleanupOrphanedServices(),
             default => $this->showHelp()
         };
     }
@@ -61,12 +68,24 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
 
         $type = $this->option('type') ?: 'laravel';
         $sslMode = $this->option('ssl') ?: 'auto';
-        $phpVersion = $this->option('php-version') ?: '8.2';
+        $phpVersion = $this->option('php-version') ?: '8.4';
+        // Normalize php-mode: convert legacy 'octane' to 'swoole'
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($this->option('php-mode') ?: 'fpm');
 
-        $this->info("Adding website: $domain");
-        $this->info("Type: $type");
-        $this->info("SSL mode: $sslMode");
-        $this->info("PHP version: $phpVersion");
+        // Check for domain conflict and show brief update message
+        $conflict = ServerManagerV1DomainManager::checkDomainConflict($domain);
+        if ($conflict) {
+            $domainDir = $this->getDomainDirectory($domain, $type);
+            $willMigrate = $domainDir !== $conflict['www_dir'];
+
+            if ($willMigrate) {
+                $this->info("Updating domain (migrating to new directory)");
+            } else {
+                $this->info("Updating domain configuration");
+            }
+        }
+
+        $this->info("Adding website: $domain (type=$type, php-mode=$phpMode, ssl=$sslMode)");
 
         // Process domain to handle www prefix with improved logic
         $baseDomain = $domain;
@@ -83,13 +102,6 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         }
         // For subdomains like api.example.com, don't add www prefix
 
-        $this->info("Base domain: $baseDomain");
-        if ($wwwDomain) {
-            $this->info("WWW domain: $wwwDomain");
-        } else {
-            $this->info("WWW domain: (not applicable for subdomain)");
-        }
-
         // Check for existing certificate
         $certificate = null;
         $sslEnabled = false;
@@ -98,10 +110,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             $certificate = ServerManagerV1CertificateManager::findCertificateForDomain($baseDomain);
             if ($certificate) {
                 $sslEnabled = true;
-                $this->info("Found certificate: " . $certificate['id']);
-                $this->info("Certificate covers: " . implode(', ', $certificate['domains']));
             } else {
-                $this->warn("No certificate found for domain, using HTTP");
                 if ($sslMode === 'true') {
                     $this->error("SSL required but no certificate found");
                     return 1;
@@ -112,10 +121,6 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         // Determine directory based on domain and type
         $domainDir = $this->getDomainDirectory($domain, $type);
         $documentRoot = $this->getDocumentRoot($domainDir, $type);
-
-        $this->info("Domain directory: $domainDir");
-        $this->info("Document root: $documentRoot");
-        $this->info("Website type: $type");
 
         // Create directories based on type
         if ($type === 'poly') {
@@ -128,11 +133,9 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                 $this->error("Laravel public directory not found: $documentRoot");
                 return 1;
             }
-            $this->info("Using existing Laravel directory");
         } else {
-            // For html and laravel types, create directories in /www/wwwroot
+            // For html and laravel types, create directories in mapped wwwroot
             if (!is_dir($domainDir)) {
-                $this->info("Creating domain directory: $domainDir");
                 if (!mkdir($domainDir, 0755, true)) {
                     $this->error("Failed to create domain directory");
                     return 1;
@@ -141,7 +144,6 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
 
             // Create document root if different from domain dir
             if ($documentRoot !== $domainDir && !is_dir($documentRoot)) {
-                $this->info("Creating document root: $documentRoot");
                 if (!mkdir($documentRoot, 0755, true)) {
                     $this->error("Failed to create document root");
                     return 1;
@@ -171,6 +173,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             'ssl_enabled' => $sslEnabled,
             'ssl_certificate_id' => $certificate ? $certificate['id'] : null,
             'php_version' => $phpVersion,
+            'php_mode' => $phpMode,  // Add php_mode parameter
             'status' => 'active',
             'all_domains' => $allDomains  // Pass all domains to generate single config
         ]);
@@ -179,41 +182,77 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         $wwwResult = true;
 
         if ($domainResult && $wwwResult) {
-            $this->info("Website added successfully!");
-            $this->info("SSL enabled: " . ($sslEnabled ? 'yes' : 'no'));
-            $this->info("Website directory: $domainDir");
+            $this->info("Configured: $domain (ssl=" . ($sslEnabled ? 'yes' : 'no') . ")");
 
-            // Show nginx configuration file location using PathConfig
-            $nginxConfigFile = ServerManagerV1PathConfig::getNginxSiteConfig($domain, false);
-            $nginxEnabledFile = ServerManagerV1PathConfig::getNginxEnabledSite($domain);
-
+            // Show SSL certificate info if enabled
             if ($sslEnabled) {
-                $nginxSslConfigFile = ServerManagerV1PathConfig::getNginxSiteConfig($domain, true);
-                $this->info("Nginx HTTP config: $nginxConfigFile (backup)");
-                $this->info("Nginx HTTPS config: $nginxSslConfigFile (active)");
-                $this->info("Nginx enabled file: $nginxEnabledFile -> $nginxSslConfigFile");
-            } else {
-                $this->info("Nginx HTTP config: $nginxConfigFile (active)");
-                $this->info("Nginx enabled file: $nginxEnabledFile -> $nginxConfigFile");
-            }
-
-            if ($sslEnabled) {
-                $this->info("Certificate ID: " . $certificate['id']);
-                // Show certificate file locations using PathConfig
                 $certDir = ServerManagerV1PathConfig::getSslCertDir($baseDomain);
-                $this->info("SSL certificate: $certDir/fullchain.pem");
-                $this->info("SSL private key: $certDir/privkey.pem");
+                $this->info("SSL certificate: " . $certificate['id'] . " at $certDir");
             }
 
-            $this->warn("⚠️  IMPORTANT: Restart nginx to load the new configuration:");
-            $this->warn("   sudo systemctl restart nginx");
-            $this->warn("   sudo systemctl status nginx");
-            $this->warn("");
-            $this->warn("📋 Check nginx main configuration includes sites-enabled:");
-            $this->warn("   Main config: " . ServerManagerV1PathConfig::NGINX_MAIN_CONFIG);
-            $this->warn("   Should include: include " . ServerManagerV1PathConfig::NGINX_SITES_ENABLED . "/*;");
-            $this->warn("");
-            $this->warn("💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations");
+            // Auto-start Swoole service if php-mode is swoole
+            if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+                $serviceInfo = ServerManagerV1DomainManager::getSwooleServiceInfo($baseDomain);
+
+                if ($serviceInfo) {
+                    $port = $serviceInfo['port'];
+                    $workers = $serviceInfo['workers'];
+                    $wwwDir = $serviceInfo['www_dir'];
+                    $serviceName = $serviceInfo['service_name'];
+                    $allDomains = $serviceInfo['all_domains'] ?? [$baseDomain];
+                    $domainCount = count($allDomains);
+
+                    // Check if systemd service exists and is active
+                    exec("systemctl is-active $serviceName 2>/dev/null", $output, $return_code);
+                    $serviceActive = ($return_code === 0);
+
+                    if ($serviceActive) {
+                        // Service already running, update description to include all domains
+                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+
+                        // Regenerate service file with updated description
+                        ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
+                            $wwwDir,
+                            $port,
+                            $workers,
+                            $wwwDir,
+                            null,
+                            null,
+                            $description
+                        );
+
+                        // Reload systemd daemon to pick up the updated description
+                        exec('systemctl daemon-reload 2>&1');
+
+                        $this->info("Swoole service shared (service: $serviceName, port: $port, domains: $domainCount)");
+                    } else {
+                        // Service not running, start it
+                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+
+                        $deployed = ServerManagerV1OctaneServiceManager::deployOctaneServiceFromPath(
+                            $wwwDir,
+                            $port,
+                            $workers,
+                            $wwwDir,
+                            null,
+                            null,
+                            $description
+                        );
+
+                        if ($deployed) {
+                            $this->info("Swoole service started (service: $serviceName, port: $port, workers: $workers, domains: $domainCount)");
+                        } else {
+                            $this->warn("Failed to start Swoole service");
+                        }
+                    }
+                }
+            }
+
+            // Auto reload nginx
+            exec('sudo systemctl reload nginx 2>&1', $output, $return_code);
+            if ($return_code !== 0) {
+                exec('sudo systemctl restart nginx 2>&1');
+            }
 
             return 0;
         } else {
@@ -383,18 +422,52 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             return 1;
         }
 
-        $this->warn("This will remove the website configuration for: $domain");
-        $this->warn("Files in " . $config['www_dir'] . " will NOT be deleted");
+        $this->info("Removing website: $domain");
 
-        if (!$this->confirm("Are you sure you want to remove this website?")) {
-            $this->info("Operation cancelled");
-            return 0;
+        // Get Swoole service info BEFORE removing domain
+        $swooleInfo = null;
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+        if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            $swooleInfo = ServerManagerV1DomainManager::getSwooleServiceInfoByPath($config['www_dir']);
         }
 
         $result = ServerManagerV1DomainManager::removeDomain($domain);
 
         if ($result) {
             $this->info("Website removed successfully: $domain");
+
+            // Update Swoole service description if domain was using Swoole
+            if ($swooleInfo && isset($swooleInfo['service_name'])) {
+                // Get updated list of domains after removal
+                $updatedInfo = ServerManagerV1DomainManager::getSwooleServiceInfoByPath($config['www_dir']);
+
+                if ($updatedInfo && count($updatedInfo['domains']) > 0) {
+                    // Service still in use by other domains, update description
+                    $allDomains = $updatedInfo['domains'];
+                    $domainCount = count($allDomains);
+                    $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+
+                    ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
+                        $config['www_dir'],
+                        $updatedInfo['port'],
+                        $updatedInfo['workers'],
+                        $config['www_dir'],
+                        null,
+                        null,
+                        $description
+                    );
+
+                    exec('systemctl daemon-reload 2>&1');
+                    $this->info("Updated Swoole service description (domains: $domainCount)");
+                }
+            }
+
+            // Auto reload nginx
+            exec('sudo systemctl reload nginx 2>&1', $output, $return_code);
+            if ($return_code !== 0) {
+                exec('sudo systemctl restart nginx 2>&1');
+            }
+
             return 0;
         } else {
             $this->error("Failed to remove website: $domain");
@@ -403,37 +476,69 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
     }
 
     /**
+     * Clean up orphaned Octane services
+     */
+    private function cleanupOrphanedServices(): int
+    {
+        $this->info("Cleaning up orphaned Octane services...");
+
+        $results = ServerManagerV1OctaneServiceManager::cleanupOrphanedServices();
+
+        $this->line("");
+        $this->info("Cleanup Results:");
+        $this->line("  Scanned: " . $results['scanned'] . " services");
+        $this->line("  Kept: " . count($results['kept']) . " services");
+        $this->line("  Removed: " . count($results['removed']) . " services");
+
+        if (!empty($results['removed'])) {
+            $this->line("");
+            $this->info("Removed services:");
+            foreach ($results['removed'] as $service) {
+                $this->line("  - $service");
+            }
+        }
+
+        if (!empty($results['errors'])) {
+            $this->line("");
+            $this->warn("Errors:");
+            foreach ($results['errors'] as $error) {
+                $this->line("  - $error");
+            }
+        }
+
+        // Always clean systemd cache to remove "not-found" references
+        $this->line("");
+        $this->info("Cleaning systemd cache for not-found units...");
+
+        $cacheResults = ServerManagerV1OctaneServiceManager::cleanupSystemdCache();
+
+        if (!empty($cacheResults['cleaned'])) {
+            $this->info("Cleaned " . count($cacheResults['cleaned']) . " not-found unit(s):");
+            foreach ($cacheResults['cleaned'] as $unit) {
+                $this->line("  - $unit");
+            }
+        } else {
+            $this->info("No not-found units to clean");
+        }
+
+        if (!empty($cacheResults['errors'])) {
+            $this->warn("Some errors occurred (non-critical):");
+            foreach ($cacheResults['errors'] as $error) {
+                $this->line("  - $error");
+            }
+        }
+
+        return 0;
+    }
+
+    /**
      * Get domain directory based on domain and type
+     * Uses PathMapper for environment-aware path resolution
      */
     private function getDomainDirectory(string $domain, string $type): string
     {
-        // For poly type, always use Laravel main directory
-        if ($type === 'poly') {
-            // Get Laravel main directory relative to current location
-            $laravelDir = dirname(dirname(dirname(dirname(dirname(__DIR__)))));
-            return $laravelDir;
-        }
-
-        // For API domains with Laravel type, use Laravel main directory
-        if (strpos($domain, 'api.') === 0 && $type === 'laravel') {
-            // Get Laravel main directory relative to current location
-            $laravelDir = dirname(dirname(dirname(dirname(dirname(__DIR__)))));
-            return $laravelDir;
-        }
-
-        // For local domains or HTML type, use www directory
-        if (strpos($domain, 'local.') === 0) {
-            $baseDomain = substr($domain, 6); // Remove 'local.' prefix
-            return "/www/wwwroot/$baseDomain";
-        }
-
-        // Default: use domain name as directory
-        $baseDomain = $domain;
-        if (strpos($baseDomain, 'www.') === 0) {
-            $baseDomain = substr($baseDomain, 4);
-        }
-
-        return "/www/wwwroot/$baseDomain";
+        // Use centralized type-to-path mapping
+        return ServerManagerV1PathConfig::getPathForType($type, $domain);
     }
 
     /**
@@ -526,8 +631,9 @@ HTML;
         $this->line("");
         $this->info("Options:");
         $this->line("  --type           - Website type: html|laravel|poly (default: laravel)");
-        $this->line("                     html: Static files in /www/wwwroot/domain");
-        $this->line("                     laravel: Laravel project in /www/wwwroot/domain");
+        $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
+        $this->line("                     html: Static files in $wwwRoot/domain");
+        $this->line("                     laravel: Laravel project in $wwwRoot/domain");
         $this->line("                     poly: Bind to current Laravel main project");
         $this->line("  --ssl            - SSL mode (auto|true|false, default: auto)");
         $this->line("  --php-version    - PHP version (default: 8.2)");

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Native UI Loading Gallery</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at top, #2a2a2a, #121212 60%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #f5f5f5;
+            padding: 40px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: rgba(30, 30, 30, 0.85);
+            border-radius: 24px;
+            padding: 32px 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        header p {
+            margin-top: 12px;
+            color: #c8c8c8;
+            line-height: 1.6;
+        }
+
+        .loader-list {
+            list-style: none;
+            margin-top: 28px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .loader-list li {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px 18px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .loader-list li:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 61, 0, 0.6);
+        }
+
+        .loader-list a {
+            color: inherit;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .loader-list span {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .loader-list strong {
+            font-size: 16px;
+        }
+
+        footer {
+            margin-top: 32px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Native UI Loading Gallery</h1>
+            <p>Each loading animation now lives in its own standalone file. Open one of the links below to preview the exact effect requested by the host application.</p>
+        </header>
+
+        <ul class="loader-list">
+            <li><a href="loadin1.html"><span>loadin1</span><strong>Wave Pulse</strong></a></li>
+            <li><a href="loadin2.html"><span>loadin2</span><strong>Rotating Ring</strong></a></li>
+            <li><a href="loadin3.html"><span>loadin3</span><strong>Pulsing Circle</strong></a></li>
+            <li><a href="loadin4.html"><span>loadin4</span><strong>Flip Panels</strong></a></li>
+            <li><a href="loadin5.html"><span>loadin5</span><strong>Spinning Border</strong></a></li>
+            <li><a href="loadin6.html"><span>loadin6</span><strong>Split Orbs</strong></a></li>
+            <li><a href="loadin7.html"><span>loadin7</span><strong>Fill Circles</strong></a></li>
+            <li><a href="loadin8.html"><span>loadin8</span><strong>Shadow Rolling</strong></a></li>
+            <li><a href="loadin9.html"><span>loadin9</span><strong>Dot Wave</strong></a></li>
+            <li><a href="loadin10.html"><span>loadin10</span><strong>Dual Squares</strong></a></li>
+            <li><a href="loadin11.html"><span>loadin11</span><strong>Triple Squares</strong></a></li>
+            <li><a href="loadin12.html"><span>loadin12</span><strong>3D Cube</strong></a></li>
+            <li><a href="loadin13.html"><span>loadin13</span><strong>Bouncing Dots</strong></a></li>
+            <li><a href="loadin14.html"><span>loadin14</span><strong>Progress Bar</strong></a></li>
+        </ul>
+
+        <footer>Place these files side-by-side with the original resource and load them directly when a particular animation is required.</footer>
+    </main>
+</body>
+</html>

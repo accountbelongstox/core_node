@@ -18,10 +18,17 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeployCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeploySelfCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SSLCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1CertificateCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1WebsiteCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SyncCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1AdvancedCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NginxInspectCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SwooleCommand;
+use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1NuxtAppCommand;
 use App\Console\Commands\CheckCertbotCommand;
+use App\Console\Commands\NuxtServiceRefreshCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -50,10 +57,17 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ServerManagerV1DeployCommand::class,
+                ServerManagerV1DeploySelfCommand::class,
                 ServerManagerV1SSLCommand::class,
                 ServerManagerV1CertificateCommand::class,
                 ServerManagerV1WebsiteCommand::class,
+                ServerManagerV1SyncCommand::class,
+                ServerManagerV1AdvancedCommand::class,
+                ServerManagerV1NginxInspectCommand::class,
+                ServerManagerV1SwooleCommand::class,
+                ServerManagerV1NuxtAppCommand::class,
                 CheckCertbotCommand::class,
+                NuxtServiceRefreshCommand::class,
             ]);
         }
     }

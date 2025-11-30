@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.303530+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "emission",
+        "laos": "ການປ່ອຍອາຍພິດ",
+        "jp": "排出",
+        "vie": "khí thải",
+        "en_pronunciation": "/ɪˈmɪʃən/",
+        "laos_pronunciation": "kanpony aiphid",
+        "jp_pronunciation": "haishutsu",
+        "vie_pronunciation": "khi thai"
+      },
+      "means": {
+        "en": "The act of emitting; causing to flow forth",
+        "zh": "排放行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "emotion",
+        "laos": "ຄວາມຮູ້ສຶກ",
+        "jp": "感情",
+        "vie": "cảm xúc",
+        "en_pronunciation": "/ˈiˌmoʊʃən/",
+        "laos_pronunciation": "khuaamhusuk",
+        "jp_pronunciation": "kanjou",
+        "vie_pronunciation": "cam xuc"
+      },
+      "means": {
+        "en": "Any strong feeling",
+        "zh": "导致流淌"
+      }
+    },
+    {
+      "word": {
+        "en": "emotional",
+        "laos": "ອາລົມ",
+        "jp": "感情的な",
+        "vie": "cảm động",
+        "en_pronunciation": "/ˈiˌmoʊʃənəl/",
+        "laos_pronunciation": "alom",
+        "jp_pronunciation": "kanjouteki na",
+        "vie_pronunciation": "cam dong"
+      },
+      "means": {
+        "en": "Determined or actuated by emotion rather than reason",
+        "zh": "任何强烈的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "emperor",
+        "laos": "ຈັກກະພັດ",
+        "jp": "皇帝",
+        "vie": "hoàng đế",
+        "en_pronunciation": "/ˈɛmpərər/",
+        "laos_pronunciation": "chakkaphad",
+        "jp_pronunciation": "koutei",
+        "vie_pronunciation": "hoang de"
+      },
+      "means": {
+        "en": "The male ruler of an empire",
+        "zh": "由情感而非理性决定或驱动"
+      }
+    },
+    {
+      "word": {
+        "en": "emphasis",
+        "laos": "ການເນັ້ນຫນັກ",
+        "jp": "強調",
+        "vie": "sự nhấn mạnh",
+        "en_pronunciation": "/ˈɛmfəsɪs/",
+        "laos_pronunciation": "kannennak",
+        "jp_pronunciation": "kyouchou",
+        "vie_pronunciation": "su nhan manh"
+      },
+      "means": {
+        "en": "Special importance or significance",
+        "zh": "帝国的男性统治者"
+      }
+    },
+    {
+      "word": {
+        "en": "empire",
+        "laos": "ຈັກກະພັດ",
+        "jp": "帝国",
+        "vie": "đế chế",
+        "en_pronunciation": "/ˈɛmpaɪər/",
+        "laos_pronunciation": "chakkaphad",
+        "jp_pronunciation": "teikoku",
+        "vie_pronunciation": "de che"
+      },
+      "means": {
+        "en": "The domain ruled by an emperor or empress; the region over which imperial dominion is exercised",
+        "zh": "特别重要或意义"
+      }
+    },
+    {
+      "word": {
+        "en": "empirical",
+        "laos": "ອະພິຈານ",
+        "jp": "経験的な",
+        "vie": "thực nghiệm",
+        "en_pronunciation": "/ˌɛmˈpɪrɪkəl/",
+        "laos_pronunciation": "aphichan",
+        "jp_pronunciation": "keikenteki na",
+        "vie_pronunciation": "thuc nghiem"
+      },
+      "means": {
+        "en": "Derived from experiment and observation rather than theory",
+        "zh": "由皇帝或皇后统治的领域；"
+      }
+    },
+    {
+      "word": {
+        "en": "empress",
+        "laos": "ອະນຸຍາດ",
+        "jp": "皇后",
+        "vie": "hoàng hậu",
+        "en_pronunciation": "/ˈɛmprɛs/",
+        "laos_pronunciation": "anunyad",
+        "jp_pronunciation": "kougou",
+        "vie_pronunciation": "hoang hau"
+      },
+      "means": {
+        "en": "A woman emperor or the wife of an emperor",
+        "zh": "帝国统治的地区"
+      }
+    },
+    {
+      "word": {
+        "en": "emphasize",
+        "laos": "ເນັ້ນຫນັກ",
+        "jp": "強調する",
+        "vie": "nhấn mạnh",
+        "en_pronunciation": "/ˈɛmfəˌsaɪz/",
+        "laos_pronunciation": "nennak",
+        "jp_pronunciation": "kyouchou suru",
+        "vie_pronunciation": "nhan manh"
+      },
+      "means": {
+        "en": "To stress, single out as important",
+        "zh": "来自实验和观察而不是理论"
+      }
+    },
+    {
+      "word": {
+        "en": "emphasise",
+        "laos": "ເນັ້ນຫນັກ",
+        "jp": "強調する",
+        "vie": "nhấn mạnh",
+        "en_pronunciation": "/emphasise/",
+        "laos_pronunciation": "nennak",
+        "jp_pronunciation": "kyouchou suru",
+        "vie_pronunciation": "nhan manh"
+      },
+      "means": {
+        "en": "Give extra weight to (a communication)",
+        "zh": "女皇帝或皇帝的妻子"
+      }
+    },
+    {
+      "word": {
+        "en": "emphatic",
+        "laos": "ຜະຫມົດ",
+        "jp": "強調した",
+        "vie": "nhấn mạnh",
+        "en_pronunciation": "/ɛmˈfætɪk/",
+        "laos_pronunciation": "phamod",
+        "jp_pronunciation": "kyouchou shita",
+        "vie_pronunciation": "nhan manh"
+      },
+      "means": {
+        "en": "Spoken with emphasis",
+        "zh": "强调，挑出重要的"
+      }
+    },
+    {
+      "word": {
+        "en": "employ",
+        "laos": "ຈ້າງ",
+        "jp": "雇用する",
+        "vie": "tuyển dụng",
+        "en_pronunciation": "/ɪmˈplɔɪ/",
+        "laos_pronunciation": "chang",
+        "jp_pronunciation": "koyou suru",
+        "vie_pronunciation": "tuyen dung"
+      },
+      "means": {
+        "en": "The state of being employed or having a job",
+        "zh": "给予（沟通）额外的重视"
+      }
+    },
+    {
+      "word": {
+        "en": "employment",
+        "laos": "ການຈ້າງງານ",
+        "jp": "雇用",
+        "vie": "việc làm",
+        "en_pronunciation": "/ɪmˈplɔɪmənt/",
+        "laos_pronunciation": "kan changngan",
+        "jp_pronunciation": "koyou",
+        "vie_pronunciation": "viec lam"
+      },
+      "means": {
+        "en": "The state of being employed or having a job",
+        "zh": "说话有重点"
+      }
+    },
+    {
+      "word": {
+        "en": "employer",
+        "laos": "ນາຍຈ້າງ",
+        "jp": "雇用主",
+        "vie": "chủ lao động",
+        "en_pronunciation": "/ɪmˈplɔɪər/",
+        "laos_pronunciation": "naichang",
+        "jp_pronunciation": "koyou shu",
+        "vie_pronunciation": "chu lao dong"
+      },
+      "means": {
+        "en": "A person or firm that employs workers",
+        "zh": "受雇或有工作的状况"
+      }
+    },
+    {
+      "word": {
+        "en": "employee",
+        "laos": "ຜູ້ຮັບຈ້າງ",
+        "jp": "従業員",
+        "vie": "nhân viên",
+        "en_pronunciation": "/ɪmˈplɔɪi/",
+        "laos_pronunciation": "phuhabchang",
+        "jp_pronunciation": "juugyouin",
+        "vie_pronunciation": "nhan vien"
+      },
+      "means": {
+        "en": "A worker who is hired to perform a job",
+        "zh": "受雇或有工作的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "empty",
+        "laos": "ເປົ່າ",
+        "jp": "空の",
+        "vie": "trống rỗng",
+        "en_pronunciation": "/ˈɛmti/",
+        "laos_pronunciation": "peoa",
+        "jp_pronunciation": "sora no",
+        "vie_pronunciation": "trong rong"
+      },
+      "means": {
+        "en": "A container that has been emptied",
+        "zh": "雇用工人的个人或公司"
+      }
+    },
+    {
+      "word": {
+        "en": "emptiness",
+        "laos": "ເປົ່າກາ",
+        "jp": "空虚",
+        "vie": "sự trống rỗng",
+        "en_pronunciation": "/ˈɛmtinəs/",
+        "laos_pronunciation": "peoaka",
+        "jp_pronunciation": "kuukyo",
+        "vie_pronunciation": "su trong rong"
+      },
+      "means": {
+        "en": "The state of containing nothing",
+        "zh": "受雇执行工作的工人"
+      }
+    },
+    {
+      "word": {
+        "en": "emulate",
+        "laos": "ເກມຂ້າງຄຽງ",
+        "jp": "エミュレートする",
+        "vie": "bắt chước",
+        "en_pronunciation": "/ˈɛmjəˌleɪt/",
+        "laos_pronunciation": "kemkhangkhiang",
+        "jp_pronunciation": "emyureeto suru",
+        "vie_pronunciation": "bat chuoc"
+      },
+      "means": {
+        "en": "Strive to equal or match, especially by imitating",
+        "zh": "一个已经被清空的容器"
+      }
+    },
+    {
+      "word": {
+        "en": "emulation",
+        "laos": "ການເຄື່ອນໄຫວ",
+        "jp": "エミュレーション",
+        "vie": "thi đua",
+        "en_pronunciation": "/ˌɛmjəˈleɪʃən/",
+        "laos_pronunciation": "kankheuonhaiv",
+        "jp_pronunciation": "emyureeshon",
+        "vie_pronunciation": "thi dua"
+      },
+      "means": {
+        "en": "Ambition to equal or excel",
+        "zh": "空无一物的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "enable",
+        "laos": "ເປີດໃຊ້",
+        "jp": "有効にする",
+        "vie": "kích hoạt",
+        "en_pronunciation": "/ɪˈneɪbəl/",
+        "laos_pronunciation": "poedsai",
+        "jp_pronunciation": "yuukou nisuru",
+        "vie_pronunciation": "kich hoat"
+      },
+      "means": {
+        "en": "Render capable or able for some task",
+        "zh": "努力达到平等或匹配，尤其是通过模仿"
+      }
+    },
+    {
+      "word": {
+        "en": "enact",
+        "laos": "ປັນຍັດ",
+        "jp": "制定する",
+        "vie": "ban hành",
+        "en_pronunciation": "/ɪˈnækt/",
+        "laos_pronunciation": "pnaiad",
+        "jp_pronunciation": "seitei suru",
+        "vie_pronunciation": "ban hanh"
+      },
+      "means": {
+        "en": "Order by virtue of superior authority; decree",
+        "zh": "追求平等或超越的野心"
+      }
+    },
+    {
+      "word": {
+        "en": "enactment",
+        "laos": "ການປະຕິບັດ",
+        "jp": "制定",
+        "vie": "ban hành",
+        "en_pronunciation": "/ɛˈnæktmənt/",
+        "laos_pronunciation": "kanpatibad",
+        "jp_pronunciation": "seitei",
+        "vie_pronunciation": "ban hanh"
+      },
+      "means": {
+        "en": "The passing of a law by a legislative body",
+        "zh": "渲染能力或能够完成某些任务"
+      }
+    },
+    {
+      "word": {
+        "en": "enclose",
+        "laos": "ລ້ອມຮອບ",
+        "jp": "同封する",
+        "vie": "bao bọc",
+        "en_pronunciation": "/ɪnˈkloʊz/",
+        "laos_pronunciation": "lomhob",
+        "jp_pronunciation": "doufuu suru",
+        "vie_pronunciation": "bao boc"
+      },
+      "means": {
+        "en": "Enclose or enfold completely with or as if with a covering",
+        "zh": "凭借上级权威的命令；"
+      }
+    },
+    {
+      "word": {
+        "en": "enclosure",
+        "laos": "ລ້ອງ",
+        "jp": "エンクロージャ",
+        "vie": "bao vây",
+        "en_pronunciation": "/ɪnˈkloʊʒər/",
+        "laos_pronunciation": "long",
+        "jp_pronunciation": "enkurooja",
+        "vie_pronunciation": "bao vay"
+      },
+      "means": {
+        "en": "A structure consisting of an area that has been enclosed for some purpose",
+        "zh": "法令"
+      }
+    },
+    {
+      "word": {
+        "en": "encounter",
+        "laos": "ປະສົບ",
+        "jp": "出会い",
+        "vie": "gặp phải",
+        "en_pronunciation": "/ɪnˈkaʊnər/",
+        "laos_pronunciation": "pasob",
+        "jp_pronunciation": "deai",
+        "vie_pronunciation": "gap phai"
+      },
+      "means": {
+        "en": "A minor short-term fight",
+        "zh": "立法机构通过法律"
+      }
+    },
+    {
+      "word": {
+        "en": "encourage",
+        "laos": "ສົ່ງເສີມ",
+        "jp": "励ます",
+        "vie": "khuyến khích",
+        "en_pronunciation": "/ɪnˈkərəʤ/",
+        "laos_pronunciation": "songsoem",
+        "jp_pronunciation": "hagemasu",
+        "vie_pronunciation": "khuyen khich"
+      },
+      "means": {
+        "en": "Contribute to the progress or growth of",
+        "zh": "用或好像用覆盖物完全包围或包裹"
+      }
+    },
+    {
+      "word": {
+        "en": "encyclopedia",
+        "laos": "ສາລານຸກົມ",
+        "jp": "百科事典",
+        "vie": "bách khoa toàn thư",
+        "en_pronunciation": "/ɪnˌsaɪkləˈpidiə/",
+        "laos_pronunciation": "sala nukom",
+        "jp_pronunciation": "hyakkajiten",
+        "vie_pronunciation": "bach khoa toan thu"
+      },
+      "means": {
+        "en": "A reference work (often in several volumes) containing articles on various topics (often arranged in alphabetical order) dealing with the entire range of human knowledge or with some particular specialty",
+        "zh": "由出于某种目的而封闭的区域组成的结构"
+      }
+    },
+    {
+      "word": {
+        "en": "encyclopaedia",
+        "laos": "ສາຣານຸກົມ",
+        "jp": "百科事典",
+        "vie": "bách khoa toàn thư",
+        "en_pronunciation": "/ɪnˌsaɪkləˈpidiə/",
+        "laos_pronunciation": "sa ra nukom",
+        "jp_pronunciation": "hyakkajiten",
+        "vie_pronunciation": "bach khoa toan thu"
+      },
+      "means": {
+        "en": "A reference work (often in several volumes) containing articles on various topics (often arranged in alphabetical order) dealing with the entire range of human knowledge or with some particular specialty",
+        "zh": "一场小型的短期战斗"
+      }
+    },
+    {
+      "word": {
+        "en": "encouragement",
+        "laos": "ການໃຫ້ກໍາລັງໃຈ",
+        "jp": "励まし",
+        "vie": "sự khuyến khích",
+        "en_pronunciation": "/ɛnˈkərɪʤmənt/",
+        "laos_pronunciation": "kan haikoalangchai",
+        "jp_pronunciation": "hagemashi",
+        "vie_pronunciation": "su khuyen khich"
+      },
+      "means": {
+        "en": "The expression of approval and support",
+        "zh": "为以下方面的进步或成长做出贡献"
+      }
+    },
+    {
+      "word": {
+        "en": "encouraging",
+        "laos": "ທີ່ຊຸກຍູ້",
+        "jp": "励ます",
+        "vie": "đáng khích lệ",
+        "en_pronunciation": "/ɪnˈkərəʤɪŋ/",
+        "laos_pronunciation": "thisuknyu",
+        "jp_pronunciation": "hagemasu",
+        "vie_pronunciation": "dang khich le"
+      },
+      "means": {
+        "en": "Contribute to the progress or growth of",
+        "zh": "参考书（通常分为几卷），包含各种主题的文章（通常按字母顺序排列），涉及整个人类知识范围或某些特定专业"
+      }
+    },
+    {
+      "word": {
+        "en": "end",
+        "laos": "ການລົງທ້າຍ",
+        "jp": "終わり",
+        "vie": "kết thúc",
+        "en_pronunciation": "/ɛnd/",
+        "laos_pronunciation": "kanlongthai",
+        "jp_pronunciation": "owari",
+        "vie_pronunciation": "ket thuc"
+      },
+      "means": {
+        "en": "Either extremity of something that has length",
+        "zh": "参考书（通常分为几卷），包含各种主题的文章（通常按字母顺序排列），涉及整个人类知识范围或某些特定专业"
+      }
+    },
+    {
+      "word": {
+        "en": "ending",
+        "laos": "ສິ້ນສຸດລົງ",
+        "jp": "エンディング",
+        "vie": "kết thúc",
+        "en_pronunciation": "/ˈɛndɪŋ/",
+        "laos_pronunciation": "sinsudlong",
+        "jp_pronunciation": "endingu",
+        "vie_pronunciation": "ket thuc"
+      },
+      "means": {
+        "en": "The end of a word (a suffix or inflectional ending or final morpheme)",
+        "zh": "表示赞同和支持"
+      }
+    },
+    {
+      "word": {
+        "en": "endless",
+        "laos": "ບໍ່ມີສິ້ນສຸດ",
+        "jp": "無限の",
+        "vie": "vô tận",
+        "en_pronunciation": "/ˈɛndləs/",
+        "laos_pronunciation": "bomisinsud",
+        "jp_pronunciation": "mugen no",
+        "vie_pronunciation": "vo tan"
+      },
+      "means": {
+        "en": "Tiresomely long; seemingly without end",
+        "zh": "为以下方面的进步或成长做出贡献"
+      }
+    },
+    {
+      "word": {
+        "en": "endanger",
+        "laos": "ເປັນອັນຕະລາຍ",
+        "jp": "危険にさらす",
+        "vie": "gây nguy hiểm",
+        "en_pronunciation": "/ɛnˈdeɪnʤər/",
+        "laos_pronunciation": "penantalai",
+        "jp_pronunciation": "kiken nisarasu",
+        "vie_pronunciation": "gay nguy hiem"
+      },
+      "means": {
+        "en": "Pose a threat to; present a danger to",
+        "zh": "有长度的物体的任一末端"
+      }
+    },
+    {
+      "word": {
+        "en": "endeavor",
+        "laos": "ພະຍາຍາມ",
+        "jp": "努力する",
+        "vie": "nỗ lực",
+        "en_pronunciation": "/ɪnˈdɛvər/",
+        "laos_pronunciation": "phanyaiam",
+        "jp_pronunciation": "doryoku suru",
+        "vie_pronunciation": "no luc"
+      },
+      "means": {
+        "en": "A purposeful or industrious undertaking (especially one that requires effort or boldness)",
+        "zh": "单词的结尾（后缀或屈折结尾或最终语素）"
+      }
+    },
+    {
+      "word": {
+        "en": "endeavour",
+        "laos": "ພະຍາຍາມ",
+        "jp": "努力する",
+        "vie": "nỗ lực",
+        "en_pronunciation": "/ɪnˈdɛvər/",
+        "laos_pronunciation": "phanyaiam",
+        "jp_pronunciation": "doryoku suru",
+        "vie_pronunciation": "no luc"
+      },
+      "means": {
+        "en": "A purposeful or industrious undertaking (especially one that requires effort or boldness)",
+        "zh": "长得令人厌烦；"
+      }
+    },
+    {
+      "word": {
+        "en": "endorse",
+        "laos": "ການລົງທ້າຍ",
+        "jp": "支持する",
+        "vie": "tán thành",
+        "en_pronunciation": "/ɛnˈdɔrs/",
+        "laos_pronunciation": "kanlongthai",
+        "jp_pronunciation": "shiji suru",
+        "vie_pronunciation": "tan thanh"
+      },
+      "means": {
+        "en": "Be behind; approve of",
+        "zh": "看似没有尽头"
+      }
+    },
+    {
+      "word": {
+        "en": "endorsement",
+        "laos": "ການຮັບຮອງ",
+        "jp": "承認",
+        "vie": "sự chứng thực",
+        "en_pronunciation": "/ɛnˈdɔrsmənt/",
+        "laos_pronunciation": "kanhabhong",
+        "jp_pronunciation": "shounin",
+        "vie_pronunciation": "su chung thuc"
+      },
+      "means": {
+        "en": "A promotional statement (as found on the dust jackets of books)",
+        "zh": "构成威胁；"
+      }
+    },
+    {
+      "word": {
+        "en": "endow",
+        "laos": "ພົ້ນທ້ອງ",
+        "jp": "寄付する",
+        "vie": "phú cho",
+        "en_pronunciation": "/ɛnˈdaʊ/",
+        "laos_pronunciation": "phonthong",
+        "jp_pronunciation": "kifu suru",
+        "vie_pronunciation": "phu cho"
+      },
+      "means": {
+        "en": "Give qualities or abilities to",
+        "zh": "构成危险"
+      }
+    },
+    {
+      "word": {
+        "en": "endowment",
+        "laos": "ຊື່ນຊົມ",
+        "jp": "寄付金",
+        "vie": "tài sản",
+        "en_pronunciation": "/ɛnˈdaʊmənt/",
+        "laos_pronunciation": "sunsom",
+        "jp_pronunciation": "kifukin",
+        "vie_pronunciation": "tai san"
+      },
+      "means": {
+        "en": "Natural abilities or qualities",
+        "zh": "一项有目的或勤奋的事业（尤其是需要努力或勇气的事业）"
+      }
+    },
+    {
+      "word": {
+        "en": "endure",
+        "laos": "ອົດທອນ",
+        "jp": "耐える",
+        "vie": "chịu đựng",
+        "en_pronunciation": "/ɪnˈdʊr/",
+        "laos_pronunciation": "odthon",
+        "jp_pronunciation": "tae ru",
+        "vie_pronunciation": "chiu dung"
+      },
+      "means": {
+        "en": "Put up with something or somebody unpleasant",
+        "zh": "一项有目的或勤奋的事业（尤其是需要努力或勇气的事业）"
+      }
+    },
+    {
+      "word": {
+        "en": "endurance",
+        "laos": "ຄວາມທົນທານ",
+        "jp": "耐久力",
+        "vie": "sức chịu đựng",
+        "en_pronunciation": "/ˈɛndərəns/",
+        "laos_pronunciation": "khuaamthonthan",
+        "jp_pronunciation": "taikyuuryoku",
+        "vie_pronunciation": "suc chiu dung"
+      },
+      "means": {
+        "en": "The power to withstand hardship or stress",
+        "zh": "落后；"
+      }
+    },
+    {
+      "word": {
+        "en": "enemy",
+        "laos": "ສັດຕູ",
+        "jp": "敵",
+        "vie": "kẻ thù",
+        "en_pronunciation": "/ˈɛnəmi/",
+        "laos_pronunciation": "sadtu",
+        "jp_pronunciation": "teki",
+        "vie_pronunciation": "ke thu"
+      },
+      "means": {
+        "en": "An opposing military force",
+        "zh": "赞同"
+      }
+    },
+    {
+      "word": {
+        "en": "energy",
+        "laos": "ພະຍາກອນ",
+        "jp": "エネルギー",
+        "vie": "năng lượng",
+        "en_pronunciation": "/ˈɛnərʤi/",
+        "laos_pronunciation": "phanyakon",
+        "jp_pronunciation": "enerugii",
+        "vie_pronunciation": "nang luong"
+      },
+      "means": {
+        "en": "(physics) a thermodynamic quantity equivalent to the capacity of a physical system to do work; the units of energy are joules or ergs",
+        "zh": "促销声明（可在书籍的封套上找到）"
+      }
+    },
+    {
+      "word": {
+        "en": "energetic",
+        "laos": "ແຂງແຮງ",
+        "jp": "エネルギッシュな",
+        "vie": "tràn đầy năng lượng",
+        "en_pronunciation": "/ˌɛnərˈʤɛtɪk/",
+        "laos_pronunciation": "aekhngaehng",
+        "jp_pronunciation": "enerugisshu na",
+        "vie_pronunciation": "tran day nang luong"
+      },
+      "means": {
+        "en": "Possessing or exerting or displaying energy",
+        "zh": "赋予品质或能力"
+      }
+    },
+    {
+      "word": {
+        "en": "energetically",
+        "laos": "ກິນແຂງ",
+        "jp": "精力的に",
+        "vie": "một cách hăng hái",
+        "en_pronunciation": "/ˌɛnərˈʤɛtɪkli/",
+        "laos_pronunciation": "kinaekhng",
+        "jp_pronunciation": "seiryokuteki ni",
+        "vie_pronunciation": "mot cach hang hai"
+      },
+      "means": {
+        "en": "In an energetic manner",
+        "zh": "天生的能力或品质"
+      }
+    },
+    {
+      "word": {
+        "en": "enforce",
+        "laos": "ປະກາດໃຊ້",
+        "jp": "強制する",
+        "vie": "thi hành",
+        "en_pronunciation": "/ɛnˈfɔrs/",
+        "laos_pronunciation": "pakadsai",
+        "jp_pronunciation": "kyousei suru",
+        "vie_pronunciation": "thi hanh"
+      },
+      "means": {
+        "en": "Ensure observance of laws and rules",
+        "zh": "忍受不愉快的事或人"
+      }
+    },
+    {
+      "word": {
+        "en": "enforcement",
+        "laos": "ການບັງຄັບໃຊ້",
+        "jp": "執行",
+        "vie": "thực thi",
+        "en_pronunciation": "/ɛnˈfɔrsmənt/",
+        "laos_pronunciation": "kanbangkhabsai",
+        "jp_pronunciation": "shikkou",
+        "vie_pronunciation": "thuc thi"
+      },
+      "means": {
+        "en": "The act of enforcing; ensuring observance of or obedience to",
+        "zh": "承受困难或压力的能力"
+      }
+    },
+    {
+      "word": {
+        "en": "engage",
+        "laos": "ປະກອບ",
+        "jp": "関与する",
+        "vie": "tham gia",
+        "en_pronunciation": "/ɪnˈgeɪʤ/",
+        "laos_pronunciation": "pakob",
+        "jp_pronunciation": "kanyo suru",
+        "vie_pronunciation": "tham gia"
+      },
+      "means": {
+        "en": "Carry out or participate in an activity; be involved in",
+        "zh": "敌对军事力量"
+      }
+    },
+    {
+      "word": {
+        "en": "engagement",
+        "laos": "ການມີສ່ວນພົວພັນ",
+        "jp": "エンゲージメント",
+        "vie": "sự đính hôn",
+        "en_pronunciation": "/ɛnˈgeɪʤmənt/",
+        "laos_pronunciation": "kan misuanphuaphan",
+        "jp_pronunciation": "engeejimento",
+        "vie_pronunciation": "su dinh hon"
+      },
+      "means": {
+        "en": "A hostile meeting of opposing military forces in the course of a war",
+        "zh": "（物理学）相当于物理系统做功能力的热力学量；"
+      }
+    },
+    {
+      "word": {
+        "en": "engine",
+        "laos": "ເຄື່ອງຈັກ",
+        "jp": "エンジン",
+        "vie": "động cơ",
+        "en_pronunciation": "/ˈɪnʤən/",
+        "laos_pronunciation": "kheuongchak",
+        "jp_pronunciation": "enjin",
+        "vie_pronunciation": "dong co"
+      },
+      "means": {
+        "en": "Motor that converts thermal energy to mechanical work",
+        "zh": "能量单位是焦耳或尔格"
+      }
+    },
+    {
+      "word": {
+        "en": "engineer",
+        "laos": "ວິສະວະກອນ",
+        "jp": "エンジニア",
+        "vie": "kỹ sư",
+        "en_pronunciation": "/ˈɛnʤəˈnɪr/",
+        "laos_pronunciation": "visauaakon",
+        "jp_pronunciation": "enjinia",
+        "vie_pronunciation": "ky su"
+      },
+      "means": {
+        "en": "A person who uses scientific knowledge to solve practical problems",
+        "zh": "拥有、发挥或展示能量"
+      }
+    },
+    {
+      "word": {
+        "en": "engineering",
+        "laos": "ວິສະວະກໍາ",
+        "jp": "エンジニアリング",
+        "vie": "kỹ thuật",
+        "en_pronunciation": "/ˈɛnʤəˈnɪrɪŋ/",
+        "laos_pronunciation": "visauaakoa",
+        "jp_pronunciation": "enjiniaringu",
+        "vie_pronunciation": "ky thuat"
+      },
+      "means": {
+        "en": "The practical application of science to commerce or industry",
+        "zh": "以充满活力的方式"
+      }
+    },
+    {
+      "word": {
+        "en": "enhance",
+        "laos": "ເສີມຂະຫຍາຍ",
+        "jp": "強化する",
+        "vie": "tăng cường",
+        "en_pronunciation": "/ɛnˈhæns/",
+        "laos_pronunciation": "soemkhajai",
+        "jp_pronunciation": "kyouka suru",
+        "vie_pronunciation": "tang cuong"
+      },
+      "means": {
+        "en": "Increase",
+        "zh": "确保遵守法律和规则"
+      }
+    },
+    {
+      "word": {
+        "en": "enhancement",
+        "laos": "ການປັບປຸງ",
+        "jp": "強化",
+        "vie": "nâng cao",
+        "en_pronunciation": "/ɛnˈhænsmənt/",
+        "laos_pronunciation": "kanpabpung",
+        "jp_pronunciation": "kyouka",
+        "vie_pronunciation": "nang cao"
+      },
+      "means": {
+        "en": "An improvement that makes something more agreeable",
+        "zh": "强制执行的行为；"
+      }
+    },
+    {
+      "word": {
+        "en": "enjoy",
+        "laos": "ມັກ",
+        "jp": "楽しむ",
+        "vie": "thưởng thức",
+        "en_pronunciation": "/ˌɛnˈʤɔɪ/",
+        "laos_pronunciation": "mak",
+        "jp_pronunciation": "tanoshi mu",
+        "vie_pronunciation": "thuong thuc"
+      },
+      "means": {
+        "en": "Derive or receive pleasure from; get enjoyment from; take pleasure in",
+        "zh": "确保遵守或服从"
+      }
+    },
+    {
+      "word": {
+        "en": "enjoyable",
+        "laos": "ມ່ວນຊື່ນ",
+        "jp": "楽しい",
+        "vie": "thú vị",
+        "en_pronunciation": "/ˌɛnˈʤɔɪəbəl/",
+        "laos_pronunciation": "muansun",
+        "jp_pronunciation": "tanoshii",
+        "vie_pronunciation": "thu vi"
+      },
+      "means": {
+        "en": "Affording satisfaction or pleasure",
+        "zh": "进行或参加某项活动；"
+      }
+    },
+    {
+      "word": {
+        "en": "enjoyment",
+        "laos": "ຄວາມຫລີ້ມ",
+        "jp": "楽しみ",
+        "vie": "sự hưởng thụ",
+        "en_pronunciation": "/ˌɛnˈʤɔɪmənt/",
+        "laos_pronunciation": "khuaam lim",
+        "jp_pronunciation": "tanoshimi",
+        "vie_pronunciation": "su huong thu"
+      },
+      "means": {
+        "en": "The pleasure felt when having a good time",
+        "zh": "参与"
+      }
+    },
+    {
+      "word": {
+        "en": "enlarge",
+        "laos": "ຂະຫຢາຢ",
+        "jp": "拡大する",
+        "vie": "phóng to",
+        "en_pronunciation": "/ˌɛnˈlɑrʤ/",
+        "laos_pronunciation": "kha hyay",
+        "jp_pronunciation": "kakudai suru",
+        "vie_pronunciation": "phong to"
+      },
+      "means": {
+        "en": "Make larger",
+        "zh": "战争期间敌对军事力量的敌对会面"
+      }
+    },
+    {
+      "word": {
+        "en": "enlighten",
+        "laos": "ອະນຸໂພດ",
+        "jp": "啓発する",
+        "vie": "soi sáng",
+        "en_pronunciation": "/ˌɛnˈlaɪtən/",
+        "laos_pronunciation": "anuophd",
+        "jp_pronunciation": "keihatsu suru",
+        "vie_pronunciation": "soi sang"
+      },
+      "means": {
+        "en": "Make understand",
+        "zh": "将热能转化为机械功的电机"
+      }
+    },
+    {
+      "word": {
+        "en": "enlightenment",
+        "laos": "ອະນຸວົງ",
+        "jp": "啓蒙",
+        "vie": "sự giác ngộ",
+        "en_pronunciation": "/ˌɛnˈlaɪtənmənt/",
+        "laos_pronunciation": "anuvong",
+        "jp_pronunciation": "keimou",
+        "vie_pronunciation": "su giac ngo"
+      },
+      "means": {
+        "en": "Education that results in understanding and the spread of knowledge",
+        "zh": "运用科学知识解决实际问题的人"
+      }
+    },
+    {
+      "word": {
+        "en": "enlightening",
+        "laos": "ອະ້light",
+        "jp": "啓発的な",
+        "vie": "khai sáng",
+        "en_pronunciation": "/ˌɛnˈlaɪtənɪŋ/",
+        "laos_pronunciation": "a light",
+        "jp_pronunciation": "keihatsu tekina",
+        "vie_pronunciation": "khai sang"
+      },
+      "means": {
+        "en": "Make understand",
+        "zh": "科学在商业或工业中的实际应用"
+      }
+    },
+    {
+      "word": {
+        "en": "enlist",
+        "laos": "ສະຫາຍ",
+        "jp": "入隊する",
+        "vie": "tranh thủ",
+        "en_pronunciation": "/ˌɛnˈlɪst/",
+        "laos_pronunciation": "sahai",
+        "jp_pronunciation": "nyuutai suru",
+        "vie_pronunciation": "tranh thu"
+      },
+      "means": {
+        "en": "Join the military",
+        "zh": "增加"
+      }
+    },
+    {
+      "word": {
+        "en": "enormous",
+        "laos": "ມະເຫ່ງ",
+        "jp": "巨大な",
+        "vie": "to lớn",
+        "en_pronunciation": "/ɪˈnɔrmɪs/",
+        "laos_pronunciation": "ma heng",
+        "jp_pronunciation": "kyodai na",
+        "vie_pronunciation": "to lon"
+      },
+      "means": {
+        "en": "Extraordinarily large in size or extent or amount or power or degree; ; ; ; - Walter Lippman",
+        "zh": "使某些事情变得更令人愉快的改进"
+      }
+    },
+    {
+      "word": {
+        "en": "enough",
+        "laos": "ພຽງພໍ",
+        "jp": "十分な",
+        "vie": "đủ rồi",
+        "en_pronunciation": "/ɪˈnəf/",
+        "laos_pronunciation": "phiangpho",
+        "jp_pronunciation": "juubun na",
+        "vie_pronunciation": "du roi"
+      },
+      "means": {
+        "en": "An adequate quantity; a quantity that is large enough to achieve a purpose",
+        "zh": "从中获得或获得快乐；"
+      }
+    },
+    {
+      "word": {
+        "en": "enquire",
+        "laos": "ສອບຖາມ",
+        "jp": "問い合わせる",
+        "vie": "hỏi thăm",
+        "en_pronunciation": "/ɪnkˈwaɪər/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "toiawase ru",
+        "vie_pronunciation": "hoi tham"
+      },
+      "means": {
+        "en": "Inquire about",
+        "zh": "从中获得乐趣；"
+      }
+    },
+    {
+      "word": {
+        "en": "enrich",
+        "laos": "ເສີມທາດ",
+        "jp": "豊かにする",
+        "vie": "làm giàu",
+        "en_pronunciation": "/ɪnˈrɪʧ/",
+        "laos_pronunciation": "soemthad",
+        "jp_pronunciation": "yutaka nisuru",
+        "vie_pronunciation": "lam giau"
+      },
+      "means": {
+        "en": "Make better or improve in quality",
+        "zh": "享受"
+      }
+    },
+    {
+      "word": {
+        "en": "enquiry",
+        "laos": "ສອບຖາມ",
+        "jp": "お問い合わせ",
+        "vie": "cuộc điều tra",
+        "en_pronunciation": "/ɪnkˈwaɪˌri/",
+        "laos_pronunciation": "sobtham",
+        "jp_pronunciation": "o toiawase",
+        "vie_pronunciation": "cuoc dieu tra"
+      },
+      "means": {
+        "en": "An instance of questioning",
+        "zh": "提供满足或快乐"
+      }
+    },
+    {
+      "word": {
+        "en": "enrol",
+        "laos": "ລົງທະບຽນ",
+        "jp": "登録する",
+        "vie": "ghi danh",
+        "en_pronunciation": "/enrol/",
+        "laos_pronunciation": "longthabian",
+        "jp_pronunciation": "touroku suru",
+        "vie_pronunciation": "ghi danh"
+      },
+      "means": {
+        "en": "Register formally as a participant or member",
+        "zh": "享受美好时光时感受到的愉悦"
+      }
+    },
+    {
+      "word": {
+        "en": "enroll",
+        "laos": "ລົງທະບຽນ",
+        "jp": "登録する",
+        "vie": "ghi danh",
+        "en_pronunciation": "/ɪnˈroʊl/",
+        "laos_pronunciation": "longthabian",
+        "jp_pronunciation": "touroku suru",
+        "vie_pronunciation": "ghi danh"
+      },
+      "means": {
+        "en": "Register formally as a participant or member",
+        "zh": "做大一点"
+      }
+    },
+    {
+      "word": {
+        "en": "enrolment",
+        "laos": "ການລົງທະບຽນ",
+        "jp": "登録",
+        "vie": "tuyển sinh",
+        "en_pronunciation": "/enrolment/",
+        "laos_pronunciation": "kanlongthabian",
+        "jp_pronunciation": "touroku",
+        "vie_pronunciation": "tuyen sinh"
+      },
+      "means": {
+        "en": "The act of enrolling",
+        "zh": "使明白"
+      }
+    },
+    {
+      "word": {
+        "en": "enrollment",
+        "laos": "ການລົງທະບຽນ",
+        "jp": "登録",
+        "vie": "tuyển sinh",
+        "en_pronunciation": "/ɛnˈroʊlmənt/",
+        "laos_pronunciation": "kanlongthabian",
+        "jp_pronunciation": "touroku",
+        "vie_pronunciation": "tuyen sinh"
+      },
+      "means": {
+        "en": "The act of enrolling",
+        "zh": "促进理解和传播知识的教育"
+      }
+    },
+    {
+      "word": {
+        "en": "ensue",
+        "laos": "ເສກັນ",
+        "jp": "続いて",
+        "vie": "xảy ra sau đó",
+        "en_pronunciation": "/ɪnˈsu/",
+        "laos_pronunciation": "sekan",
+        "jp_pronunciation": "tsuzui te",
+        "vie_pronunciation": "xay ra sau do"
+      },
+      "means": {
+        "en": "Issue or terminate (in a specified way, state, etc.); end",
+        "zh": "使明白"
+      }
+    },
+    {
+      "word": {
+        "en": "ensure",
+        "laos": "ຮັບປະກັນ",
+        "jp": "確実にする",
+        "vie": "đảm bảo",
+        "en_pronunciation": "/ɪnˈʃʊr/",
+        "laos_pronunciation": "habpakan",
+        "jp_pronunciation": "kakujitsu nisuru",
+        "vie_pronunciation": "dam bao"
+      },
+      "means": {
+        "en": "Make certain of",
+        "zh": "参军"
+      }
+    },
+    {
+      "word": {
+        "en": "entail",
+        "laos": "ປະຕິບັດ",
+        "jp": "伴う",
+        "vie": "đòi hỏi",
+        "en_pronunciation": "/ɛnˈteɪl/",
+        "laos_pronunciation": "patibad",
+        "jp_pronunciation": "tomonau",
+        "vie_pronunciation": "doi hoi"
+      },
+      "means": {
+        "en": "Land received by fee tail",
+        "zh": "尺寸、范围、数量、力量或程度特别大；"
+      }
+    },
+    {
+      "word": {
+        "en": "enter",
+        "laos": "ໃສ່ເຂົ້າ",
+        "jp": "入る",
+        "vie": "nhập",
+        "en_pronunciation": "/ˈɛnər/",
+        "laos_pronunciation": "saikhao",
+        "jp_pronunciation": "iru",
+        "vie_pronunciation": "nhap"
+      },
+      "means": {
+        "en": "To come or go into",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "entrance",
+        "laos": "ທາງເຂົ້າ",
+        "jp": "入口",
+        "vie": "lối vào",
+        "en_pronunciation": "/ˈɛntrəns/",
+        "laos_pronunciation": "thangkhao",
+        "jp_pronunciation": "iriguchi",
+        "vie_pronunciation": "loi vao"
+      },
+      "means": {
+        "en": "Something that provides access (to get in or get out)",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "entry",
+        "laos": "ການເຂົ້າ",
+        "jp": "エントリー",
+        "vie": "lối vào",
+        "en_pronunciation": "/ˈɛntri/",
+        "laos_pronunciation": "kankhao",
+        "jp_pronunciation": "entorii",
+        "vie_pronunciation": "loi vao"
+      },
+      "means": {
+        "en": "An item inserted in a written record",
+        "zh": ";"
+      }
+    },
+    {
+      "word": {
+        "en": "enterprise",
+        "laos": "ການສົ່ງຈົດຫມາຍ",
+        "jp": "企業",
+        "vie": "doanh nghiệp",
+        "en_pronunciation": "/ˈɛnərˌpraɪz/",
+        "laos_pronunciation": "kansongchodmai",
+        "jp_pronunciation": "kigyou",
+        "vie_pronunciation": "doanh nghiep"
+      },
+      "means": {
+        "en": "A purposeful or industrious undertaking (especially one that requires effort or boldness)",
+        "zh": "——沃尔特·李普曼"
+      }
+    },
+    {
+      "word": {
+        "en": "enterprising",
+        "laos": "ຂະຍັນຂັນ",
+        "jp": "進取的な",
+        "vie": "dám nghĩ dám làm",
+        "en_pronunciation": "/ˈɛnərˌpraɪzɪŋ/",
+        "laos_pronunciation": "kha nyankhan",
+        "jp_pronunciation": "shinshu tekina",
+        "vie_pronunciation": "dam nghi dam lam"
+      },
+      "means": {
+        "en": "Marked by imagination, initiative, and readiness to undertake new projects",
+        "zh": "数量充足；"
+      }
+    },
+    {
+      "word": {
+        "en": "entertain",
+        "laos": "ການບັນເທິງ",
+        "jp": "楽しませる",
+        "vie": "giải trí",
+        "en_pronunciation": "/ˌɛnərˈteɪn/",
+        "laos_pronunciation": "kanbanthoeng",
+        "jp_pronunciation": "tanoshi maseru",
+        "vie_pronunciation": "giai tri"
+      },
+      "means": {
+        "en": "Provide entertainment for",
+        "zh": "足以达到目的的数量"
+      }
+    },
+    {
+      "word": {
+        "en": "entertainment",
+        "laos": "ຄວາມບັນ",
+        "jp": "エンターテイメント",
+        "vie": "sự giải trí",
+        "en_pronunciation": "/ˌɛnərˈteɪnmənt/",
+        "laos_pronunciation": "khuaamban",
+        "jp_pronunciation": "entaateimento",
+        "vie_pronunciation": "su giai tri"
+      },
+      "means": {
+        "en": "An activity that is diverting and that holds the attention",
+        "zh": "询问"
+      }
+    },
+    {
+      "word": {
+        "en": "entertaining",
+        "laos": "ບັນເທີງ",
+        "jp": "面白い",
+        "vie": "giải trí",
+        "en_pronunciation": "/ˌɛnərˈteɪnɪŋ/",
+        "laos_pronunciation": "banthoeng",
+        "jp_pronunciation": "omoshiroi",
+        "vie_pronunciation": "giai tri"
+      },
+      "means": {
+        "en": "Provide entertainment for",
+        "zh": "做得更好或提高质量"
+      }
+    },
+    {
+      "word": {
+        "en": "enthusiasm",
+        "laos": "ຄວາມກະຕືລືລົ້ນ",
+        "jp": "熱意",
+        "vie": "sự nhiệt tình",
+        "en_pronunciation": "/ɪnˈθuziˌæzəm/",
+        "laos_pronunciation": "khuaamkatululon",
+        "jp_pronunciation": "netsui",
+        "vie_pronunciation": "su nhiet tinh"
+      },
+      "means": {
+        "en": "A feeling of excitement",
+        "zh": "提问的一个例子"
+      }
+    },
+    {
+      "word": {
+        "en": "enthusiastic",
+        "laos": "ກະຕືລືລົ້ນ",
+        "jp": "熱心な",
+        "vie": "nhiệt tình",
+        "en_pronunciation": "/ɪnˌθuziˈæstɪk/",
+        "laos_pronunciation": "katululon",
+        "jp_pronunciation": "nesshin na",
+        "vie_pronunciation": "nhiet tinh"
+      },
+      "means": {
+        "en": "Having or showing great excitement and interest",
+        "zh": "正式注册为参与者或会员"
+      }
+    },
+    {
+      "word": {
+        "en": "enthusiastically",
+        "laos": "ກະຕືລືລົ້ນ",
+        "jp": "熱心に",
+        "vie": "nhiệt tình",
+        "en_pronunciation": "/ɪnˌθuziˈæstɪkli/",
+        "laos_pronunciation": "katululon",
+        "jp_pronunciation": "nesshin ni",
+        "vie_pronunciation": "nhiet tinh"
+      },
+      "means": {
+        "en": "With enthusiasm; in an enthusiastic manner",
+        "zh": "正式注册为参与者或会员"
+      }
+    },
+    {
+      "word": {
+        "en": "enthusiast",
+        "laos": "ຄວາມກະຕືລືລົ້ນ",
+        "jp": "愛好家",
+        "vie": "người đam mê",
+        "en_pronunciation": "/ɛnˈθuziˌæst/",
+        "laos_pronunciation": "khuaamkatululon",
+        "jp_pronunciation": "aikouka",
+        "vie_pronunciation": "nguoi dam me"
+      },
+      "means": {
+        "en": "An ardent and enthusiastic supporter of some person or activity",
+        "zh": "报名行为"
+      }
+    },
+    {
+      "word": {
+        "en": "entire",
+        "laos": "ທັງຫມົດ",
+        "jp": "全体",
+        "vie": "toàn bộ",
+        "en_pronunciation": "/ɪnˈtaɪər/",
+        "laos_pronunciation": "thangmod",
+        "jp_pronunciation": "zentai",
+        "vie_pronunciation": "toan bo"
+      },
+      "means": {
+        "en": "Uncastrated adult male horse",
+        "zh": "报名行为"
+      }
+    },
+    {
+      "word": {
+        "en": "entirety",
+        "laos": "ທັງຫມົດ",
+        "jp": "全体",
+        "vie": "toàn bộ",
+        "en_pronunciation": "/ɪnˈtaɪərti/",
+        "laos_pronunciation": "thangmod",
+        "jp_pronunciation": "zentai",
+        "vie_pronunciation": "toan bo"
+      },
+      "means": {
+        "en": "The state of being total and complete",
+        "zh": "发出或终止（以指定方式、状态等）；"
+      }
+    },
+    {
+      "word": {
+        "en": "entitle",
+        "laos": "ສິດ",
+        "jp": "権利を与える",
+        "vie": "quyền",
+        "en_pronunciation": "/ɪnˈtaɪtəl/",
+        "laos_pronunciation": "sid",
+        "jp_pronunciation": "kenri wo atae ru",
+        "vie_pronunciation": "quyen"
+      },
+      "means": {
+        "en": "Give the right to",
+        "zh": "结束"
+      }
+    },
+    {
+      "word": {
+        "en": "entity",
+        "laos": "ສາສນາ",
+        "jp": "エンティティ",
+        "vie": "thực thể",
+        "en_pronunciation": "/ˈɛntɪti/",
+        "laos_pronunciation": "sasna",
+        "jp_pronunciation": "enteitei",
+        "vie_pronunciation": "thuc the"
+      },
+      "means": {
+        "en": "That which is perceived or known or inferred to have its own distinct existence (living or nonliving)",
+        "zh": "确定"
+      }
+    },
+    {
+      "word": {
+        "en": "entrepreneur",
+        "laos": "ຜູ້ປະກອບການ",
+        "jp": "起業家",
+        "vie": "doanh nhân",
+        "en_pronunciation": "/ˌɑntrəprəˈnʊr/",
+        "laos_pronunciation": "phupakobkan",
+        "jp_pronunciation": "kigyouka",
+        "vie_pronunciation": "doanh nhan"
+      },
+      "means": {
+        "en": "Someone who organizes a business venture and assumes the risk for it",
+        "zh": "费尾收到的土地"
+      }
+    },
+    {
+      "word": {
+        "en": "entrepreneurial",
+        "laos": "ຜູ້ປະກອບການ",
+        "jp": "起業家的な",
+        "vie": "kinh doanh",
+        "en_pronunciation": "/ˌɑntrəprəˈnəriəl/",
+        "laos_pronunciation": "phupakobkan",
+        "jp_pronunciation": "kigyouka tekina",
+        "vie_pronunciation": "kinh doanh"
+      },
+      "means": {
+        "en": "Of or relating to an entrepreneur",
+        "zh": "来或进入"
+      }
+    },
+    {
+      "word": {
+        "en": "entrust",
+        "laos": "ຝາກ",
+        "jp": "任せる",
+        "vie": "giao phó",
+        "en_pronunciation": "/ɛnˈtrəst/",
+        "laos_pronunciation": "fak",
+        "jp_pronunciation": "makase ru",
+        "vie_pronunciation": "giao pho"
+      },
+      "means": {
+        "en": "Confer a trust upon",
+        "zh": "提供访问权的东西（进入或退出）"
+      }
+    },
+    {
+      "word": {
+        "en": "envelop",
+        "laos": "ຊອງ",
+        "jp": "包み込む",
+        "vie": "phong bì",
+        "en_pronunciation": "/ɪnˈvɛləp/",
+        "laos_pronunciation": "song",
+        "jp_pronunciation": "tsutsumi komu",
+        "vie_pronunciation": "phong bi"
+      },
+      "means": {
+        "en": "Enclose or enfold completely with or as if with a covering",
+        "zh": "插入书面记录中的项目"
+      }
+    },
+    {
+      "word": {
+        "en": "envelope",
+        "laos": "ຊອງຈົດຫມາຍ",
+        "jp": "封筒",
+        "vie": "phong bì",
+        "en_pronunciation": "/ˈɛnvəˌloʊp/",
+        "laos_pronunciation": "songchodmai",
+        "jp_pronunciation": "fuutou",
+        "vie_pronunciation": "phong bi"
+      },
+      "means": {
+        "en": "A flat (usually rectangular) container for a letter, thin package, etc.",
+        "zh": "一项有目的或勤奋的事业（尤其是需要努力或勇气的事业）"
+      }
+    },
+    {
+      "word": {
+        "en": "environment",
+        "laos": "ສິ່ງແວດລ້ອມ",
+        "jp": "環境",
+        "vie": "môi trường",
+        "en_pronunciation": "/ɪnˈvaɪrənmənt/",
+        "laos_pronunciation": "singaeuadlom",
+        "jp_pronunciation": "kankyou",
+        "vie_pronunciation": "moi truong"
+      },
+      "means": {
+        "en": "The totality of surrounding conditions",
+        "zh": "具有想象力、主动性和愿意承担新项目的特点"
+      }
+    },
+    {
+      "word": {
+        "en": "environmental",
+        "laos": "ສິ່ງແວດລ້ອມ",
+        "jp": "環境",
+        "vie": "môi trường",
+        "en_pronunciation": "/ɪnˌvaɪrənˈmɛnəl/",
+        "laos_pronunciation": "singaeuadlom",
+        "jp_pronunciation": "kankyou",
+        "vie_pronunciation": "moi truong"
+      },
+      "means": {
+        "en": "Of or relating to the external conditions or surroundings",
+        "zh": "提供娱乐给"
+      }
+    },
+    {
+      "word": {
+        "en": "environmentalist",
+        "laos": "ສິ່ງແວດລ້ອມ",
+        "jp": "環境活動家",
+        "vie": "nhà bảo vệ môi trường",
+        "en_pronunciation": "/ɪnˌvaɪrənˈmɛnəlɪst/",
+        "laos_pronunciation": "singaeuadlom",
+        "jp_pronunciation": "kankyou katsudouka",
+        "vie_pronunciation": "nha bao ve moi truong"
+      },
+      "means": {
+        "en": "Someone who works to protect the environment from destruction or pollution",
+        "zh": "转移注意力并吸引注意力的活动"
+      }
+    },
+    {
+      "word": {
+        "en": "envisage",
+        "laos": "ຄາດຫມາຍ",
+        "jp": "想像する",
+        "vie": "hình dung",
+        "en_pronunciation": "/ɛnˈvɪzɪʤ/",
+        "laos_pronunciation": "khadmai",
+        "jp_pronunciation": "souzou suru",
+        "vie_pronunciation": "hinh dung"
+      },
+      "means": {
+        "en": "Form a mental image of something that is not present or that is not the case",
+        "zh": "提供娱乐给"
+      }
+    }
+  ]
+}

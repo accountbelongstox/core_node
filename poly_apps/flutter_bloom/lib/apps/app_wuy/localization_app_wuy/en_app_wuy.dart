@@ -40,6 +40,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyStatusSuccess: 'Success!',
     LocalizationKeysAppWuy.wuyStatusError: 'An error occurred',
     LocalizationKeysAppWuy.wuyStatusNoData: 'No data available',
+    LocalizationKeysAppWuy.wuyStatusOnline: 'Online',
+    LocalizationKeysAppWuy.wuyStatusOffline: 'Offline',
 
     LocalizationKeysAppWuy.wuyValidationRequired: 'This field is required',
     LocalizationKeysAppWuy.wuyValidationInvalidEmail:
@@ -56,6 +58,10 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyFriendsAddFriend: 'Add Friend',
     LocalizationKeysAppWuy.wuyFriendsOnline: 'Online',
     LocalizationKeysAppWuy.wuyFriendsOffline: 'Offline',
+    LocalizationKeysAppWuy.wuyMonitoringEnabled: 'Monitoring enabled',
+    LocalizationKeysAppWuy.wuyMonitoringDisabled: 'Monitoring disabled',
+    LocalizationKeysAppWuy.wuyMonitoringError: 'Failed to update monitoring status',
+    LocalizationKeysAppWuy.wuyLastLocation: 'Last location',
 
     // Chat related
     LocalizationKeysAppWuy.wuyChatTitle: 'Chat',
@@ -624,6 +630,13 @@ class WuyEnTranslations {
 
     // Search screen specific
     LocalizationKeysAppWuy.wuySearchPlaceholder: 'Search...',
+    LocalizationKeysAppWuy.wuySearchHistory: 'Search History',
+    LocalizationKeysAppWuy.wuySearchRecentlyViewed: 'Recently Viewed',
+    LocalizationKeysAppWuy.wuySearchRecommended: 'Recommended Friends',
+    LocalizationKeysAppWuy.wuySearchClearHistory: 'Clear History',
+    LocalizationKeysAppWuy.wuySearchAllGender: 'All',
+    LocalizationKeysAppWuy.wuySearchShareIcon: 'Share',
+    LocalizationKeysAppWuy.wuySearchNotificationIcon: 'Notifications',
 
     // Map screen specific
     LocalizationKeysAppWuy.wuyMapNoLocation: 'No location available',

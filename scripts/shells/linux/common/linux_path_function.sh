@@ -25,7 +25,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
-LIUNXENVS_DIR="$SCRIPTS_DIR/liunxenvs"
+LINUXENVS_DIR="$SCRIPTS_DIR/linuxenvs"
 
 # Colors for output
 COLOR_RESET='\033[0m'
@@ -63,10 +63,10 @@ log_debug() {
 # Directory Management Functions
 # =============================================================================
 
-ensure_liunxenvs_dir() {
-    if [ ! -d "$LIUNXENVS_DIR" ]; then
-        mkdir -p "$LIUNXENVS_DIR"
-        log_info "Created liunxenvs directory: $LIUNXENVS_DIR"
+ensure_linuxenvs_dir() {
+    if [ ! -d "$LINUXENVS_DIR" ]; then
+        mkdir -p "$LINUXENVS_DIR"
+        log_info "Created linuxenvs directory: $LINUXENVS_DIR"
     fi
 }
 
@@ -137,10 +137,10 @@ add_env_variable() {
 # File Management Functions
 # =============================================================================
 
-add_file_to_liunxenvs() {
+add_file_to_linuxenvs() {
     local file_path="$1"
 
-    ensure_liunxenvs_dir
+    ensure_linuxenvs_dir
 
     if [ ! -f "$file_path" ]; then
         log_error "File not found: $file_path"
@@ -148,12 +148,12 @@ add_file_to_liunxenvs() {
     fi
 
     local filename="$(basename "$file_path")"
-    local target_path="$LIUNXENVS_DIR/$filename"
+    local target_path="$LINUXENVS_DIR/$filename"
 
-    # Copy file to liunxenvs
+    # Copy file to linuxenvs
     cp "$file_path" "$target_path"
     chmod +x "$target_path"
-    log_success "Copied to liunxenvs: $filename"
+    log_success "Copied to linuxenvs: $filename"
 
     # Create symlink in /usr/local/bin
     local link_path="/usr/local/bin/$filename"
@@ -169,11 +169,11 @@ add_file_to_liunxenvs() {
     return 0
 }
 
-add_script_content_to_liunxenvs() {
+add_script_content_to_linuxenvs() {
     local content="$1"
     local filename="$2"
 
-    ensure_liunxenvs_dir
+    ensure_linuxenvs_dir
 
     if [ -z "$content" ]; then
         log_error "Content cannot be empty"
@@ -190,9 +190,9 @@ add_script_content_to_liunxenvs() {
         filename="${filename}.sh"
     fi
 
-    local target_path="$LIUNXENVS_DIR/$filename"
+    local target_path="$LINUXENVS_DIR/$filename"
 
-    log_debug "Target directory: $LIUNXENVS_DIR"
+    log_debug "Target directory: $LINUXENVS_DIR"
     log_debug "Target file path: $target_path"
     log_debug "File name: $filename"
     log_debug "Content length: ${#content} characters"
@@ -204,7 +204,7 @@ add_script_content_to_liunxenvs() {
     if [ -f "$target_path" ]; then
         local file_size=$(stat -f%z "$target_path" 2>/dev/null || stat -c%s "$target_path")
         log_debug "File verification SUCCESS - Size: $file_size bytes"
-        log_success "Script written to liunxenvs: $filename -> $target_path"
+        log_success "Script written to linuxenvs: $filename -> $target_path"
     else
         log_error "File verification FAILED - File not found"
         return 1
@@ -222,13 +222,13 @@ add_script_content_to_liunxenvs() {
     sudo ln -sf "$target_path" "$link_path"
     log_success "Created global command: $basename_without_ext"
 
-    # Add liunxenvs to PATH if not already
-    add_dir_to_path "$LIUNXENVS_DIR"
+    # Add linuxenvs to PATH if not already
+    add_dir_to_path "$LINUXENVS_DIR"
 
     return 0
 }
 
-remove_script_from_liunxenvs() {
+remove_script_from_linuxenvs() {
     local filename="$1"
 
     if [ -z "$filename" ]; then
@@ -236,16 +236,16 @@ remove_script_from_liunxenvs() {
         return 1
     fi
 
-    local target_path="$LIUNXENVS_DIR/$filename"
+    local target_path="$LINUXENVS_DIR/$filename"
 
     if [ ! -f "$target_path" ]; then
-        log_error "File not found in liunxenvs: $filename"
+        log_error "File not found in linuxenvs: $filename"
         return 1
     fi
 
-    # Remove file from liunxenvs
+    # Remove file from linuxenvs
     rm -f "$target_path"
-    log_success "Removed from liunxenvs: $filename"
+    log_success "Removed from linuxenvs: $filename"
 
     # Remove symlink
     local basename_without_ext="${filename%.sh}"
@@ -260,15 +260,15 @@ remove_script_from_liunxenvs() {
     return 0
 }
 
-list_liunxenvs_scripts() {
-    ensure_liunxenvs_dir
+list_linuxenvs_scripts() {
+    ensure_linuxenvs_dir
 
-    log_info "Scripts in liunxenvs directory:"
+    log_info "Scripts in linuxenvs directory:"
     echo "=================================="
 
-    if [ "$(ls -A "$LIUNXENVS_DIR" 2>/dev/null)" ]; then
+    if [ "$(ls -A "$LINUXENVS_DIR" 2>/dev/null)" ]; then
         local counter=1
-        for file in "$LIUNXENVS_DIR"/*; do
+        for file in "$LINUXENVS_DIR"/*; do
             if [ -f "$file" ]; then
                 local filename="$(basename "$file")"
                 echo "  $counter. $filename"
@@ -292,16 +292,16 @@ main() {
 
     case "$action" in
         addfile)
-            add_file_to_liunxenvs "$@"
+            add_file_to_linuxenvs "$@"
             ;;
         addscript)
-            add_script_content_to_liunxenvs "$@"
+            add_script_content_to_linuxenvs "$@"
             ;;
         remove)
-            remove_script_from_liunxenvs "$@"
+            remove_script_from_linuxenvs "$@"
             ;;
         list)
-            list_liunxenvs_scripts
+            list_linuxenvs_scripts
             ;;
         addpath)
             add_dir_to_path "$@"
@@ -313,10 +313,10 @@ main() {
             echo "Usage: $0 {addfile|addscript|remove|list|addpath|addenv} [args...]"
             echo ""
             echo "Commands:"
-            echo "  addfile <file_path>              - Add file to liunxenvs"
-            echo "  addscript <content> <filename>   - Create script in liunxenvs"
-            echo "  remove <filename>                - Remove script from liunxenvs"
-            echo "  list                             - List all scripts in liunxenvs"
+            echo "  addfile <file_path>              - Add file to linuxenvs"
+            echo "  addscript <content> <filename>   - Create script in linuxenvs"
+            echo "  remove <filename>                - Remove script from linuxenvs"
+            echo "  list                             - List all scripts in linuxenvs"
             echo "  addpath <dir_path>               - Add directory to PATH"
             echo "  addenv <name> <value>            - Add environment variable"
             return 1

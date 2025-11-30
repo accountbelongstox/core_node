@@ -1,0 +1,1605 @@
+{
+  "generated_at": "2025-11-22T22:15:17.411824+00:00+00:00",
+  "items": [
+    {
+      "word": {
+        "en": "sky",
+        "laos": "ຟ້າແຖນ",
+        "jp": "空",
+        "vie": "bầu trời",
+        "en_pronunciation": "/skaɪ/",
+        "laos_pronunciation": "faaethn",
+        "jp_pronunciation": "sora",
+        "vie_pronunciation": "bau troi"
+      },
+      "means": {
+        "en": "The atmosphere and outer space as viewed from the earth",
+        "zh": "从地球上看大气层和外层空间"
+      }
+    },
+    {
+      "word": {
+        "en": "skyline",
+        "laos": "Skyline",
+        "jp": "スカイライン",
+        "vie": "đường chân trời",
+        "en_pronunciation": "/ˈskaɪˌlaɪn/",
+        "laos_pronunciation": "Skyline",
+        "jp_pronunciation": "sukairain",
+        "vie_pronunciation": "duong chan troi"
+      },
+      "means": {
+        "en": "The outline of objects seen against the sky",
+        "zh": "天空中看到的物体的轮廓"
+      }
+    },
+    {
+      "word": {
+        "en": "skyscraper",
+        "laos": "ຕຶກຮະຟ້າ",
+        "jp": "超高層ビル",
+        "vie": "tòa nhà chọc trời",
+        "en_pronunciation": "/ˈskaɪˌskreɪpər/",
+        "laos_pronunciation": "tuk hafa",
+        "jp_pronunciation": "choukousou biru",
+        "vie_pronunciation": "toa nha choc troi"
+      },
+      "means": {
+        "en": "A very tall building with many stories",
+        "zh": "一栋很高的大楼，有很多层"
+      }
+    },
+    {
+      "word": {
+        "en": "slack",
+        "laos": "ເພກ",
+        "jp": "たるみ",
+        "vie": "lười biếng",
+        "en_pronunciation": "/slæk/",
+        "laos_pronunciation": "phek",
+        "jp_pronunciation": "tarumi",
+        "vie_pronunciation": "luoi bieng"
+      },
+      "means": {
+        "en": "Dust consisting of a mixture of small coal fragments and coal dust and dirt that sifts out when coal is passed over a sieve",
+        "zh": "由小煤碎片和煤尘以及煤炭通过筛子时筛出的污垢组成的灰尘"
+      }
+    },
+    {
+      "word": {
+        "en": "slam",
+        "laos": "ລວາດ",
+        "jp": "叩きつける",
+        "vie": "đập mạnh",
+        "en_pronunciation": "/slæm/",
+        "laos_pronunciation": "luaad",
+        "jp_pronunciation": "tatakitsuke ru",
+        "vie_pronunciation": "dap manh"
+      },
+      "means": {
+        "en": "Winning all or all but one of the tricks in bridge",
+        "zh": "赢得桥牌中除一招之外的全部或全部招数"
+      }
+    },
+    {
+      "word": {
+        "en": "slap",
+        "laos": "ຕົບ",
+        "jp": "平手打ち",
+        "vie": "cái tát",
+        "en_pronunciation": "/slæp/",
+        "laos_pronunciation": "tob",
+        "jp_pronunciation": "hirate uchi",
+        "vie_pronunciation": "cai tat"
+      },
+      "means": {
+        "en": "A blow from a flat object (as an open hand)",
+        "zh": "来自扁平物体的打击（如张开的手）"
+      }
+    },
+    {
+      "word": {
+        "en": "slash",
+        "laos": "ວາງ",
+        "jp": "スラッシュ",
+        "vie": "gạch chéo",
+        "en_pronunciation": "/slæʃ/",
+        "laos_pronunciation": "vang",
+        "jp_pronunciation": "surasshu",
+        "vie_pronunciation": "gach cheo"
+      },
+      "means": {
+        "en": "A wound made by cutting",
+        "zh": "割伤造成的伤口"
+      }
+    },
+    {
+      "word": {
+        "en": "slaughter",
+        "laos": "ການຂ້າສັດ",
+        "jp": "屠殺",
+        "vie": "giết mổ",
+        "en_pronunciation": "/sˈlɔtər/",
+        "laos_pronunciation": "kankhasad",
+        "jp_pronunciation": "tosatsu",
+        "vie_pronunciation": "giet mo"
+      },
+      "means": {
+        "en": "The killing of animals (as for food)",
+        "zh": "杀害动物（作为食物）"
+      }
+    },
+    {
+      "word": {
+        "en": "slave",
+        "laos": "ສໍາງົວ",
+        "jp": "奴隷",
+        "vie": "nô lệ",
+        "en_pronunciation": "/sleɪv/",
+        "laos_pronunciation": "soangua",
+        "jp_pronunciation": "dorei",
+        "vie_pronunciation": "no le"
+      },
+      "means": {
+        "en": "A person who is owned by someone",
+        "zh": "一个被某人拥有的人"
+      }
+    },
+    {
+      "word": {
+        "en": "sleep",
+        "laos": "ນອນ",
+        "jp": "寝る",
+        "vie": "ngủ",
+        "en_pronunciation": "/slip/",
+        "laos_pronunciation": "non",
+        "jp_pronunciation": "neru",
+        "vie_pronunciation": "ngu"
+      },
+      "means": {
+        "en": "A natural and periodic state of rest during which consciousness of the world is suspended",
+        "zh": "一种自然且周期性的休息状态，在此期间世界意识暂停"
+      }
+    },
+    {
+      "word": {
+        "en": "sleeve",
+        "laos": "ເສອແຂນ",
+        "jp": "袖",
+        "vie": "tay áo",
+        "en_pronunciation": "/sliv/",
+        "laos_pronunciation": "se aekhn",
+        "jp_pronunciation": "sode",
+        "vie_pronunciation": "tay ao"
+      },
+      "means": {
+        "en": "The part of a garment that is attached at the armhole and that provides a cloth covering for the arm",
+        "zh": "衣服上附着在袖窿处并为手臂提供布覆盖的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "slender",
+        "laos": "ຮຽວ",
+        "jp": "細い",
+        "vie": "mảnh khảnh",
+        "en_pronunciation": "/sˈlɛndər/",
+        "laos_pronunciation": "hiav",
+        "jp_pronunciation": "komai",
+        "vie_pronunciation": "manh khanh"
+      },
+      "means": {
+        "en": "Being of delicate or slender build; - Frank Norris",
+        "zh": "体型娇弱或苗条；"
+      }
+    },
+    {
+      "word": {
+        "en": "slice",
+        "laos": "ແຜ່ນບາງໆ",
+        "jp": "スライス",
+        "vie": "lát",
+        "en_pronunciation": "/slaɪs/",
+        "laos_pronunciation": "aephnbang",
+        "jp_pronunciation": "suraisu",
+        "vie_pronunciation": "lat"
+      },
+      "means": {
+        "en": "A share of something",
+        "zh": "——弗兰克·诺里斯"
+      }
+    },
+    {
+      "word": {
+        "en": "slide",
+        "laos": "ເລື່ອນ",
+        "jp": "スライド",
+        "vie": "trượt",
+        "en_pronunciation": "/slaɪd/",
+        "laos_pronunciation": "leuon",
+        "jp_pronunciation": "suraido",
+        "vie_pronunciation": "truot"
+      },
+      "means": {
+        "en": "A small flat rectangular piece of glass on which specimens can be mounted for microscopic study",
+        "zh": "某物的份额"
+      }
+    },
+    {
+      "word": {
+        "en": "slight",
+        "laos": "ເກມອອນໄລນ໌",
+        "jp": "わずかな",
+        "vie": "nhẹ",
+        "en_pronunciation": "/slaɪt/",
+        "laos_pronunciation": "kemoonlain",
+        "jp_pronunciation": "wazukana",
+        "vie_pronunciation": "nhe"
+      },
+      "means": {
+        "en": "A deliberate discourteous act (usually as an expression of anger or disapproval)",
+        "zh": "一块小的扁平矩形玻璃，可以将样品安装在其上进行显微镜研究"
+      }
+    },
+    {
+      "word": {
+        "en": "slim",
+        "laos": "ກະທັດຮັດ",
+        "jp": "スリムな",
+        "vie": "mảnh khảnh",
+        "en_pronunciation": "/slɪm/",
+        "laos_pronunciation": "kathadhad",
+        "jp_pronunciation": "surimu na",
+        "vie_pronunciation": "manh khanh"
+      },
+      "means": {
+        "en": "Take off weight",
+        "zh": "故意的无礼行为（通常是表达愤怒或不满）"
+      }
+    },
+    {
+      "word": {
+        "en": "singularity",
+        "laos": "(ກະລຸຫລວງ",
+        "jp": "特異点",
+        "vie": "điểm kỳ dị",
+        "en_pronunciation": "/singularity/",
+        "laos_pronunciation": "ka luluang",
+        "jp_pronunciation": "tokuiten",
+        "vie_pronunciation": "diem ky di"
+      },
+      "means": {
+        "en": "The quality of being one of a kind",
+        "zh": "减轻体重"
+      }
+    },
+    {
+      "word": {
+        "en": "sitting",
+        "laos": "ການນັ່ງ",
+        "jp": "座っている",
+        "vie": "ngồi",
+        "en_pronunciation": "/ˈsɪtɪŋ/",
+        "laos_pronunciation": "kannang",
+        "jp_pronunciation": "suwatsu teiru",
+        "vie_pronunciation": "ngoi"
+      },
+      "means": {
+        "en": "(photography) the act of assuming a certain position (as for a photograph or portrait)",
+        "zh": "独一无二的品质"
+      }
+    },
+    {
+      "word": {
+        "en": "sizable",
+        "laos": "sizable",
+        "jp": "かなりの",
+        "vie": "khá lớn",
+        "en_pronunciation": "/ˈsaɪzəbəl/",
+        "laos_pronunciation": "sizable",
+        "jp_pronunciation": "kanarino",
+        "vie_pronunciation": "kha lon"
+      },
+      "means": {
+        "en": "Fairly large",
+        "zh": "（摄影）采取某种姿势的行为（如照片或肖像）"
+      }
+    },
+    {
+      "word": {
+        "en": "skating",
+        "laos": "ສ່ອງເຂົ້າໄປສະກີ",
+        "jp": "スケート",
+        "vie": "trượt băng",
+        "en_pronunciation": "/ˈskeɪtɪŋ/",
+        "laos_pronunciation": "song khaopai saki",
+        "jp_pronunciation": "sukeeto",
+        "vie_pronunciation": "truot bang"
+      },
+      "means": {
+        "en": "The sport of gliding on skates",
+        "zh": "相当大"
+      }
+    },
+    {
+      "word": {
+        "en": "skeptic",
+        "laos": "ເປົ້າຕິດ",
+        "jp": "懐疑的",
+        "vie": "hoài nghi",
+        "en_pronunciation": "/ˈskɛptɪk/",
+        "laos_pronunciation": "paotid",
+        "jp_pronunciation": "kaigiteki",
+        "vie_pronunciation": "hoai nghi"
+      },
+      "means": {
+        "en": "Someone who habitually doubts accepted beliefs",
+        "zh": "穿着溜冰鞋滑行的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "sceptic",
+        "laos": "ເປົ້າຕິດ",
+        "jp": "懐疑的",
+        "vie": "hoài nghi",
+        "en_pronunciation": "/sceptic/",
+        "laos_pronunciation": "paotid",
+        "jp_pronunciation": "kaigiteki",
+        "vie_pronunciation": "hoai nghi"
+      },
+      "means": {
+        "en": "Someone who habitually doubts accepted beliefs",
+        "zh": "习惯性怀疑公认信念的人"
+      }
+    },
+    {
+      "word": {
+        "en": "skepticism",
+        "laos": "ຄວາມສົງໄສ",
+        "jp": "懐疑論",
+        "vie": "chủ nghĩa hoài nghi",
+        "en_pronunciation": "/ˈskɛptɪˌsɪzəm/",
+        "laos_pronunciation": "khuaamsongsai",
+        "jp_pronunciation": "kaigi ron",
+        "vie_pronunciation": "chu nghia hoai nghi"
+      },
+      "means": {
+        "en": "Doubt about the truth of something",
+        "zh": "习惯性怀疑公认信念的人"
+      }
+    },
+    {
+      "word": {
+        "en": "scepticism",
+        "laos": "ຄວາມສົງໄສ",
+        "jp": "懐疑論",
+        "vie": "chủ nghĩa hoài nghi",
+        "en_pronunciation": "/scepticism/",
+        "laos_pronunciation": "khuaamsongsai",
+        "jp_pronunciation": "kaigi ron",
+        "vie_pronunciation": "chu nghia hoai nghi"
+      },
+      "means": {
+        "en": "The disbelief in any claims of ultimate knowledge",
+        "zh": "对某事的真实性产生怀疑"
+      }
+    },
+    {
+      "word": {
+        "en": "sketchy",
+        "laos": "ວາດພາບ",
+        "jp": "大ざっぱな",
+        "vie": "sơ sài",
+        "en_pronunciation": "/ˈskɛʧi/",
+        "laos_pronunciation": "vadphab",
+        "jp_pronunciation": "ooza ppana",
+        "vie_pronunciation": "so sai"
+      },
+      "means": {
+        "en": "Giving only major points; lacking completeness",
+        "zh": "对任何终极知识主张的怀疑"
+      }
+    },
+    {
+      "word": {
+        "en": "skiing",
+        "laos": "ການຫລີ້ນ",
+        "jp": "スキー",
+        "vie": "trượt tuyết",
+        "en_pronunciation": "/skiɪŋ/",
+        "laos_pronunciation": "kanlin",
+        "jp_pronunciation": "sukii",
+        "vie_pronunciation": "truot tuyet"
+      },
+      "means": {
+        "en": "A sport in which participants must travel on skis",
+        "zh": "只给出要点；"
+      }
+    },
+    {
+      "word": {
+        "en": "skilful",
+        "laos": "ຊໍານິຊໍານານ",
+        "jp": "上手な",
+        "vie": "khéo léo",
+        "en_pronunciation": "/skilful/",
+        "laos_pronunciation": "soa ni soanan",
+        "jp_pronunciation": "jouzu na",
+        "vie_pronunciation": "kheo leo"
+      },
+      "means": {
+        "en": "Having or showing knowledge and skill and aptitude",
+        "zh": "缺乏完整性"
+      }
+    },
+    {
+      "word": {
+        "en": "skillful",
+        "laos": "ທີ່ມີສີມື",
+        "jp": "上手な",
+        "vie": "khéo léo",
+        "en_pronunciation": "/ˈskɪlfəl/",
+        "laos_pronunciation": "thimisimu",
+        "jp_pronunciation": "jouzu na",
+        "vie_pronunciation": "kheo leo"
+      },
+      "means": {
+        "en": "Having or showing knowledge and skill and aptitude",
+        "zh": "参加者必须滑雪的运动"
+      }
+    },
+    {
+      "word": {
+        "en": "skilled",
+        "laos": "ຊໍານິ",
+        "jp": "熟練した",
+        "vie": "có tay nghề cao",
+        "en_pronunciation": "/skɪld/",
+        "laos_pronunciation": "soani",
+        "jp_pronunciation": "jukuren shita",
+        "vie_pronunciation": "co tay nghe cao"
+      },
+      "means": {
+        "en": "Having or showing or requiring special skill",
+        "zh": "拥有或表现出知识、技能和才能"
+      }
+    },
+    {
+      "word": {
+        "en": "skinny",
+        "laos": "ຜິວເນື້ອອ່ອນ",
+        "jp": "細い",
+        "vie": "gầy",
+        "en_pronunciation": "/ˈskɪni/",
+        "laos_pronunciation": "phiuaneuoon",
+        "jp_pronunciation": "komai",
+        "vie_pronunciation": "gay"
+      },
+      "means": {
+        "en": "Confidential information about a topic or person",
+        "zh": "拥有或表现出知识、技能和才能"
+      }
+    },
+    {
+      "word": {
+        "en": "slavery",
+        "laos": "ຂ້າທາດ",
+        "jp": "奴隷制度",
+        "vie": "chế độ nô lệ",
+        "en_pronunciation": "/sˈleɪvəri/",
+        "laos_pronunciation": "khathad",
+        "jp_pronunciation": "dorei seido",
+        "vie_pronunciation": "che do no le"
+      },
+      "means": {
+        "en": "The state of being under the control of another person",
+        "zh": "拥有或表现出或需要特殊技能"
+      }
+    },
+    {
+      "word": {
+        "en": "sleepy",
+        "laos": "ງ້ວງນອນ",
+        "jp": "眠い",
+        "vie": "buồn ngủ",
+        "en_pronunciation": "/sˈlipi/",
+        "laos_pronunciation": "nguangnon",
+        "jp_pronunciation": "nemui",
+        "vie_pronunciation": "buon ngu"
+      },
+      "means": {
+        "en": "Ready to fall asleep",
+        "zh": "有关某个主题或个人的机密信息"
+      }
+    },
+    {
+      "word": {
+        "en": "sleepiness",
+        "laos": "ຄວາມອ້ວນ",
+        "jp": "眠気",
+        "vie": "buồn ngủ",
+        "en_pronunciation": "/sˈlipinəs/",
+        "laos_pronunciation": "khuaamuan",
+        "jp_pronunciation": "nemuke",
+        "vie_pronunciation": "buon ngu"
+      },
+      "means": {
+        "en": "A very sleepy state",
+        "zh": "处于他人控制之下的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "slightly",
+        "laos": "ເລັກນ້ອຍ",
+        "jp": "わずかに",
+        "vie": "hơi",
+        "en_pronunciation": "/sˈlaɪtli/",
+        "laos_pronunciation": "leknony",
+        "jp_pronunciation": "wazukani",
+        "vie_pronunciation": "hoi"
+      },
+      "means": {
+        "en": "To a small degree or extent",
+        "zh": "准备睡觉了"
+      }
+    },
+    {
+      "word": {
+        "en": "slip",
+        "laos": "ລີບ",
+        "jp": "スリップ",
+        "vie": "trượt",
+        "en_pronunciation": "/slɪp/",
+        "laos_pronunciation": "lib",
+        "jp_pronunciation": "surippu",
+        "vie_pronunciation": "truot"
+      },
+      "means": {
+        "en": "A socially awkward or tactless act",
+        "zh": "非常困倦的状态"
+      }
+    },
+    {
+      "word": {
+        "en": "slogan",
+        "laos": "ຄໍາຂວັນ",
+        "jp": "スローガン",
+        "vie": "khẩu hiệu",
+        "en_pronunciation": "/sˈloʊgən/",
+        "laos_pronunciation": "khoakhvan",
+        "jp_pronunciation": "suroogan",
+        "vie_pronunciation": "khau hieu"
+      },
+      "means": {
+        "en": "A favorite saying of a sect or political group",
+        "zh": "在很小的程度上或程度"
+      }
+    },
+    {
+      "word": {
+        "en": "slope",
+        "laos": "ຄ້ອຍ",
+        "jp": "斜面",
+        "vie": "độ dốc",
+        "en_pronunciation": "/sloʊp/",
+        "laos_pronunciation": "khony",
+        "jp_pronunciation": "shamen",
+        "vie_pronunciation": "do doc"
+      },
+      "means": {
+        "en": "An elevated geological formation",
+        "zh": "社交上尴尬或不得体的行为"
+      }
+    },
+    {
+      "word": {
+        "en": "slot",
+        "laos": "ສະລັອດຕິງ",
+        "jp": "スロット",
+        "vie": "khe cắm",
+        "en_pronunciation": "/slɑt/",
+        "laos_pronunciation": "sa laodting",
+        "jp_pronunciation": "surotto",
+        "vie_pronunciation": "khe cam"
+      },
+      "means": {
+        "en": "A position in a grammatical linguistic construction in which a variety of alternative units are interchangeable",
+        "zh": "一个教派或政治团体最喜欢的一句话"
+      }
+    },
+    {
+      "word": {
+        "en": "slippery",
+        "laos": "ຕ້າງ",
+        "jp": "滑りやすい",
+        "vie": "trơn trượt",
+        "en_pronunciation": "/sˈlɪpəri/",
+        "laos_pronunciation": "tang",
+        "jp_pronunciation": "suberi yasui",
+        "vie_pronunciation": "tron truot"
+      },
+      "means": {
+        "en": "Causing or tending to cause things to slip or slide",
+        "zh": "高架地质构造"
+      }
+    },
+    {
+      "word": {
+        "en": "slipper",
+        "laos": "ເກີບແຕະ",
+        "jp": "スリッパ",
+        "vie": "dép",
+        "en_pronunciation": "/sˈlɪpər/",
+        "laos_pronunciation": "koebtae",
+        "jp_pronunciation": "surippa",
+        "vie_pronunciation": "dep"
+      },
+      "means": {
+        "en": "Low footwear that can be slipped on and off easily; usually worn indoors",
+        "zh": "语法语言结构中的一种位置，其中多种替代单位可以互换"
+      }
+    },
+    {
+      "word": {
+        "en": "slow",
+        "laos": "ຊ້າ",
+        "jp": "遅い",
+        "vie": "chậm",
+        "en_pronunciation": "/sloʊ/",
+        "laos_pronunciation": "sa",
+        "jp_pronunciation": "osoi",
+        "vie_pronunciation": "cham"
+      },
+      "means": {
+        "en": "Lose velocity; move more slowly",
+        "zh": "导致或倾向于导致物体滑倒或滑动"
+      }
+    },
+    {
+      "word": {
+        "en": "slum",
+        "laos": "ລ່ໍາ",
+        "jp": "スラム街",
+        "vie": "khu ổ chuột",
+        "en_pronunciation": "/sləm/",
+        "laos_pronunciation": "loa",
+        "jp_pronunciation": "suramu machi",
+        "vie_pronunciation": "khu o chuot"
+      },
+      "means": {
+        "en": "A district of a city marked by poverty and inferior living conditions",
+        "zh": "可以轻松穿脱的低帮鞋；"
+      }
+    },
+    {
+      "word": {
+        "en": "slump",
+        "laos": "ຂວາງ",
+        "jp": "スランプ",
+        "vie": "sụt giảm",
+        "en_pronunciation": "/sləmp/",
+        "laos_pronunciation": "khuaang",
+        "jp_pronunciation": "suranpu",
+        "vie_pronunciation": "sut giam"
+      },
+      "means": {
+        "en": "A noticeable deterioration in performance or quality",
+        "zh": "通常在室内佩戴"
+      }
+    },
+    {
+      "word": {
+        "en": "small",
+        "laos": "ຂະຫນາດນ້ອຍ",
+        "jp": "小さい",
+        "vie": "nhỏ bé",
+        "en_pronunciation": "/smɔl/",
+        "laos_pronunciation": "khanadnony",
+        "jp_pronunciation": "chiisai",
+        "vie_pronunciation": "nho be"
+      },
+      "means": {
+        "en": "The slender part of the back",
+        "zh": "失去速度；"
+      }
+    },
+    {
+      "word": {
+        "en": "smart",
+        "laos": "ສະຫຼາດ",
+        "jp": "賢い",
+        "vie": "thông minh",
+        "en_pronunciation": "/smɑrt/",
+        "laos_pronunciation": "sarad",
+        "jp_pronunciation": "kashikoi",
+        "vie_pronunciation": "thong minh"
+      },
+      "means": {
+        "en": "A kind of pain such as that caused by a wound or a burn or a sore",
+        "zh": "移动得更慢"
+      }
+    },
+    {
+      "word": {
+        "en": "smartphone",
+        "laos": "ໂທລະສັບສະຫຼາດ",
+        "jp": "スマートフォン",
+        "vie": "điện thoại thông minh",
+        "en_pronunciation": "/smartphone/",
+        "laos_pronunciation": "othlasabsarad",
+        "jp_pronunciation": "sumaatofon",
+        "vie_pronunciation": "dien thoai thong minh"
+      },
+      "means": {
+        "en": "Smartphone is an English word referring to 'smartphone'.",
+        "zh": "城市中贫困和生活条件较差的一个地区"
+      }
+    },
+    {
+      "word": {
+        "en": "smash",
+        "laos": "ທັບ",
+        "jp": "スマッシュ",
+        "vie": "đập vỡ",
+        "en_pronunciation": "/smæʃ/",
+        "laos_pronunciation": "thab",
+        "jp_pronunciation": "sumasshu",
+        "vie_pronunciation": "dap vo"
+      },
+      "means": {
+        "en": "A vigorous blow",
+        "zh": "性能或质量明显下降"
+      }
+    },
+    {
+      "word": {
+        "en": "smell",
+        "laos": "ດົມເອົາ",
+        "jp": "匂い",
+        "vie": "mùi",
+        "en_pronunciation": "/smɛl/",
+        "laos_pronunciation": "domoao",
+        "jp_pronunciation": "nioi",
+        "vie_pronunciation": "mui"
+      },
+      "means": {
+        "en": "The sensation that results when olfactory receptors in the nose are stimulated by particular chemicals in gaseous form",
+        "zh": "背部纤细的部分"
+      }
+    },
+    {
+      "word": {
+        "en": "smelly",
+        "laos": "ລ້າຍ",
+        "jp": "臭い",
+        "vie": "có mùi hôi",
+        "en_pronunciation": "/sˈmɛli/",
+        "laos_pronunciation": "lai",
+        "jp_pronunciation": "kusai",
+        "vie_pronunciation": "co mui hoi"
+      },
+      "means": {
+        "en": "Offensively malodorous",
+        "zh": "一种疼痛，例如由伤口、烧伤或溃疡引起的疼痛"
+      }
+    },
+    {
+      "word": {
+        "en": "smile",
+        "laos": "ຍິ້ມ",
+        "jp": "笑顔",
+        "vie": "mỉm cười",
+        "en_pronunciation": "/smaɪl/",
+        "laos_pronunciation": "nyim",
+        "jp_pronunciation": "egao",
+        "vie_pronunciation": "mim cuoi"
+      },
+      "means": {
+        "en": "A facial expression characterized by turning up the corners of the mouth; usually shows pleasure or amusement",
+        "zh": "Smartphone是一个英文单词，指的是“智能手机”。"
+      }
+    },
+    {
+      "word": {
+        "en": "smog",
+        "laos": "ໂວ",
+        "jp": "スモッグ",
+        "vie": "sương khói",
+        "en_pronunciation": "/smɑg/",
+        "laos_pronunciation": "ov",
+        "jp_pronunciation": "sumoggu",
+        "vie_pronunciation": "suong khoi"
+      },
+      "means": {
+        "en": "Air pollution by a mixture of smoke and fog",
+        "zh": "猛烈的一击"
+      }
+    },
+    {
+      "word": {
+        "en": "smoggy",
+        "laos": "ພິບຕາ",
+        "jp": "スモッグな",
+        "vie": "có sương mù",
+        "en_pronunciation": "/sˈmɔgi/",
+        "laos_pronunciation": "phibta",
+        "jp_pronunciation": "sumoggu na",
+        "vie_pronunciation": "co suong mu"
+      },
+      "means": {
+        "en": "Clouded with a mixture of smoke and fog",
+        "zh": "当鼻子中的嗅觉感受器受到特定气态化学物质刺激时产生的感觉"
+      }
+    },
+    {
+      "word": {
+        "en": "smoke",
+        "laos": "ຄວັນ",
+        "jp": "煙",
+        "vie": "khói",
+        "en_pronunciation": "/smoʊk/",
+        "laos_pronunciation": "khvan",
+        "jp_pronunciation": "kemuri",
+        "vie_pronunciation": "khoi"
+      },
+      "means": {
+        "en": "A cloud of fine particles suspended in a gas",
+        "zh": "具有令人反感的恶臭"
+      }
+    },
+    {
+      "word": {
+        "en": "smoky",
+        "laos": "ຈົ້ງໆ",
+        "jp": "煙っぽい",
+        "vie": "có khói",
+        "en_pronunciation": "/sˈmoʊki/",
+        "laos_pronunciation": "chong",
+        "jp_pronunciation": "kebutsu poi",
+        "vie_pronunciation": "co khoi"
+      },
+      "means": {
+        "en": "Marked by or emitting or filled with smoke",
+        "zh": "以嘴角上扬为特征的面部表情；"
+      }
+    },
+    {
+      "word": {
+        "en": "smooth",
+        "laos": "ກ້ຽງ",
+        "jp": "滑らかな",
+        "vie": "mịn màng",
+        "en_pronunciation": "/smuð/",
+        "laos_pronunciation": "kiang",
+        "jp_pronunciation": "nameraka na",
+        "vie_pronunciation": "min mang"
+      },
+      "means": {
+        "en": "The act of smoothing",
+        "zh": "通常表现出高兴或娱乐"
+      }
+    },
+    {
+      "word": {
+        "en": "smuggle",
+        "laos": "ລັກລອບພາສີ",
+        "jp": "密輸",
+        "vie": "buôn lậu",
+        "en_pronunciation": "/sˈməgəl/",
+        "laos_pronunciation": "laklobphasi",
+        "jp_pronunciation": "mitsuyu",
+        "vie_pronunciation": "buon lau"
+      },
+      "means": {
+        "en": "Import or export without paying customs duties",
+        "zh": "烟和雾混合造成的空气污染"
+      }
+    },
+    {
+      "word": {
+        "en": "smuggling",
+        "laos": "ການລັກລອບຄ້າຂາຍ",
+        "jp": "密輸",
+        "vie": "buôn lậu",
+        "en_pronunciation": "/sˈməgəlɪŋ/",
+        "laos_pronunciation": "kanlaklobkhakhai",
+        "jp_pronunciation": "mitsuyu",
+        "vie_pronunciation": "buon lau"
+      },
+      "means": {
+        "en": "Secretly importing prohibited goods or goods on which duty is due",
+        "zh": "云雾缭绕，烟雾缭绕"
+      }
+    },
+    {
+      "word": {
+        "en": "smuggler",
+        "laos": "ຜູ້ລັກລອບຄ້າຂາຍ",
+        "jp": "密輸業者",
+        "vie": "kẻ buôn lậu",
+        "en_pronunciation": "/sˈməgələr/",
+        "laos_pronunciation": "phulaklobkhakhai",
+        "jp_pronunciation": "mitsuyu gyousha",
+        "vie_pronunciation": "ke buon lau"
+      },
+      "means": {
+        "en": "Someone who imports or exports without paying duties",
+        "zh": "悬浮在气体中的细颗粒云"
+      }
+    },
+    {
+      "word": {
+        "en": "snack",
+        "laos": "ອາຫານວ່າງ",
+        "jp": "おやつ",
+        "vie": "bữa ăn nhẹ",
+        "en_pronunciation": "/snæk/",
+        "laos_pronunciation": "ahanvang",
+        "jp_pronunciation": "oyatsu",
+        "vie_pronunciation": "bua an nhe"
+      },
+      "means": {
+        "en": "A light informal meal",
+        "zh": "有烟雾标记、散发烟雾或充满烟雾"
+      }
+    },
+    {
+      "word": {
+        "en": "snail",
+        "laos": "ຫອຍ",
+        "jp": "カタツムリ",
+        "vie": "ốc sên",
+        "en_pronunciation": "/sneɪl/",
+        "laos_pronunciation": "hony",
+        "jp_pronunciation": "katatsumuri",
+        "vie_pronunciation": "oc sen"
+      },
+      "means": {
+        "en": "Freshwater or marine or terrestrial gastropod mollusk usually having an external enclosing spiral shell",
+        "zh": "平滑动作"
+      }
+    },
+    {
+      "word": {
+        "en": "snake",
+        "laos": "ງູ",
+        "jp": "ヘビ",
+        "vie": "con rắn",
+        "en_pronunciation": "/sneɪk/",
+        "laos_pronunciation": "ngu",
+        "jp_pronunciation": "hebi",
+        "vie_pronunciation": "con ran"
+      },
+      "means": {
+        "en": "Limbless scaly elongate reptile; some are venomous",
+        "zh": "进口或出口无需缴纳关税"
+      }
+    },
+    {
+      "word": {
+        "en": "snap",
+        "laos": "ເປືອ",
+        "jp": "スナップ",
+        "vie": "búng tay",
+        "en_pronunciation": "/snæp/",
+        "laos_pronunciation": "peu",
+        "jp_pronunciation": "sunappu",
+        "vie_pronunciation": "bung tay"
+      },
+      "means": {
+        "en": "The act of catching an object with the hands",
+        "zh": "秘密进口违禁品或应纳税品"
+      }
+    },
+    {
+      "word": {
+        "en": "snatch",
+        "laos": "ຊີງຍາດ",
+        "jp": "ひったくり",
+        "vie": "chộp lấy",
+        "en_pronunciation": "/snæʧ/",
+        "laos_pronunciation": "singnyad",
+        "jp_pronunciation": "hittakuri",
+        "vie_pronunciation": "chop lay"
+      },
+      "means": {
+        "en": "A small fragment",
+        "zh": "不缴纳关税进口或出口的人"
+      }
+    },
+    {
+      "word": {
+        "en": "sneak",
+        "laos": "Sneak",
+        "jp": "こっそり",
+        "vie": "lén lút",
+        "en_pronunciation": "/snik/",
+        "laos_pronunciation": "Sneak",
+        "jp_pronunciation": "kossori",
+        "vie_pronunciation": "len lut"
+      },
+      "means": {
+        "en": "A person who is regarded as underhanded and furtive and contemptible",
+        "zh": "一顿便餐"
+      }
+    },
+    {
+      "word": {
+        "en": "sniff",
+        "laos": "ດົມກິ່ນ",
+        "jp": "匂いを嗅ぐ",
+        "vie": "đánh hơi",
+        "en_pronunciation": "/snɪf/",
+        "laos_pronunciation": "domkin",
+        "jp_pronunciation": "nioi wo kagu",
+        "vie_pronunciation": "danh hoi"
+      },
+      "means": {
+        "en": "Sensing an odor by inhaling through the nose",
+        "zh": "通常具有外部封闭螺旋壳的淡水或海洋或陆地腹足类软体动物"
+      }
+    },
+    {
+      "word": {
+        "en": "snob",
+        "laos": "snob",
+        "jp": "スノッブ",
+        "vie": "hợm hĩnh",
+        "en_pronunciation": "/snɑb/",
+        "laos_pronunciation": "snob",
+        "jp_pronunciation": "sunobbu",
+        "vie_pronunciation": "hom hinh"
+      },
+      "means": {
+        "en": "A person regarded as arrogant and annoying",
+        "zh": "无肢、有鳞的细长爬行动物；"
+      }
+    },
+    {
+      "word": {
+        "en": "snobbish",
+        "laos": "ຮິ່ນ",
+        "jp": "俗っぽい",
+        "vie": "hợm hĩnh",
+        "en_pronunciation": "/sˈnɑbɪʃ/",
+        "laos_pronunciation": "hin",
+        "jp_pronunciation": "zoku ppoi",
+        "vie_pronunciation": "hom hinh"
+      },
+      "means": {
+        "en": "Befitting or characteristic of those who incline to social exclusiveness and who rebuff the advances of people considered inferior",
+        "zh": "有些是有毒的"
+      }
+    },
+    {
+      "word": {
+        "en": "snow",
+        "laos": "ຫິມະ",
+        "jp": "雪",
+        "vie": "tuyết",
+        "en_pronunciation": "/snoʊ/",
+        "laos_pronunciation": "hima",
+        "jp_pronunciation": "yuki",
+        "vie_pronunciation": "tuyet"
+      },
+      "means": {
+        "en": "Precipitation falling from clouds in the form of ice crystals",
+        "zh": "用手抓住物体的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "snowy",
+        "laos": "ຍິງປືນ",
+        "jp": "雪の多い",
+        "vie": "có tuyết",
+        "en_pronunciation": "/snoʊi/",
+        "laos_pronunciation": "nyingpun",
+        "jp_pronunciation": "yuki no ooi",
+        "vie_pronunciation": "co tuyet"
+      },
+      "means": {
+        "en": "Marked by the presence of snow",
+        "zh": "一个小片段"
+      }
+    },
+    {
+      "word": {
+        "en": "so",
+        "laos": "ດັ່ງນັ້ນ",
+        "jp": "それで",
+        "vie": "vậy",
+        "en_pronunciation": "/soʊ/",
+        "laos_pronunciation": "dangnan",
+        "jp_pronunciation": "sorede",
+        "vie_pronunciation": "vay"
+      },
+      "means": {
+        "en": "The syllable naming the fifth (dominant) note of any musical scale in solmization",
+        "zh": "被视为卑鄙、鬼祟、卑鄙的人"
+      }
+    },
+    {
+      "word": {
+        "en": "soak",
+        "laos": "ແຊ່",
+        "jp": "浸す",
+        "vie": "ngâm",
+        "en_pronunciation": "/soʊk/",
+        "laos_pronunciation": "aes",
+        "jp_pronunciation": "hitasu",
+        "vie_pronunciation": "ngam"
+      },
+      "means": {
+        "en": "The process of becoming softened and saturated as a consequence of being immersed in water (or other liquid)",
+        "zh": "通过鼻子吸气来感知气味"
+      }
+    },
+    {
+      "word": {
+        "en": "soap",
+        "laos": "ສະບູ",
+        "jp": "石鹸",
+        "vie": "xà phòng",
+        "en_pronunciation": "/soʊp/",
+        "laos_pronunciation": "sabu",
+        "jp_pronunciation": "sekken",
+        "vie_pronunciation": "xa phong"
+      },
+      "means": {
+        "en": "A cleansing agent made from the salts of vegetable or animal fats",
+        "zh": "被认为傲慢且令人讨厌的人"
+      }
+    },
+    {
+      "word": {
+        "en": "soar",
+        "laos": "ອັດຈິ",
+        "jp": "急上昇する",
+        "vie": "bay lên",
+        "en_pronunciation": "/sɔr/",
+        "laos_pronunciation": "adchi",
+        "jp_pronunciation": "kyuujoushou suru",
+        "vie_pronunciation": "bay len"
+      },
+      "means": {
+        "en": "The act of rising upward into the air",
+        "zh": "适合那些倾向于社会排他性并拒绝被认为低等的人的求爱的人或特征"
+      }
+    },
+    {
+      "word": {
+        "en": "sob",
+        "laos": "ສະອື້ນ",
+        "jp": "すすり泣く",
+        "vie": "nức nở",
+        "en_pronunciation": "/sɑb/",
+        "laos_pronunciation": "saun",
+        "jp_pronunciation": "susuri naku",
+        "vie_pronunciation": "nuc no"
+      },
+      "means": {
+        "en": "A dyspneic condition",
+        "zh": "降水以冰晶的形式从云中落下"
+      }
+    },
+    {
+      "word": {
+        "en": "sober",
+        "laos": "ສະແລງ",
+        "jp": "地味な",
+        "vie": "tỉnh táo",
+        "en_pronunciation": "/ˈsoʊbər/",
+        "laos_pronunciation": "saaelng",
+        "jp_pronunciation": "jimi na",
+        "vie_pronunciation": "tinh tao"
+      },
+      "means": {
+        "en": "Cause to become sober",
+        "zh": "以雪的存在为标志"
+      }
+    },
+    {
+      "word": {
+        "en": "sobre",
+        "laos": "ຢູໂຣ",
+        "jp": "地味な",
+        "vie": "tỉnh táo",
+        "en_pronunciation": "/sobre/",
+        "laos_pronunciation": "yuor",
+        "jp_pronunciation": "jimi na",
+        "vie_pronunciation": "tinh tao"
+      },
+      "means": {
+        "en": "Sobre is an English word referring to 'sobre'.",
+        "zh": "在 solmization 中命名任何音阶的第五（主）音符的音节"
+      }
+    },
+    {
+      "word": {
+        "en": "so-called",
+        "laos": "ອັນທີ່ເອີ້ນວ່າ",
+        "jp": "いわゆる",
+        "vie": "cái gọi là",
+        "en_pronunciation": "/ˈsoʊˈkɔld/",
+        "laos_pronunciation": "anthiooenva",
+        "jp_pronunciation": "iwayuru",
+        "vie_pronunciation": "cai goi la"
+      },
+      "means": {
+        "en": "Doubtful or suspect",
+        "zh": "由于浸入水（或其他液体）中而变得软化和饱和的过程"
+      }
+    },
+    {
+      "word": {
+        "en": "soccer",
+        "laos": "ເຕະບານ",
+        "jp": "サッカー",
+        "vie": "bóng đá",
+        "en_pronunciation": "/ˈsɑkər/",
+        "laos_pronunciation": "teban",
+        "jp_pronunciation": "sakkaa",
+        "vie_pronunciation": "bong da"
+      },
+      "means": {
+        "en": "A football game in which two teams of 11 players try to kick or head a ball into the opponents' goal",
+        "zh": "由植物或动物脂肪的盐制成的清洁剂"
+      }
+    },
+    {
+      "word": {
+        "en": "society",
+        "laos": "ສະມາຄົມ",
+        "jp": "社会",
+        "vie": "xã hội",
+        "en_pronunciation": "/soʊˈsaɪɪti/",
+        "laos_pronunciation": "samakhom",
+        "jp_pronunciation": "shakai",
+        "vie_pronunciation": "xa hoi"
+      },
+      "means": {
+        "en": "An extended social group having a distinctive cultural and economic organization",
+        "zh": "上升到空中的动作"
+      }
+    },
+    {
+      "word": {
+        "en": "social",
+        "laos": "ສະວັດສະຖານ",
+        "jp": "社会的",
+        "vie": "xã hội",
+        "en_pronunciation": "/ˈsoʊʃəl/",
+        "laos_pronunciation": "sa vadsathan",
+        "jp_pronunciation": "shakaiteki",
+        "vie_pronunciation": "xa hoi"
+      },
+      "means": {
+        "en": "A party of people assembled to promote sociability and communal activity",
+        "zh": "呼吸困难"
+      }
+    },
+    {
+      "word": {
+        "en": "socialize",
+        "laos": "ສະມາຊິກ",
+        "jp": "社交する",
+        "vie": "giao tiếp xã hội",
+        "en_pronunciation": "/ˈsoʊʃəˌlaɪz/",
+        "laos_pronunciation": "samasik",
+        "jp_pronunciation": "shakou suru",
+        "vie_pronunciation": "giao tiep xa hoi"
+      },
+      "means": {
+        "en": "Take part in social activities; interact with others",
+        "zh": "使人变得清醒"
+      }
+    },
+    {
+      "word": {
+        "en": "socialise",
+        "laos": "ສະມາຊິກ",
+        "jp": "社交する",
+        "vie": "giao tiếp xã hội",
+        "en_pronunciation": "/socialise/",
+        "laos_pronunciation": "samasik",
+        "jp_pronunciation": "shakou suru",
+        "vie_pronunciation": "giao tiep xa hoi"
+      },
+      "means": {
+        "en": "Take part in social activities; interact with others",
+        "zh": "Sobre是一个英语单词，意为“sobre”。"
+      }
+    },
+    {
+      "word": {
+        "en": "sociable",
+        "laos": "ທີ່ສຸພາບ",
+        "jp": "社交的な",
+        "vie": "hòa đồng",
+        "en_pronunciation": "/ˈsoʊʃəbəl/",
+        "laos_pronunciation": "thisuphab",
+        "jp_pronunciation": "shakouteki na",
+        "vie_pronunciation": "hoa dong"
+      },
+      "means": {
+        "en": "A party of people assembled to promote sociability and communal activity",
+        "zh": "怀疑或怀疑"
+      }
+    },
+    {
+      "word": {
+        "en": "socialism",
+        "laos": "ລັດທິສັງຄົມນິຍົມ",
+        "jp": "社会主義",
+        "vie": "chủ nghĩa xã hội",
+        "en_pronunciation": "/ˈsoʊʃəˌlɪzəm/",
+        "laos_pronunciation": "ladthisangkhomninyom",
+        "jp_pronunciation": "shakaishugi",
+        "vie_pronunciation": "chu nghia xa hoi"
+      },
+      "means": {
+        "en": "A political theory advocating state ownership of industry",
+        "zh": "两队 11 名球员尝试将球踢入对方球门的足球比赛"
+      }
+    },
+    {
+      "word": {
+        "en": "socialist",
+        "laos": "ນັກສັງຄົມນິຢົມ",
+        "jp": "社会主義者",
+        "vie": "xã hội chủ nghĩa",
+        "en_pronunciation": "/ˈsoʊʃəlɪst/",
+        "laos_pronunciation": "nak sangkhom ni yom",
+        "jp_pronunciation": "shakaishugi mono",
+        "vie_pronunciation": "xa hoi chu nghia"
+      },
+      "means": {
+        "en": "A political advocate of socialism",
+        "zh": "具有独特文化和经济组织的广泛社会群体"
+      }
+    },
+    {
+      "word": {
+        "en": "sociology",
+        "laos": "ປະຊາຄົມວິທະຍາ",
+        "jp": "社会学",
+        "vie": "xã hội học",
+        "en_pronunciation": "/ˌsoʊsiˈɑləʤi/",
+        "laos_pronunciation": "pasakhomvithanya",
+        "jp_pronunciation": "shakaigaku",
+        "vie_pronunciation": "xa hoi hoc"
+      },
+      "means": {
+        "en": "The study and classification of human societies",
+        "zh": "一群人聚集在一起促进社交和公共活动"
+      }
+    },
+    {
+      "word": {
+        "en": "sociologist",
+        "laos": "sociologist ວິທະຍາໄລ",
+        "jp": "社会学者",
+        "vie": "nhà xã hội học",
+        "en_pronunciation": "/ˌsoʊsiˈɑləʤɪst/",
+        "laos_pronunciation": "sociologist vithanyalai",
+        "jp_pronunciation": "shakaigakusha",
+        "vie_pronunciation": "nha xa hoi hoc"
+      },
+      "means": {
+        "en": "A social scientist who studies the institutions and development of human society",
+        "zh": "参加社交活动；"
+      }
+    },
+    {
+      "word": {
+        "en": "sock",
+        "laos": "ຖົງຕີນ",
+        "jp": "靴下",
+        "vie": "tất",
+        "en_pronunciation": "/sɑk/",
+        "laos_pronunciation": "thongtin",
+        "jp_pronunciation": "kutsushita",
+        "vie_pronunciation": "tat"
+      },
+      "means": {
+        "en": "Hosiery consisting of a cloth covering for the foot; worn inside the shoe; reaches to between the ankle and the knee",
+        "zh": "与他人互动"
+      }
+    },
+    {
+      "word": {
+        "en": "socket",
+        "laos": "ເບົ້າ",
+        "jp": "ソケット",
+        "vie": "ổ cắm",
+        "en_pronunciation": "/ˈsɑkət/",
+        "laos_pronunciation": "bao",
+        "jp_pronunciation": "soketto",
+        "vie_pronunciation": "o cam"
+      },
+      "means": {
+        "en": "A bony hollow into which a structure fits",
+        "zh": "参加社交活动；"
+      }
+    },
+    {
+      "word": {
+        "en": "soda",
+        "laos": "ໂຊດາ",
+        "jp": "ソーダ",
+        "vie": "nước ngọt",
+        "en_pronunciation": "/ˈsoʊdə/",
+        "laos_pronunciation": "osda",
+        "jp_pronunciation": "sooda",
+        "vie_pronunciation": "nuoc ngot"
+      },
+      "means": {
+        "en": "A sodium salt of carbonic acid; used in making soap powders and glass and paper",
+        "zh": "与他人互动"
+      }
+    },
+    {
+      "word": {
+        "en": "sodium",
+        "laos": "ໂຊດຽມ",
+        "jp": "ナトリウム",
+        "vie": "natri",
+        "en_pronunciation": "/ˈsoʊdiəm/",
+        "laos_pronunciation": "osdiam",
+        "jp_pronunciation": "natoriumu",
+        "vie_pronunciation": "natri"
+      },
+      "means": {
+        "en": "A silvery soft waxy metallic element of the alkali metal group; occurs abundantly in natural compounds (especially in salt water); burns with a yellow flame and reacts violently in water; occurs in sea water and in the mineral halite (rock salt)",
+        "zh": "一群人聚集在一起促进社交和公共活动"
+      }
+    },
+    {
+      "word": {
+        "en": "sofa",
+        "laos": "ໂຊເຟີ",
+        "jp": "ソファ",
+        "vie": "ghế sofa",
+        "en_pronunciation": "/ˈsoʊfə/",
+        "laos_pronunciation": "osfoe",
+        "jp_pronunciation": "sofa",
+        "vie_pronunciation": "ghe sofa"
+      },
+      "means": {
+        "en": "An upholstered seat for more than one person",
+        "zh": "主张工业国有化的政治理论"
+      }
+    },
+    {
+      "word": {
+        "en": "soft",
+        "laos": "ນຸ່ມ",
+        "jp": "柔らかい",
+        "vie": "mềm mại",
+        "en_pronunciation": "/sɔft/",
+        "laos_pronunciation": "num",
+        "jp_pronunciation": "yawarakai",
+        "vie_pronunciation": "mem mai"
+      },
+      "means": {
+        "en": "Yielding readily to pressure or weight",
+        "zh": "社会主义的政治倡导者"
+      }
+    },
+    {
+      "word": {
+        "en": "software",
+        "laos": "ຊອບແວ",
+        "jp": "ソフトウェア",
+        "vie": "phần mềm",
+        "en_pronunciation": "/ˈsɔfˌwɛr/",
+        "laos_pronunciation": "sobaev",
+        "jp_pronunciation": "sofutouea",
+        "vie_pronunciation": "phan mem"
+      },
+      "means": {
+        "en": "(computer science) written programs or procedures or rules and associated documentation pertaining to the operation of a computer system and that are stored in read/write memory",
+        "zh": "人类社会的研究和分类"
+      }
+    },
+    {
+      "word": {
+        "en": "soil",
+        "laos": "ຜ້ານດິນ",
+        "jp": "土壌",
+        "vie": "đất",
+        "en_pronunciation": "/sɔɪl/",
+        "laos_pronunciation": "phandin",
+        "jp_pronunciation": "dojou",
+        "vie_pronunciation": "dat"
+      },
+      "means": {
+        "en": "The state of being covered with unclean things",
+        "zh": "研究人类社会的制度和发展的社会科学家"
+      }
+    },
+    {
+      "word": {
+        "en": "solar",
+        "laos": "ເຮັດໃຫ້ແສງອາທິດ",
+        "jp": "ソーラー",
+        "vie": "năng lượng mặt trời",
+        "en_pronunciation": "/ˈsoʊlər/",
+        "laos_pronunciation": "hedhai aesngoathid",
+        "jp_pronunciation": "sooraa",
+        "vie_pronunciation": "nang luong mat troi"
+      },
+      "means": {
+        "en": "Relating to or derived from the sun or utilizing the energies of the sun",
+        "zh": "由布覆盖足部的袜子组成；"
+      }
+    },
+    {
+      "word": {
+        "en": "soldier",
+        "laos": "ສປປລ",
+        "jp": "兵士",
+        "vie": "người lính",
+        "en_pronunciation": "/ˈsoʊlʤər/",
+        "laos_pronunciation": "sppl",
+        "jp_pronunciation": "heishi",
+        "vie_pronunciation": "nguoi linh"
+      },
+      "means": {
+        "en": "An enlisted man or woman who serves in an army",
+        "zh": "穿在鞋内；"
+      }
+    },
+    {
+      "word": {
+        "en": "sole",
+        "laos": "ດຽວ",
+        "jp": "ソール",
+        "vie": "duy nhất",
+        "en_pronunciation": "/soʊl/",
+        "laos_pronunciation": "diav",
+        "jp_pronunciation": "sooru",
+        "vie_pronunciation": "duy nhat"
+      },
+      "means": {
+        "en": "The underside of footwear or a golf club",
+        "zh": "到达脚踝和膝盖之间"
+      }
+    },
+    {
+      "word": {
+        "en": "soften",
+        "laos": "ເຮັດໃຫ້ຮ້ອນ",
+        "jp": "柔らかくする",
+        "vie": "làm mềm",
+        "en_pronunciation": "/ˈsɔfən/",
+        "laos_pronunciation": "hedhaihon",
+        "jp_pronunciation": "yawarakaku suru",
+        "vie_pronunciation": "lam mem"
+      },
+      "means": {
+        "en": "Make (images or sounds) soft or softer",
+        "zh": "适合结构的骨空洞"
+      }
+    },
+    {
+      "word": {
+        "en": "solely",
+        "laos": "ພຽງແຕ່",
+        "jp": "もっぱら",
+        "vie": "duy nhất",
+        "en_pronunciation": "/ˈsoʊəli/",
+        "laos_pronunciation": "phiangaet",
+        "jp_pronunciation": "moppara",
+        "vie_pronunciation": "duy nhat"
+      },
+      "means": {
+        "en": "Without any others being included or involved",
+        "zh": "碳酸的钠盐；"
+      }
+    }
+  ]
+}

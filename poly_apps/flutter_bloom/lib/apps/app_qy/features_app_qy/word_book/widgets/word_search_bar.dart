@@ -2,8 +2,11 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordSearchBar extends StatefulWidget {
   final TextEditingController controller;
@@ -29,13 +32,18 @@ class _WordSearchBarState extends State<WordSearchBar> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_hasFocus ? 16 : 25),
+        gradient: ColorsAppQy.qyFrostGradient,
+        borderRadius: BorderRadius.circular(
+          _hasFocus ? ThemeDimensions.radiusL : ThemeDimensions.radiusXL,
+        ),
+        border: Border.all(
+          color: ColorsAppQy.qyBorderLight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(_hasFocus ? 0.1 : 0.05),
-            blurRadius: _hasFocus ? 15 : 10,
-            offset: const Offset(0, _hasFocus ? 4 : 2),
+            color: ColorsAppQy.qyShadowMedium,
+            blurRadius: _hasFocus ? 20 : 10,
+            offset: Offset(0, _hasFocus ? 6 : 3),
           ),
         ],
       ),
@@ -47,61 +55,55 @@ class _WordSearchBarState extends State<WordSearchBar> {
         },
         child: TextField(
           controller: widget.controller,
-          autofocus: false,
-          style: const TextStyle(
-            fontSize: 16,
-            color: AppTheme.textPrimary,
+          style: ThemeTextStyles.bodyMedium.copyWith(
+            color: ColorsAppQy.qyTextPrimary,
           ),
           decoration: InputDecoration(
-            hintText: 'wordBook.searchHint'.tr,
-            hintStyle: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 16,
+            hintText: QyAppLocalizationKeys.qyWordBookSearchHint.tr(context),
+            hintStyle: ThemeTextStyles.bodyMedium.copyWith(
+              color: ColorsAppQy.qyTextSecondary.withOpacity(0.6),
             ),
-            prefixIcon: Container(
-              padding: const EdgeInsets.all(12),
+            prefixIcon: Padding(
+              padding: EdgeInsets.all(ThemeDimensions.spacing12),
               child: Icon(
                 Icons.search,
-                color: _hasFocus ? AppTheme.primaryGreen : Colors.grey[400],
-                size: 24,
+                color: _hasFocus
+                    ? ColorsAppQy.qySecondary
+                    : ColorsAppQy.qyTextSecondary,
+                size: ThemeDimensions.iconSizeL,
               ),
             ),
             suffixIcon: widget.controller.text.isNotEmpty
                 ? IconButton(
                     icon: Icon(
                       Icons.clear,
-                      color: Colors.grey[400],
-                      size: 20,
+                      color: ColorsAppQy.qyTextSecondary,
+                      size: ThemeDimensions.iconSizeM,
                     ),
                     onPressed: () {
                       widget.controller.clear();
+                      setState(() {});
                       widget.onClear?.call();
                     },
                   )
                 : null,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(_hasFocus ? 16 : 25),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(25),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: AppTheme.primaryGreen.withOpacity(0.3),
-                width: 2,
+              borderRadius: BorderRadius.circular(
+                _hasFocus ? ThemeDimensions.radiusL : ThemeDimensions.radiusXL,
               ),
+              borderSide: BorderSide.none,
             ),
             filled: true,
             fillColor: Colors.transparent,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.spacing16,
+              vertical: ThemeDimensions.spacing12,
             ),
           ),
-          onChanged: widget.onSearch,
+          onChanged: (value) {
+            setState(() {});
+            widget.onSearch?.call(value);
+          },
         ),
       ),
     );

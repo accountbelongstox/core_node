@@ -101,12 +101,12 @@ validate_ssh_key_content() {
     # Check public key
     print_step_from_common_functions "  Public key: $pub_file"
     if [[ ! -f "$pub_file" ]]; then
-        print_error_from_common_functions "    âœ?File does not exist"
+        print_error_from_common_functions "    ï¿?File does not exist"
         return 1
     fi
 
     if [[ ! -s "$pub_file" ]]; then
-        print_error_from_common_functions "    âœ?File is empty"
+        print_error_from_common_functions "    ï¿?File is empty"
         return 1
     fi
 
@@ -114,33 +114,33 @@ validate_ssh_key_content() {
     if [[ "$pub_content" =~ ^ssh-(rsa|dss|ed25519|ecdsa) ]]; then
         local key_type=$(echo "$pub_content" | awk '{print $1}')
         local key_comment=$(echo "$pub_content" | awk '{print $3}')
-        print_success_from_common_functions "    âœ?Valid format: $key_type"
+        print_success_from_common_functions "    ï¿?Valid format: $key_type"
         if [[ -n "$key_comment" ]]; then
             print_step_from_common_functions "    Comment: $key_comment"
         fi
         print_step_from_common_functions "    Preview: ${pub_content:0:50}..."
     else
-        print_error_from_common_functions "    âœ?Invalid SSH public key format"
+        print_error_from_common_functions "    ï¿?Invalid SSH public key format"
         return 1
     fi
 
     # Check private key
     print_step_from_common_functions "  Private key: $priv_file"
     if [[ ! -f "$priv_file" ]]; then
-        print_error_from_common_functions "    âœ?File does not exist"
+        print_error_from_common_functions "    ï¿?File does not exist"
         return 1
     fi
 
     if [[ ! -s "$priv_file" ]]; then
-        print_error_from_common_functions "    âœ?File is empty"
+        print_error_from_common_functions "    ï¿?File is empty"
         return 1
     fi
 
     local priv_header=$(head -n 1 "$priv_file" 2>/dev/null)
     if [[ "$priv_header" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
-        print_success_from_common_functions "    âœ?Valid format: $priv_header"
+        print_success_from_common_functions "    ï¿?Valid format: $priv_header"
     else
-        print_error_from_common_functions "    âœ?Invalid private key format"
+        print_error_from_common_functions "    ï¿?Invalid private key format"
         print_step_from_common_functions "    Header: $priv_header"
         return 1
     fi
@@ -154,7 +154,7 @@ validate_ssh_key_content() {
     print_step_from_common_functions "    Private key: $priv_perms (should be 600)"
 
     if [[ "$priv_perms" != "600" && "$priv_perms" != "400" ]]; then
-        print_error_from_common_functions "    âœ?Private key permissions too open (should be 600)"
+        print_error_from_common_functions "    ï¿?Private key permissions too open (should be 600)"
     fi
 
     return 0
@@ -253,14 +253,51 @@ verify_local_ssh_files() {
     return 0
 }
 
+# Function to read password with asterisk display
+read_password_with_asterisks() {
+    local prompt="$1"
+    local password=""
+    local char=""
+
+    printf "%s" "$prompt"
+
+    # Disable echo and enable raw mode
+    stty -echo
+
+    while IFS= read -r -n 1 char; do
+        # Handle Enter key
+        if [[ -z "$char" ]]; then
+            break
+        fi
+
+        # Handle Backspace (both Delete and Backspace keys)
+        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\x08' ]]; then
+            if [ ${#password} -gt 0 ]; then
+                password="${password%?}"
+                printf "\b \b"
+            fi
+        else
+            password+="$char"
+            printf "*"
+        fi
+    done
+
+    # Restore terminal settings
+    stty echo
+    echo
+
+    # Return password via echo (to be captured by caller)
+    echo "$password"
+}
+
 # Function to decrypt SSH keys with timeout
 decrypt_ssh_keys() {
     local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n, ${TIMEOUT_SECONDS}s timeout): "
     print_step_from_common_functions "$ask_msg"
-    
+
     local has_password=false
     local user_input=""
-    
+
     # Use read with timeout
     if read -t "$TIMEOUT_SECONDS" -n 1 user_input; then
         echo  # Add newline after input
@@ -271,17 +308,15 @@ decrypt_ssh_keys() {
         echo  # Add newline after timeout
         print_step_from_common_functions "Timeout reached, defaulting to 'n'"
     fi
-    
+
     if [[ "$has_password" == false ]]; then
         print_step_from_common_functions "Skipping password input and decryption."
         return 0
     fi
-    
+
     print_step_from_common_functions "Please enter the password for the SSH key files:"
-    read -s -p "Password: " password
-    echo
-    read -s -p "Confirm Password: " confirm_password
-    echo
+    local password=$(read_password_with_asterisks "Password: ")
+    local confirm_password=$(read_password_with_asterisks "Confirm Password: ")
     
     if [[ "$password" != "$confirm_password" ]]; then
         print_error_from_common_functions "Passwords do not match. Please try again."
@@ -401,6 +436,42 @@ update_authorized_keys() {
     return 0
 }
 
+# Function to remove all SSH keys from all locations
+remove_all_ssh_keys() {
+    print_step_from_common_functions "Removing all SSH keys from all locations..."
+
+    for ssh_location in "${SSH_LOCATIONS[@]}"; do
+        if [[ -d "$ssh_location" ]]; then
+            print_step_from_common_functions "Cleaning SSH keys in: $ssh_location"
+
+            # Remove all key files
+            for pub_file in "$ssh_location"/*.pub; do
+                if [[ -f "$pub_file" ]]; then
+                    $USE_SUDO rm -f "$pub_file"
+                    print_step_from_common_functions "  Removed: $pub_file"
+                fi
+            done
+
+            # Remove private keys (files without extension or with known key extensions)
+            for key_file in "$ssh_location"/id_*; do
+                if [[ -f "$key_file" && ! "$key_file" == *.pub && ! "$key_file" == *.js ]]; then
+                    $USE_SUDO rm -f "$key_file"
+                    print_step_from_common_functions "  Removed: $key_file"
+                fi
+            done
+
+            # Also remove authorized_keys
+            if [[ -f "$ssh_location/authorized_keys" ]]; then
+                $USE_SUDO rm -f "$ssh_location/authorized_keys"
+                print_step_from_common_functions "  Removed: $ssh_location/authorized_keys"
+            fi
+        fi
+    done
+
+    print_success_from_common_functions "All SSH keys removed successfully"
+    return 0
+}
+
 # Function to clean temporary files (if any)
 clean_temporary_files() {
     # Since we use local files directly, no cleanup needed
@@ -450,8 +521,39 @@ step19_install_git_ssh() {
 
     # Check if SSH key pair already exists and is valid
     if test_ssh_key_pair_exists; then
-        print_success_from_common_functions "Valid SSH key pair already exists, skipping installation."
-        return 0
+        print_success_from_common_functions "Valid SSH key pair already exists."
+
+        # Ask if user wants to reinstall
+        local ask_msg="Do you want to reinstall and clear all existing SSH keys? (y/N, default N, ${TIMEOUT_SECONDS}s timeout): "
+        print_step_from_common_functions "$ask_msg"
+
+        local should_reinstall=false
+        local user_input=""
+
+        # Use read with timeout
+        if read -t "$TIMEOUT_SECONDS" -n 1 user_input; then
+            echo  # Add newline after input
+            if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
+                should_reinstall=true
+            fi
+        else
+            echo  # Add newline after timeout
+            print_step_from_common_functions "Timeout reached, defaulting to 'N' (skip reinstallation)"
+        fi
+
+        if [[ "$should_reinstall" == false ]]; then
+            print_step_from_common_functions "Skipping reinstallation, keeping existing SSH keys."
+            return 0
+        fi
+
+        # User chose to reinstall - remove all existing keys
+        print_step_from_common_functions "User chose to reinstall - removing all existing SSH keys..."
+        if ! remove_all_ssh_keys; then
+            print_error_from_common_functions "Failed to remove existing SSH keys"
+            return 1
+        fi
+
+        print_step_from_common_functions "Proceeding with fresh installation..."
     fi
     
     # Find Node.js executable

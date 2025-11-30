@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
+use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
@@ -31,6 +32,10 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
      */
     public function handle(): int
     {
+        // PRE-REQUISITE: Fix PHP configuration before any operations
+        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        $this->initializeCommand();
+        
         $action = $this->argument('action');
         $domain = $this->argument('domain');
 
@@ -88,6 +93,10 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             return 1;
         }
 
+        // Copy or link certificates from letsencrypt to ssl directory
+        $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $baseDomain));
+        $this->copyCertificatesToSslDir($cleanDomain);
+
         // Add certificate to database
         $result = ServerManagerV1CertificateManager::addCertificate($baseDomain, [
             'provider' => $provider,
@@ -98,14 +107,89 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
 
         if ($result) {
             $certId = 'cert_' . str_replace('.', '_', $baseDomain);
-            $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $baseDomain));
             $this->info("Certificate added successfully!");
             $this->info("Certificate ID: $certId");
-            $this->info("Certificate path: /www/nginxconfig/ssl/$cleanDomain/");
+            $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($cleanDomain);
+            $this->info("Certificate path: $certPath/");
             return 0;
         } else {
             $this->error("Failed to add certificate to database");
             return 1;
+        }
+    }
+
+    /**
+     * Copy or link certificates from Let's Encrypt to SSL directory
+     * This ensures certificates are available in both locations for compatibility
+     *
+     * @param string $domain The domain name
+     * @return bool True if successful, false otherwise
+     */
+    private function copyCertificatesToSslDir(string $domain): bool
+    {
+        try {
+            $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $domain));
+
+            // Get source directory (Let's Encrypt live certificates)
+            $sourceDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($cleanDomain);
+
+            // Get target directory (SSL certificates directory)
+            $targetDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getSslCertDir($cleanDomain);
+
+            // Check if source directory exists
+            if (!is_dir($sourceDir)) {
+                $this->warn("Let's Encrypt certificates not found at: $sourceDir");
+                return false;
+            }
+
+            // Create target directory if it doesn't exist
+            if (!is_dir($targetDir)) {
+                if (!mkdir($targetDir, 0755, true)) {
+                    $this->error("Failed to create SSL certificate directory: $targetDir");
+                    return false;
+                }
+            }
+
+            // Certificate files to copy/link
+            $certFiles = ['fullchain.pem', 'privkey.pem', 'chain.pem', 'cert.pem'];
+
+            foreach ($certFiles as $file) {
+                $sourcePath = $sourceDir . '/' . $file;
+                $targetPath = $targetDir . '/' . $file;
+
+                // Skip if source file doesn't exist
+                if (!file_exists($sourcePath)) {
+                    continue;
+                }
+
+                // Remove existing target file or symlink
+                if (file_exists($targetPath) || is_link($targetPath)) {
+                    unlink($targetPath);
+                }
+
+                // Create symlink from target to source
+                if (!symlink($sourcePath, $targetPath)) {
+                    $this->warn("Failed to create symlink for: $file");
+                    // Fall back to copying
+                    if (!copy($sourcePath, $targetPath)) {
+                        $this->warn("Failed to copy: $file");
+                        continue;
+                    }
+                    chmod($targetPath, ($file === 'privkey.pem') ? 0600 : 0644);
+                }
+            }
+
+            $this->info("Certificates linked/copied to: $targetDir");
+            return true;
+
+        } catch (\Exception $e) {
+            $this->error("Failed to copy certificates: " . $e->getMessage());
+            Log::error("Certificate copy failed", [
+                'domain' => $domain,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
         }
     }
 
@@ -132,7 +216,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $this->line("  Auto renew: " . ($certificate['auto_renew'] ? 'yes' : 'no'));
             $this->line("  Created: " . $certificate['created_at']);
             $this->line("  Updated: " . $certificate['updated_at']);
-            
+
             if (isset($certificate['expires_at'])) {
                 $this->line("  Expires: " . $certificate['expires_at']);
             }
@@ -325,19 +409,51 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             return false;
         }
 
-        // Create credentials file
-        $credentialsPath = $this->createCredentialsFile($credentials, $provider);
+        // Create credentials file (pass plugin type to generate correct format)
+        $credentialsPath = $this->createCredentialsFile($credentials, $provider, $plugin);
         if (!$credentialsPath) {
             $this->error("Failed to create credentials file");
             return false;
         }
 
         try {
+            // Get custom certificate directory
+            $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+            $configDir = $letsEncryptDir;
+            $workDir = $letsEncryptDir . '/work';
+            $logsDir = $letsEncryptDir . '/logs';
+
+            // Ensure directories exist
+            if (!is_dir($configDir)) {
+                mkdir($configDir, 0755, true);
+            }
+            if (!is_dir($workDir)) {
+                mkdir($workDir, 0755, true);
+            }
+            if (!is_dir($logsDir)) {
+                mkdir($logsDir, 0755, true);
+            }
+
+            // Check if certificate already exists and is not expired
+            $baseDomain = $domains[0] ?? '';
+            if ($baseDomain) {
+                $expiryInfo = $this->checkCertificateExpiry($baseDomain);
+                if ($expiryInfo['exists'] && !$expiryInfo['expired'] && !$expiryInfo['expiring_soon']) {
+                    $this->info("Certificate for $baseDomain already exists and is valid for {$expiryInfo['days_until_expiry']} more days. Skipping certificate generation.");
+                    return true;
+                } elseif ($expiryInfo['exists'] && ($expiryInfo['expired'] || $expiryInfo['expiring_soon'])) {
+                    $this->warn("Certificate for $baseDomain is " . ($expiryInfo['expired'] ? 'expired' : "expiring in {$expiryInfo['days_until_expiry']} days") . ". Regenerating...");
+                }
+            }
+
             // Build command based on plugin type
             if ($plugin === 'certbot-dnspod') {
                 // Third-party DNSPod plugin uses different parameter format
                 $command = [
                     'certonly',
+                    '--config-dir', $configDir,
+                    '--work-dir', $workDir,
+                    '--logs-dir', $logsDir,
                     '--authenticator', 'certbot-dnspod',
                     '--certbot-dnspod-credentials', $credentialsPath,
                     '--email', $credentials['email'],
@@ -346,9 +462,13 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
                 ];
             } else {
                 // Standard DNS plugin format
+                // Use --authenticator instead of --dns-dnspod to avoid ambiguous option error
                 $command = [
                     'certonly',
-                    '--' . $plugin,
+                    '--config-dir', $configDir,
+                    '--work-dir', $workDir,
+                    '--logs-dir', $logsDir,
+                    '--authenticator', $plugin,
                     '--' . $plugin . '-credentials', $credentialsPath,
                     '--email', $credentials['email'],
                     '--agree-tos',
@@ -406,7 +526,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         // Clean domain name to remove any whitespace or control characters
         $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $baseDomain));
 
-        $certDir = "/www/nginxconfig/ssl/$cleanDomain";
+        $certDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getSslCertDir($cleanDomain);
         $keyFile = "$certDir/privkey.pem";
         $certFile = "$certDir/fullchain.pem";
 
@@ -428,7 +548,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
 
         // Create certificate signing request config
-        $configFile = "/tmp/cert-config-$baseDomain.conf";
+        $configFile = PathMapper::getLaravelTmpDir() . "/cert-config-$baseDomain.conf";
         $config = "[req]\n";
         $config .= "distinguished_name = req_distinguished_name\n";
         $config .= "req_extensions = v3_req\n";
@@ -489,8 +609,8 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
 
         try {
-            $email = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
-            $apiToken = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
+            $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+            $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
 
             if (!$email || !$apiToken) {
                 return null;
@@ -517,23 +637,34 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
     /**
      * Create credentials file
      */
-    private function createCredentialsFile(array $credentials, string $provider): ?string
+    private function createCredentialsFile(array $credentials, string $provider, string $plugin = 'dns-dnspod'): ?string
     {
         if ($provider !== 'dnspod') {
             return null;
         }
 
         // Create credentials directory if it doesn't exist
-        $credentialsDir = '/www/nginxconfig/ssl/credentials';
+        $credentialsDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getSslCredentialsDir();
         if (!is_dir($credentialsDir)) {
             mkdir($credentialsDir, 0755, true);
         }
 
         $credentialsPath = $credentialsDir . '/dnspod-' . time() . '.ini';
 
-        // Use certbot-dnspod plugin format
+        // Format credentials based on plugin type
+        if ($plugin === 'certbot-dnspod') {
+            // Third-party certbot-dnspod plugin format
         $content = "certbot_dnspod_token_id = {$credentials['api_id']}\n";
         $content .= "certbot_dnspod_token = {$credentials['api_token']}\n";
+        } else {
+            // Standard dns-dnspod plugin format
+            // The plugin expects: email and api-token (full "id,token" format)
+            // But certbot automatically prefixes with "dns_dnspod_" for the credentials file
+            // Use quotes to prevent configobj from parsing comma-separated value as a list
+            $apiToken = $credentials['api_id'] . ',' . $credentials['api_token'];
+            $content = "dns_dnspod_email = {$credentials['email']}\n";
+            $content .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
+        }
 
         if (file_put_contents($credentialsPath, $content) === false) {
             return null;

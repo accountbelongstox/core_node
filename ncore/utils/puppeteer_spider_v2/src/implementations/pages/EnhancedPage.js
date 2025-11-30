@@ -136,7 +136,7 @@ class EnhancedPage extends StandardPage {
 
     async findBlankPageIndex() {
         try {
-            const pages = await this.browser.getPages();
+            const pages = await this.browser.pages();
             logger.debug(`Checking ${pages.length} pages for blank pages`);
             
             for (let i = 0; i < pages.length; i++) {
@@ -219,44 +219,102 @@ class EnhancedPage extends StandardPage {
             logging = true,
             showImages = true,
             showStyle = true,
-            urlStrict = this.urlComparisonStrict
+            urlStrict = this.urlComparisonStrict,
+            reuseMainTab = false
         } = options;
 
         try {
-            // Check if URL already exists in tabs
-            const existingPageIndex = await this.findNormalizedUrlIndex(url, urlStrict);
-            if (existingPageIndex !== -1) {
-                // Switch to existing tab
-                await this.switchToPageByIndex(existingPageIndex);
-                this.metrics.tabSwitches++;
-                logger.debug(`Switched to existing tab for URL: ${url}`);
-                return { success: true, action: 'switched', pageIndex: existingPageIndex };
-            }
-
-            // Check for blank page to reuse
-            const blankPageIndex = await this.findBlankPageIndex();
             let targetPage;
+            let action;
 
-            if (blankPageIndex !== -1) {
-                // Reuse blank page
-                const pages = await this.browser.getPages();
-                targetPage = pages[blankPageIndex];
-                this.metrics.blankPageReuses++;
-                logger.info(`✅ Reusing blank page at index ${blankPageIndex} for URL: ${url}`);
+            if (reuseMainTab) {
+                // Force reuse of main tab (tab[0]) - overrides all other logic
+                const pages = await this.browser.pages();
+                if (pages.length > 0) {
+                    targetPage = pages[0];
+                    this.metrics.tabSwitches++;
+                    action = 'reused_main_tab';
+                    logger.info(`♻️ Force reusing main tab (tab[0]) for URL: ${url}`);
+                } else {
+                    targetPage = await this.browser.newPage();
+                    await this.setupPageInterception(targetPage, showImages, showStyle);
+                    await this.setupDownloadDirectoryForPage(targetPage);
+                    this.metrics.newPageCreations++;
+                    action = 'created';
+                    logger.info(`❌ No tabs found, created new tab for URL: ${url}`);
+                }
             } else {
-                // Create new page
-                targetPage = await this.browser.newPage();
-                await this.setupPageInterception(targetPage, showImages, showStyle);
-                await this.setupDownloadDirectoryForPage(targetPage);
-                this.metrics.newPageCreations++;
-                logger.info(`❌ No blank page found, created new page for URL: ${url}`);
+                // Original behavior: Smart tab reuse logic
+                const existingPageIndex = await this.findNormalizedUrlIndex(url, urlStrict);
+                if (existingPageIndex !== -1) {
+                    // Switch to existing tab
+                    await this.switchToPageByIndex(existingPageIndex);
+                    this.metrics.tabSwitches++;
+                    action = 'switched';
+                    const pages = await this.browser.pages();
+                    targetPage = pages[existingPageIndex];
+                    logger.debug(`Switched to existing tab for URL: ${url}`);
+                    this.activePage = targetPage;
+                    return { success: true, action: action, page: targetPage, pageIndex: existingPageIndex };
+                }
+
+                // Check for blank page to reuse
+                const blankPageIndex = await this.findBlankPageIndex();
+
+                if (blankPageIndex !== -1) {
+                    // Reuse blank page
+                    const pages = await this.browser.pages();
+                    targetPage = pages[blankPageIndex];
+                    this.metrics.blankPageReuses++;
+                    action = 'reused';
+                    logger.info(`✅ Reusing blank page at index ${blankPageIndex} for URL: ${url}`);
+                } else {
+                    // Create new page
+                    targetPage = await this.browser.newPage();
+                    await this.setupPageInterception(targetPage, showImages, showStyle);
+                    await this.setupDownloadDirectoryForPage(targetPage);
+                    this.metrics.newPageCreations++;
+                    action = 'created';
+                    logger.info(`❌ No blank page found, created new page for URL: ${url}`);
+                }
             }
 
-            // Navigate to URL
-            if (waitForComplete) {
-                await targetPage.goto(url, { waitUntil: 'domcontentloaded', timeout });
-            } else {
-                await targetPage.goto(url, { timeout });
+            // Wait for any pending navigation to complete before navigating
+            try {
+                await targetPage.waitForNavigation({ timeout: 1000, waitUntil: 'domcontentloaded' }).catch(() => {});
+            } catch (e) {
+                // Ignore timeout - no pending navigation
+            }
+
+            // Navigate to URL with retry logic
+            let navigationSuccess = false;
+            let lastError = null;
+            const maxRetries = 2;
+
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    if (waitForComplete) {
+                        await targetPage.goto(url, { waitUntil: 'domcontentloaded', timeout });
+                    } else {
+                        await targetPage.goto(url, { timeout });
+                    }
+                    navigationSuccess = true;
+                    break;
+                } catch (navError) {
+                    lastError = navError;
+                    if (navError.message && navError.message.includes('detached')) {
+                        logger.warn(`Navigation attempt ${attempt} failed with detached frame, retrying...`);
+                        if (attempt < maxRetries) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    } else {
+                        throw navError;
+                    }
+                }
+            }
+
+            if (!navigationSuccess) {
+                throw lastError || new Error('Navigation failed after retries');
             }
 
             if (logging) {
@@ -264,7 +322,7 @@ class EnhancedPage extends StandardPage {
             }
 
             this.activePage = targetPage;
-            return { success: true, action: blankPageIndex !== -1 ? 'reused' : 'created', page: targetPage };
+            return { success: true, action: action, page: targetPage };
 
         } catch (error) {
             logger.error(`Failed to open URL ${url}:`, error);
@@ -372,7 +430,7 @@ class EnhancedPage extends StandardPage {
         let index = 0;
         
         while (new Date().getTime() - start < timeout && !this.stopFindActivePageEvent) {
-            const pages = await this.browser.getPages();
+            const pages = await this.browser.pages();
             let visiblePages = [];
             
             for (const p of pages) {
@@ -409,7 +467,7 @@ class EnhancedPage extends StandardPage {
             return this.activePage;
         }
         
-        const pages = await this.browser.getPages();
+        const pages = await this.browser.pages();
         if (pages.length > 0) {
             this.activePage = pages[0];
             return this.activePage;
@@ -419,7 +477,7 @@ class EnhancedPage extends StandardPage {
     }
 
     async getPages() {
-        return await this.browser.getPages();
+        return await this.browser.pages();
     }
 
     async getCurrentUrl(full = false) {

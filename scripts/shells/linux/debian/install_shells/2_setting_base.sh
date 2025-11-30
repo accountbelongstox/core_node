@@ -636,6 +636,15 @@ handle_data_disk() {
 # =============================================================================
 
 main() {
+    # Check if running in WSL environment (skip disk setup in WSL)
+    if [ "${IS_WSL:-false}" = "true" ]; then
+        log "WSL environment detected - skipping disk setup"
+        log "WSL manages disk mounts automatically via /mnt/c, /mnt/d, etc."
+        # Don't exit, just return from main function
+        # The calling script (dd.sh) will continue execution
+        return 0
+    fi
+
     log "Starting base system setup..."
 
     # Step 1: Disk detection and mount management
@@ -691,5 +700,3 @@ main() {
 }
 
 main
-
-exit 0

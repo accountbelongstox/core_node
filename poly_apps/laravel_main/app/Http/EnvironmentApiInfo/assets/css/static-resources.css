@@ -1,0 +1,712 @@
+/**
+ * Static Resources Browser Styles - Premium Dark Theme
+ * Responsive design for desktop and mobile with slide-out panel
+ */
+
+/* Main Container */
+.static-resources-container {
+    display: flex;
+    height: 70vh;
+    background: transparent;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+/* File List Panel - Slide from left */
+.static-file-list-panel {
+    width: 350px;
+    min-width: 280px;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    overflow-y: auto;
+    background: rgba(30, 30, 35, 0.6);
+    color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease, width 0.3s ease;
+    z-index: 100;
+}
+
+.static-file-list-header {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.static-file-list-header-title {
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #c0caf5;
+}
+
+.static-file-list-header-toggle {
+    cursor: pointer;
+    font-size: 12px;
+    transition: transform 0.3s;
+    display: none;
+    color: #a9b1d6;
+}
+
+.static-file-list-header-actions button {
+    background: transparent;
+    border: none;
+    color: #a9b1d6;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    transition: color 0.2s;
+}
+
+.static-file-list-header-actions button:hover {
+    color: #7aa2f7;
+}
+
+.static-file-list {
+    padding: 5px;
+    font-size: 13px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Preview Panel */
+.static-preview-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.2);
+    min-width: 0;
+    position: relative;
+}
+
+.static-preview-header {
+    padding: 10px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.static-preview-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.static-preview-file-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #c0caf5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.static-preview-file-meta {
+    font-size: 12px;
+    color: #a9b1d6;
+}
+
+.static-preview-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.static-preview-container {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    position: relative;
+}
+
+/* Mobile File List Toggle Button */
+.mobile-file-list-toggle {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(122, 162, 247, 0.9);
+    color: #1a1b26;
+    border: none;
+    padding: 15px 8px;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    z-index: 150;
+    font-size: 14px;
+    transition: left 0.3s ease, background 0.2s;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-file-list-toggle:hover {
+    background: rgba(122, 162, 247, 1);
+}
+
+/* Video Player Settings - Floating overlay style */
+.video-settings-bar {
+    background: rgba(30, 30, 35, 0.95);
+    padding: 8px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #e0e0e0;
+    transition: opacity 0.3s, transform 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.video-settings-bar.floating {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 8px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.video-settings-bar.floating.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.video-settings-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.video-settings-item label {
+    color: #a9b1d6;
+}
+
+.video-settings-item input[type="number"] {
+    width: 60px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    color: #e0e0e0;
+    font-size: 12px;
+}
+
+.video-settings-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Video.js Custom Styles */
+.video-js-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.video-js {
+    width: 100%;
+    max-height: 100%;
+}
+
+.video-js .vjs-big-play-button {
+    background: rgba(122, 162, 247, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 70px;
+    height: 70px;
+    line-height: 70px;
+    color: #1a1b26;
+}
+
+.video-js:hover .vjs-big-play-button {
+    background: rgba(122, 162, 247, 1);
+}
+
+/* Playlist Panel - Collapsible */
+.video-playlist-panel {
+    background: rgba(30, 30, 35, 0.95);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.video-playlist-panel.expanded {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.video-playlist-header {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    color: #a9b1d6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.video-playlist-header:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.video-playlist-toggle {
+    transition: transform 0.3s;
+}
+
+.video-playlist-panel.expanded .video-playlist-toggle {
+    transform: rotate(180deg);
+}
+
+.video-playlist-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.video-playlist-item:hover {
+    background: rgba(122, 162, 247, 0.1);
+}
+
+.video-playlist-item.active {
+    background: rgba(122, 162, 247, 0.15);
+    border-left: 3px solid #7aa2f7;
+}
+
+.video-playlist-item-index {
+    color: #7aa2f7;
+    font-weight: 500;
+    min-width: 24px;
+}
+
+.video-playlist-item-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Video Navigation - Floating buttons */
+.video-nav-floating {
+    position: absolute;
+    display: flex;
+    gap: 10px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.video-nav-floating.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.video-nav-floating.left {
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.video-nav-floating.right {
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.video-nav-floating.bottom {
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Navigation Buttons */
+.video-nav-btn {
+    background: rgba(122, 162, 247, 0.8);
+    border: none;
+    color: #1a1b26;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s, transform 0.2s;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.video-nav-btn:hover {
+    background: rgba(122, 162, 247, 1);
+    transform: scale(1.05);
+}
+
+.video-nav-btn:disabled {
+    background: rgba(65, 72, 104, 0.8);
+    cursor: not-allowed;
+    transform: none;
+    color: #a9b1d6;
+}
+
+.video-nav-btn.large {
+    padding: 15px 20px;
+    font-size: 18px;
+}
+
+/* Playlist Toggle Button */
+.playlist-toggle-btn {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+}
+
+.playlist-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .static-resources-container {
+        height: calc(100vh - 120px);
+    }
+
+    /* Mobile: File list slides from left */
+    .static-file-list-panel {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 85%;
+        max-width: 320px;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.5);
+        z-index: 200;
+        background: rgba(30, 30, 35, 0.98);
+        backdrop-filter: blur(10px);
+    }
+
+    .static-file-list-panel.expanded {
+        transform: translateX(0);
+    }
+
+    .static-file-list-header-toggle {
+        display: inline-block;
+    }
+
+    .static-file-list-panel.expanded .static-file-list-header-toggle {
+        transform: rotate(180deg);
+    }
+
+    /* Show toggle button */
+    .mobile-file-list-toggle {
+        display: block;
+    }
+
+    .mobile-file-list-toggle.hidden {
+        left: -50px;
+    }
+
+    /* Preview panel takes full width */
+    .static-preview-panel {
+        width: 100%;
+    }
+
+    .static-preview-header {
+        padding: 8px 12px;
+    }
+
+    .static-preview-file-name {
+        font-size: 13px;
+    }
+
+    .static-preview-container {
+        padding: 0;
+    }
+
+    /* Video player full width */
+    .video-js-wrapper {
+        padding: 0;
+    }
+
+    .video-js {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 200px;
+    }
+
+    /* Hide fixed settings bar on mobile, show floating */
+    .video-settings-bar:not(.floating) {
+        display: none;
+    }
+
+    .video-settings-bar.floating {
+        display: flex;
+        flex-direction: column;
+        width: calc(100% - 40px);
+        max-width: 300px;
+        gap: 8px;
+    }
+
+    /* Playlist panel */
+    .video-playlist-panel {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 0;
+        z-index: 150;
+    }
+
+    .video-playlist-panel.expanded {
+        max-height: 50vh;
+    }
+}
+
+/* Landscape mode */
+@media (max-width: 768px) and (orientation: landscape) {
+    .static-resources-container {
+        height: calc(100vh - 60px);
+    }
+
+    .static-file-list-panel {
+        width: 280px;
+    }
+
+    .video-settings-bar.floating {
+        top: 5px;
+        flex-direction: row;
+        width: auto;
+        max-width: none;
+    }
+
+    .video-nav-floating.bottom {
+        bottom: 60px;
+    }
+
+    .video-playlist-panel.expanded {
+        max-height: 40vh;
+    }
+}
+
+/* Fullscreen styles */
+.video-js.vjs-fullscreen~.video-nav-floating,
+.static-preview-container:fullscreen .video-nav-floating {
+    opacity: 0;
+}
+
+.video-js.vjs-fullscreen:hover~.video-nav-floating,
+.static-preview-container:fullscreen:hover .video-nav-floating {
+    opacity: 1;
+}
+
+/* Overlay when file list is open on mobile */
+.file-list-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 150;
+}
+
+.file-list-overlay.active {
+    display: block;
+}
+
+/* File Item Styles - High Contrast */
+.static-file-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    color: #e0e0e0;
+    /* High contrast text */
+}
+
+.static-file-item:hover {
+    background: rgba(122, 162, 247, 0.1);
+    color: #7aa2f7;
+}
+
+.static-file-item.selected {
+    background: rgba(122, 162, 247, 0.2);
+    color: #7aa2f7;
+    font-weight: 500;
+}
+
+.static-file-item-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    color: #a9b1d6;
+}
+
+.static-file-item-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+.static-file-item-size {
+    font-size: 11px;
+    color: #787c99;
+    flex-shrink: 0;
+}
+
+/* Folder Styles - High Contrast */
+.static-folder-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.static-folder-item:hover {
+    background: rgba(122, 162, 247, 0.05);
+}
+
+.static-folder-toggle {
+    width: 16px;
+    text-align: center;
+    font-size: 10px;
+    color: #a9b1d6;
+    flex-shrink: 0;
+}
+
+.static-folder-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    color: #e0af68;
+    /* Gold/Yellow for folders */
+}
+
+.static-folder-name {
+    flex: 1;
+    font-weight: 600;
+    color: #c0caf5;
+}
+
+.static-folder-children {
+    margin-left: 20px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    padding-left: 8px;
+}
+
+/* Empty State */
+.static-preview-empty {
+    text-align: center;
+    color: #a9b1d6;
+    padding: 40px 20px;
+}
+
+.static-preview-empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.6;
+    color: #7aa2f7;
+}
+
+.static-preview-empty-text {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #e0e0e0;
+}
+
+.static-preview-empty-hint {
+    font-size: 13px;
+    color: #787c99;
+}
+
+/* Loading State */
+.static-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #a9b1d6;
+}
+
+.static-loading::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #7aa2f7;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Desktop styles */
+@media (min-width: 769px) {
+    .mobile-file-list-toggle {
+        display: none;
+    }
+
+    .file-list-overlay {
+        display: none !important;
+    }
+
+    .video-settings-bar.floating {
+        position: static;
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}

@@ -1,0 +1,38 @@
+注意，你要先设置出  i18n\locales  的子app命名空间规范，现达个是 poly_apps\nuxt_main\i18n\locales 区的，而针对每个子app要有一个扩展的，扩展的将包含主locale（但不包含其他子app） 你先了解本app的多子apps的构架，然后先更新文档 ，D:\programing\core_node\poly_apps\nuxt_main\development-guides\NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
+
+
+
+使用   D:\programing\core_node\pycore\pylauncher  D:\programing\core_node\pycore\pyutils\native_ui  筠行针
+  D:\programing\core_node\pyapps\matrix\matrix_main.py 中的代码移到 pyapp类库。之后，\matrix_main.py
+  只引入controller类库，然后现在先添加一启，扩展 pylauncher 的配置，则pylauncher调用native_ui
+  启动一个拖盘菜单和一个原生python的ui，在UI中再使用现在另一线程启动的前端url作为webview的UI界面。
+  
+  
+  这个类库原来移置自 D:\programing\core_node\ncore\utils\puppeteer_spider_v2 你是否发现其中有chrome/edage/的安装器查找器。请自动安装，并使用一个map和driver相对应，目前默认使用edage浏览器。
+  同时还需要 修正很多不一致的数据性问题：
+  ···
+  
+  ## 📊 Current Apps 改为指示到所在目录扫描，在本项目在设置特别重要的开发提示，优先扩展自common中的类库包含 主题state、sotre、api类库(以
+及compoments)，当然你要扫描一下common中有那些，同时提示ai可以扩展common类库但保持通用性即可。
+之后再分析一下各个类库的common和子app的规范是否合理，包含主题
+state、sotre、api类库(以及compoments)，更新文档，同时不再要需要 - [
+]，只说明规范即可，同时说明一下pages/index.{namespace}.vue中只作为引入，其中的代码最好一次写入，然后使用
+app_ittools/components_app_ittools/ittools_index/ItToolsApp.vue 这样的命名空间组件。
+
+
+Windows clients copy the absolute path; Linux clients copy the relative path below:
+D:/programing/core_node/poly_apps/nuxt_main/apps/app_pymatrix/app_pymatrix_tree_code_assets.txt
+poly_apps/nuxt_main/apps/app_pymatrix/app_pymatrix_tree_code_assets.txt 阅读，并分析 ，之后查看
+D:\programing\core_node\pyapps\scrcpy_web_test 以其中正确的方式更新  app_pymatrix_tree_code_assets 中的设备
+获取，流接收方式，之后更新桥接文件，让后端知道端点。
+D:\programing\core_node\pyapps\matrix\ai_briage\AI_COLLABORATION_BRIDGE.json
+这是桥接文件，你现在作为前端写出端点的要求的参数 和规范 。
+
+
+现在，读取源码， D:\programing\core_node\pyapps\matrix\scrcpy_source 然后查看前端端点有那些不规范
+  的，逐一更新、同时更新桥接文件，并修正桥接文件和代码的一致性。
+
+  
+    优点: 工业标准,更可靠
+    修改: 大规模重构 当然当你更新后，要实时检测桥接文件中的一致性、注意分析桥接文件可能
+  多个端点重复定义，同时桥接文件只定义桥点。对桥接文件进行说明并更新。

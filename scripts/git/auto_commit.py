@@ -18,15 +18,30 @@ import string
 import random
 import platform
 
+def load_remote_configs():
+    """Load remote configurations from git_remotes.conf"""
+    config_file = Path(__file__).parent / "git_remotes.conf"
+    remote_configs = {}
+    
+    if not config_file.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_file}")
+    
+    with open(config_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                remote_configs[key.strip()] = value.strip()
+    
+    return remote_configs
+
 class GitManager:
     def __init__(self, project_root):
         self.PROJECT_ROOT = Path(project_root)
         self.git_repositorie_name = self.PROJECT_ROOT.name
-        self.remote_urls = {
-            'local': f'ssh://git@git.local.12gm.com:17003/adminroot/{self.git_repositorie_name}.git',
-            'gitee': f'git@gitee.com:accountbelongstox/{self.git_repositorie_name}.git',
-            'github': f'git@github.com:accountbelongstox/{self.git_repositorie_name}.git'
-        }
+        self.remote_urls = load_remote_configs()
 
     @staticmethod
     def generate_random_string(length=6):

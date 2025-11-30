@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 import '../../main_app_codemart.dart';
 import '../../router_app_codemart/router_app_codemart.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class ArchitectDashboardViewAppCodemart extends StatefulWidget {
   const ArchitectDashboardViewAppCodemart({super.key});
@@ -50,7 +51,7 @@ class _ArchitectDashboardViewAppCodemartState extends State<ArchitectDashboardVi
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr(LocalizationKeysAppCodemart.codemartArchitect)),
+        title: Text(LocalizationKeysAppCodemart.codemartArchitect.tr(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications),
