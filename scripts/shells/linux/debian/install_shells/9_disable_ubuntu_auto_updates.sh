@@ -273,9 +273,15 @@ main() {
     echo ""
     
     # Optional: clean apt cache
-    warning "Do you want to clean apt cache? (y/n): "
-    read -r response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
+    warning "Do you want to clean apt cache? (y/n, auto-yes in 20s): "
+    if read -t 20 -r response; then
+        if [[ "$response" =~ ^[Yy]$ ]] || [[ -z "$response" ]]; then
+            clean_apt_cache
+            echo ""
+        fi
+    else
+        echo ""
+        log "No response after 20 seconds, automatically cleaning apt cache..."
         clean_apt_cache
         echo ""
     fi

@@ -58,6 +58,23 @@ done
 
 print_header_from_common_functions "GNOME Remote Desktop Setup"
 
+# Only check desktop environment for enable action
+if [ "$ACTION" = "enable" ]; then
+    # Check if running on desktop system
+    if [ "$HAS_DESKTOP_ENVIRONMENT" != "true" ]; then
+        print_info_from_common_functions "No desktop environment detected (server mode)."
+        print_info_from_common_functions "GNOME Remote Desktop is designed for desktop systems only."
+        print_info_from_common_functions "Skipping installation."
+        echo ""
+        print_info_from_common_functions "For headless servers, consider:"
+        print_info_from_common_functions "  - RustDesk Server (98_install_rustdesk_server.sh)"
+        print_info_from_common_functions "  - SSH Remote Access (17_setup_ssh_remote.sh)"
+        exit 0
+    fi
+
+    print_info_from_common_functions "Desktop environment detected: $DESKTOP_ENVIRONMENT"
+fi
+
 # Verify user exists
 if ! id "$TARGET_USER" &>/dev/null; then
     print_error_from_common_functions "User $TARGET_USER does not exist"
@@ -100,6 +117,36 @@ check_status() {
     echo ""
     echo "=== Firewall Status ==="
     sudo ufw status | grep 3389 || echo "Port 3389 not in firewall rules"
+}
+
+# Prompt user for installation confirmation
+prompt_installation() {
+    echo ""
+    echo "=========================================="
+    echo "GNOME Remote Desktop Setup"
+    echo "=========================================="
+    echo ""
+    echo "This will enable remote desktop access for user: $TARGET_USER"
+    echo ""
+    echo "Features:"
+    echo "  - Use native GNOME Remote Desktop (built-in)"
+    echo "  - Connect via Windows Remote Desktop (mstsc)"
+    echo "  - Port 3389 (standard RDP port)"
+    echo "  - Requires user to be logged in"
+    echo ""
+    echo "Note: User must be logged in to the desktop for RDP to work."
+    echo ""
+
+    local user_input
+    read -r -p "Enable GNOME Remote Desktop now? [Y/n] " user_input
+    user_input=${user_input:-Y}
+
+    if [[ "$user_input" =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+
+    print_info_from_common_functions "Installation skipped by user choice."
+    return 1
 }
 
 # Enable Remote Desktop
@@ -248,7 +295,11 @@ disable_rdp() {
 # Main execution
 case "$ACTION" in
     enable)
-        enable_rdp
+        if prompt_installation; then
+            enable_rdp
+        else
+            exit 0
+        fi
         ;;
     disable)
         disable_rdp

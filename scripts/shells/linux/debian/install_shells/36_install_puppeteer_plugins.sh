@@ -35,22 +35,25 @@ $USE_SUDO apt-get install -y xvfb
 
 # Install required system dependencies for Chromium
 echo "[$SCRIPT_INDEX] Installing Chromium dependencies..."
-$USE_SUDO apt-get install -y \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0
+
+# For Ubuntu 24.04+, libasound2 is replaced by pipewire-audio
+if $USE_SUDO apt-cache show pipewire-audio >/dev/null 2>&1; then
+    AUDIO_PACKAGE="pipewire-audio"
+elif $USE_SUDO apt-cache show libasound2 >/dev/null 2>&1; then
+    AUDIO_PACKAGE="libasound2"
+else
+    AUDIO_PACKAGE=""
+    echo "[$SCRIPT_INDEX] Warning: No audio package found, continuing without it..."
+fi
+
+# Build package list
+CHROMIUM_DEPS="libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libatspi2.0-0"
+
+if [ -n "$AUDIO_PACKAGE" ]; then
+    CHROMIUM_DEPS="$CHROMIUM_DEPS $AUDIO_PACKAGE"
+fi
+
+$USE_SUDO apt-get install -y $CHROMIUM_DEPS
 
 # Function to install pnpm package
 install_pnpm_package() {
