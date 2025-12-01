@@ -13,8 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
-import '../../../../../resources_app_qy/colors_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class FqaWidget extends StatelessWidget {
   final String fqaName;
