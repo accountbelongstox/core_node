@@ -387,7 +387,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
   Widget _buildAppBar() {
     return CustomAppBar(
       title: QyAppLocalizationKeys.qyWordBook.tr(context),
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       titleColor: ColorsAppQy.qyTextPrimary,
       iconColor: ColorsAppQy.qyTextPrimary,
       elevation: 0,
@@ -427,7 +427,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -458,7 +458,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                     )
                   : null,
               filled: true,
-              fillColor: Colors.white.withOpacity(0.3),
+              fillColor: ColorsAppQy.qyGlassLight,
               border: OutlineInputBorder(
                 borderRadius:
                     BorderRadius.circular(ThemeDimensions.radiusLarge),
@@ -557,7 +557,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
         onTap: () {
           showModalBottomSheet(
             context: context,
-            backgroundColor: Colors.transparent,
+            backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
             builder: (context) => ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(ThemeDimensions.radiusLarge),
@@ -642,11 +642,8 @@ class _DictionaryRecommendScreenRefactoredAppQyState
   }
 
   Widget _buildBentoDictionaryCard(DictionaryModel dictionary) {
-    final gradients = [
-      ColorsAppQy.qyPrimaryGradient,
-      ColorsAppQy.qySecondaryGradient,
-      ColorsAppQy.qyAccentGradient,
-    ];
+    // Use centralized gradient list from ColorsAppQy
+    final gradients = ColorsAppQy.qyBentoGradients;
     return GlassmorphismCard(
       borderRadius: ThemeDimensions.radiusLarge,
       blur: 15,
@@ -675,11 +672,11 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                     width: double.infinity,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Colors.white.withOpacity(0.2),
+                        color: ColorsAppQy.qyFrostLight,
                         child: Icon(
                           Icons.book,
                           size: 48,
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                         ),
                       );
                     },
@@ -696,7 +693,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                       Text(
                         dictionary.title,
                         style: ThemeTextStyles.body1.copyWith(
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 2,
@@ -706,7 +703,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                       Text(
                         dictionary.description,
                         style: ThemeTextStyles.caption.copyWith(
-                          color: Colors.white70,
+                          color: ColorsAppQy.qyFrostMedium,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -714,21 +711,21 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                       const Spacer(),
                       Row(
                         children: [
-                          Icon(Icons.favorite, size: 14, color: Colors.white70),
+                          Icon(Icons.favorite, size: 14, color: ColorsAppQy.qyFrostMedium),
                           const SizedBox(width: ThemeDimensions.spacing4),
                           Text(
                             '${dictionary.likeCount}',
                             style: ThemeTextStyles.caption.copyWith(
-                              color: Colors.white70,
+                              color: ColorsAppQy.qyFrostMedium,
                             ),
                           ),
                           const SizedBox(width: ThemeDimensions.spacing12),
-                          Icon(Icons.book, size: 14, color: Colors.white70),
+                          Icon(Icons.book, size: 14, color: ColorsAppQy.qyFrostMedium),
                           const SizedBox(width: ThemeDimensions.spacing4),
                           Text(
                             '${dictionary.wordCount}',
                             style: ThemeTextStyles.caption.copyWith(
-                              color: Colors.white70,
+                              color: ColorsAppQy.qyFrostMedium,
                             ),
                           ),
                           const Spacer(),
@@ -737,7 +734,7 @@ class _DictionaryRecommendScreenRefactoredAppQyState
                               dictionary.isAdded
                                   ? Icons.bookmark
                                   : Icons.bookmark_border,
-                              color: Colors.white,
+                              color: ColorsAppQy.qyTextOnPrimary,
                               size: 20,
                             ),
                             onPressed: () => _handleToggleAdd(dictionary),

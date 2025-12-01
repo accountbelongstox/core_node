@@ -18,6 +18,8 @@ from typing import Optional, Callable, Any
 import sys
 import io
 
+from pycore import THREAD_BUS, ColorPrint
+
 
 class StartupWindow:
     """
@@ -49,7 +51,8 @@ class StartupWindow:
         icon_path: Optional[str] = None,
         logo_path: Optional[str] = None,
         enable_language_selector: bool = True,
-        i18n_manager: Optional[Any] = None
+        i18n_manager: Optional[Any] = None,
+        daemon: bool = True
     ):
         """
         Initialize startup window.
@@ -63,6 +66,7 @@ class StartupWindow:
             logo_path: Path to logo image displayed in title (.png)
             enable_language_selector: Show language selector (default: True)
             i18n_manager: I18nManager instance for multi-language support
+            daemon: Run as daemon thread (default: True) - auto-terminates with main thread
         """
         self.app_name = app_name
         self.width = width
@@ -72,6 +76,7 @@ class StartupWindow:
         self.logo_path = logo_path
         self.enable_language_selector = enable_language_selector
         self.i18n_manager = i18n_manager
+        self.daemon = daemon
 
         self.root: Optional[tk.Tk] = None
         self.text_widget: Optional[tk.Text] = None
@@ -85,18 +90,68 @@ class StartupWindow:
         self._thread: Optional[threading.Thread] = None
         self._closed_event = threading.Event()  # Event to signal window closed
 
+        # ColorPrint callback for automatic log capture
+        self._colorprint_callback = None
+        self._colorprint_registered = False
+
     def show(self):
         """
         Show the startup window in a separate thread.
         This allows the main thread to continue with initialization.
+
+        Automatically registers ColorPrint callback to capture all logs.
         """
         if self._running:
             return
 
         self._running = True
-        # Use non-daemon thread so main thread waits for it
-        self._thread = threading.Thread(target=self._run_ui, daemon=False)
+
+        # Register ColorPrint callback to capture all console output
+        self._register_colorprint_callback()
+
+        # Create thread with configurable daemon mode
+        self._thread = threading.Thread(target=self._run_ui, daemon=self.daemon)
         self._thread.start()
+
+    def _register_colorprint_callback(self):
+        """
+        Register ColorPrint callback to capture all console output.
+
+        This allows all ColorPrint.blue/green/red/etc messages to automatically
+        appear in the startup window, without needing manual log() calls.
+        """
+        if self._colorprint_registered:
+            return
+
+        def colorprint_callback(message: str, color_type: str, log_level: str = None):
+            """
+            Callback that receives all ColorPrint output.
+
+            Args:
+                message: The log message
+                color_type: Color type (green, red, blue, yellow, gray, white)
+                log_level: Optional log level override
+            """
+            # Map color_type to log level for text widget tags
+            level_map = {
+                'green': 'success',
+                'red': 'error',
+                'yellow': 'warning',
+                'blue': 'info',
+                'gray': 'debug',
+                'white': 'info'
+            }
+
+            # Use provided log_level or map from color_type
+            level = log_level if log_level else level_map.get(color_type, 'info')
+
+            # Send to log queue (thread-safe)
+            self.log(message, level=level)
+
+        # Register callback with ColorPrint
+        ColorPrint.register_callback(colorprint_callback)
+        self._colorprint_callback = colorprint_callback
+        self._colorprint_registered = True
 
     def _run_ui(self):
         """Run the UI in its own thread."""
@@ -165,7 +220,11 @@ class StartupWindow:
         if self.logo_path:
             try:
                 from pathlib import Path
-                from PIL import Image, ImageTk
+                from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
+
+                # Get PIL modules via third_party manager
+                Image = get_third_package_PIL_Image()
+                ImageTk = get_third_package_PIL_ImageTk()
 
                 if Path(self.logo_path).exists():
                     # Container for logo + title
@@ -355,6 +414,12 @@ class StartupWindow:
         # Set flag first to stop all loops
         self._running = False
 
+        # Unregister ColorPrint callback
+        if self._colorprint_registered and self._colorprint_callback:
+            ColorPrint.unregister_callback(self._colorprint_callback)
+            self._colorprint_registered = False
+            self._colorprint_callback = None
+
         # Call completion callback
         if self.on_complete:
             self.on_complete()
@@ -486,8 +551,14 @@ class StartupWindow:
         self.log(f"Language changed to: {lang_name}", level="info")
 
     def _on_close_attempt(self):
-        """Handle user attempting to close window during startup."""
-        self.log("Please wait for initialization to complete...", "warning")
+        """Handle user attempting to close window."""
+        # Check if initialization is complete via THREAD_BUS signal (thread-safe)
+        if THREAD_BUS.has_signal('startup_window.initialization_complete'):
+            # Initialization complete, allow user to close window
+            self.close()
+        else:
+            # Still initializing, prevent close
+            self.log("Please wait for initialization to complete...", "warning")
 
     def is_running(self) -> bool:
         """Check if startup window is running."""

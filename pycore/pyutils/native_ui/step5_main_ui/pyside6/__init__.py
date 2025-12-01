@@ -40,6 +40,7 @@ from .title_bar_styles import (
 from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_tray_menu
 from .webview import PySide6WebView
 from .framework import PySide6Framework, TickTimer, create_framework
+from .ui_thread import PySide6UIThread
 
 __all__ = [
     # Availability flag
@@ -88,5 +89,8 @@ __all__ = [
     'PySide6Framework',
     'TickTimer',
     'create_framework',
+
+    # UI Thread
+    'PySide6UIThread',
 ]
 
