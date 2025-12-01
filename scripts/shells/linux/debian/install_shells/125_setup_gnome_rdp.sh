@@ -337,11 +337,37 @@ enable_rdp() {
     echo "  4. Set authentication to 'Do not connect if authentication fails'"
     echo ""
     echo "Method 2: Create .rdp file with:"
-    echo "  full address:s:<IP>"
-    echo "  username:s:$TARGET_USER"
-    echo "  enablecredsspsupport:i:0"
-    echo "  authentication level:i:0"
-    echo "  negotiate security layer:i:0"
+
+    # Auto-detect primary IP address
+    PRIMARY_IP=$(hostname -I | awk '{print $1}')
+
+    cat << EOF
+  full address:s:$PRIMARY_IP
+  username:s:$TARGET_USER
+  enablecredsspsupport:i:0
+  authentication level:i:0
+  negotiate security layer:i:0
+EOF
+
+    echo ""
+    echo "Or save the following as linux.rdp and double-click to connect:"
+    echo ""
+
+    cat << EOF
+screen mode id:i:2
+desktopwidth:i:1920
+desktopheight:i:1080
+session bpp:i:32
+full address:s:$PRIMARY_IP
+username:s:$TARGET_USER
+audiomode:i:0
+redirectclipboard:i:1
+authentication level:i:0
+prompt for credentials:i:1
+negotiate security layer:i:0
+enablecredsspsupport:i:0
+EOF
+
     echo ""
     print_warning_from_common_functions "CRITICAL: User MUST remain logged in to desktop for RDP to work!"
     echo "  - Do NOT log out"
