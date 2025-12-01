@@ -220,9 +220,7 @@ ITTools.Implementations.HTTPStatusCodes = {
 
 // Auto-initialize on load
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('http-status-result')) {
-        ITTools.Implementations.HTTPStatusCodes.search();
-    }
+    ITTools.Implementations.HTTPStatusCodes.search();
 });
 
 console.log('ITTools Web Implementations loaded');
