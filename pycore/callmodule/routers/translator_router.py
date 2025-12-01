@@ -46,6 +46,18 @@ class TranslateBatchRequest(BaseModel):
     use_cache: bool = True
 
 
+class TranslateRequest(BaseModel):
+    text: str
+    source_lang: str = "auto"
+    target_lang: str = "en"
+    use_cache: bool = True
+
+
+class RomanizeRequest(BaseModel):
+    text: str
+    source_lang: str
+
+
 # Create router
 translator_router = APIRouter(prefix="/translator", tags=["translator"])
 
@@ -155,6 +167,78 @@ async def translate_batch(req: TranslateBatchRequest):
                 for r in results
             ],
             "total": len(results)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@translator_router.post("/translate")
+async def translate(req: TranslateRequest):
+    """
+    Translate text (standard endpoint matching homepage documentation)
+
+    Args:
+        text: Text to translate
+        source_lang: Source language code (default: "auto")
+        target_lang: Destination language code (default: "en")
+        use_cache: Use cache if available (default: True)
+
+    Returns:
+        Translation result with original text, translated text, language codes
+    """
+    try:
+        translator = get_translator()
+
+        async with translator as trans:
+            result = await trans.translate_single(
+                text=req.text,
+                src=req.source_lang,
+                dest=req.target_lang,
+                use_cache=req.use_cache
+            )
+
+        return {
+            "success": True,
+            "result": {
+                "original_text": result.original_text,
+                "translated_text": result.translated_text,
+                "src_lang": result.src_lang,
+                "dest_lang": result.dest_lang,
+                "from_cache": result.from_cache
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@translator_router.post("/romanize")
+async def romanize(req: RomanizeRequest):
+    """
+    Romanize text (convert to Latin script)
+
+    Args:
+        text: Text to romanize
+        source_lang: Source language code
+
+    Returns:
+        Romanized text result
+    """
+    try:
+        translator = get_translator()
+
+        async with translator as trans:
+            result = await trans.romanize(
+                text=req.text,
+                src=req.source_lang
+            )
+
+        return {
+            "success": True,
+            "result": {
+                "original_text": req.text,
+                "romanized_text": result.get("romanized_text", ""),
+                "src_lang": req.source_lang
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
