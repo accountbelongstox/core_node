@@ -20,6 +20,7 @@ use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
 use App\Http\EnvironmentApiInfo\StaticResourceController;
 use App\Http\EnvironmentApiInfo\ChunkedUploadController;
+use App\Http\EnvironmentApiInfo\OctaneTaskController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
@@ -284,4 +285,11 @@ Route::prefix('startup-monitor')->group(function () {
     Route::get('/logs', [StartupMonitorController::class, 'getLogs']);
     Route::get('/view', [StartupMonitorController::class, 'viewLogs']);
     Route::get('/health', [StartupMonitorController::class, 'healthCheck']);
+});
+
+Route::prefix('octane-tasks')->group(function () {
+    Route::get('/status', [OctaneTaskController::class, 'getAllStatus']);
+    Route::get('/task/{taskName}', [OctaneTaskController::class, 'getTaskDetail']);
+    Route::get('/basic', [OctaneTaskController::class, 'getBasicObjects']);
+    Route::get('/verify', [OctaneTaskController::class, 'verifyInitialization']);
 });

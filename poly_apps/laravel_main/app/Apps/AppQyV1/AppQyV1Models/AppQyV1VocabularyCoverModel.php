@@ -19,6 +19,7 @@ class AppQyV1VocabularyCoverModel extends Model
         'prompt',
         'description',
         'priority',
+        'attempts',
         'error_message',
         'width',
         'height',
@@ -30,6 +31,7 @@ class AppQyV1VocabularyCoverModel extends Model
 
     protected $casts = [
         'priority' => 'integer',
+        'attempts' => 'integer',
         'width' => 'integer',
         'height' => 'integer',
         'last_requested_at' => 'datetime',

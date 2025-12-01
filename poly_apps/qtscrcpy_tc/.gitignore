@@ -1,0 +1,6 @@
+*debug
+build*
+*.user
+*.autosave
+SmartMatrix-*
+17_TcUi-*

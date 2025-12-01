@@ -202,6 +202,18 @@ configure_npm_settings() {
 
     # Configure pnpm
     if command -v pnpm >/dev/null 2>&1; then
+        # Configure pnpm global directories
+        local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
+        local pnpm_global_bin="$pnpm_global_dir/bin"
+
+        echo "Configuring pnpm global directories..."
+        pnpm config set global-dir "$pnpm_global_dir"
+        pnpm config set global-bin-dir "$pnpm_global_bin"
+
+        # Ensure directories exist
+        mkdir -p "$pnpm_global_dir"
+        mkdir -p "$pnpm_global_bin"
+
         # Configure registry based on region
         if [ "$SELECTED_REGION" = "China" ]; then
             echo "Region is set to China, configuring pnpm to use China mirror..."
