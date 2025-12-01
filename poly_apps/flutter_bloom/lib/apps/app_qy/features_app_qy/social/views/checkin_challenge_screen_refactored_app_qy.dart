@@ -20,6 +20,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../controllers/social_controller_app_qy.dart';
 import '../domain/model/social_model.dart';
 
@@ -58,9 +59,9 @@ class _CheckinChallengeScreenRefactoredAppQyState
 
   Widget _buildCheckInSuccessDialog(CheckInModel checkIn) {
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: Container(
-        padding: EdgeInsets.all(Dimensions.paddingLarge),
+        padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -70,7 +71,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
               ThemeColors.primary.withOpacity(0.8),
             ],
           ),
-          borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -80,20 +81,20 @@ class _CheckinChallengeScreenRefactoredAppQyState
               size: 80,
               color: ThemeColors.surface,
             ),
-            SizedBox(height: Dimensions.spacingMedium),
+            SizedBox(height: ThemeDimensions.spacingMedium),
             Text(
               QyAppLocalizationKeys.qyCheckInSuccess.tr(context),
-              style: TextStyles.h3.copyWith(
+              style: ThemeTextStyles.h3.copyWith(
                 color: ThemeColors.surface,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: Dimensions.spacingMedium),
+            SizedBox(height: ThemeDimensions.spacingMedium),
             Container(
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
               decoration: BoxDecoration(
                 color: ThemeColors.surface.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
               ),
               child: Column(
                 children: [
@@ -116,23 +117,23 @@ class _CheckinChallengeScreenRefactoredAppQyState
                 ],
               ),
             ),
-            SizedBox(height: Dimensions.spacingLarge),
+            SizedBox(height: ThemeDimensions.spacingLarge),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeColors.surface,
                 foregroundColor: ThemeColors.primary,
                 padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingLarge,
-                  vertical: Dimensions.paddingMedium,
+                  horizontal: ThemeDimensions.paddingLarge,
+                  vertical: ThemeDimensions.paddingMedium,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
               ),
               child: Text(
                 QyAppLocalizationKeys.qyCommonOk.tr(context),
-                style: TextStyles.button.copyWith(
+                style: ThemeTextStyles.button.copyWith(
                   color: ThemeColors.primary,
                   fontWeight: FontWeight.bold,
                 ),
@@ -146,19 +147,19 @@ class _CheckinChallengeScreenRefactoredAppQyState
 
   Widget _buildStatRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSmall),
+      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: TextStyles.body1.copyWith(
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.surface.withOpacity(0.9),
             ),
           ),
           Text(
             value,
-            style: TextStyles.h4.copyWith(
+            style: ThemeTextStyles.h4.copyWith(
               color: ThemeColors.surface,
               fontWeight: FontWeight.bold,
             ),
@@ -175,7 +176,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
       appBar: AppBar(
         title: Text(
           QyAppLocalizationKeys.qyCheckInChallenge.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
@@ -200,14 +201,14 @@ class _CheckinChallengeScreenRefactoredAppQyState
             },
             color: ThemeColors.primary,
             child: ListView(
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
               children: [
                 _buildCheckInButton(controller),
-                SizedBox(height: Dimensions.spacingLarge),
+                SizedBox(height: ThemeDimensions.spacingLarge),
                 _buildCheckInStats(controller),
-                SizedBox(height: Dimensions.spacingLarge),
+                SizedBox(height: ThemeDimensions.spacingLarge),
                 _buildCheckInCalendar(controller),
-                SizedBox(height: Dimensions.spacingLarge),
+                SizedBox(height: ThemeDimensions.spacingLarge),
                 _buildChallengesSection(controller),
               ],
             ),
@@ -221,16 +222,16 @@ class _CheckinChallengeScreenRefactoredAppQyState
     final hasCheckedIn = controller.hasCheckedInToday;
 
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: hasCheckedIn
-              ? [Colors.grey, Colors.grey.shade600]
+              ? [ColorsAppQy.qyTextSecondary, ColorsAppQy.qyTextTertiary]
               : [ThemeColors.primary, ThemeColors.primary.withOpacity(0.8)],
         ),
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         boxShadow: [
           if (!hasCheckedIn)
             BoxShadow(
@@ -247,34 +248,34 @@ class _CheckinChallengeScreenRefactoredAppQyState
             size: 64,
             color: ThemeColors.surface,
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Text(
             hasCheckedIn
                 ? QyAppLocalizationKeys.qyCheckedInToday.tr(context)
                 : QyAppLocalizationKeys.qyCheckInNow.tr(context),
-            style: TextStyles.h3.copyWith(
+            style: ThemeTextStyles.h3.copyWith(
               color: ThemeColors.surface,
               fontWeight: FontWeight.bold,
             ),
           ),
           if (!hasCheckedIn) ...[
-            SizedBox(height: Dimensions.spacingMedium),
+            SizedBox(height: ThemeDimensions.spacingMedium),
             ElevatedButton(
               onPressed: controller.isLoading ? null : _handleCheckIn,
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeColors.surface,
                 foregroundColor: ThemeColors.primary,
                 padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingLarge * 2,
-                  vertical: Dimensions.paddingMedium,
+                  horizontal: ThemeDimensions.paddingLarge * 2,
+                  vertical: ThemeDimensions.paddingMedium,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
               ),
               child: Text(
                 QyAppLocalizationKeys.qyCheckIn.tr(context),
-                style: TextStyles.button.copyWith(
+                style: ThemeTextStyles.button.copyWith(
                   color: ThemeColors.primary,
                   fontWeight: FontWeight.bold,
                 ),
@@ -292,10 +293,10 @@ class _CheckinChallengeScreenRefactoredAppQyState
     final totalDays = checkIn?.totalDays ?? 0;
 
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Row(
@@ -318,7 +319,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
               Icons.calendar_today,
               QyAppLocalizationKeys.qyTotalDays.tr(context),
               totalDays.toString(),
-              Colors.blue,
+              ColorsAppQy.qyInfo,
             ),
           ),
         ],
@@ -330,17 +331,17 @@ class _CheckinChallengeScreenRefactoredAppQyState
     return Column(
       children: [
         Icon(icon, size: 32, color: color),
-        SizedBox(height: Dimensions.spacingSmall),
+        SizedBox(height: ThemeDimensions.spacingSmall),
         Text(
           value,
-          style: TextStyles.h2.copyWith(
+          style: ThemeTextStyles.h2.copyWith(
             color: ThemeColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
         Text(
           label,
-          style: TextStyles.caption.copyWith(
+          style: ThemeTextStyles.caption.copyWith(
             color: ThemeColors.textSecondary,
           ),
         ),
@@ -359,17 +360,17 @@ class _CheckinChallengeScreenRefactoredAppQyState
       children: [
         Text(
           QyAppLocalizationKeys.qyCheckInHistory.tr(context),
-          style: TextStyles.h4.copyWith(
+          style: ThemeTextStyles.h4.copyWith(
             color: ThemeColors.textPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: Dimensions.spacingMedium),
+        SizedBox(height: ThemeDimensions.spacingMedium),
         Container(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           decoration: BoxDecoration(
             color: ThemeColors.surface,
-            borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             border: Border.all(color: ThemeColors.border),
           ),
           child: GridView.builder(
@@ -377,8 +378,8 @@ class _CheckinChallengeScreenRefactoredAppQyState
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              crossAxisSpacing: Dimensions.spacingSmall,
-              mainAxisSpacing: Dimensions.spacingSmall,
+              crossAxisSpacing: ThemeDimensions.spacingSmall,
+              mainAxisSpacing: ThemeDimensions.spacingSmall,
             ),
             itemCount: daysInMonth,
             itemBuilder: (context, index) {
@@ -399,7 +400,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
                       : isToday
                           ? ThemeColors.primary.withOpacity(0.2)
                           : ThemeColors.background,
-                  borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
                   border: isToday
                       ? Border.all(color: ThemeColors.primary, width: 2)
                       : null,
@@ -407,7 +408,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
                 child: Center(
                   child: Text(
                     day.toString(),
-                    style: TextStyles.caption.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: hasCheckedIn
                           ? ThemeColors.surface
                           : ThemeColors.textPrimary,
@@ -435,12 +436,12 @@ class _CheckinChallengeScreenRefactoredAppQyState
       children: [
         Text(
           QyAppLocalizationKeys.qyActiveChallenges.tr(context),
-          style: TextStyles.h4.copyWith(
+          style: ThemeTextStyles.h4.copyWith(
             color: ThemeColors.textPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: Dimensions.spacingMedium),
+        SizedBox(height: ThemeDimensions.spacingMedium),
         ...challenges.map((challenge) => _buildChallengeCard(challenge, controller)),
       ],
     );
@@ -450,8 +451,8 @@ class _CheckinChallengeScreenRefactoredAppQyState
     final dateFormat = DateFormat('MM-dd');
 
     return Container(
-      margin: EdgeInsets.only(bottom: Dimensions.spacingMedium),
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -461,7 +462,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
             ThemeColors.primary.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(color: ThemeColors.primary.withOpacity(0.3)),
       ),
       child: Column(
@@ -470,11 +471,11 @@ class _CheckinChallengeScreenRefactoredAppQyState
           Row(
             children: [
               Icon(Icons.emoji_events, color: ThemeColors.primary, size: 28),
-              SizedBox(width: Dimensions.spacingSmall),
+              SizedBox(width: ThemeDimensions.spacingSmall),
               Expanded(
                 child: Text(
                   challenge.title,
-                  style: TextStyles.body1.copyWith(
+                  style: ThemeTextStyles.body1.copyWith(
                     color: ThemeColors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
@@ -482,16 +483,16 @@ class _CheckinChallengeScreenRefactoredAppQyState
               ),
               Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingSmall,
-                  vertical: Dimensions.paddingXSmall,
+                  horizontal: ThemeDimensions.paddingSmall,
+                  vertical: ThemeDimensions.paddingXSmall,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.amber.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
                 ),
                 child: Text(
                   '+${challenge.rewardPoints}',
-                  style: TextStyles.caption.copyWith(
+                  style: ThemeTextStyles.caption.copyWith(
                     color: Colors.amber.shade700,
                     fontWeight: FontWeight.bold,
                   ),
@@ -499,14 +500,14 @@ class _CheckinChallengeScreenRefactoredAppQyState
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingSmall),
+          SizedBox(height: ThemeDimensions.spacingSmall),
           Text(
             challenge.description,
-            style: TextStyles.body2.copyWith(
+            style: ThemeTextStyles.body2.copyWith(
               color: ThemeColors.textSecondary,
             ),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Row(
             children: [
               Expanded(
@@ -518,23 +519,23 @@ class _CheckinChallengeScreenRefactoredAppQyState
                       children: [
                         Text(
                           '${challenge.currentDays} / ${challenge.targetDays} ${QyAppLocalizationKeys.qyDays.tr(context)}',
-                          style: TextStyles.body2.copyWith(
+                          style: ThemeTextStyles.body2.copyWith(
                             color: ThemeColors.textPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
                           '${(challenge.progress * 100).toStringAsFixed(0)}%',
-                          style: TextStyles.body2.copyWith(
+                          style: ThemeTextStyles.body2.copyWith(
                             color: ThemeColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingXSmall),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
                       child: LinearProgressIndicator(
                         value: challenge.progress,
                         minHeight: 8,
@@ -547,17 +548,17 @@ class _CheckinChallengeScreenRefactoredAppQyState
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingSmall),
+          SizedBox(height: ThemeDimensions.spacingSmall),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   Icon(Icons.people, size: 16, color: ThemeColors.textTertiary),
-                  SizedBox(width: Dimensions.spacingXSmall),
+                  SizedBox(width: ThemeDimensions.spacingXSmall),
                   Text(
                     '${challenge.participants}',
-                    style: TextStyles.caption.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: ThemeColors.textTertiary,
                     ),
                   ),
@@ -565,7 +566,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
               ),
               Text(
                 '${dateFormat.format(challenge.startDate)} - ${dateFormat.format(challenge.endDate)}',
-                style: TextStyles.caption.copyWith(
+                style: ThemeTextStyles.caption.copyWith(
                   color: ThemeColors.textTertiary,
                 ),
               ),
