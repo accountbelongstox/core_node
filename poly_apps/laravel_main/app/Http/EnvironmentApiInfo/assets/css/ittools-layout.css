@@ -586,8 +586,59 @@
 }
 
 @media (max-width: 768px) {
+    .ittools-body {
+        position: relative;
+    }
+
     .ittools-left-menu {
-        width: 200px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 260px;
+        z-index: 100;
+        background: rgba(30, 30, 35, 0.98);
+        backdrop-filter: blur(15px);
+        box-shadow: 2px 0 15px rgba(0, 0, 0, 0.5);
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Reuse the existing 'collapsed' class logic but inverted for mobile drawer if needed, 
+       OR better yet, use a new class for mobile open state to avoid conflict. 
+       Let's use a specific mobile-open class or rely on the existing logic if compatible.
+       The existing logic uses .collapsed to HIDE. On mobile, we want it HIDDEN by default.
+       So default state: transform: translateX(-100%).
+       Open state: transform: translateX(0).
+    */
+    .ittools-left-menu.mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Override the desktop 'collapsed' behavior if it interferes */
+    .ittools-left-menu.collapsed {
+        width: 260px;
+        /* Keep width, just move it off screen */
+        opacity: 1;
+    }
+
+    .ittools-menu-collapse-btn {
+        left: 0;
+        /* Stick to left edge */
+        top: 50%;
+        transform: translateY(-50%);
+        border-radius: 0 50% 50% 0;
+        width: 24px;
+        height: 40px;
+        padding-left: 2px;
+        z-index: 101;
+        /* Above menu */
+    }
+
+    /* When menu is open, move button with it or change its style */
+    .ittools-left-menu.mobile-open~.ittools-content-wrapper .ittools-menu-collapse-btn {
+        left: 260px;
     }
 
     .ittools-right-panel {
@@ -595,10 +646,19 @@
         right: 0;
         top: 0;
         bottom: 0;
-        width: 80%;
-        z-index: 100;
+        width: 85%;
+        max-width: 300px;
+        z-index: 110;
         box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
         background: #1f2335;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        display: block !important;
+        /* Override display: none */
+    }
+
+    .ittools-right-panel.visible {
+        transform: translateX(0);
     }
 
     .ittools-bottom-menu {

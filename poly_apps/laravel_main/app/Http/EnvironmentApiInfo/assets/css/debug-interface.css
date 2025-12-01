@@ -209,9 +209,49 @@ body {
 }
 
 .content-body {
-    padding: 30px;
+    padding: 15px;
     flex: 1;
     overflow-y: auto;
+}
+
+/* Tab navigation styling */
+.tab-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    border-radius: 6px;
+    color: #c0caf5;
+    cursor: pointer;
+    font-size: 14px;
+    text-align: center;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tab.active {
+    background: rgba(122, 162, 247, 0.2);
+    color: #fff;
+}
+
+/* Hide left sidebar when System Information tab active */
+.system-info-active .sidebar {
+    display: none;
+}
+
+/* Adjust content-body padding for System Info */
+.system-info-active .content-body {
+    padding: 15px;
 }
 
 .content-section {
@@ -676,6 +716,7 @@ body {
         overflow: visible;
         padding-top: 45px;
         /* Space for mobile header */
+        height: 100vh;
     }
 
     /* Mobile top navigation bar */
@@ -686,7 +727,7 @@ body {
         left: 0;
         right: 0;
         height: 45px;
-        background: rgba(30, 30, 35, 0.95);
+        background: rgba(30, 30, 35, 0.98);
         backdrop-filter: blur(10px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 150;
@@ -715,13 +756,31 @@ body {
         text-overflow: ellipsis;
     }
 
-    .content-header {
-        padding: 10px 15px;
-        min-height: 50px;
+    /* Hide redundant headers on mobile */
+    .content-header,
+    .card-header {
+        display: none !important;
     }
 
+    /* Maximize space on mobile */
     .content-body {
-        padding: 15px;
+        padding: 0;
+        height: calc(100vh - 45px);
+        overflow-y: auto;
+    }
+
+    .card {
+        border-radius: 0;
+        box-shadow: none;
+        border: none;
+        background: transparent;
+        margin-bottom: 0;
+        height: 100%;
+    }
+
+    .card-body {
+        padding: 10px;
+        height: 100%;
     }
 
     .btn-group {
@@ -738,12 +797,25 @@ body {
         margin-bottom: 8px;
     }
 
-    .card-header {
-        padding: 12px 15px;
+    /* Mobile-specific API Testing layout */
+    .api-list {
+        max-height: 40vh;
+        overflow-y: auto;
     }
 
-    .card-body {
+    .api-details {
         padding: 15px;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 12px;
+    }
+
+    .btn-group {
+        justify-content: center;
+        flex-wrap: wrap;
     }
 }
 
