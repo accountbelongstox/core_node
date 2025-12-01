@@ -189,8 +189,7 @@ ITTools.Tools.Registry.register('slugify', {
 ITTools.Implementations.Slugify = {
     convert() {
         const input = document.getElementById('slug-input').value;
-        document.getElementById('slug-result').innerHTML = '';
-        if (!input.value) return;
+        if (!input) { document.getElementById('slug-result').innerHTML = ''; return; }
         const slug = input.toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9\s-]/g, '')
