@@ -16,13 +16,11 @@ let playerQueueVisible = false;
 let playerQueueFilterGroup = '';
 let pendingGroupEditIndex = null;
 const groupEditModalEl = document.getElementById('groupEditModal');
-if (groupEditModalEl) {
-    groupEditModalEl.addEventListener('click', (event) => {
-        if (event.target === groupEditModalEl) {
-            closeGroupEditModal();
-        }
-    });
-}
+groupEditModalEl.addEventListener('click', (event) => {
+    if (event.target === groupEditModalEl) {
+        closeGroupEditModal();
+    }
+});
 document.body.classList.remove('fullscreen-mode');
 document.body.classList.remove('tab-hidden');
 
@@ -76,35 +74,23 @@ async function loadUserSettings() {
     if (result.success) {
         userSettings = result.settings;
         const userIdentifierEl = document.getElementById('userIdentifier');
-        if (userIdentifierEl) {
-            userIdentifierEl.textContent = userSettings.user_identifier || 'Unknown';
-        }
+        userIdentifierEl.textContent = userSettings.user_identifier || 'Unknown';
 
         const defaultPlaybackRateEl = document.getElementById('defaultPlaybackRate');
-        if (defaultPlaybackRateEl) {
-            defaultPlaybackRateEl.value = userSettings.playback_rate || 1.0;
-        }
+        defaultPlaybackRateEl.value = userSettings.playback_rate || 1.0;
         const defaultPlaybackRateValueEl = document.getElementById('defaultPlaybackRateValue');
-        if (defaultPlaybackRateValueEl) {
-            defaultPlaybackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
-        }
+        defaultPlaybackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
 
         const playbackRateSliderEl = document.getElementById('playbackRateSlider');
-        if (playbackRateSliderEl) {
-            playbackRateSliderEl.value = userSettings.playback_rate || 1.0;
-        }
+        playbackRateSliderEl.value = userSettings.playback_rate || 1.0;
         const playbackRateValueEl = document.getElementById('playbackRateValue');
-        if (playbackRateValueEl) {
-            playbackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
-        }
-        if (audioPlayer) {
+        playbackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
+        {
             audioPlayer.playbackRate = userSettings.playback_rate || 1.0;
         }
 
         const autoPlayCheckboxEl = document.getElementById('autoPlayCheckbox');
-        if (autoPlayCheckboxEl) {
-            autoPlayCheckboxEl.checked = userSettings.auto_play || false;
-        }
+        autoPlayCheckboxEl.checked = userSettings.auto_play || false;
         const playModeEl = document.getElementById('playMode');
         if (playModeEl) {
             playModeEl.value = userSettings.play_mode || 'all';
@@ -797,19 +783,15 @@ async function playPause() {
     }
 }
 
-if (audioPlayer) {
-    audioPlayer.addEventListener('ended', async () => {
-        isPlaying = false;
-        const playBtnEl = document.getElementById('playBtn');
-        if (playBtnEl) {
-            playBtnEl.textContent = '▶️ Play';
-        }
-        if (!isLoopEnabled()) {
-            return;
-        }
-        await advancePlaybackLoop();
-    });
-}
+audioPlayer.addEventListener('ended', async () => {
+    isPlaying = false;
+    const playBtnEl = document.getElementById('playBtn');
+    playBtnEl.textContent = '▶️ Play';
+    if (!isLoopEnabled()) {
+        return;
+    }
+    await advancePlaybackLoop();
+});
 
 async function previousSubtitle() {
     const response = await fetch(`${API_BASE}/previous`, { method: 'POST' });
@@ -970,9 +952,7 @@ async function addToQueue() {
         showMessage('Added to queue!', 'success', 'add');
         document.getElementById('inputContent').value = '';
         document.getElementById('inputGroup').value = '';
-        if (document.getElementById('inputFile')) {
-            document.getElementById('inputFile').value = '';
-        }
+        document.getElementById('inputFile').value = '';
         addPendingTaskId(result.task_id);
         await loadGroups();
         await loadTasks();
