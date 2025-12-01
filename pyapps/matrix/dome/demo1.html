@@ -86,11 +86,11 @@
             position: absolute;
             top: -100%;
             color: rgba(255, 255, 255, 0.8);
-            font-size: 16px;
-            line-height: 28px;
+            font-size: 18px;
+            line-height: 24px;
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
             animation: fall linear infinite;
-            white-space: nowrap;
+            text-align: center;
         }
 
         @keyframes fall {
@@ -149,19 +149,25 @@
     <script>
         const codeRain = document.getElementById('codeRain');
         const textLines = ['星灿传媒科技', '云矩阵集群服务'];
-        const columns = 15;
+        const columns = 8;
 
         for (let i = 0; i < columns; i++) {
             const column = document.createElement('div');
             column.className = 'code-column';
-            column.style.left = (i * 6.5) + '%';
+            // 让列更分散，不占满整个宽度
+            column.style.left = (10 + i * 11) + '%';
             column.style.animationDuration = (Math.random() * 4 + 3) + 's';
             column.style.animationDelay = Math.random() * 2 + 's';
             
             let text = '';
-            for (let j = 0; j < 25; j++) {
+            // 减少每列的文字数量
+            for (let j = 0; j < 15; j++) {
                 const lineIndex = j % 2;
-                text += textLines[lineIndex] + '<br>';
+                const currentText = textLines[lineIndex];
+                // 将每个字符拆分成单独一行
+                for (let k = 0; k < currentText.length; k++) {
+                    text += currentText[k] + '<br>';
+                }
             }
             column.innerHTML = text;
             
