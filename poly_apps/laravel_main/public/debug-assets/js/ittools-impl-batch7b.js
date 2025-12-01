@@ -85,7 +85,7 @@ ITTools.Implementations.TimestampConverter = {
 
 setInterval(() => {
     const el = document.getElementById('current-timestamp');
-    if (el) el.textContent = Math.floor(Date.now()/1000);
+    el.textContent = Math.floor(Date.now()/1000);
 }, 1000);
 
 // ============================================
