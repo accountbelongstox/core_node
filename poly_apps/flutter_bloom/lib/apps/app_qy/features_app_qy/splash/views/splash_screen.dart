@@ -14,6 +14,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
@@ -72,7 +74,8 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              padding:
+                  EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -80,8 +83,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   // App name and slogans
                   Text(
                     QyAppLocalizationKeys.qyAppName.tr(context),
-                    style: theme.textTheme.displayLarge?.copyWith(
-                      fontSize: 48,
+                    style: ThemeTextStyles.largeTitleBold.copyWith(
+                      fontSize: ThemeTextStyles.largeTitleBold.fontSize! * 1.4,
                       fontWeight: FontWeight.w900,
                       color: isDarkMode
                           ? theme.colorScheme.primaryContainer
@@ -89,11 +92,11 @@ class _SplashScreenState extends State<SplashScreen> {
                       height: 1.1,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
                   Text(
                     QyAppLocalizationKeys.qySloganWords.tr(context),
-                    style: theme.textTheme.displayMedium?.copyWith(
-                      fontSize: 32,
+                    style: ThemeTextStyles.title1Bold.copyWith(
+                      fontSize: ThemeTextStyles.title1Bold.fontSize! * 1.15,
                       fontWeight: FontWeight.w700,
                       color: isDarkMode
                           ? theme.colorScheme.secondaryContainer
@@ -101,11 +104,11 @@ class _SplashScreenState extends State<SplashScreen> {
                       height: 1.1,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: ThemeDimensions.spacingSmall),
                   Text(
                     QyAppLocalizationKeys.qySloganEyes.tr(context),
-                    style: theme.textTheme.displayMedium?.copyWith(
-                      fontSize: 24,
+                    style: ThemeTextStyles.title2.copyWith(
+                      fontSize: ThemeTextStyles.title2.fontSize! * 1.1,
                       fontWeight: FontWeight.w500,
                       color: isDarkMode
                           ? theme.colorScheme.tertiaryContainer
@@ -124,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       }
                     },
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: ThemeDimensions.spacingLarge),
                   // Bottom sign up text
                   Center(
                     child: Row(
@@ -132,27 +135,26 @@ class _SplashScreenState extends State<SplashScreen> {
                       children: [
                         Text(
                           QyAppLocalizationKeys.qyDoNotHaveAccount.tr(context),
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                          style: ThemeTextStyles.body2.copyWith(
                             color: isDarkMode
                                 ? theme.colorScheme.onSurface.withOpacity(0.7)
-                                : theme.colorScheme.onSurface
-                                    .withOpacity(0.7),
-                            fontSize: 14,
+                                : theme.colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                         TextButton(
                           onPressed: () {
-                            context.go(QyAppRoutesProvider.routeSignup);
+                            // TODO: Implement signup route
+                            // context.go(QyAppRoutesProvider.routeSignup);
                           },
                           style: TextButton.styleFrom(
                             minimumSize: Size.zero,
-                            padding: const EdgeInsets.only(left: 4),
+                            padding:
+                                EdgeInsets.only(left: ThemeDimensions.spacing4),
                           ),
                           child: Text(
                             QyAppLocalizationKeys.qySignupForFree.tr(context),
-                            style: theme.textTheme.labelLarge?.copyWith(
+                            style: ThemeTextStyles.body2.copyWith(
                               color: theme.colorScheme.primary,
-                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
