@@ -77,6 +77,8 @@ window.addEventListener('resize', function () {
 
 // NAMESPACE: Navigation Functions
 function showSection(sectionType) {
+    console.log('[showSection] Switching to section:', sectionType);
+    
     // Close mobile sidebar when selecting a menu item
     if (window.innerWidth <= 768) {
         closeMobileSidebar();
@@ -90,90 +92,195 @@ function showSection(sectionType) {
     const targetLink = document.querySelector(`[data-section="${sectionType}"]`);
     if (targetLink) {
         targetLink.classList.add('active');
+        console.log('[showSection] Menu item activated');
+    } else {
+        console.warn('[showSection] Menu item not found for:', sectionType);
     }
 
-    // Hide all sections
+    // Section file mapping
+    const sectionFileMap = {
+        'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
+        'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
+        'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
+        'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
+        'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
+        'learning': '/debug-assets/debug-tools/sections/learning-section.html',
+        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html'
+    };
+
+    // Section titles and descriptions
+    const sectionTitles = {
+        'system-info': { title: 'System Information', desc: 'View comprehensive system and application information' },
+        'dev-tools': { title: 'Development Tools', desc: 'Professional developer utilities and tools' },
+        'api-testing': { title: 'API Testing Dashboard', desc: 'Test and debug your Laravel API endpoints' },
+        'code-browser': { title: 'Code Browser', desc: 'Browse, edit files, manage tasks and prompt mappings' },
+        'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
+        'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
+        'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
+        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' }
+    };
+
+    // Hide all sections first
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
+        section.style.display = 'none';
     });
+    
+    // Handle main content body visibility
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        const contentBody = mainContent.querySelector('.content-body');
+        if (contentBody) {
+            if (sectionType === 'api-testing') {
+                contentBody.style.display = 'block';
+                console.log('[showSection] Showing API testing content body');
+            } else {
+                contentBody.style.display = 'none';
+                console.log('[showSection] Hiding API testing content body');
+            }
+        }
+    }
 
     // Update mobile nav title
     const mobileNavTitle = document.getElementById('mobile-nav-title');
-    const sectionTitles = {
-        'system-info': 'System Information',
-        'dev-tools': 'Development Tools',
-        'api-testing': 'API Testing',
-        'code-browser': 'Code Browser',
-        'static-resources': 'Static Resources',
-        'mcp-manager': 'MCP Manager',
-        'learning': 'Vocabulary Learning',
-        'octane-tasks': 'Octane Timer Tasks'
-    };
     if (mobileNavTitle && sectionTitles[sectionType]) {
-        mobileNavTitle.textContent = sectionTitles[sectionType];
+        mobileNavTitle.textContent = sectionTitles[sectionType].title;
     }
 
-    // Show selected section and update header
+    // Update page title and description
     const pageTitle = document.getElementById('page-title');
     const pageDescription = document.getElementById('page-description');
+    if (sectionTitles[sectionType]) {
+        if (pageTitle) pageTitle.textContent = sectionTitles[sectionType].title;
+        if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
+    }
 
-    if (sectionType === 'system-info') {
-        const section = document.getElementById('system-info-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'System Information';
-        if (pageDescription) pageDescription.textContent = 'View comprehensive system and application information';
-    } else if (sectionType === 'dev-tools') {
-        const section = document.getElementById('dev-tools-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Development Tools';
-        if (pageDescription) pageDescription.textContent = 'Professional developer utilities and tools';
-    } else if (sectionType === 'api-testing') {
-        const section = document.getElementById('api-testing-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'API Testing Dashboard';
-        if (pageDescription) pageDescription.textContent = 'Test and debug your Laravel API endpoints';
-    } else if (sectionType === 'code-browser') {
-        const section = document.getElementById('code-browser-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Code Browser';
-        if (pageDescription) pageDescription.textContent = 'Browse, edit files, manage tasks and prompt mappings';
+    // Handle API testing (no external file)
+    if (sectionType === 'api-testing') {
+        return;
+    }
+
+    // Load section from external file
+    const sectionId = `${sectionType}-section`;
+    const container = document.getElementById('content-sections-container');
+
+    // Check if section already exists
+    let section = document.getElementById(sectionId);
+    
+    // If section exists, just show it (already loaded)
+    if (section) {
+        section.classList.add('active');
+        section.style.display = 'block';
+        console.log('[showSection] Section activated:', sectionType);
+        
+        // Initialize module-specific functionality after DOM is ready
+        requestAnimationFrame(() => {
+            initializeSectionModules(sectionType);
+        });
+        return;
+    }
+
+    // Section doesn't exist, load it from external file
+    if (!sectionFileMap[sectionType]) {
+        console.warn('[showSection] Unknown section type:', sectionType);
+        return;
+    }
+
+    const filePath = sectionFileMap[sectionType];
+    console.log('[showSection] Loading section from:', filePath);
+    
+    fetch(filePath)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to load section: ${response.statusText}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            // Parse HTML to get the section element
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html.trim();
+            
+            // Get the section element from parsed HTML
+            section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
+            
+            // Remove section from tempDiv
+            section = tempDiv.removeChild(section);
+            
+            // Remove placeholder elements if they exist (they will be in the section HTML)
+            const placeholderIds = [
+                'dict-stats-container', 'dict-stats-loading', 'tasks-list-container', 'system-info',
+                'timer-status', 'total-tasks', 'running-tasks', 'total-ticks',
+                'heartbeat-status', 'heartbeat-details', 'static-resources-path-display',
+                'static-file-list', 'code-browser-auth-check', 'code-browser-content',
+                'prompt-mapping-panel-embedded', 'mapping-empty-state', 'mapping-editor-content',
+                'mapping-actions', 'mapping-editor-title', 'mapping-prefix', 'mapping-suffix', 'replace-map-list'
+            ];
+            placeholderIds.forEach(id => {
+                const placeholder = container.querySelector(`#${id}`);
+                if (placeholder && !placeholder.closest('.content-section')) {
+                    placeholder.remove();
+                }
+            });
+            
+            // Insert section into container
+            container.appendChild(section);
+            
+            // Show the section
+            section.classList.add('active');
+            section.style.display = 'block';
+            
+            console.log('[showSection] Section loaded and activated:', sectionType);
+            
+            // Wait for DOM to be fully updated before initializing modules
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    initializeSectionModules(sectionType);
+                });
+            });
+        });
+
+    // Save active section
+    localStorage.setItem('active_section', sectionType);
+}
+
+// Initialize module-specific functionality for a section
+function initializeSectionModules(sectionType) {
+    if (sectionType === 'code-browser') {
         if (typeof CodeBrowser !== 'undefined') {
-            CodeBrowser.init();
+            CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
         }
         initCodeBrowserIntegratedModules();
     } else if (sectionType === 'static-resources') {
-        const section = document.getElementById('static-resources-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Static Resources';
-        if (pageDescription) pageDescription.textContent = 'Browse and manage static media files';
         if (typeof StaticResourceBrowser !== 'undefined') {
             StaticResourceBrowser.init();
         }
     } else if (sectionType === 'mcp-manager') {
-        const section = document.getElementById('mcp-manager-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'MCP Manager';
-        if (pageDescription) pageDescription.textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
         if (typeof McpManager !== 'undefined') {
             McpManager.init();
         }
-    } else if (sectionType === 'learning') {
-        const section = document.getElementById('learning-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Vocabulary Learning';
-        if (pageDescription) pageDescription.textContent = 'Learn and practice vocabulary with interactive tools';
     } else if (sectionType === 'octane-tasks') {
-        const section = document.getElementById('octane-tasks-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Octane Timer Tasks';
-        if (pageDescription) pageDescription.textContent = 'Monitor and manage Octane timer tasks status';
         if (typeof OctaneTasksManager !== 'undefined') {
             OctaneTasksManager.init();
         }
+    } else if (sectionType === 'dev-tools') {
+        // Initialize ITTools menu system when dev-tools section is shown
+        setTimeout(() => {
+            ITTools.UniversalMenu.init();
+        }, 100);
+        // Load dictionary statistics when dev-tools section is shown
+        loadDictionaryStatisticsIfAvailable();
+    } else if (sectionType === 'system-info') {
+        // Set system-info content when system-info section is loaded
+        const systemInfoEl = document.getElementById("system-info");
+        if (systemInfoEl) {
+            const completeInfo = {
+                public_info: publicInfo,
+                api_reference: apiData
+            };
+            systemInfoEl.innerHTML = "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
+        }
     }
-
-    // Save active section
-    localStorage.setItem('active_section', sectionType);
 }
 
 // Restore sidebar and active section on load
@@ -327,47 +434,38 @@ function showStatus(message, type) {
     setTimeout(() => statusEl.remove(), 3000);
 }
 
-// Load initial data
+// Load initial data (only load data, don't set DOM elements yet)
 fetch("/api_info")
     .then(response => response.json())
     .then(data => {
         apiData = data.api_reference || {};
         publicInfo = data.public_info || {};
 
-        // Display complete system info (all data including API references)
-        const completeInfo = {
-            public_info: publicInfo,
-            api_reference: apiData
-        };
-        document.getElementById("system-info").innerHTML =
-            "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
-
-        // Populate app selector
+        // Populate app selector (this element exists in main template)
         const appSelect = document.getElementById("app-select");
-        Object.keys(apiData).forEach(appName => {
-            const option = document.createElement("option");
-            option.value = appName;
-            option.textContent = appName;
-            appSelect.appendChild(option);
-        });
+        if (appSelect) {
+            Object.keys(apiData).forEach(appName => {
+                const option = document.createElement("option");
+                option.value = appName;
+                option.textContent = appName;
+                appSelect.appendChild(option);
+            });
 
-        // Load previously selected app from cache
-        const cachedApp = localStorage.getItem('selected_app');
-        if (cachedApp && apiData[cachedApp]) {
-            appSelect.value = cachedApp;
-            loadAppAPIs(); // Auto-load the cached app's APIs
+            // Load previously selected app from cache
+            const cachedApp = localStorage.getItem('selected_app');
+            if (cachedApp && apiData[cachedApp]) {
+                appSelect.value = cachedApp;
+                loadAppAPIs(); // Auto-load the cached app's APIs
+            }
         }
-    })
-    .catch(error => {
-        console.error("Error loading API data:", error);
-        document.getElementById("system-info").innerHTML =
-            "<div class=\"status-error\">Error loading system information</div>";
     });
 
 let currentAppAPIs = []; // Store current APIs for searching
 
 function loadAppAPIs() {
-    const selectedApp = document.getElementById("app-select").value;
+    const appSelectEl = document.getElementById("app-select");
+    
+    const selectedApp = appSelectEl.value;
     const apiListDiv = document.getElementById("api-list");
     const searchContainer = document.getElementById("api-search-container");
 
@@ -378,13 +476,17 @@ function loadAppAPIs() {
 
     if (!selectedApp || !apiData[selectedApp]) {
         apiListDiv.innerHTML = "<p style=\"text-align: center; color: #666; padding: 40px;\">No APIs found for this app</p>";
-        searchContainer.style.display = "none";
+        if (searchContainer) {
+            searchContainer.style.display = "none";
+        }
         currentAppAPIs = [];
         return;
     }
 
     // Show search container when app is selected
-    searchContainer.style.display = "block";
+    if (searchContainer) {
+        searchContainer.style.display = "block";
+    }
 
     const appAPIs = apiData[selectedApp];
     let html = "";
@@ -396,7 +498,10 @@ function loadAppAPIs() {
 
     // Store APIs for searching and reset search
     currentAppAPIs = [];
-    document.getElementById("api-search").value = "";
+    const apiSearchEl = document.getElementById("api-search");
+    if (apiSearchEl) {
+        apiSearchEl.value = "";
+    }
 
     if (typeof appAPIs === "string") {
         html += "<div class=\"card\"><div class=\"card-body\"><p>" + appAPIs + "</p></div></div>";
@@ -1416,16 +1521,18 @@ function jumpToAPI(apiIndex) {
 }
 
 async function loadDictionaryStatistics() {
-    try {
-        const response = await fetch('/api/dict/v1/system/dictionary-statistics');
-        const result = await response.json();
+    const container = document.getElementById('dict-stats-container');
+    
+    const loadingEl = document.getElementById('dict-stats-loading');
+    
+    const response = await fetch('/api/dict/v1/system/dictionary-statistics');
+    const result = await response.json();
 
-        if (result.status === 'success') {
-            const container = document.getElementById('dict-stats-container');
-            const data = result.data;
+    if (result.status === 'success' && result.data) {
+        const data = result.data;
+        let html = '<div style="display: flex; gap: 20px; align-items: center;">';
 
-            let html = '<div style="display: flex; gap: 20px; align-items: center;">';
-
+        if (data.languages && Array.isArray(data.languages)) {
             data.languages.forEach(lang => {
                 html += `
                     <div style="display: flex; flex-direction: column; gap: 2px;">
@@ -1435,7 +1542,9 @@ async function loadDictionaryStatistics() {
                     </div>
                 `;
             });
+        }
 
+        if (data.summary) {
             html += `
                 <div style="border-left: 2px solid #ddd; padding-left: 20px; display: flex; flex-direction: column; gap: 2px;">
                     <span style="font-weight: 600; color: #333;">Total</span>
@@ -1443,37 +1552,51 @@ async function loadDictionaryStatistics() {
                     <span style="color: #999;">Reviewed: ${data.summary.total_reviewed.toLocaleString()} (${data.summary.overall_review_percentage}%)</span>
                 </div>
             `;
-
-            html += '</div>';
-            container.innerHTML = html;
-        } else {
-            document.getElementById('dict-stats-loading').textContent = 'Failed to load stats';
         }
-    } catch (error) {
-        console.error('Failed to load dictionary statistics:', error);
-        document.getElementById('dict-stats-loading').textContent = 'Stats unavailable';
+
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        if (loadingEl) {
+            loadingEl.textContent = 'Failed to load stats';
+        }
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadDictionaryStatistics();
-});
+// Load dictionary statistics when dev-tools section is shown
+// This function will be called from showSection when dev-tools is activated
+function loadDictionaryStatisticsIfAvailable() {
+    const container = document.getElementById('dict-stats-container');
+    if (container) {
+        loadDictionaryStatistics();
+    }
+}
 
 // Initialize integrated modules when Code Browser section is shown
 let codeBrowserIntegratedModulesInitialized = false;
 function initCodeBrowserIntegratedModules() {
+    // Reset initialization flag when switching sections to allow re-initialization
+    codeBrowserIntegratedModulesInitialized = false;
+    
     if (codeBrowserIntegratedModulesInitialized) return;
-    codeBrowserIntegratedModulesInitialized = true;
+    
+    // Wait a bit for the section to be fully rendered
+    setTimeout(() => {
+        // Initialize Prompts/Tasks Manager (left panel in lower section)
+        if (typeof PromptsTasksManager !== 'undefined') {
+            PromptsTasksManager.init();
+        }
 
-    // Initialize Prompts/Tasks Manager (left panel in lower section)
-    if (typeof PromptsTasksManager !== 'undefined') {
-        PromptsTasksManager.init();
-    }
-
-    // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
-    if (typeof PromptMappingManager !== 'undefined') {
-        PromptMappingManager.init('#prompt-mapping-panel-embedded');
-    }
+        // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
+        const mappingPanel = document.querySelector('#prompt-mapping-panel-embedded');
+        if (mappingPanel && typeof PromptMappingManager !== 'undefined') {
+            PromptMappingManager.init('#prompt-mapping-panel-embedded');
+        } else {
+            console.warn('Prompt mapping panel not found, may need to wait for section to load');
+        }
+        
+        codeBrowserIntegratedModulesInitialized = true;
+    }, 200);
 }
 
 
