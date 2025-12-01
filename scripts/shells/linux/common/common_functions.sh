@@ -656,6 +656,288 @@ download_with_fallback_from_common_functions() {
     return 0
 }
 
+# Enhanced download function with browser headers and redirect support
+# Usage: download_with_browser_headers_from_common_functions <url> <output_dir> [max_retries]
+# Returns: Path to downloaded file (echoes to stdout)
+# Exit codes: 0=success, 1=failure
+download_with_browser_headers_from_common_functions() {
+    local url="$1"
+    local output_dir="$2"
+    local max_retries="${3:-3}"
+
+    if [[ -z "$url" ]] || [[ -z "$output_dir" ]]; then
+        print_error_from_common_functions "Usage: download_with_browser_headers_from_common_functions <url> <output_dir> [max_retries]"
+        return 1
+    fi
+
+    # Create output directory if it doesn't exist
+    mkdir -p "$output_dir" 2>/dev/null || true
+
+    # Browser User-Agent header
+    local user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+    print_step_from_common_functions "Attempting to download from: $url"
+    print_info_from_common_functions "Output directory: $output_dir"
+
+    local retry_count=0
+    local downloaded=false
+    local final_file=""
+
+    while [[ $retry_count -lt $max_retries ]]; do
+        if [[ $retry_count -gt 0 ]]; then
+            print_warning_from_common_functions "Retry attempt $retry_count/$max_retries..."
+            sleep 2
+        fi
+
+        # Try wget first (preferred for showing progress)
+        if command -v wget >/dev/null 2>&1; then
+            print_step_from_common_functions "Using wget with browser headers..."
+
+            # Get the final redirect URL and filename
+            local temp_headers="/tmp/download_headers_$$.txt"
+
+            # First, do a HEAD request to get final URL and filename
+            if wget --spider --server-response \
+                --user-agent="$user_agent" \
+                --max-redirect=10 \
+                "$url" 2>&1 | tee "$temp_headers" | grep -q "HTTP/"; then
+
+                # Extract filename from Content-Disposition or URL
+                local filename=""
+                if grep -q "Content-Disposition" "$temp_headers"; then
+                    filename=$(grep "Content-Disposition" "$temp_headers" | \
+                        grep -oP 'filename=["'"'"']?\K[^"'"'"';]+' | tail -1)
+                fi
+
+                # If no filename from header, extract from final URL
+                if [[ -z "$filename" ]]; then
+                    local final_url=$(grep "Location:" "$temp_headers" | tail -1 | awk '{print $2}' | tr -d '\r')
+                    if [[ -n "$final_url" ]]; then
+                        filename=$(basename "$final_url")
+                    else
+                        filename=$(basename "$url")
+                    fi
+                fi
+
+                # Remove any query parameters from filename
+                filename="${filename%%\?*}"
+
+                # Ensure filename is not empty
+                if [[ -z "$filename" ]]; then
+                    filename="download_$(date +%s)"
+                fi
+
+                final_file="$output_dir/$filename"
+                print_info_from_common_functions "Target file: $filename"
+
+                # Check if file already exists and is valid
+                if [[ -f "$final_file" ]]; then
+                    local existing_size=$(stat -c%s "$final_file" 2>/dev/null || stat -f%z "$final_file" 2>/dev/null || echo "0")
+                    print_info_from_common_functions "File already exists: $filename ($existing_size bytes)"
+
+                    # Get remote file size from Content-Length header
+                    local remote_size=$(grep -i "Content-Length:" "$temp_headers" | tail -1 | awk '{print $2}' | tr -d '\r' || echo "0")
+
+                    if [[ "$remote_size" -gt 0 ]] && [[ "$existing_size" -eq "$remote_size" ]]; then
+                        # File size matches and is valid (>50MB for Cursor/VSCode)
+                        if [[ "$existing_size" -gt 52428800 ]]; then
+                            print_success_from_common_functions "File already downloaded and verified: $filename ($existing_size bytes)"
+                            print_info_from_common_functions "Skipping download"
+                            downloaded=true
+                            rm -f "$temp_headers"
+                            echo "$final_file"
+                            return 0
+                        else
+                            print_warning_from_common_functions "File size too small ($existing_size bytes), re-downloading"
+                            rm -f "$final_file"
+                        fi
+                    elif [[ "$remote_size" -gt 0 ]]; then
+                        print_warning_from_common_functions "File size mismatch (local: $existing_size bytes, remote: $remote_size bytes)"
+                        print_info_from_common_functions "Re-downloading file"
+                        rm -f "$final_file"
+                    else
+                        print_warning_from_common_functions "Could not verify remote file size, checking local file"
+                        # If we can't get remote size, trust local file if it's large enough
+                        if [[ "$existing_size" -gt 52428800 ]]; then
+                            print_success_from_common_functions "Local file appears valid: $filename ($existing_size bytes)"
+                            print_info_from_common_functions "Skipping download"
+                            downloaded=true
+                            rm -f "$temp_headers"
+                            echo "$final_file"
+                            return 0
+                        else
+                            print_warning_from_common_functions "Local file too small ($existing_size bytes), re-downloading"
+                            rm -f "$final_file"
+                        fi
+                    fi
+                fi
+
+                # Now download with progress (keep stderr for progress display)
+                echo ""  # Add newline before progress bar
+                print_info_from_common_functions "Downloading to: $final_file"
+
+                if wget --show-progress --progress=bar:force \
+                    --user-agent="$user_agent" \
+                    --max-redirect=10 \
+                    --timeout=30 \
+                    --tries=2 \
+                    -O "$final_file" \
+                    "$url"; then
+
+                    echo ""  # Add newline after progress bar
+
+                    # Wait a moment for file system to sync
+                    sleep 1
+
+                    # Verify file was downloaded and has size > 0
+                    if [[ -f "$final_file" ]]; then
+                        if [[ -s "$final_file" ]]; then
+                            local file_size=$(stat -c%s "$final_file" 2>/dev/null || stat -f%z "$final_file" 2>/dev/null || echo "0")
+                            print_success_from_common_functions "Download successful: $filename ($file_size bytes)"
+                            downloaded=true
+                            rm -f "$temp_headers"
+                            echo "$final_file"
+                            return 0
+                        else
+                            print_warning_from_common_functions "Downloaded file is empty (0 bytes): $final_file"
+                            rm -f "$final_file"
+                        fi
+                    else
+                        print_warning_from_common_functions "Downloaded file not found: $final_file"
+                    fi
+                else
+                    echo ""  # Add newline after failed download
+                    print_warning_from_common_functions "wget download failed (exit code: $?)"
+                    rm -f "$final_file"
+                fi
+            else
+                print_warning_from_common_functions "wget spider check failed"
+            fi
+
+            rm -f "$temp_headers"
+        fi
+
+        # Try curl as fallback
+        if [[ "$downloaded" = "false" ]] && command -v curl >/dev/null 2>&1; then
+            print_step_from_common_functions "Using curl with browser headers..."
+
+            # Get final filename from redirect
+            local redirect_url=$(curl -sIL \
+                -A "$user_agent" \
+                --max-redirs 10 \
+                "$url" | grep -i "^location:" | tail -1 | awk '{print $2}' | tr -d '\r')
+
+            local filename=""
+            if [[ -n "$redirect_url" ]]; then
+                filename=$(basename "$redirect_url")
+            else
+                filename=$(basename "$url")
+            fi
+
+            # Remove query parameters
+            filename="${filename%%\?*}"
+
+            if [[ -z "$filename" ]]; then
+                filename="download_$(date +%s)"
+            fi
+
+            final_file="$output_dir/$filename"
+            print_info_from_common_functions "Target file: $filename"
+
+            # Check if file already exists and is valid
+            if [[ -f "$final_file" ]]; then
+                local existing_size=$(stat -c%s "$final_file" 2>/dev/null || stat -f%z "$final_file" 2>/dev/null || echo "0")
+                print_info_from_common_functions "File already exists: $filename ($existing_size bytes)"
+
+                # Get remote file size from Content-Length header using curl
+                local remote_size=$(curl -sIL \
+                    -A "$user_agent" \
+                    --max-redirs 10 \
+                    "$url" | grep -i "^content-length:" | tail -1 | awk '{print $2}' | tr -d '\r' || echo "0")
+
+                if [[ "$remote_size" -gt 0 ]] && [[ "$existing_size" -eq "$remote_size" ]]; then
+                    # File size matches and is valid (>50MB for Cursor/VSCode)
+                    if [[ "$existing_size" -gt 52428800 ]]; then
+                        print_success_from_common_functions "File already downloaded and verified: $filename ($existing_size bytes)"
+                        print_info_from_common_functions "Skipping download"
+                        downloaded=true
+                        echo "$final_file"
+                        return 0
+                    else
+                        print_warning_from_common_functions "File size too small ($existing_size bytes), re-downloading"
+                        rm -f "$final_file"
+                    fi
+                elif [[ "$remote_size" -gt 0 ]]; then
+                    print_warning_from_common_functions "File size mismatch (local: $existing_size bytes, remote: $remote_size bytes)"
+                    print_info_from_common_functions "Re-downloading file"
+                    rm -f "$final_file"
+                else
+                    print_warning_from_common_functions "Could not verify remote file size, checking local file"
+                    # If we can't get remote size, trust local file if it's large enough
+                    if [[ "$existing_size" -gt 52428800 ]]; then
+                        print_success_from_common_functions "Local file appears valid: $filename ($existing_size bytes)"
+                        print_info_from_common_functions "Skipping download"
+                        downloaded=true
+                        echo "$final_file"
+                        return 0
+                    else
+                        print_warning_from_common_functions "Local file too small ($existing_size bytes), re-downloading"
+                        rm -f "$final_file"
+                    fi
+                fi
+            fi
+
+            # Download with curl showing progress
+            echo ""  # Add newline before progress bar
+            print_info_from_common_functions "Downloading to: $final_file"
+
+            if curl -L --progress-bar \
+                -A "$user_agent" \
+                --max-redirs 10 \
+                --connect-timeout 30 \
+                --max-time 600 \
+                -o "$final_file" \
+                "$url"; then
+
+                echo ""  # Add newline after progress bar
+
+                # Wait a moment for file system to sync
+                sleep 1
+
+                # Verify file was downloaded and has size > 0
+                if [[ -f "$final_file" ]]; then
+                    if [[ -s "$final_file" ]]; then
+                        local file_size=$(stat -c%s "$final_file" 2>/dev/null || stat -f%z "$final_file" 2>/dev/null || echo "0")
+                        print_success_from_common_functions "Download successful: $filename ($file_size bytes)"
+                        downloaded=true
+                        echo "$final_file"
+                        return 0
+                    else
+                        print_warning_from_common_functions "Downloaded file is empty (0 bytes): $final_file"
+                        rm -f "$final_file"
+                    fi
+                else
+                    print_warning_from_common_functions "Downloaded file not found: $final_file"
+                fi
+            else
+                echo ""  # Add newline after failed download
+                print_warning_from_common_functions "curl download failed (exit code: $?)"
+                rm -f "$final_file"
+            fi
+        fi
+
+        retry_count=$((retry_count + 1))
+    done
+
+    if [[ "$downloaded" = "false" ]]; then
+        print_error_from_common_functions "All download attempts failed after $max_retries retries"
+        print_error_from_common_functions "URL: $url"
+        return 1
+    fi
+
+    return 0
+}
+
 # Check if downloaded file exists and has valid size
 check_existing_download_from_common_functions() {
     local file_path="$1"
@@ -941,16 +1223,17 @@ migrate_old_to_new_directory_from_common_functions() {
     # Resolve full paths
     local old_dir=""
     local new_dir=""
+    local www_base=$(map_web_path "www")
 
-    # If patterns don't start with /, assume they're under /www
+    # If patterns don't start with /, assume they're under www
     if [[ "$old_base_pattern" != /* ]]; then
-        old_dir="/www/$old_base_pattern"
+        old_dir="$www_base/$old_base_pattern"
     else
         old_dir="$old_base_pattern"
     fi
 
     if [[ "$new_base_pattern" != /* ]]; then
-        new_dir="/www/$new_base_pattern"
+        new_dir="$www_base/$new_base_pattern"
     else
         new_dir="$new_base_pattern"
     fi
@@ -1225,13 +1508,13 @@ find_file_in_downloads_from_common_functions() {
         return 1
     fi
 
-    # Search for files matching pattern
+    # Search for files matching pattern (case-insensitive)
     for dir in "${search_dirs[@]}"; do
         while IFS= read -r -d '' file; do
             if [[ -f "$file" ]]; then
                 found_files+=("$file")
             fi
-        done < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0 2>/dev/null)
+        done < <(find "$dir" -maxdepth 1 -type f -iname "$pattern" -print0 2>/dev/null)
     done
 
     if [[ ${#found_files[@]} -eq 0 ]]; then
@@ -1273,13 +1556,13 @@ find_files_in_downloads_from_common_functions() {
         return 1
     fi
 
-    # Search for files matching pattern
+    # Search for files matching pattern (case-insensitive)
     for dir in "${search_dirs[@]}"; do
         while IFS= read -r -d '' file; do
             if [[ -f "$file" ]]; then
                 found_files+=("$file")
             fi
-        done < <(find "$dir" -maxdepth 1 -type f -name "$pattern" -print0 2>/dev/null)
+        done < <(find "$dir" -maxdepth 1 -type f -iname "$pattern" -print0 2>/dev/null)
     done
 
     if [[ ${#found_files[@]} -eq 0 ]]; then

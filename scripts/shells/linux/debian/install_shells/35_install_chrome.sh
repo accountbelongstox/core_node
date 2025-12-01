@@ -20,13 +20,11 @@ SCRIPT_INDEX="35"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
-# Source repository manager
-source "$PARENT_DIR_LEVEL_1/debian_com/repository_manager.sh"
-
 # Declare variables
 INSTALL_CHROME=$(get_var "INSTALL_CHROME")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
-CHROME_INSTALL_METHOD=$(get_var "CHROME_INSTALL_METHOD" "snap")  # Changed default to snap
+CHROME_INSTALL_METHOD=$(get_var "CHROME_INSTALL_METHOD" "apt")  # Default to apt (direct .deb download)
+CHROME_DOWNLOAD_URL="https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
 CHROME_INSTALL_DIR=""
 CHROME_BIN_PATH=""
 CHROME_VERSION=""
@@ -35,6 +33,17 @@ CHROME_SHORTCUT_CREATED=false
 
 echo "[$SCRIPT_INDEX] Google Chrome Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_CHROME: $INSTALL_CHROME, INSTALL_MODE: $INSTALL_MODE, METHOD: $CHROME_INSTALL_METHOD"
+
+# Remove any existing Chrome repository files (we use direct .deb download)
+echo "[$SCRIPT_INDEX] Cleaning up any existing Chrome repository files..."
+if [ -f "/etc/apt/sources.list.d/google-chrome.list" ]; then
+    echo "[$SCRIPT_INDEX] Removing Chrome repository: /etc/apt/sources.list.d/google-chrome.list"
+    $USE_SUDO rm -f /etc/apt/sources.list.d/google-chrome.list
+fi
+if [ -f "/etc/apt/trusted.gpg.d/google-chrome.gpg" ]; then
+    echo "[$SCRIPT_INDEX] Removing Chrome GPG key: /etc/apt/trusted.gpg.d/google-chrome.gpg"
+    $USE_SUDO rm -f /etc/apt/trusted.gpg.d/google-chrome.gpg
+fi
 
 # Function to determine optimal Chrome installation directory
 get_chrome_install_directory() {
@@ -67,20 +76,8 @@ check_chrome_installation() {
     return 1
 }
 
-# Function to verify Chrome repository is configured
-verify_chrome_repo_for_install() {
-    # Check if Google Chrome repository is already configured
-    if [ -f "/etc/apt/sources.list.d/google-chrome.list" ]; then
-        return 0
-    fi
-    
-    # Check if google-chrome-stable package is available
-    if apt-cache policy google-chrome-stable 2>/dev/null | grep -q "Candidate:"; then
-        return 0
-    fi
-    
-    return 1
-}
+# Function removed: verify_chrome_repo_for_install
+# We no longer use third-party repositories - direct .deb download instead
 
 # Function to install Chrome via APT (using .deb package from Downloads or direct download)
 install_chrome_apt() {
@@ -91,26 +88,60 @@ install_chrome_apt() {
     local chrome_deb=$(find_file_in_downloads_from_common_functions "google-chrome-stable*.deb" "newest")
 
     if [[ -z "$chrome_deb" ]]; then
-        echo "[$SCRIPT_INDEX] No Chrome .deb found in Downloads, downloading directly..."
+        echo "[$SCRIPT_INDEX] No Chrome .deb found in Downloads, downloading automatically..."
 
-        # Download Chrome package
-        local chrome_package="/tmp/google-chrome-stable_current_amd64.deb"
-        echo "[$SCRIPT_INDEX] Downloading Chrome package..."
-        if wget -q -O "$chrome_package" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
-            chrome_deb="$chrome_package"
-            echo "[$SCRIPT_INDEX] Chrome package downloaded to: $chrome_deb"
+        # Detect actual user and use their Downloads directory
+        if [ -z "$ACTUAL_DESKTOP_USER_HOME" ]; then
+            detect_actual_desktop_user
+        fi
+
+        local downloads_dir
+        if [ -n "$ACTUAL_DESKTOP_USER_HOME" ] && [ -d "$ACTUAL_DESKTOP_USER_HOME" ]; then
+            downloads_dir="$ACTUAL_DESKTOP_USER_HOME/Downloads"
+            echo "[$SCRIPT_INDEX] Using actual user's Downloads directory: $downloads_dir"
+            mkdir -p "$downloads_dir" 2>/dev/null || {
+                echo "[$SCRIPT_INDEX] Warning: Cannot create Downloads directory, using /tmp"
+                downloads_dir="/tmp"
+            }
         else
-            echo "[$SCRIPT_INDEX] Failed to download Chrome package automatically"
+            echo "[$SCRIPT_INDEX] Warning: Cannot detect actual user, using /tmp"
+            downloads_dir="/tmp"
+        fi
+
+        local download_target="$downloads_dir/google-chrome-stable_current_amd64.deb"
+
+        echo "[$SCRIPT_INDEX] Download target: $download_target"
+        echo "[$SCRIPT_INDEX] Download URL: $CHROME_DOWNLOAD_URL"
+
+        # Try automatic download with progress bar
+        if wget --show-progress --progress=bar:force -O "$download_target" "$CHROME_DOWNLOAD_URL"; then
+            if [ -f "$download_target" ] && [ -s "$download_target" ]; then
+                chrome_deb="$download_target"
+                echo "[$SCRIPT_INDEX] Chrome package downloaded successfully"
+                echo "[$SCRIPT_INDEX] Package saved to: $chrome_deb"
+                echo "[$SCRIPT_INDEX] (Package will be preserved for future installations)"
+            else
+                echo "[$SCRIPT_INDEX] Download completed but file is empty or missing"
+                rm -f "$download_target"
+                chrome_deb=""
+            fi
+        else
+            echo "[$SCRIPT_INDEX] Automatic download failed"
+            rm -f "$download_target"
+            chrome_deb=""
+        fi
+
+        # If download failed, prompt user to download manually
+        if [[ -z "$chrome_deb" ]]; then
             echo "[$SCRIPT_INDEX] Please download manually from: https://www.google.com/chrome/"
 
-            # Prompt user to download manually
             chrome_deb=$(prompt_and_wait_for_download_from_common_functions \
                 "https://www.google.com/chrome/" \
                 "google-chrome-stable*.deb" \
                 0)
 
             if [[ -z "$chrome_deb" ]]; then
-                echo "[$SCRIPT_INDEX] Failed to find Chrome package"
+                echo "[$SCRIPT_INDEX] Failed to obtain Chrome package"
                 return 1
             fi
         fi
@@ -120,15 +151,21 @@ install_chrome_apt() {
 
     # Install the package
     echo "[$SCRIPT_INDEX] Installing Chrome from: $chrome_deb"
-    $USE_SUDO dpkg -i "$chrome_deb"
+    if $USE_SUDO dpkg -i "$chrome_deb" 2>&1 | tee /tmp/chrome_install.log; then
+        echo "[$SCRIPT_INDEX] Google Chrome installed successfully"
+    else
+        echo "[$SCRIPT_INDEX] dpkg installation had issues, fixing dependencies..."
+        $USE_SUDO apt-get install -f -y
 
-    # Fix any dependency issues
-    $USE_SUDO apt-get install -f -y
-
-    # Clean up temporary file if we downloaded it
-    if [[ "$chrome_deb" == "/tmp/google-chrome-stable_current_amd64.deb" ]]; then
-        rm -f "$chrome_deb"
+        # Verify installation after fix
+        if ! command -v google-chrome &> /dev/null; then
+            echo "[$SCRIPT_INDEX] Error: Failed to install Google Chrome"
+            cat /tmp/chrome_install.log 2>/dev/null
+            return 1
+        fi
     fi
+
+    # Note: Do NOT delete the downloaded .deb file - keep it for future use
 
     # Verify installation
     if command -v google-chrome &> /dev/null; then
@@ -368,13 +405,20 @@ kill_chrome_processes
 # Check if Chrome is already installed
 if check_chrome_installation; then
     echo "[$SCRIPT_INDEX] Chrome browser is already installed"
-    
-    # Create symlink and shortcut if needed
+    echo "[$SCRIPT_INDEX] Verifying and repairing installation if needed..."
+
+    # Always ensure symlink and shortcut are correct (repair if needed)
+    echo "[$SCRIPT_INDEX] Ensuring system symlink is correct..."
     create_system_symlink
+
+    echo "[$SCRIPT_INDEX] Ensuring desktop shortcut is correct..."
     create_desktop_shortcut
-    
-    # Store information
+
+    # Update stored information
+    echo "[$SCRIPT_INDEX] Updating stored information..."
     store_chrome_info
+
+    echo "[$SCRIPT_INDEX] Installation verification and repair completed"
 else
     echo "[$SCRIPT_INDEX] Chrome browser not found, proceeding with installation..."
     
@@ -458,24 +502,24 @@ else
 fi
 
 # Check running processes
-local chrome_processes=$(ps aux | grep -i "chrome\|chromium" | grep -v grep | wc -l | tr -d '\n')
-if [ "$chrome_processes" -gt 0 ]; then
-    echo "[$SCRIPT_INDEX] Found $chrome_processes Chrome processes running"
+CHROME_PROCESSES_COUNT=$(ps aux | grep -i "chrome\|chromium" | grep -v grep | wc -l | tr -d '\n')
+if [ -n "$CHROME_PROCESSES_COUNT" ] && [ "$CHROME_PROCESSES_COUNT" -gt 0 ]; then
+    echo "[$SCRIPT_INDEX] Found $CHROME_PROCESSES_COUNT Chrome processes running"
 else
     echo "[$SCRIPT_INDEX] No Chrome processes running"
 fi
 
 # Display stored variables
-local chrome_bin=$(get_var "CHROME_BIN" 2>/dev/null || echo "not set")
-local chrome_version=$(get_var "CHROME_VERSION" 2>/dev/null || echo "not set")
-local chrome_install_dir=$(get_var "CHROME_INSTALL_DIR" 2>/dev/null || echo "not set")
-local chrome_desktop_file=$(get_var "CHROME_DESKTOP_FILE" 2>/dev/null || echo "not set")
-local chrome_shortcut_created=$(get_var "CHROME_SHORTCUT_CREATED" 2>/dev/null || echo "not set")
+CHROME_BIN_VAR=$(get_var "CHROME_BIN" 2>/dev/null || echo "not set")
+CHROME_VERSION_VAR=$(get_var "CHROME_VERSION" 2>/dev/null || echo "not set")
+CHROME_INSTALL_DIR_VAR=$(get_var "CHROME_INSTALL_DIR" 2>/dev/null || echo "not set")
+CHROME_DESKTOP_FILE_VAR=$(get_var "CHROME_DESKTOP_FILE" 2>/dev/null || echo "not set")
+CHROME_SHORTCUT_CREATED_VAR=$(get_var "CHROME_SHORTCUT_CREATED" 2>/dev/null || echo "not set")
 
 echo "[$SCRIPT_INDEX] Stored variables:"
-echo "[$SCRIPT_INDEX]   CHROME_BIN: $chrome_bin"
-echo "[$SCRIPT_INDEX]   CHROME_VERSION: $chrome_version"
-echo "[$SCRIPT_INDEX]   CHROME_INSTALL_DIR: $chrome_install_dir"
-echo "[$SCRIPT_INDEX]   CHROME_DESKTOP_FILE: $chrome_desktop_file"
-echo "[$SCRIPT_INDEX]   CHROME_SHORTCUT_CREATED: $chrome_shortcut_created"
+echo "[$SCRIPT_INDEX]   CHROME_BIN: $CHROME_BIN_VAR"
+echo "[$SCRIPT_INDEX]   CHROME_VERSION: $CHROME_VERSION_VAR"
+echo "[$SCRIPT_INDEX]   CHROME_INSTALL_DIR: $CHROME_INSTALL_DIR_VAR"
+echo "[$SCRIPT_INDEX]   CHROME_DESKTOP_FILE: $CHROME_DESKTOP_FILE_VAR"
+echo "[$SCRIPT_INDEX]   CHROME_SHORTCUT_CREATED: $CHROME_SHORTCUT_CREATED_VAR"
 echo "[$SCRIPT_INDEX] ==============================="
