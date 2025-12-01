@@ -99,6 +99,7 @@ function showSection(sectionType) {
 
     // Section file mapping
     const sectionFileMap = {
+        'api-testing': '/debug-assets/debug-tools/sections/api-testing-section.html',
         'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
         'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
         'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
@@ -155,9 +156,9 @@ function showSection(sectionType) {
         if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
     }
 
-    // Handle API testing (no external file)
+    // Handle API testing - load from external file
     if (sectionType === 'api-testing') {
-        return;
+        // Continue to load from external file
     }
 
     // Load section from external file
@@ -283,13 +284,42 @@ function initializeSectionModules(sectionType) {
     }
 }
 
+// Load dialogs and placeholders on page load
+async function loadDialogsAndPlaceholders() {
+    // Load placeholders
+    const placeholdersResponse = await fetch('/debug-assets/debug-tools/placeholders/placeholder-elements.html');
+    const placeholdersHtml = await placeholdersResponse.text();
+    const placeholdersContainer = document.getElementById('content-sections-container');
+    if (placeholdersContainer) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = placeholdersHtml.trim();
+        while (tempDiv.firstChild) {
+            placeholdersContainer.appendChild(tempDiv.firstChild);
+        }
+    }
+
+    // Load static resources dialogs
+    const staticDialogsResponse = await fetch('/debug-assets/debug-tools/dialogs/static-resources-dialogs.html');
+    const staticDialogsHtml = await staticDialogsResponse.text();
+    document.body.insertAdjacentHTML('beforeend', staticDialogsHtml);
+
+    // Load code browser dialogs
+    const codeBrowserDialogsResponse = await fetch('/debug-assets/debug-tools/dialogs/code-browser-dialogs.html');
+    const codeBrowserDialogsHtml = await codeBrowserDialogsResponse.text();
+    document.body.insertAdjacentHTML('beforeend', codeBrowserDialogsHtml);
+}
+
 // Restore sidebar and active section on load
 document.addEventListener('DOMContentLoaded', function () {
     restoreSidebarState();
+    loadDialogsAndPlaceholders();
 
     const activeSection = localStorage.getItem('active_section');
-    if (activeSection && activeSection !== 'api-testing') {
+    if (activeSection) {
         showSection(activeSection);
+    } else {
+        // Default to api-testing
+        showSection('api-testing');
     }
 
     updateUserDisplay();
