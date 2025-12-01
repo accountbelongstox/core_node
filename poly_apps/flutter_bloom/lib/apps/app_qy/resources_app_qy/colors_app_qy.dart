@@ -39,6 +39,11 @@ class ColorsAppQy {
   static const Color qyError = Color(0xFFEF4444);
   static const Color qyInfo = Color(0xFF3B82F6);
   
+  // Third-party platform colors
+  static const Color qyWechatGreen = Color(0xFF07C160);
+  static const Color qyWeiboOrange = Color(0xFFFF8140);
+  static const Color qyQQBlue = Color(0xFF1296DB);
+  
   static const Color qyBorderLight = Color(0xFFE2E8F0);
   static const Color qyBorderMedium = Color(0xFFCBD5E1);
   static const Color qyBorderDark = Color(0xFF94A3B8);

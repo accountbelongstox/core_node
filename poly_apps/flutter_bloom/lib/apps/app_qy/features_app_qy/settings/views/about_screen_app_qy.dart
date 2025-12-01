@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/settings_controller_app_qy.dart';
+import '../../../config_app_qy/app_config_app_qy.dart';
 
 class AboutScreenRefactoredAppQy extends StatefulWidget {
   const AboutScreenRefactoredAppQy({super.key});
@@ -29,9 +28,10 @@ class AboutScreenRefactoredAppQy extends StatefulWidget {
       _AboutScreenRefactoredAppQyState();
 }
 
-class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy> {
-  final String _version = '1.0.0';
-  final String _buildNumber = '100';
+class _AboutScreenRefactoredAppQyState
+    extends State<AboutScreenRefactoredAppQy> {
+  final String _version = QyAppConfig.appVersion;
+  final String _buildNumber = QyAppConfig.appBuildNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +102,7 @@ class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy>
           ),
           SizedBox(height: ThemeDimensions.spacingSmall),
           Text(
-            QyAppLocalizationKeys.qyAppTagline.tr(context),
+            QyAppLocalizationKeys.qyAboutTagline.tr(context),
             style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.surface.withOpacity(0.9),
             ),
@@ -125,20 +125,20 @@ class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy>
         children: [
           _buildInfoRow(
             Icons.info_outline,
-            QyAppLocalizationKeys.qyVersion.tr(context),
+            QyAppLocalizationKeys.qyAboutVersion.tr(context),
             _version,
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildInfoRow(
             Icons.build,
-            QyAppLocalizationKeys.qyBuildNumber.tr(context),
+            QyAppLocalizationKeys.qyAboutBuild.tr(context),
             _buildNumber,
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildInfoRow(
             Icons.update,
-            QyAppLocalizationKeys.qyLastUpdated.tr(context),
-            '2024-03-01',
+            QyAppLocalizationKeys.qyAboutLastUpdate.tr(context),
+            QyAppConfig.appLastUpdated,
           ),
         ],
       ),
@@ -156,26 +156,26 @@ class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy>
         children: [
           _buildLinkItem(
             Icons.language,
-            QyAppLocalizationKeys.qyWebsite.tr(context),
-            'www.qyenglish.com',
+            QyAppLocalizationKeys.qyAboutWebsite.tr(context),
+            QyAppConfig.appWebsite,
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildLinkItem(
             Icons.support_agent,
-            QyAppLocalizationKeys.qySupport.tr(context),
-            'support@qyenglish.com',
+            QyAppLocalizationKeys.qyAboutContact.tr(context),
+            QyAppConfig.appSupportEmail,
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildLinkItem(
             Icons.feedback,
-            QyAppLocalizationKeys.qyFeedback.tr(context),
-            QyAppLocalizationKeys.qySendFeedback.tr(context),
+            QyAppLocalizationKeys.qyAboutFeedback.tr(context),
+            QyAppLocalizationKeys.qyAboutReportIssue.tr(context),
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildLinkItem(
             Icons.star_rate,
-            QyAppLocalizationKeys.qyRateUs.tr(context),
-            QyAppLocalizationKeys.qyRateOnStore.tr(context),
+            QyAppLocalizationKeys.qyAboutFeedback.tr(context),
+            QyAppLocalizationKeys.qyAboutReportIssue.tr(context),
           ),
         ],
       ),
@@ -193,20 +193,20 @@ class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy>
         children: [
           _buildLinkItem(
             Icons.description,
-            QyAppLocalizationKeys.qyTermsOfService.tr(context),
-            QyAppLocalizationKeys.qyViewTerms.tr(context),
+            QyAppLocalizationKeys.qyAboutTerms.tr(context),
+            QyAppLocalizationKeys.qyTerms.tr(context),
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildLinkItem(
             Icons.privacy_tip,
             QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
-            QyAppLocalizationKeys.qyViewPolicy.tr(context),
+            QyAppLocalizationKeys.qyPrivacy.tr(context),
           ),
           Divider(height: 1, color: ThemeColors.border),
           _buildLinkItem(
             Icons.copyright,
-            QyAppLocalizationKeys.qyLicenses.tr(context),
-            QyAppLocalizationKeys.qyViewLicenses.tr(context),
+            QyAppLocalizationKeys.qyAboutLicense.tr(context),
+            QyAppLocalizationKeys.qyAboutLicense.tr(context),
           ),
         ],
       ),
@@ -251,7 +251,8 @@ class _AboutScreenRefactoredAppQyState extends State<AboutScreenRefactoredAppQy>
               padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
               decoration: BoxDecoration(
                 color: ThemeColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusSmall),
               ),
               child: Icon(icon, size: 20, color: ThemeColors.primary),
             ),
