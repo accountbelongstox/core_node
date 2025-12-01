@@ -263,39 +263,105 @@ ensure_ssh_permissions() {
     fi
 }
 
+# Function to configure git safe directory
+configure_git_safe_directory() {
+    # Use the CORE_NODE_DIR variable which is already set in the script
+    # This is derived from the script path, not from git commands
+    local git_root="$CORE_NODE_DIR"
+
+    if [ -z "$git_root" ] || [ ! -d "$git_root" ]; then
+        write_color_text "WARNING: Cannot determine project directory" "Yellow" >&2
+        return 0
+    fi
+
+    # Check if this directory contains a .git directory
+    if [ ! -d "$git_root/.git" ] && [ ! -f "$git_root/.git" ]; then
+        write_color_text "WARNING: Not a git repository: $git_root" "Yellow" >&2
+        return 0
+    fi
+
+    write_color_text "Configuring safe.directory for: $git_root" "DarkGray" >&2
+
+    # Check if safe.directory is already configured for this directory
+    if git config --global --get-all safe.directory 2>/dev/null | grep -q "^${git_root}$"; then
+        write_color_text "safe.directory already configured for: $git_root" "DarkGray" >&2
+    else
+        write_color_text "Adding safe.directory: $git_root" "Yellow" >&2
+        git config --global --add safe.directory "$git_root"
+        write_color_text "safe.directory configured successfully!" "Green" >&2
+    fi
+}
+
+# Function to configure git merge settings
+configure_git_merge_settings() {
+    # Configure merge.ff (fast-forward merge)
+    local current_ff=$(git config --global merge.ff 2>/dev/null)
+
+    if [ -z "$current_ff" ]; then
+        write_color_text "Configuring git merge.ff to 'false' (always create merge commits)..." "Yellow" >&2
+        git config --global merge.ff false
+        write_color_text "Set merge.ff to: false" "Cyan" >&2
+    else
+        write_color_text "merge.ff already configured: $current_ff" "DarkGray" >&2
+    fi
+
+    # Configure pull.rebase
+    local current_rebase=$(git config --global pull.rebase 2>/dev/null)
+
+    if [ -z "$current_rebase" ]; then
+        write_color_text "Configuring git pull.rebase to 'false'..." "Yellow" >&2
+        git config --global pull.rebase false
+        write_color_text "Set pull.rebase to: false" "Cyan" >&2
+    else
+        write_color_text "pull.rebase already configured: $current_rebase" "DarkGray" >&2
+    fi
+}
+
 # Function to ensure git user identity is configured
 ensure_git_identity() {
     # Check if git user.name is configured
     local git_name=$(git config --global user.name 2>/dev/null)
     local git_email=$(git config --global user.email 2>/dev/null)
-    
+
+    # Default values
+    local default_name="dev"
+    local default_email="dev@dev.linux.com"
+
     # If not configured, set default values
     if [ -z "$git_name" ] || [ -z "$git_email" ]; then
         write_color_text "Git user identity not configured. Setting default values..." "Yellow" >&2
-        
-        # Generate system-based name
-        local system_name=$(whoami)
-        local hostname=$(hostname)
-        local default_name="${system_name}@${hostname}"
-        
-        # Set default email
-        local default_email="${system_name}@dev.ai"
-        
+
         # Configure git
         if [ -z "$git_name" ]; then
             git config --global user.name "$default_name"
             write_color_text "Set git user.name to: $default_name" "Cyan" >&2
         fi
-        
+
         if [ -z "$git_email" ]; then
             git config --global user.email "$default_email"
             write_color_text "Set git user.email to: $default_email" "Cyan" >&2
         fi
-        
+
         write_color_text "Git identity configured successfully!" "Green" >&2
     else
         write_color_text "Git identity already configured: $git_name <$git_email>" "DarkGray" >&2
     fi
+}
+
+# Function to initialize all git configurations (run once on first execution)
+initialize_git_config() {
+    write_color_text "Initializing Git configuration..." "Cyan" >&2
+
+    # Configure safe directory
+    configure_git_safe_directory
+
+    # Configure merge settings
+    configure_git_merge_settings
+
+    # Configure user identity
+    ensure_git_identity
+
+    write_color_text "Git configuration initialized successfully!" "Green" >&2
 }
 
 # Function to get commit message (session-scoped only)
@@ -733,8 +799,8 @@ invoke_git_operations() {
     # Ensure SSH permissions are correct
     ensure_ssh_permissions
 
-    # Ensure git identity is configured
-    ensure_git_identity
+    # Initialize git configuration (safe.directory, merge settings, user identity)
+    initialize_git_config
 
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)

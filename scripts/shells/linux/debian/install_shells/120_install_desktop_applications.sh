@@ -451,20 +451,16 @@ Keywords=${exec_name};
     log_message "Command: $exec_name"
 
     # Fix permissions for AppImage installation directory
-    if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-        log_message "Fixing permissions for AppImage installation: $install_dir"
-        fix_installation_permissions_from_common_functions "$install_dir" "755" "true" 2>&1 | while IFS= read -r line; do
-            log_message "$line"
-        done
-    fi
+    log_message "Fixing permissions for AppImage installation: $install_dir"
+    fix_installation_permissions_from_common_functions "$install_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+        log_message "$line"
+    done
 
     # Fix permissions for wrapper script
     if [ -f "$wrapper_script" ]; then
-        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-            fix_installation_permissions_from_common_functions "$wrapper_script" "755" "true" 2>&1 | while IFS= read -r line; do
-                log_message "$line"
-            done
-        fi
+        fix_installation_permissions_from_common_functions "$wrapper_script" "755" "true" 2>&1 | while IFS= read -r line; do
+            log_message "$line"
+        done
     fi
 
     return 0
@@ -524,11 +520,9 @@ fix_pnpm_permissions() {
         log_message "Fixed permissions for $binary_count pnpm global binaries"
 
         # Use new comprehensive permission fix function
-        if command -v fix_pnpm_global_permissions_from_common_functions >/dev/null 2>&1; then
-            fix_pnpm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
-                log_message "$line"
-            done
-        fi
+        fix_pnpm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
+            log_message "$line"
+        done
 
         return 0
     else
@@ -558,12 +552,10 @@ install_via_pnpm() {
         local pnpm_global_prefix=$(pnpm config get prefix 2>/dev/null)
         if [ -n "$pnpm_global_prefix" ]; then
             # Fix permissions for the entire pnpm installation
-            if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-                log_message "Fixing permissions for pnpm installation at: $pnpm_global_prefix"
-                fix_installation_permissions_from_common_functions "$pnpm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
-                    log_message "$line"
-                done
-            fi
+            log_message "Fixing permissions for pnpm installation at: $pnpm_global_prefix"
+            fix_installation_permissions_from_common_functions "$pnpm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
+                log_message "$line"
+            done
         fi
 
         return 0
@@ -1498,15 +1490,25 @@ main() {
     local param1="$1"
     local param2="$2"
 
-    # Remove old installation directory
-    if command -v migrate_all_old_installations_from_common_functions >/dev/null 2>&1; then
+    # Check if non-desktop system - skip directly (unless test mode)
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = false ] && [ -z "$param1" ]; then
         log_message "=========================================="
-        log_message "Checking for old installations to migrate..."
+        log_message "Non-Desktop System Detected"
         log_message "=========================================="
-        migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
-            log_message "$line"
-        done
+        log_message "Non-desktop system detected - skipping desktop applications installation"
+        log_message "This script is designed for desktop environments only"
+        log_message ""
+        log_message "Skipping installation automatically"
+        return 0
     fi
+
+    # Remove old installation directory
+    log_message "=========================================="
+    log_message "Checking for old installations to migrate..."
+    log_message "=========================================="
+    migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
+        log_message "$line"
+    done
 
     # Always fix npm permissions first (regardless of what the script does)
     log_message "=========================================="
@@ -1651,8 +1653,17 @@ main() {
     log_message "Installation Plan:"
     printf '  - %s\n' "${packages_to_install[@]}"
     log_message ""
-    log_message "Press Enter to continue with installation..."
-    read -r
+    log_message "Continue with installation? (Y/n, auto-yes in 20s): "
+    if read -t 20 -r response; then
+        if [[ "$response" =~ ^[Nn]$ ]]; then
+            log_message "Installation cancelled by user"
+            return 0
+        else
+            log_message "User confirmed, starting installation..."
+        fi
+    else
+        log_message "No response after 20 seconds, automatically continuing..."
+    fi
     log_message "Starting package installation..."
     log_message "=========================================="
     log_message ""

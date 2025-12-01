@@ -58,6 +58,22 @@ done
 
 print_header_from_common_functions "GNOME Remote Desktop Setup"
 
+# Only check desktop environment for enable action
+if [ "$ACTION" = "enable" ]; then
+    # Check if running on desktop system
+    if [ "$HAS_DESKTOP_ENVIRONMENT" != "true" ]; then
+        print_info_from_common_functions "No desktop environment detected (server mode)."
+        print_info_from_common_functions "GNOME Remote Desktop is designed for desktop systems only."
+        print_info_from_common_functions "Skipping installation."
+        echo ""
+        print_info_from_common_functions "For headless servers, consider:"
+        print_info_from_common_functions "  - SSH Remote Access (17_setup_ssh_remote.sh)"
+        exit 0
+    fi
+
+    print_info_from_common_functions "Desktop environment detected: $DESKTOP_ENVIRONMENT"
+fi
+
 # Verify user exists
 if ! id "$TARGET_USER" &>/dev/null; then
     print_error_from_common_functions "User $TARGET_USER does not exist"
@@ -102,6 +118,94 @@ check_status() {
     sudo ufw status | grep 3389 || echo "Port 3389 not in firewall rules"
 }
 
+# Check if GNOME Remote Desktop is already configured
+is_rdp_configured() {
+    # Check if user is logged in
+    local user_uid=$(id -u "$TARGET_USER" 2>/dev/null)
+    local dbus_session=$(pgrep -u "$TARGET_USER" gnome-session 2>/dev/null | head -1)
+
+    if [ -z "$dbus_session" ]; then
+        # User not logged in, check if service exists and is enabled
+        if sudo -u "$TARGET_USER" systemctl --user list-unit-files 2>/dev/null | grep -q "gnome-remote-desktop.service.*enabled"; then
+            # Service is enabled, assume RDP is configured
+            return 0
+        fi
+
+        # Also check if RDP configuration files exist
+        local user_home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+        if [ -d "$user_home/.local/share/gnome-remote-desktop" ] || \
+           [ -f "$user_home/.config/gnome-remote-desktop/rdp-credentials" ]; then
+            return 0
+        fi
+
+        return 1
+    fi
+
+    # User is logged in, check if RDP is enabled
+    local dbus_address=$(tr '\0' '\n' < /proc/$dbus_session/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+
+    if [ -n "$dbus_address" ]; then
+        if sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$dbus_address" XDG_RUNTIME_DIR="/run/user/$user_uid" grdctl status 2>/dev/null | grep -q "RDP.*enabled"; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# Prompt user for installation confirmation
+prompt_installation() {
+    echo ""
+    echo "=========================================="
+    echo "GNOME Remote Desktop Setup"
+    echo "=========================================="
+    echo ""
+
+    # Check if already configured
+    if is_rdp_configured; then
+        print_info_from_common_functions "GNOME Remote Desktop is already configured for user: $TARGET_USER"
+        echo ""
+        echo "Options:"
+        echo "  - Press Enter or 'Y' to skip installation (keep current setup)"
+        echo "  - Press 'n' to reinstall/reconfigure"
+        echo ""
+
+        local user_input
+        read -r -p "Skip installation? [Y/n] " user_input
+        user_input=${user_input:-Y}
+
+        if [[ "$user_input" =~ ^[Yy]$ ]]; then
+            print_info_from_common_functions "Installation skipped, keeping existing configuration."
+            return 1
+        else
+            print_info_from_common_functions "Proceeding with reinstallation..."
+            return 0
+        fi
+    else
+        echo "This will enable remote desktop access for user: $TARGET_USER"
+        echo ""
+        echo "Features:"
+        echo "  - Use native GNOME Remote Desktop (built-in)"
+        echo "  - Connect via Windows Remote Desktop (mstsc)"
+        echo "  - Port 3389 (standard RDP port)"
+        echo "  - Requires user to be logged in"
+        echo ""
+        echo "Note: User must be logged in to the desktop for RDP to work."
+        echo ""
+
+        local user_input
+        read -r -p "Enable GNOME Remote Desktop now? [Y/n] " user_input
+        user_input=${user_input:-Y}
+
+        if [[ "$user_input" =~ ^[Yy]$ ]]; then
+            return 0
+        fi
+
+        print_info_from_common_functions "Installation skipped by user choice."
+        return 1
+    fi
+}
+
 # Enable Remote Desktop
 enable_rdp() {
     print_step_from_common_functions "Enabling GNOME Remote Desktop for user: $TARGET_USER"
@@ -114,12 +218,10 @@ enable_rdp() {
     # Prompt for password if not provided
     if [[ -z "$RDP_PASSWORD" ]]; then
         echo ""
-        echo -n "Enter RDP password for user $TARGET_USER: "
-        read -s RDP_PASSWORD
-        echo ""
+        echo -n "Enter RDP password for user $TARGET_USER (plaintext visible): "
+        read RDP_PASSWORD
         echo -n "Confirm password: "
-        read -s RDP_PASSWORD_CONFIRM
-        echo ""
+        read RDP_PASSWORD_CONFIRM
 
         if [[ "$RDP_PASSWORD" != "$RDP_PASSWORD_CONFIRM" ]]; then
             print_error_from_common_functions "Passwords do not match"
@@ -136,9 +238,6 @@ enable_rdp() {
         print_warning_from_common_functions "User $TARGET_USER is not logged in to desktop!"
         print_info_from_common_functions "GNOME Remote Desktop requires the user to be logged in first."
         print_info_from_common_functions "Please log in to the desktop and run this script again."
-        echo ""
-        print_info_from_common_functions "Alternatively, consider using RustDesk (126_install_rustdesk.sh)"
-        print_info_from_common_functions "which does not require pre-login."
         exit 1
     fi
 
@@ -248,7 +347,11 @@ disable_rdp() {
 # Main execution
 case "$ACTION" in
     enable)
-        enable_rdp
+        if prompt_installation; then
+            enable_rdp
+        else
+            exit 0
+        fi
         ;;
     disable)
         disable_rdp
