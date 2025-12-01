@@ -224,17 +224,6 @@ declare -gA DEV_PACKAGES=(
 
 # Application Software - End-user applications (can be skipped via variable)
 declare -gA APP_PACKAGES=(
-    # RustDesk Remote Desktop
-    ["rustdesk_name"]="RustDesk"
-    ["rustdesk_exec"]="rustdesk"
-    ["rustdesk_package_id"]="rustdesk"
-    ["rustdesk_install_method"]="$METHOD_FLATPAK"
-    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
-    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["rustdesk_description"]="Remote desktop application"
-    ["rustdesk_verify_command"]="--version"
-    ["rustdesk_requires_desktop"]="true"
-
     # Firefox Browser
     ["firefox_name"]="Firefox"
     ["firefox_exec"]="firefox"
@@ -287,22 +276,6 @@ declare -gA APP_PACKAGES=(
     ["gemini_desktop_description"]="Google Gemini AI desktop app"
     ["gemini_desktop_verify_command"]=""
 
-    # WeChat
-    ["wechat_name"]="WeChat"
-    ["wechat_exec"]="wechat"
-    ["wechat_package_id"]="https://dldir1v6.qq.com/weixin/Universal/Linux/WeChatLinux_x86_64.AppImage"
-    ["wechat_install_method"]="$METHOD_APPIMAGE"
-    ["wechat_category"]="$CATEGORY_COMMUNICATION"
-    ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["wechat_description"]="WeChat messaging and social media app"
-    ["wechat_verify_command"]="--version"
-    ["wechat_super"]="false"
-    ["wechat_desktop_name"]="WeChat"
-    ["wechat_desktop_comment"]="WeChat for Linux"
-    ["wechat_desktop_categories"]="Network;InstantMessaging;"
-    ["wechat_startup_wm_class"]="WeChat"
-    ["wechat_need_desktop_icon"]="true"
-
 )
 
 # AI Tools definitions (moved from 36_install_ai_tools.sh)
@@ -340,7 +313,7 @@ declare -gA AI_PACKAGES=(
 
     # Cursor Agent
     ["cursor_agent_name"]="Cursor Agent"
-    ["cursor_agent_exec"]="cursor"
+    ["cursor_agent_exec"]="cursor-agent"
     ["cursor_agent_package_id"]="https://cursor.com/install"
     ["cursor_agent_install_method"]="$METHOD_CURL"
     ["cursor_agent_category"]="$CATEGORY_AI_TOOLS"
@@ -405,7 +378,7 @@ DEV_PACKAGE_LIST=(
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "wechat" "rustdesk"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
 )
 
 AI_PACKAGE_LIST=(

@@ -35,22 +35,56 @@ $USE_SUDO apt-get install -y xvfb
 
 # Install required system dependencies for Chromium
 echo "[$SCRIPT_INDEX] Installing Chromium dependencies..."
-$USE_SUDO apt-get install -y \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0
+
+# For Ubuntu 24.04+, libasound2 is replaced by pipewire-audio
+if $USE_SUDO apt-cache show pipewire-audio >/dev/null 2>&1; then
+    AUDIO_PACKAGE="pipewire-audio"
+elif $USE_SUDO apt-cache show libasound2 >/dev/null 2>&1; then
+    AUDIO_PACKAGE="libasound2"
+else
+    AUDIO_PACKAGE=""
+    echo "[$SCRIPT_INDEX] Warning: No audio package found, continuing without it..."
+fi
+
+# Build package list
+CHROMIUM_DEPS="libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libatspi2.0-0"
+
+if [ -n "$AUDIO_PACKAGE" ]; then
+    CHROMIUM_DEPS="$CHROMIUM_DEPS $AUDIO_PACKAGE"
+fi
+
+$USE_SUDO apt-get install -y $CHROMIUM_DEPS
+
+# Ensure pnpm is available and PATH is set
+echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
+
+# Get pnpm global bin directory
+PNPM_GLOBAL_BIN=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
+
+if [ -z "$PNPM_GLOBAL_BIN" ]; then
+    # Fallback: try to get from pnpm config
+    if command -v pnpm >/dev/null 2>&1; then
+        PNPM_GLOBAL_BIN=$(pnpm config get global-bin-dir 2>/dev/null)
+    fi
+fi
+
+# Export PATH to include pnpm global bin
+if [ -n "$PNPM_GLOBAL_BIN" ]; then
+    echo "[$SCRIPT_INDEX] Adding pnpm global bin to PATH: $PNPM_GLOBAL_BIN"
+    export PATH="$PNPM_GLOBAL_BIN:$PATH"
+else
+    echo "[$SCRIPT_INDEX] Warning: Could not determine pnpm global bin directory"
+fi
+
+# Verify pnpm is accessible
+if ! command -v pnpm >/dev/null 2>&1; then
+    echo "[$SCRIPT_INDEX] ERROR: pnpm not found in PATH"
+    echo "[$SCRIPT_INDEX] Please run 28_ensure_pnpm_packages.sh first"
+    exit 1
+fi
+
+echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
+echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"
 
 # Function to install pnpm package
 install_pnpm_package() {

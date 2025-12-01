@@ -313,10 +313,10 @@ force_stop_port_80_services() {
             # Don't fail, just warn
             return 1
         else
-            echo "[$SCRIPT_INDEX] ï¿?Port 80 cleared for Nginx"
+            echo "[$SCRIPT_INDEX] ï¿½?Port 80 cleared for Nginx"
         fi
     else
-        echo "[$SCRIPT_INDEX] ï¿?Port 80 is available"
+        echo "[$SCRIPT_INDEX] ï¿½?Port 80 is available"
     fi
 
     return 0
@@ -383,12 +383,13 @@ cleanup_broken_configs() {
     echo "[$SCRIPT_INDEX] Cleaning up any broken Nginx configurations..."
 
     # First, ensure we only use one sites-enabled directory to avoid conflicts
-    # We'll use /www/nginxconfig/sites-enabled as the primary directory
+    # We'll use mapped nginxconfig/sites-enabled as the primary directory
 
     # Remove ALL default server configurations from both directories
+    local nginx_config_sites_enabled=$(map_web_path "nginxconfig" "sites-enabled")
     local config_dirs=(
         "/etc/nginx/sites-enabled"
-        "/www/nginxconfig/sites-enabled"
+        "$nginx_config_sites_enabled"
     )
 
     echo "[$SCRIPT_INDEX] Removing all existing default server configurations to prevent conflicts..."
@@ -410,7 +411,7 @@ cleanup_broken_configs() {
     done
 
     # Specifically remove the system default configuration to avoid conflicts
-    # We'll manage our own default configuration in /www/nginxconfig
+    # We'll manage our own default configuration in mapped nginxconfig
     local system_defaults=(
         "/etc/nginx/sites-available/default"
         "/etc/nginx/sites-enabled/default"
@@ -478,13 +479,14 @@ server {
         try_files \$uri \$uri/ =404;
     }
 
-    # PHP processing
-    location ~ \.php\$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
+    # PHP processing (Note: NOT USED - Using Swoole with Laravel Octane)
+    # Keeping this config commented out for reference
+    # location ~ \.php\$ {
+    #     include snippets/fastcgi-php.conf;
+    #     fastcgi_pass unix:/run/php/php8.5-fpm.sock;
+    #     fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    #     include fastcgi_params;
+    # }
 
     # Deny access to .htaccess files
     location ~ /\.ht {
@@ -644,12 +646,13 @@ create_nginx_symlink() {
 force_reinstall_nginx() {
     echo "[$SCRIPT_INDEX] [WARNING] FORCE REINSTALL: Completely removing and reinstalling Nginx..."
 
-    # Backup configurations from /www/nginxconfig (these should be preserved)
+    # Backup configurations from nginxconfig (these should be preserved)
     SCRIPT_TEMP_DIR=$(create_script_temp_dir "25_install_nginx")
     local backup_dir="$SCRIPT_TEMP_DIR/nginx_config_backup_$(date +%s)"
-    if [ -d "/www/nginxconfig" ]; then
-        echo "[$SCRIPT_INDEX] Backing up /www/nginxconfig to $backup_dir"
-        $USE_SUDO cp -r /www/nginxconfig "$backup_dir"
+    local nginx_config_dir=$(map_web_path "nginxconfig")
+    if [ -d "$nginx_config_dir" ]; then
+        echo "[$SCRIPT_INDEX] Backing up $nginx_config_dir to $backup_dir"
+        $USE_SUDO cp -r "$nginx_config_dir" "$backup_dir"
     fi
 
     # Stop nginx service
@@ -661,7 +664,7 @@ force_reinstall_nginx() {
     $USE_SUDO apt remove --purge -y nginx nginx-common nginx-core nginx-full 2>/dev/null || true
     $USE_SUDO apt autoremove -y 2>/dev/null || true
 
-    # Remove configuration files (but preserve /www/nginxconfig)
+    # Remove configuration files (but preserve nginxconfig)
     echo "[$SCRIPT_INDEX] Cleaning up system nginx configurations..."
     $USE_SUDO rm -rf /etc/nginx 2>/dev/null || true
     $USE_SUDO rm -rf /var/log/nginx 2>/dev/null || true
@@ -677,9 +680,10 @@ force_reinstall_nginx() {
 
     # Restore configurations if backup exists
     if [ -d "$backup_dir" ]; then
+        local nginx_config_restore=$(map_web_path "nginxconfig")
         echo "[$SCRIPT_INDEX] Restoring configurations from backup..."
-        $USE_SUDO cp -r "$backup_dir"/* /www/nginxconfig/ 2>/dev/null || true
-        $USE_SUDO chown -R www-data:www-data /www/nginxconfig
+        $USE_SUDO cp -r "$backup_dir"/* "$nginx_config_restore/" 2>/dev/null || true
+        $USE_SUDO chown -R www-data:www-data "$nginx_config_restore"
         $USE_SUDO rm -rf "$backup_dir"
     fi
 
@@ -691,13 +695,14 @@ fix_configuration_conflicts() {
     echo "[$SCRIPT_INDEX] Detecting and fixing configuration conflicts..."
 
     # Check for duplicate default servers
-    if [ -d "/www/nginxconfig/sites-enabled" ]; then
-        local duplicate_defaults=$(grep -r "default_server" /www/nginxconfig/sites-enabled/ 2>/dev/null | wc -l)
+    local nginx_sites_enabled=$(map_web_path "nginxconfig" "sites-enabled")
+    if [ -d "$nginx_sites_enabled" ]; then
+        local duplicate_defaults=$(grep -r "default_server" "$nginx_sites_enabled/" 2>/dev/null | wc -l)
         if [ "$duplicate_defaults" -gt 1 ]; then
             echo "[$SCRIPT_INDEX] [WARNING] Found $duplicate_defaults default servers, fixing..."
 
             # Keep only one default server (prefer default-18880)
-            for file in /www/nginxconfig/sites-enabled/*; do
+            for file in "$nginx_sites_enabled"/*; do
                 if [ -f "$file" ] && [ "$(basename "$file")" != "default-18880" ]; then
                     if grep -q "default_server" "$file"; then
                         echo "[$SCRIPT_INDEX] Removing default_server from $(basename "$file")"
@@ -723,9 +728,10 @@ fix_configuration_conflicts() {
     fi
 
     # Fix file permissions
-    if [ -d "/www/nginxconfig" ]; then
-        $USE_SUDO chown -R www-data:www-data /www/nginxconfig
-        $USE_SUDO chmod -R 755 /www/nginxconfig
+    local nginx_config_perms=$(map_web_path "nginxconfig")
+    if [ -d "$nginx_config_perms" ]; then
+        $USE_SUDO chown -R www-data:www-data "$nginx_config_perms"
+        $USE_SUDO chmod -R 755 "$nginx_config_perms"
     fi
 
     echo "[$SCRIPT_INDEX] Configuration conflict fixes completed"
@@ -746,8 +752,9 @@ check_and_fix_duplicate_default_servers() {
                 [ -f "$config" ] && enabled_configs+=("$config")
             done
         fi
-        if [ -d "/www/nginxconfig/sites-enabled" ]; then
-            for config in /www/nginxconfig/sites-enabled/*; do
+        local nginx_sites_enabled_dup=$(map_web_path "nginxconfig" "sites-enabled")
+        if [ -d "$nginx_sites_enabled_dup" ]; then
+            for config in "$nginx_sites_enabled_dup"/*; do
                 [ -f "$config" ] && enabled_configs+=("$config")
             done
         fi
@@ -767,9 +774,10 @@ check_and_fix_duplicate_default_servers() {
 
         if [ $default_server_count -gt 1 ]; then
             # Keep only our custom default configuration, remove others
+            local nginx_default_config=$(map_web_path "nginxconfig" "sites-enabled/default")
             for config in "${configs_with_default[@]}"; do
-                # Keep /www/nginxconfig/sites-enabled/default, remove others
-                if [[ "$config" != "/www/nginxconfig/sites-enabled/default" ]]; then
+                # Keep nginxconfig/sites-enabled/default, remove others
+                if [[ "$config" != "$nginx_default_config" ]]; then
                     echo "[$SCRIPT_INDEX] Removing duplicate default_server config: $config"
                     $USE_SUDO rm -f "$config"
                 fi
@@ -881,11 +889,13 @@ fix_directory_structure() {
     echo "[$SCRIPT_INDEX] Checking and fixing directory structure..."
     
     # Create directories if they don't exist
+    local nginx_sites_available=$(map_web_path "nginxconfig" "sites-available")
+    local nginx_sites_enabled_create=$(map_web_path "nginxconfig" "sites-enabled")
     local dirs_to_create=(
         "$WWW_ROOT"
         "$DEFAULT_SITE_DIR"
-        "/www/nginxconfig/sites-available"
-        "/www/nginxconfig/sites-enabled"
+        "$nginx_sites_available"
+        "$nginx_sites_enabled_create"
         "/var/log/nginx"
     )
     
@@ -1212,7 +1222,8 @@ update_nginx_conf() {
 
 # Function to create symbolic links from /etc/nginx to /www/nginxconfig
 create_nginx_config_symlinks() {
-    echo "[$SCRIPT_INDEX] Creating symbolic links from /etc/nginx to /www/nginxconfig..."
+    local nginx_config_msg=$(map_web_path "nginxconfig")
+    echo "[$SCRIPT_INDEX] Creating symbolic links from /etc/nginx to $nginx_config_msg..."
     
     # Ensure /www/nginxconfig exists
     $USE_SUDO mkdir -p "$NGINX_CONFIG_DIR"
@@ -1492,14 +1503,20 @@ print_final_summary() {
     echo "[$SCRIPT_INDEX] Integration Status:"
     echo "[$SCRIPT_INDEX] ------------------"
 
-    # Check PHP integration
-    if command -v php >/dev/null 2>&1 && systemctl is-active --quiet php8.4-fpm 2>/dev/null; then
-        echo "[$SCRIPT_INDEX] PHP Integration: ACTIVE (PHP-FPM running)"
-        echo "[$SCRIPT_INDEX]   - PHP files will be processed automatically"
-        echo "[$SCRIPT_INDEX]   - Test with: echo '<?php phpinfo(); ?>' > $WWW_ROOT/info.php"
+    # Check PHP integration (Using Swoole, not FPM)
+    if command -v php >/dev/null 2>&1; then
+        local php_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
+        if [[ "$php_version" == "8.5"* ]]; then
+            echo "[$SCRIPT_INDEX] PHP Integration: ACTIVE (PHP $php_version with Swoole)"
+            echo "[$SCRIPT_INDEX]   - Using Swoole with Laravel Octane (no PHP-FPM)"
+            echo "[$SCRIPT_INDEX]   - PHP CLI available for scripts"
+        else
+            echo "[$SCRIPT_INDEX] PHP Integration: VERSION MISMATCH (found $php_version, need 8.5)"
+            echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to update PHP"
+        fi
     else
-        echo "[$SCRIPT_INDEX] PHP Integration: NOT ACTIVE"
-        echo "[$SCRIPT_INDEX]   - Run 31_ensure_php84_intelligent.sh to enable PHP support"
+        echo "[$SCRIPT_INDEX] PHP Integration: NOT INSTALLED"
+        echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to enable PHP support"
     fi
 
     # Check Certbot integration

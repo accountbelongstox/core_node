@@ -43,12 +43,20 @@ CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
 USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
+# VSCode version configuration
+VSCODE_VERSION="stable"
+VSCODE_API_URL="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
+
 # Set up VSCode directories using new applications_dir mapping
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
 VSCODE_INSTALL_DIR="$APPLICATIONS_DIR/vscode"
 VSCODE_DEB_DIR="$VSCODE_INSTALL_DIR/deb"
-VSCODE_INSTALLED_FLAG="$VSCODE_INSTALL_DIR/.installed"
+
+# Version tracking using GLOBAL_VAR_DIR
+APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
+VSCODE_INSTALLED_FLAG="$APP_VERSIONS_DIR/vscode.version"
 VSCODE_DOWNLOAD_URL="https://code.visualstudio.com/Download"
+PRIMARY_DOWNLOAD_DIR="$HOME/Downloads"
 DESKTOP_MANAGER_SCRIPT="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
 DESKTOP_MANAGER_USER="${SUDO_USER:-$USER}"
 DESKTOP_MANAGER_HOME="$(getent passwd "$DESKTOP_MANAGER_USER" | cut -d: -f6)"
@@ -142,14 +150,57 @@ parse_arguments() {
     done
 }
 
-# Extract version from filename
+# Extract version from filename (use full filename without extension as version)
+# Example: "code_1.85.0-1234567890_amd64.deb" -> "code_1.85.0-1234567890_amd64"
 extract_version_from_filename() {
     local filename="$1"
     local basename_file=$(basename "$filename")
 
-    # Pattern: code_1.85.0-1234567890_amd64.deb -> 1.85.0
-    if [[ "$basename_file" =~ code[_-]([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-        echo "${BASH_REMATCH[1]}"
+    # Remove file extension (.deb, .tar.gz, etc.)
+    local version_string="${basename_file%.*}"
+
+    if [[ -n "$version_string" ]]; then
+        echo "$version_string"
+        return 0
+    fi
+
+    return 1
+}
+
+# Get remote version from VSCode API by following redirects
+# Returns: Version string (e.g., "code_1.85.0-1234567890_amd64") or empty string if not found
+get_remote_vscode_version() {
+    local api_url="$VSCODE_API_URL"
+    local user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    local final_url=""
+
+    # Try wget first
+    if command -v wget >/dev/null 2>&1; then
+        final_url=$(wget --spider --server-response \
+            --user-agent="$user_agent" \
+            --max-redirect=10 \
+            "$api_url" 2>&1 | grep -i "Location:" | tail -1 | awk '{print $2}' | tr -d '\r')
+    fi
+
+    # Try curl if wget failed
+    if [[ -z "$final_url" ]] && command -v curl >/dev/null 2>&1; then
+        final_url=$(curl -sIL \
+            -A "$user_agent" \
+            --max-redirs 10 \
+            "$api_url" | grep -i "^location:" | tail -1 | awk '{print $2}' | tr -d '\r')
+    fi
+
+    if [[ -z "$final_url" ]]; then
+        return 1
+    fi
+
+    # Extract filename from URL and remove extension
+    local filename=$(basename "$final_url")
+    filename="${filename%%\?*}"  # Remove query parameters
+    local version_string="${filename%.*}"  # Remove extension
+
+    if [[ -n "$version_string" ]]; then
+        echo "$version_string"
         return 0
     fi
 
@@ -168,7 +219,10 @@ save_installation_info() {
     local version="$1"
     local package_file="$2"
 
-    $USE_SUDO mkdir -p "$(dirname "$VSCODE_INSTALLED_FLAG")"
+    # Create app versions directory if it doesn't exist
+    $USE_SUDO mkdir -p "$APP_VERSIONS_DIR"
+
+    # Save version info to GLOBAL_VAR_DIR
     cat <<EOF | $USE_SUDO tee "$VSCODE_INSTALLED_FLAG" > /dev/null
 DATE=$(date '+%Y-%m-%d %H:%M:%S')
 VERSION=$version
@@ -185,8 +239,10 @@ is_vscode_installed() {
     return 1  # Not installed
 }
 
+# DEPRECATED: This function is no longer used
+# Use find_file_in_downloads_from_common_functions() instead
 # Find VS Code .deb files inside /home/*/Downloads
-find_vscode_file() {
+find_vscode_file_deprecated() {
     local search_dirs=()
     local latest_file=""
     local latest_mtime=0
@@ -302,8 +358,10 @@ safe_kill_processes() {
     fi
 }
 
+# DEPRECATED: This function is no longer used
+# Use prompt_and_wait_for_download_from_common_functions() instead
 # Manual download fallback
-vscode_manual_download() {
+vscode_manual_download_deprecated() {
     local confirmation=""
     local downloaded_file=""
 
@@ -323,7 +381,7 @@ vscode_manual_download() {
 
         case "$confirmation" in
             [yY]|[yY][eE][sS])
-                downloaded_file=$(find_vscode_file)
+                downloaded_file=$(find_file_in_downloads_from_common_functions "code*.deb" "newest")
                 if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
                     print_success_from_common_functions "Found VS Code installer: $(basename "$downloaded_file")"
                     echo "$downloaded_file"
@@ -381,8 +439,8 @@ install_deb_package() {
 
     if ! check_deb_integrity "$deb_file"; then
         print_error_from_common_functions ".deb file integrity check failed"
-        print_step_from_common_functions "Corrupted file left in place: $deb_file"
-        print_info_from_common_functions "Please remove it manually from /home/<username>/Downloads"
+        print_step_from_common_functions "Removing corrupted file: $deb_file"
+        rm -f "$deb_file"
         return 2
     fi
 
@@ -579,23 +637,62 @@ install_vscode() {
 
     print_step_from_common_functions "Searching for VS Code installer in /home/*/Downloads..."
 
-    local deb_file=$(find_vscode_file)
+    local deb_file=$(find_file_in_downloads_from_common_functions "code*.deb" "newest")
 
-    if [[ -n "$deb_file" ]] && [[ -f "$deb_file" ]] && [[ "$FORCE_INSTALL" != true ]]; then
-        print_info_from_common_functions "Using existing VS Code file: $(basename "$deb_file")"
+    if [[ -n "$deb_file" ]] && [[ -f "$deb_file" ]]; then
+        print_info_from_common_functions "Found VS Code installer: $(basename "$deb_file")"
     else
-        if [[ "$FORCE_INSTALL" == true ]]; then
-            print_warning_from_common_functions "Force install requested. Waiting for manual confirmation before proceeding"
-        else
-            print_warning_from_common_functions "No VS Code .deb found under /home/*/Downloads"
+        print_warning_from_common_functions "No VS Code installer detected in any Downloads directories"
+        print_step_from_common_functions "Attempting automatic download from VS Code API..."
+        print_info_from_common_functions "API URL: $VSCODE_API_URL"
+
+        # Try auto-download using enhanced function with browser headers
+        local download_dir="$PRIMARY_DOWNLOAD_DIR"
+        if [[ ! -d "$download_dir" ]]; then
+            download_dir=$(find /home -maxdepth 2 -type d -name "Downloads" 2>/dev/null | head -1)
+        fi
+        if [[ -z "$download_dir" ]] || [[ ! -d "$download_dir" ]]; then
+            download_dir="/tmp"
         fi
 
-        deb_file=$(vscode_manual_download)
-        local manual_result=$?
+        print_info_from_common_functions "Download directory: $download_dir"
 
-        if [[ $manual_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-            print_error_from_common_functions "Manual download not completed. Cannot continue installation"
-            return 1
+        local downloaded_file=$(download_with_browser_headers_from_common_functions "$VSCODE_API_URL" "$download_dir" 3)
+
+        # If function returned a path, verify it exists
+        if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
+            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
+            deb_file="$downloaded_file"
+        else
+            # Function failed to return path, try scanning Downloads directory
+            print_warning_from_common_functions "Download function did not return file path, scanning Downloads..."
+
+            sleep 2  # Wait for file system to sync
+
+            local found_deb=$(find_file_in_downloads_from_common_functions "code*.deb" "newest")
+            if [[ -n "$found_deb" ]] && [[ -f "$found_deb" ]]; then
+                print_success_from_common_functions "Found downloaded .deb: $(basename "$found_deb")"
+                deb_file="$found_deb"
+            else
+                # Auto-download failed, fallback to manual download
+                print_warning_from_common_functions "Auto-download failed, switching to manual download mode"
+                print_step_from_common_functions "Opening VS Code download page for manual download..."
+
+                if command -v xdg-open >/dev/null 2>&1; then
+                    xdg-open "$VSCODE_DOWNLOAD_URL" >/dev/null 2>&1 &
+                fi
+
+                # Use global function for manual download prompt
+                deb_file=$(prompt_and_wait_for_download_from_common_functions \
+                    "$VSCODE_DOWNLOAD_URL" \
+                    "code*.deb" \
+                    0)
+
+                if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+                    print_error_from_common_functions "Manual download is required before installation can continue"
+                    return 1
+                fi
+            fi
         fi
     fi
 
@@ -614,24 +711,19 @@ install_vscode() {
             break
         elif [[ $install_result -eq 2 ]]; then
             print_warning_from_common_functions "Corrupted .deb detected (attempt $((retry_count + 1))/$max_retries)"
+            print_error_from_common_functions "File corruption detected: $deb_file"
+            print_step_from_common_functions "Removing corrupted file and restarting installation..."
 
-            if [[ $retry_count -lt $((max_retries - 1)) ]]; then
-                print_step_from_common_functions "Removing corrupted backup file..."
-                $USE_SUDO rm -f "$VSCODE_DEB_DIR/$(basename "$deb_file")" 2>/dev/null || true
+            # Remove corrupted file
+            rm -f "$deb_file" 2>/dev/null || true
+            $USE_SUDO rm -f "$VSCODE_DEB_DIR/$(basename "$deb_file")" 2>/dev/null || true
 
-                print_step_from_common_functions "Please download a fresh VS Code .deb file and confirm with 'yes'"
-                deb_file=$(vscode_manual_download)
-                local manual_retry_result=$?
+            # Wait a moment
+            sleep 2
 
-                if [[ $manual_retry_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-                    print_error_from_common_functions "Manual re-download not completed"
-                    return 1
-                fi
-
-                print_info_from_common_functions "Using manually re-downloaded file: $(basename "$deb_file")"
-            fi
-
-            retry_count=$((retry_count + 1))
+            # Restart the script with the same arguments
+            print_info_from_common_functions "Restarting script: $0 $@"
+            exec "$0" "$@"
         else
             print_error_from_common_functions "Failed to install VS Code .deb package"
             return 1
@@ -683,40 +775,85 @@ prompt_cleanup_reinstall() {
             print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        local available_file=$(find_vscode_file)
+        # Get remote version from API
+        print_step_from_common_functions "Checking for updates from VS Code API..."
+        local remote_version=$(get_remote_vscode_version)
+
+        if [[ -n "$remote_version" ]]; then
+            print_info_from_common_functions "Latest version available: $remote_version"
+
+            # Compare versions
+            if [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
+                print_success_from_common_functions "VS Code is already up to date (version $installed_version)"
+                print_info_from_common_functions "No upgrade needed"
+                return 1
+            fi
+        else
+            print_warning_from_common_functions "Unable to retrieve remote version from API"
+            print_info_from_common_functions "Will proceed with manual version check"
+        fi
+
+        # Check for available installer in Downloads
+        local available_file=$(find_file_in_downloads_from_common_functions "code*.deb" "newest")
+        local available_version=""
         if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
             print_info_from_common_functions "Detected manual installer: $(basename "$available_file")"
-            local available_version=$(extract_version_from_filename "$available_file")
+            available_version=$(extract_version_from_filename "$available_file")
 
             if [[ -n "$available_version" ]]; then
                 print_info_from_common_functions "Manual installer version: $available_version"
-
-                if [[ -n "$installed_version" ]]; then
-                    if [[ "$available_version" != "$installed_version" ]]; then
-                        print_info_from_common_functions "A different version is available in /home/*/Downloads"
-                    else
-                        print_info_from_common_functions "Manual installer matches the installed version"
-                    fi
-                fi
             fi
-        else
-            print_warning_from_common_functions "No VS Code installer found under /home/*/Downloads"
-            print_info_from_common_functions "Download the desired version manually after cleanup"
         fi
 
-        echo -n "Do you want to clean up and reinstall using a manual download? (y/N): "
+        # Determine prompt message
+        local prompt_message=""
+        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
+            # Remote version available and different
+            prompt_message="VS Code $installed_version is installed. Upgrade to $remote_version? (Y/n): "
+        elif [[ -n "$available_version" ]] && [[ -n "$installed_version" ]] && [[ "$available_version" != "$installed_version" ]]; then
+            # Manual installer available and different
+            prompt_message="VS Code $installed_version is installed. Upgrade to $available_version? (Y/n): "
+        else
+            # No version info or same version
+            prompt_message="Do you want to clean up and reinstall? (y/N): "
+        fi
+
+        echo -n "$prompt_message"
         read -r response
-        case "$response" in
-            [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Cleaning up existing installation..."
-                cleanup_vscode
-                return 0
-                ;;
-            *)
-                print_info_from_common_functions "Keeping existing installation"
-                return 1
-                ;;
-        esac
+
+        # Handle upgrade prompt
+        local should_proceed=false
+        if [[ "$prompt_message" == *"Upgrade"* ]]; then
+            # Upgrade prompt - Y is default
+            case "$response" in
+                [nN]|[nN][oO])
+                    print_info_from_common_functions "Upgrade cancelled - keeping existing installation"
+                    return 1
+                    ;;
+                *)
+                    should_proceed=true
+                    print_info_from_common_functions "Proceeding with upgrade..."
+                    ;;
+            esac
+        else
+            # Reinstall prompt - N is default
+            case "$response" in
+                [yY]|[yY][eE][sS])
+                    should_proceed=true
+                    print_info_from_common_functions "Proceeding with reinstallation..."
+                    ;;
+                *)
+                    print_info_from_common_functions "Keeping existing installation"
+                    return 1
+                    ;;
+            esac
+        fi
+
+        if [[ "$should_proceed" == true ]]; then
+            print_info_from_common_functions "Cleaning up existing installation..."
+            cleanup_vscode
+            return 0
+        fi
     fi
     return 0
 }

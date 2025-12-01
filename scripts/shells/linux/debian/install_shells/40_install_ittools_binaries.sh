@@ -117,10 +117,17 @@ create_symlinks_for_pdf_tools() {
         "pdftk"
         "qpdf"
     )
-    
+
     for bin in "${pdf_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -161,10 +168,17 @@ create_symlinks_for_doc_tools() {
         "catdoc"
         "pandoc"
     )
-    
+
     for bin in "${doc_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /snap/bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -213,10 +227,17 @@ create_symlinks_for_image_tools() {
         "vips"
         "vipsthumbnail"
     )
-    
+
     for bin in "${image_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -251,10 +272,17 @@ create_symlinks_for_ffmpeg() {
         "ffprobe"
         "ffplay"
     )
-    
+
     for bin in "${ffmpeg_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -300,10 +328,17 @@ create_symlinks_for_network_tools() {
         "netstat"
         "ifconfig"
     )
-    
+
     for bin in "${net_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /sbin /usr/sbin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -355,10 +390,17 @@ create_symlinks_for_compression_tools() {
         "rar"
         "unrar"
     )
-    
+
     for bin in "${compress_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -393,10 +435,17 @@ create_symlinks_for_barcode_tools() {
         "zbarcam"
         "qrencode"
     )
-    
+
     for bin in "${barcode_bins[@]}"; do
-        local bin_path=$(command -v "$bin" 2>/dev/null)
-        if [ -n "$bin_path" ] && [ -x "$bin_path" ]; then
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
             $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
             echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
         fi
@@ -417,9 +466,9 @@ verify_php_access() {
     for bin in "${test_bins[@]}"; do
         if command -v "$bin" >/dev/null 2>&1; then
             local bin_path=$(command -v "$bin")
-            echo "[$SCRIPT_INDEX] âœ?$bin accessible at: $bin_path"
+            echo "[$SCRIPT_INDEX] ï¿½?$bin accessible at: $bin_path"
         else
-            echo "[$SCRIPT_INDEX] âœ?$bin NOT accessible"
+            echo "[$SCRIPT_INDEX] ï¿½?$bin NOT accessible"
         fi
     done
 }
