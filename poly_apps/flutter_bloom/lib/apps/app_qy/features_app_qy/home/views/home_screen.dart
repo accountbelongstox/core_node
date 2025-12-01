@@ -37,6 +37,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/logined_func_w
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/logined_wordgroup_widget.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 // AI: Claude Code - Replaced old top_menu and home_bar with EnhancedTopMenu
 // This refactor provides better dropdown functionality and user profile display
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
@@ -142,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         'U'
                     : 'G',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                    color: ColorsAppQy.qyTextOnPrimary, fontWeight: FontWeight.bold),
               ),
             ),
             subtitle: userProvider.isAuthenticated

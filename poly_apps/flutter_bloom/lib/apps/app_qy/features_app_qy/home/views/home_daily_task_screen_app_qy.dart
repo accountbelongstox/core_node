@@ -20,6 +20,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../router_app_qy/routes_provider_app_qy.dart';
 import '../controllers/home_controller_app_qy.dart';
 
@@ -59,7 +60,7 @@ class _HomeDailyTaskScreenRefactoredAppQyState
         'total': 20,
         'completed': false,
         'icon': Icons.book,
-        'color': Colors.blue,
+        'color': ColorsAppQy.qyInfo,
       },
       {
         'id': 't2',
@@ -70,7 +71,7 @@ class _HomeDailyTaskScreenRefactoredAppQyState
         'total': 1,
         'completed': true,
         'icon': Icons.school,
-        'color': Colors.green,
+        'color': ColorsAppQy.qySuccess,
       },
       {
         'id': 't3',

@@ -210,176 +210,9 @@ WINDOWS_ONLY_PACKAGES = {
     "pyaudio": "pyaudio",
 }
 
-# System packages required for Python packages (Debian/Ubuntu only)
-# These are installed via apt-get, not pip
-# Note: python3-tk is generic, but we'll also add version-specific package dynamically
-SYSTEM_PACKAGES = [
-    "python3-tk",              # Required for tkinter GUI support (generic)
-    "python3-dev",              # Required for building Python extensions
-    "gir1.2-appindicator3-0.1", # Required for system tray indicators
-    "gir1.2-gtk-3.0",          # Required for GTK3 GUI support
-    "python3-gi",               # Required for GObject Introspection (GTK bindings)
-    "python3-gi-cairo",         # Required for Cairo graphics with GObject
-    "python3-pil",              # Required for PIL/Pillow image processing
-    "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
-]
-
-
-def get_system_packages_for_current_python():
-    """
-    Get system packages list including version-specific packages for current Python.
-
-    For example, if running Python 3.12, adds python3.12-tk to the list.
-    """
-    packages = list(SYSTEM_PACKAGES)
-
-    # Add version-specific tkinter package
-    import sys
-    py_major = sys.version_info.major
-    py_minor = sys.version_info.minor
-    version_specific_tk = f"python{py_major}.{py_minor}-tk"
-
-    # Add version-specific package if not already in generic list
-    if version_specific_tk not in packages and "python3-tk" in packages:
-        # Insert after python3-tk
-        idx = packages.index("python3-tk")
-        packages.insert(idx + 1, version_specific_tk)
-
-    return packages
-
-
-def check_system_package_installed(package_name: str) -> bool:
-    """
-    Check if a system package is installed (Debian/Ubuntu only).
-    
-    Args:
-        package_name: Name of the system package to check
-        
-    Returns:
-        True if package is installed, False otherwise
-    """
-    try:
-        # Use dpkg to check if package is installed
-        result = subprocess.run(
-            ["dpkg", "-l", package_name],
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        # If package is installed, dpkg -l will show it (exit code 0 and output contains package)
-        return result.returncode == 0 and package_name in result.stdout
-    except (FileNotFoundError, subprocess.SubprocessError):
-        # dpkg not available or error occurred
-        return False
-
-
-def install_system_packages():
-    """
-    Check and install required system packages (Linux/Debian/Ubuntu only).
-
-    Uses apt-get to install system packages. Requires sudo privileges.
-    Only runs on Linux systems with apt-get available.
-    First fixes any broken packages, then updates package list, then installs missing packages.
-
-    Automatically detects current Python version and installs version-specific packages
-    (e.g., python3.12-tk for Python 3.12).
-    """
-    current_platform = platform.system()
-
-    # Only run on Linux
-    if current_platform != 'Linux':
-        return
-
-    # Check if apt-get is available
-    try:
-        subprocess.run(["which", "apt-get"], capture_output=True, check=True)
-    except (FileNotFoundError, subprocess.SubprocessError):
-        ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
-        return
-
-    # Get system packages list (includes version-specific packages for current Python)
-    system_packages = get_system_packages_for_current_python()
-
-    # Check which system packages are missing (always check, even without sudo)
-    ColorPrint.blue("[INFO] Checking for required system packages...")
-    ColorPrint.blue(f"[INFO] Current Python: {sys.version_info.major}.{sys.version_info.minor}")
-    missing_packages = []
-
-    for package in system_packages:
-        if not check_system_package_installed(package):
-            missing_packages.append(package)
-            ColorPrint.yellow(f"[MISSING] System package '{package}' not found")
-        else:
-            ColorPrint.green(f"[OK] System package '{package}' is installed")
-
-    # Store missing packages in ENCYCLOPEDIA for later reference
-    if missing_packages:
-        ENCYCLOPEDIA.add("missing_system_packages", missing_packages)
-
-    # Check if we have sudo privileges (or running as root)
-    has_sudo = False
-    if os.geteuid() == 0:
-        has_sudo = True
-    else:
-        # Check if sudo is available and we can use it
-        try:
-            result = subprocess.run(
-                ["sudo", "-n", "true"],
-                capture_output=True,
-                check=False
-            )
-            if result.returncode == 0:
-                has_sudo = True
-        except (FileNotFoundError, subprocess.SubprocessError):
-            pass
-
-    if not has_sudo and missing_packages:
-        ColorPrint.yellow("[WARNING] Sudo privileges required for system package installation")
-        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
-        return
-
-    if not missing_packages:
-        ColorPrint.green("[INFO] All required system packages are installed")
-        return
-
-    # Determine command prefix (sudo or direct)
-    # If running as root (euid == 0), don't use sudo
-    is_root = os.geteuid() == 0
-    cmd_prefix = [] if is_root else ["sudo"]
-
-    # Install missing packages
-    try:
-        # Fix broken packages first (if any)
-        ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
-        fix_cmd = cmd_prefix + ["apt", "--fix-broken", "install", "-y"]
-        fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
-        if fix_result.returncode == 0:
-            ColorPrint.green("[OK] Broken packages fixed (or none found)")
-        else:
-            # Try alternative command
-            fix_cmd2 = cmd_prefix + ["apt", "-f", "install", "-y"]
-            fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
-            if fix_result2.returncode == 0:
-                ColorPrint.green("[OK] Broken packages fixed (or none found)")
-            else:
-                ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
-
-        # Update package list
-        ColorPrint.blue("[INFO] Updating package list...")
-        update_cmd = cmd_prefix + ["apt-get", "update", "-qq"]
-        subprocess.run(update_cmd, check=True)
-
-        # Install missing packages
-        install_cmd = cmd_prefix + ["apt-get", "install", "-y"] + missing_packages
-        ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
-        result = subprocess.run(install_cmd, check=True)
-
-        ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
-    except subprocess.CalledProcessError as e:
-        ColorPrint.red(f"[ERROR] Failed to install system packages: {e}")
-        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
-    except Exception as e:
-        ColorPrint.red(f"[ERROR] Unexpected error installing system packages: {e}")
+# NOTE: System packages (python3-tk, python3-gi, etc.) are now installed by
+# scripts/shells/linux/debian/install_shells/13_ensure_python.sh
+# This file only handles Python packages installable via pip
 
 
 def build_pip_install_command(package_name: str) -> list:
@@ -551,8 +384,8 @@ def check_and_install_dependencies():
     # Mark as checking to prevent recursion
     ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
-    # Check and install system packages first (before Python packages)
-    install_system_packages()
+    # NOTE: System packages are now installed by shell scripts
+    # See: scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 
     installed_packages = set()
     missing_packages = set()
@@ -1169,36 +1002,32 @@ def get_third_package_pyaudio():
 
 # GUI packages
 def get_third_package_tkinter():
-    """Get tkinter module (lazy load, requires python3.X-tk on Linux)"""
+    """Get tkinter module (lazy load, requires system packages on Linux)"""
     if 'tkinter' not in _PACKAGE_CACHE:
         try:
             import tkinter as _tkinter_module
             _PACKAGE_CACHE['tkinter'] = _tkinter_module
         except ImportError as e:
-            # tkinter import failed - provide diagnostic info
+            # tkinter import failed - guide user to run installation script
             import sys
             ColorPrint.red("[ERROR] Failed to import tkinter")
-            ColorPrint.yellow(f"[INFO] Python executable: {sys.executable}")
-            ColorPrint.yellow(f"[INFO] Python version: {sys.version}")
+            ColorPrint.yellow(f"[INFO] Python: {sys.executable} (version {sys.version_info.major}.{sys.version_info.minor})")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("[FIX] System packages required for tkinter are missing")
+            ColorPrint.yellow("[FIX] Run the Python setup script to install them:")
+            ColorPrint.yellow("")
 
-            # Get version-specific package name
-            py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
-            version_specific_tk = f"python{py_ver}-tk"
-
-            # Check if due to missing system packages
-            missing_packages = ENCYCLOPEDIA.get("missing_system_packages", [])
-            if missing_packages:
-                ColorPrint.yellow(f"[FIX] Missing packages detected during startup: {', '.join(missing_packages)}")
-                ColorPrint.yellow(f"[FIX] Install: sudo apt-get install {' '.join(missing_packages)}")
+            if platform.system() == 'Linux':
+                ColorPrint.cyan("      sudo bash scripts/shells/linux/debian/install_shells/13_ensure_python.sh")
             else:
-                ColorPrint.yellow("[INFO] Generic system packages appear to be installed")
-                ColorPrint.yellow("[FIX] Install version-specific tkinter package:")
-                ColorPrint.yellow(f"      sudo apt-get install {version_specific_tk}")
+                ColorPrint.cyan("      (tkinter should be included with Python on Windows/Mac)")
+
+            ColorPrint.yellow("")
+            ColorPrint.yellow("[INFO] Required packages: python3.{}-tk, tk-dev, tcl-dev".format(sys.version_info.minor))
 
             raise ImportError(
-                f"tkinter not available for Python {py_ver}\n"
-                f"Python: {sys.executable}\n"
-                f"Install: sudo apt-get install {version_specific_tk}"
+                f"tkinter not available for Python {sys.version_info.major}.{sys.version_info.minor}\n"
+                f"Run installation script: scripts/shells/linux/debian/install_shells/13_ensure_python.sh"
             ) from e
     return _PACKAGE_CACHE['tkinter']
 

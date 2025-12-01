@@ -40,7 +40,7 @@ class MyDonationAllScreen extends StatelessWidget {
           ActionWidget(
             actionIcon: Icon(
               Icons.more_vert,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
             ),
           ),
         ],
@@ -73,7 +73,7 @@ class MyDonationAllScreen extends StatelessWidget {
                                     height: ThemeDimensions.sizeOneTwenty,
                                     width: ThemeDimensions.sizeOneTwenty,
                                     decoration: const BoxDecoration(
-                                        color: Colors.black12,
+                                        color: ColorsAppQy.qyShadowLight,
                                         borderRadius: BorderRadius.only(
                                             topLeft: Radius.circular(
                                                 ThemeDimensions.radiusLarge),
