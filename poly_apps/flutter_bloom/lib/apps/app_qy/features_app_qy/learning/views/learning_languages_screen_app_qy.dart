@@ -406,7 +406,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing8),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -518,7 +518,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
       child: SafeArea(
         top: false,
         child: Material(
-          color: Colors.transparent,
+          color: ColorsAppQy.qyPageBackground.withOpacity(0),
           child: InkWell(
             onTap: _selectedLanguages.isNotEmpty && _hasChanges ? _handleSave : null,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
