@@ -43,11 +43,14 @@ Usage:
 Author: Extracted from d3-check, generalized for pycore
 """
 
-import tkinter as tk
-from tkinter import ttk
 from typing import Optional, Callable
 
+from pycore.pyfoundations.third_party import get_third_package_tkinter
 from pycore.pyutils.native_ui.step5_main_ui.tkinter.theme_system import ThemeSystem
+
+# Get tkinter via third_party manager (auto-installs python3-tk on Linux)
+tk = get_third_package_tkinter()
+ttk = tk.ttk
 
 
 class StyledWidgets:
