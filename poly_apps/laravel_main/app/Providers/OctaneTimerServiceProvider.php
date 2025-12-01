@@ -29,6 +29,15 @@ use Laravel\Octane\Facades\Octane;
  */
 class OctaneTimerServiceProvider extends ServiceProvider
 {
+    /**
+     * Timer tasks directory path
+     */
+    private const TASKS_DIRECTORY = __DIR__ . '/../Services/TimerTasks';
+
+    /**
+     * Timer tasks namespace
+     */
+    private const TASKS_NAMESPACE = 'App\\Services\\TimerTasks\\';
 
     /**
      * Register services
