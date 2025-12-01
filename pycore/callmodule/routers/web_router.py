@@ -34,41 +34,149 @@ async def homepage():
         "version": "2.0.0",
         "status": "running",
         "endpoints": {
-            "api_info": {
-                "method": "GET",
-                "path": "/api/info",
-                "description": "Get detailed API service information"
+            "meta": {
+                "GET /": {
+                    "description": "API service information (this page)",
+                    "parameters": {}
+                },
+                "GET /api/info": {
+                    "description": "Detailed API info with system information",
+                    "parameters": {}
+                }
             },
-            "desktop_ui": {
-                "method": "GET",
-                "path": "/desktop/index.html",
-                "description": "Desktop Manager UI"
+            "mcp": {
+                "POST /mcp/backend_info": {
+                    "description": "Get MCP backend information",
+                    "parameters": {}
+                },
+                "POST /mcp/get_file_info": {
+                    "description": "Extract file info with OCR/document parsing",
+                    "parameters": {
+                        "file_path": {"type": "string", "required": True, "description": "Path to file"},
+                        "use_cache": {"type": "boolean", "required": False, "default": True},
+                        "include_pixel_matrix": {"type": "boolean", "required": False, "default": False},
+                        "ocr_model_type": {"type": "string", "required": False, "default": "general"},
+                        "num_colors": {"type": "integer", "required": False, "default": 10},
+                        "extract_images": {"type": "boolean", "required": False, "default": True},
+                        "extract_tables": {"type": "boolean", "required": False, "default": True},
+                        "extract_hyperlinks": {"type": "boolean", "required": False, "default": True}
+                    }
+                },
+                "POST /mcp/database_execute_query": {
+                    "description": "Execute database query",
+                    "parameters": {
+                        "database_name": {"type": "string", "required": True},
+                        "query": {"type": "string", "required": True},
+                        "params": {"type": "object", "required": False}
+                    }
+                },
+                "POST /mcp/codebase_search_content": {
+                    "description": "Search content in codebase",
+                    "parameters": {
+                        "root_path": {"type": "string", "required": True},
+                        "pattern": {"type": "string", "required": True},
+                        "file_extensions": {"type": "array", "required": False},
+                        "max_results": {"type": "integer", "required": False, "default": 100}
+                    }
+                }
             },
-            "rpc_call": {
-                "method": "POST",
-                "path": "/rpc/{route}",
-                "description": "RPC method call"
+            "ocr": {
+                "POST /ocr/recognize": {
+                    "description": "OCR image recognition",
+                    "parameters": {
+                        "image_path": {"type": "string", "required": True},
+                        "model_type": {"type": "string", "required": False, "default": "general", "options": ["general", "scene", "doc", "number", "english"]},
+                        "use_cache": {"type": "boolean", "required": False, "default": True}
+                    }
+                },
+                "GET /ocr/models": {
+                    "description": "List available OCR models",
+                    "parameters": {}
+                }
             },
-            "rpc_query": {
-                "method": "GET",
-                "path": "/rpc/query/{request_id}",
-                "description": "Query RPC request result"
+            "translator": {
+                "POST /translator/translate": {
+                    "description": "Translate text",
+                    "parameters": {
+                        "text": {"type": "string", "required": True},
+                        "source_lang": {"type": "string", "required": False, "default": "auto"},
+                        "target_lang": {"type": "string", "required": True},
+                        "use_cache": {"type": "boolean", "required": False, "default": True}
+                    }
+                },
+                "POST /translator/romanize": {
+                    "description": "Romanize text (convert to Latin script)",
+                    "parameters": {
+                        "text": {"type": "string", "required": True},
+                        "source_lang": {"type": "string", "required": True}
+                    }
+                }
             },
-            "rpc_routes": {
-                "method": "GET",
-                "path": "/rpc/routes",
-                "description": "List all available RPC routes"
+            "voice_subtitle": {
+                "GET /voice-subtitle/queue": {
+                    "description": "Get voice subtitle queue status",
+                    "parameters": {}
+                },
+                "POST /voice-subtitle/process-text": {
+                    "description": "Process text for voice subtitle",
+                    "parameters": {
+                        "text": {"type": "string", "required": True},
+                        "language": {"type": "string", "required": False, "default": "auto"}
+                    }
+                }
             },
-            "websocket": {
-                "method": "WS",
-                "path": "/rpc/ws",
-                "description": "WebSocket connection for real-time communication"
+            "rpc": {
+                "POST /rpc/{route}": {
+                    "description": "RPC method call",
+                    "parameters": {
+                        "route": {"type": "string", "required": True, "description": "Route name"},
+                        "params": {"type": "object", "required": False, "description": "Method parameters"}
+                    }
+                },
+                "GET /rpc/query/{request_id}": {
+                    "description": "Query RPC request result",
+                    "parameters": {
+                        "request_id": {"type": "string", "required": True}
+                    }
+                },
+                "GET /rpc/routes": {
+                    "description": "List all available RPC routes",
+                    "parameters": {}
+                },
+                "WS /rpc/ws": {
+                    "description": "WebSocket connection for real-time communication",
+                    "parameters": {}
+                }
+            },
+            "web": {
+                "GET /desktop/index.html": {
+                    "description": "Desktop Manager UI",
+                    "parameters": {}
+                },
+                "GET /web": {
+                    "description": "Redirect to Desktop Manager",
+                    "parameters": {}
+                },
+                "GET /web/subtitle": {
+                    "description": "Voice subtitle UI (redirects to desktop)",
+                    "parameters": {}
+                }
             }
         },
         "documentation": {
             "swagger_ui": "/docs",
-            "redoc": "/redoc"
-        }
+            "redoc": "/redoc",
+            "note": "FastAPI auto-generated documentation with interactive testing"
+        },
+        "mcp_tools_count": 19,
+        "features": [
+            "MCP Backend (File, Database, Codebase tools)",
+            "OCR (Optical Character Recognition)",
+            "Translation (Google Translate API)",
+            "Voice Subtitle Processing",
+            "RPC (HTTP + WebSocket)",
+            "Desktop UI Manager"
+        ]
     })
 
 
