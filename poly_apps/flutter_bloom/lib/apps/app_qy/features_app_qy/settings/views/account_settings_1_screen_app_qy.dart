@@ -83,7 +83,8 @@ class _AccountSettings1ScreenAppQyState
       },
       {
         'title': QyAppLocalizationKeys.qyAboutUs,
-        'subtitle': '${QyAppLocalizationKeys.qyAboutVersion.tr(context)} ${QyAppConfig.appVersion}',
+        'subtitle':
+            '${QyAppLocalizationKeys.qyAboutVersion.tr(context)} ${QyAppConfig.appVersion}',
         'icon': Icons.info_outline,
       },
       {
@@ -123,7 +124,7 @@ class _AccountSettings1ScreenAppQyState
       appBar: AppBar(
         title: Text(
           QyAppLocalizationKeys.qyAccountSettings.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
@@ -156,8 +157,8 @@ class _AccountSettings1ScreenAppQyState
       children: [
         Text(
           QyAppLocalizationKeys.qySettingsCenter.tr(context),
-          style:
-              ThemeTextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.subtitle1
+              .copyWith(color: ThemeColors.textSecondary),
         ),
         SizedBox(height: ThemeDimensions.spacingSmall),
         GridView.builder(
@@ -179,7 +180,8 @@ class _AccountSettings1ScreenAppQyState
                 padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface,
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusLarge),
                   border: Border.all(color: ThemeColors.border),
                 ),
                 child: Column(
@@ -200,15 +202,15 @@ class _AccountSettings1ScreenAppQyState
                     SizedBox(height: ThemeDimensions.spacingSmall),
                     Text(
                       (section['title'] as String).tr(context),
-                      style: TextStyles.body1.copyWith(
+                      style: ThemeTextStyles.body1.copyWith(
                         color: ThemeColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingXSmall),
                     Text(
                       section['description'] as String,
-                      style: TextStyles.caption
+                      style: ThemeTextStyles.caption
                           .copyWith(color: ThemeColors.textSecondary),
                     ),
                   ],
@@ -224,10 +226,10 @@ class _AccountSettings1ScreenAppQyState
   Widget _buildNightModeCard() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Column(
@@ -246,13 +248,13 @@ class _AccountSettings1ScreenAppQyState
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingXSmall),
                     Text(
                       _isNightModeEnabled
                           ? QyAppLocalizationKeys.qyNightModeEnabled.tr(context)
                           : QyAppLocalizationKeys.qyNormalModeProtectEyes
                               .tr(context),
-                      style: TextStyles.caption
+                      style: ThemeTextStyles.caption
                           .copyWith(color: ThemeColors.textSecondary),
                     ),
                   ],
@@ -269,28 +271,28 @@ class _AccountSettings1ScreenAppQyState
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Container(
             padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
             decoration: BoxDecoration(
               color: ThemeColors.primary.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             ),
             child: Row(
               children: [
                 Icon(Icons.visibility_outlined, color: ThemeColors.primary),
-                SizedBox(width: Dimensions.spacingSmall),
+                SizedBox(width: ThemeDimensions.spacingSmall),
                 Expanded(
                   child: Text(
                     QyAppLocalizationKeys.qyNightModeTip.tr(context),
-                    style:
-                        TextStyles.caption.copyWith(color: ThemeColors.primary),
+                    style: ThemeTextStyles.caption
+                        .copyWith(color: ThemeColors.primary),
                   ),
                 ),
                 Text(
                   QyAppLocalizationKeys.qyNormalMode.tr(context),
-                  style:
-                      TextStyles.caption.copyWith(color: ThemeColors.primary),
+                  style: ThemeTextStyles.caption
+                      .copyWith(color: ThemeColors.primary),
                 ),
                 Icon(Icons.chevron_right, color: ColorsAppQy.qyTextTertiary),
               ],
@@ -304,10 +306,10 @@ class _AccountSettings1ScreenAppQyState
   Widget _buildOtherOptions() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Column(
@@ -319,22 +321,22 @@ class _AccountSettings1ScreenAppQyState
               Row(
                 children: [
                   Icon(option['icon'] as IconData, color: ThemeColors.primary),
-                  SizedBox(width: Dimensions.spacingMedium),
+                  SizedBox(width: ThemeDimensions.spacingMedium),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           (option['title'] as String).tr(context),
-                          style: TextStyles.body1.copyWith(
+                          style: ThemeTextStyles.body1.copyWith(
                             color: ThemeColors.textPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: Dimensions.spacingXSmall),
+                        SizedBox(height: ThemeDimensions.spacingXSmall),
                         Text(
                           option['subtitle'] as String,
-                          style: TextStyles.caption
+                          style: ThemeTextStyles.caption
                               .copyWith(color: ThemeColors.textSecondary),
                         ),
                       ],
@@ -345,8 +347,8 @@ class _AccountSettings1ScreenAppQyState
               ),
               if (index != _otherOptions.length - 1)
                 Padding(
-                  padding:
-                      EdgeInsets.symmetric(vertical: Dimensions.spacingSmall),
+                  padding: EdgeInsets.symmetric(
+                      vertical: ThemeDimensions.spacingSmall),
                   child: Divider(color: ThemeColors.border),
                 ),
             ],
@@ -359,10 +361,10 @@ class _AccountSettings1ScreenAppQyState
   Widget _buildIcpInfo() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(color: ThemeColors.border),
       ),
       child: Column(
@@ -370,7 +372,8 @@ class _AccountSettings1ScreenAppQyState
         children: [
           Text(
             QyAppLocalizationKeys.qyAboutLicense.tr(context),
-            style: ThemeTextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+            style: ThemeTextStyles.caption
+                .copyWith(color: ThemeColors.textSecondary),
           ),
           SizedBox(height: ThemeDimensions.spacingXSmall),
           Text(
@@ -389,7 +392,7 @@ class _AccountSettings1ScreenAppQyState
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         foregroundColor: ThemeColors.error,
-        padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSmall),
+        padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
         side: BorderSide(color: ThemeColors.error),
       ),
       onPressed: _handleLogout,

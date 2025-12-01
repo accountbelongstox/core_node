@@ -252,24 +252,39 @@ def check_system_package_installed(package_name: str) -> bool:
 def install_system_packages():
     """
     Check and install required system packages (Linux/Debian/Ubuntu only).
-    
+
     Uses apt-get to install system packages. Requires sudo privileges.
     Only runs on Linux systems with apt-get available.
     First fixes any broken packages, then updates package list, then installs missing packages.
     """
     current_platform = platform.system()
-    
+
     # Only run on Linux
     if current_platform != 'Linux':
         return
-    
+
     # Check if apt-get is available
     try:
         subprocess.run(["which", "apt-get"], capture_output=True, check=True)
     except (FileNotFoundError, subprocess.SubprocessError):
         ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
         return
-    
+
+    # Check which system packages are missing (always check, even without sudo)
+    ColorPrint.blue("[INFO] Checking for required system packages...")
+    missing_packages = []
+
+    for package in SYSTEM_PACKAGES:
+        if not check_system_package_installed(package):
+            missing_packages.append(package)
+            ColorPrint.yellow(f"[MISSING] System package '{package}' not found")
+        else:
+            ColorPrint.green(f"[OK] System package '{package}' is installed")
+
+    # Store missing packages in ENCYCLOPEDIA for later reference
+    if missing_packages:
+        ENCYCLOPEDIA.add("missing_system_packages", missing_packages)
+
     # Check if we have sudo privileges (or running as root)
     has_sudo = False
     if os.geteuid() == 0:
@@ -286,57 +301,54 @@ def install_system_packages():
                 has_sudo = True
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
-    
-    if not has_sudo:
+
+    if not has_sudo and missing_packages:
         ColorPrint.yellow("[WARNING] Sudo privileges required for system package installation")
-        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(SYSTEM_PACKAGES)}")
+        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
         return
-    
-    ColorPrint.blue("[INFO] Checking for required system packages...")
-    missing_packages = []
-    
-    for package in SYSTEM_PACKAGES:
-        if not check_system_package_installed(package):
-            missing_packages.append(package)
-            ColorPrint.yellow(f"[INSTALL] System package '{package}' not found. Installing...")
+
+    if not missing_packages:
+        ColorPrint.green("[INFO] All required system packages are installed")
+        return
+
+    # Determine command prefix (sudo or direct)
+    # If running as root (euid == 0), don't use sudo
+    is_root = os.geteuid() == 0
+    cmd_prefix = [] if is_root else ["sudo"]
+
+    # Install missing packages
+    try:
+        # Fix broken packages first (if any)
+        ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
+        fix_cmd = cmd_prefix + ["apt", "--fix-broken", "install", "-y"]
+        fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
+        if fix_result.returncode == 0:
+            ColorPrint.green("[OK] Broken packages fixed (or none found)")
         else:
-            ColorPrint.green(f"[OK] System package '{package}' is installed")
-    
-    if missing_packages:
-        try:
-            # Fix broken packages first (if any)
-            ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
-            fix_cmd = ["sudo", "apt", "--fix-broken", "install", "-y"]
-            fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
-            if fix_result.returncode == 0:
+            # Try alternative command
+            fix_cmd2 = cmd_prefix + ["apt", "-f", "install", "-y"]
+            fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
+            if fix_result2.returncode == 0:
                 ColorPrint.green("[OK] Broken packages fixed (or none found)")
             else:
-                # Try alternative command
-                fix_cmd2 = ["sudo", "apt", "-f", "install", "-y"]
-                fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
-                if fix_result2.returncode == 0:
-                    ColorPrint.green("[OK] Broken packages fixed (or none found)")
-                else:
-                    ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
-            
-            # Update package list
-            ColorPrint.blue("[INFO] Updating package list...")
-            update_cmd = ["sudo", "apt-get", "update", "-qq"]
-            subprocess.run(update_cmd, check=True)
-            
-            # Install missing packages
-            install_cmd = ["sudo", "apt-get", "install", "-y"] + missing_packages
-            ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
-            result = subprocess.run(install_cmd, check=True)
-            
-            ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
-        except subprocess.CalledProcessError as e:
-            ColorPrint.red(f"[ERROR] Failed to install system packages: {e}")
-            ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Unexpected error installing system packages: {e}")
-    else:
-        ColorPrint.green("[INFO] All required system packages are installed")
+                ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
+
+        # Update package list
+        ColorPrint.blue("[INFO] Updating package list...")
+        update_cmd = cmd_prefix + ["apt-get", "update", "-qq"]
+        subprocess.run(update_cmd, check=True)
+
+        # Install missing packages
+        install_cmd = cmd_prefix + ["apt-get", "install", "-y"] + missing_packages
+        ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
+        result = subprocess.run(install_cmd, check=True)
+
+        ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
+    except subprocess.CalledProcessError as e:
+        ColorPrint.red(f"[ERROR] Failed to install system packages: {e}")
+        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Unexpected error installing system packages: {e}")
 
 
 def build_pip_install_command(package_name: str) -> list:
@@ -1126,10 +1138,25 @@ def get_third_package_pyaudio():
 
 # GUI packages
 def get_third_package_tkinter():
-    """Get tkinter module (lazy load)"""
+    """Get tkinter module (lazy load, requires python3-tk on Linux)"""
     if 'tkinter' not in _PACKAGE_CACHE:
-        import tkinter as _tkinter_module
-        _PACKAGE_CACHE['tkinter'] = _tkinter_module
+        try:
+            import tkinter as _tkinter_module
+            _PACKAGE_CACHE['tkinter'] = _tkinter_module
+        except ImportError as e:
+            # tkinter import failed - check if due to missing system packages
+            missing_packages = ENCYCLOPEDIA.get("missing_system_packages", [])
+            if missing_packages and "python3-tk" in missing_packages:
+                ColorPrint.red("[ERROR] tkinter module not found - system packages not installed")
+                ColorPrint.yellow(f"[FIX] Missing packages: {', '.join(missing_packages)}")
+                ColorPrint.yellow("[NOTE] System package installation may have failed - check logs above")
+                raise ImportError(
+                    f"tkinter not available - missing system packages: {missing_packages}\n"
+                    f"System package installation may have failed during startup."
+                ) from e
+            else:
+                ColorPrint.red(f"[ERROR] Failed to import tkinter: {e}")
+                raise
     return _PACKAGE_CACHE['tkinter']
 
 
