@@ -886,12 +886,8 @@ function Invoke-GitOperations {
         # Always pull to prevent push conflicts
         Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
         Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-        git pull origin $currentBranch --no-edit 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorText "WARNING: Pull failed. Attempting to resolve conflicts..." -ForegroundColor Yellow
-            Write-ColorText "TIP: Check for merge conflicts and resolve them manually if needed" -ForegroundColor Cyan
-        }
-        
+        git pull origin $currentBranch --no-edit
+
         # Push changes to remote
         Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
         Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
