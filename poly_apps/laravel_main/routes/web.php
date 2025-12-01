@@ -38,12 +38,12 @@ use App\Http\Controllers\StartupMonitorController;
 |
 */
 
+// Root route displays a complete HTML debugging interface (MUST be first to avoid conflicts)
+Route::get('/', [DebugIndex::class, 'index']);
+
 // This route is the single web entry point for debugging and must not be modified.
 // It points to the ApiInfoIndex class which is responsible for gathering all information.
 Route::get('/api_info', [ApiInfoIndex::class, 'index']);
-
-// Root route displays a complete HTML debugging interface
-Route::get('/', [DebugIndex::class, 'index']);
 
 // API parameters cache routes
 Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
@@ -52,7 +52,7 @@ Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
 
 // Debug assets serving routes
 Route::get('/debug-assets/css/{file}', function ($file) {
-    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/css/' . $file;
+    $path = public_path('debug-assets/css/' . $file);
     if (file_exists($path)) {
         return response()->file($path, ['Content-Type' => 'text/css']);
     }
@@ -60,7 +60,7 @@ Route::get('/debug-assets/css/{file}', function ($file) {
 });
 
 Route::get('/debug-assets/js/{file}', function ($file) {
-    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/js/' . $file;
+    $path = public_path('debug-assets/js/' . $file);
     if (file_exists($path)) {
         return response()->file($path, [
             'Content-Type' => 'application/javascript',
@@ -69,6 +69,22 @@ Route::get('/debug-assets/js/{file}', function ($file) {
     }
     abort(404);
 });
+
+// Debug tools HTML files serving routes
+Route::get('/debug-assets/debug-tools/{path}', function ($path) {
+    $filePath = public_path('debug-assets/debug-tools/' . $path);
+    if (file_exists($filePath) && is_file($filePath)) {
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        $contentType = match($extension) {
+            'html' => 'text/html',
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            default => 'text/plain'
+        };
+        return response()->file($filePath, ['Content-Type' => $contentType]);
+    }
+    abort(404);
+})->where('path', '.*');
 
 // Online Clipboard routes
 Route::get('/clipboard/namespace', [ClipboardController::class, 'getOrCreateNamespace']);
