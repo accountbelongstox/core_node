@@ -1577,18 +1577,28 @@ function loadDictionaryStatisticsIfAvailable() {
 // Initialize integrated modules when Code Browser section is shown
 let codeBrowserIntegratedModulesInitialized = false;
 function initCodeBrowserIntegratedModules() {
+    // Reset initialization flag when switching sections to allow re-initialization
+    codeBrowserIntegratedModulesInitialized = false;
+    
     if (codeBrowserIntegratedModulesInitialized) return;
-    codeBrowserIntegratedModulesInitialized = true;
+    
+    // Wait a bit for the section to be fully rendered
+    setTimeout(() => {
+        // Initialize Prompts/Tasks Manager (left panel in lower section)
+        if (typeof PromptsTasksManager !== 'undefined') {
+            PromptsTasksManager.init();
+        }
 
-    // Initialize Prompts/Tasks Manager (left panel in lower section)
-    if (typeof PromptsTasksManager !== 'undefined') {
-        PromptsTasksManager.init();
-    }
-
-    // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
-    if (typeof PromptMappingManager !== 'undefined') {
-        PromptMappingManager.init('#prompt-mapping-panel-embedded');
-    }
+        // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
+        const mappingPanel = document.querySelector('#prompt-mapping-panel-embedded');
+        if (mappingPanel && typeof PromptMappingManager !== 'undefined') {
+            PromptMappingManager.init('#prompt-mapping-panel-embedded');
+        } else {
+            console.warn('Prompt mapping panel not found, may need to wait for section to load');
+        }
+        
+        codeBrowserIntegratedModulesInitialized = true;
+    }, 200);
 }
 
 
