@@ -19,6 +19,8 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/app_config_app_qy.dart';
 
 class AccountSettings1ScreenAppQy extends StatefulWidget {
   const AccountSettings1ScreenAppQy({super.key});
@@ -35,55 +37,67 @@ class _AccountSettings1ScreenAppQyState
   bool _isNightModeEnabled;
 
   _AccountSettings1ScreenAppQyState()
-      : _quickSections = [
-          {
-            'title': QyAppLocalizationKeys.qyReminderSettings,
-            'description': '每日提醒 • 打卡日程',
-            'icon': Icons.notifications_active_outlined,
-            'color': ThemeColors.primary,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyAccountSettings,
-            'description': '账号安全 • 登录方式',
-            'icon': Icons.person_outline,
-            'color': ThemeColors.secondaryColor,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyRecommendSettings,
-            'description': '智能推荐 • 难度偏好',
-            'icon': Icons.auto_awesome,
-            'color': ThemeColors.warning,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyOtherSettings,
-            'description': '关于我们 • 客服帮助',
-            'icon': Icons.widgets_outlined,
-            'color': ThemeColors.info,
-          },
-        ],
-        _otherOptions = [
-          {
-            'title': QyAppLocalizationKeys.qyDisplayMode,
-            'subtitle': QyAppLocalizationKeys.qySettingsStandardMode,
-            'icon': Icons.dark_mode_outlined,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyAboutUs,
-            'subtitle': '版本 6.3.1',
-            'icon': Icons.info_outline,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyCheckForUpdate,
-            'subtitle': QyAppLocalizationKeys.qyLatestVersion.tr(context),
-            'icon': Icons.system_update_alt,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
-            'subtitle': QyAppLocalizationKeys.qyNetworkStable.tr(context),
-            'icon': Icons.wifi_tethering,
-          },
-        ],
+      : _quickSections = [],
+        _otherOptions = [],
         _isNightModeEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeSections();
+  }
+
+  void _initializeSections() {
+    _quickSections.addAll([
+      {
+        'title': QyAppLocalizationKeys.qyReminderSettings,
+        'description': QyAppLocalizationKeys.qyReminderSettingsDesc,
+        'icon': Icons.notifications_active_outlined,
+        'color': ThemeColors.primary,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyAccountSettings,
+        'description': QyAppLocalizationKeys.qyAccountSettings,
+        'icon': Icons.person_outline,
+        'color': ThemeColors.secondaryColor,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyRecommendSettings,
+        'description': QyAppLocalizationKeys.qyRecommendSettingsDesc,
+        'icon': Icons.auto_awesome,
+        'color': ThemeColors.warning,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyOtherSettings,
+        'description': QyAppLocalizationKeys.qyOtherSettings,
+        'icon': Icons.widgets_outlined,
+        'color': ThemeColors.info,
+      },
+    ]);
+
+    _otherOptions.addAll([
+      {
+        'title': QyAppLocalizationKeys.qyDisplayMode,
+        'subtitle': QyAppLocalizationKeys.qySettingsStandardMode,
+        'icon': Icons.dark_mode_outlined,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyAboutUs,
+        'subtitle': '${QyAppLocalizationKeys.qyAboutVersion.tr(context)} ${QyAppConfig.appVersion}',
+        'icon': Icons.info_outline,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyCheckForUpdate,
+        'subtitle': QyAppLocalizationKeys.qyLatestVersion.tr(context),
+        'icon': Icons.system_update_alt,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
+        'subtitle': QyAppLocalizationKeys.qyNetworkStable.tr(context),
+        'icon': Icons.wifi_tethering,
+      },
+    ]);
+  }
 
   void _handleSectionTap(Map<String, dynamic> section) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -116,18 +130,18 @@ class _AccountSettings1ScreenAppQyState
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildQuickGrid(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildNightModeCard(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildOtherOptions(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildIcpInfo(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildLogoutButton(),
             ],
           ),
@@ -143,9 +157,9 @@ class _AccountSettings1ScreenAppQyState
         Text(
           QyAppLocalizationKeys.qySettingsCenter.tr(context),
           style:
-              TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+              ThemeTextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
         ),
-        SizedBox(height: Dimensions.spacingSmall),
+        SizedBox(height: ThemeDimensions.spacingSmall),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -160,12 +174,12 @@ class _AccountSettings1ScreenAppQyState
             final section = _quickSections[index];
             return InkWell(
               onTap: () => _handleSectionTap(section),
-              borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
               child: Container(
-                padding: EdgeInsets.all(Dimensions.paddingMedium),
+                padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface,
-                  borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
                   border: Border.all(color: ThemeColors.border),
                 ),
                 child: Column(
@@ -183,7 +197,7 @@ class _AccountSettings1ScreenAppQyState
                         color: section['color'] as Color,
                       ),
                     ),
-                    SizedBox(height: Dimensions.spacingSmall),
+                    SizedBox(height: ThemeDimensions.spacingSmall),
                     Text(
                       (section['title'] as String).tr(context),
                       style: TextStyles.body1.copyWith(
@@ -226,8 +240,8 @@ class _AccountSettings1ScreenAppQyState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '夜间/护眼模式',
-                      style: TextStyles.body1.copyWith(
+                      QyAppLocalizationKeys.qyDisplayMode.tr(context),
+                      style: ThemeTextStyles.body1.copyWith(
                         color: ThemeColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
@@ -257,7 +271,7 @@ class _AccountSettings1ScreenAppQyState
           ),
           SizedBox(height: Dimensions.spacingMedium),
           Container(
-            padding: EdgeInsets.all(Dimensions.paddingMedium),
+            padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
             decoration: BoxDecoration(
               color: ThemeColors.primary.withOpacity(0.05),
               borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
@@ -278,7 +292,7 @@ class _AccountSettings1ScreenAppQyState
                   style:
                       TextStyles.caption.copyWith(color: ThemeColors.primary),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.blueGrey),
+                Icon(Icons.chevron_right, color: ColorsAppQy.qyTextTertiary),
               ],
             ),
           ),
@@ -355,14 +369,13 @@ class _AccountSettings1ScreenAppQyState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ICP 备案号',
-            style:
-                TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+            QyAppLocalizationKeys.qyAboutLicense.tr(context),
+            style: ThemeTextStyles.caption.copyWith(color: ThemeColors.textSecondary),
           ),
-          SizedBox(height: Dimensions.spacingXSmall),
+          SizedBox(height: ThemeDimensions.spacingXSmall),
           Text(
-            '苏ICP备13045540号-20A',
-            style: TextStyles.body1.copyWith(
+            QyAppConfig.appIcpLicense,
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.textPrimary,
               fontWeight: FontWeight.w600,
             ),

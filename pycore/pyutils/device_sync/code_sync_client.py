@@ -11,7 +11,6 @@ import json
 import time
 import socket
 import threading
-import requests
 import shutil
 import hashlib
 from pathlib import Path
@@ -20,6 +19,10 @@ from typing import Optional, List, Dict, Tuple
 
 from pycore import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+# Get requests via third_party manager
+requests = get_third_package_requests()
 
 
 class CodeSyncClient:

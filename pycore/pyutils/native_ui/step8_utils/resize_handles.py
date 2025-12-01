@@ -21,9 +21,12 @@ Usage:
     resize_handles.attach()
 """
 
-import tkinter as tk
 from typing import Optional, Tuple
 from pycore import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_tkinter
+
+# Get tkinter via third_party manager (auto-installs python3-tk on Linux)
+tk = get_third_package_tkinter()
 
 
 class ResizeHandle:

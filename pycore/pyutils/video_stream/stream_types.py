@@ -2,7 +2,11 @@
 
 from dataclasses import dataclass
 from enum import Enum
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+# Get numpy via third_party manager
+np = get_third_package_numpy()
 
 
 class VideoFormat(Enum):
