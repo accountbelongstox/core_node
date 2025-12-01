@@ -220,6 +220,8 @@ const PromptMappingManager = {
     },
 
     renderCategoryList() {
+        if (this.embedMode) return;
+        
         const container = document.getElementById('mapping-categories');
 
         container.innerHTML = '';
