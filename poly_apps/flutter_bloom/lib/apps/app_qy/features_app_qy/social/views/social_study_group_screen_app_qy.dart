@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/social_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class SocialStudyGroupScreenRefactoredAppQy extends StatefulWidget {
   const SocialStudyGroupScreenRefactoredAppQy({super.key});
@@ -51,7 +50,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
         'activeMembers': 45,
         'category': 'Exam Prep',
         'icon': Icons.group,
-        'color': Colors.blue,
+        'color': ColorsAppQy.qyPrimary,
         'lastActive': '2 hours ago',
       },
       {
@@ -62,7 +61,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
         'activeMembers': 32,
         'category': 'Business',
         'icon': Icons.business,
-        'color': Colors.teal,
+        'color': ColorsAppQy.qySecondary,
         'lastActive': '5 hours ago',
       },
     ]);
@@ -76,7 +75,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
         'activeMembers': 89,
         'category': 'General',
         'icon': Icons.chat,
-        'color': Colors.green,
+        'color': ColorsAppQy.qySuccess,
         'tags': ['Beginner', 'Speaking'],
       },
       {
@@ -87,7 +86,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
         'activeMembers': 67,
         'category': 'Exam Prep',
         'icon': Icons.school,
-        'color': Colors.purple,
+        'color': ColorsAppQy.qyAccent,
         'tags': ['Advanced', 'Test Prep'],
       },
       {
@@ -98,7 +97,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
         'activeMembers': 54,
         'category': 'Academic',
         'icon': Icons.edit,
-        'color': Colors.indigo,
+        'color': ColorsAppQy.qyInfo,
         'tags': ['Writing', 'University'],
       },
     ]);
@@ -110,7 +109,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          QyAppLocalizationKeys.qyStudyGroups.tr(context),
+          QyAppLocalizationKeys.qySocialGroup.tr(context),
           style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
@@ -157,7 +156,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
           Expanded(
             child: _buildTabButton(
               'my_groups',
-              QyAppLocalizationKeys.qyMyGroups.tr(context),
+              QyAppLocalizationKeys.qyMyAccount.tr(context),
               Icons.groups,
             ),
           ),
@@ -165,7 +164,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
           Expanded(
             child: _buildTabButton(
               'discover',
-              QyAppLocalizationKeys.qyDiscover.tr(context),
+              QyAppLocalizationKeys.qyDiscoverPerfectPlan.tr(context),
               Icons.explore,
             ),
           ),
@@ -184,7 +183,9 @@ class _SocialStudyGroupScreenRefactoredAppQyState
           vertical: ThemeDimensions.paddingMedium,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? ThemeColors.primary : Colors.transparent,
+          color: isSelected
+              ? ThemeColors.primary
+              : ColorsAppQy.qyPageBackground.withOpacity(0),
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
           border: Border.all(
             color: isSelected ? ThemeColors.primary : ThemeColors.border,
@@ -195,14 +196,16 @@ class _SocialStudyGroupScreenRefactoredAppQyState
           children: [
             Icon(
               icon,
-              color: isSelected ? ThemeColors.surface : ThemeColors.textSecondary,
+              color:
+                  isSelected ? ThemeColors.surface : ThemeColors.textSecondary,
               size: 20,
             ),
             SizedBox(width: ThemeDimensions.spacingSmall),
             Text(
               label,
               style: ThemeTextStyles.button.copyWith(
-                color: isSelected ? ThemeColors.surface : ThemeColors.textPrimary,
+                color:
+                    isSelected ? ThemeColors.surface : ThemeColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -263,7 +266,8 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                   padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusMedium),
                   ),
                   child: Icon(
                     group['icon'] as IconData,
@@ -310,7 +314,8 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                   ),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusSmall),
                   ),
                   child: Text(
                     group['category'] as String,
@@ -333,7 +338,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                 Icon(Icons.circle, size: 6, color: ThemeColors.success),
                 SizedBox(width: ThemeDimensions.spacingXSmall),
                 Text(
-                  '${group['activeMembers']} ${QyAppLocalizationKeys.qyActive.tr(context)}',
+                  '${group['activeMembers']} ${QyAppLocalizationKeys.qyActiveChallenges.tr(context)}',
                   style: ThemeTextStyles.caption.copyWith(
                     color: ThemeColors.textSecondary,
                   ),
@@ -375,7 +380,8 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                   padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusMedium),
                   ),
                   child: Icon(
                     group['icon'] as IconData,
@@ -421,7 +427,8 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                   ),
                   decoration: BoxDecoration(
                     color: ThemeColors.background,
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusSmall),
                     border: Border.all(color: ThemeColors.border),
                   ),
                   child: Text(
@@ -439,7 +446,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                 Icon(Icons.people, size: 14, color: ThemeColors.textSecondary),
                 SizedBox(width: ThemeDimensions.spacingXSmall),
                 Text(
-                  '${group['members']} ${QyAppLocalizationKeys.qyMembers.tr(context)}',
+                  '${group['members']} ${QyAppLocalizationKeys.qySocialGroup.tr(context)}',
                   style: ThemeTextStyles.caption.copyWith(
                     color: ThemeColors.textSecondary,
                   ),
@@ -448,7 +455,7 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                 Icon(Icons.circle, size: 6, color: ThemeColors.success),
                 SizedBox(width: ThemeDimensions.spacingXSmall),
                 Text(
-                  '${group['activeMembers']} ${QyAppLocalizationKeys.qyActive.tr(context)}',
+                  '${group['activeMembers']} ${QyAppLocalizationKeys.qyActiveChallenges.tr(context)}',
                   style: ThemeTextStyles.caption.copyWith(
                     color: ThemeColors.textSecondary,
                   ),
@@ -463,12 +470,13 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                       vertical: ThemeDimensions.paddingSmall,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
                     minimumSize: const Size(0, 0),
                   ),
                   child: Text(
-                    QyAppLocalizationKeys.qyJoin.tr(context),
+                    QyAppLocalizationKeys.qyJoinPlan.tr(context),
                     style: ThemeTextStyles.caption.copyWith(
                       color: ThemeColors.surface,
                       fontWeight: FontWeight.bold,
@@ -495,14 +503,14 @@ class _SocialStudyGroupScreenRefactoredAppQyState
           ),
           SizedBox(height: ThemeDimensions.spacingLarge),
           Text(
-            QyAppLocalizationKeys.qyNoGroups.tr(context),
+            QyAppLocalizationKeys.qyNoGroupChats.tr(context),
             style: ThemeTextStyles.h4.copyWith(
               color: ThemeColors.textSecondary,
             ),
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           Text(
-            QyAppLocalizationKeys.qyJoinGroupsToLearn.tr(context),
+            QyAppLocalizationKeys.qyJoinOrCreateGroup.tr(context),
             style: ThemeTextStyles.body2.copyWith(
               color: ThemeColors.textTertiary,
             ),
@@ -518,11 +526,12 @@ class _SocialStudyGroupScreenRefactoredAppQyState
                 vertical: ThemeDimensions.paddingMedium,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
               ),
             ),
             child: Text(
-              QyAppLocalizationKeys.qyDiscoverGroups.tr(context),
+              QyAppLocalizationKeys.qyJoinOrCreateGroup.tr(context),
               style: ThemeTextStyles.button.copyWith(
                 color: ThemeColors.surface,
                 fontWeight: FontWeight.bold,
