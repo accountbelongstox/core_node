@@ -4,6 +4,9 @@
 // ========== Initialize API Client ==========
 const api = new VoiceSubtitleAPI(CONFIG);
 
+// ========== Initialize LAN Scanner ==========
+const lanScanner = new LANScanner(CONFIG);
+
 // ========== RPC Client ==========
 const rpcClient = new FastAPIWsRpcClient(CONFIG.WEBSOCKET.URL, CONFIG.WEBSOCKET.OPTIONS);
 
@@ -37,7 +40,8 @@ const modules = {
     'voice-player': document.getElementById('module-voice-player'),
     'queue-manager': document.getElementById('module-queue-manager'),
     'window-automation': document.getElementById('module-window-automation'),
-    'code-sync': document.getElementById('module-code-sync')
+    'code-sync': document.getElementById('module-code-sync'),
+    'task-queue': document.getElementById('module-task-queue')
 };
 
 // ========== Initialization ==========
@@ -95,11 +99,16 @@ function switchModule(moduleName) {
         fetchQueueList();
     } else if (moduleName === 'code-sync') {
         refreshCodeSyncStatus();
+    } else if (moduleName === 'task-queue') {
+        fetchTasks();
     }
 }
 
 // ========== Queue Management ==========
 async function fetchQueue() {
+    let apiMethod = 'Unknown';
+    let apiUrl = 'Unknown';
+
     try {
         // Get playback mode setting
         const playbackMode = document.querySelector('input[name="playbackMode"]:checked')?.value || CONFIG.DEFAULTS.PLAYBACK_MODE;
@@ -110,6 +119,8 @@ async function fetchQueue() {
 
         // Apply playback mode filter using centralized API
         if (playbackMode === 'latest') {
+            apiMethod = 'getLatestItems';
+            apiUrl = api.getFullUrl(CONFIG.API.QUEUE_LATEST) + `?count=${latestCount}`;
             const result = await api.getLatestItems(latestCount);
             if (result && result.success) {
                 data = {
@@ -119,6 +130,8 @@ async function fetchQueue() {
                 };
             }
         } else if (playbackMode === 'today') {
+            apiMethod = 'getTodayItems';
+            apiUrl = api.getFullUrl(CONFIG.API.QUEUE_TODAY);
             const result = await api.getTodayItems();
             if (result && result.success) {
                 data = {
@@ -128,6 +141,8 @@ async function fetchQueue() {
                 };
             }
         } else if (categoryFilter) {
+            apiMethod = 'getItemsByCategory';
+            apiUrl = api.getFullUrl(CONFIG.API.QUEUE_BY_CATEGORY) + `?category=${categoryFilter}`;
             const result = await api.getItemsByCategory(categoryFilter);
             if (result && result.success) {
                 data = {
@@ -138,6 +153,8 @@ async function fetchQueue() {
             }
         } else {
             // All mode - default
+            apiMethod = 'getQueue';
+            apiUrl = api.getFullUrl(CONFIG.API.QUEUE);
             data = await api.getQueue();
         }
 
@@ -164,11 +181,14 @@ async function fetchQueue() {
             }
         }
     } catch (error) {
-        console.error('[Queue] Fetch error:', error);
+        console.error(`[Queue] Fetch error for ${apiMethod}:`, error);
+        console.error(`[Queue] Failed URL: ${apiUrl}`);
     }
 }
 
 async function fetchCategories() {
+    const apiUrl = api.getFullUrl(CONFIG.API.CATEGORIES);
+
     try {
         const data = await api.getCategories();
 
@@ -178,10 +198,14 @@ async function fetchCategories() {
         }
     } catch (error) {
         console.error('[Categories] Fetch error:', error);
+        console.error('[Categories] Failed URL:', apiUrl);
     }
 }
 
 async function updateStatistics() {
+    const queueUrl = api.getFullUrl(CONFIG.API.QUEUE);
+    const todayUrl = api.getFullUrl(CONFIG.API.QUEUE_TODAY);
+
     try {
         const [queueData, todayData] = await Promise.all([
             api.getQueue(),
@@ -192,10 +216,14 @@ async function updateStatistics() {
         document.getElementById('todayItems').textContent = todayData.count || 0;
     } catch (error) {
         console.error('[Statistics] Update error:', error);
+        console.error('[Statistics] Queue URL:', queueUrl);
+        console.error('[Statistics] Today URL:', todayUrl);
     }
 }
 
 async function fetchQueueList() {
+    const apiUrl = api.getFullUrl(CONFIG.API.QUEUE);
+
     try {
         const data = await api.getQueue();
 
@@ -204,10 +232,13 @@ async function fetchQueueList() {
         }
     } catch (error) {
         console.error('[Queue List] Fetch error:', error);
+        console.error('[Queue List] Failed URL:', apiUrl);
     }
 }
 
 async function updateServerIndex(index) {
+    const apiUrl = api.getFullUrl(CONFIG.API.SET_INDEX) + `?index=${index}`;
+
     try {
         const data = await api.setCurrentIndex(index);
         if (data.success) {
@@ -215,14 +246,18 @@ async function updateServerIndex(index) {
         }
     } catch (error) {
         console.error('[Queue] Set index error:', error);
+        console.error('[Queue] Failed URL:', apiUrl);
     }
 }
 
 async function incrementPlayCount(index) {
+    const apiUrl = api.getFullUrl(CONFIG.API.INCREMENT_PLAY_COUNT) + `?index=${index}`;
+
     try {
         await api.incrementPlayCount(index);
     } catch (error) {
         console.error('[Queue] Increment play count error:', error);
+        console.error('[Queue] Failed URL:', apiUrl);
     }
 }
 
@@ -377,6 +412,8 @@ function renderQueueTable(queue) {
 }
 
 async function filterByCategory(category) {
+    const apiUrl = api.getFullUrl(CONFIG.API.QUEUE_BY_CATEGORY) + `?category=${category}`;
+
     try {
         const data = await api.getItemsByCategory(category);
 
@@ -385,6 +422,7 @@ async function filterByCategory(category) {
         }
     } catch (error) {
         console.error('[Filter] Category filter error:', error);
+        console.error('[Filter] Failed URL:', apiUrl);
     }
 }
 
@@ -489,6 +527,18 @@ function setupEventListeners() {
     document.getElementById('subtitleModeBtn')?.addEventListener('click', toggleSubtitleMode);
     document.getElementById('subtitleModeExitBtn')?.addEventListener('click', exitSubtitleMode);
 
+    // Settings dialog
+    document.getElementById('settingsBtn')?.addEventListener('click', openSettingsDialog);
+    document.getElementById('closeSettingsBtn')?.addEventListener('click', closeSettingsDialog);
+
+    // Settings tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetTab = e.target.dataset.tab;
+            switchSettingsTab(targetTab);
+        });
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         // Ctrl+M: Toggle subtitle mode
@@ -536,6 +586,57 @@ function setupEventListeners() {
 
     // Backup toggle
     document.getElementById('enableBackup')?.addEventListener('change', toggleBackup);
+
+    // Task Queue controls
+    document.getElementById('refreshTasksBtn')?.addEventListener('click', fetchTasks);
+    document.getElementById('taskAutoRefresh')?.addEventListener('change', (e) => {
+        taskAutoRefresh = e.target.checked;
+        if (taskAutoRefresh) {
+            pollActiveTasks();
+        } else if (taskRefreshInterval) {
+            clearInterval(taskRefreshInterval);
+            taskRefreshInterval = null;
+        }
+    });
+    document.getElementById('taskTypeFilter')?.addEventListener('change', () => {
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('taskStatusFilter')?.addEventListener('change', () => {
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('clearFiltersBtn')?.addEventListener('click', () => {
+        document.getElementById('taskTypeFilter').value = '';
+        document.getElementById('taskStatusFilter').value = '';
+        updateTaskList(currentTasks);
+    });
+    document.getElementById('closeTaskDetailBtn')?.addEventListener('click', closeTaskDetail);
+
+    // API Config controls
+    document.querySelectorAll('input[name="apiMode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            switchApiMode(e.target.value);
+        });
+    });
+    document.getElementById('testConnectionBtn')?.addEventListener('click', testConnection);
+    document.getElementById('applyCustomUrlBtn')?.addEventListener('click', applyCustomUrl);
+    document.getElementById('enableAutoDiscovery')?.addEventListener('change', (e) => {
+        toggleAutoDiscovery(e.target.checked);
+    });
+    document.getElementById('scanNowBtn')?.addEventListener('click', () => {
+        if (isScanning) {
+            stopLanScanning();
+        } else {
+            startLanScanning();
+        }
+    });
+    document.getElementById('scanInterval')?.addEventListener('change', (e) => {
+        CONFIG.REMOTE_API.SCAN_INTERVAL = parseInt(e.target.value) * 1000;
+        console.log('[API Config] Scan interval updated:', e.target.value, 'seconds');
+    });
+    document.getElementById('scanTimeout')?.addEventListener('change', (e) => {
+        CONFIG.REMOTE_API.SCAN_TIMEOUT = parseInt(e.target.value);
+        console.log('[API Config] Scan timeout updated:', e.target.value, 'ms');
+    });
 }
 
 // ========== Quick Add Functions ==========
@@ -548,6 +649,8 @@ async function addTextToQueue() {
         return;
     }
 
+    const apiUrl = api.getFullUrl(CONFIG.API.ADD_TEXT);
+
     try {
         const data = await api.addText(text, CONFIG.DEFAULTS.LANGUAGES, CONFIG.DEFAULTS.CATEGORY);
 
@@ -558,6 +661,7 @@ async function addTextToQueue() {
         }
     } catch (error) {
         console.error('[Add Text] Error:', error);
+        console.error('[Add Text] Failed URL:', apiUrl);
         dialog.error('Failed to add text to queue');
     }
 }
@@ -568,6 +672,9 @@ async function handleImageUpload(event) {
 
     const preview = document.getElementById('imagePreview');
     preview.textContent = `Uploading: ${file.name}...`;
+
+    const uploadUrl = api.getFullUrl(CONFIG.API.FILE_UPLOAD);
+    const imageUrl = api.getFullUrl(CONFIG.API.ADD_IMAGE);
 
     try {
         // Upload file using centralized API
@@ -594,6 +701,8 @@ async function handleImageUpload(event) {
         }
     } catch (error) {
         console.error('[Add Image] Error:', error);
+        console.error('[Add Image] Upload URL:', uploadUrl);
+        console.error('[Add Image] Process URL:', imageUrl);
         preview.textContent = `✗ Failed: ${file.name}`;
         dialog.error('Failed to process image');
     }
@@ -605,6 +714,8 @@ async function handleFileUpload(event) {
 
     const fileInfo = document.getElementById('fileInfo');
     fileInfo.textContent = `Reading: ${file.name}...`;
+
+    const apiUrl = api.getFullUrl(CONFIG.API.ADD_TEXT);
 
     try {
         // Read text from file
@@ -631,6 +742,7 @@ async function handleFileUpload(event) {
         }
     } catch (error) {
         console.error('[Add File] Error:', error);
+        console.error('[Add File] Failed URL:', apiUrl);
         fileInfo.textContent = `✗ Failed: ${file.name}`;
         dialog.error('Failed to process file');
     }
@@ -640,6 +752,8 @@ async function handleFileUpload(event) {
 async function clearQueue() {
     if (!confirm('Are you sure you want to clear the entire queue?')) return;
 
+    const apiUrl = api.getFullUrl(CONFIG.API.CLEAR_QUEUE);
+
     try {
         const data = await api.clearQueue();
         if (data.success) {
@@ -648,6 +762,7 @@ async function clearQueue() {
         }
     } catch (error) {
         console.error('[Clear Queue] Error:', error);
+        console.error('[Clear Queue] Failed URL:', apiUrl);
     }
 }
 
@@ -664,6 +779,8 @@ function toggleSelectAll(event) {
 async function deleteItem(index) {
     if (!confirm('Delete this item?')) return;
 
+    const apiUrl = api.getFullUrl(CONFIG.API.REMOVE_ITEMS);
+
     try {
         const data = await api.removeItems([index]);
         if (data.success) {
@@ -672,6 +789,7 @@ async function deleteItem(index) {
         }
     } catch (error) {
         console.error('[Delete Item] Error:', error);
+        console.error('[Delete Item] Failed URL:', apiUrl);
     }
 }
 
@@ -683,6 +801,8 @@ async function deleteSelectedItems() {
 
     if (!confirm(`Delete ${selectedItems.size} selected items?`)) return;
 
+    const apiUrl = api.getFullUrl(CONFIG.API.REMOVE_ITEMS);
+
     try {
         const data = await api.removeItems(Array.from(selectedItems));
         if (data.success) {
@@ -692,6 +812,7 @@ async function deleteSelectedItems() {
         }
     } catch (error) {
         console.error('[Delete Selected] Error:', error);
+        console.error('[Delete Selected] Failed URL:', apiUrl);
     }
 }
 
@@ -709,6 +830,8 @@ async function changeCategoryForSelected() {
         return;
     }
 
+    const apiUrl = api.getFullUrl(CONFIG.API.CHANGE_CATEGORY);
+
     try {
         const promises = Array.from(selectedItems).map(index =>
             api.changeItemCategory(index, newCategory)
@@ -722,6 +845,7 @@ async function changeCategoryForSelected() {
         dialog.success('Categories updated successfully!');
     } catch (error) {
         console.error('[Change Category] Error:', error);
+        console.error('[Change Category] Failed URL:', apiUrl);
         dialog.error('Failed to update categories');
     }
 }
@@ -730,6 +854,10 @@ async function changeCategoryForSelected() {
 async function toggleClipboardMonitor(event) {
     const enabled = event.target.checked;
     console.log('[Clipboard Monitor]', enabled ? 'Enabled' : 'Disabled');
+
+    const apiUrl = enabled
+        ? api.getFullUrl(CONFIG.API.CLIPBOARD_START)
+        : api.getFullUrl(CONFIG.API.CLIPBOARD_STOP);
 
     try {
         const data = enabled ? await api.startClipboardMonitor() : await api.stopClipboardMonitor();
@@ -742,6 +870,7 @@ async function toggleClipboardMonitor(event) {
         }
     } catch (error) {
         console.error('[Clipboard Monitor] Error:', error);
+        console.error('[Clipboard Monitor] Failed URL:', apiUrl);
         event.target.checked = !enabled;
         dialog.error('Error toggling clipboard monitoring');
     }
@@ -751,6 +880,10 @@ async function toggleScreenshotMonitor(event) {
     const enabled = event.target.checked;
     const interval = parseInt(document.getElementById('screenshotInterval').value);
     console.log('[Screenshot Monitor]', enabled ? `Enabled (${interval}s)` : 'Disabled');
+
+    const apiUrl = enabled
+        ? api.getFullUrl(CONFIG.API.SCREENSHOT_START)
+        : api.getFullUrl(CONFIG.API.SCREENSHOT_STOP);
 
     try {
         if (enabled) {
@@ -772,6 +905,7 @@ async function toggleScreenshotMonitor(event) {
         }
     } catch (error) {
         console.error('[Screenshot Monitor] Error:', error);
+        console.error('[Screenshot Monitor] Failed URL:', apiUrl);
         event.target.checked = !enabled;
         dialog.error('Error toggling screenshot monitoring');
     }
@@ -865,6 +999,528 @@ function toggleSubtitleMode() {
     }
 }
 
+// ========== Task Queue Functions ==========
+
+// Task queue state
+let taskRefreshInterval = null;
+let taskAutoRefresh = true;
+let currentTasks = [];
+
+async function fetchTasks() {
+    const apiUrl = api.getFullUrl(CONFIG.API.TASKS) + '?limit=50';
+
+    try {
+        const data = await api.getAllTasks(50);
+
+        if (data && data.success && data.tasks) {
+            currentTasks = data.tasks;
+            updateTaskList(data.tasks);
+            updateTaskStatistics(data.tasks);
+
+            // Start polling active tasks
+            if (taskAutoRefresh) {
+                pollActiveTasks();
+            }
+        }
+    } catch (error) {
+        console.error('[Task Queue] Fetch error:', error);
+        console.error('[Task Queue] Failed URL:', apiUrl);
+    }
+}
+
+function updateTaskList(tasks) {
+    const tbody = document.getElementById('taskTableBody');
+
+    // Apply filters
+    const typeFilter = document.getElementById('taskTypeFilter')?.value || '';
+    const statusFilter = document.getElementById('taskStatusFilter')?.value || '';
+
+    let filteredTasks = tasks;
+    if (typeFilter) {
+        filteredTasks = filteredTasks.filter(t => t.task_type === typeFilter);
+    }
+    if (statusFilter) {
+        filteredTasks = filteredTasks.filter(t => t.status === statusFilter);
+    }
+
+    if (!filteredTasks || filteredTasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No tasks found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    filteredTasks.forEach(task => {
+        const tr = document.createElement('tr');
+        tr.classList.add('task-row');
+        if (task.status === 'processing') {
+            tr.classList.add('processing');
+        } else if (task.status === 'failed') {
+            tr.classList.add('failed');
+        }
+
+        // Type icon
+        const typeIcon = getTaskTypeIcon(task.task_type);
+
+        // Status badge
+        const statusBadge = getTaskStatusBadge(task.status);
+
+        // Progress bar
+        const progress = task.progress || 0;
+        const progressBar = `
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: ${progress}%"></div>
+                <span class="progress-text">${progress}%</span>
+            </div>
+        `;
+
+        // Format dates
+        const created = new Date(task.created_at).toLocaleString();
+
+        // Calculate time elapsed
+        const createdTime = new Date(task.created_at);
+        const now = new Date();
+        const elapsed = Math.floor((now - createdTime) / 1000);
+        const timeStr = formatElapsedTime(elapsed);
+
+        // Input preview
+        const inputPreview = getTaskInputPreview(task);
+
+        tr.innerHTML = `
+            <td style="text-align: center; font-size: 20px;">${typeIcon}</td>
+            <td style="font-size: 11px; font-family: monospace;" title="${task.task_id}">${task.task_id.substring(0, 25)}...</td>
+            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inputPreview}">${inputPreview}</td>
+            <td>${statusBadge}</td>
+            <td>${progressBar}</td>
+            <td style="font-size: 12px;">${created}</td>
+            <td style="font-size: 12px;">${timeStr}</td>
+        `;
+
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => showTaskDetail(task));
+
+        tbody.appendChild(tr);
+    });
+}
+
+function getTaskTypeIcon(type) {
+    const icons = {
+        'text': '📝',
+        'image': '🖼️',
+        'voice': '🎵'
+    };
+    return icons[type] || '📄';
+}
+
+function getTaskStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="status-badge status-pending">⏳ Pending</span>',
+        'processing': '<span class="status-badge status-processing">⚙️ Processing</span>',
+        'completed': '<span class="status-badge status-completed">✅ Completed</span>',
+        'failed': '<span class="status-badge status-failed">❌ Failed</span>'
+    };
+    return badges[status] || `<span class="status-badge">${status}</span>`;
+}
+
+function getTaskInputPreview(task) {
+    if (!task.input_data) return '-';
+
+    if (task.input_data.text) {
+        return task.input_data.text.substring(0, 50) + (task.input_data.text.length > 50 ? '...' : '');
+    }
+
+    if (task.input_data.image_path) {
+        return `Image: ${task.input_data.image_path.split('/').pop()}`;
+    }
+
+    return JSON.stringify(task.input_data).substring(0, 50) + '...';
+}
+
+function formatElapsedTime(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    return `${Math.floor(seconds / 3600)}h`;
+}
+
+function updateTaskStatistics(tasks) {
+    const stats = {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        failed: 0
+    };
+
+    tasks.forEach(task => {
+        if (stats.hasOwnProperty(task.status)) {
+            stats[task.status]++;
+        }
+    });
+
+    document.getElementById('tasksPending').textContent = stats.pending;
+    document.getElementById('tasksProcessing').textContent = stats.processing;
+    document.getElementById('tasksCompleted').textContent = stats.completed;
+    document.getElementById('tasksFailed').textContent = stats.failed;
+}
+
+async function pollActiveTasks() {
+    // Clear existing interval
+    if (taskRefreshInterval) {
+        clearInterval(taskRefreshInterval);
+    }
+
+    // Check if we have any active tasks
+    const hasActiveTasks = currentTasks.some(t =>
+        t.status === 'pending' || t.status === 'processing'
+    );
+
+    if (hasActiveTasks && taskAutoRefresh) {
+        // Poll every 2 seconds when there are active tasks
+        taskRefreshInterval = setInterval(fetchTasks, 2000);
+    } else if (taskAutoRefresh) {
+        // Poll every 10 seconds when idle
+        taskRefreshInterval = setInterval(fetchTasks, 10000);
+    }
+}
+
+function showTaskDetail(task) {
+    const panel = document.getElementById('taskDetailPanel');
+
+    document.getElementById('detailTaskId').textContent = task.task_id;
+    document.getElementById('detailTaskType').textContent = `${getTaskTypeIcon(task.task_type)} ${task.task_type}`;
+    document.getElementById('detailTaskStatus').innerHTML = getTaskStatusBadge(task.status);
+    document.getElementById('detailTaskProgress').textContent = `${task.progress || 0}%`;
+    document.getElementById('detailTaskCreated').textContent = new Date(task.created_at).toLocaleString();
+    document.getElementById('detailTaskUpdated').textContent = new Date(task.updated_at).toLocaleString();
+    document.getElementById('detailTaskInput').textContent = JSON.stringify(task.input_data, null, 2);
+
+    if (task.result) {
+        document.getElementById('detailTaskResult').textContent = JSON.stringify(task.result, null, 2);
+    } else {
+        document.getElementById('detailTaskResult').textContent = 'No result yet';
+    }
+
+    const errorContainer = document.getElementById('detailTaskErrorContainer');
+    if (task.error) {
+        document.getElementById('detailTaskError').textContent = task.error;
+        errorContainer.style.display = 'block';
+    } else {
+        errorContainer.style.display = 'none';
+    }
+
+    panel.style.display = 'block';
+}
+
+function closeTaskDetail() {
+    document.getElementById('taskDetailPanel').style.display = 'none';
+}
+
+// ========== Settings Dialog Functions ==========
+
+function openSettingsDialog() {
+    console.log('[Settings] Opening settings dialog');
+    document.getElementById('settingsDialog').style.display = 'flex';
+    updateApiConfigDisplay();
+}
+
+function closeSettingsDialog() {
+    console.log('[Settings] Closing settings dialog');
+    document.getElementById('settingsDialog').style.display = 'none';
+}
+
+function switchSettingsTab(tabName) {
+    console.log('[Settings] Switching to tab:', tabName);
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        if (content.id === `tab-${tabName}`) {
+            content.classList.add('active');
+        } else {
+            content.classList.remove('active');
+        }
+    });
+
+    // Refresh tab-specific data
+    if (tabName === 'api-config') {
+        updateApiConfigDisplay();
+    }
+}
+
+// ========== API Configuration Functions ==========
+
+// API config state
+let isScanning = false;
+
+function updateApiConfigDisplay() {
+    // Update current connection status
+    const mode = CONFIG.REMOTE_API.ENABLED ? 'Remote' : 'Local';
+    const baseUrl = CONFIG.getBaseUrl();
+    const apiPrefix = CONFIG.getApiPrefix();
+
+    document.getElementById('currentMode').textContent = mode;
+    document.getElementById('currentBaseUrl').textContent = baseUrl;
+    document.getElementById('currentApiPrefix').textContent = apiPrefix || 'None';
+
+    // Update radio selection based on whether we're actively using remote
+    const selectedMode = CONFIG.REMOTE_API.ENABLED ? 'remote' : 'local';
+    const radios = document.querySelectorAll('input[name="apiMode"]');
+    radios.forEach(radio => {
+        if (radio.value === selectedMode) {
+            radio.checked = true;
+        }
+    });
+
+    // Show/hide remote config panel if remote mode radio is selected
+    const remoteRadio = document.querySelector('input[name="apiMode"][value="remote"]');
+    const remotePanel = document.getElementById('remoteApiConfig');
+    const discoveredPanel = document.getElementById('discoveredServers');
+
+    if (remoteRadio && remoteRadio.checked) {
+        remotePanel.style.display = 'block';
+        discoveredPanel.style.display = 'block';
+    } else {
+        remotePanel.style.display = 'none';
+        discoveredPanel.style.display = 'none';
+    }
+
+    // Update custom URL input
+    document.getElementById('customApiUrl').value = CONFIG.REMOTE_API.CUSTOM_URL || '';
+    document.getElementById('enableAutoDiscovery').checked = CONFIG.REMOTE_API.AUTO_DISCOVER;
+    document.getElementById('scanInterval').value = CONFIG.REMOTE_API.SCAN_INTERVAL / 1000;
+    document.getElementById('scanTimeout').value = CONFIG.REMOTE_API.SCAN_TIMEOUT;
+}
+
+function switchApiMode(mode) {
+    console.log('[API Config] Switching to', mode, 'mode');
+
+    if (mode === 'remote') {
+        // Don't enable remote mode until we have a server URL
+        // Just start scanning
+        updateApiConfigDisplay();
+
+        // Start auto-discovery if enabled
+        if (CONFIG.REMOTE_API.AUTO_DISCOVER) {
+            startLanScanning();
+        } else {
+            dialog.info('Please enter a custom URL or enable auto-discovery');
+        }
+    } else {
+        CONFIG.REMOTE_API.ENABLED = false;
+        CONFIG.REMOTE_API.CUSTOM_URL = '';
+
+        // Stop scanning
+        stopLanScanning();
+
+        updateApiConfigDisplay();
+        dialog.success(`Switched to ${mode} mode`);
+
+        // Refresh queue and data with local API
+        console.log('[API Config] Refreshing data from local API...');
+        fetchQueue();
+        fetchCategories();
+        updateStatistics();
+    }
+}
+
+function applyCustomUrl() {
+    const url = document.getElementById('customApiUrl').value.trim();
+
+    if (!url) {
+        dialog.error('Please enter a valid URL');
+        return;
+    }
+
+    // Validate URL format
+    try {
+        new URL(url);
+    } catch (e) {
+        dialog.error('Invalid URL format');
+        return;
+    }
+
+    CONFIG.REMOTE_API.CUSTOM_URL = url;
+    CONFIG.REMOTE_API.ENABLED = true;
+
+    console.log('[API Config] Custom URL set:', url);
+
+    updateApiConfigDisplay();
+    dialog.success('Custom API URL applied');
+
+    // Test connection and refresh data
+    testConnection();
+
+    // Refresh data from new API
+    console.log('[API Config] Refreshing data from custom URL...');
+    fetchQueue();
+    fetchCategories();
+    updateStatistics();
+}
+
+async function testConnection() {
+    console.log('[API Config] Testing connection...');
+
+    const apiUrl = api.getFullUrl(CONFIG.API.PING);
+    const indicator = document.getElementById('connectionState');
+    indicator.innerHTML = '<span class="connection-indicator">🟡</span> Testing...';
+
+    try {
+        const data = await api.ping();
+
+        if (data && data.success) {
+            indicator.innerHTML = '<span class="connection-indicator">🟢</span> Connected';
+            dialog.success('Connection successful!');
+            console.log('[API Config] Connection test passed:', data);
+        } else {
+            indicator.innerHTML = '<span class="connection-indicator">🔴</span> Failed';
+            dialog.error('Connection test failed');
+        }
+    } catch (error) {
+        console.error('[API Config] Connection test error:', error);
+        console.error('[API Config] Failed URL:', apiUrl);
+        indicator.innerHTML = '<span class="connection-indicator">🔴</span> Error';
+        dialog.error('Connection error: ' + error.message);
+    }
+}
+
+function startLanScanning() {
+    if (isScanning) {
+        console.warn('[API Config] Already scanning');
+        return;
+    }
+
+    console.log('[API Config] Starting LAN scan...');
+    isScanning = true;
+
+    // Update UI
+    const statusIndicator = document.querySelector('#scanStatus .status-indicator');
+    const statusText = document.querySelector('#scanStatus .status-text');
+    const subnetInfo = document.getElementById('subnetInfo');
+    if (statusIndicator) statusIndicator.textContent = '🔍';
+    if (statusText) statusText.textContent = 'Initializing scan...';
+    if (subnetInfo) subnetInfo.textContent = '';
+
+    // Set scan progress callback
+    lanScanner.setScanProgressCallback((progress) => {
+        if (statusText) {
+            if (progress.subnet === 'No servers found') {
+                statusText.textContent = 'Scan complete. No servers found.';
+            } else {
+                statusText.textContent = `Scanning ${progress.subnet}... ${progress.progress}%`;
+            }
+        }
+        if (subnetInfo) {
+            if (progress.found > 0) {
+                subnetInfo.textContent = `Found ${progress.found} server(s)`;
+            } else {
+                subnetInfo.textContent = `${progress.subnet}`;
+            }
+        }
+    });
+
+    // Start scanner
+    lanScanner.startScanning((servers) => {
+        console.log('[API Config] Discovered servers:', servers);
+        updateDiscoveredServers(servers);
+
+        // Auto-select first server if no custom URL and auto-discover enabled
+        if (servers.length > 0 && !CONFIG.REMOTE_API.CUSTOM_URL && CONFIG.REMOTE_API.AUTO_DISCOVER) {
+            CONFIG.REMOTE_API.CUSTOM_URL = servers[0].url;
+            CONFIG.REMOTE_API.ENABLED = true;  // Now we can enable remote mode
+            updateApiConfigDisplay();
+            dialog.success(`Auto-connected to ${servers[0].url}`);
+
+            // Refresh data from new server
+            console.log('[API Config] Refreshing data from discovered server...');
+            fetchQueue();
+            fetchCategories();
+            updateStatistics();
+        }
+    });
+}
+
+function stopLanScanning() {
+    if (!isScanning) return;
+
+    console.log('[API Config] Stopping LAN scan...');
+    isScanning = false;
+
+    lanScanner.stopScanning();
+
+    // Update UI
+    const statusIndicator = document.querySelector('#scanStatus .status-indicator');
+    const statusText = document.querySelector('#scanStatus .status-text');
+    statusIndicator.textContent = '⏸️';
+    statusText.textContent = 'Not scanning';
+}
+
+function updateDiscoveredServers(servers) {
+    const tbody = document.getElementById('serversTableBody');
+
+    if (!servers || servers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No servers discovered</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    servers.forEach((server, index) => {
+        const tr = document.createElement('tr');
+
+        const isSelected = CONFIG.REMOTE_API.CUSTOM_URL === server.url;
+
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <input type="radio" name="selectedServer" value="${server.url}" ${isSelected ? 'checked' : ''}>
+            </td>
+            <td>${server.ip}</td>
+            <td>${server.port}</td>
+            <td style="font-family: monospace; font-size: 12px;">${server.url}</td>
+            <td><span class="status-badge status-completed">🟢 Active</span></td>
+        `;
+
+        // Add click handler for radio
+        const radio = tr.querySelector('input[type="radio"]');
+        radio.addEventListener('change', () => {
+            if (radio.checked) {
+                CONFIG.REMOTE_API.CUSTOM_URL = server.url;
+                CONFIG.REMOTE_API.ENABLED = true;
+                updateApiConfigDisplay();
+                dialog.success(`Selected ${server.url}`);
+                testConnection();
+
+                // Refresh data from selected server
+                console.log('[API Config] Refreshing data from selected server...');
+                fetchQueue();
+                fetchCategories();
+                updateStatistics();
+            }
+        });
+
+        tbody.appendChild(tr);
+    });
+
+    // Update scan status
+    const statusText = document.querySelector('#scanStatus .status-text');
+    statusText.textContent = `Scanning... (${servers.length} found)`;
+}
+
+function toggleAutoDiscovery(enabled) {
+    CONFIG.REMOTE_API.AUTO_DISCOVER = enabled;
+    console.log('[API Config] Auto-discovery:', enabled ? 'Enabled' : 'Disabled');
+
+    if (enabled && CONFIG.REMOTE_API.ENABLED) {
+        startLanScanning();
+    } else if (!enabled) {
+        stopLanScanning();
+    }
+}
+
 // ========== Code Sync Functions ==========
 
 // Code sync state
@@ -872,6 +1528,10 @@ let codeSyncRefreshInterval = null;
 
 async function startCodeSync() {
     const mode = document.getElementById('codeSyncMode')?.value || 'server';
+
+    const apiUrl = mode === 'server'
+        ? api.getFullUrl(CONFIG.API.CODE_SYNC_START_SERVER)
+        : api.getFullUrl(CONFIG.API.CODE_SYNC_START_CLIENT);
 
     try {
         let data;
@@ -897,11 +1557,14 @@ async function startCodeSync() {
         }
     } catch (error) {
         console.error('[Code Sync] Start error:', error);
+        console.error('[Code Sync] Failed URL:', apiUrl);
         dialog.error(`Failed to start code sync: ${error.message}`);
     }
 }
 
 async function stopCodeSync() {
+    const apiUrl = api.getFullUrl(CONFIG.API.CODE_SYNC_STOP);
+
     try {
         const data = await api.stopCodeSync();
 
@@ -926,6 +1589,7 @@ async function stopCodeSync() {
         }
     } catch (error) {
         console.error('[Code Sync] Stop error:', error);
+        console.error('[Code Sync] Failed URL:', apiUrl);
         dialog.error(`Failed to stop code sync: ${error.message}`);
     }
 }
@@ -933,6 +1597,8 @@ async function stopCodeSync() {
 async function toggleBackup(event) {
     const enabled = event.target.checked;
     console.log('[Code Sync] Backup toggle:', enabled ? 'Enabled' : 'Disabled');
+
+    const apiUrl = api.getFullUrl(CONFIG.API.CODE_SYNC_TOGGLE_BACKUP);
 
     try {
         const data = await api.toggleBackup(enabled);
@@ -946,12 +1612,15 @@ async function toggleBackup(event) {
         }
     } catch (error) {
         console.error('[Code Sync] Backup toggle error:', error);
+        console.error('[Code Sync] Failed URL:', apiUrl);
         event.target.checked = !enabled;
         dialog.error(`Error toggling backup: ${error.message}`);
     }
 }
 
 async function refreshCodeSyncStatus() {
+    const apiUrl = api.getFullUrl(CONFIG.API.CODE_SYNC_STATUS);
+
     try {
         const data = await api.getCodeSyncStatus();
 
@@ -960,6 +1629,7 @@ async function refreshCodeSyncStatus() {
         }
     } catch (error) {
         console.error('[Code Sync] Status refresh error:', error);
+        console.error('[Code Sync] Failed URL:', apiUrl);
     }
 }
 

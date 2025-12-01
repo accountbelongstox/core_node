@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 // Import QY App Screens (MVC Architecture)
 // Authentication
 import '../features_app_qy/auth/views/login_screen_refactored_app_qy.dart';
+import '../features_app_qy/auth/views/language_selection_screen_app_qy.dart';
 // Home
 import '../features_app_qy/home/views/home_study_screen_refactored_app_qy.dart';
 import '../features_app_qy/home/views/home_search_screen_app_qy.dart';
@@ -90,6 +91,7 @@ class QyAppRoutesProvider {
   // Route constants with /qy namespace
   static const String routeHome = '/qy/home';
   static const String routeLogin = '/qy/login';
+  static const String routeOnboarding = '/qy/onboarding';
 
   // Home routes
   static const String routeHomeSearch = '/qy/home/search';
@@ -256,6 +258,11 @@ class QyAppRoutesProvider {
       GoRoute(
         path: '/login',
         redirect: (context, state) => routeLogin,
+      ),
+      GoRoute(
+        path: routeOnboarding,
+        name: 'qy_onboarding',
+        builder: (context, state) => const LanguageSelectionScreenAppQy(),
       ),
 
       // Course routes

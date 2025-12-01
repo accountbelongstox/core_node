@@ -50,7 +50,7 @@ class PySide6UIConfig:
     # ========== Window Configuration ==========
     window_size: Tuple[int, int] = (1280, 800)
     min_window_size: Tuple[int, int] = (800, 600)
-    show_on_start: bool = False
+    show_on_start: bool = True  # Show window on start (default: True, changed from False)
     resizable: bool = True
     frameless: bool = True  # Frameless window (uses custom title bar)
     window_position: Optional[Tuple[int, int]] = None  # None = center
@@ -63,7 +63,7 @@ class PySide6UIConfig:
     title_font: Tuple[str, int] = ("Microsoft YaHei UI", 10)
 
     # Button configuration
-    show_menu_button: bool = True
+    show_menu_button: bool = False
     show_minimize_button: bool = True
     show_maximize_button: bool = True
     show_close_button: bool = True
@@ -128,6 +128,9 @@ class PySide6UIConfig:
     - {namespace}.maximize - Maximize window
     """
 
+    trigger_shutdown_on_close: bool = True
+    """Trigger global THREAD_BUS shutdown when window closes (default: True)"""
+
     # ========== Debug Configuration ==========
     debug: bool = False
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
@@ -145,11 +148,15 @@ class StartupWindowConfig:
 
     Simple configuration for the initialization window that shows
     BEFORE PySide6 dependencies are installed.
+
+    This window can be used as a debug/log window that shows ColorPrint output.
     """
     app_name: str = "Application"
     width: int = 500
     height: int = 400
     show_startup: bool = True  # Whether to show startup window
+    auto_close: bool = True  # Auto-close when PySide6 starts (False = keep as debug window)
+    daemon: bool = True  # Run as daemon thread (auto-terminates with main)
     on_complete: Optional[Callable] = None  # Called when startup completes
 
 

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
@@ -45,7 +46,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             end: Alignment.bottomCenter,
             colors: [
               AppTheme.primaryGreen.withOpacity(0.1),
-              Colors.white,
+              ColorsAppQy.qyPageBackground,
             ],
           ),
         ),
@@ -168,24 +169,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       title: QyAppLocalizationKeys.qySettingsAccountBinding.tr(context),
       child: Column(
         children: [
-          SettingsTile(
-            leading: Icon(
-              Icons.phone_android,
-              color: AppTheme.primaryGreen,
-            ),
-            title: QyAppLocalizationKeys.qySettingsPhone.tr(context),
-            subtitle: Consumer<UserProviderAppQy>(
-              builder: (context, userProvider, child) {
-                final user = userProvider.currentUser;
-                return user?.phone != null
+          Consumer<UserProviderAppQy>(
+            builder: (context, userProvider, child) {
+              final user = userProvider.currentUser;
+              return SettingsTile(
+                leading: Icon(
+                  Icons.phone_android,
+                  color: AppTheme.primaryGreen,
+                ),
+                title: QyAppLocalizationKeys.qySettingsPhone.tr(context),
+                subtitle: user?.phone != null
                     ? _maskPhoneNumber(user!.phone!)
-                    : QyAppLocalizationKeys.qySettingsNotBound.tr(context);
-              },
-            ),
-            trailing: Consumer<UserProviderAppQy>(
-              builder: (context, userProvider, child) {
-                final user = userProvider.currentUser;
-                return TextButton(
+                    : QyAppLocalizationKeys.qySettingsNotBound.tr(context),
+                trailing: TextButton(
                   onPressed: () => _showPhoneBindingDialog(),
                   child: Text(
                     user?.phone != null
@@ -193,15 +189,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         : QyAppLocalizationKeys.qySettingsBind.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
           const Divider(height: 1, indent: 72),
           SettingsTile(
             leading: Icon(
               Icons.wechat,
-              color: const Color(0xFF07C160),
+              color: ColorsAppQy.qyWechatGreen,
             ),
             title: QyAppLocalizationKeys.qySettingsWechat.tr(context),
             subtitle: QyAppLocalizationKeys.qyWechatNickname.tr(context),
@@ -217,7 +213,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           SettingsTile(
             leading: Icon(
               Icons.alternate_email,
-              color: const Color(0xFFFF8140),
+              color: ColorsAppQy.qyWeiboOrange,
             ),
             title: QyAppLocalizationKeys.qySettingsWeibo.tr(context),
             subtitle: QyAppLocalizationKeys.qySettingsNotBound.tr(context),
@@ -233,7 +229,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           SettingsTile(
             leading: Icon(
               Icons.chat,
-              color: const Color(0xFF1296DB),
+              color: ColorsAppQy.qyQQBlue,
             ),
             title: QyAppLocalizationKeys.qySettingsQQ.tr(context),
             subtitle: QyAppLocalizationKeys.qySettingsNotBound.tr(context),
@@ -258,7 +254,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           SettingsTile(
             leading: Icon(
               Icons.warning_outlined,
-              color: Colors.red,
+              color: ColorsAppQy.qyError,
             ),
             title: QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context),
             subtitle: QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle
@@ -267,7 +263,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               onPressed: _showAccountDeletionDialog,
               child: Text(
                 QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context),
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(color: ColorsAppQy.qyError),
               ),
             ),
           ),
@@ -313,7 +309,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
+              foregroundColor: ColorsAppQy.qyTextOnPrimary,
             ),
             child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
@@ -369,7 +365,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
+              foregroundColor: ColorsAppQy.qyTextOnPrimary,
             ),
             child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
@@ -481,8 +477,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               _showFinalDeletionDialog();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: ColorsAppQy.qyError,
+              foregroundColor: ColorsAppQy.qyTextOnPrimary,
             ),
             child:
                 Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
@@ -513,13 +509,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   content: Text(QyAppLocalizationKeys
                       .qySettingsAccountDeletionInProgress
                       .tr(context)),
-                  backgroundColor: Colors.red,
+                  backgroundColor: ColorsAppQy.qyError,
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: ColorsAppQy.qyError,
+              foregroundColor: ColorsAppQy.qyTextOnPrimary,
             ),
             child:
                 Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),

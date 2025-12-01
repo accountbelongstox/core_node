@@ -56,9 +56,9 @@ if command -v php-fpm8.4 >/dev/null 2>&1; then
     fi
 
     # Check PHP-FPM socket/port
-    if [ -S "/var/run/php/php8.4-fpm.sock" ]; then
-        echo "[$SCRIPT_INDEX] [OK] PHP-FPM socket exists: /var/run/php/php8.4-fpm.sock"
-        ls -la /var/run/php/php8.4-fpm.sock
+    if [ -S "/var/run/php/php8.5-fpm.sock" ]; then
+        echo "[$SCRIPT_INDEX] [OK] PHP-FPM socket exists: /var/run/php/php8.5-fpm.sock"
+        ls -la /var/run/php/php8.5-fpm.sock
     elif netstat -tln | grep -q ":9000"; then
         echo "[$SCRIPT_INDEX] [OK] PHP-FPM listening on port 9000"
     else
@@ -302,13 +302,13 @@ echo "========================================"
 echo "8. RECENT PHP-FPM ERRORS"
 echo "========================================"
 
-php_fpm_log="/var/log/php8.4-fpm.log"
+php_fpm_log="/var/log/php8.5-fpm.log"
 if [ -f "$php_fpm_log" ]; then
     echo "[$SCRIPT_INDEX] Last 20 PHP-FPM errors:"
     tail -20 "$php_fpm_log"
 else
     # Try alternative locations
-    for log in "/var/log/php-fpm.log" "/var/log/php/error.log" "/var/log/php8.4/error.log"; do
+    for log in "/var/log/php-fpm.log" "/var/log/php/error.log" "/var/log/php8.5/error.log"; do
         if [ -f "$log" ]; then
             echo "[$SCRIPT_INDEX] Last 20 PHP-FPM errors from $log:"
             tail -20 "$log"
@@ -329,7 +329,7 @@ issues_found=0
 # Check for common issues
 if ! pgrep -f "php-fpm8.4" >/dev/null; then
     echo "[$SCRIPT_INDEX] [!] PHP-FPM 8.4 is not running - START IT!"
-    echo "[$SCRIPT_INDEX]     Fix: sudo systemctl start php8.4-fpm"
+    echo "[$SCRIPT_INDEX]     Fix: sudo systemctl start php8.5-fpm"
     issues_found=$((issues_found + 1))
 fi
 

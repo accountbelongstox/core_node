@@ -8,6 +8,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/vocabulary_recommendation_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/vocabulary_models_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class VocabularyCollectionsScreenAppQy extends StatefulWidget {
   const VocabularyCollectionsScreenAppQy({super.key});
@@ -56,7 +57,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
     try {
       final authService = context.read<AuthServiceAppQy>();
       final user = authService.currentUser;
-      final learningLanguages = user?.learningLanguages ?? ['en'];
+      final learningLanguages = user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages;
 
       final recommendations = await _service.getRecommendations(
         langCodes: learningLanguages,
@@ -114,7 +115,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(action == 'select' ? 'Collection added' : 'Collection removed'),
-            backgroundColor: action == 'select' ? Colors.green.shade600 : Colors.orange.shade600,
+            backgroundColor: action == 'select' ? ColorsAppQy.qySuccess : ColorsAppQy.qyWarning,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 1),
           ),
@@ -199,7 +200,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                   child: Text(
                     '$selectedCount selected',
                     style: ThemeTextStyles.caption.copyWith(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -267,7 +268,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
     return Padding(
       padding: const EdgeInsets.only(right: ThemeDimensions.spacing8),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: () => onTap(value),
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
@@ -280,18 +281,18 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
               gradient: isSelected
                   ? ColorsAppQy.qyPrimaryGradient
                   : null,
-              color: !isSelected ? Colors.white.withOpacity(0.1) : null,
+              color: !isSelected ? ColorsAppQy.qyFrostLight : null,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
               border: Border.all(
                 color: isSelected
-                    ? Colors.transparent
-                    : Colors.white.withOpacity(0.2),
+                    ? ColorsAppQy.qyPageBackground.withOpacity(0)
+                    : ColorsAppQy.qyFrostMedium,
               ),
             ),
             child: Text(
               label,
               style: ThemeTextStyles.caption.copyWith(
-                color: isSelected ? Colors.white : ColorsAppQy.qyTextPrimary,
+                color: isSelected ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qyTextPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -314,7 +315,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          Icon(Icons.error_outline, size: 64, color: ColorsAppQy.qyError),
           const SizedBox(height: ThemeDimensions.spacing16),
           Text(
             _error ?? 'An error occurred',
@@ -379,7 +380,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing16),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: () => _toggleSelection(collection),
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
@@ -402,7 +403,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                   border: Border.all(
                     color: collection.isSelected
                         ? ColorsAppQy.qyPrimary.withOpacity(0.5)
-                        : Colors.white.withOpacity(0.2),
+                        : ColorsAppQy.qyFrostMedium,
                     width: collection.isSelected ? 2 : 1.5,
                   ),
                 ),
@@ -421,7 +422,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                           Text(
                             collection.langCode.toUpperCase(),
                             style: ThemeTextStyles.caption.copyWith(
-                              color: Colors.white,
+                              color: ColorsAppQy.qyTextOnPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 10,
                             ),
@@ -429,7 +430,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                           const SizedBox(height: 2),
                           Icon(
                             _getCategoryIcon(collection.category),
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             size: 24,
                           ),
                         ],
@@ -466,12 +467,12 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.star, size: 12, color: Colors.white),
+                                      Icon(Icons.star, size: 12, color: ColorsAppQy.qyTextOnPrimary),
                                       const SizedBox(width: 4),
                                       Text(
                                         'Popular',
                                         style: ThemeTextStyles.caption.copyWith(
-                                          color: Colors.white,
+                                          color: ColorsAppQy.qyTextOnPrimary,
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -520,14 +521,14 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                         gradient: collection.isSelected ? ColorsAppQy.qyPrimaryGradient : null,
                         border: !collection.isSelected
                             ? Border.all(
-                                color: Colors.white.withOpacity(0.3),
+                                color: ColorsAppQy.qyFrostMedium,
                                 width: 2,
                               )
                             : null,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: collection.isSelected
-                          ? const Icon(Icons.check, size: 18, color: Colors.white)
+                          ? Icon(Icons.check, size: 18, color: ColorsAppQy.qyTextOnPrimary)
                           : null,
                     ),
                   ],
@@ -560,9 +561,9 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
   Gradient _getCategoryGradient(String category) {
     switch (category) {
       case 'exam':
-        return LinearGradient(colors: [Colors.blue.shade400, Colors.blue.shade600]);
+        return LinearGradient(colors: [ColorsAppQy.qyInfo, ColorsAppQy.qyPrimaryDark]);
       case 'business':
-        return LinearGradient(colors: [Colors.green.shade400, Colors.green.shade600]);
+        return LinearGradient(colors: [ColorsAppQy.qySuccess, ColorsAppQy.qySecondaryDark]);
       case 'daily':
         return LinearGradient(colors: [Colors.orange.shade400, Colors.orange.shade600]);
       case 'travel':

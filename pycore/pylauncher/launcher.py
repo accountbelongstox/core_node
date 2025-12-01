@@ -173,6 +173,16 @@ class ServiceLauncher:
         })
 
         ColorPrint.green(f"=== Launched {success_count}/{len(self.config.services)} services ===")
+
+        # Signal that third-party packages are loaded (all services started)
+        # This allows StartupWindow to auto-close if configured
+        THREAD_BUS.trigger_event('system.third_party_packages_loaded', {
+            'message': 'All required third-party packages have been loaded',
+            'app_name': self.config.app_name,
+            'services': list(self.services.keys())
+        })
+        ColorPrint.blue("[Launcher] Third-party packages loaded signal sent")
+
         return success_count > 0
 
     def _singleton_detect(self) -> bool:

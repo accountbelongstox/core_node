@@ -1,0 +1,51 @@
+#include "winres.h"
+
+IDI_ICON1       ICON      "SmartMatrix.ico"
+
+// Version Info
+#ifndef VERSION_MAJOR
+#define VERSION_MAJOR 1
+#endif
+#ifndef VERSION_MINOR
+#define VERSION_MINOR 0
+#endif
+#ifndef VERSION_PATCH
+#define VERSION_PATCH 0
+#endif
+#ifndef VERSION_RC_STR
+#define VERSION_RC_STR "1.0.0"
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+FILEFLAGSMASK   0x3fL
+#ifdef _DEBUG
+FILEFLAGS       VS_FF_DEBUG
+#else
+FILEFLAGS       0x0L
+#endif
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName",      "灿烂传媒-智云矩阵(新疆灿烂传媒云平台)\0"
+            VALUE "FileDescription",  "灿烂传媒-智云矩阵 - Android设备控制与投屏系统\0"
+            VALUE "FileVersion",      VERSION_RC_STR "\0"
+            VALUE "InternalName",     "SmartMatrix\0"
+            VALUE "LegalCopyright",   "Copyright © 2025 灿烂传媒-智云矩阵(新疆灿烂传媒云平台). All rights reserved.\0"
+            VALUE "OriginalFilename", "SmartMatrix.exe\0"
+            VALUE "ProductName",      "灿烂传媒-智云矩阵\0"
+            VALUE "ProductVersion",   VERSION_RC_STR "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
+

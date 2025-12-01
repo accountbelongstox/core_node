@@ -45,6 +45,43 @@ class ApiEndpointsAppQy {
   static const String dictionaryQuery = '/api/dict/v1/dictionary/query';
   static const String dictionaryBatch = '/api/dict/v1/dictionary/batch';
   static const String dictionarySearch = '/api/dict/v1/dictionary/search';
+  
+  // User Initialization
+  static const String userInitializationStatus = '/api/dict/v1/user/initialization-status';
+  static const String userInitialize = '/api/dict/v1/user/initialize';
+  static const String userProfileUpdate = '/api/dict/v1/user/profile';
+  
+  // Memory Bank
+  static const String memoryBank = '/api/dict/v1/memory/bank';
+  static const String memoryBankLibrary = '/api/dict/v1/memory/bank/library';
+  static const String memoryBankUploadFile = '/api/dict/v1/memory/bank/upload-file';
+  static const String memoryBankUploadText = '/api/dict/v1/memory/bank/upload-text';
+  static const String memoryBankStatus = '/api/dict/v1/memory/bank/status';
+  static const String memoryBankWordStatus = '/api/dict/v1/memory/bank/word';
+  
+  // Vocabulary Libraries (Public)
+  static const String vocabularyLibrariesRecommended = '/api/dict/v1/vocabulary/libraries/recommended';
+  static const String vocabularyLibrariesAll = '/api/dict/v1/vocabulary/libraries';
+  
+  // Reading Materials
+  static const String readingDailyRecommended = '/api/dict/v1/reading/daily/recommended';
+  static const String readingDailyAll = '/api/dict/v1/reading/daily';
+  static const String readingBooksRecommended = '/api/dict/v1/reading/books/recommended';
+  static const String readingBooksAll = '/api/dict/v1/reading/books';
+  static const String readingArticle = '/api/dict/v1/reading/article';
+  static const String readingBook = '/api/dict/v1/reading/book';
+  static const String readingBookChapter = '/api/dict/v1/reading/book';
+  
+  // AI Features
+  static const String aiUsageLimit = '/api/app_qy_v1/ai/usage-limit';
+  static const String aiWordExplanation = '/api/app_qy_v1/ai/word-explanation';
+  static const String aiLearningAssistant = '/api/app_qy_v1/ai/learning-assistant';
+  
+  // Word Search (Public)
+  static const String wordPublicLookup = '/api/words/public';
+  
+  // Enhanced Word Query
+  static const String wordEnhanced = '/api/dict/v1/word';
 }
 
 class ApiEndpointMethods {

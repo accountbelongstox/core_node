@@ -172,6 +172,8 @@ class ImageProcessUtil
         $padding = $options['padding'] ?? self::$padding;
         $titleBgColor = $options['titleBgColor'] ?? self::$titleBgColor;
         $titleTextColor = $options['titleTextColor'] ?? self::$titleTextColor;
+        $maxImageWidthOption = $options['maxImageWidth'] ?? null;
+        $resizedTempPaths = [];
 
         // First pass: collect image info and calculate dimensions
         foreach ($imagePaths as $index => $imagePath) {
@@ -180,6 +182,18 @@ class ImageProcessUtil
             }
 
             $imageInfo = self::getImageInfo($imagePath);
+
+            if ($maxImageWidthOption && $imageInfo['width'] > $maxImageWidthOption) {
+                $scaleRatio = $maxImageWidthOption / $imageInfo['width'];
+                $targetHeight = max(1, (int) round($imageInfo['height'] * $scaleRatio));
+                $resizeResult = self::resizeImage($imagePath, (int)$maxImageWidthOption, $targetHeight);
+                if (isset($resizeResult['path']) && file_exists($resizeResult['path'])) {
+                    $imagePath = $resizeResult['path'];
+                    $imageInfo = self::getImageInfo($imagePath);
+                    $resizedTempPaths[] = $imagePath;
+                }
+            }
+
             $image = self::createImageFromFile($imagePath, $imageInfo['mime']);
 
             $images[] = [
@@ -253,7 +267,7 @@ class ImageProcessUtil
 
         imagedestroy($mergedImage);
 
-        return [
+        $result = [
             'success' => true,
             'path' => $tempPath,
             'width' => $maxWidth,
@@ -262,6 +276,12 @@ class ImageProcessUtil
             'file_size' => filesize($tempPath),
             'file_size_readable' => self::formatBytes(filesize($tempPath))
         ];
+
+        foreach ($resizedTempPaths as $temp) {
+            @unlink($temp);
+        }
+
+        return $result;
     }
 
     /**
@@ -530,4 +550,3 @@ class ImageProcessUtil
         return $result;
     }
 }
-

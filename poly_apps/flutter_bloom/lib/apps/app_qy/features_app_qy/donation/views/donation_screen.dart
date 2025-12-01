@@ -24,6 +24,7 @@ import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
 // AI: Claude Code - Replaced app-specific HomeBottomNavigationBar with common EnhancedBottomNavigation
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class DonationScreenView extends StatelessWidget {
@@ -97,7 +98,7 @@ class DonationScreenView extends StatelessWidget {
                               radius: ThemeDimensions.sizeTwenty,
                               child: const Icon(
                                 Icons.emoji_emotions_outlined,
-                                color: Colors.white,
+                                color: ColorsAppQy.qyTextOnPrimary,
                               ),
                             ),
                             const SizedBox(
@@ -138,7 +139,7 @@ class DonationScreenView extends StatelessWidget {
                                         ThemeDimensions.defaultSize),
                                     border: Border.all(
                                         width: 3.5,
-                                        color: Colors.grey.withOpacity(0.2))),
+                                        color: ColorsAppQy.qyBorderLight)),
                                 child: Column(
                                   children: [
                                     Padding(
@@ -153,7 +154,7 @@ class DonationScreenView extends StatelessWidget {
                                               width:
                                                   ThemeDimensions.sizeOneTwenty,
                                               decoration: const BoxDecoration(
-                                                  color: Colors.grey,
+                                                  color: ColorsAppQy.qyTextSecondary,
                                                   borderRadius: BorderRadius.only(
                                                       topLeft: Radius.circular(
                                                           ThemeDimensions
@@ -199,7 +200,7 @@ class DonationScreenView extends StatelessWidget {
                                                           .textBold
                                                           .copyWith(
                                                               color:
-                                                                  Colors.green),
+                                                                  ColorsAppQy.qySuccess),
                                                     ),
                                                     Text(
                                                       " ${QyAppLocalizationKeys.qyDonationFundRaising.tr(context)} ",

@@ -24,25 +24,27 @@ class WordListeningDictation3ScreenAppQy extends StatefulWidget {
   const WordListeningDictation3ScreenAppQy({super.key});
 
   @override
-  State<WordListeningDictation3ScreenAppQy> createState() => _WordListeningDictation3ScreenAppQyState();
+  State<WordListeningDictation3ScreenAppQy> createState() =>
+      _WordListeningDictation3ScreenAppQyState();
 }
 
-class _WordListeningDictation3ScreenAppQyState extends State<WordListeningDictation3ScreenAppQy> {
+class _WordListeningDictation3ScreenAppQyState
+    extends State<WordListeningDictation3ScreenAppQy> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
         title: Text(
-          'Word Listening Dictation 3',
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          QyAppLocalizationKeys.qyWordListeningDictation.tr(context),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -61,20 +63,20 @@ class _WordListeningDictation3ScreenAppQyState extends State<WordListeningDictat
         children: [
           Icon(
             Icons.construction,
-            size: 64,
+            size: ThemeDimensions.spacing64,
             color: ThemeColors.primary.withOpacity(0.5),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Text(
-            'Word Listening Dictation 3 - Coming Soon',
-            style: TextStyles.body1.copyWith(
+            '${QyAppLocalizationKeys.qyWordListeningDictation.tr(context)} - ${QyAppLocalizationKeys.qyComingSoon.tr(context)}',
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.textSecondary,
             ),
           ),
-          SizedBox(height: Dimensions.spacingSmall),
+          SizedBox(height: ThemeDimensions.spacingSmall),
           Text(
-            'This page is under development',
-            style: TextStyles.caption.copyWith(
+            QyAppLocalizationKeys.qyUnderDevelopment.tr(context),
+            style: ThemeTextStyles.caption.copyWith(
               color: ThemeColors.textTertiary,
             ),
           ),

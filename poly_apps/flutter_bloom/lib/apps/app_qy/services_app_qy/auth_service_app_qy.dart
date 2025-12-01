@@ -3,6 +3,7 @@ import 'package:qyflutter/apps/app_qy/services_app_qy/api_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/user_model_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_endpoints_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class AuthServiceAppQy extends ChangeNotifier {
   static final AuthServiceAppQy _instance = AuthServiceAppQy._internal();
@@ -272,8 +273,8 @@ class AuthServiceAppQy extends ChangeNotifier {
         
         if (_currentUser != null) {
           _currentUser = _currentUser!.copyWith(
-            learningLanguages: learningLanguages?.map((e) => e.toString()).toList() ?? ['en'],
-            nativeLanguage: nativeLanguage ?? 'zh',
+            learningLanguages: learningLanguages?.map((e) => e.toString()).toList() ?? DefaultLanguageConfigAppQy.defaultLearningLanguages,
+            nativeLanguage: nativeLanguage ?? DefaultLanguageConfigAppQy.defaultNativeLanguage,
           );
           await _saveAuthData();
           notifyListeners();
@@ -290,7 +291,7 @@ class AuthServiceAppQy extends ChangeNotifier {
         final stats = response['data'] ?? response;
         if (_currentUser != null) {
           _currentUser = _currentUser!.copyWith(
-            learningStats: stats is Map ? Map<String, dynamic>.from(stats) : null,
+            stats: stats is Map ? Map<String, dynamic>.from(stats) : null,
           );
           await _saveAuthData();
           notifyListeners();

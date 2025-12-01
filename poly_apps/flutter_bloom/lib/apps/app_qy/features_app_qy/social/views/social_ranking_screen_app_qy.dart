@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/social_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class SocialRankingScreenRefactoredAppQy extends StatefulWidget {
   const SocialRankingScreenRefactoredAppQy({super.key});
@@ -30,7 +29,8 @@ class SocialRankingScreenRefactoredAppQy extends StatefulWidget {
 }
 
 class _SocialRankingScreenRefactoredAppQyState
-    extends State<SocialRankingScreenRefactoredAppQy> with SingleTickerProviderStateMixin {
+    extends State<SocialRankingScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final List<Map<String, dynamic>> _weeklyRankings = [];
   final List<Map<String, dynamic>> _monthlyRankings = [];
@@ -186,7 +186,8 @@ class _SocialRankingScreenRefactoredAppQyState
           labelColor: ThemeColors.primary,
           unselectedLabelColor: ThemeColors.textSecondary,
           indicatorColor: ThemeColors.primary,
-          labelStyle: ThemeTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
+          labelStyle:
+              ThemeTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
           unselectedLabelStyle: ThemeTextStyles.body1,
           tabs: [
             Tab(text: QyAppLocalizationKeys.qyWeek.tr(context)),
@@ -308,11 +309,11 @@ class _SocialRankingScreenRefactoredAppQyState
     Color getRankColor() {
       switch (rank) {
         case 1:
-          return Colors.amber;
+          return ColorsAppQy.qyWarning;
         case 2:
-          return Colors.grey[400]!;
+          return ColorsAppQy.qyTextSecondary;
         case 3:
-          return Colors.brown[300]!;
+          return ColorsAppQy.qyTextTertiary;
         default:
           return ThemeColors.textSecondary;
       }
@@ -324,7 +325,8 @@ class _SocialRankingScreenRefactoredAppQyState
         color: ThemeColors.surface,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(
-          color: isTopThree ? getRankColor().withOpacity(0.3) : ThemeColors.border,
+          color:
+              isTopThree ? getRankColor().withOpacity(0.3) : ThemeColors.border,
           width: isTopThree ? 2 : 1,
         ),
         boxShadow: isTopThree
@@ -398,7 +400,8 @@ class _SocialRankingScreenRefactoredAppQyState
                       ),
                       decoration: BoxDecoration(
                         color: ThemeColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                        borderRadius:
+                            BorderRadius.circular(ThemeDimensions.radiusSmall),
                       ),
                       child: Text(
                         'Lv ${user['level']}',
@@ -417,7 +420,8 @@ class _SocialRankingScreenRefactoredAppQyState
                         ),
                         decoration: BoxDecoration(
                           color: getRankColor().withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusSmall),
                         ),
                         child: Text(
                           user['badge'] as String,
@@ -438,7 +442,7 @@ class _SocialRankingScreenRefactoredAppQyState
             children: [
               Row(
                 children: [
-                  Icon(Icons.star, size: 16, color: Colors.amber),
+                  Icon(Icons.star, size: 16, color: ColorsAppQy.qyWarning),
                   SizedBox(width: ThemeDimensions.spacingXSmall),
                   Text(
                     user['points'].toString(),

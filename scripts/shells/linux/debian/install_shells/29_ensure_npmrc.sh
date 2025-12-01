@@ -34,13 +34,55 @@ echo "[29] Selected Region: $SELECTED_REGION"
 SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 CHECK_NPMRC_SCRIPT="$SHELLS_SCRIPTS_DIR/check_npmrc.js"
 
+configure_pnpm_global_dirs() {
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "[29] pnpm not installed, skipping global directory configuration"
+        return 0
+    fi
+
+    local pnpm_global_bin=$(pnpm config get global-bin-dir 2>/dev/null)
+    local pnpm_global_dir=$(pnpm config get global-dir 2>/dev/null)
+
+    if [ -z "$pnpm_global_bin" ] || [ "$pnpm_global_bin" = "undefined" ]; then
+        echo "[29] pnpm global-bin-dir not configured, setting it up..."
+
+        local node_home
+        if [ -n "$NODE_HOME" ]; then
+            node_home="$NODE_HOME"
+        elif [ -n "$NODE_BIN" ]; then
+            node_home=$(dirname $(dirname "$NODE_BIN"))
+        else
+            node_home=$(dirname $(dirname $(which node 2>/dev/null || echo "/usr/local")))
+        fi
+
+        local pnpm_global_dir_new="$node_home/pnpm-global"
+        local pnpm_global_bin_new="$pnpm_global_dir_new/bin"
+
+        echo "[29] Setting pnpm global directories..."
+        echo "[29]   global-dir: $pnpm_global_dir_new"
+        echo "[29]   global-bin-dir: $pnpm_global_bin_new"
+
+        pnpm config set global-dir "$pnpm_global_dir_new"
+        pnpm config set global-bin-dir "$pnpm_global_bin_new"
+
+        mkdir -p "$pnpm_global_dir_new"
+        mkdir -p "$pnpm_global_bin_new"
+
+        echo "[29] pnpm global directories configured"
+    else
+        echo "[29] pnpm global directories already configured:"
+        echo "[29]   global-dir: $pnpm_global_dir"
+        echo "[29]   global-bin-dir: $pnpm_global_bin"
+    fi
+}
+
 migrate_and_fix_npm_config() {
     local old_base_dir=$(map_web_path "dev_system_old")
     local USE_SUDO=$(get_var "USE_SUDO")
     if [ -z "$USE_SUDO" ]; then
         USE_SUDO="sudo"
     fi
-    
+
     echo "[29] Checking and fixing pnpm configuration..."
 
     if command -v pnpm >/dev/null 2>&1; then
@@ -56,7 +98,7 @@ migrate_and_fix_npm_config() {
         echo "[29] Clearing PNPM_HOME: $PNPM_HOME"
         unset PNPM_HOME
     fi
-    
+
     if [ -f /etc/environment ]; then
         if grep -q "$old_base_dir" /etc/environment; then
             echo "[29] Removing old directory references from /etc/environment..."
@@ -67,12 +109,15 @@ migrate_and_fix_npm_config() {
             $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
         fi
     fi
-    
+
     if [ -d "$old_base_dir" ]; then
         echo "[29] Removing old base directory: $old_base_dir"
         $USE_SUDO rm -rf "$old_base_dir"
     fi
-    
+
+    # Configure pnpm global directories
+    configure_pnpm_global_dirs
+
     echo "[29] Configuration check completed"
     return 0
 }

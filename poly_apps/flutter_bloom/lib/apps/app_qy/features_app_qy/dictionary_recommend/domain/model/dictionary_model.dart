@@ -16,7 +16,7 @@ class DictionaryModel {
   final DateTime createdAt;
   final String difficulty; // beginner, intermediate, advanced
 
-  const DictionaryModel({
+  DictionaryModel({
     required this.id,
     required this.title,
     required this.imageUrl,
@@ -62,38 +62,40 @@ class DictionaryModel {
     });
   }
 
-  // From JSON
+  // From JSON (new format: snake_case only)
   factory DictionaryModel.fromJson(Map<String, dynamic> json) {
     return DictionaryModel(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      imageUrl: json['imageUrl'] as String,
-      wordCount: json['wordCount'] as int,
-      likeCount: json['likeCount'] as int,
-      isAdded: json['isAdded'] as bool? ?? false,
-      description: json['description'] as String,
-      category: json['category'] as String,
-      tags: (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
-      author: json['author'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      difficulty: json['difficulty'] as String,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      imageUrl: json['image_url']?.toString() ?? '',
+      wordCount: (json['word_count'] ?? 0) as int,
+      likeCount: (json['like_count'] ?? 0) as int,
+      isAdded: (json['is_added'] ?? false) as bool,
+      description: json['description']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      author: json['author']?.toString() ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      difficulty: json['difficulty']?.toString() ?? '',
     );
   }
 
-  // To JSON
+  // To JSON (new format: snake_case only)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
-      'imageUrl': imageUrl,
-      'wordCount': wordCount,
-      'likeCount': likeCount,
-      'isAdded': isAdded,
+      'image_url': imageUrl,
+      'word_count': wordCount,
+      'like_count': likeCount,
+      'is_added': isAdded,
       'description': description,
       'category': category,
       'tags': tags,
       'author': author,
-      'createdAt': createdAt.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
       'difficulty': difficulty,
     };
   }

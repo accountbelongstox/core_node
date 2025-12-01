@@ -65,6 +65,7 @@ class ThreadBus:
         # Example: RPC(priority=50) -> Heartbeat(priority=100)
         self._shutdown_handlers: List[tuple] = []
         self._shutdown_executed: bool = False
+        self._restart_requested: bool = False  # Flag for restart after shutdown
 
     # ============ Signal Operations ============
 
@@ -699,6 +700,21 @@ class ThreadBus:
                 break
         """
         return self.has_signal('global.shutdown.requested')
+
+    def is_restart_requested(self) -> bool:
+        """
+        Check if restart was requested (used after shutdown)
+
+        Returns:
+            True if restart flag is set
+
+        Example:
+            if THREAD_BUS.is_restart_requested():
+                # Restart process
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+        """
+        with self._lock:
+            return self._restart_requested
 
     def get_shutdown_reason(self) -> Optional[str]:
         """
