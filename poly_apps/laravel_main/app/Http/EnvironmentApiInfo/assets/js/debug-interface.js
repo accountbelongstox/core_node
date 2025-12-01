@@ -163,7 +163,12 @@ function showSection(sectionType) {
     // Load section from external file
     const sectionId = `${sectionType}-section`;
     let section = document.getElementById(sectionId);
-    const container = document.getElementById('content-sections-container') || document.body;
+    const container = document.getElementById('content-sections-container');
+    
+    if (!container) {
+        console.error('[showSection] content-sections-container not found');
+        return;
+    }
 
     // If section doesn't exist, load it from external file
     if (!section && sectionFileMap[sectionType]) {
@@ -186,6 +191,12 @@ function showSection(sectionType) {
                 section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
                 
                 if (section) {
+                    // Remove section from tempDiv before inserting
+                    const parent = section.parentNode;
+                    if (parent) {
+                        parent.removeChild(section);
+                    }
+                    
                     // Insert into container
                     container.appendChild(section);
                     
@@ -195,25 +206,30 @@ function showSection(sectionType) {
                     
                     console.log('[showSection] Section loaded and activated:', sectionType);
                     
-                    // Initialize module-specific functionality
-                    if (sectionType === 'code-browser') {
-                        if (typeof CodeBrowser !== 'undefined') {
-                            CodeBrowser.init();
+                    // Initialize module-specific functionality after a short delay to ensure DOM is ready
+                    setTimeout(() => {
+                        if (sectionType === 'code-browser') {
+                            if (typeof CodeBrowser !== 'undefined') {
+                                CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
+                            }
+                            initCodeBrowserIntegratedModules();
+                        } else if (sectionType === 'static-resources') {
+                            if (typeof StaticResourceBrowser !== 'undefined') {
+                                StaticResourceBrowser.init();
+                            }
+                        } else if (sectionType === 'mcp-manager') {
+                            if (typeof McpManager !== 'undefined') {
+                                McpManager.init();
+                            }
+                        } else if (sectionType === 'octane-tasks') {
+                            if (typeof OctaneTasksManager !== 'undefined') {
+                                OctaneTasksManager.init();
+                            }
+                        } else if (sectionType === 'dev-tools') {
+                            // Load dictionary statistics when dev-tools section is shown
+                            loadDictionaryStatisticsIfAvailable();
                         }
-                        initCodeBrowserIntegratedModules();
-                    } else if (sectionType === 'static-resources') {
-                        if (typeof StaticResourceBrowser !== 'undefined') {
-                            StaticResourceBrowser.init();
-                        }
-                    } else if (sectionType === 'mcp-manager') {
-                        if (typeof McpManager !== 'undefined') {
-                            McpManager.init();
-                        }
-                    } else if (sectionType === 'octane-tasks') {
-                        if (typeof OctaneTasksManager !== 'undefined') {
-                            OctaneTasksManager.init();
-                        }
-                    }
+                    }, 100);
                 } else {
                     console.error('[showSection] Section element not found in loaded HTML');
                 }
@@ -227,25 +243,30 @@ function showSection(sectionType) {
         section.style.display = 'block';
         console.log('[showSection] Section activated:', sectionType);
         
-        // Initialize module-specific functionality
-        if (sectionType === 'code-browser') {
-            if (typeof CodeBrowser !== 'undefined') {
-                CodeBrowser.init();
+        // Initialize module-specific functionality after a short delay to ensure DOM is ready
+        setTimeout(() => {
+            if (sectionType === 'code-browser') {
+                if (typeof CodeBrowser !== 'undefined') {
+                    CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
+                }
+                initCodeBrowserIntegratedModules();
+            } else if (sectionType === 'static-resources') {
+                if (typeof StaticResourceBrowser !== 'undefined') {
+                    StaticResourceBrowser.init();
+                }
+            } else if (sectionType === 'mcp-manager') {
+                if (typeof McpManager !== 'undefined') {
+                    McpManager.init();
+                }
+            } else if (sectionType === 'octane-tasks') {
+                if (typeof OctaneTasksManager !== 'undefined') {
+                    OctaneTasksManager.init();
+                }
+            } else if (sectionType === 'dev-tools') {
+                // Load dictionary statistics when dev-tools section is shown
+                loadDictionaryStatisticsIfAvailable();
             }
-            initCodeBrowserIntegratedModules();
-        } else if (sectionType === 'static-resources') {
-            if (typeof StaticResourceBrowser !== 'undefined') {
-                StaticResourceBrowser.init();
-            }
-        } else if (sectionType === 'mcp-manager') {
-            if (typeof McpManager !== 'undefined') {
-                McpManager.init();
-            }
-        } else if (sectionType === 'octane-tasks') {
-            if (typeof OctaneTasksManager !== 'undefined') {
-                OctaneTasksManager.init();
-            }
-        }
+        }, 100);
     } else {
         console.warn('[showSection] Unknown section type or no file mapping:', sectionType);
     }
@@ -1500,6 +1521,11 @@ async function loadDictionaryStatistics() {
 
         if (result.status === 'success') {
             const container = document.getElementById('dict-stats-container');
+            if (!container) {
+                console.warn('dict-stats-container not found, skipping stats display');
+                return;
+            }
+            
             const data = result.data;
 
             let html = '<div style="display: flex; gap: 20px; align-items: center;">';
@@ -1525,17 +1551,28 @@ async function loadDictionaryStatistics() {
             html += '</div>';
             container.innerHTML = html;
         } else {
-            document.getElementById('dict-stats-loading').textContent = 'Failed to load stats';
+            const loadingEl = document.getElementById('dict-stats-loading');
+            if (loadingEl) {
+                loadingEl.textContent = 'Failed to load stats';
+            }
         }
     } catch (error) {
         console.error('Failed to load dictionary statistics:', error);
-        document.getElementById('dict-stats-loading').textContent = 'Stats unavailable';
+        const loadingEl = document.getElementById('dict-stats-loading');
+        if (loadingEl) {
+            loadingEl.textContent = 'Stats unavailable';
+        }
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadDictionaryStatistics();
-});
+// Load dictionary statistics when dev-tools section is shown
+// This function will be called from showSection when dev-tools is activated
+function loadDictionaryStatisticsIfAvailable() {
+    const container = document.getElementById('dict-stats-container');
+    if (container) {
+        loadDictionaryStatistics();
+    }
+}
 
 // Initialize integrated modules when Code Browser section is shown
 let codeBrowserIntegratedModulesInitialized = false;
