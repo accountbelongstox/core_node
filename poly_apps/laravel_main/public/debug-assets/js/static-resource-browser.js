@@ -54,9 +54,8 @@ const StaticResourceBrowser = {
     // Setup hover events for showing video controls
     setupVideoHoverEvents() {
         const container = document.getElementById('preview-container');
-        if (container) {
-            container.addEventListener('mousemove', () => this.showVideoNav());
-            container.addEventListener('touchstart', () => this.showVideoNav());
+        container.addEventListener('mousemove', () => this.showVideoNav());
+        container.addEventListener('touchstart', () => this.showVideoNav());
         }
     },
     
@@ -95,17 +94,11 @@ const StaticResourceBrowser = {
         const overlay = document.getElementById('file-list-overlay');
         const toggleBtn = document.getElementById('mobile-file-list-toggle');
         
-        if (panel) {
-            this.isFileListExpanded = !this.isFileListExpanded;
-            panel.classList.toggle('expanded', this.isFileListExpanded);
-            
-            if (overlay) {
-                overlay.classList.toggle('active', this.isFileListExpanded);
-            }
-            if (toggleBtn) {
-                toggleBtn.classList.toggle('hidden', this.isFileListExpanded);
-            }
-        }
+        this.isFileListExpanded = !this.isFileListExpanded;
+        panel.classList.toggle('expanded', this.isFileListExpanded);
+        
+        overlay.classList.toggle('active', this.isFileListExpanded);
+        toggleBtn.classList.toggle('hidden', this.isFileListExpanded);
     },
     
     // Close file list (for mobile)
@@ -118,9 +111,8 @@ const StaticResourceBrowser = {
     // Toggle playlist panel
     togglePlaylist() {
         const panel = document.getElementById('video-playlist-panel');
-        if (panel) {
-            this.isPlaylistExpanded = !this.isPlaylistExpanded;
-            panel.classList.toggle('expanded', this.isPlaylistExpanded);
+        this.isPlaylistExpanded = !this.isPlaylistExpanded;
+        panel.classList.toggle('expanded', this.isPlaylistExpanded);
         }
     },
     
