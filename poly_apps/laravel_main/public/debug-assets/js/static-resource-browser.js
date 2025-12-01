@@ -647,60 +647,55 @@ const StaticResourceBrowser = {
         if (settingsBar) settingsBar.style.display = 'none';
         if (playlistPanel) playlistPanel.style.display = 'none';
 
-        try {
-            const response = await fetch(`/static-resources/read-file?path=${encodeURIComponent(path)}`);
-            const data = await response.json();
+        const response = await fetch(`/static-resources/read-file?path=${encodeURIComponent(path)}`);
+        const data = await response.json();
 
-            if (data.error) {
-                container.innerHTML = `<div style="color: #dc3545; text-align: center;">${data.error}</div>`;
-                return;
-            }
-
-            fileInfo.textContent = `${this.formatFileSize(data.size)} | ${data.modified}`;
-
-            if (mimeType.startsWith('image/')) {
-                container.innerHTML = `
-                    <img src="/static-resources/stream-file?path=${encodeURIComponent(path)}"
-                         style="max-width: 100%; max-height: 100%; object-fit: contain;"
-                         alt="${data.path}">
-                `;
-            } else if (mimeType.startsWith('video/')) {
-                // Use Video.js for video playback
-                this.setupVideoPlayer(path, mimeType, data);
-            } else if (mimeType.startsWith('audio/')) {
-                container.innerHTML = `
-                    <div style="text-align: center; width: 100%;">
-                        <p style="color: #888; margin-bottom: 20px;">🎵 ${data.path.split('/').pop()}</p>
-                        <audio controls style="width: 100%; max-width: 500px;">
-                            <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
-                            Your browser does not support the audio tag.
-                        </audio>
-                    </div>
-                `;
-            } else if (data.isText && data.content) {
-                container.innerHTML = `
-                    <textarea readonly style="width: 100%; height: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #333; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; resize: none; tab-size: 4;">${this.escapeHtml(data.content)}</textarea>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div class="static-preview-empty">
-                        <div class="static-preview-empty-icon">${this.getFileIcon(mimeType, data.extension)}</div>
-                        <p class="static-preview-empty-text">${data.path.split('/').pop()}</p>
-                        <p class="static-preview-empty-hint">${data.mimeType} | ${this.formatFileSize(data.size)}</p>
-                        <button onclick="window.open('/static-resources/stream-file?path=${encodeURIComponent(path)}', '_blank')"
-                                class="video-nav-btn" style="margin-top: 20px;">
-                            Download / Open
-                        </button>
-                    </div>
-                `;
-            }
-            
-            // Close file list on mobile after selecting a file
-            this.closeFileList();
-        } catch (error) {
-            console.error('[StaticResourceBrowser] Preview error:', error);
-            container.innerHTML = `<div style="color: #dc3545; text-align: center;">Failed to load file</div>`;
+        if (data.error) {
+            container.innerHTML = `<div style="color: #dc3545; text-align: center;">${data.error}</div>`;
+            return;
         }
+
+        fileInfo.textContent = `${this.formatFileSize(data.size)} | ${data.modified}`;
+
+        if (mimeType.startsWith('image/')) {
+            container.innerHTML = `
+                <img src="/static-resources/stream-file?path=${encodeURIComponent(path)}"
+                     style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                     alt="${data.path}">
+            `;
+        } else if (mimeType.startsWith('video/')) {
+            // Use Video.js for video playback
+            this.setupVideoPlayer(path, mimeType, data);
+        } else if (mimeType.startsWith('audio/')) {
+            container.innerHTML = `
+                <div style="text-align: center; width: 100%;">
+                    <p style="color: #888; margin-bottom: 20px;">🎵 ${data.path.split('/').pop()}</p>
+                    <audio controls style="width: 100%; max-width: 500px;">
+                        <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
+                        Your browser does not support the audio tag.
+                    </audio>
+                </div>
+            `;
+        } else if (data.isText && data.content) {
+            container.innerHTML = `
+                <textarea readonly style="width: 100%; height: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #333; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; resize: none; tab-size: 4;">${this.escapeHtml(data.content)}</textarea>
+            `;
+        } else {
+            container.innerHTML = `
+                <div class="static-preview-empty">
+                    <div class="static-preview-empty-icon">${this.getFileIcon(mimeType, data.extension)}</div>
+                    <p class="static-preview-empty-text">${data.path.split('/').pop()}</p>
+                    <p class="static-preview-empty-hint">${data.mimeType} | ${this.formatFileSize(data.size)}</p>
+                    <button onclick="window.open('/static-resources/stream-file?path=${encodeURIComponent(path)}', '_blank')"
+                            class="video-nav-btn" style="margin-top: 20px;">
+                        Download / Open
+                    </button>
+                </div>
+            `;
+        }
+        
+        // Close file list on mobile after selecting a file
+        this.closeFileList();
     },
     
     // Escape HTML to prevent XSS
@@ -847,11 +842,7 @@ const StaticResourceBrowser = {
     // Dispose video player
     disposeVideoPlayer() {
         if (this.videoPlayer) {
-            try {
-                this.videoPlayer.dispose();
-            } catch (e) {
-                console.log('[StaticResourceBrowser] Video player dispose:', e);
-            }
+            this.videoPlayer.dispose();
             this.videoPlayer = null;
         }
     },
@@ -1051,30 +1042,25 @@ const StaticResourceBrowser = {
         const confirmed = confirm(`Rename to: ${translatedName}?`);
         if (!confirmed) return;
 
-        try {
-            const renameResponse = await fetch('/static-resources/rename', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({
-                    old_path: this.selectedItem,
-                    new_name: translatedName
-                })
-            });
+        const renameResponse = await fetch('/static-resources/rename', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                old_path: this.selectedItem,
+                new_name: translatedName
+            })
+        });
 
-            const result = await renameResponse.json();
+        const result = await renameResponse.json();
 
-            if (result.success) {
-                alert('Renamed successfully!');
-                this.refreshList();
-            } else {
-                alert('Rename failed: ' + (result.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('[StaticResourceBrowser] Rename error:', error);
-            alert('Rename failed');
+        if (result.success) {
+            alert('Renamed successfully!');
+            this.refreshList();
+        } else {
+            alert('Rename failed: ' + (result.error || 'Unknown error'));
         }
     },
 
@@ -1100,44 +1086,38 @@ const StaticResourceBrowser = {
         dialog.style.display = 'flex';
         confirmInput.focus();
 
-        try {
-            const response = await fetch('/static-resources/delete-preview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({
-                    path: this.pendingDeletePath
-                })
-            });
+        const response = await fetch('/static-resources/delete-preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                path: this.pendingDeletePath
+            })
+        });
 
-            const data = await response.json();
+        const data = await response.json();
 
-            if (data.error) {
-                alert('Failed to load delete summary: ' + data.error);
-                this.closeDeleteDialog();
-                return;
-            }
-
-            this.pendingDeleteStats = data.stats || { files: 0, directories: 0, total_items: 0 };
-            const files = this.pendingDeleteStats.files ?? 0;
-            const directories = this.pendingDeleteStats.directories ?? 0;
-            let message = `Deleting <strong>${files}</strong> file(s)`;
-
-            if (directories > 0) {
-                message += ` and <strong>${directories}</strong> folder(s)`;
-            }
-
-            message += ` from <code>${this.escapeHtml(this.pendingDeletePath)}</code>. `;
-            message += `Type <strong>确认</strong> to confirm.`;
-
-            summary.innerHTML = message;
-        } catch (error) {
-            console.error('[StaticResourceBrowser] Delete preview error:', error);
-            alert('Failed to load delete summary');
+        if (data.error) {
+            alert('Failed to load delete summary: ' + data.error);
             this.closeDeleteDialog();
+            return;
         }
+
+        this.pendingDeleteStats = data.stats || { files: 0, directories: 0, total_items: 0 };
+        const files = this.pendingDeleteStats.files ?? 0;
+        const directories = this.pendingDeleteStats.directories ?? 0;
+        let message = `Deleting <strong>${files}</strong> file(s)`;
+
+        if (directories > 0) {
+            message += ` and <strong>${directories}</strong> folder(s)`;
+        }
+
+        message += ` from <code>${this.escapeHtml(this.pendingDeletePath)}</code>. `;
+        message += `Type <strong>确认</strong> to confirm.`;
+
+        summary.innerHTML = message;
     },
 
     closeDeleteDialog() {
@@ -1176,35 +1156,28 @@ const StaticResourceBrowser = {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Deleting...';
 
-        try {
-            const response = await fetch('/static-resources/delete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({
-                    path: this.pendingDeletePath
-                })
-            });
+        const response = await fetch('/static-resources/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                path: this.pendingDeletePath
+            })
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (result.error) {
-                alert('Delete failed: ' + result.error);
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = 'Delete';
-                return;
-            }
-
-            await this.refreshList();
-            this.closeDeleteDialog();
-        } catch (error) {
-            console.error('[StaticResourceBrowser] Delete error:', error);
-            alert('Delete failed');
+        if (result.error) {
+            alert('Delete failed: ' + result.error);
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Delete';
+            return;
         }
+
+        await this.refreshList();
+        this.closeDeleteDialog();
     },
 
     showUploadDialog() {
@@ -1374,17 +1347,8 @@ const StaticResourceBrowser = {
             });
 
             let result;
-            try {
-                result = JSON.parse(xhr.responseText);
-                console.log('[StaticResourceBrowser] Upload result:', result);
-            } catch (e) {
-                console.error('[StaticResourceBrowser] Failed to parse response:', xhr.responseText);
-                alert('Upload failed: Invalid server response');
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Upload';
-                progressDiv.remove();
-                return;
-            }
+            result = JSON.parse(xhr.responseText);
+            console.log('[StaticResourceBrowser] Upload result:', result);
 
             if (xhr.status === 200 && result.success) {
                 const elapsedSeconds = (Date.now() - startTime) / 1000;
@@ -1777,43 +1741,35 @@ const StaticResourceBrowser = {
 
         updateOverallProgress();
 
-        try {
-            for (let i = 0; i < this.uploadFiles.length; i++) {
-                const item = this.uploadFiles[i];
-                const file = item.file || item;
-                const relativePath = item.fullPath || file.webkitRelativePath || file.name;
+        for (let i = 0; i < this.uploadFiles.length; i++) {
+            const item = this.uploadFiles[i];
+            const file = item.file || item;
+            const relativePath = item.fullPath || file.webkitRelativePath || file.name;
 
-                const statusDiv = document.getElementById('current-file-status');
+            const statusDiv = document.getElementById('current-file-status');
 
-                await this.executeChunkedUpload(file, relativePath, (uploadedChunks, totalChunks, fileName) => {
-                    const filePercent = (uploadedChunks / totalChunks * 100).toFixed(1);
-                    statusDiv.innerHTML = `
-                        <div style="padding: 8px; background: #1e1e1e; border-radius: 3px; border-left: 3px solid #0e639c;">
-                            <div style="color: #cccccc; margin-bottom: 4px;">${fileName}</div>
-                            <div style="color: #888; font-size: 11px;">
-                                Chunks: ${uploadedChunks} / ${totalChunks} (${filePercent}%)
-                            </div>
+            await this.executeChunkedUpload(file, relativePath, (uploadedChunks, totalChunks, fileName) => {
+                const filePercent = (uploadedChunks / totalChunks * 100).toFixed(1);
+                statusDiv.innerHTML = `
+                    <div style="padding: 8px; background: #1e1e1e; border-radius: 3px; border-left: 3px solid #0e639c;">
+                        <div style="color: #cccccc; margin-bottom: 4px;">${fileName}</div>
+                        <div style="color: #888; font-size: 11px;">
+                            Chunks: ${uploadedChunks} / ${totalChunks} (${filePercent}%)
                         </div>
-                    `;
-                });
+                    </div>
+                `;
+            });
 
-                completedFiles++;
-                updateOverallProgress();
-            }
-
-            progressDiv.querySelector('div > div > div').style.background = 'linear-gradient(90deg, #28a745, #34d058)';
-
-            setTimeout(() => {
-                alert(`Successfully uploaded ${totalFiles} file(s)!`);
-                this.closeUploadDialog();
-                this.refreshList();
-            }, 1000);
-
-        } catch (error) {
-            console.error('[StaticResourceBrowser] Chunked upload error:', error);
-            alert('Upload failed: ' + error.message + '\n\nThe upload state has been saved. You can retry to resume from where it stopped.');
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = 'Upload';
+            completedFiles++;
+            updateOverallProgress();
         }
+
+        progressDiv.querySelector('div > div > div').style.background = 'linear-gradient(90deg, #28a745, #34d058)';
+
+        setTimeout(() => {
+            alert(`Successfully uploaded ${totalFiles} file(s)!`);
+            this.closeUploadDialog();
+            this.refreshList();
+        }, 1000);
     }
 };
