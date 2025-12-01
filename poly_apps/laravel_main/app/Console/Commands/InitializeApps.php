@@ -8,7 +8,8 @@ use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
-use App\Services\PassiveQueue\PassiveQueueTableService;
+use App\Services\OctaneTaskStatusService;
+use App\Services\AI\UnifiedAIRouter;
 
 class InitializeApps extends Command
 {
@@ -221,11 +222,35 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Ensuring passive queue tables...');
-        $queueResults = PassiveQueueTableService::ensureTableExists();
-        foreach ($queueResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
-            $this->line("  {$icon} {$table}: {$status}");
+        $this->info('Verifying Octane Timer tasks...');
+        $taskStatusService = new OctaneTaskStatusService();
+        $taskVerification = $taskStatusService->verifyInitialization();
+
+        if ($taskVerification['success']) {
+            $this->line("  ✅ All Octane timer tasks properly configured");
+            $summary = $taskVerification['summary'];
+            $this->line("     Discovered: {$summary['total_discovered']} tasks");
+            $this->line("     Registered: {$summary['total_registered']} tasks");
+            $this->line("     Running: {$summary['total_running']} tasks");
+            $this->line("     Timer: " . ($summary['timer_running'] ? 'Running' : 'Not Running'));
+
+            $basicTasks = $taskStatusService->getBasicTaskObjects();
+            foreach ($basicTasks as $task) {
+                $statusIcon = match($task['status']) {
+                    'running' => '✅',
+                    'waiting' => '⏳',
+                    'disabled' => '⏸️',
+                    'error' => '❌',
+                    default => '○'
+                };
+                $this->line("     {$statusIcon} {$task['name']} ({$task['interval']}s) - {$task['status']}");
+            }
+        } else {
+            $this->warn("  ⚠️  Octane timer tasks have issues:");
+            foreach ($taskVerification['issues'] as $issue) {
+                $this->line("     • {$issue}");
+            }
+            $this->line("  ℹ️  Note: Run Octane to activate timer tasks");
         }
         $this->newLine();
         
@@ -269,7 +294,30 @@ class InitializeApps extends Command
         }
         
         $this->newLine();
-        
+
+        $this->info('Verifying AI providers...');
+        $aiRouter = new UnifiedAIRouter();
+        $providersStatus = $aiRouter->getProvidersStatus();
+
+        foreach ($providersStatus as $provider => $status) {
+            $icon = $status['available'] ? '✅' : '❌';
+            $type = $status['type'] ?? 'unknown';
+            $priority = isset($status['priority']) ? " (Priority: {$status['priority']})" : '';
+
+            $this->line("  {$icon} {$provider}: " . ($status['available'] ? 'Available' : 'Not configured') . " ({$type}){$priority}");
+
+            if ($status['available'] && isset($status['usage'])) {
+                $usage = $status['usage'];
+                if (isset($usage['minute']['requests'])) {
+                    $this->line("     Minute: {$usage['minute']['requests']} requests");
+                }
+                if (isset($usage['day']['requests'])) {
+                    $this->line("     Day: {$usage['day']['requests']} requests");
+                }
+            }
+        }
+        $this->newLine();
+
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());

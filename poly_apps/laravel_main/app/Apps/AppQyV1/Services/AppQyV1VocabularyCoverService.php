@@ -4,9 +4,6 @@ namespace App\Apps\AppQyV1\Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCoverModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
-use App\PassiveQueue\Jobs\AppQyV1GenerateCoverJob;
-use App\PassiveQueue\PassiveQueue;
-use App\PassiveQueue\PassiveQueueJob;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +71,11 @@ class AppQyV1VocabularyCoverService
             ];
         }
 
-        $this->queueGeneration($record);
+        if (!in_array($record->status, ['pending', 'processing', 'retry'])) {
+            $record->status = 'pending';
+            $record->error_message = null;
+            $record->save();
+        }
 
         return [
             'url' => $url,
@@ -97,8 +98,9 @@ class AppQyV1VocabularyCoverService
             ]
         );
 
-        if (!$this->hasCoverFile($record->cover_filename)) {
-            $this->queueGeneration($record);
+        if (!$this->hasCoverFile($record->cover_filename) && $record->status !== 'pending') {
+            $record->status = 'pending';
+            $record->save();
         }
 
         return $this->buildCoverUrl($record->cover_filename);
@@ -130,37 +132,6 @@ class AppQyV1VocabularyCoverService
         $slug = Str::of($name)->lower()->squish()->toString();
         $hash = md5($libraryId . '|' . $slug);
         return "{$hash}.png";
-    }
-
-    private function queueGeneration(AppQyV1VocabularyCoverModel $record): void
-    {
-        if (!$this->shouldQueueJob($record->id)) {
-            Log::debug('[VocabularyCover] Skipping duplicate cover job dispatch', [
-                'cover_id' => $record->id,
-            ]);
-            return;
-        }
-
-        if ($record->status !== 'processing') {
-            $record->status = 'pending';
-        }
-        $record->priority = $record->priority ?? 1;
-        $record->error_message = null;
-        $record->save();
-
-        PassiveQueue::dispatch(AppQyV1GenerateCoverJob::class, ['cover_id' => $record->id]);
-    }
-
-    private function shouldQueueJob(int $coverId): bool
-    {
-        return !PassiveQueueJob::query()
-            ->where('job_class', AppQyV1GenerateCoverJob::class)
-            ->where(function ($query) {
-                $query->where('status', 'pending')
-                    ->orWhere('status', 'processing');
-            })
-            ->whereRaw("json_extract(payload, '$.cover_id') = ?", [$coverId])
-            ->exists();
     }
 
     private function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
@@ -196,22 +167,20 @@ class AppQyV1VocabularyCoverService
 
     private function getLatestLog(int $coverId): ?array
     {
-        $job = PassiveQueueJob::query()
-            ->where('job_class', AppQyV1GenerateCoverJob::class)
-            ->whereRaw("json_extract(payload, '$.cover_id') = ?", [$coverId])
-            ->orderByDesc('id')
-            ->first();
+        $cover = AppQyV1VocabularyCoverModel::query()->find($coverId);
 
-        if (!$job) {
+        if (!$cover) {
             return null;
         }
 
         return [
-            'job_id' => $job->id,
-            'status' => $job->status,
-            'attempts' => $job->attempts,
-            'error_message' => $job->error_message,
-            'updated_at' => optional($job->updated_at)->toDateTimeString(),
+            'cover_id' => $cover->id,
+            'status' => $cover->status,
+            'attempts' => $cover->attempts ?? 0,
+            'error_message' => $cover->error_message,
+            'updated_at' => optional($cover->updated_at)->toDateTimeString(),
+            'started_at' => optional($cover->started_at)->toDateTimeString(),
+            'finished_at' => optional($cover->finished_at)->toDateTimeString(),
         ];
     }
 }

@@ -224,17 +224,6 @@ declare -gA DEV_PACKAGES=(
 
 # Application Software - End-user applications (can be skipped via variable)
 declare -gA APP_PACKAGES=(
-    # RustDesk Remote Desktop
-    ["rustdesk_name"]="RustDesk"
-    ["rustdesk_exec"]="rustdesk"
-    ["rustdesk_package_id"]="rustdesk"
-    ["rustdesk_install_method"]="$METHOD_FLATPAK"
-    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
-    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["rustdesk_description"]="Remote desktop application"
-    ["rustdesk_verify_command"]="--version"
-    ["rustdesk_requires_desktop"]="true"
-
     # Firefox Browser
     ["firefox_name"]="Firefox"
     ["firefox_exec"]="firefox"
@@ -324,7 +313,7 @@ declare -gA AI_PACKAGES=(
 
     # Cursor Agent
     ["cursor_agent_name"]="Cursor Agent"
-    ["cursor_agent_exec"]="cursor"
+    ["cursor_agent_exec"]="cursor-agent"
     ["cursor_agent_package_id"]="https://cursor.com/install"
     ["cursor_agent_install_method"]="$METHOD_CURL"
     ["cursor_agent_category"]="$CATEGORY_AI_TOOLS"
@@ -389,7 +378,7 @@ DEV_PACKAGE_LIST=(
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "rustdesk"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
 )
 
 AI_PACKAGE_LIST=(

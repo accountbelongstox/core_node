@@ -1180,12 +1180,12 @@ function Start-MainLoop {
     
     # Pause before showing menu
     Write-Host ""
-    Write-Host "Press Enter to continue, or any other key to pause (auto-continue in 5 seconds)..." -ForegroundColor Yellow
-    
+    Write-Host "Press Enter to continue, or any other key to pause (auto-continue in 3 seconds)..." -ForegroundColor Yellow
+
     # Improved timeout-based pause with better compatibility
-    $timeout = 5
+    $timeout = 3
     Write-Host "Auto-continuing in " -NoNewline -ForegroundColor Cyan
-    
+
     # Countdown with non-blocking key check
     for ($i = $timeout; $i -gt 0; $i--) {
         Write-Host "$i " -NoNewline -ForegroundColor Cyan
