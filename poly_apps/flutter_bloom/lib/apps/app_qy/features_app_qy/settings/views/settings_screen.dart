@@ -7,6 +7,9 @@ import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/services/settings_service.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../widgets/settings_section.dart';
 import '../widgets/settings_tile.dart';
 import 'account_settings_screen.dart';
@@ -38,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             end: Alignment.bottomCenter,
             colors: [
               AppTheme.primaryGreen.withOpacity(0.1),
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
             ],
           ),
         ),
@@ -48,20 +51,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildAppBar(),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: ThemeDimensions.paddingM,
                   children: [
                     _buildAccountSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: ThemeDimensions.spacing24),
                     _buildStudySettingsSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: ThemeDimensions.spacing24),
                     _buildAppearanceSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: ThemeDimensions.spacing24),
                     _buildOtherSettingsSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: ThemeDimensions.spacing24),
                     _buildSupportSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: ThemeDimensions.spacing24),
                     _buildAppInfoSection(),
-                    const SizedBox(height: 40),
+                    SizedBox(height: ThemeDimensions.spacing40),
                   ],
                 ),
               ),
@@ -74,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16, vertical: ThemeDimensions.spacing12),
       child: Row(
         children: [
           IconButton(
@@ -84,8 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Expanded(
             child: Text(
               'settings.title'.tr(context),
-              style: const TextStyle(
-                fontSize: 20,
+              style: ThemeTextStyles.title2.copyWith(
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textPrimary,
               ),
@@ -110,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     user?.displayName?.substring(0, 1) ?? 'U',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -238,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SettingsTile(
             leading: Icon(
               Icons.storage_outlined,
-              color: Colors.orange,
+              color: ColorsAppQy.qyWarning,
             ),
             title: 'settings.clearCache'.tr(context),
             subtitle: '${_cacheSize.toStringAsFixed(1)} MB',
@@ -419,7 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return service.language ==
                           QyAppLocalizationKeys.qyLanguageCodeZh
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
-                      : null;
+                      : const SizedBox.shrink();
                 },
               ),
               onTap: () {
@@ -435,7 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return service.language ==
                           QyAppLocalizationKeys.qyLanguageCodeEn
                       ? Icon(Icons.check, color: AppTheme.primaryGreen)
-                      : null;
+                      : const SizedBox.shrink();
                 },
               ),
               onTap: () {
@@ -462,7 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('settings.timezone'.tr),
+        title: Text('settings.timezone'.tr(context)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -521,7 +523,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
+              foregroundColor: ColorsAppQy.qyTextOnPrimary,
             ),
             child: Text(QyAppLocalizationKeys.qyConfirm.tr(context)),
           ),

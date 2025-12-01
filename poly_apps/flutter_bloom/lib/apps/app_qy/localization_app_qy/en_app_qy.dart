@@ -89,6 +89,12 @@ class EnAppQy {
     QyAppLocalizationKeys.qyPlayAgain: 'Play Again',
     QyAppLocalizationKeys.qyWordListeningDictation: 'Word Listening Dictation',
     QyAppLocalizationKeys.qyUnderDevelopment: 'This page is under development',
+    QyAppLocalizationKeys.qyPlaying: 'Playing',
+    QyAppLocalizationKeys.qyDictationComplete: 'Dictation Complete',
+    QyAppLocalizationKeys.qyAccuracy: 'Accuracy',
+    QyAppLocalizationKeys.qyPlayAudio: 'Play Audio',
+    QyAppLocalizationKeys.qyWrongAnswer: 'Wrong Answer',
+    QyAppLocalizationKeys.qyCorrectWord: 'Correct Word',
 
     // Authentication
     QyAppLocalizationKeys.qySignIn: 'Sign In',

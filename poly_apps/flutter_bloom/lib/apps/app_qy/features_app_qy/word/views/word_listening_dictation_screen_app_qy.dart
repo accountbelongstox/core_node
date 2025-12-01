@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/word_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class WordListeningDictationScreenRefactoredAppQy extends StatefulWidget {
   const WordListeningDictationScreenRefactoredAppQy({super.key});
@@ -80,7 +79,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
   void _playAudio() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${QyAppLocalizationKeys.qyPlaying.tr(context)} "${_mockWords[_currentWordIndex]}"'),
+        content: Text(
+            '${QyAppLocalizationKeys.qyPlaying.tr(context)} "${_mockWords[_currentWordIndex]}"'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -122,7 +122,7 @@ class _WordListeningDictationScreenRefactoredAppQyState
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: Container(
           padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
           decoration: BoxDecoration(
@@ -141,7 +141,7 @@ class _WordListeningDictationScreenRefactoredAppQyState
             children: [
               Icon(
                 Icons.emoji_events,
-                size: 80,
+                size: ThemeDimensions.spacing80,
                 color: ThemeColors.surface,
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
@@ -157,7 +157,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
                 padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
                 child: Column(
                   children: [
@@ -196,7 +197,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
                           vertical: ThemeDimensions.paddingMedium,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusMedium),
                         ),
                       ),
                       child: Text(
@@ -222,7 +224,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
                           vertical: ThemeDimensions.paddingMedium,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusMedium),
                         ),
                       ),
                       child: Text(
@@ -357,7 +360,7 @@ class _WordListeningDictationScreenRefactoredAppQyState
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
+              minHeight: ThemeDimensions.spacingSmall,
               backgroundColor: ThemeColors.border,
               valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
             ),
@@ -414,10 +417,11 @@ class _WordListeningDictationScreenRefactoredAppQyState
                 vertical: ThemeDimensions.paddingMedium,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
               ),
             ),
-            icon: Icon(Icons.volume_up, size: 24),
+            icon: Icon(Icons.volume_up, size: ThemeDimensions.iconSizeL),
             label: Text(
               QyAppLocalizationKeys.qyPlayAudio.tr(context),
               style: ThemeTextStyles.button.copyWith(
@@ -465,19 +469,25 @@ class _WordListeningDictationScreenRefactoredAppQyState
               filled: true,
               fillColor: ThemeColors.background,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
                 borderSide: BorderSide(color: ThemeColors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
                 borderSide: BorderSide(color: ThemeColors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-                borderSide: BorderSide(color: ThemeColors.primary, width: 2),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderSide: BorderSide(
+                    color: ThemeColors.primary,
+                    width: ThemeDimensions.spacing2),
               ),
               disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
                 borderSide: BorderSide(color: ThemeColors.border),
               ),
             ),
@@ -509,7 +519,7 @@ class _WordListeningDictationScreenRefactoredAppQyState
               Icon(
                 _isCorrect ? Icons.check_circle : Icons.cancel,
                 color: _isCorrect ? ThemeColors.success : ThemeColors.error,
-                size: 28,
+                size: ThemeDimensions.iconSizeXL,
               ),
               SizedBox(width: ThemeDimensions.spacingSmall),
               Text(
@@ -579,7 +589,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
                       vertical: ThemeDimensions.paddingMedium,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
                   ),
                   child: Text(
@@ -606,7 +617,8 @@ class _WordListeningDictationScreenRefactoredAppQyState
                       vertical: ThemeDimensions.paddingMedium,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
                   ),
                   child: Text(
