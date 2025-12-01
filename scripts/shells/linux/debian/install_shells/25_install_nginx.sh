@@ -363,11 +363,11 @@ create_website_structure() {
 
     # Set maximum permissions for WWW_ROOT
     $USE_SUDO chmod -R 777 "$WWW_ROOT"
-    $USE_SUDO chown -R www-data:www-data "$WWW_ROOT"
+    $USE_SUDO chown -R root:root "$WWW_ROOT"
 
     # Set proper permissions for nginx config
     $USE_SUDO chmod -R 755 "$NGINX_CONFIG_DIR"
-    $USE_SUDO chown -R www-data:www-data "$NGINX_CONFIG_DIR"
+    $USE_SUDO chown -R root:root "$NGINX_CONFIG_DIR"
 
     echo "[$SCRIPT_INDEX] Website directory structure created with maximum permissions"
 }
@@ -579,8 +579,8 @@ store_nginx_info() {
     set_global_var "NGINX_SERVICE_FILE" "/lib/systemd/system/nginx.service"
 
     # Store user and group
-    set_global_var "NGINX_USER" "www-data"
-    set_global_var "NGINX_GROUP" "www-data"
+    set_global_var "NGINX_USER" "root"
+    set_global_var "NGINX_GROUP" "root"
 
     # Store log directory
     set_global_var "NGINX_LOG_DIR" "/var/log/nginx"
@@ -683,7 +683,7 @@ force_reinstall_nginx() {
         local nginx_config_restore=$(map_web_path "nginxconfig")
         echo "[$SCRIPT_INDEX] Restoring configurations from backup..."
         $USE_SUDO cp -r "$backup_dir"/* "$nginx_config_restore/" 2>/dev/null || true
-        $USE_SUDO chown -R www-data:www-data "$nginx_config_restore"
+        $USE_SUDO chown -R root:root "$nginx_config_restore"
         $USE_SUDO rm -rf "$backup_dir"
     fi
 
@@ -730,7 +730,7 @@ fix_configuration_conflicts() {
     # Fix file permissions
     local nginx_config_perms=$(map_web_path "nginxconfig")
     if [ -d "$nginx_config_perms" ]; then
-        $USE_SUDO chown -R www-data:www-data "$nginx_config_perms"
+        $USE_SUDO chown -R root:root "$nginx_config_perms"
         $USE_SUDO chmod -R 755 "$nginx_config_perms"
     fi
 
@@ -908,11 +908,11 @@ fix_directory_structure() {
     
     # Fix ownership and permissions
     echo "[$SCRIPT_INDEX] Fixing ownership and permissions..."
-    $USE_SUDO chown -R www-data:www-data "$WWW_ROOT"
+    $USE_SUDO chown -R root:root "$WWW_ROOT"
     $USE_SUDO chmod -R 755 "$WWW_ROOT"
-    
+
     # Ensure nginx user can access log directory
-    $USE_SUDO chown -R www-data:adm /var/log/nginx
+    $USE_SUDO chown -R root:adm /var/log/nginx
     $USE_SUDO chmod -R 750 /var/log/nginx
     
     echo "[$SCRIPT_INDEX] [OK] Directory structure and permissions fixed"
@@ -1015,7 +1015,7 @@ create_default_html_with_ips() {
 EOF
     
     # Set proper ownership and permissions
-    $USE_SUDO chown www-data:www-data "$html_file"
+    $USE_SUDO chown root:root "$html_file"
     $USE_SUDO chmod 644 "$html_file"
     
     echo "[$SCRIPT_INDEX] [OK] Default HTML page created with detected IPs: ${server_ips[*]}"
@@ -1120,7 +1120,7 @@ setup_laravel_compatibility() {
 
     # Set proper permissions (skip chown in WSL as Windows filesystem doesn't support it)
     if [ "$IS_WSL" = false ]; then
-        $USE_SUDO chown -R www-data:www-data "$www_root" 2>/dev/null || true
+        $USE_SUDO chown -R root:root "$www_root" 2>/dev/null || true
     fi
     $USE_SUDO chmod 755 "$www_root" 2>/dev/null || true
 
@@ -1270,7 +1270,7 @@ create_nginx_config_symlinks() {
     done
     
     # Set proper permissions for the symlinks
-    $USE_SUDO chown -h www-data:www-data "$NGINX_CONFIG_DIR"/* 2>/dev/null || true
+    $USE_SUDO chown -h root:root "$NGINX_CONFIG_DIR"/* 2>/dev/null || true
     $USE_SUDO chmod 755 "$NGINX_CONFIG_DIR"
     
     # Create a README file explaining the symlinks
