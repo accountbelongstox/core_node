@@ -56,7 +56,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
       final user = authService.currentUser;
 
       _selectedLanguages.clear();
-      _selectedLanguages.addAll(user?.learningLanguages ?? ['en']);
+      _selectedLanguages.addAll(user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages);
       _nativeLanguage = user?.nativeLanguage ?? DefaultLanguageConfigAppQy.defaultNativeLanguage;
 
       final apiService = ApiServiceAppQy();
