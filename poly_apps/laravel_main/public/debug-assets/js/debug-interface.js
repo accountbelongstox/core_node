@@ -149,6 +149,17 @@ function showSection(sectionType) {
         if (typeof McpManager !== 'undefined') {
             McpManager.init();
         }
+    } else if (sectionType === 'learning') {
+        document.getElementById('learning-section').classList.add('active');
+        document.getElementById('page-title').textContent = 'Vocabulary Learning';
+        document.getElementById('page-description').textContent = 'Learn and practice vocabulary with interactive tools';
+    } else if (sectionType === 'octane-tasks') {
+        document.getElementById('octane-tasks-section').classList.add('active');
+        document.getElementById('page-title').textContent = 'Octane Timer Tasks';
+        document.getElementById('page-description').textContent = 'Monitor and manage Octane timer tasks status';
+        if (typeof OctaneTasksManager !== 'undefined') {
+            OctaneTasksManager.init();
+        }
     }
 
     // Save active section
