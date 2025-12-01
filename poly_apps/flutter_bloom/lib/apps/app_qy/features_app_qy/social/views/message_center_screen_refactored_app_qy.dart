@@ -20,6 +20,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../controllers/social_controller_app_qy.dart';
 import '../domain/model/social_model.dart';
 
@@ -60,7 +61,7 @@ class _MessageCenterScreenRefactoredAppQyState
       appBar: AppBar(
         title: Text(
           QyAppLocalizationKeys.qyMessageCenter.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
@@ -79,8 +80,8 @@ class _MessageCenterScreenRefactoredAppQyState
           indicatorColor: ThemeColors.primary,
           labelColor: ThemeColors.primary,
           unselectedLabelColor: ThemeColors.textSecondary,
-          labelStyle: TextStyles.body1.copyWith(fontWeight: FontWeight.w600),
-          unselectedLabelStyle: TextStyles.body1,
+          labelStyle: ThemeTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
+          unselectedLabelStyle: ThemeTextStyles.body1,
           tabs: [
             Tab(
               child: Consumer<SocialControllerAppQy>(
@@ -91,7 +92,7 @@ class _MessageCenterScreenRefactoredAppQyState
                     children: [
                       Text(QyAppLocalizationKeys.qyMessages.tr(context)),
                       if (count > 0) ...[
-                        SizedBox(width: Dimensions.spacingSmall),
+                        SizedBox(width: ThemeDimensions.spacingSmall),
                         _buildBadge(count),
                       ],
                     ],
@@ -108,7 +109,7 @@ class _MessageCenterScreenRefactoredAppQyState
                     children: [
                       Text(QyAppLocalizationKeys.qyNotifications.tr(context)),
                       if (count > 0) ...[
-                        SizedBox(width: Dimensions.spacingSmall),
+                        SizedBox(width: ThemeDimensions.spacingSmall),
                         _buildBadge(count),
                       ],
                     ],
@@ -142,16 +143,16 @@ class _MessageCenterScreenRefactoredAppQyState
   Widget _buildBadge(int count) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: Dimensions.paddingXSmall,
+        horizontal: ThemeDimensions.paddingXSmall,
         vertical: 2,
       ),
       decoration: BoxDecoration(
         color: ThemeColors.error,
-        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
       ),
       child: Text(
         count > 99 ? '99+' : count.toString(),
-        style: TextStyles.caption.copyWith(
+        style: ThemeTextStyles.caption.copyWith(
           color: ThemeColors.surface,
           fontSize: 10,
           fontWeight: FontWeight.bold,
@@ -167,18 +168,18 @@ class _MessageCenterScreenRefactoredAppQyState
         backgroundColor: ThemeColors.surface,
         title: Text(
           QyAppLocalizationKeys.qyMarkAllAsRead.tr(context),
-          style: TextStyles.h4.copyWith(color: ThemeColors.textPrimary),
+          style: ThemeTextStyles.h4.copyWith(color: ThemeColors.textPrimary),
         ),
         content: Text(
           QyAppLocalizationKeys.qyMarkAllAsReadConfirm.tr(context),
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
               QyAppLocalizationKeys.qyCommonCancel.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.textSecondary),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.textSecondary),
             ),
           ),
           TextButton(
@@ -194,7 +195,7 @@ class _MessageCenterScreenRefactoredAppQyState
             },
             child: Text(
               QyAppLocalizationKeys.qyCommonOk.tr(context),
-              style: TextStyles.button.copyWith(color: ThemeColors.primary),
+              style: ThemeTextStyles.button.copyWith(color: ThemeColors.primary),
             ),
           ),
         ],
@@ -216,7 +217,7 @@ class _MessageCenterScreenRefactoredAppQyState
       onRefresh: controller.loadMessages,
       color: ThemeColors.primary,
       child: ListView.builder(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         itemCount: messages.length,
         itemBuilder: (context, index) {
           return _buildMessageCard(messages[index], controller);
@@ -230,10 +231,10 @@ class _MessageCenterScreenRefactoredAppQyState
     final isUnread = !message.isRead;
 
     return Container(
-      margin: EdgeInsets.only(bottom: Dimensions.spacingMedium),
+      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
       decoration: BoxDecoration(
         color: isUnread ? ThemeColors.primary.withOpacity(0.05) : ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(
           color: isUnread ? ThemeColors.primary.withOpacity(0.3) : ThemeColors.border,
         ),
@@ -245,7 +246,7 @@ class _MessageCenterScreenRefactoredAppQyState
           }
         },
         child: Padding(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -262,7 +263,7 @@ class _MessageCenterScreenRefactoredAppQyState
                   size: 24,
                 ),
               ),
-              SizedBox(width: Dimensions.spacingMedium),
+              SizedBox(width: ThemeDimensions.spacingMedium),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,23 +273,23 @@ class _MessageCenterScreenRefactoredAppQyState
                       children: [
                         Text(
                           message.senderName,
-                          style: TextStyles.body1.copyWith(
+                          style: ThemeTextStyles.body1.copyWith(
                             color: ThemeColors.textPrimary,
                             fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
                           ),
                         ),
                         Text(
                           dateFormat.format(message.createdAt),
-                          style: TextStyles.caption.copyWith(
+                          style: ThemeTextStyles.caption.copyWith(
                             color: ThemeColors.textTertiary,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingXSmall),
                     Text(
                       message.content,
-                      style: TextStyles.body2.copyWith(
+                      style: ThemeTextStyles.body2.copyWith(
                         color: ThemeColors.textSecondary,
                         fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
                       ),
@@ -302,7 +303,7 @@ class _MessageCenterScreenRefactoredAppQyState
                 Container(
                   width: 8,
                   height: 8,
-                  margin: EdgeInsets.only(left: Dimensions.spacingSmall, top: 4),
+                  margin: EdgeInsets.only(left: ThemeDimensions.spacingSmall, top: 4),
                   decoration: BoxDecoration(
                     color: ThemeColors.primary,
                     shape: BoxShape.circle,
@@ -329,7 +330,7 @@ class _MessageCenterScreenRefactoredAppQyState
       onRefresh: controller.loadNotifications,
       color: ThemeColors.primary,
       child: ListView.builder(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         itemCount: notifications.length,
         itemBuilder: (context, index) {
           return _buildNotificationCard(notifications[index], controller);
@@ -343,10 +344,10 @@ class _MessageCenterScreenRefactoredAppQyState
     final isUnread = !notification.isRead;
 
     return Container(
-      margin: EdgeInsets.only(bottom: Dimensions.spacingMedium),
+      margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
       decoration: BoxDecoration(
         color: isUnread ? ThemeColors.primary.withOpacity(0.05) : ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(
           color: isUnread ? ThemeColors.primary.withOpacity(0.3) : ThemeColors.border,
         ),
@@ -358,15 +359,15 @@ class _MessageCenterScreenRefactoredAppQyState
           }
         },
         child: Padding(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: EdgeInsets.all(Dimensions.paddingSmall),
+                padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
                 decoration: BoxDecoration(
                   color: _getNotificationTypeColor(notification.type).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
                 ),
                 child: Icon(
                   _getNotificationTypeIcon(notification.type),
@@ -374,7 +375,7 @@ class _MessageCenterScreenRefactoredAppQyState
                   size: 20,
                 ),
               ),
-              SizedBox(width: Dimensions.spacingMedium),
+              SizedBox(width: ThemeDimensions.spacingMedium),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +386,7 @@ class _MessageCenterScreenRefactoredAppQyState
                         Expanded(
                           child: Text(
                             notification.title,
-                            style: TextStyles.body1.copyWith(
+                            style: ThemeTextStyles.body1.copyWith(
                               color: ThemeColors.textPrimary,
                               fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
                             ),
@@ -393,16 +394,16 @@ class _MessageCenterScreenRefactoredAppQyState
                         ),
                         Text(
                           dateFormat.format(notification.createdAt),
-                          style: TextStyles.caption.copyWith(
+                          style: ThemeTextStyles.caption.copyWith(
                             color: ThemeColors.textTertiary,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: Dimensions.spacingXSmall),
+                    SizedBox(height: ThemeDimensions.spacingXSmall),
                     Text(
                       notification.content,
-                      style: TextStyles.body2.copyWith(
+                      style: ThemeTextStyles.body2.copyWith(
                         color: ThemeColors.textSecondary,
                       ),
                       maxLines: 3,
@@ -415,7 +416,7 @@ class _MessageCenterScreenRefactoredAppQyState
                 Container(
                   width: 8,
                   height: 8,
-                  margin: EdgeInsets.only(left: Dimensions.spacingSmall, top: 4),
+                  margin: EdgeInsets.only(left: ThemeDimensions.spacingSmall, top: 4),
                   decoration: BoxDecoration(
                     color: ThemeColors.primary,
                     shape: BoxShape.circle,
@@ -438,10 +439,10 @@ class _MessageCenterScreenRefactoredAppQyState
             size: 80,
             color: ThemeColors.textTertiary.withOpacity(0.5),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Text(
             message,
-            style: TextStyles.body1.copyWith(
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.textSecondary,
             ),
           ),
@@ -466,7 +467,7 @@ class _MessageCenterScreenRefactoredAppQyState
   Color _getMessageTypeColor(String type) {
     switch (type) {
       case 'system':
-        return Colors.blue;
+        return ColorsAppQy.qyInfo;
       case 'announcement':
         return Colors.orange;
       case 'achievement':
@@ -492,7 +493,7 @@ class _MessageCenterScreenRefactoredAppQyState
   Color _getNotificationTypeColor(String type) {
     switch (type) {
       case 'reminder':
-        return Colors.green;
+        return ColorsAppQy.qySuccess;
       case 'achievement':
         return Colors.amber;
       case 'course':
