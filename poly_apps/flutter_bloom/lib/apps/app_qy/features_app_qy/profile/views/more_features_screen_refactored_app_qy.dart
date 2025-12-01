@@ -18,6 +18,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class MoreFeaturesScreenRefactoredAppQy extends StatefulWidget {
   const MoreFeaturesScreenRefactoredAppQy({super.key});
@@ -45,25 +46,25 @@ class _MoreFeaturesScreenRefactoredAppQyState
         'icon': Icons.quiz,
         'title': 'Word Test',
         'subtitle': 'Test your vocabulary knowledge',
-        'color': Colors.blue,
+        'color': ColorsAppQy.qyInfo,
       },
       {
         'icon': Icons.headset,
         'title': 'Word Listening',
         'subtitle': 'Practice listening comprehension',
-        'color': Colors.green,
+        'color': ColorsAppQy.qySuccess,
       },
       {
         'icon': Icons.record_voice_over,
         'title': 'Phrase Practice',
         'subtitle': 'Learn common phrases',
-        'color': Colors.orange,
+        'color': ColorsAppQy.qyWarning,
       },
       {
         'icon': Icons.speed,
         'title': 'Speed Review',
         'subtitle': 'Quick vocabulary review',
-        'color': Colors.purple,
+        'color': ColorsAppQy.qyAccent,
       },
     ]);
 
@@ -129,7 +130,7 @@ class _MoreFeaturesScreenRefactoredAppQyState
       appBar: AppBar(
         title: Text(
           QyAppLocalizationKeys.qyMoreFeatures.tr(context),
-          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+          style: ThemeTextStyles.h3.copyWith(color: ThemeColors.textPrimary),
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
@@ -139,27 +140,27 @@ class _MoreFeaturesScreenRefactoredAppQyState
         ),
       ),
       body: ListView(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         children: [
           _buildSectionHeader(
             QyAppLocalizationKeys.qyHomeConsolidate.tr(context),
             QyAppLocalizationKeys.qyHomeConsolidateDescription.tr(context),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           _buildFeatureGrid(_consolidateFeatures),
-          SizedBox(height: Dimensions.spacingLarge),
+          SizedBox(height: ThemeDimensions.spacingLarge),
           _buildSectionHeader(
             QyAppLocalizationKeys.qyHomeExtension.tr(context),
             QyAppLocalizationKeys.qyHomeExtensionDescription.tr(context),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           _buildFeatureGrid(_extensionFeatures),
-          SizedBox(height: Dimensions.spacingLarge),
+          SizedBox(height: ThemeDimensions.spacingLarge),
           _buildSectionHeader(
             QyAppLocalizationKeys.qyMoreFeaturesTools.tr(context),
             QyAppLocalizationKeys.qyMoreFeaturesToolsDescription.tr(context),
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           _buildFeatureGrid(_toolFeatures),
         ],
       ),
@@ -172,15 +173,15 @@ class _MoreFeaturesScreenRefactoredAppQyState
       children: [
         Text(
           title,
-          style: TextStyles.h4.copyWith(
+          style: ThemeTextStyles.h4.copyWith(
             color: ThemeColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
-        SizedBox(height: Dimensions.spacingXSmall),
+        SizedBox(height: ThemeDimensions.spacingXSmall),
         Text(
           description,
-          style: TextStyles.body2.copyWith(
+          style: ThemeTextStyles.body2.copyWith(
             color: ThemeColors.textSecondary,
           ),
         ),
@@ -194,8 +195,8 @@ class _MoreFeaturesScreenRefactoredAppQyState
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: Dimensions.spacingMedium,
-        mainAxisSpacing: Dimensions.spacingMedium,
+        crossAxisSpacing: ThemeDimensions.spacingMedium,
+        mainAxisSpacing: ThemeDimensions.spacingMedium,
         childAspectRatio: 1.1,
       ),
       itemCount: features.length,
@@ -224,10 +225,10 @@ class _MoreFeaturesScreenRefactoredAppQyState
         );
       },
       child: Container(
-        padding: EdgeInsets.all(Dimensions.paddingMedium),
+        padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
         decoration: BoxDecoration(
           color: ThemeColors.surface,
-          borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
           border: Border.all(color: ThemeColors.border),
           boxShadow: [
             BoxShadow(
@@ -241,7 +242,7 @@ class _MoreFeaturesScreenRefactoredAppQyState
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
@@ -252,10 +253,10 @@ class _MoreFeaturesScreenRefactoredAppQyState
                 color: color,
               ),
             ),
-            SizedBox(height: Dimensions.spacingMedium),
+            SizedBox(height: ThemeDimensions.spacingMedium),
             Text(
               title,
-              style: TextStyles.body1.copyWith(
+              style: ThemeTextStyles.body1.copyWith(
                 color: ThemeColors.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
@@ -263,10 +264,10 @@ class _MoreFeaturesScreenRefactoredAppQyState
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            SizedBox(height: Dimensions.spacingXSmall),
+            SizedBox(height: ThemeDimensions.spacingXSmall),
             Text(
               subtitle,
-              style: TextStyles.caption.copyWith(
+              style: ThemeTextStyles.caption.copyWith(
                 color: ThemeColors.textSecondary,
               ),
               textAlign: TextAlign.center,
