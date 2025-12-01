@@ -380,10 +380,25 @@ check_venv_needs_rebuild() {
         return 0
     fi
 
-    # Check if venv python can import tkinter (test system packages)
+    # Check if venv python can import tkinter and tkinter.ttk (test system packages)
     if [ -f "$venv_dir/bin/python3" ]; then
+        # Test basic tkinter
         if ! "$venv_dir/bin/python3" -c "import tkinter" 2>/dev/null; then
             print_warning_from_common_functions "venv python cannot import tkinter, rebuild needed"
+            echo "true"
+            return 0
+        fi
+
+        # Test tkinter.ttk (common issue with incomplete tkinter installation)
+        if ! "$venv_dir/bin/python3" -c "import tkinter.ttk" 2>/dev/null; then
+            print_warning_from_common_functions "venv python cannot import tkinter.ttk, rebuild needed"
+            echo "true"
+            return 0
+        fi
+
+        # Test _tkinter (underlying C module)
+        if ! "$venv_dir/bin/python3" -c "import _tkinter" 2>/dev/null; then
+            print_warning_from_common_functions "venv python cannot import _tkinter (C module), rebuild needed"
             echo "true"
             return 0
         fi
@@ -406,10 +421,46 @@ create_python_venv_and_replace_system() {
 
     # Check if venv needs rebuild
     local rebuild_needed=$(check_venv_needs_rebuild "$VENV_DIR")
+    local venv_was_rebuilt=false
+    local user_wants_rebuild=false
 
-    if [ "$rebuild_needed" = "true" ]; then
+    # Interactive prompt: Always ask user if they want to rebuild venv (except for first time)
+    # Default is Y because there might be new packages to install
+    if [ ! -d "$VENV_DIR" ]; then
+        # Venv doesn't exist, must create (no prompt needed)
+        print_step_from_common_functions "Virtual environment does not exist. Creating new one..."
+        user_wants_rebuild=true
+    else
+        # Venv exists - always ask if user wants to rebuild
+        if [ "$rebuild_needed" = "true" ]; then
+            print_warning_from_common_functions "Virtual environment needs rebuild (tkinter or system packages changed)"
+        else
+            print_info_from_common_functions "Virtual environment exists and appears up-to-date"
+        fi
+
+        print_step_from_common_functions "Rebuild virtual environment? [Y/n] (recommended if you added new packages)"
+        read -r response </dev/tty
+        response=${response:-Y}  # Default to Y if user just presses Enter
+
+        if [[ "$response" =~ ^[Yy]$ ]] || [ -z "$response" ]; then
+            user_wants_rebuild=true
+        else
+            print_info_from_common_functions "Skipping venv rebuild. Using existing venv."
+            user_wants_rebuild=false
+        fi
+    fi
+
+    if [ "$user_wants_rebuild" = "true" ]; then
+        venv_was_rebuilt=true
         if [ -d "$VENV_DIR" ]; then
             print_step_from_common_functions "Rebuilding Python virtual environment (old venv will be backed up)..."
+
+            # Remove old symlinks that point to old venv BEFORE backing up
+            # NOTE: We only manage /usr/local/bin/python, NOT python3 (python3 stays system default)
+            print_step_from_common_functions "Removing old venv symlinks..."
+            $USE_SUDO rm -f /usr/local/bin/python \
+                             /usr/local/bin/pip /usr/local/bin/pip3 2>/dev/null || true
+
             # Backup old venv
             local backup_dir="${VENV_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
             mv "$VENV_DIR" "$backup_dir" 2>/dev/null || true
@@ -449,138 +500,69 @@ create_python_venv_and_replace_system() {
         return 1
     fi
 
-    # Backup and replace system Python commands
-    print_step_from_common_functions "Checking and fixing system Python commands..."
+    # IMPORTANT: Always refresh symlinks, even if venv was not rebuilt
+    # This ensures that 'python' and 'pip' always point to the correct venv,
+    # even if system packages were updated or symlinks were modified manually
+    print_step_from_common_functions "Refreshing Python command symlinks..."
 
-    # Handle python3
-    if [ -e /usr/local/bin/python3 ]; then
-        # Check if it already points to venv
-        local current_target=$(readlink -f /usr/local/bin/python3 2>/dev/null || echo "")
-        if [ "$current_target" = "$VENV_PYTHON3" ]; then
-            print_success_from_common_functions "python3 already points to venv, skipping"
-        else
-            # Not pointing to venv, need to backup and replace
-            if [ ! -e /usr/local/bin/python3_system ]; then
-                print_step_from_common_functions "Backing up python3 to python3_system"
-                if [ -L /usr/local/bin/python3 ]; then
-                    # If it's a symlink, copy the symlink target
-                    local link_target=$(readlink /usr/local/bin/python3)
-                    $USE_SUDO ln -sf "$link_target" /usr/local/bin/python3_system
-                else
-                    # If it's a real file, find the actual system python3
-                    local system_python3=$(command -v python3 2>/dev/null || echo "/usr/bin/python3")
-                    $USE_SUDO ln -sf "$system_python3" /usr/local/bin/python3_system
-                fi
-                print_success_from_common_functions "Created backup: python3_system"
-            fi
-            # Replace with venv
-            $USE_SUDO rm -f /usr/local/bin/python3
-            $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python3
-            print_success_from_common_functions "Created symlink: python3 -> $VENV_PYTHON3"
-        fi
-    else
-        # Doesn't exist, check if we need to backup system python3 first
-        if command -v python3 >/dev/null 2>&1 && [ ! -e /usr/local/bin/python3_system ]; then
-            local system_python3=$(command -v python3)
-            print_step_from_common_functions "Backing up system python3 to python3_system"
-            $USE_SUDO ln -sf "$system_python3" /usr/local/bin/python3_system
-            print_success_from_common_functions "Created backup: python3_system"
-        fi
-        # Create new symlink
-        $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python3
-        print_success_from_common_functions "Created symlink: python3 -> $VENV_PYTHON3"
+    # ============================================================================
+    # IMPORTANT: python3 command stays as system default
+    # We do NOT create /usr/local/bin/python3 symlink
+    # System's /usr/bin/python3 will be used when user runs 'python3'
+    # ============================================================================
+
+    # Clean up any old python3 symlink if it exists (from previous versions of this script)
+    if [ -L /usr/local/bin/python3 ]; then
+        print_warning_from_common_functions "Removing old python3 symlink (python3 should use system default)"
+        $USE_SUDO rm -f /usr/local/bin/python3
+        print_info_from_common_functions "python3 command will now use system Python: /usr/bin/python3"
     fi
 
-    # Handle python
-    if [ -e /usr/local/bin/python ]; then
-        local current_target=$(readlink -f /usr/local/bin/python 2>/dev/null || echo "")
-        if [ "$current_target" = "$VENV_PYTHON3" ]; then
-            print_success_from_common_functions "python already points to venv, skipping"
-        else
-            $USE_SUDO rm -f /usr/local/bin/python
-            $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
-            print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
-        fi
-    else
-        $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
-        print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
-    fi
+    # ============================================================================
+    # Handle 'python' command - ALWAYS refresh, pointing to venv
+    # ============================================================================
+    print_step_from_common_functions "Refreshing 'python' command to point to venv..."
 
-    # Create pip -> pip3 symlink in venv if it doesn't exist
+    # Always remove and recreate (refresh every time)
+    $USE_SUDO rm -f /usr/local/bin/python
+    $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
+    print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
+
+    # ============================================================================
+    # Handle 'pip' and 'pip3' commands
+    # Same as python: pip3 stays system default, pip points to venv
+    # ============================================================================
+
+    # Create pip -> pip3 symlink inside venv if it doesn't exist
     if [ -f "$VENV_PIP3" ] && [ ! -e "$VENV_PIP" ]; then
         ln -sf pip3 "$VENV_PIP"
     fi
 
-    # Handle pip3
-    if [ -f "$VENV_PIP3" ]; then
-        if [ -e /usr/local/bin/pip3 ]; then
-            local current_target=$(readlink -f /usr/local/bin/pip3 2>/dev/null || echo "")
-            if [ "$current_target" = "$VENV_PIP3" ]; then
-                print_success_from_common_functions "pip3 already points to venv, skipping"
-            else
-                if [ ! -e /usr/local/bin/pip3_system ]; then
-                    print_step_from_common_functions "Backing up pip3 to pip3_system"
-                    if [ -L /usr/local/bin/pip3 ]; then
-                        local link_target=$(readlink /usr/local/bin/pip3)
-                        $USE_SUDO ln -sf "$link_target" /usr/local/bin/pip3_system
-                    else
-                        local system_pip3=$(command -v pip3 2>/dev/null || echo "/usr/bin/pip3")
-                        $USE_SUDO ln -sf "$system_pip3" /usr/local/bin/pip3_system
-                    fi
-                    print_success_from_common_functions "Created backup: pip3_system"
-                fi
-                $USE_SUDO rm -f /usr/local/bin/pip3
-                $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip3
-                print_success_from_common_functions "Created symlink: pip3 -> $VENV_PIP3"
-            fi
-        else
-            if command -v pip3 >/dev/null 2>&1 && [ ! -e /usr/local/bin/pip3_system ]; then
-                local system_pip3=$(command -v pip3)
-                print_step_from_common_functions "Backing up system pip3 to pip3_system"
-                $USE_SUDO ln -sf "$system_pip3" /usr/local/bin/pip3_system
-                print_success_from_common_functions "Created backup: pip3_system"
-            fi
-            $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip3
-            print_success_from_common_functions "Created symlink: pip3 -> $VENV_PIP3"
-        fi
+    # Clean up any old pip3 symlink if it exists
+    if [ -L /usr/local/bin/pip3 ]; then
+        print_warning_from_common_functions "Removing old pip3 symlink (pip3 should use system default)"
+        $USE_SUDO rm -f /usr/local/bin/pip3
+        print_info_from_common_functions "pip3 command will now use system pip3"
+    fi
 
-        # Handle pip
-        if [ -e /usr/local/bin/pip ]; then
-            local current_target=$(readlink -f /usr/local/bin/pip 2>/dev/null || echo "")
-            if [ "$current_target" = "$VENV_PIP3" ]; then
-                print_success_from_common_functions "pip already points to venv, skipping"
-            else
-                if [ ! -e /usr/local/bin/pip_system ]; then
-                    print_step_from_common_functions "Backing up pip to pip_system"
-                    if [ -L /usr/local/bin/pip ]; then
-                        local link_target=$(readlink /usr/local/bin/pip)
-                        $USE_SUDO ln -sf "$link_target" /usr/local/bin/pip_system
-                    else
-                        local system_pip=$(command -v pip 2>/dev/null || echo "/usr/bin/pip")
-                        $USE_SUDO ln -sf "$system_pip" /usr/local/bin/pip_system
-                    fi
-                    print_success_from_common_functions "Created backup: pip_system"
-                fi
-                $USE_SUDO rm -f /usr/local/bin/pip
-                $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
-                print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
-            fi
-        else
-            if command -v pip >/dev/null 2>&1 && [ ! -e /usr/local/bin/pip_system ]; then
-                local system_pip=$(command -v pip)
-                print_step_from_common_functions "Backing up system pip to pip_system"
-                $USE_SUDO ln -sf "$system_pip" /usr/local/bin/pip_system
-                print_success_from_common_functions "Created backup: pip_system"
-            fi
-            $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
-            print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
-        fi
+    # Handle 'pip' command - ALWAYS refresh, pointing to venv
+    if [ -f "$VENV_PIP3" ]; then
+        print_step_from_common_functions "Refreshing 'pip' command to point to venv..."
+
+        # Always remove and recreate (refresh every time)
+        $USE_SUDO rm -f /usr/local/bin/pip
+        $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
+        print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
     fi
 
     print_success_from_common_functions "Python venv setup and system command replacement complete!"
     print_info_from_common_functions "Virtual environment: $VENV_DIR"
-    print_info_from_common_functions "System commands now point to venv binaries"
-    print_info_from_common_functions "Backup commands: python3_system, pip3_system, pip_system"
+    print_info_from_common_functions ""
+    print_info_from_common_functions "Command mapping:"
+    print_info_from_common_functions "  python3  -> System Python (/usr/bin/python3)"
+    print_info_from_common_functions "  python   -> Venv Python ($VENV_PYTHON3)"
+    print_info_from_common_functions "  pip3     -> System pip3"
+    print_info_from_common_functions "  pip      -> Venv pip ($VENV_PIP3)"
 
     return 0
 }

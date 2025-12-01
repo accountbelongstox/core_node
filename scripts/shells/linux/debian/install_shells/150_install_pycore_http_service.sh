@@ -16,7 +16,9 @@ SERVICE_PORT=59000
 SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
 SERVICE_WORKING_DIR="$CORE_NODE_ROOT_FROM_SCRIPTS"
 SERVICE_USER="root"
-SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/bin/python3 $SERVICE_SCRIPT"
+# IMPORTANT: Use /usr/local/bin/python (venv) instead of /usr/bin/python3 (system)
+# This ensures the service runs with venv Python that has all required packages
+SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/local/bin/python $SERVICE_SCRIPT"
 
 echo "Installing $SERVICE_DESCRIPTION..."
 echo "  Port: $SERVICE_PORT"
@@ -48,7 +50,7 @@ sleep 3
 
 # Check service status
 if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-    echo "âœ?Pycore FastAPI service started successfully"
+    echo "ï¿½?Pycore FastAPI service started successfully"
     echo "  Service: $SERVICE_NAME"
     echo "  Port: $SERVICE_PORT"
     echo "  Health: http://127.0.0.1:$SERVICE_PORT/health"
@@ -56,12 +58,12 @@ if systemctl is-active --quiet "$SERVICE_NAME.service"; then
 
     # Test health endpoint
     if curl -s "http://127.0.0.1:$SERVICE_PORT/health" > /dev/null 2>&1; then
-        echo "âœ?Health check passed"
+        echo "ï¿½?Health check passed"
     else
-        echo "âœ?Health check failed"
+        echo "ï¿½?Health check failed"
     fi
 else
-    echo "âœ?Failed to start Pycore FastAPI service"
+    echo "ï¿½?Failed to start Pycore FastAPI service"
     systemctl status "$SERVICE_NAME.service" --no-pager
     exit 1
 fi
