@@ -109,9 +109,7 @@ const PromptsTasksManager = {
                 this.renderFilesList();
 
                 // Sync with mapping manager
-                if (typeof PromptMappingManager !== 'undefined') {
-                    PromptMappingManager.switchCategory(categoryId);
-                }
+                PromptMappingManager.switchCategory(categoryId);
             } else {
                 console.error('Failed to load category files:', data.error);
                 this.renderEmptyState('Failed to load files');
@@ -290,9 +288,7 @@ const PromptsTasksManager = {
             await this.refresh();
 
             // Refresh Code Browser file tree (upper panel)
-            if (typeof CodeBrowser !== 'undefined' && CodeBrowser.refreshTree) {
-                CodeBrowser.refreshTree();
-            }
+            CodeBrowser.refreshTree();
         } catch (error) {
             console.error('Error deleting file:', error);
             this.showNotification('Error deleting file', 'error');
@@ -947,7 +943,6 @@ const PromptsTasksManager = {
     },
 
     containsChinese(text) {
-        if (typeof text === 'undefined' || text === null || typeof text !== 'string') return false;
         return /[\u4e00-\u9fa5]/.test(text);
     },
 

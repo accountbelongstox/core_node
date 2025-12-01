@@ -715,24 +715,20 @@ const McpScreenshotModule = {
         const previewEl = document.getElementById('mcp-ss-file-preview');
 
         if (this.uploadMode === 'multi') {
-            if (hint) hint.textContent = 'Merge multiple images into a single tall screenshot with numbered labels.';
-            if (help) help.textContent = 'Select at least two images. They will be resized to max 1080px width and merged top-to-bottom.';
-            if (submitBtn) submitBtn.textContent = 'Upload & Merge';
-            if (itemsContainer) {
-                if (itemsContainer.innerHTML.trim() === '') {
-                    itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select images to configure per-screenshot descriptions.</div>';
-                }
-                itemsContainer.style.display = 'block';
+            hint.textContent = 'Merge multiple images into a single tall screenshot with numbered labels.';
+            help.textContent = 'Select at least two images. They will be resized to max 1080px width and merged top-to-bottom.';
+            submitBtn.textContent = 'Upload & Merge';
+            if (itemsContainer.innerHTML.trim() === '') {
+                itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select images to configure per-screenshot descriptions.</div>';
             }
-            if (previewEl) previewEl.innerHTML = '';
+            itemsContainer.style.display = 'block';
+            previewEl.innerHTML = '';
         } else {
-            if (hint) hint.textContent = 'Upload a single image without merging.';
-            if (help) help.textContent = 'Select one image to upload.';
-            if (submitBtn) submitBtn.textContent = 'Upload Screenshot';
-            if (itemsContainer) {
-                itemsContainer.innerHTML = '';
-                itemsContainer.style.display = 'none';
-            }
+            hint.textContent = 'Upload a single image without merging.';
+            help.textContent = 'Select one image to upload.';
+            submitBtn.textContent = 'Upload Screenshot';
+            itemsContainer.innerHTML = '';
+            itemsContainer.style.display = 'none';
         }
 
         document.querySelectorAll('input[name="mcp-ss-mode"]').forEach(radio => {

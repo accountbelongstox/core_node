@@ -246,7 +246,6 @@ const CodeBrowser = {
     },
 
     getDepth(path) {
-        if (typeof path === 'undefined' || path === null) return 0;
         return path.split('/').length - 1;
     },
 
@@ -291,10 +290,6 @@ const CodeBrowser = {
     },
 
     async saveFile() {
-        if (typeof this.currentFile === 'undefined' || this.currentFile === null) {
-            alert('No file is currently open');
-            return;
-        }
 
         try {
             const content = document.getElementById('code-editor').value;
@@ -413,7 +408,6 @@ const CodeBrowser = {
     },
 
     async deleteFile() {
-        if (typeof this.contextMenuTarget === 'undefined' || this.contextMenuTarget === null) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         this.showConfirmDialog(
@@ -437,7 +431,6 @@ const CodeBrowser = {
     },
 
     restoreFile() {
-        if (typeof this.contextMenuTarget === 'undefined' || this.contextMenuTarget === null) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         this.showConfirmDialog(
@@ -467,7 +460,6 @@ const CodeBrowser = {
     },
 
     renameItem() {
-        if (typeof this.contextMenuTarget === 'undefined' || this.contextMenuTarget === null) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         const currentName = this.contextMenuTarget.split('/').pop();
@@ -507,7 +499,6 @@ const CodeBrowser = {
     },
 
     async autoRenameToEnglish() {
-        if (typeof this.contextMenuTarget === 'undefined' || this.contextMenuTarget === null) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         try {
@@ -556,7 +547,7 @@ const CodeBrowser = {
     },
 
     async translateChineseLines() {
-        if ((typeof this.contextMenuTarget === 'undefined' || this.contextMenuTarget === null) || this.contextMenuTargetType !== 'file') return;
+        if (this.contextMenuTargetType !== 'file') return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         try {
@@ -668,7 +659,7 @@ const CodeBrowser = {
     loadExpandedState() {
         try {
             const saved = localStorage.getItem('code_browser_expanded_folders');
-            if (typeof saved !== 'undefined' && saved !== null && saved !== '') {
+            {
                 const folders = JSON.parse(saved);
                 folders.forEach(folder => {
                     if (!this.shouldSkipCache(folder)) {
