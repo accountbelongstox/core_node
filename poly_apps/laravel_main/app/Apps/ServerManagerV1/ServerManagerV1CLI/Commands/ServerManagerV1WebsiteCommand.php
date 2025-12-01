@@ -68,7 +68,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
 
         $type = $this->option('type') ?: 'laravel';
         $sslMode = $this->option('ssl') ?: 'auto';
-        $phpVersion = $this->option('php-version') ?: '8.4';
+        $phpVersion = $this->option('php-version') ?: '8.5';
         // Normalize php-mode: convert legacy 'octane' to 'swoole'
         $phpMode = ServerManagerV1PathConfig::normalizePhpMode($this->option('php-mode') ?: 'fpm');
 

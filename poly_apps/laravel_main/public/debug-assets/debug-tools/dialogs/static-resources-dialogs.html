@@ -1,0 +1,138 @@
+    <!-- Context Menu for Static Resources -->
+    <div id="static-context-menu"
+        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
+        <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📂 Enter this folder
+        </div>
+        <div id="static-menu-expand-all" onclick="StaticResourceBrowser.expandAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬇️ Expand all subfolders
+        </div>
+        <div id="static-menu-collapse-all" onclick="StaticResourceBrowser.collapseAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #ce9178; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬆️ Collapse all subfolders
+        </div>
+        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()"
+            style="padding: 8px 16px; cursor: pointer; color: #dcdcaa; font-size: 13px; display: none; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📤 Upload to this folder
+        </div>
+        <div onclick="StaticResourceBrowser.renameWithTranslation()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            🌐 Rename to English
+        </div>
+        <div onclick="StaticResourceBrowser.promptDeleteSelection()"
+            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'">
+            🗑️ Delete
+        </div>
+    </div>
+
+    <!-- Upload Dialog -->
+    <div id="upload-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📤 Upload Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div id="upload-drop-zone"
+                    style="border: 2px dashed #454545; border-radius: 8px; padding: 60px 20px; text-align: center; background: #1e1e1e; cursor: pointer;"
+                    onclick="document.getElementById('upload-file-input').click()">
+                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">📁 Drag and drop files or folders here
+                    </p>
+                    <p style="color: #666; font-size: 13px;">or click to browse</p>
+                    <input type="file" id="upload-file-input" multiple webkitdirectory directory style="display: none;">
+                </div>
+                <div id="upload-file-list" style="margin-top: 15px; max-height: 200px; overflow-y: auto;"></div>
+                <p id="upload-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Target: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeUploadDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="upload-btn" onclick="StaticResourceBrowser.executeUploadWithChunking()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'"
+                    disabled>Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Directory Dialog -->
+    <div id="create-dir-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📁 Create New Folder</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input type="text" id="new-dir-name" placeholder="Folder name..."
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace; margin-bottom: 15px;">
+                <div
+                    style="display: flex; align-items: center; padding: 10px; background: #1e1e1e; border-radius: 4px;">
+                    <input type="checkbox" id="translate-dir-name" style="margin-right: 10px; cursor: pointer;">
+                    <label for="translate-dir-name" style="color: #cccccc; font-size: 13px; cursor: pointer;">🌐
+                        Translate to English automatically</label>
+                </div>
+                <p id="create-dir-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Parent: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-bottom: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeCreateDirDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="create-dir-btn" onclick="StaticResourceBrowser.executeCreateDir()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <div id="static-delete-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 520px; box-shadow: 0 8px 32px rgba(0,0,0,0.8);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #ff7373; font-size: 16px; font-weight: 500;">🗑️ Delete Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="static-delete-summary"
+                    style="margin: 0 0 15px 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;">Preparing delete
+                    summary...</p>
+                <input type="text" id="static-delete-confirm-input" placeholder="Type 确认 to confirm"
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #f1f1f1; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;">
+                <p style="margin-top: 10px; font-size: 12px; color: #888;">For safety, please type <strong>确认</strong>
+                    to proceed.</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeDeleteDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="static-delete-confirm-btn" onclick="StaticResourceBrowser.executeDelete()"
+                    style="padding: 8px 20px; background: #b33939; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#c74a4a'" onmouseout="this.style.background='#b33939'"
+                    disabled>Delete</button>
+            </div>
+        </div>
+    </div>
+

@@ -111,8 +111,9 @@ Future<void> main() async {
   )
       .then((selectedEndpoint) {
     if (selectedEndpoint != null) {
-      // Base URL should be just /api, endpoints already include full path
-      final baseUrl = selectedEndpoint.buildFullUrl(path: 'api');
+      // Base URL should be host:port only (e.g., http://192.168.50.2:9000)
+      // Endpoints already include full path like /api/dict/v1/login
+      final baseUrl = selectedEndpoint.buildFullUrl();
       ApiServiceAppQy().updateBaseUrl(baseUrl);
       debugPrint('✅ API endpoint updated to: $baseUrl');
     } else {

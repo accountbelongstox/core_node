@@ -613,6 +613,14 @@ ExecReload=/bin/kill -USR1 \$MAINPID
 Restart=always
 RestartSec=10
 
+# Timeout configuration
+TimeoutStopSec=30
+TimeoutStartSec=60
+
+# Kill mode configuration
+KillMode=mixed
+KillSignal=SIGTERM
+
 # Memory limit: 20% of system memory (~{$memoryLimitMB}MB)
 MemoryMax={$memoryLimitKB}K
 MemoryHigh={$memoryLimitKB}K
@@ -646,13 +654,23 @@ EOF;
     {
         $sessionDir = PathMapper::getLaravelSessionsDir();
         $laravel_db = dirname($sessionDir);
+        $coreNodeDir = PathMapper::getCoreNodeDir();
+        $promptsDir = $coreNodeDir . '/_prompts';
 
-        Log::info('Added external write path for sessions', [
-            'path' => $laravel_db,
-            'session_dir' => $sessionDir
+        $paths = [$laravel_db];
+
+        if (is_dir($promptsDir) || is_link($promptsDir)) {
+            $paths[] = $promptsDir;
+        }
+
+        Log::info('Added external write paths', [
+            'paths' => $paths,
+            'laravel_db' => $laravel_db,
+            'session_dir' => $sessionDir,
+            'prompts_dir' => $promptsDir
         ]);
 
-        return [$laravel_db];
+        return $paths;
     }
 
     /**
@@ -701,6 +719,14 @@ ExecReload=/bin/kill -USR1 \$MAINPID
 # Auto-restart configuration
 Restart=always
 RestartSec=10
+
+# Timeout configuration
+TimeoutStopSec=30
+TimeoutStartSec=60
+
+# Kill mode configuration
+KillMode=mixed
+KillSignal=SIGTERM
 
 # Memory limit: 20% of system memory (~{$memoryLimitMB}MB)
 MemoryMax={$memoryLimitKB}K

@@ -131,6 +131,24 @@ class AppQyV1ApiInfo
                 "parameters" => ["code"]
             ],
 
+            // Public vocabulary libraries
+            [
+                "path" => "/api/dict/v1/vocabulary/libraries/recommended",
+                "method" => "GET",
+                "feature" => "Recommended Vocabulary Libraries",
+                "description" => "Get default recommended vocabulary libraries",
+                "auth_required" => false,
+                "parameters" => ["language", "limit"]
+            ],
+            [
+                "path" => "/api/dict/v1/vocabulary/libraries",
+                "method" => "GET",
+                "feature" => "Vocabulary Libraries List",
+                "description" => "Get paginated vocabulary libraries with filters",
+                "auth_required" => false,
+                "parameters" => ["page", "per_page", "language", "category", "difficulty", "search"]
+            ],
+
             // Learning Management endpoints (dict/v1/learning)
             [
                 "path" => "/api/dict/v1/learning/languages",
@@ -338,6 +356,21 @@ class AppQyV1ApiInfo
             ],
 
             // User Profile & Stats endpoints (user)
+            [
+                "path" => "/api/dict/v1/user/initialization-status",
+                "method" => "GET",
+                "feature" => "User Initialization Status",
+                "description" => "Check if user has completed initial onboarding",
+                "auth_required" => true
+            ],
+            [
+                "path" => "/api/dict/v1/user/initialize",
+                "method" => "POST",
+                "feature" => "Complete User Initialization",
+                "description" => "Submit learning preferences and onboarding data",
+                "auth_required" => true,
+                "parameters" => ["learning_languages", "occupation", "daily_words_target", "daily_study_time", "preferences"]
+            ],
             [
                 "path" => "/api/user/progress",
                 "method" => "GET",

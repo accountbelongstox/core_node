@@ -1,0 +1,8 @@
+# External Storage Configuration
+# Add these lines to your .env file
+# Set to null to use hardcoded default paths
+
+
+
+# External Storage Settings
+EXTERNAL_STORAGE_AUTO_CREATE=true 

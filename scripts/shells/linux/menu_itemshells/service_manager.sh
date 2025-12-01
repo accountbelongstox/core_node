@@ -393,6 +393,86 @@ show_service_status() {
     systemctl status "$systemd_name" --no-pager
 }
 
+# Function to show service logs
+show_service_logs() {
+    local service="$1"
+    local systemd_name="${SERVICE_SYSTEMD[$service]}"
+    local service_name="${SERVICE_NAME[$service]}"
+
+    echo ""
+    echo "================================================"
+    echo "$service_name Logs"
+    echo "================================================"
+
+    if ! is_service_installed "$service"; then
+        echo -e "${RED}$service_name is not installed${NC}"
+        return 1
+    fi
+
+    # Special handling for Laravel Octane (multiple services)
+    if [ "$service" = "laravel" ]; then
+        echo ""
+        echo "Choose log source:"
+        echo "1. Systemd Journal (All Octane services)"
+        echo "2. Laravel Log File (storage/logs/swoole_http.log)"
+        echo "3. Octane State File (storage/logs/octane-server-state.json)"
+        echo "0. Back"
+        echo ""
+        read -p "Choose an option: " log_choice
+
+        case "$log_choice" in
+            1)
+                echo ""
+                echo -e "${CYAN}Recent logs from all Octane services (last 100 lines):${NC}"
+                echo "================================================"
+                journalctl -u 'octane-*' -n 100 --no-pager | tail -50
+                echo ""
+                echo -e "${YELLOW}Tip: Use 'journalctl -u octane-poly-9000 -f' to follow logs in real-time${NC}"
+                ;;
+            2)
+                local swoole_log="/www/programing/core_node/poly_apps/laravel_main/storage/logs/swoole_http.log"
+                if [ -f "$swoole_log" ]; then
+                    echo ""
+                    echo -e "${CYAN}Swoole HTTP Log (last 50 lines):${NC}"
+                    echo "================================================"
+                    tail -50 "$swoole_log"
+                    echo ""
+                    echo -e "${YELLOW}Full log: $swoole_log${NC}"
+                else
+                    echo -e "${RED}Swoole log file not found: $swoole_log${NC}"
+                fi
+                ;;
+            3)
+                local state_file="/www/programing/core_node/poly_apps/laravel_main/storage/logs/octane-server-state.json"
+                if [ -f "$state_file" ]; then
+                    echo ""
+                    echo -e "${CYAN}Octane Server State:${NC}"
+                    echo "================================================"
+                    cat "$state_file" | python3 -m json.tool 2>/dev/null || cat "$state_file"
+                    echo ""
+                else
+                    echo -e "${RED}State file not found: $state_file${NC}"
+                fi
+                ;;
+            0)
+                return 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option${NC}"
+                ;;
+        esac
+        return 0
+    fi
+
+    # For other services, show systemd journal
+    echo ""
+    echo -e "${CYAN}Recent logs (last 50 lines):${NC}"
+    echo "================================================"
+    journalctl -u "$systemd_name" -n 50 --no-pager
+    echo ""
+    echo -e "${YELLOW}Tip: Use 'journalctl -u $systemd_name -f' to follow logs in real-time${NC}"
+}
+
 # Function to enable/disable auto-start
 toggle_autostart() {
     local service="$1"
@@ -643,6 +723,8 @@ show_main_menu() {
         for service in "${SERVICES[@]}"; do
             local service_name="${SERVICE_NAME[$service]}"
             local status=$(get_service_status "$service")
+            local manager_script="${SERVICE_MANAGER_SCRIPT[$service]}"
+            local systemd_name="${SERVICE_SYSTEMD[$service]}"
 
             # Format: [#] Service Name    [STATUS] [Actions]
             printf "${CYAN}%d.${NC} %-15s " "$index" "$service_name"
@@ -654,15 +736,21 @@ show_main_menu() {
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}�?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}�?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 else
-                    echo -e "  ${YELLOW}�?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}�?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 fi
             fi
 
-            # Show advanced manager indicator
+            # Show systemd service name
+            if [ -n "$systemd_name" ]; then
+                echo -e "   ${BLUE}Service: $systemd_name${NC}"
+            fi
+
+            # Show advanced manager indicator with path
             if has_advanced_manager "$service"; then
                 echo -e "   ${BLUE}[Advanced Manager: ${index}m]${NC}"
+                echo -e "   ${BLUE}Manager: $manager_script${NC}"
             fi
 
             ((index++))
@@ -670,13 +758,13 @@ show_main_menu() {
 
         echo ""
         echo "================================================"
-        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
+        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
         echo "================================================"
         echo ""
         read -p "Command: " choice
 
         # Parse command format: <number><action>
-        if [[ "$choice" =~ ^([0-9]+)([sxrim])$ ]]; then
+        if [[ "$choice" =~ ^([0-9]+)([sxriml])$ ]]; then
             local service_num="${BASH_REMATCH[1]}"
             local action="${BASH_REMATCH[2]}"
             local service_index=$((service_num - 1))
@@ -699,6 +787,10 @@ show_main_menu() {
                         ;;
                     i)
                         reinstall_service "$service"
+                        read -p "Press Enter to continue..."
+                        ;;
+                    l)
+                        show_service_logs "$service"
                         read -p "Press Enter to continue..."
                         ;;
                     m)

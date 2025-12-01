@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../config_app_qy/default_language_config_app_qy.dart';
 
 class UserModelAppQy extends ChangeNotifier {
   String? id;
@@ -8,10 +9,10 @@ class UserModelAppQy extends ChangeNotifier {
   String? avatar;
   String? displayName;
   String? provider;
-  
+
   List<String> learningLanguages;
   String? nativeLanguage;
-  
+
   int totalWords;
   int learnedWords;
   int masteredWords;
@@ -24,17 +25,25 @@ class UserModelAppQy extends ChangeNotifier {
   int badges;
   bool isVip;
   DateTime? vipExpireDate;
-  
+
   Map<String, dynamic>? vocabularyCollections;
   Map<String, dynamic>? wordGroups;
-  Map<String, dynamic>? learningStats;
-  
+
   DateTime? createdAt;
   DateTime? lastLoginAt;
   DateTime? lastStudyAt;
   Map<String, dynamic>? settings;
   Map<String, dynamic>? preferences;
+
+  // Unified stats - contains learning statistics
   Map<String, dynamic>? stats;
+
+  // Initialization fields
+  String? occupation;
+  int? dailyWordsTarget;
+  int? dailyStudyTime; // minutes
+  DateTime? initializationCompletedAt;
+  bool get isInitialized => initializationCompletedAt != null;
 
   UserModelAppQy({
     this.id,
@@ -44,8 +53,9 @@ class UserModelAppQy extends ChangeNotifier {
     this.avatar,
     this.displayName,
     this.provider,
-    this.learningLanguages = const ['en'],
-    this.nativeLanguage = 'zh',
+    this.learningLanguages =
+        DefaultLanguageConfigAppQy.defaultLearningLanguages,
+    this.nativeLanguage = DefaultLanguageConfigAppQy.defaultNativeLanguage,
     this.totalWords = 0,
     this.learnedWords = 0,
     this.masteredWords = 0,
@@ -60,32 +70,36 @@ class UserModelAppQy extends ChangeNotifier {
     this.vipExpireDate,
     this.vocabularyCollections,
     this.wordGroups,
-    this.learningStats,
     this.createdAt,
     this.lastLoginAt,
     this.lastStudyAt,
     this.settings,
     this.preferences,
     this.stats,
+    this.occupation,
+    this.dailyWordsTarget,
+    this.dailyStudyTime,
+    this.initializationCompletedAt,
   });
 
   factory UserModelAppQy.fromJson(Map<String, dynamic> json) {
     final userData = json['user'] ?? json;
-    
+
     List<String> parseLearningLanguages(dynamic data) {
-      if (data == null) return ['en'];
+      if (data == null)
+        return DefaultLanguageConfigAppQy.defaultLearningLanguages;
       if (data is List) {
         return data.map((e) => e.toString()).toList();
       }
-      return ['en'];
+      return DefaultLanguageConfigAppQy.defaultLearningLanguages;
     }
-    
+
     Map<String, dynamic>? parseMap(dynamic data) {
       if (data == null) return null;
       if (data is Map) return Map<String, dynamic>.from(data);
       return null;
     }
-    
+
     DateTime? parseDateTime(dynamic data) {
       if (data == null) return null;
       if (data is String) {
@@ -97,49 +111,65 @@ class UserModelAppQy extends ChangeNotifier {
       }
       return null;
     }
-    
-    final stats = parseMap(userData['stats'] ?? userData['learning_stats']);
+
+    // Parse stats from 'stats' key (new format only)
+    final stats = parseMap(userData['stats']);
+
+    // Extract learning statistics from stats map or top-level fields
     final totalWords = stats?['total_words'] ?? userData['total_words'] ?? 0;
-    final learnedWords = stats?['learned_words'] ?? userData['learned_words'] ?? 0;
-    final masteredWords = stats?['mastered_words'] ?? userData['mastered_words'] ?? 0;
-    final reviewDueWords = stats?['review_due_words'] ?? userData['review_due_words'] ?? 0;
-    
+    final learnedWords =
+        stats?['learned_words'] ?? userData['learned_words'] ?? 0;
+    final masteredWords =
+        stats?['mastered_words'] ?? userData['mastered_words'] ?? 0;
+    final reviewDueWords =
+        stats?['review_due_words'] ?? userData['review_due_words'] ?? 0;
+
     return UserModelAppQy(
       id: userData['id']?.toString(),
       username: userData['username']?.toString(),
       email: userData['email']?.toString(),
-      phoneNumber: userData['phone']?.toString() ?? userData['phone_number']?.toString(),
+      phoneNumber: userData['phone_number']?.toString(),
       avatar: userData['avatar']?.toString(),
-      displayName: userData['display_name']?.toString() ?? userData['displayName']?.toString(),
+      displayName: userData['display_name']?.toString(),
       provider: userData['provider']?.toString(),
-      learningLanguages: parseLearningLanguages(
-        userData['learning_languages'] ?? userData['learningLanguages'],
-      ),
-      nativeLanguage: userData['native_language']?.toString() ?? 
-                      userData['nativeLanguage']?.toString() ?? 'zh',
-      totalWords: (totalWords is int) ? totalWords : (totalWords is num ? totalWords.toInt() : 0),
-      learnedWords: (learnedWords is int) ? learnedWords : (learnedWords is num ? learnedWords.toInt() : 0),
-      masteredWords: (masteredWords is int) ? masteredWords : (masteredWords is num ? masteredWords.toInt() : 0),
-      reviewDueWords: (reviewDueWords is int) ? reviewDueWords : (reviewDueWords is num ? reviewDueWords.toInt() : 0),
-      todayNewWords: (userData['today_new_words'] ?? userData['todayNewWords'] ?? 0) as int? ?? 0,
-      todayReviewWords: (userData['today_review_words'] ?? userData['todayReviewWords'] ?? 0) as int? ?? 0,
-      learningProgress: (userData['learning_progress'] ?? userData['learningProgress'] ?? 0.0) as double? ?? 0.0,
-      studyDays: (userData['study_days'] ?? userData['studyDays'] ?? 0) as int? ?? 0,
-      consecutiveCheckInDays: (userData['consecutive_check_in_days'] ?? 
-                                userData['consecutiveCheckInDays'] ?? 
-                                userData['streak_days'] ?? 0) as int? ?? 0,
+      learningLanguages: parseLearningLanguages(userData['learning_languages']),
+      nativeLanguage: userData['native_language']?.toString() ??
+          DefaultLanguageConfigAppQy.defaultNativeLanguage,
+      totalWords: (totalWords is int)
+          ? totalWords
+          : (totalWords is num ? totalWords.toInt() : 0),
+      learnedWords: (learnedWords is int)
+          ? learnedWords
+          : (learnedWords is num ? learnedWords.toInt() : 0),
+      masteredWords: (masteredWords is int)
+          ? masteredWords
+          : (masteredWords is num ? masteredWords.toInt() : 0),
+      reviewDueWords: (reviewDueWords is int)
+          ? reviewDueWords
+          : (reviewDueWords is num ? reviewDueWords.toInt() : 0),
+      todayNewWords: (userData['today_new_words'] ?? 0) as int? ?? 0,
+      todayReviewWords: (userData['today_review_words'] ?? 0) as int? ?? 0,
+      learningProgress:
+          (userData['learning_progress'] ?? 0.0) as double? ?? 0.0,
+      studyDays: (userData['study_days'] ?? 0) as int? ?? 0,
+      consecutiveCheckInDays:
+          (userData['consecutive_check_in_days'] ?? 0) as int? ?? 0,
       badges: (userData['badges'] ?? 0) as int? ?? 0,
-      isVip: (userData['is_vip'] ?? userData['isVip'] ?? false) as bool? ?? false,
-      vipExpireDate: parseDateTime(userData['vip_expire_date'] ?? userData['vipExpireDate']),
-      vocabularyCollections: parseMap(userData['vocabulary_collections'] ?? userData['vocabularyCollections']),
-      wordGroups: parseMap(userData['word_groups'] ?? userData['wordGroups']),
-      learningStats: stats,
-      createdAt: parseDateTime(userData['created_at'] ?? userData['createdAt']),
-      lastLoginAt: parseDateTime(userData['last_login_at'] ?? userData['lastLoginAt']),
-      lastStudyAt: parseDateTime(userData['last_study_at'] ?? userData['lastStudyAt']),
+      isVip: (userData['is_vip'] ?? false) as bool? ?? false,
+      vipExpireDate: parseDateTime(userData['vip_expire_date']),
+      vocabularyCollections: parseMap(userData['vocabulary_collections']),
+      wordGroups: parseMap(userData['word_groups']),
+      createdAt: parseDateTime(userData['created_at']),
+      lastLoginAt: parseDateTime(userData['last_login_at']),
+      lastStudyAt: parseDateTime(userData['last_study_at']),
       settings: parseMap(userData['settings']),
       preferences: parseMap(userData['preferences']),
       stats: stats,
+      occupation: userData['occupation']?.toString(),
+      dailyWordsTarget: userData['daily_words_target'] as int?,
+      dailyStudyTime: userData['daily_study_time'] as int?,
+      initializationCompletedAt:
+          parseDateTime(userData['initialization_completed_at']),
     );
   }
 
@@ -149,54 +179,36 @@ class UserModelAppQy extends ChangeNotifier {
       'username': username,
       'email': email,
       'phone_number': phoneNumber,
-      'phone': phoneNumber,
       'avatar': avatar,
       'display_name': displayName,
-      'displayName': displayName,
       'provider': provider,
       'learning_languages': learningLanguages,
-      'learningLanguages': learningLanguages,
       'native_language': nativeLanguage,
-      'nativeLanguage': nativeLanguage,
       'total_words': totalWords,
-      'totalWords': totalWords,
       'learned_words': learnedWords,
-      'learnedWords': learnedWords,
       'mastered_words': masteredWords,
-      'masteredWords': masteredWords,
       'review_due_words': reviewDueWords,
-      'reviewDueWords': reviewDueWords,
       'today_new_words': todayNewWords,
-      'todayNewWords': todayNewWords,
       'today_review_words': todayReviewWords,
-      'todayReviewWords': todayReviewWords,
       'learning_progress': learningProgress,
-      'learningProgress': learningProgress,
       'study_days': studyDays,
-      'studyDays': studyDays,
       'consecutive_check_in_days': consecutiveCheckInDays,
-      'consecutiveCheckInDays': consecutiveCheckInDays,
-      'streak_days': consecutiveCheckInDays,
       'badges': badges,
       'is_vip': isVip,
-      'isVip': isVip,
       'vip_expire_date': vipExpireDate?.toIso8601String(),
-      'vipExpireDate': vipExpireDate?.toIso8601String(),
       'vocabulary_collections': vocabularyCollections,
-      'vocabularyCollections': vocabularyCollections,
       'word_groups': wordGroups,
-      'wordGroups': wordGroups,
-      'learning_stats': learningStats,
-      'learningStats': learningStats,
       'created_at': createdAt?.toIso8601String(),
-      'createdAt': createdAt?.toIso8601String(),
       'last_login_at': lastLoginAt?.toIso8601String(),
-      'lastLoginAt': lastLoginAt?.toIso8601String(),
       'last_study_at': lastStudyAt?.toIso8601String(),
-      'lastStudyAt': lastStudyAt?.toIso8601String(),
       'settings': settings,
       'preferences': preferences,
-      'stats': stats ?? learningStats,
+      'stats': stats,
+      'occupation': occupation,
+      'daily_words_target': dailyWordsTarget,
+      'daily_study_time': dailyStudyTime,
+      'initialization_completed_at':
+          initializationCompletedAt?.toIso8601String(),
     };
   }
 
@@ -224,13 +236,16 @@ class UserModelAppQy extends ChangeNotifier {
     DateTime? vipExpireDate,
     Map<String, dynamic>? vocabularyCollections,
     Map<String, dynamic>? wordGroups,
-    Map<String, dynamic>? learningStats,
     DateTime? createdAt,
     DateTime? lastLoginAt,
     DateTime? lastStudyAt,
     Map<String, dynamic>? settings,
     Map<String, dynamic>? preferences,
     Map<String, dynamic>? stats,
+    String? occupation,
+    int? dailyWordsTarget,
+    int? dailyStudyTime,
+    DateTime? initializationCompletedAt,
   }) {
     return UserModelAppQy(
       id: id ?? this.id,
@@ -250,19 +265,25 @@ class UserModelAppQy extends ChangeNotifier {
       todayReviewWords: todayReviewWords ?? this.todayReviewWords,
       learningProgress: learningProgress ?? this.learningProgress,
       studyDays: studyDays ?? this.studyDays,
-      consecutiveCheckInDays: consecutiveCheckInDays ?? this.consecutiveCheckInDays,
+      consecutiveCheckInDays:
+          consecutiveCheckInDays ?? this.consecutiveCheckInDays,
       badges: badges ?? this.badges,
       isVip: isVip ?? this.isVip,
       vipExpireDate: vipExpireDate ?? this.vipExpireDate,
-      vocabularyCollections: vocabularyCollections ?? this.vocabularyCollections,
+      vocabularyCollections:
+          vocabularyCollections ?? this.vocabularyCollections,
       wordGroups: wordGroups ?? this.wordGroups,
-      learningStats: learningStats ?? this.learningStats,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
       lastStudyAt: lastStudyAt ?? this.lastStudyAt,
       settings: settings ?? this.settings,
       preferences: preferences ?? this.preferences,
       stats: stats ?? this.stats,
+      occupation: occupation ?? this.occupation,
+      dailyWordsTarget: dailyWordsTarget ?? this.dailyWordsTarget,
+      dailyStudyTime: dailyStudyTime ?? this.dailyStudyTime,
+      initializationCompletedAt:
+          initializationCompletedAt ?? this.initializationCompletedAt,
     );
   }
 
@@ -275,8 +296,8 @@ class UserModelAppQy extends ChangeNotifier {
       avatar: null,
       displayName: 'Guest',
       provider: null,
-      learningLanguages: ['en'],
-      nativeLanguage: 'zh',
+      learningLanguages: DefaultLanguageConfigAppQy.defaultLearningLanguages,
+      nativeLanguage: DefaultLanguageConfigAppQy.defaultNativeLanguage,
       totalWords: 0,
       learnedWords: 0,
       masteredWords: 0,
@@ -315,7 +336,6 @@ class UserModelAppQy extends ChangeNotifier {
     vipExpireDate = other.vipExpireDate;
     vocabularyCollections = other.vocabularyCollections;
     wordGroups = other.wordGroups;
-    learningStats = other.learningStats;
     createdAt = other.createdAt;
     lastLoginAt = other.lastLoginAt;
     lastStudyAt = other.lastStudyAt;
@@ -332,12 +352,12 @@ class UserModelAppQy extends ChangeNotifier {
     final percentage = (learnedWords / totalWords) * 100;
     return percentage.toStringAsFixed(1);
   }
-  
+
   String get masteryPercentage {
     if (totalWords == 0) return '0.0';
     final percentage = (masteredWords / totalWords) * 100;
     return percentage.toStringAsFixed(1);
   }
-  
+
   String get name => displayName ?? username ?? 'Guest';
 }

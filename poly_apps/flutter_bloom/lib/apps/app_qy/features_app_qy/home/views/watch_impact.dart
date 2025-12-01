@@ -19,6 +19,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:go_router/go_router.dart';
 
 class WatchTheImpactScreen extends StatefulWidget {
@@ -42,7 +43,7 @@ class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
             ActionWidget(
               actionIcon: Icon(
                 Icons.more_vert,
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
               ),
             )
           ],
@@ -74,7 +75,7 @@ class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
                           left: 60,
                           child: Icon(
                             Icons.play_circle_outline,
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             size: 50,
                           ),
                         ),
@@ -86,7 +87,7 @@ class _WatchTheImpactScreenState extends State<WatchTheImpactScreen> {
                               child: Text(
                                 watchImpacts[index].watchName,
                                 style: ThemeTextStyles.textMedium
-                                    .copyWith(color: ThemeColors.white),
+                                    .copyWith(color: ColorsAppQy.qyTextOnPrimary),
                               ),
                             )),
                       ],

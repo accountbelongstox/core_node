@@ -51,16 +51,19 @@ class _DictionaryCardState extends State<DictionaryCard>
   }
 
   Color _getDifficultyColor() {
-    switch (widget.dictionary.difficulty.toLowerCase()) {
-      case 'beginner':
-        return Colors.green;
-      case 'intermediate':
-        return Colors.orange;
-      case 'advanced':
-        return Colors.red;
-      default:
-        return Colors.blue;
+    // Use localized difficulty keys for comparison
+    final difficulty = widget.dictionary.difficulty.toLowerCase();
+    if (difficulty == QyAppLocalizationKeys.qyDictionaryDifficultyBeginner.toLowerCase() ||
+        difficulty == 'beginner') {
+      return ColorsAppQy.qySuccess;
+    } else if (difficulty == QyAppLocalizationKeys.qyDictionaryDifficultyIntermediate.toLowerCase() ||
+               difficulty == 'intermediate') {
+      return ColorsAppQy.qyWarning;
+    } else if (difficulty == QyAppLocalizationKeys.qyDictionaryDifficultyAdvanced.toLowerCase() ||
+               difficulty == 'advanced') {
+      return ColorsAppQy.qyError;
     }
+    return ColorsAppQy.qyPrimary;
   }
 
   @override
@@ -83,10 +86,11 @@ class _DictionaryCardState extends State<DictionaryCard>
         scale: _scaleAnimation,
         child: Card(
           elevation: _isPressed ? 2 : 8,
-          shadowColor: Colors.black.withOpacity(0.2),
+          shadowColor: ColorsAppQy.qyShadowMedium,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
           ),
+          color: ColorsAppQy.qyCardBackground,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -96,31 +100,31 @@ class _DictionaryCardState extends State<DictionaryCard>
 
               // Content Section
               Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(ThemeDimensions.spacing12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Title
                     Text(
                       widget.dictionary.title,
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: ThemeTextStyles.body1.copyWith(
+                        color: ColorsAppQy.qyTextPrimary,
                         fontWeight: FontWeight.bold,
                         height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: ThemeDimensions.spacing8),
 
                     // Stats Row
                     _buildStatsRow(),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: ThemeDimensions.spacing12),
 
                     // Tags
                     if (widget.dictionary.tags.isNotEmpty) _buildTags(),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: ThemeDimensions.spacing8),
 
                     // Action Buttons
                     _buildActionButtons(),
@@ -139,7 +143,9 @@ class _DictionaryCardState extends State<DictionaryCard>
       children: [
         // Main Image
         ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(ThemeDimensions.radiusLarge),
+          ),
           child: AspectRatio(
             aspectRatio: 1.5,
             child: Image.network(
@@ -147,14 +153,18 @@ class _DictionaryCardState extends State<DictionaryCard>
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                  color: ColorsAppQy.qyCardBackground,
+                  child: Icon(
+                    Icons.image,
+                    size: 48,
+                    color: ColorsAppQy.qyTextSecondary,
+                  ),
                 );
               },
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
                 return Container(
-                  color: Colors.grey[200],
+                  color: ColorsAppQy.qyCardBackground,
                   child: Center(
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
@@ -177,14 +187,15 @@ class _DictionaryCardState extends State<DictionaryCard>
           child: Container(
             height: 80,
             decoration: BoxDecoration(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(ThemeDimensions.radiusLarge),
+              ),
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.6),
-                  Colors.transparent,
+                  ColorsAppQy.qyShadowDark.withOpacity(0.6),
+                  ColorsAppQy.qyPageBackground.withOpacity(0),
                 ],
               ),
             ),
@@ -193,19 +204,21 @@ class _DictionaryCardState extends State<DictionaryCard>
 
         // Difficulty Badge
         Positioned(
-          top: 8,
-          left: 8,
+          top: ThemeDimensions.spacing8,
+          left: ThemeDimensions.spacing8,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.spacing10,
+              vertical: ThemeDimensions.spacing4,
+            ),
             decoration: BoxDecoration(
               color: _getDifficultyColor(),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             ),
             child: Text(
-              widget.dictionary.difficulty.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
+              widget.dictionary.difficulty.tr(context).toUpperCase(),
+              style: ThemeTextStyles.caption.copyWith(
+                color: ColorsAppQy.qyTextOnPrimary,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.5,
               ),
@@ -215,20 +228,20 @@ class _DictionaryCardState extends State<DictionaryCard>
 
         // Like Button
         Positioned(
-          top: 8,
-          right: 8,
+          top: ThemeDimensions.spacing8,
+          right: ThemeDimensions.spacing8,
           child: Material(
-            color: Colors.white,
+            color: ColorsAppQy.qyCardBackground,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: widget.onLike,
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(ThemeDimensions.spacing8),
                 child: Icon(
                   Icons.favorite_border,
-                  size: 20,
-                  color: Colors.red[400],
+                  size: ThemeDimensions.iconSizeMedium,
+                  color: ColorsAppQy.qyError,
                 ),
               ),
             ),
