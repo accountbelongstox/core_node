@@ -511,8 +511,7 @@
         }
     }
 
-    if (typeof ITTools !== 'undefined' && ITTools.Tools && ITTools.Tools.Registry) {
-        ITTools.Tools.Registry.register('online-clipboard', {
+    ITTools.Tools.Registry.register('online-clipboard', {
             name: 'Online Clipboard',
             category: 'clipboard',
             render: renderUI,

@@ -787,9 +787,7 @@ function saveAllAppHeaders(appName) {
 
     Object.keys(supportedHeaders).forEach(headerName => {
         const input = document.getElementById('header-' + appName + '-' + headerName);
-        if (input) {
-            headers[headerName] = input.value;
-        }
+        headers[headerName] = input.value;
     });
 
     const cacheKey = 'app_headers_' + appName;
@@ -1580,10 +1578,7 @@ async function loadDictionaryStatistics() {
 // Load dictionary statistics when dev-tools section is shown
 // This function will be called from showSection when dev-tools is activated
 function loadDictionaryStatisticsIfAvailable() {
-    const container = document.getElementById('dict-stats-container');
-    if (container) {
-        loadDictionaryStatistics();
-    }
+    loadDictionaryStatistics();
 }
 
 // Initialize integrated modules when Code Browser section is shown

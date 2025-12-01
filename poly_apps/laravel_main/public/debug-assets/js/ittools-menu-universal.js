@@ -10,15 +10,11 @@ ITTools.UniversalMenu = {
     MAX_HISTORY: 20,
 
     getMenuConfig() {
-        if (typeof ITToolsMenuConfig !== 'undefined') {
-            return ITToolsMenuConfig.categories;
-        }
-        return [];
+        return ITToolsMenuConfig.categories;
     },
 
     renderLeftMenu(containerId) {
         const container = document.getElementById(containerId);
-        if (!container) return;
         
         const categories = this.getMenuConfig();
         const html = `
@@ -49,7 +45,6 @@ ITTools.UniversalMenu = {
 
     renderTopMenu(containerId) {
         const container = document.getElementById(containerId);
-        if (!container) return;
         
         const categories = this.getMenuConfig();
         const html = `
@@ -85,7 +80,6 @@ ITTools.UniversalMenu = {
 
     renderHistoryBar(containerId) {
         const container = document.getElementById(containerId);
-        if (!container) return;
         
         const history = this.getHistory();
         const allTools = this.getAllToolsMap();
@@ -191,7 +185,7 @@ ITTools.UniversalMenu = {
         
         container.addEventListener('mouseleave', (e) => {
             const toElement = e.relatedTarget;
-            if (!toElement || !toElement.closest('#global-dropdown-container')) {
+            if (!toElement.closest('#global-dropdown-container')) {
                 setTimeout(hideAllDropdowns, 100);
             }
         });
@@ -250,9 +244,7 @@ ITTools.UniversalMenu = {
 
     selectTool(toolId, toolLabel) {
         ITTools.Menu.activateSubmenu(toolId);
-        if (typeof ITTools.Tools !== 'undefined' && ITTools.Tools.loadTool) {
-            ITTools.Tools.loadTool(toolId);
-        }
+        ITTools.Tools.loadTool(toolId);
         this.addToHistory(toolId, toolLabel);
         this.refreshHistoryBar();
         this.saveState(toolId);
@@ -287,9 +279,7 @@ ITTools.UniversalMenu = {
         
         if (state.expandedGroups && state.expandedGroups.length > 0) {
             state.expandedGroups.forEach(groupId => {
-                if (typeof ITTools.Menu !== 'undefined' && ITTools.Menu.expandGroup) {
-                    ITTools.Menu.expandGroup(groupId, false);
-                }
+                ITTools.Menu.expandGroup(groupId, false);
             });
         }
         
@@ -299,9 +289,7 @@ ITTools.UniversalMenu = {
             if (toolInfo) {
                 setTimeout(() => {
                     ITTools.Menu.activateSubmenu(state.lastTool, false);
-                    if (typeof ITTools.Tools !== 'undefined' && ITTools.Tools.loadTool) {
-                        ITTools.Tools.loadTool(state.lastTool);
-                    }
+                    ITTools.Tools.loadTool(state.lastTool);
                 }, 100);
             }
         }
@@ -342,9 +330,7 @@ ITTools.UniversalMenu = {
 
     refreshHistoryBar() {
         const container = document.getElementById('ittools-history-bar');
-        if (container) {
-            this.renderHistoryBar('ittools-history-bar');
-        }
+        this.renderHistoryBar('ittools-history-bar');
     },
 
     init() {
@@ -365,9 +351,7 @@ ITTools.UniversalMenu = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof ITTools !== 'undefined' && typeof ITToolsMenuConfig !== 'undefined') {
-        setTimeout(() => ITTools.UniversalMenu.init(), 100);
-    }
+    setTimeout(() => ITTools.UniversalMenu.init(), 100);
 });
 
 console.log('ITTools Universal Menu component loaded');
