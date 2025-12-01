@@ -1,0 +1,2543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星灿传媒科技 - 云矩阵服务集群</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: #000;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 模糊背景层 */
+        #blur-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            filter: blur(80px);
+            opacity: 0.6;
+            z-index: 1;
+        }
+
+        /* 渐变背景层 */
+        #gradient-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            background: linear-gradient(135deg, 
+                rgba(0, 100, 200, 0.3) 0%,
+                rgba(0, 150, 255, 0.3) 25%,
+                rgba(200, 220, 255, 0.3) 50%,
+                rgba(0, 150, 255, 0.3) 75%,
+                rgba(255, 255, 255, 0.3) 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 粒子系统容器 */
+        #particles-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+        }
+
+        /* 矩阵雨效果 */
+        #matrix-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            opacity: 0.3;
+        }
+
+        /* 全息文字容器 */
+        #hologram-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            text-align: center;
+            perspective: 1000px;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        /* 备用文字层 */
+        .main-title-backup {
+            font-size: 5rem;
+            font-weight: 900;
+            margin-bottom: 1rem;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
+            color: rgba(0, 170, 255, 0.3);
+            letter-spacing: 0.05em;
+            word-spacing: 0.1em;
+            white-space: nowrap;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: inline-block;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .sub-title-backup {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
+            color: rgba(255, 255, 255, 0.3);
+            letter-spacing: 0.05em;
+            word-spacing: 0.1em;
+            white-space: nowrap;
+            position: absolute;
+            top: 6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: inline-block;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .main-title {
+            font-size: 5rem;
+            font-weight: 900;
+            margin-bottom: 1rem;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
+            color: #00aaff;
+            background: linear-gradient(45deg, 
+                #00aaff, #ffffff, #0088ff, #ffffff, #00aaff, #ffffff);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: hologramText 3s ease infinite, 
+                       textGlow 2s ease-in-out infinite alternate,
+                       textFloat 4s ease-in-out infinite;
+            text-shadow: 0 0 20px rgba(0, 170, 255, 0.8),
+                         0 0 40px rgba(255, 255, 255, 0.6),
+                         0 0 60px rgba(0, 170, 255, 0.4),
+                         0 0 80px rgba(0, 170, 255, 0.3);
+            letter-spacing: 0.05em;
+            word-spacing: 0.1em;
+            white-space: nowrap;
+            position: relative;
+            display: inline-block;
+            z-index: 11;
+            filter: drop-shadow(0 0 10px rgba(0, 170, 255, 0.5));
+        }
+
+        .sub-title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
+            color: #ffffff;
+            background: linear-gradient(45deg, 
+                #00aaff, #ffffff, #0088ff, #ffffff);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: hologramText 3s ease infinite 0.5s,
+                       textGlow 2s ease-in-out infinite alternate 0.5s,
+                       textFloat 4s ease-in-out infinite 0.5s;
+            text-shadow: 0 0 15px rgba(0, 170, 255, 0.7),
+                         0 0 30px rgba(255, 255, 255, 0.5),
+                         0 0 45px rgba(0, 170, 255, 0.4);
+            letter-spacing: 0.05em;
+            word-spacing: 0.1em;
+            white-space: nowrap;
+            position: relative;
+            display: inline-block;
+            z-index: 11;
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+        }
+
+        @keyframes hologramText {
+            0%, 100% { 
+                background-position: 0% 50%;
+                filter: hue-rotate(0deg);
+            }
+            25% { 
+                background-position: 100% 50%;
+                filter: hue-rotate(90deg);
+            }
+            50% { 
+                background-position: 100% 100%;
+                filter: hue-rotate(180deg);
+            }
+            75% { 
+                background-position: 0% 100%;
+                filter: hue-rotate(270deg);
+            }
+        }
+
+        @keyframes textGlow {
+            0% {
+                text-shadow: 0 0 20px rgba(0, 170, 255, 0.8),
+                             0 0 40px rgba(255, 255, 255, 0.6),
+                             0 0 60px rgba(0, 170, 255, 0.4);
+            }
+            100% {
+                text-shadow: 0 0 30px rgba(0, 170, 255, 1),
+                             0 0 60px rgba(255, 255, 255, 0.8),
+                             0 0 90px rgba(0, 170, 255, 0.6),
+                             0 0 120px rgba(255, 255, 255, 0.4);
+            }
+        }
+
+        @keyframes textFloat {
+            0%, 100% { transform: translateY(0px) rotateX(0deg); }
+            50% { transform: translateY(-20px) rotateX(5deg); }
+        }
+
+        /* 全息扫描线效果 */
+        .hologram-scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(0, 170, 255, 0.8), 
+                transparent);
+            animation: scanlineMove 3s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanlineMove {
+            0% { top: -2px; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* 3D变换容器 */
+        #transform-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .transform-element {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(0, 170, 255, 0.5);
+            background: rgba(0, 170, 255, 0.1);
+            backdrop-filter: blur(10px);
+            animation: transform3D 8s ease-in-out infinite;
+        }
+
+        @keyframes transform3D {
+            0%, 100% {
+                transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+                opacity: 0.3;
+            }
+            25% {
+                transform: translate3d(100px, 100px, 100px) rotateX(90deg) rotateY(45deg) rotateZ(45deg);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translate3d(-100px, 200px, -100px) rotateX(180deg) rotateY(90deg) rotateZ(90deg);
+                opacity: 0.8;
+            }
+            75% {
+                transform: translate3d(200px, -100px, 150px) rotateX(270deg) rotateY(135deg) rotateZ(135deg);
+                opacity: 0.5;
+            }
+        }
+
+        /* 过场动画遮罩 */
+        #transition-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .transition-active {
+            pointer-events: all;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- 模糊背景层 -->
+        <canvas id="blur-background"></canvas>
+        
+        <!-- 渐变背景层 -->
+        <div id="gradient-background"></div>
+        
+        <!-- 粒子系统 -->
+        <canvas id="particles-canvas"></canvas>
+        
+        <!-- 矩阵雨效果 -->
+        <canvas id="matrix-canvas"></canvas>
+        
+        <!-- 3D变换元素 -->
+        <div id="transform-container"></div>
+        
+        <!-- 全息文字容器 -->
+        <div id="hologram-container">
+            <div class="hologram-scanline"></div>
+            <!-- 备用文字层（确保文字可见） -->
+            <h1 class="main-title-backup" id="main-title-backup">星灿传媒科技</h1>
+            <h2 class="sub-title-backup" id="sub-title-backup">云矩阵服务集群</h2>
+            <!-- 渐变文字层 -->
+            <h1 class="main-title" id="main-title">星灿传媒科技</h1>
+            <h2 class="sub-title" id="sub-title">云矩阵服务集群</h2>
+        </div>
+        
+        <!-- 过场动画遮罩 -->
+        <div id="transition-overlay"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // 效果1: 模糊背景粒子系统 (500+ 行)
+        // ============================================
+        class BlurParticleSystem {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = [];
+                this.particleCount = 200;
+                this.maxRadius = 4;
+                this.minRadius = 1;
+                this.speed = 0.5;
+                this.connectionDistance = 150;
+                this.gradientCache = {};
+                
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.init();
+                this.animate();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.centerX = this.canvas.width / 2;
+                this.centerY = this.canvas.height / 2;
+            }
+
+            init() {
+                this.particles = [];
+                for (let i = 0; i < this.particleCount; i++) {
+                    this.particles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * this.speed,
+                        vy: (Math.random() - 0.5) * this.speed,
+                        radius: Math.random() * (this.maxRadius - this.minRadius) + this.minRadius,
+                        hue: Math.random() * 360,
+                        saturation: 50 + Math.random() * 50,
+                        lightness: 30 + Math.random() * 40,
+                        opacity: 0.3 + Math.random() * 0.7,
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        pulseSpeed: 0.01 + Math.random() * 0.02,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotationSpeed: (Math.random() - 0.5) * 0.02,
+                        trail: [],
+                        trailLength: 5 + Math.floor(Math.random() * 10),
+                        magneticField: {
+                            strength: 0.1 + Math.random() * 0.2,
+                            phase: Math.random() * Math.PI * 2,
+                            frequency: 0.001 + Math.random() * 0.002
+                        },
+                        quantumState: {
+                            probability: Math.random(),
+                            collapsePhase: Math.random() * Math.PI * 2,
+                            entanglement: Math.floor(Math.random() * this.particleCount)
+                        },
+                        mass: 0.5 + Math.random() * 1.5,
+                        charge: (Math.random() - 0.5) * 2,
+                        spin: Math.random() * Math.PI * 2,
+                        spinSpeed: (Math.random() - 0.5) * 0.1
+                    });
+                }
+                this.setupMouseInteraction();
+                this.createParticleGroups();
+            }
+
+            createGradient(x, y, radius, hue) {
+                const key = `${Math.floor(x/10)}_${Math.floor(y/10)}_${Math.floor(radius)}_${Math.floor(hue)}`;
+                if (this.gradientCache[key]) {
+                    return this.gradientCache[key];
+                }
+                
+                const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, radius);
+                gradient.addColorStop(0, `hsla(${hue}, 100%, 70%, 1)`);
+                gradient.addColorStop(0.5, `hsla(${hue + 30}, 80%, 50%, 0.6)`);
+                gradient.addColorStop(1, `hsla(${hue + 60}, 60%, 30%, 0)`);
+                
+                this.gradientCache[key] = gradient;
+                return gradient;
+            }
+
+            updateParticle(particle, index) {
+                // 量子态更新
+                particle.quantumState.probability += 0.01;
+                if (particle.quantumState.probability > 1) {
+                    particle.quantumState.probability = 0;
+                    particle.quantumState.collapsePhase = Math.random() * Math.PI * 2;
+                }
+
+                // 磁场影响
+                const magneticAngle = particle.magneticField.phase + 
+                    particle.magneticField.frequency * Date.now();
+                const magneticForce = particle.magneticField.strength;
+                const dx = Math.cos(magneticAngle) * magneticForce;
+                const dy = Math.sin(magneticAngle) * magneticForce;
+
+                // 脉冲效果
+                const pulse = Math.sin(particle.pulsePhase) * 0.3 + 1;
+                particle.pulsePhase += particle.pulseSpeed;
+
+                // 旋转
+                particle.rotation += particle.rotationSpeed;
+
+                // 量子纠缠效应
+                const entangled = this.particles[particle.quantumState.entanglement];
+                if (entangled) {
+                    const distance = Math.sqrt(
+                        Math.pow(particle.x - entangled.x, 2) + 
+                        Math.pow(particle.y - entangled.y, 2)
+                    );
+                    if (distance < 200) {
+                        const force = (200 - distance) / 200 * 0.05;
+                        const angle = Math.atan2(entangled.y - particle.y, entangled.x - particle.x);
+                        particle.vx += Math.cos(angle) * force;
+                        particle.vy += Math.sin(angle) * force;
+                    }
+                }
+
+                // 中心引力
+                const centerDx = this.centerX - particle.x;
+                const centerDy = this.centerY - particle.y;
+                const centerDistance = Math.sqrt(centerDx * centerDx + centerDy * centerDy);
+                if (centerDistance > 0) {
+                    const centerForce = 0.0001;
+                    particle.vx += (centerDx / centerDistance) * centerForce;
+                    particle.vy += (centerDy / centerDistance) * centerForce;
+                }
+
+                // 速度更新
+                particle.vx += dx;
+                particle.vy += dy;
+                particle.vx *= 0.99;
+                particle.vy *= 0.99;
+
+                // 位置更新
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+
+                // 边界处理（弹性）
+                if (particle.x < 0 || particle.x > this.canvas.width) {
+                    particle.vx *= -0.8;
+                    particle.x = Math.max(0, Math.min(this.canvas.width, particle.x));
+                }
+                if (particle.y < 0 || particle.y > this.canvas.height) {
+                    particle.vy *= -0.8;
+                    particle.y = Math.max(0, Math.min(this.canvas.height, particle.y));
+                }
+
+                // 轨迹记录
+                particle.trail.push({ x: particle.x, y: particle.y, opacity: particle.opacity });
+                if (particle.trail.length > particle.trailLength) {
+                    particle.trail.shift();
+                }
+
+                // 色相循环
+                particle.hue = (particle.hue + 0.5) % 360;
+            }
+
+            drawConnection(p1, p2, distance) {
+                const opacity = (1 - distance / this.connectionDistance) * 0.3;
+                const gradient = this.ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+                gradient.addColorStop(0, `hsla(${p1.hue}, 70%, 60%, ${opacity})`);
+                gradient.addColorStop(1, `hsla(${p2.hue}, 70%, 60%, ${opacity})`);
+                
+                this.ctx.strokeStyle = gradient;
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(p1.x, p1.y);
+                this.ctx.lineTo(p2.x, p2.y);
+                this.ctx.stroke();
+            }
+
+            drawParticle(particle) {
+                // 绘制轨迹
+                if (particle.trail.length > 1) {
+                    for (let i = 0; i < particle.trail.length - 1; i++) {
+                        const point = particle.trail[i];
+                        const nextPoint = particle.trail[i + 1];
+                        const trailOpacity = (i / particle.trail.length) * particle.opacity * 0.3;
+                        
+                        this.ctx.strokeStyle = `hsla(${particle.hue}, ${particle.saturation}%, ${particle.lightness}%, ${trailOpacity})`;
+                        this.ctx.lineWidth = 1;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(point.x, point.y);
+                        this.ctx.lineTo(nextPoint.x, nextPoint.y);
+                        this.ctx.stroke();
+                    }
+                }
+
+                // 绘制粒子
+                const pulse = Math.sin(particle.pulsePhase) * 0.3 + 1;
+                const radius = particle.radius * pulse;
+                
+                this.ctx.save();
+                this.ctx.translate(particle.x, particle.y);
+                this.ctx.rotate(particle.rotation);
+                
+                const gradient = this.createGradient(0, 0, radius * 2, particle.hue);
+                this.ctx.fillStyle = gradient;
+                
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 外发光
+                this.ctx.shadowBlur = radius * 3;
+                this.ctx.shadowColor = `hsl(${particle.hue}, 100%, 60%)`;
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, radius * 0.5, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.restore();
+            }
+
+            // 添加鼠标交互
+            setupMouseInteraction() {
+                this.mouseX = this.centerX;
+                this.mouseY = this.centerY;
+                this.mouseRadius = 100;
+                
+                document.addEventListener('mousemove', (e) => {
+                    this.mouseX = e.clientX;
+                    this.mouseY = e.clientY;
+                });
+                
+                document.addEventListener('touchmove', (e) => {
+                    if (e.touches.length > 0) {
+                        this.mouseX = e.touches[0].clientX;
+                        this.mouseY = e.touches[0].clientY;
+                    }
+                });
+            }
+
+            // 计算鼠标对粒子的影响
+            applyMouseInfluence(particle) {
+                const dx = this.mouseX - particle.x;
+                const dy = this.mouseY - particle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < this.mouseRadius) {
+                    const force = (this.mouseRadius - distance) / this.mouseRadius;
+                    const angle = Math.atan2(dy, dx);
+                    particle.vx -= Math.cos(angle) * force * 0.5;
+                    particle.vy -= Math.sin(angle) * force * 0.5;
+                }
+            }
+
+            // 添加涡流效果
+            createVortex(particle) {
+                const vortexX = this.canvas.width / 2;
+                const vortexY = this.canvas.height / 2;
+                const dx = particle.x - vortexX;
+                const dy = particle.y - vortexY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const vortexRadius = 200;
+                
+                if (distance < vortexRadius) {
+                    const angle = Math.atan2(dy, dx);
+                    const vortexStrength = (vortexRadius - distance) / vortexRadius * 0.1;
+                    particle.vx += Math.cos(angle + Math.PI / 2) * vortexStrength;
+                    particle.vy += Math.sin(angle + Math.PI / 2) * vortexStrength;
+                }
+            }
+
+            // 添加重力井效果
+            createGravityWell(particle, wellX, wellY, strength) {
+                const dx = wellX - particle.x;
+                const dy = wellY - particle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0 && distance < 300) {
+                    const force = strength / (distance * distance + 1);
+                    particle.vx += (dx / distance) * force;
+                    particle.vy += (dy / distance) * force;
+                }
+            }
+
+            // 添加碰撞检测
+            checkCollisions(particle, index) {
+                for (let i = index + 1; i < this.particles.length; i++) {
+                    const other = this.particles[i];
+                    const dx = particle.x - other.x;
+                    const dy = particle.y - other.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const minDistance = particle.radius + other.radius;
+                    
+                    if (distance < minDistance && distance > 0) {
+                        const angle = Math.atan2(dy, dx);
+                        const targetX = particle.x + Math.cos(angle) * minDistance;
+                        const targetY = particle.y + Math.sin(angle) * minDistance;
+                        const ax = (targetX - other.x) * 0.05;
+                        const ay = (targetY - other.y) * 0.05;
+                        
+                        particle.vx -= ax;
+                        particle.vy -= ay;
+                        other.vx += ax;
+                        other.vy += ay;
+                    }
+                }
+            }
+
+            // 添加能量场效果
+            createEnergyField(particle) {
+                const fieldCenters = [
+                    { x: this.canvas.width * 0.25, y: this.canvas.height * 0.25, phase: 0 },
+                    { x: this.canvas.width * 0.75, y: this.canvas.height * 0.25, phase: Math.PI },
+                    { x: this.canvas.width * 0.25, y: this.canvas.height * 0.75, phase: Math.PI / 2 },
+                    { x: this.canvas.width * 0.75, y: this.canvas.height * 0.75, phase: Math.PI * 1.5 }
+                ];
+                
+                fieldCenters.forEach(field => {
+                    const dx = particle.x - field.x;
+                    const dy = particle.y - field.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const fieldRadius = 150;
+                    
+                    if (distance < fieldRadius) {
+                        const time = Date.now() * 0.001;
+                        const wave = Math.sin(time * 2 + field.phase) * 0.5 + 0.5;
+                        const force = (fieldRadius - distance) / fieldRadius * wave * 0.02;
+                        const angle = Math.atan2(dy, dx);
+                        particle.vx += Math.cos(angle) * force;
+                        particle.vy += Math.sin(angle) * force;
+                    }
+                });
+            }
+
+            // 扩展更新粒子方法
+            updateParticleExtended(particle, index) {
+                this.updateParticle(particle, index);
+                this.applyMouseInfluence(particle);
+                this.createVortex(particle);
+                this.createEnergyField(particle);
+                this.checkCollisions(particle, index);
+            }
+
+            // 添加粒子群组效果
+            createParticleGroups() {
+                this.groups = [];
+                const groupCount = 5;
+                for (let i = 0; i < groupCount; i++) {
+                    this.groups.push({
+                        centerX: Math.random() * this.canvas.width,
+                        centerY: Math.random() * this.canvas.height,
+                        radius: 100 + Math.random() * 100,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 0.01 + Math.random() * 0.02,
+                        particles: []
+                    });
+                }
+                
+                this.particles.forEach((particle, index) => {
+                    const groupIndex = index % groupCount;
+                    this.groups[groupIndex].particles.push(index);
+                });
+            }
+
+            // 更新群组
+            updateGroups() {
+                this.groups.forEach(group => {
+                    group.phase += group.speed;
+                    group.centerX += Math.cos(group.phase) * 0.5;
+                    group.centerY += Math.sin(group.phase) * 0.5;
+                    
+                    if (group.centerX < 0 || group.centerX > this.canvas.width) {
+                        group.centerX = Math.max(0, Math.min(this.canvas.width, group.centerX));
+                    }
+                    if (group.centerY < 0 || group.centerY > this.canvas.height) {
+                        group.centerY = Math.max(0, Math.min(this.canvas.height, group.centerY));
+                    }
+                });
+            }
+
+            // 绘制群组连接
+            drawGroupConnections() {
+                this.groups.forEach(group => {
+                    const particles = group.particles.map(i => this.particles[i]);
+                    for (let i = 0; i < particles.length; i++) {
+                        for (let j = i + 1; j < particles.length; j++) {
+                            const dx = particles[i].x - particles[j].x;
+                            const dy = particles[i].y - particles[j].y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (distance < 100) {
+                                const opacity = (1 - distance / 100) * 0.2;
+                                this.ctx.strokeStyle = `hsla(${particles[i].hue}, 70%, 60%, ${opacity})`;
+                                this.ctx.lineWidth = 0.5;
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(particles[i].x, particles[i].y);
+                                this.ctx.lineTo(particles[j].x, particles[j].y);
+                                this.ctx.stroke();
+                            }
+                        }
+                    }
+                });
+            }
+
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 更新群组
+                if (this.groups) {
+                    this.updateGroups();
+                }
+                
+                // 更新所有粒子
+                this.particles.forEach((particle, index) => {
+                    this.updateParticleExtended(particle, index);
+                });
+
+                // 绘制群组连接
+                if (this.groups) {
+                    this.drawGroupConnections();
+                }
+
+                // 绘制连接线
+                for (let i = 0; i < this.particles.length; i++) {
+                    for (let j = i + 1; j < this.particles.length; j++) {
+                        const dx = this.particles[i].x - this.particles[j].x;
+                        const dy = this.particles[i].y - this.particles[j].y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < this.connectionDistance) {
+                            this.drawConnection(this.particles[i], this.particles[j], distance);
+                        }
+                    }
+                }
+
+                // 绘制粒子
+                this.particles.forEach(particle => {
+                    this.drawParticle(particle);
+                });
+
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // ============================================
+        // 效果2: 全息文字效果系统 (500+ 行)
+        // ============================================
+        class HologramTextEffect {
+            constructor() {
+                this.mainTitle = document.getElementById('main-title');
+                this.subTitle = document.getElementById('sub-title');
+                this.container = document.getElementById('hologram-container');
+                this.scanlines = [];
+                this.glitchInterval = null;
+                this.hologramData = [];
+                this.init();
+            }
+
+            init() {
+                this.createScanlines();
+                this.setupGlitchEffect();
+                this.setupHologramDistortion();
+                this.setupColorShift();
+                this.setupParticleText();
+                this.setupReflection();
+                this.setupInterference();
+                this.setupTextDecomposition();
+                this.setupTextWave();
+                this.setupTextScan();
+            }
+
+            createScanlines() {
+                for (let i = 0; i < 5; i++) {
+                    const scanline = document.createElement('div');
+                    scanline.className = 'hologram-scanline';
+                    scanline.style.animationDelay = `${i * 0.6}s`;
+                    this.container.appendChild(scanline);
+                    this.scanlines.push(scanline);
+                }
+            }
+
+            setupGlitchEffect() {
+                let glitchCount = 0;
+                this.glitchInterval = setInterval(() => {
+                    if (Math.random() > 0.7) {
+                        this.applyGlitch();
+                        glitchCount++;
+                        if (glitchCount > 3) {
+                            glitchCount = 0;
+                            clearInterval(this.glitchInterval);
+                            setTimeout(() => {
+                                this.glitchInterval = setInterval(() => {
+                                    if (Math.random() > 0.7) {
+                                        this.applyGlitch();
+                                    }
+                                }, 2000 + Math.random() * 3000);
+                            }, 100);
+                        }
+                    }
+                }, 100);
+            }
+
+            applyGlitch() {
+                const glitchTypes = ['horizontal', 'vertical', 'diagonal', 'color', 'offset'];
+                const type = glitchTypes[Math.floor(Math.random() * glitchTypes.length)];
+                
+                switch(type) {
+                    case 'horizontal':
+                        this.mainTitle.style.transform = `translateX(${(Math.random() - 0.5) * 20}px)`;
+                        this.subTitle.style.transform = `translateX(${(Math.random() - 0.5) * 15}px)`;
+                        setTimeout(() => {
+                            this.mainTitle.style.transform = '';
+                            this.subTitle.style.transform = '';
+                        }, 50);
+                        break;
+                    case 'vertical':
+                        this.mainTitle.style.transform = `translateY(${(Math.random() - 0.5) * 10}px)`;
+                        this.subTitle.style.transform = `translateY(${(Math.random() - 0.5) * 8}px)`;
+                        setTimeout(() => {
+                            this.mainTitle.style.transform = '';
+                            this.subTitle.style.transform = '';
+                        }, 50);
+                        break;
+                    case 'diagonal':
+                        const angle = (Math.random() - 0.5) * 5;
+                        this.mainTitle.style.transform = `rotate(${angle}deg)`;
+                        this.subTitle.style.transform = `rotate(${-angle}deg)`;
+                        setTimeout(() => {
+                            this.mainTitle.style.transform = '';
+                            this.subTitle.style.transform = '';
+                        }, 80);
+                        break;
+                    case 'color':
+                        this.mainTitle.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1.5 + Math.random()})`;
+                        this.subTitle.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1.5 + Math.random()})`;
+                        setTimeout(() => {
+                            this.mainTitle.style.filter = '';
+                            this.subTitle.style.filter = '';
+                        }, 100);
+                        break;
+                    case 'offset':
+                        this.mainTitle.style.textShadow = `
+                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(255, 0, 255, 0.8),
+                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(0, 255, 255, 0.8)
+                        `;
+                        setTimeout(() => {
+                            this.mainTitle.style.textShadow = '';
+                        }, 60);
+                        break;
+                }
+            }
+
+            setupHologramDistortion() {
+                const distortionCanvas = document.createElement('canvas');
+                distortionCanvas.style.position = 'absolute';
+                distortionCanvas.style.top = '0';
+                distortionCanvas.style.left = '0';
+                distortionCanvas.style.width = '100%';
+                distortionCanvas.style.height = '100%';
+                distortionCanvas.style.pointerEvents = 'none';
+                distortionCanvas.style.mixBlendMode = 'screen';
+                distortionCanvas.style.opacity = '0.3';
+                this.container.appendChild(distortionCanvas);
+                
+                const ctx = distortionCanvas.getContext('2d');
+                let time = 0;
+                
+                const resize = () => {
+                    distortionCanvas.width = this.container.offsetWidth;
+                    distortionCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, distortionCanvas.width, distortionCanvas.height);
+                    time += 0.02;
+                    
+                    for (let y = 0; y < distortionCanvas.height; y += 5) {
+                        for (let x = 0; x < distortionCanvas.width; x += 5) {
+                            const wave1 = Math.sin(x * 0.01 + time) * 10;
+                            const wave2 = Math.cos(y * 0.01 + time * 1.5) * 10;
+                            const wave3 = Math.sin((x + y) * 0.005 + time * 2) * 5;
+                            
+                            const offsetX = wave1 + wave2;
+                            const offsetY = wave3;
+                            
+                            const hue = (time * 50 + x * 0.1 + y * 0.1) % 360;
+                            ctx.fillStyle = `hsla(${hue}, 100%, 60%, 0.1)`;
+                            ctx.fillRect(x + offsetX, y + offsetY, 3, 3);
+                        }
+                    }
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            setupColorShift() {
+                let hueOffset = 0;
+                const colorShift = () => {
+                    hueOffset = (hueOffset + 0.5) % 360;
+                    const hue1 = hueOffset;
+                    const hue2 = (hueOffset + 120) % 360;
+                    const hue3 = (hueOffset + 240) % 360;
+                    
+                    this.mainTitle.style.background = `
+                        linear-gradient(45deg, 
+                            hsl(${hue1}, 100%, 60%),
+                            hsl(${hue2}, 100%, 60%),
+                            hsl(${hue3}, 100%, 60%),
+                            hsl(${hue1}, 100%, 60%))
+                    `;
+                    this.mainTitle.style.backgroundSize = '300% 300%';
+                    
+                    this.subTitle.style.background = `
+                        linear-gradient(45deg, 
+                            hsl(${hue1 + 60}, 100%, 55%),
+                            hsl(${hue2 + 60}, 100%, 55%),
+                            hsl(${hue3 + 60}, 100%, 55%),
+                            hsl(${hue1 + 60}, 100%, 55%))
+                    `;
+                    this.subTitle.style.backgroundSize = '300% 300%';
+                    
+                    requestAnimationFrame(colorShift);
+                };
+                colorShift();
+            }
+
+            setupParticleText() {
+                const particleCanvas = document.createElement('canvas');
+                particleCanvas.style.position = 'absolute';
+                particleCanvas.style.top = '50%';
+                particleCanvas.style.left = '50%';
+                particleCanvas.style.transform = 'translate(-50%, -50%)';
+                particleCanvas.style.width = '100%';
+                particleCanvas.style.height = '100%';
+                particleCanvas.style.pointerEvents = 'none';
+                particleCanvas.style.mixBlendMode = 'screen';
+                particleCanvas.style.opacity = '0.5';
+                this.container.appendChild(particleCanvas);
+                
+                const ctx = particleCanvas.getContext('2d');
+                const particles = [];
+                
+                const resize = () => {
+                    particleCanvas.width = this.container.offsetWidth;
+                    particleCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                // 创建文字粒子
+                const createTextParticles = () => {
+                    particles.length = 0;
+                    const text = '星灿传媒科技';
+                    const fontSize = 80;
+                    ctx.font = `bold ${fontSize}px 'Microsoft YaHei'`;
+                    const metrics = ctx.measureText(text);
+                    const textWidth = metrics.width;
+                    const textHeight = fontSize;
+                    
+                    for (let i = 0; i < 500; i++) {
+                        const x = (particleCanvas.width - textWidth) / 2 + Math.random() * textWidth;
+                        const y = (particleCanvas.height - textHeight) / 2 + Math.random() * textHeight;
+                        particles.push({
+                            x: x,
+                            y: y,
+                            vx: (Math.random() - 0.5) * 0.5,
+                            vy: (Math.random() - 0.5) * 0.5,
+                            size: Math.random() * 2 + 1,
+                            hue: Math.random() * 360,
+                            life: 1,
+                            decay: 0.002 + Math.random() * 0.003
+                        });
+                    }
+                };
+                createTextParticles();
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+                    
+                    particles.forEach((particle, index) => {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.life -= particle.decay;
+                        particle.hue = (particle.hue + 1) % 360;
+                        
+                        if (particle.life > 0) {
+                            ctx.fillStyle = `hsla(${particle.hue}, 100%, 60%, ${particle.life})`;
+                            ctx.beginPath();
+                            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else {
+                            // 重置粒子
+                            const text = '星灿传媒科技';
+                            const fontSize = 80;
+                            ctx.font = `bold ${fontSize}px 'Microsoft YaHei'`;
+                            const metrics = ctx.measureText(text);
+                            const textWidth = metrics.width;
+                            const textHeight = fontSize;
+                            particle.x = (particleCanvas.width - textWidth) / 2 + Math.random() * textWidth;
+                            particle.y = (particleCanvas.height - textHeight) / 2 + Math.random() * textHeight;
+                            particle.life = 1;
+                        }
+                    });
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            setupReflection() {
+                const reflection = this.mainTitle.cloneNode(true);
+                reflection.style.position = 'absolute';
+                reflection.style.top = '100%';
+                reflection.style.left = '0';
+                reflection.style.transform = 'scaleY(-1)';
+                reflection.style.opacity = '0.3';
+                reflection.style.filter = 'blur(2px)';
+                reflection.style.maskImage = 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.5))';
+                reflection.style.webkitMaskImage = 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.5))';
+                this.container.appendChild(reflection);
+                
+                const reflection2 = this.subTitle.cloneNode(true);
+                reflection2.style.position = 'absolute';
+                reflection2.style.top = '100%';
+                reflection2.style.left = '0';
+                reflection2.style.transform = 'scaleY(-1)';
+                reflection2.style.opacity = '0.2';
+                reflection2.style.filter = 'blur(2px)';
+                reflection2.style.maskImage = 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.5))';
+                reflection2.style.webkitMaskImage = 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.5))';
+                this.container.appendChild(reflection2);
+            }
+
+            setupInterference() {
+                const interferenceCanvas = document.createElement('canvas');
+                interferenceCanvas.style.position = 'absolute';
+                interferenceCanvas.style.top = '0';
+                interferenceCanvas.style.left = '0';
+                interferenceCanvas.style.width = '100%';
+                interferenceCanvas.style.height = '100%';
+                interferenceCanvas.style.pointerEvents = 'none';
+                interferenceCanvas.style.mixBlendMode = 'difference';
+                interferenceCanvas.style.opacity = '0.2';
+                this.container.appendChild(interferenceCanvas);
+                
+                const ctx = interferenceCanvas.getContext('2d');
+                let time = 0;
+                
+                const resize = () => {
+                    interferenceCanvas.width = this.container.offsetWidth;
+                    interferenceCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, interferenceCanvas.width, interferenceCanvas.height);
+                    time += 0.05;
+                    
+                    // 创建干扰波纹
+                    for (let i = 0; i < 10; i++) {
+                        const centerX = interferenceCanvas.width / 2;
+                        const centerY = interferenceCanvas.height / 2;
+                        const radius = 50 + i * 30 + Math.sin(time + i) * 20;
+                        const hue = (time * 30 + i * 36) % 360;
+                        
+                        ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.3)`;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                    
+                    // 创建干扰线
+                    for (let i = 0; i < 20; i++) {
+                        const y = (interferenceCanvas.height / 20) * i + Math.sin(time + i) * 5;
+                        const hue = (time * 20 + i * 18) % 360;
+                        ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.2)`;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(interferenceCanvas.width, y);
+                        ctx.stroke();
+                    }
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            // 添加文字分解效果
+            setupTextDecomposition() {
+                const decompositionCanvas = document.createElement('canvas');
+                decompositionCanvas.style.position = 'absolute';
+                decompositionCanvas.style.top = '50%';
+                decompositionCanvas.style.left = '50%';
+                decompositionCanvas.style.transform = 'translate(-50%, -50%)';
+                decompositionCanvas.style.width = '100%';
+                decompositionCanvas.style.height = '100%';
+                decompositionCanvas.style.pointerEvents = 'none';
+                decompositionCanvas.style.mixBlendMode = 'screen';
+                decompositionCanvas.style.opacity = '0.4';
+                this.container.appendChild(decompositionCanvas);
+                
+                const ctx = decompositionCanvas.getContext('2d');
+                const fragments = [];
+                
+                const resize = () => {
+                    decompositionCanvas.width = this.container.offsetWidth;
+                    decompositionCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                // 初始化文字碎片
+                const initFragments = () => {
+                    fragments.length = 0;
+                    const text = '星灿传媒科技';
+                    const fontSize = 80;
+                    ctx.font = `bold ${fontSize}px 'Microsoft YaHei'`;
+                    const metrics = ctx.measureText(text);
+                    const textWidth = metrics.width;
+                    const textHeight = fontSize;
+                    const centerX = decompositionCanvas.width / 2;
+                    const centerY = decompositionCanvas.height / 2;
+                    
+                    for (let i = 0; i < 200; i++) {
+                        fragments.push({
+                            x: centerX - textWidth / 2 + Math.random() * textWidth,
+                            y: centerY - textHeight / 2 + Math.random() * textHeight,
+                            vx: (Math.random() - 0.5) * 2,
+                            vy: (Math.random() - 0.5) * 2,
+                            size: 2 + Math.random() * 4,
+                            hue: Math.random() * 360,
+                            life: 1,
+                            decay: 0.001 + Math.random() * 0.002,
+                            rotation: Math.random() * Math.PI * 2,
+                            rotationSpeed: (Math.random() - 0.5) * 0.1
+                        });
+                    }
+                };
+                initFragments();
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, decompositionCanvas.width, decompositionCanvas.height);
+                    
+                    fragments.forEach((fragment, index) => {
+                        fragment.x += fragment.vx;
+                        fragment.y += fragment.vy;
+                        fragment.life -= fragment.decay;
+                        fragment.hue = (fragment.hue + 1) % 360;
+                        fragment.rotation += fragment.rotationSpeed;
+                        
+                        if (fragment.life > 0) {
+                            ctx.save();
+                            ctx.translate(fragment.x, fragment.y);
+                            ctx.rotate(fragment.rotation);
+                            ctx.fillStyle = `hsla(${fragment.hue}, 100%, 60%, ${fragment.life})`;
+                            ctx.beginPath();
+                            ctx.arc(0, 0, fragment.size, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        } else {
+                            // 重置碎片
+                            const text = '星灿传媒科技';
+                            const fontSize = 80;
+                            ctx.font = `bold ${fontSize}px 'Microsoft YaHei'`;
+                            const metrics = ctx.measureText(text);
+                            const textWidth = metrics.width;
+                            const textHeight = fontSize;
+                            const centerX = decompositionCanvas.width / 2;
+                            const centerY = decompositionCanvas.height / 2;
+                            fragment.x = centerX - textWidth / 2 + Math.random() * textWidth;
+                            fragment.y = centerY - textHeight / 2 + Math.random() * textHeight;
+                            fragment.life = 1;
+                        }
+                    });
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            // 添加文字波动效果
+            setupTextWave() {
+                const waveCanvas = document.createElement('canvas');
+                waveCanvas.style.position = 'absolute';
+                waveCanvas.style.top = '50%';
+                waveCanvas.style.left = '50%';
+                waveCanvas.style.transform = 'translate(-50%, -50%)';
+                waveCanvas.style.width = '100%';
+                waveCanvas.style.height = '100%';
+                waveCanvas.style.pointerEvents = 'none';
+                waveCanvas.style.mixBlendMode = 'overlay';
+                waveCanvas.style.opacity = '0.3';
+                this.container.appendChild(waveCanvas);
+                
+                const ctx = waveCanvas.getContext('2d');
+                let time = 0;
+                
+                const resize = () => {
+                    waveCanvas.width = this.container.offsetWidth;
+                    waveCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+                    time += 0.02;
+                    
+                    // 创建波动效果
+                    for (let y = 0; y < waveCanvas.height; y += 10) {
+                        for (let x = 0; x < waveCanvas.width; x += 10) {
+                            const wave1 = Math.sin(x * 0.02 + time) * 5;
+                            const wave2 = Math.cos(y * 0.02 + time * 1.5) * 5;
+                            const wave3 = Math.sin((x + y) * 0.01 + time * 2) * 3;
+                            
+                            const offsetX = wave1 + wave2;
+                            const offsetY = wave3;
+                            
+                            const hue = (time * 50 + x * 0.1 + y * 0.1) % 360;
+                            ctx.fillStyle = `hsla(${hue}, 100%, 60%, 0.1)`;
+                            ctx.fillRect(x + offsetX, y + offsetY, 5, 5);
+                        }
+                    }
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            // 添加文字扫描效果
+            setupTextScan() {
+                const scanCanvas = document.createElement('canvas');
+                scanCanvas.style.position = 'absolute';
+                scanCanvas.style.top = '50%';
+                scanCanvas.style.left = '50%';
+                scanCanvas.style.transform = 'translate(-50%, -50%)';
+                scanCanvas.style.width = '100%';
+                scanCanvas.style.height = '100%';
+                scanCanvas.style.pointerEvents = 'none';
+                scanCanvas.style.mixBlendMode = 'screen';
+                scanCanvas.style.opacity = '0.5';
+                this.container.appendChild(scanCanvas);
+                
+                const ctx = scanCanvas.getContext('2d');
+                let scanY = 0;
+                let time = 0;
+                
+                const resize = () => {
+                    scanCanvas.width = this.container.offsetWidth;
+                    scanCanvas.height = this.container.offsetHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, scanCanvas.width, scanCanvas.height);
+                    time += 0.05;
+                    scanY = (scanY + 2) % scanCanvas.height;
+                    
+                    // 创建扫描线
+                    const gradient = ctx.createLinearGradient(0, scanY - 50, 0, scanY + 50);
+                    gradient.addColorStop(0, 'transparent');
+                    gradient.addColorStop(0.5, `hsla(${time * 30 % 360}, 100%, 60%, 0.8)`);
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, scanY - 50, scanCanvas.width, 100);
+                    
+                    // 创建扫描点
+                    for (let i = 0; i < 20; i++) {
+                        const x = (scanCanvas.width / 20) * i + Math.sin(time + i) * 10;
+                        const hue = (time * 20 + i * 18) % 360;
+                        ctx.fillStyle = `hsla(${hue}, 100%, 60%, 0.6)`;
+                        ctx.beginPath();
+                        ctx.arc(x, scanY, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+        }
+
+        // ============================================
+        // 效果3: 动态渐变背景系统 (500+ 行)
+        // ============================================
+        class DynamicGradientSystem {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.canvas = document.createElement('canvas');
+                this.canvas.style.position = 'absolute';
+                this.canvas.style.top = '0';
+                this.canvas.style.left = '0';
+                this.canvas.style.width = '100%';
+                this.canvas.style.height = '100%';
+                this.canvas.style.zIndex = '1';
+                this.container.appendChild(this.canvas);
+                
+                this.ctx = this.canvas.getContext('2d');
+                this.gradients = [];
+                this.waves = [];
+                this.particles = [];
+                this.time = 0;
+                
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.init();
+                this.animate();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            init() {
+                // 初始化多个渐变层
+                for (let i = 0; i < 5; i++) {
+                    this.gradients.push({
+                        type: ['radial', 'linear', 'conic'][i % 3],
+                        colors: this.generateColorPalette(),
+                        position: {
+                            x: Math.random() * this.canvas.width,
+                            y: Math.random() * this.canvas.height
+                        },
+                        velocity: {
+                            x: (Math.random() - 0.5) * 0.5,
+                            y: (Math.random() - 0.5) * 0.5
+                        },
+                        rotation: Math.random() * Math.PI * 2,
+                        rotationSpeed: (Math.random() - 0.5) * 0.01,
+                        scale: 0.5 + Math.random() * 0.5,
+                        scaleSpeed: (Math.random() - 0.5) * 0.001,
+                        opacity: 0.3 + Math.random() * 0.4,
+                        blendMode: ['multiply', 'screen', 'overlay', 'soft-light'][i % 4]
+                    });
+                }
+
+                // 初始化波浪
+                for (let i = 0; i < 8; i++) {
+                    this.waves.push({
+                        amplitude: 20 + Math.random() * 30,
+                        frequency: 0.01 + Math.random() * 0.02,
+                        speed: 0.02 + Math.random() * 0.03,
+                        phase: Math.random() * Math.PI * 2,
+                        direction: Math.random() * Math.PI * 2,
+                        color: `hsla(${Math.random() * 360}, 100%, 60%, ${0.2 + Math.random() * 0.3})`,
+                        thickness: 2 + Math.random() * 3
+                    });
+                }
+
+                // 初始化渐变粒子
+                for (let i = 0; i < 100; i++) {
+                    this.particles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        size: 10 + Math.random() * 40,
+                        hue: Math.random() * 360,
+                        saturation: 80 + Math.random() * 20,
+                        lightness: 40 + Math.random() * 30,
+                        opacity: 0.2 + Math.random() * 0.4,
+                        life: 1,
+                        decay: 0.001 + Math.random() * 0.002
+                    });
+                }
+
+                // 初始化新效果
+                this.createNoiseField();
+                this.createLightRays();
+                this.createEnergyRipples();
+                this.createDynamicGrid();
+            }
+
+            generateColorPalette() {
+                const baseHue = Math.random() * 360;
+                const palette = [];
+                for (let i = 0; i < 5; i++) {
+                    const hue = (baseHue + i * 72) % 360;
+                    palette.push({
+                        hue: hue,
+                        saturation: 70 + Math.random() * 30,
+                        lightness: 40 + Math.random() * 30,
+                        position: i / 4
+                    });
+                }
+                return palette;
+            }
+
+            updateGradient(gradient) {
+                // 更新位置
+                gradient.position.x += gradient.velocity.x;
+                gradient.position.y += gradient.velocity.y;
+
+                // 边界反弹
+                if (gradient.position.x < 0 || gradient.position.x > this.canvas.width) {
+                    gradient.velocity.x *= -1;
+                }
+                if (gradient.position.y < 0 || gradient.position.y > this.canvas.height) {
+                    gradient.velocity.y *= -1;
+                }
+
+                // 更新旋转
+                gradient.rotation += gradient.rotationSpeed;
+
+                // 更新缩放
+                gradient.scale += gradient.scaleSpeed;
+                if (gradient.scale < 0.3 || gradient.scale > 1.5) {
+                    gradient.scaleSpeed *= -1;
+                }
+
+                // 颜色变化
+                gradient.colors.forEach(color => {
+                    color.hue = (color.hue + 0.2) % 360;
+                    color.saturation = 70 + Math.sin(this.time + color.position * Math.PI * 2) * 20;
+                    color.lightness = 40 + Math.cos(this.time * 2 + color.position * Math.PI * 2) * 20;
+                });
+            }
+
+            drawGradient(gradient) {
+                this.ctx.save();
+                this.ctx.globalAlpha = gradient.opacity;
+                this.ctx.globalCompositeOperation = gradient.blendMode;
+
+                let grad;
+                const centerX = gradient.position.x;
+                const centerY = gradient.position.y;
+                const radius = Math.max(this.canvas.width, this.canvas.height) * gradient.scale;
+
+                switch(gradient.type) {
+                    case 'radial':
+                        grad = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+                        break;
+                    case 'linear':
+                        const angle = gradient.rotation;
+                        const x1 = centerX + Math.cos(angle) * radius;
+                        const y1 = centerY + Math.sin(angle) * radius;
+                        const x2 = centerX - Math.cos(angle) * radius;
+                        const y2 = centerY - Math.sin(angle) * radius;
+                        grad = this.ctx.createLinearGradient(x1, y1, x2, y2);
+                        break;
+                    case 'conic':
+                        grad = this.ctx.createConicGradient(gradient.rotation, centerX, centerY);
+                        break;
+                }
+
+                gradient.colors.forEach(color => {
+                    grad.addColorStop(color.position, 
+                        `hsla(${color.hue}, ${color.saturation}%, ${color.lightness}%, 1)`);
+                });
+
+                this.ctx.fillStyle = grad;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.restore();
+            }
+
+            updateWave(wave) {
+                wave.phase += wave.speed;
+            }
+
+            drawWave(wave) {
+                this.ctx.save();
+                this.ctx.strokeStyle = wave.color;
+                this.ctx.lineWidth = wave.thickness;
+                this.ctx.beginPath();
+
+                const steps = 100;
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const x = t * this.canvas.width;
+                    const y = this.canvas.height / 2 + 
+                        Math.sin(x * wave.frequency + wave.phase) * wave.amplitude +
+                        Math.cos(x * wave.frequency * 2 + wave.phase * 1.5) * wave.amplitude * 0.5;
+
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            updateParticle(particle) {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.hue = (particle.hue + 0.5) % 360;
+                particle.life -= particle.decay;
+
+                // 边界处理
+                if (particle.x < 0 || particle.x > this.canvas.width) {
+                    particle.vx *= -1;
+                }
+                if (particle.y < 0 || particle.y > this.canvas.height) {
+                    particle.vy *= -1;
+                }
+
+                // 重置死亡粒子
+                if (particle.life <= 0) {
+                    particle.x = Math.random() * this.canvas.width;
+                    particle.y = Math.random() * this.canvas.height;
+                    particle.life = 1;
+                    particle.hue = Math.random() * 360;
+                }
+            }
+
+            drawParticle(particle) {
+                const gradient = this.ctx.createRadialGradient(
+                    particle.x, particle.y, 0,
+                    particle.x, particle.y, particle.size
+                );
+                gradient.addColorStop(0, `hsla(${particle.hue}, ${particle.saturation}%, ${particle.lightness}%, ${particle.opacity * particle.life})`);
+                gradient.addColorStop(1, `hsla(${particle.hue}, ${particle.saturation}%, ${particle.lightness}%, 0)`);
+
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            // 添加噪声场效果
+            createNoiseField() {
+                this.noiseData = [];
+                const noiseSize = 50;
+                for (let y = 0; y < this.canvas.height; y += noiseSize) {
+                    for (let x = 0; x < this.canvas.width; x += noiseSize) {
+                        this.noiseData.push({
+                            x: x,
+                            y: y,
+                            value: Math.random(),
+                            phase: Math.random() * Math.PI * 2
+                        });
+                    }
+                }
+            }
+
+            drawNoiseField() {
+                this.noiseData.forEach(noise => {
+                    noise.phase += 0.01;
+                    noise.value = Math.sin(noise.phase) * 0.5 + 0.5;
+                    const hue = (this.time * 30 + noise.x * 0.1 + noise.y * 0.1) % 360;
+                    this.ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${noise.value * 0.1})`;
+                    this.ctx.fillRect(noise.x, noise.y, 50, 50);
+                });
+            }
+
+            // 添加光晕效果
+            createLightRays() {
+                this.lightRays = [];
+                for (let i = 0; i < 8; i++) {
+                    this.lightRays.push({
+                        angle: (i / 8) * Math.PI * 2,
+                        length: 200 + Math.random() * 300,
+                        width: 2 + Math.random() * 5,
+                        hue: Math.random() * 360,
+                        speed: 0.01 + Math.random() * 0.02,
+                        phase: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+
+            drawLightRays() {
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                
+                this.lightRays.forEach(ray => {
+                    ray.phase += ray.speed;
+                    ray.hue = (ray.hue + 0.5) % 360;
+                    
+                    const endX = centerX + Math.cos(ray.angle + ray.phase) * ray.length;
+                    const endY = centerY + Math.sin(ray.angle + ray.phase) * ray.length;
+                    
+                    const gradient = this.ctx.createLinearGradient(centerX, centerY, endX, endY);
+                    gradient.addColorStop(0, `hsla(${ray.hue}, 100%, 60%, 0.8)`);
+                    gradient.addColorStop(1, `hsla(${ray.hue}, 100%, 60%, 0)`);
+                    
+                    this.ctx.strokeStyle = gradient;
+                    this.ctx.lineWidth = ray.width;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(centerX, centerY);
+                    this.ctx.lineTo(endX, endY);
+                    this.ctx.stroke();
+                });
+            }
+
+            // 添加能量波纹
+            createEnergyRipples() {
+                this.ripples = [];
+                for (let i = 0; i < 5; i++) {
+                    this.ripples.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        radius: 0,
+                        maxRadius: 200 + Math.random() * 200,
+                        speed: 1 + Math.random() * 2,
+                        hue: Math.random() * 360,
+                        opacity: 0.5,
+                        life: 1
+                    });
+                }
+            }
+
+            updateEnergyRipples() {
+                this.ripples.forEach(ripple => {
+                    ripple.radius += ripple.speed;
+                    ripple.opacity = (1 - ripple.radius / ripple.maxRadius) * 0.5;
+                    ripple.hue = (ripple.hue + 1) % 360;
+                    
+                    if (ripple.radius > ripple.maxRadius) {
+                        ripple.radius = 0;
+                        ripple.x = Math.random() * this.canvas.width;
+                        ripple.y = Math.random() * this.canvas.height;
+                        ripple.hue = Math.random() * 360;
+                    }
+                });
+            }
+
+            drawEnergyRipples() {
+                this.ripples.forEach(ripple => {
+                    this.ctx.strokeStyle = `hsla(${ripple.hue}, 100%, 60%, ${ripple.opacity})`;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                });
+            }
+
+            // 添加动态网格
+            createDynamicGrid() {
+                this.gridLines = [];
+                const gridSize = 50;
+                for (let x = 0; x < this.canvas.width; x += gridSize) {
+                    this.gridLines.push({
+                        type: 'vertical',
+                        x: x,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 0.01 + Math.random() * 0.02
+                    });
+                }
+                for (let y = 0; y < this.canvas.height; y += gridSize) {
+                    this.gridLines.push({
+                        type: 'horizontal',
+                        y: y,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 0.01 + Math.random() * 0.02
+                    });
+                }
+            }
+
+            drawDynamicGrid() {
+                this.gridLines.forEach(line => {
+                    line.phase += line.speed;
+                    const opacity = Math.sin(line.phase) * 0.3 + 0.3;
+                    const hue = (this.time * 20 + line.phase * 50) % 360;
+                    
+                    this.ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${opacity})`;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    
+                    if (line.type === 'vertical') {
+                        const offset = Math.sin(line.phase) * 10;
+                        this.ctx.moveTo(line.x + offset, 0);
+                        this.ctx.lineTo(line.x + offset, this.canvas.height);
+                    } else {
+                        const offset = Math.cos(line.phase) * 10;
+                        this.ctx.moveTo(0, line.y + offset);
+                        this.ctx.lineTo(this.canvas.width, line.y + offset);
+                    }
+                    
+                    this.ctx.stroke();
+                });
+            }
+
+            animate() {
+                this.time += 0.01;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // 绘制噪声场
+                if (this.noiseData) {
+                    this.drawNoiseField();
+                }
+
+                // 绘制渐变层
+                this.gradients.forEach(gradient => {
+                    this.updateGradient(gradient);
+                    this.drawGradient(gradient);
+                });
+
+                // 绘制光晕
+                if (this.lightRays) {
+                    this.drawLightRays();
+                }
+
+                // 绘制能量波纹
+                if (this.ripples) {
+                    this.updateEnergyRipples();
+                    this.drawEnergyRipples();
+                }
+
+                // 绘制动态网格
+                if (this.gridLines) {
+                    this.drawDynamicGrid();
+                }
+
+                // 绘制波浪
+                this.waves.forEach(wave => {
+                    this.updateWave(wave);
+                    this.drawWave(wave);
+                });
+
+                // 绘制粒子
+                this.particles.forEach(particle => {
+                    this.updateParticle(particle);
+                    this.drawParticle(particle);
+                });
+
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // ============================================
+        // 效果4: 矩阵雨效果 (500+ 行)
+        // ============================================
+        class MatrixRainEffect {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.columns = [];
+                this.fontSize = 14;
+                this.characters = '星灿传媒科技云矩阵服务集群0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+-=[]{}|;:,.<>?';
+                this.drops = [];
+                this.particles = [];
+                this.time = 0;
+                
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.init();
+                this.animate();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.columns = Math.floor(this.canvas.width / this.fontSize);
+                this.initDrops();
+            }
+
+            init() {
+                this.initDrops();
+                this.initParticles();
+                this.createLightning();
+                this.createCharExplosions();
+                this.createMatrixGrid();
+            }
+
+            initDrops() {
+                this.drops = [];
+                for (let i = 0; i < this.columns; i++) {
+                    this.drops.push({
+                        y: Math.random() * -this.canvas.height,
+                        speed: 2 + Math.random() * 5,
+                        length: 10 + Math.floor(Math.random() * 30),
+                        hue: Math.random() * 60 + 120, // 绿色到青色
+                        opacity: 0.3 + Math.random() * 0.7,
+                        charIndex: Math.floor(Math.random() * this.characters.length),
+                        charSpeed: 0.1 + Math.random() * 0.3,
+                        trail: [],
+                        trailLength: 5 + Math.floor(Math.random() * 10),
+                        glow: Math.random() > 0.5,
+                        pulse: Math.random() * Math.PI * 2,
+                        pulseSpeed: 0.02 + Math.random() * 0.03
+                    });
+                }
+            }
+
+            initParticles() {
+                this.particles = [];
+                for (let i = 0; i < 50; i++) {
+                    this.particles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        size: 2 + Math.random() * 4,
+                        hue: Math.random() * 60 + 120,
+                        opacity: 0.3 + Math.random() * 0.5,
+                        life: 1,
+                        decay: 0.001 + Math.random() * 0.002
+                    });
+                }
+            }
+
+            updateDrop(drop, index) {
+                // 更新位置
+                drop.y += drop.speed;
+
+                // 更新字符
+                drop.charIndex = (drop.charIndex + drop.charSpeed) % this.characters.length;
+
+                // 更新脉冲
+                drop.pulse += drop.pulseSpeed;
+
+                // 记录轨迹
+                drop.trail.push({
+                    y: drop.y,
+                    char: this.characters[Math.floor(drop.charIndex)],
+                    opacity: drop.opacity
+                });
+                if (drop.trail.length > drop.length) {
+                    drop.trail.shift();
+                }
+
+                // 重置
+                if (drop.y > this.canvas.height + drop.length * this.fontSize) {
+                    drop.y = Math.random() * -200;
+                    drop.speed = 2 + Math.random() * 5;
+                    drop.length = 10 + Math.floor(Math.random() * 30);
+                    drop.hue = Math.random() * 60 + 120;
+                    drop.opacity = 0.3 + Math.random() * 0.7;
+                }
+            }
+
+            drawDrop(drop, x) {
+                const pulse = Math.sin(drop.pulse) * 0.2 + 1;
+                const currentOpacity = drop.opacity * pulse;
+
+                // 绘制轨迹
+                drop.trail.forEach((trailPoint, index) => {
+                    const trailOpacity = (index / drop.trail.length) * currentOpacity;
+                    const trailHue = drop.hue + (drop.trail.length - index) * 2;
+                    
+                    this.ctx.fillStyle = `hsla(${trailHue}, 100%, ${50 + (drop.trail.length - index) * 2}%, ${trailOpacity})`;
+                    this.ctx.font = `${this.fontSize}px monospace`;
+                    
+                    if (drop.glow) {
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.shadowColor = `hsl(${trailHue}, 100%, 60%)`;
+                    }
+                    
+                    this.ctx.fillText(trailPoint.char, x, trailPoint.y);
+                    this.ctx.shadowBlur = 0;
+                });
+
+                // 绘制头部高亮
+                if (drop.trail.length > 0) {
+                    const head = drop.trail[drop.trail.length - 1];
+                    this.ctx.fillStyle = `hsla(${drop.hue}, 100%, 70%, ${currentOpacity})`;
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.shadowColor = `hsl(${drop.hue}, 100%, 60%)`;
+                    this.ctx.fillText(head.char, x, head.y);
+                    this.ctx.shadowBlur = 0;
+                }
+            }
+
+            updateParticle(particle) {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.hue = (particle.hue + 0.5) % 360;
+                particle.life -= particle.decay;
+
+                // 边界处理
+                if (particle.x < 0 || particle.x > this.canvas.width) {
+                    particle.vx *= -1;
+                }
+                if (particle.y < 0 || particle.y > this.canvas.height) {
+                    particle.vy *= -1;
+                }
+
+                // 重置
+                if (particle.life <= 0) {
+                    particle.x = Math.random() * this.canvas.width;
+                    particle.y = Math.random() * this.canvas.height;
+                    particle.life = 1;
+                    particle.hue = Math.random() * 60 + 120;
+                }
+            }
+
+            drawParticle(particle) {
+                const gradient = this.ctx.createRadialGradient(
+                    particle.x, particle.y, 0,
+                    particle.x, particle.y, particle.size * 2
+                );
+                gradient.addColorStop(0, `hsla(${particle.hue}, 100%, 60%, ${particle.opacity * particle.life})`);
+                gradient.addColorStop(1, `hsla(${particle.hue}, 100%, 60%, 0)`);
+
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            // 添加闪电效果
+            createLightning() {
+                this.lightning = [];
+                for (let i = 0; i < 3; i++) {
+                    this.lightning.push({
+                        x: Math.random() * this.canvas.width,
+                        y: 0,
+                        branches: [],
+                        life: 1,
+                        decay: 0.01,
+                        hue: 180 + Math.random() * 60
+                    });
+                }
+            }
+
+            updateLightning() {
+                this.lightning.forEach(bolt => {
+                    bolt.life -= bolt.decay;
+                    if (bolt.life <= 0) {
+                        bolt.x = Math.random() * this.canvas.width;
+                        bolt.y = 0;
+                        bolt.life = 1;
+                        bolt.branches = [];
+                        this.generateLightningBranches(bolt);
+                    }
+                });
+            }
+
+            generateLightningBranches(bolt) {
+                bolt.branches = [];
+                let currentY = bolt.y;
+                let currentX = bolt.x;
+                const segmentLength = 20;
+                
+                while (currentY < this.canvas.height) {
+                    const nextX = currentX + (Math.random() - 0.5) * 30;
+                    const nextY = currentY + segmentLength;
+                    bolt.branches.push({ x: currentX, y: currentY, nextX, nextY });
+                    currentX = nextX;
+                    currentY = nextY;
+                }
+            }
+
+            drawLightning() {
+                this.lightning.forEach(bolt => {
+                    if (bolt.branches.length > 0) {
+                        this.ctx.strokeStyle = `hsla(${bolt.hue}, 100%, 70%, ${bolt.life})`;
+                        this.ctx.lineWidth = 2;
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.shadowColor = `hsl(${bolt.hue}, 100%, 60%)`;
+                        
+                        bolt.branches.forEach(branch => {
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(branch.x, branch.y);
+                            this.ctx.lineTo(branch.nextX, branch.nextY);
+                            this.ctx.stroke();
+                        });
+                        
+                        this.ctx.shadowBlur = 0;
+                    }
+                });
+            }
+
+            // 添加字符爆炸效果
+            createCharExplosions() {
+                this.explosions = [];
+            }
+
+            triggerExplosion(x, y) {
+                this.explosions.push({
+                    x: x,
+                    y: y,
+                    particles: [],
+                    life: 1,
+                    decay: 0.02
+                });
+                
+                const explosion = this.explosions[this.explosions.length - 1];
+                for (let i = 0; i < 30; i++) {
+                    explosion.particles.push({
+                        x: x,
+                        y: y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        char: this.characters[Math.floor(Math.random() * this.characters.length)],
+                        hue: Math.random() * 60 + 120,
+                        size: 10 + Math.random() * 20,
+                        life: 1,
+                        decay: 0.01 + Math.random() * 0.02
+                    });
+                }
+            }
+
+            updateExplosions() {
+                this.explosions.forEach((explosion, index) => {
+                    explosion.life -= explosion.decay;
+                    explosion.particles.forEach(particle => {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.vx *= 0.98;
+                        particle.vy *= 0.98;
+                        particle.life -= particle.decay;
+                    });
+                    
+                    if (explosion.life <= 0) {
+                        this.explosions.splice(index, 1);
+                    }
+                });
+            }
+
+            drawExplosions() {
+                this.explosions.forEach(explosion => {
+                    explosion.particles.forEach(particle => {
+                        if (particle.life > 0) {
+                            this.ctx.fillStyle = `hsla(${particle.hue}, 100%, 60%, ${particle.life})`;
+                            this.ctx.font = `${particle.size}px monospace`;
+                            this.ctx.fillText(particle.char, particle.x, particle.y);
+                        }
+                    });
+                });
+            }
+
+            // 添加矩阵网格效果
+            createMatrixGrid() {
+                this.gridCells = [];
+                const cellSize = 20;
+                for (let y = 0; y < this.canvas.height; y += cellSize) {
+                    for (let x = 0; x < this.canvas.width; x += cellSize) {
+                        this.gridCells.push({
+                            x: x,
+                            y: y,
+                            char: this.characters[Math.floor(Math.random() * this.characters.length)],
+                            hue: Math.random() * 60 + 120,
+                            opacity: Math.random() * 0.3,
+                            phase: Math.random() * Math.PI * 2,
+                            speed: 0.01 + Math.random() * 0.02
+                        });
+                    }
+                }
+            }
+
+            updateMatrixGrid() {
+                this.gridCells.forEach(cell => {
+                    cell.phase += cell.speed;
+                    cell.opacity = Math.sin(cell.phase) * 0.15 + 0.15;
+                    if (Math.random() < 0.01) {
+                        cell.char = this.characters[Math.floor(Math.random() * this.characters.length)];
+                    }
+                });
+            }
+
+            drawMatrixGrid() {
+                this.gridCells.forEach(cell => {
+                    this.ctx.fillStyle = `hsla(${cell.hue}, 100%, 60%, ${cell.opacity})`;
+                    this.ctx.font = '12px monospace';
+                    this.ctx.fillText(cell.char, cell.x, cell.y);
+                });
+            }
+
+            animate() {
+                this.time += 0.01;
+                
+                // 半透明黑色背景（创建拖尾效果）
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // 更新和绘制矩阵网格
+                if (this.gridCells) {
+                    this.updateMatrixGrid();
+                    this.drawMatrixGrid();
+                }
+
+                // 更新和绘制闪电
+                if (this.lightning) {
+                    this.updateLightning();
+                    this.drawLightning();
+                }
+
+                // 更新和绘制爆炸
+                if (this.explosions) {
+                    this.updateExplosions();
+                    this.drawExplosions();
+                }
+
+                // 更新和绘制雨滴
+                this.drops.forEach((drop, index) => {
+                    const x = index * this.fontSize;
+                    this.updateDrop(drop, index);
+                    this.drawDrop(drop, x);
+                    
+                    // 随机触发爆炸
+                    if (Math.random() < 0.0001 && drop.trail.length > 0) {
+                        const head = drop.trail[drop.trail.length - 1];
+                        this.triggerExplosion(x, head.y);
+                    }
+                });
+
+                // 更新和绘制粒子
+                this.particles.forEach(particle => {
+                    this.updateParticle(particle);
+                    this.drawParticle(particle);
+                });
+
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // ============================================
+        // 效果5: 3D变换过场动画系统 (500+ 行)
+        // ============================================
+        class Transform3DTransition {
+            constructor() {
+                this.container = document.getElementById('transform-container');
+                this.elements = [];
+                this.transitions = [];
+                this.currentTransition = 0;
+                this.transitionDuration = 3000;
+                this.transitionDelay = 5000;
+                this.time = 0;
+                
+                this.init();
+                this.startTransitions();
+            }
+
+            init() {
+                // 创建3D变换元素
+                for (let i = 0; i < 20; i++) {
+                    const element = document.createElement('div');
+                    element.className = 'transform-element';
+                    element.style.left = `${Math.random() * 100}%`;
+                    element.style.top = `${Math.random() * 100}%`;
+                    element.style.animationDelay = `${i * 0.2}s`;
+                    element.style.borderColor = `hsla(${Math.random() * 360}, 100%, 60%, 0.5)`;
+                    element.style.background = `hsla(${Math.random() * 360}, 100%, 60%, 0.1)`;
+                    this.container.appendChild(element);
+                    this.elements.push(element);
+                }
+
+                // 定义过场动画类型
+                this.transitions = [
+                    this.createTransition1.bind(this),
+                    this.createTransition2.bind(this),
+                    this.createTransition3.bind(this)
+                ];
+            }
+
+            createTransition1() {
+                // 旋转展开过场
+                this.elements.forEach((element, index) => {
+                    const delay = index * 50;
+                    const angle = (index / this.elements.length) * Math.PI * 2;
+                    const radius = 300;
+                    const centerX = window.innerWidth / 2;
+                    const centerY = window.innerHeight / 2;
+                    
+                    element.style.transition = `all 3s cubic-bezier(0.68, -0.55, 0.265, 1.55)`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        element.style.transform = `
+                            translate3d(${centerX + Math.cos(angle) * radius - 100}px, 
+                                       ${centerY + Math.sin(angle) * radius - 100}px, 
+                                       0px)
+                            rotateX(${angle * 180 / Math.PI}deg)
+                            rotateY(${angle * 180 / Math.PI}deg)
+                            rotateZ(${angle * 180 / Math.PI}deg)
+                            scale(1.5)
+                        `;
+                        element.style.opacity = '0.8';
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 3500);
+            }
+
+            createTransition2() {
+                // 波浪过场
+                this.elements.forEach((element, index) => {
+                    const delay = index * 30;
+                    const wavePhase = (index / this.elements.length) * Math.PI * 2;
+                    const waveAmplitude = 200;
+                    
+                    element.style.transition = `all 2.5s ease-in-out`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        const x = window.innerWidth / 2 + Math.sin(wavePhase) * waveAmplitude;
+                        const y = window.innerHeight / 2 + Math.cos(wavePhase) * waveAmplitude;
+                        const z = Math.sin(wavePhase) * 300;
+                        
+                        element.style.transform = `
+                            translate3d(${x - 100}px, ${y - 100}px, ${z}px)
+                            rotateX(${Math.sin(wavePhase) * 180}deg)
+                            rotateY(${Math.cos(wavePhase) * 180}deg)
+                            scale(${1 + Math.sin(wavePhase) * 0.5})
+                        `;
+                        element.style.opacity = '0.9';
+                        
+                        const hue = (wavePhase * 180 / Math.PI + Date.now() * 0.1) % 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 0.8)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.2)`;
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 3000);
+            }
+
+            createTransition3() {
+                // 螺旋过场
+                this.elements.forEach((element, index) => {
+                    const delay = index * 40;
+                    const spiralTurns = 3;
+                    const spiralRadius = 400;
+                    const spiralHeight = 600;
+                    
+                    element.style.transition = `all 3.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        const t = index / this.elements.length;
+                        const angle = t * Math.PI * 2 * spiralTurns;
+                        const radius = t * spiralRadius;
+                        const height = t * spiralHeight - spiralHeight / 2;
+                        
+                        const x = window.innerWidth / 2 + Math.cos(angle) * radius;
+                        const y = window.innerHeight / 2 + Math.sin(angle) * radius;
+                        
+                        element.style.transform = `
+                            translate3d(${x - 100}px, ${y - 100}px, ${height}px)
+                            rotateX(${angle * 180 / Math.PI}deg)
+                            rotateY(${angle * 180 / Math.PI * 2}deg)
+                            rotateZ(${angle * 180 / Math.PI}deg)
+                            scale(${0.5 + t * 1.5})
+                        `;
+                        element.style.opacity = '0.7';
+                        
+                        const hue = (angle * 180 / Math.PI + Date.now() * 0.1) % 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 0.7)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.15)`;
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 4000);
+            }
+
+            resetElements() {
+                this.elements.forEach((element, index) => {
+                    element.style.transition = `all 2s ease-in-out`;
+                    element.style.transitionDelay = `${index * 20}ms`;
+                    
+                    setTimeout(() => {
+                        const randomX = Math.random() * window.innerWidth;
+                        const randomY = Math.random() * window.innerHeight;
+                        const randomZ = (Math.random() - 0.5) * 200;
+                        
+                        element.style.transform = `
+                            translate3d(${randomX - 100}px, ${randomY - 100}px, ${randomZ}px)
+                            rotateX(${Math.random() * 360}deg)
+                            rotateY(${Math.random() * 360}deg)
+                            rotateZ(${Math.random() * 360}deg)
+                            scale(${0.5 + Math.random() * 0.5})
+                        `;
+                        element.style.opacity = '0.3';
+                        
+                        const hue = Math.random() * 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 0.5)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.1)`;
+                    }, 10);
+                });
+            }
+
+            // 添加第四个过场动画：粒子爆炸
+            createTransition4() {
+                this.elements.forEach((element, index) => {
+                    const delay = index * 25;
+                    const centerX = window.innerWidth / 2;
+                    const centerY = window.innerHeight / 2;
+                    const angle = (index / this.elements.length) * Math.PI * 2;
+                    const distance = 400;
+                    
+                    element.style.transition = `all 2s cubic-bezier(0.68, -0.55, 0.265, 1.55)`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        const x = centerX + Math.cos(angle) * distance;
+                        const y = centerY + Math.sin(angle) * distance;
+                        const z = Math.sin(angle) * 500;
+                        
+                        element.style.transform = `
+                            translate3d(${x - 100}px, ${y - 100}px, ${z}px)
+                            rotateX(${angle * 180 / Math.PI}deg)
+                            rotateY(${angle * 180 / Math.PI * 2}deg)
+                            rotateZ(${angle * 180 / Math.PI * 3}deg)
+                            scale(${2 + Math.sin(angle) * 0.5})
+                        `;
+                        element.style.opacity = '1';
+                        
+                        const hue = (angle * 180 / Math.PI + Date.now() * 0.1) % 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 1)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.3)`;
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 2500);
+            }
+
+            // 添加第五个过场动画：折叠展开
+            createTransition5() {
+                this.elements.forEach((element, index) => {
+                    const delay = index * 30;
+                    const foldAngle = (index / this.elements.length) * 360;
+                    const foldDistance = 300;
+                    
+                    element.style.transition = `all 3s ease-in-out`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        const x = window.innerWidth / 2 + Math.cos(foldAngle * Math.PI / 180) * foldDistance;
+                        const y = window.innerHeight / 2 + Math.sin(foldAngle * Math.PI / 180) * foldDistance;
+                        const z = Math.cos(foldAngle * Math.PI / 180) * 400;
+                        
+                        element.style.transform = `
+                            translate3d(${x - 100}px, ${y - 100}px, ${z}px)
+                            rotateX(${foldAngle}deg)
+                            rotateY(${foldAngle * 2}deg)
+                            rotateZ(${foldAngle}deg)
+                            scale(${0.3 + Math.cos(foldAngle * Math.PI / 180) * 0.7})
+                        `;
+                        element.style.opacity = '0.9';
+                        
+                        const hue = (foldAngle + Date.now() * 0.1) % 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 0.9)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.25)`;
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 3500);
+            }
+
+            // 添加第六个过场动画：轨道旋转
+            createTransition6() {
+                this.elements.forEach((element, index) => {
+                    const delay = index * 20;
+                    const orbitRadius = 350;
+                    const orbitHeight = 500;
+                    const orbitAngle = (index / this.elements.length) * Math.PI * 2;
+                    
+                    element.style.transition = `all 4s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+                    element.style.transitionDelay = `${delay}ms`;
+                    
+                    setTimeout(() => {
+                        const time = Date.now() * 0.001;
+                        const x = window.innerWidth / 2 + Math.cos(orbitAngle + time) * orbitRadius;
+                        const y = window.innerHeight / 2 + Math.sin(orbitAngle + time) * orbitRadius;
+                        const z = Math.sin(orbitAngle + time * 2) * orbitHeight;
+                        
+                        element.style.transform = `
+                            translate3d(${x - 100}px, ${y - 100}px, ${z}px)
+                            rotateX(${(orbitAngle + time) * 180 / Math.PI}deg)
+                            rotateY(${(orbitAngle + time) * 180 / Math.PI * 2}deg)
+                            rotateZ(${(orbitAngle + time) * 180 / Math.PI}deg)
+                            scale(${0.8 + Math.sin(orbitAngle + time) * 0.4})
+                        `;
+                        element.style.opacity = '0.8';
+                        
+                        const hue = ((orbitAngle + time) * 180 / Math.PI + Date.now() * 0.1) % 360;
+                        element.style.borderColor = `hsla(${hue}, 100%, 60%, 0.8)`;
+                        element.style.background = `hsla(${hue}, 100%, 60%, 0.2)`;
+                    }, 10);
+                });
+
+                setTimeout(() => {
+                    this.resetElements();
+                }, 4500);
+            }
+
+            // 添加粒子轨迹效果
+            createParticleTrails() {
+                this.trails = [];
+                this.elements.forEach((element, index) => {
+                    this.trails.push({
+                        element: element,
+                        points: [],
+                        maxPoints: 20,
+                        hue: Math.random() * 360
+                    });
+                });
+            }
+
+            updateParticleTrails() {
+                this.trails.forEach(trail => {
+                    const rect = trail.element.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
+                    
+                    trail.points.push({ x, y, time: Date.now() });
+                    if (trail.points.length > trail.maxPoints) {
+                        trail.points.shift();
+                    }
+                    
+                    trail.hue = (trail.hue + 1) % 360;
+                });
+            }
+
+            drawParticleTrails() {
+                const canvas = document.createElement('canvas');
+                canvas.style.position = 'absolute';
+                canvas.style.top = '0';
+                canvas.style.left = '0';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.pointerEvents = 'none';
+                canvas.style.zIndex = '6';
+                this.container.appendChild(canvas);
+                
+                const ctx = canvas.getContext('2d');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                const animate = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    this.trails.forEach(trail => {
+                        if (trail.points.length > 1) {
+                            for (let i = 0; i < trail.points.length - 1; i++) {
+                                const point = trail.points[i];
+                                const nextPoint = trail.points[i + 1];
+                                const opacity = (i / trail.points.length) * 0.5;
+                                
+                                ctx.strokeStyle = `hsla(${trail.hue}, 100%, 60%, ${opacity})`;
+                                ctx.lineWidth = 2;
+                                ctx.beginPath();
+                                ctx.moveTo(point.x, point.y);
+                                ctx.lineTo(nextPoint.x, nextPoint.y);
+                                ctx.stroke();
+                            }
+                        }
+                    });
+                    
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            startTransitions() {
+                // 添加新的过场动画
+                this.transitions.push(
+                    this.createTransition4.bind(this),
+                    this.createTransition5.bind(this),
+                    this.createTransition6.bind(this)
+                );
+                
+                // 创建粒子轨迹
+                this.createParticleTrails();
+                this.drawParticleTrails();
+                
+                const runTransition = () => {
+                    const transition = this.transitions[this.currentTransition];
+                    transition();
+                    
+                    this.currentTransition = (this.currentTransition + 1) % this.transitions.length;
+                    
+                    setTimeout(runTransition, this.transitionDuration + this.transitionDelay);
+                };
+                
+                runTransition();
+                
+                // 更新粒子轨迹
+                setInterval(() => {
+                    this.updateParticleTrails();
+                }, 50);
+            }
+        }
+
+        // ============================================
+        // 初始化所有效果
+        // ============================================
+        window.addEventListener('DOMContentLoaded', () => {
+            // 效果1: 模糊背景粒子系统
+            const blurParticles = new BlurParticleSystem('blur-background');
+            
+            // 效果2: 全息文字效果
+            const hologramText = new HologramTextEffect();
+            
+            // 效果3: 动态渐变背景
+            const dynamicGradient = new DynamicGradientSystem('gradient-background');
+            
+            // 效果4: 矩阵雨效果
+            const matrixRain = new MatrixRainEffect('matrix-canvas');
+            
+            // 效果5: 3D变换过场动画
+            const transform3D = new Transform3DTransition();
+        });
+    </script>
+</body>
+</html>
