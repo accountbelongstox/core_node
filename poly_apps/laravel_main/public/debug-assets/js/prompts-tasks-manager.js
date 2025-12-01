@@ -330,7 +330,7 @@ const PromptsTasksManager = {
             }
 
             // Ensure content is a string
-            const content = (data.content != null) ? String(data.content) : '';
+            const content = (typeof data.content !== 'undefined' && data.content !== null) ? String(data.content) : '';
             this.createFloatingWindow(path, name, content, data.modified);
         } catch (error) {
             console.error('Failed to open prompt:', error);
@@ -340,7 +340,7 @@ const PromptsTasksManager = {
 
     createFloatingWindow(path, name, content, modified) {
         // Ensure content is always a string
-        content = (content != null) ? String(content) : '';
+        content = (typeof content !== 'undefined' && content !== null) ? String(content) : '';
 
         const windowId = `prompt-window-${Date.now()}`;
         const windowElement = document.createElement('div');
@@ -947,7 +947,7 @@ const PromptsTasksManager = {
     },
 
     containsChinese(text) {
-        if (text == null || typeof text !== 'string') return false;
+        if (typeof text === 'undefined' || text === null || typeof text !== 'string') return false;
         return /[\u4e00-\u9fa5]/.test(text);
     },
 
