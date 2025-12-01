@@ -125,10 +125,19 @@ is_rdp_configured() {
     local dbus_session=$(pgrep -u "$TARGET_USER" gnome-session 2>/dev/null | head -1)
 
     if [ -z "$dbus_session" ]; then
-        # User not logged in, check if service exists
-        if sudo -u "$TARGET_USER" systemctl --user list-unit-files 2>/dev/null | grep -q "gnome-remote-desktop.service"; then
+        # User not logged in, check if service exists and is enabled
+        if sudo -u "$TARGET_USER" systemctl --user list-unit-files 2>/dev/null | grep -q "gnome-remote-desktop.service.*enabled"; then
+            # Service is enabled, assume RDP is configured
             return 0
         fi
+
+        # Also check if RDP configuration files exist
+        local user_home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+        if [ -d "$user_home/.local/share/gnome-remote-desktop" ] || \
+           [ -f "$user_home/.config/gnome-remote-desktop/rdp-credentials" ]; then
+            return 0
+        fi
+
         return 1
     fi
 

@@ -152,15 +152,69 @@ install_swoole_dependencies() {
 }
 
 install_swoole_pecl() {
-    echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole via PECL...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole...${NC}"
 
+    # Check PHP version
+    local php_ver=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
+    
+    # For PHP 8.5+, install from source (master) as PECL version is incompatible
+    if [[ "$php_ver" == "8.5" ]]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (master branch)...${NC}"
+        
+        if ! command -v git >/dev/null 2>&1; then
+            $USE_SUDO apt-get install -y git
+        fi
+        
+        local build_dir="/tmp/swoole-src-build"
+        rm -rf "$build_dir"
+        
+        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole repository...${NC}"
+        git clone --depth 1 https://github.com/swoole/swoole-src.git "$build_dir"
+        
+        if [ ! -d "$build_dir" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Failed to clone repository${NC}"
+            return 1
+        fi
+        
+        # Save current directory
+        local original_dir=$(pwd)
+        cd "$build_dir"
+        
+        echo -e "${CYAN}$SCRIPT_INDEX Compiling Swoole...${NC}"
+        phpize
+        ./configure --enable-openssl --enable-swoole-curl --enable-mysqlnd
+        make -j$(nproc)
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}$SCRIPT_INDEX Build failed${NC}"
+            cd "$original_dir"
+            return 1
+        fi
+        
+        $USE_SUDO make install
+        local install_status=$?
+        
+        cd "$original_dir"
+        rm -rf "$build_dir"
+        
+        if [ $install_status -eq 0 ]; then
+            echo -e "${GREEN}$SCRIPT_INDEX Swoole installed from source${NC}"
+            return 0
+        else
+            echo -e "${RED}$SCRIPT_INDEX Installation failed${NC}"
+            return 1
+        fi
+    fi
+
+    # Fallback to PECL for older versions
+    echo -e "${BLUE}$SCRIPT_INDEX Installing via PECL...${NC}"
     if ! command -v pecl >/dev/null 2>&1; then
         echo -e "${RED}$SCRIPT_INDEX PECL not found, installing php-pear...${NC}"
         $USE_SUDO apt-get install -y php-pear
     fi
 
-    echo -e "${CYAN}$SCRIPT_INDEX Running: pecl install swoole${NC}"
-    echo "" | $USE_SUDO pecl install swoole
+    echo -e "${CYAN}$SCRIPT_INDEX Running: pecl install --force swoole${NC}"
+    echo "" | $USE_SUDO pecl install --force swoole
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Swoole installed via PECL${NC}"
