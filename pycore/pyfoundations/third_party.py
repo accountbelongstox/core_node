@@ -212,8 +212,9 @@ WINDOWS_ONLY_PACKAGES = {
 
 # System packages required for Python packages (Debian/Ubuntu only)
 # These are installed via apt-get, not pip
+# Note: python3-tk is generic, but we'll also add version-specific package dynamically
 SYSTEM_PACKAGES = [
-    "python3-tk",              # Required for tkinter GUI support
+    "python3-tk",              # Required for tkinter GUI support (generic)
     "python3-dev",              # Required for building Python extensions
     "gir1.2-appindicator3-0.1", # Required for system tray indicators
     "gir1.2-gtk-3.0",          # Required for GTK3 GUI support
@@ -222,6 +223,29 @@ SYSTEM_PACKAGES = [
     "python3-pil",              # Required for PIL/Pillow image processing
     "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
 ]
+
+
+def get_system_packages_for_current_python():
+    """
+    Get system packages list including version-specific packages for current Python.
+
+    For example, if running Python 3.12, adds python3.12-tk to the list.
+    """
+    packages = list(SYSTEM_PACKAGES)
+
+    # Add version-specific tkinter package
+    import sys
+    py_major = sys.version_info.major
+    py_minor = sys.version_info.minor
+    version_specific_tk = f"python{py_major}.{py_minor}-tk"
+
+    # Add version-specific package if not already in generic list
+    if version_specific_tk not in packages and "python3-tk" in packages:
+        # Insert after python3-tk
+        idx = packages.index("python3-tk")
+        packages.insert(idx + 1, version_specific_tk)
+
+    return packages
 
 
 def check_system_package_installed(package_name: str) -> bool:
@@ -256,6 +280,9 @@ def install_system_packages():
     Uses apt-get to install system packages. Requires sudo privileges.
     Only runs on Linux systems with apt-get available.
     First fixes any broken packages, then updates package list, then installs missing packages.
+
+    Automatically detects current Python version and installs version-specific packages
+    (e.g., python3.12-tk for Python 3.12).
     """
     current_platform = platform.system()
 
@@ -270,11 +297,15 @@ def install_system_packages():
         ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
         return
 
+    # Get system packages list (includes version-specific packages for current Python)
+    system_packages = get_system_packages_for_current_python()
+
     # Check which system packages are missing (always check, even without sudo)
     ColorPrint.blue("[INFO] Checking for required system packages...")
+    ColorPrint.blue(f"[INFO] Current Python: {sys.version_info.major}.{sys.version_info.minor}")
     missing_packages = []
 
-    for package in SYSTEM_PACKAGES:
+    for package in system_packages:
         if not check_system_package_installed(package):
             missing_packages.append(package)
             ColorPrint.yellow(f"[MISSING] System package '{package}' not found")
@@ -1138,25 +1169,37 @@ def get_third_package_pyaudio():
 
 # GUI packages
 def get_third_package_tkinter():
-    """Get tkinter module (lazy load, requires python3-tk on Linux)"""
+    """Get tkinter module (lazy load, requires python3.X-tk on Linux)"""
     if 'tkinter' not in _PACKAGE_CACHE:
         try:
             import tkinter as _tkinter_module
             _PACKAGE_CACHE['tkinter'] = _tkinter_module
         except ImportError as e:
-            # tkinter import failed - check if due to missing system packages
+            # tkinter import failed - provide diagnostic info
+            import sys
+            ColorPrint.red("[ERROR] Failed to import tkinter")
+            ColorPrint.yellow(f"[INFO] Python executable: {sys.executable}")
+            ColorPrint.yellow(f"[INFO] Python version: {sys.version}")
+
+            # Get version-specific package name
+            py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+            version_specific_tk = f"python{py_ver}-tk"
+
+            # Check if due to missing system packages
             missing_packages = ENCYCLOPEDIA.get("missing_system_packages", [])
-            if missing_packages and "python3-tk" in missing_packages:
-                ColorPrint.red("[ERROR] tkinter module not found - system packages not installed")
-                ColorPrint.yellow(f"[FIX] Missing packages: {', '.join(missing_packages)}")
-                ColorPrint.yellow("[NOTE] System package installation may have failed - check logs above")
-                raise ImportError(
-                    f"tkinter not available - missing system packages: {missing_packages}\n"
-                    f"System package installation may have failed during startup."
-                ) from e
+            if missing_packages:
+                ColorPrint.yellow(f"[FIX] Missing packages detected during startup: {', '.join(missing_packages)}")
+                ColorPrint.yellow(f"[FIX] Install: sudo apt-get install {' '.join(missing_packages)}")
             else:
-                ColorPrint.red(f"[ERROR] Failed to import tkinter: {e}")
-                raise
+                ColorPrint.yellow("[INFO] Generic system packages appear to be installed")
+                ColorPrint.yellow("[FIX] Install version-specific tkinter package:")
+                ColorPrint.yellow(f"      sudo apt-get install {version_specific_tk}")
+
+            raise ImportError(
+                f"tkinter not available for Python {py_ver}\n"
+                f"Python: {sys.executable}\n"
+                f"Install: sudo apt-get install {version_specific_tk}"
+            ) from e
     return _PACKAGE_CACHE['tkinter']
 
 
