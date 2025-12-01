@@ -11,8 +11,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 32_configure_php84.sh
-# Description: PHP 8.4 configuration and web server integration
+# Script: 32_configure_php85.sh
+# Description: PHP 8.5 configuration and web server integration
 # Author: System Administrator
 # Version: 1.0
 # Design: Based on SHELL_INSTALLATION_DEVELOPMENT_GUIDE.md principles
@@ -33,12 +33,12 @@
 # Laravel files by configuring open_basedir settings correctly based on the
 # current environment and path mapping.
 #
-# This shell script (32_configure_php84.sh):
+# This shell script (32_configure_php85.sh):
 #   - Used during system installation and setup
 #   - Can be run manually or via installation scripts
 #   - Uses gvar_common.sh for path mapping (map_web_path function)
-#   - Modifies /etc/php/8.4/cli/php.ini and /etc/php/8.4/fpm/php.ini
-#   - Modifies /etc/php/8.4/fpm/pool.d/www.conf via php_common_functions.sh
+#   - Modifies /etc/php/8.5/cli/php.ini and /etc/php/8.5/fpm/php.ini
+#   - Modifies /etc/php/8.5/fpm/pool.d/www.conf via php_common_functions.sh
 #   - Requires sudo/root privileges
 #
 # ServerManagerV1PHPConfigFixer.php:
@@ -69,8 +69,8 @@
 # KEY DIFFERENCES:
 # ----------------
 # 1. Configuration Files Modified:
-#    Shell script: /etc/php/8.4/cli/php.ini, /etc/php/8.4/fpm/php.ini,
-#                  /etc/php/8.4/fpm/pool.d/www.conf
+#    Shell script: /etc/php/8.5/cli/php.ini, /etc/php/8.5/fpm/php.ini,
+#                  /etc/php/8.5/fpm/pool.d/www.conf
 #    PHP class:    Same files (via php_common_functions.sh and direct modification)
 #
 # 2. Execution Context:
@@ -91,11 +91,11 @@
 # [ ] PathMapper::mapWebPath() changes
 #     -> Update gvar_common.sh map_web_path()
 #
-# [ ] 32_configure_php84.sh changes (especially open_basedir handling)
+# [ ] 32_configure_php85.sh changes (especially open_basedir handling)
 #     -> Update ServerManagerV1PHPConfigFixer.php comments and logic
 #
 # [ ] ServerManagerV1PHPConfigFixer.php changes
-#     -> Update 32_configure_php84.sh comments (this file)
+#     -> Update 32_configure_php85.sh comments (this file)
 #
 # [ ] php_common_functions.sh configure_php_fpm_pool_from_php_common() changes
 #     -> Update ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig()
@@ -119,7 +119,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Script identification
-SCRIPT_INDEX="[33_PHP84_CONFIG]"
+SCRIPT_INDEX="[33_PHP85_CONFIG]"
 
 # Source global variables for constraint checking
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -146,54 +146,40 @@ echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX${NC}"
 
 # Configuration variables are now sourced from php_common_vars.sh
 
-# Configure PHP-FPM - now using PHP common function
+# Configure PHP-FPM - DISABLED (using Swoole)
 configure_php_fpm() {
-    echo -e "${BLUE}$SCRIPT_INDEX [CONFIG] Configuring PHP-FPM pool...${NC}"
-    
-    # Ensure socket directory exists
-    ensure_socket_directory_from_php_common "/run/php/php8.4-fpm.sock" "$SCRIPT_INDEX"
-    
-    # Configure PHP-FPM pool
-    configure_php_fpm_pool_from_php_common "8.4" "/run/php/php8.4-fpm.sock" "$SCRIPT_INDEX"
-    
-    # Restart PHP-FPM service to apply changes
-    echo -e "${YELLOW}$SCRIPT_INDEX Restarting PHP-FPM service...${NC}"
-    if $USE_SUDO systemctl restart php8.4-fpm; then
-        echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM service restarted successfully${NC}"
-    else
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM service restart failed, but continuing...${NC}"
-    fi
-    
-    # Verify socket after restart
-    verify_php_fpm_socket_from_php_common "/run/php/php8.4-fpm.sock" "$SCRIPT_INDEX"
+    echo -e "${BLUE}$SCRIPT_INDEX [INFO] Skipping PHP-FPM configuration - Using Swoole with Laravel Octane${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP-FPM is not needed when using Swoole${NC}"
+    return 0
 }
 
-    # Configure PHP for Laravel and system access - now using PHP common function
-    # 
-    # IMPORTANT: This function must match the behavior of ServerManagerV1PHPConfigFixer::fixPHPIniFiles()
-    # 
-    # RELATIONSHIP WITH ServerManagerV1PHPConfigFixer.php:
-    # =====================================================
-    # 
-    # This function calls configure_php_for_laravel_from_php_common() which:
-    #   - Removes open_basedir restrictions from /etc/php/8.4/cli/php.ini
-    #   - Removes open_basedir restrictions from /etc/php/8.4/fpm/php.ini
-    #   - Sets open_basedir = none in both files
-    # 
-    # This matches ServerManagerV1PHPConfigFixer::fixPHPIniFiles() behavior.
-    # 
-    # See: ../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
-    # 
-    # Both must produce the same result: open_basedir restrictions disabled to allow
-    # Laravel files to be accessed regardless of path mapping changes.
-    configure_php_for_laravel() {
-        configure_php_for_laravel_from_php_common "$SCRIPT_INDEX"
-        
-        # Verify open_basedir configuration
-        # This verification ensures the configuration matches what ServerManagerV1PHPConfigFixer
-        # would produce, maintaining consistency between installation-time and runtime fixes.
-        verify_open_basedir_config_from_php_common "$SCRIPT_INDEX"
-    }
+# Configure PHP for Laravel and system access - now using PHP common function
+#
+# IMPORTANT: This function must match the behavior of ServerManagerV1PHPConfigFixer::fixPHPIniFiles()
+#
+# RELATIONSHIP WITH ServerManagerV1PHPConfigFixer.php:
+# =====================================================
+#
+# This function calls configure_php_for_laravel_from_php_common() which:
+#   - Removes open_basedir restrictions from /etc/php/8.5/cli/php.ini
+#   - Sets open_basedir = none in CLI php.ini
+#
+# Note: FPM php.ini is NOT configured since we use Swoole instead of FPM
+#
+# This matches ServerManagerV1PHPConfigFixer::fixPHPIniFiles() behavior.
+#
+# See: ../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
+#
+# Both must produce the same result: open_basedir restrictions disabled to allow
+# Laravel files to be accessed regardless of path mapping changes.
+configure_php_for_laravel() {
+    configure_php_for_laravel_from_php_common "$SCRIPT_INDEX"
+
+    # Verify open_basedir configuration
+    # This verification ensures the configuration matches what ServerManagerV1PHPConfigFixer
+    # would produce, maintaining consistency between installation-time and runtime fixes.
+    verify_open_basedir_config_from_php_common "$SCRIPT_INDEX"
+}
 
 # Set directory permissions for Laravel - now using PHP common function
 set_directory_permissions() {
@@ -202,9 +188,9 @@ set_directory_permissions() {
     set_directory_permissions_from_php_common "$www_root" "$SCRIPT_INDEX"
 }
 
-# 4.5 Setup PHP 8.4 as default - Following test_phpdoc.txt exactly
+# 4.5 Setup PHP 8.5 as default - Following test_phpdoc.txt exactly
 setup_php_default() {
-    echo -e "${BLUE}$SCRIPT_INDEX [CONFIG] Setting up PHP 8.4 as default...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX [CONFIG] Setting up PHP 8.5 as default...${NC}"
 
     # Step 1: List installed PHP versions (as per documentation)
     echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Listing installed PHP versions...${NC}"
@@ -212,28 +198,28 @@ setup_php_default() {
         ls /etc/php
     fi
 
-    # Step 2: Set PHP 8.4 as default system version (as per documentation)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.4 as default system version...${NC}"
+    # Step 2: Set PHP 8.5 as default system version (as per documentation)
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
 
-    # Find PHP 8.4 binary
-    local php84_binary="/usr/bin/php8.4"
-    if [ -f "$php84_binary" ] && [ -x "$php84_binary" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.4 binary: $php84_binary${NC}"
+    # Find PHP 8.5 binary
+    local php85_binary="/usr/bin/php8.5"
+    if [ -f "$php85_binary" ] && [ -x "$php85_binary" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
 
         # Remove all existing PHP alternatives first to ensure clean state
         echo -e "${YELLOW}$SCRIPT_INDEX Removing all existing PHP alternatives...${NC}"
         $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
 
         # Use update-alternatives as per documentation
-        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP 8.4 to alternatives...${NC}"
-        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.4 84; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 added to alternatives with priority 84${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP 8.5 to alternatives...${NC}"
+        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 added to alternatives with priority 84${NC}"
 
-            # Explicitly set PHP 8.4 as the default
-            $USE_SUDO update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 explicitly set as default${NC}"
+            # Explicitly set PHP 8.5 as the default
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 explicitly set as default${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.4 as default${NC}"
+            echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
             return 1
         fi
 
@@ -241,13 +227,13 @@ setup_php_default() {
         local current_php=$(readlink /etc/alternatives/php 2>/dev/null || echo "not found")
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
-        if [ "$current_php" = "/usr/bin/php8.4" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default �?{NC}"
+        if [ "$current_php" = "/usr/bin/php8.5" ]; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is now the system default �?{NC}"
         else
-            echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 default verification failed${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default verification failed${NC}"
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 binary not found: $php84_binary${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary not found: $php85_binary${NC}"
         return 1
     fi
 
@@ -257,10 +243,10 @@ setup_php_default() {
         local php_version=$(php -v | head -1 | cut -d' ' -f2)
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
-        if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working �?{NC}"
+        if [[ "$php_version" == "8.5"* ]]; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is active and working �?{NC}"
         else
-            echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.4.x, got $php_version${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.5.x, got $php_version${NC}"
         fi
     else
         echo -e "${RED}$SCRIPT_INDEX PHP command not available${NC}"
@@ -290,76 +276,87 @@ setup_php_default() {
         local alternatives_list=$(update-alternatives --list php 2>/dev/null || echo "")
         local alternatives_count=$(echo "$alternatives_list" | wc -l)
 
-        if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.4"; then
-            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives �?{NC}"
+        if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.5"; then
+            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.5 is in alternatives �?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
             echo "$alternatives_list"
         fi
     fi
 
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 default setup completed successfully${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 default setup completed successfully${NC}"
 }
 
 # Update Nginx configuration - now using PHP common function
 update_nginx_config() {
-    update_nginx_config_from_php_common "8.4" "$SCRIPT_INDEX"
+    update_nginx_config_from_php_common "8.5" "$SCRIPT_INDEX"
 }
 
 # Update Caddy configuration - now using PHP common function
 update_caddy_config() {
-    update_caddy_config_from_php_common "8.4" "$SCRIPT_INDEX"
+    update_caddy_config_from_php_common "8.5" "$SCRIPT_INDEX"
 }
 
 # MAIN EXECUTION
 
 main() {
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.4 Configuration System${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 Configuration System (Precision Repair Mode)${NC}"
     echo -e "${CYAN}============================================================================${NC}"
-    
+
     if [ "$FORCE_REFRESH" = true ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Force refreshing PHP 8.4 configuration...${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Force refreshing PHP 8.5 configuration...${NC}"
     else
-        echo -e "${YELLOW}$SCRIPT_INDEX Starting PHP 8.4 configuration...${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Starting PHP 8.5 configuration...${NC}"
     fi
 
-    # Step 1: Configure PHP-FPM
+    echo -e "${CYAN}$SCRIPT_INDEX [PRECISION MODE] Running ALL configuration steps regardless of current state${NC}"
+
+    # Step 1: Configure PHP-FPM (ALWAYS run - 精细化修复第1项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 1/5] Configuring PHP-FPM...${NC}"
     configure_php_fpm || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM configuration completed with warnings${NC}"
     }
 
-    # Step 2: Configure PHP for Laravel (always refresh open_basedir)
+    # Step 2: Configure PHP for Laravel (ALWAYS run - 精细化修复第2项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Configuring PHP for Laravel...${NC}"
     configure_php_for_laravel || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP Laravel configuration completed with warnings${NC}"
     }
 
-    # Step 3: Set directory permissions
+    # Step 3: Set directory permissions (ALWAYS run - 精细化修复第3项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Setting directory permissions...${NC}"
     set_directory_permissions || {
         echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"
     }
 
-    # Step 4: Set PHP 8.4 as default
+    # Step 4: Set PHP 8.5 as default (ALWAYS run - 精细化修复第4项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 4/5] Setting PHP 8.5 as default...${NC}"
     setup_php_default || {
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 default setup failed${NC}"
-        return 1
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default setup completed with warnings${NC}"
     }
 
-    # Step 5: Update web server configurations
+    # Step 5: Update web server configurations (ALWAYS check - 精细化修复第5项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Updating web server configurations...${NC}"
     if [ "$INSTALL_NGINX" = "true" ]; then
         update_nginx_config || {
             echo -e "${YELLOW}$SCRIPT_INDEX Nginx configuration completed with warnings${NC}"
         }
+    else
+        echo -e "${CYAN}$SCRIPT_INDEX Nginx not enabled, skipping Nginx config${NC}"
     fi
 
     # Check for Caddy (if installed)
     if command -v caddy >/dev/null 2>&1; then
+        echo -e "${CYAN}$SCRIPT_INDEX Caddy detected, updating Caddy configuration...${NC}"
         update_caddy_config || {
             echo -e "${YELLOW}$SCRIPT_INDEX Caddy configuration completed with warnings${NC}"
         }
+    else
+        echo -e "${CYAN}$SCRIPT_INDEX Caddy not detected, skipping Caddy config${NC}"
     fi
 
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 configuration completed successfully${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] All PHP 8.5 configuration steps completed${NC}"
 }
 
 # Execute main function

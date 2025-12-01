@@ -29,6 +29,7 @@ SCRIPT_INDEX="127"
 # Source common files
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
 
 # Declare variables
 APP_NAME="WeChat"
@@ -41,6 +42,15 @@ EXTRACTED_DIR="$INSTALL_DIR/extracted"
 APPRUN_PATH="$EXTRACTED_DIR/squashfs-root/AppRun"
 WRAPPER_SCRIPT="/usr/local/super_scripts/${EXEC_NAME}.sh"
 DESKTOP_FILE="/usr/share/applications/${EXEC_NAME}.desktop"
+
+# Version tracking
+APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
+VERSION_FILE="$APP_VERSIONS_DIR/wechat.version"
+
+# Real user detection
+REAL_USER=$(get_real_user)
+REAL_USER_HOME=$(get_real_user_home)
+REAL_USER_GROUP=$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")
 
 # Desktop entry configuration
 DESKTOP_NAME="WeChat"
@@ -65,6 +75,35 @@ fi
 print_info_from_common_functions "Desktop system detected - proceeding with WeChat installation"
 echo ""
 
+# Function to get installed version
+get_installed_version() {
+    if [ -f "$VERSION_FILE" ]; then
+        cat "$VERSION_FILE" 2>/dev/null
+    fi
+}
+
+# Function to get version from filename
+# Example: "WeChatLinux_x86_64.AppImage" -> "WeChatLinux_x86_64"
+get_version_from_file() {
+    local filename="$1"
+    local basename_file=$(basename "$filename")
+    local version_string="${basename_file%.*}"
+
+    if [ -n "$version_string" ]; then
+        echo "$version_string"
+        return 0
+    fi
+    return 1
+}
+
+# Function to save installed version
+save_installed_version() {
+    local version="$1"
+    mkdir -p "$APP_VERSIONS_DIR"
+    echo "$version" > "$VERSION_FILE"
+    print_info_from_common_functions "Version saved: $version"
+}
+
 # Function to check if WeChat is installed
 check_wechat_installed() {
     if [ -f "/usr/local/bin/$EXEC_NAME" ] && [ -x "/usr/local/bin/$EXEC_NAME" ]; then
@@ -72,6 +111,38 @@ check_wechat_installed() {
         return 0
     fi
     return 1
+}
+
+# Function to fix directory permissions for real user
+fix_directory_permissions() {
+    local target_dir="$1"
+
+    if [ ! -d "$target_dir" ]; then
+        return 0
+    fi
+
+    print_step_from_common_functions "Fixing permissions for: $target_dir"
+    print_info_from_common_functions "Setting owner to: $REAL_USER:$REAL_USER_GROUP"
+
+    # Change ownership to real user
+    $USE_SUDO chown -R "$REAL_USER:$REAL_USER_GROUP" "$target_dir" 2>/dev/null || {
+        print_warning_from_common_functions "Failed to change ownership, continuing..."
+    }
+
+    # Set permissions: 755 for directories, 644 for files
+    $USE_SUDO find "$target_dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
+    $USE_SUDO find "$target_dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
+    # Make AppImage and scripts executable
+    if [ -f "$APPIMAGE_FILE" ]; then
+        $USE_SUDO chmod 755 "$APPIMAGE_FILE"
+    fi
+
+    if [ -f "$APPRUN_PATH" ]; then
+        $USE_SUDO chmod 755 "$APPRUN_PATH"
+    fi
+
+    print_success_from_common_functions "Permissions fixed"
 }
 
 # Function to install libfuse2 (required for AppImage)
@@ -352,11 +423,44 @@ main() {
     print_step_from_common_functions "Starting WeChat installation process..."
     echo ""
 
-    # Check if already installed
+    print_info_from_common_functions "Real user detected: $REAL_USER"
+    print_info_from_common_functions "Real user home: $REAL_USER_HOME"
+    echo ""
+
+    # Check if already installed and get version
     local is_installed=false
+    local installed_version=""
+
     if check_wechat_installed; then
         is_installed=true
-        print_info_from_common_functions "WeChat is already installed, will repair/update installation"
+        installed_version=$(get_installed_version)
+
+        if [ -n "$installed_version" ]; then
+            print_info_from_common_functions "WeChat is already installed"
+            print_info_from_common_functions "Installed version: $installed_version"
+        else
+            print_info_from_common_functions "WeChat is already installed (version unknown)"
+        fi
+
+        # Ask user if they want to update
+        echo ""
+        print_step_from_common_functions "Do you want to update/repair WeChat installation? (Y/n)"
+        read -r -p "Update? [Y/n]: " response
+        response=${response:-Y}
+
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            print_info_from_common_functions "Skipping update/repair"
+
+            # Still fix permissions
+            print_step_from_common_functions "Fixing permissions for existing installation..."
+            fix_directory_permissions "$INSTALL_DIR"
+
+            echo ""
+            print_success_from_common_functions "WeChat installation verified"
+            exit 0
+        fi
+
+        print_info_from_common_functions "Proceeding with update/repair..."
         echo ""
     fi
 
@@ -395,6 +499,19 @@ main() {
     # Create desktop entry
     create_desktop_entry
 
+    # Fix all permissions for real user
+    print_step_from_common_functions "Fixing final permissions..."
+    fix_directory_permissions "$INSTALL_DIR"
+
+    # Save installed version
+    local new_version=$(get_version_from_file "$APPIMAGE_FILE")
+    if [ -n "$new_version" ]; then
+        save_installed_version "$new_version"
+    else
+        # Fallback: use timestamp as version
+        save_installed_version "$(date +%Y%m%d-%H%M%S)"
+    fi
+
     echo ""
     print_success_from_common_functions "=========================================="
     print_success_from_common_functions "WeChat Installation Completed Successfully"
@@ -405,6 +522,10 @@ main() {
     print_info_from_common_functions "  Wrapper: $WRAPPER_SCRIPT"
     print_info_from_common_functions "  Symlink: /usr/local/bin/$EXEC_NAME"
     print_info_from_common_functions "  Desktop: $DESKTOP_FILE"
+    print_info_from_common_functions "  Owner: $REAL_USER:$REAL_USER_GROUP"
+    if [ -n "$new_version" ]; then
+        print_info_from_common_functions "  Version: $new_version"
+    fi
     echo ""
     print_info_from_common_functions "You can now launch WeChat from:"
     print_info_from_common_functions "  - Application menu"

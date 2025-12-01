@@ -466,7 +466,7 @@ EOF
     # Make desktop entry executable
     chmod +x "$desktop_file"
 
-    echo -e "${COLOR_GREEN}  ï¿?Created: $display_name${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}  ï¿½?Created: $display_name${COLOR_RESET}"
 }
 
 # Scan scripts directory
@@ -573,7 +573,7 @@ EOF
 
     chmod +x "$manager_desktop"
 
-    echo -e "${COLOR_GREEN}ï¿?Desktop manager shortcut created${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}ï¿½?Desktop manager shortcut created${COLOR_RESET}"
     echo ""
 }
 
@@ -720,6 +720,54 @@ find_app_icon() {
     return 0
 }
 
+# Extract original binary from launcher script (prevent recursion)
+extract_original_binary() {
+    local binary_path="$1"
+
+    # Check if this is a launcher script created by desktop_entry_manager
+    if [[ ! -f "$binary_path" ]]; then
+        echo "$binary_path"
+        return 0
+    fi
+
+    # Check if it's a launcher script (signature comment check)
+    if ! grep -q "# Created by Desktop Entry Manager" "$binary_path" 2>/dev/null; then
+        # Not a launcher script, return as-is
+        echo "$binary_path"
+        return 0
+    fi
+
+    # It's a launcher script - extract the original binary
+    # Look for the exec line with the actual binary path
+    local original_binary=""
+
+    # Pattern 1: pkexec mode - look for binary path on the last non-comment line with content
+    # The launcher script has the binary path as the first argument after environment variables
+    original_binary=$(grep -E '^\s+[^#]*\s+\S+\s+' "$binary_path" | tail -1 | awk '{print $1}')
+
+    # Pattern 2: normal mode - look for exec line
+    if [[ -z "$original_binary" ]]; then
+        original_binary=$(grep -E '^exec\s+' "$binary_path" | head -1 | awk '{print $2}')
+    fi
+
+    # If extraction failed or is still pointing to launcher dir, return original
+    if [[ -z "$original_binary" ]] || [[ "$original_binary" == *"$LAUNCH_DIR"* ]]; then
+        echo "$binary_path"
+        return 0
+    fi
+
+    # Verify the extracted binary exists and is executable
+    if [[ -x "$original_binary" ]]; then
+        echo -e "${COLOR_YELLOW}  [RECURSION PREVENTION] Detected launcher script, using original binary: $original_binary${COLOR_RESET}" >&2
+        echo "$original_binary"
+        return 0
+    fi
+
+    # Fallback to original if extraction didn't work
+    echo "$binary_path"
+    return 0
+}
+
 # Create desktop entry for an installed application (called by install scripts)
 create_entry_for_app() {
     local app_name="$1"
@@ -737,11 +785,14 @@ create_entry_for_app() {
         echo "Usage: --create-app <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir] [use_root_mode]" >&2
         return 1
     fi
-    
+
     if [[ ! -x "$app_binary" ]]; then
         echo -e "${COLOR_RED}[ERROR] Binary not found or not executable: $app_binary${COLOR_RESET}" >&2
         return 1
     fi
+
+    # RECURSION PREVENTION: Extract original binary if app_binary is already a launcher
+    app_binary=$(extract_original_binary "$app_binary")
     
     # Intelligent icon finding
     echo -e "${COLOR_GRAY}  Searching for icon...${COLOR_RESET}" >&2
@@ -862,7 +913,7 @@ EOF
         echo -e "${COLOR_GRAY}  Set ownership to: $DESKTOP_USER${COLOR_RESET}" >&2
     fi
     
-    echo -e "${COLOR_GREEN}  ï¿?Created: $app_display_name${COLOR_RESET}" >&2
+    echo -e "${COLOR_GREEN}  ï¿½?Created: $app_display_name${COLOR_RESET}" >&2
     echo -e "${COLOR_GREEN}Desktop entry created successfully${COLOR_RESET}" >&2
     return 0
 }
