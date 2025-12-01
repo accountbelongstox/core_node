@@ -3,17 +3,19 @@
 FastAPI Application Factory
 """
 
+from pathlib import Path
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
-from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router
+from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router, web_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
 
-# Import CORS middleware correctly
+# Import CORS middleware and StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 
 def create_app() -> FastAPI:
@@ -42,6 +44,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Mount static files for desktop UI
+    DESKTOP_UI_DIR = Path(__file__).parent.parent / "pyctl" / "desktop" / "ui"
+    if DESKTOP_UI_DIR.exists():
+        app.mount("/desktop", StaticFiles(directory=str(DESKTOP_UI_DIR), html=True), name="desktop")
+        print(f"[App] Mounted desktop UI at /desktop -> {DESKTOP_UI_DIR}")
+
     # Register routers
     app.include_router(health_router)
     app.include_router(module_call_router)
@@ -49,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(translator_router)
     app.include_router(mcp_router)  # MCP backend integrated routes
     app.include_router(singleton_router)  # Singleton control routes
+    app.include_router(web_router)  # Web UI routes
 
     @app.on_event("startup")
     async def startup_event():
