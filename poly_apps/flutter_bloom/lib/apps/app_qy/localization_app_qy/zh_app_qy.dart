@@ -94,6 +94,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyPlayAudio: '播放音频',
     QyAppLocalizationKeys.qyWrongAnswer: '错误答案',
     QyAppLocalizationKeys.qyCorrectWord: '正确答案',
+    QyAppLocalizationKeys.qyAiExplain: 'AI 解释',
+    QyAppLocalizationKeys.qyAskQuestion: '提问...',
 
     // Authentication
     QyAppLocalizationKeys.qySignIn: '登录',

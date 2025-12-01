@@ -282,7 +282,10 @@ class PySide6Framework(QObject):
 
         if self.config.icon_path and Path(self.config.icon_path).exists():
             self.qt_app.setWindowIcon(QIcon(self.config.icon_path))
-            ColorPrint.blue(f"[PySide6Framework] Set app icon: {self.config.icon_path}")
+            ColorPrint.green(f"[PySide6Framework] Set app icon: {self.config.icon_path}")
+            ColorPrint.green(f"[PySide6Framework] Window icon will be set from: {self.config.icon_path}")
+        else:
+            ColorPrint.yellow(f"[PySide6Framework] No icon path provided or file not found: {self.config.icon_path}")
 
         # Create components
         ColorPrint.blue("[PySide6Framework] Step 3: Creating components...")
@@ -337,6 +340,7 @@ class PySide6Framework(QObject):
             width=self.config.window_size[0],
             height=self.config.window_size[1],
             frameless=self.config.frameless,
+            icon_path=self.config.icon_path,
             cache_window_state=self.config.cache_window_state
         )
         ColorPrint.green(f"[PySide6Framework] Main window created: {self.config.window_size[0]}x{self.config.window_size[1]}, frameless={self.config.frameless}")
