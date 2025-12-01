@@ -223,7 +223,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
   Widget _buildTabBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
@@ -621,7 +621,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: ColorsAppQy.qyFrostMedium,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: ColorsAppQy.qyBorderLight,
@@ -846,7 +846,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 ),
                 borderRadius: BorderRadius.circular(28),
               ),
-              child: Icon(practice.icon, color: Colors.white, size: 28),
+              child: Icon(practice.icon, color: ColorsAppQy.qyTextOnPrimary, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -1067,7 +1067,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 decoration: BoxDecoration(
                   color: achievement.achieved
                       ? ColorsAppQy.qySuccess.withOpacity(0.1)
-                      : Colors.white.withOpacity(0.3),
+                      : ColorsAppQy.qyFrostMedium,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: achievement.achieved
@@ -1082,7 +1082,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                       achievement.icon,
                       color: achievement.achieved
                           ? ColorsAppQy.qySuccess
-                          : Colors.grey,
+                          : ColorsAppQy.qyTextSecondary,
                       size: 28,
                     ),
                     const SizedBox(height: 8),
@@ -1091,7 +1091,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                       style: ThemeTextStyles.caption.copyWith(
                         color: achievement.achieved
                             ? ColorsAppQy.qyTextPrimary
-                            : Colors.grey,
+                            : ColorsAppQy.qyTextSecondary,
                         fontWeight: achievement.achieved
                             ? FontWeight.w600
                             : FontWeight.normal,

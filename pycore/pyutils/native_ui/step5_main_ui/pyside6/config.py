@@ -63,7 +63,7 @@ class PySide6UIConfig:
     title_font: Tuple[str, int] = ("Microsoft YaHei UI", 10)
 
     # Button configuration
-    show_menu_button: bool = True
+    show_menu_button: bool = False
     show_minimize_button: bool = True
     show_maximize_button: bool = True
     show_close_button: bool = True
