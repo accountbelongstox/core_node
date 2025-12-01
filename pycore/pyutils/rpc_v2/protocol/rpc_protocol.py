@@ -10,7 +10,11 @@ import time
 from dataclasses import asdict
 from typing import Any, Dict, Optional
 
-from fastapi import Request
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+# Get fastapi via third_party manager
+fastapi = get_third_package_fastapi()
+Request = fastapi.Request
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.constants import (
