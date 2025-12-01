@@ -78,7 +78,7 @@ window.addEventListener('resize', function () {
 // NAMESPACE: Navigation Functions
 function showSection(sectionType) {
     console.log('[showSection] Switching to section:', sectionType);
-    
+
     // Close mobile sidebar when selecting a menu item
     if (window.innerWidth <= 768) {
         closeMobileSidebar();
@@ -126,7 +126,7 @@ function showSection(sectionType) {
         section.classList.remove('active');
         section.style.display = 'none';
     });
-    
+
     // Handle main content body visibility
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
@@ -167,13 +167,13 @@ function showSection(sectionType) {
 
     // Check if section already exists
     let section = document.getElementById(sectionId);
-    
+
     // If section exists, just show it (already loaded)
     if (section) {
         section.classList.add('active');
         section.style.display = 'block';
         console.log('[showSection] Section activated:', sectionType);
-        
+
         // Initialize module-specific functionality after DOM is ready
         requestAnimationFrame(() => {
             initializeSectionModules(sectionType);
@@ -189,7 +189,7 @@ function showSection(sectionType) {
 
     const filePath = sectionFileMap[sectionType];
     console.log('[showSection] Loading section from:', filePath);
-    
+
     fetch(filePath)
         .then(response => {
             if (!response.ok) {
@@ -201,13 +201,13 @@ function showSection(sectionType) {
             // Parse HTML to get the section element
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = html.trim();
-            
+
             // Get the section element from parsed HTML
             section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
-            
+
             // Remove section from tempDiv
             section = tempDiv.removeChild(section);
-            
+
             // Remove placeholder elements if they exist (they will be in the section HTML)
             const placeholderIds = [
                 'dict-stats-container', 'dict-stats-loading', 'tasks-list-container', 'system-info',
@@ -223,16 +223,16 @@ function showSection(sectionType) {
                     placeholder.remove();
                 }
             });
-            
+
             // Insert section into container
             container.appendChild(section);
-            
+
             // Show the section
             section.classList.add('active');
             section.style.display = 'block';
-            
+
             console.log('[showSection] Section loaded and activated:', sectionType);
-            
+
             // Wait for DOM to be fully updated before initializing modules
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -273,14 +273,11 @@ function initializeSectionModules(sectionType) {
         loadDictionaryStatisticsIfAvailable();
     } else if (sectionType === 'system-info') {
         // Set system-info content when system-info section is loaded
-        const systemInfoEl = document.getElementById("system-info");
-        if (systemInfoEl) {
-            const completeInfo = {
-                public_info: publicInfo,
-                api_reference: apiData
-            };
-            systemInfoEl.innerHTML = "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
-        }
+        const completeInfo = {
+            public_info: publicInfo,
+            api_reference: apiData
+        };
+        document.getElementById("system-info").innerHTML = "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
     }
 }
 
@@ -332,7 +329,7 @@ async function updateUserDisplay() {
     const notLoggedInDiv = document.getElementById('user-not-logged-in');
     const displayNameSpan = document.getElementById('user-display-name');
 
-    if (isLoggedIn && AuthHelper.currentUser) {
+    if (isLoggedIn && typeof AuthHelper.currentUser !== 'undefined' && AuthHelper.currentUser !== null) {
         const displayName = AuthHelper.currentUser.username ||
             AuthHelper.currentUser.email ||
             AuthHelper.currentUser.name ||
@@ -448,7 +445,7 @@ function saveToBrowserCache(appName, endpoint, params) {
 function loadFromBrowserCache(appName, endpoint) {
     const cacheKey = appName + '_' + endpoint;
     const cached = localStorage.getItem('api_debug_cache');
-    if (cached) {
+    if (typeof cached !== 'undefined' && cached !== null && cached !== '') {
         cachedParams = JSON.parse(cached);
         return cachedParams[cacheKey]?.params || '';
     }
@@ -494,7 +491,7 @@ let currentAppAPIs = []; // Store current APIs for searching
 
 function loadAppAPIs() {
     const appSelectEl = document.getElementById("app-select");
-    
+
     const selectedApp = appSelectEl.value;
     const apiListDiv = document.getElementById("api-list");
     const searchContainer = document.getElementById("api-search-container");
@@ -504,7 +501,7 @@ function loadAppAPIs() {
         localStorage.setItem('selected_app', selectedApp);
     }
 
-    if (!selectedApp || !apiData[selectedApp]) {
+    if (!selectedApp || (typeof apiData[selectedApp] === 'undefined' || apiData[selectedApp] === null)) {
         apiListDiv.innerHTML = "<p style=\"text-align: center; color: #666; padding: 40px;\">No APIs found for this app</p>";
         if (searchContainer) {
             searchContainer.style.display = "none";
@@ -678,7 +675,7 @@ function createAPIItem(api, index, appName) {
 }
 
 function extractMethodFromFeature(feature) {
-    if (!feature) return "GET";
+    if (typeof feature === 'undefined' || feature === null || feature === '') return "GET";
     const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
     const upperFeature = feature.toUpperCase();
 
@@ -696,7 +693,7 @@ function extractMethodFromFeature(feature) {
 }
 
 function extractEndpointFromPath(path) {
-    if (!path) return "";
+    if (typeof path === 'undefined' || path === null || path === '') return "";
     try {
         const url = new URL(path);
         return url.pathname;
@@ -707,7 +704,7 @@ function extractEndpointFromPath(path) {
 }
 
 function parseFeatureInfo(feature) {
-    if (!feature) return {};
+    if (typeof feature === 'undefined' || feature === null || feature === '') return {};
     const parts = feature.split('/');
     return {
         requirements: parts.filter(part => part.includes('required')),
@@ -764,7 +761,7 @@ function createSharedHeadersSection(appName, supportedHeaders) {
 function loadAppHeadersFromCache(appName) {
     const cacheKey = 'app_headers_' + appName;
     const cached = localStorage.getItem(cacheKey);
-    if (cached) {
+    if (typeof cached !== 'undefined' && cached !== null && cached !== '') {
         try {
             return JSON.parse(cached);
         } catch (e) {
@@ -1552,9 +1549,9 @@ function jumpToAPI(apiIndex) {
 
 async function loadDictionaryStatistics() {
     const container = document.getElementById('dict-stats-container');
-    
+
     const loadingEl = document.getElementById('dict-stats-loading');
-    
+
     const response = await fetch('/api/dict/v1/system/dictionary-statistics');
     const result = await response.json();
 
@@ -1604,27 +1601,29 @@ function loadDictionaryStatisticsIfAvailable() {
 
 // Initialize integrated modules when Code Browser section is shown
 let codeBrowserIntegratedModulesInitialized = false;
+
 function initCodeBrowserIntegratedModules() {
     // Reset initialization flag when switching sections to allow re-initialization
     codeBrowserIntegratedModulesInitialized = false;
-    
-    if (codeBrowserIntegratedModulesInitialized) return;
-    
-    // Wait a bit for the section to be fully rendered
-    setTimeout(() => {
-        // Initialize Prompts/Tasks Manager (left panel in lower section)
-        if (typeof PromptsTasksManager !== 'undefined') {
-            PromptsTasksManager.init();
-        }
 
-        // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
+    // Wait a bit for the section to be fully rendered
+    setTimeout(async () => {
+        // Initialize Prompt Mapping Manager first (right panel in lower section)
+        // This must be done before PromptsTasksManager because PromptsTasksManager.loadCategory
+        // will call PromptMappingManager.switchCategory
         const mappingPanel = document.querySelector('#prompt-mapping-panel-embedded');
         if (mappingPanel && typeof PromptMappingManager !== 'undefined') {
-            PromptMappingManager.init('#prompt-mapping-panel-embedded');
+            await PromptMappingManager.init('#prompt-mapping-panel-embedded');
         } else {
             console.warn('Prompt mapping panel not found, may need to wait for section to load');
         }
-        
+
+        // Initialize Prompts/Tasks Manager (left panel in lower section)
+        // This will automatically load 'global' category and sync with mapping manager
+        if (typeof PromptsTasksManager !== 'undefined') {
+            await PromptsTasksManager.init();
+        }
+
         codeBrowserIntegratedModulesInitialized = true;
     }, 200);
 }
