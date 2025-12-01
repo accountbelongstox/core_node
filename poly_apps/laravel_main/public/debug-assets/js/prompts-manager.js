@@ -197,9 +197,7 @@ const PromptsManager = {
         menuBar.appendChild(promptsList);
 
         const cardBody = codeBrowserSection.querySelector('.card-body');
-        if (cardBody) {
-            cardBody.insertBefore(menuBar, cardBody.firstChild);
-        }
+        cardBody.insertBefore(menuBar, cardBody.firstChild);
     },
 
     async loadPrompts() {
@@ -1594,9 +1592,7 @@ const PromptsManager = {
             const originalText = this.editorContextMenu.querySelector('div:last-child').textContent;
             this.editorContextMenu.querySelector('div:last-child').textContent = selectedText ? '✓ Copied Selected!' : '✓ Copied All!';
             setTimeout(() => {
-                if (this.editorContextMenu.querySelector('div:last-child')) {
-                    this.editorContextMenu.querySelector('div:last-child').textContent = originalText;
-                }
+                this.editorContextMenu.querySelector('div:last-child').textContent = originalText;
             }, 1500);
         } catch (err) {
             console.error('[PromptsManager] Failed to copy:', err);
