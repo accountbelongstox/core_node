@@ -289,7 +289,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       child: Align(
         alignment: Alignment.topLeft,
         child: Material(
-          color: Colors.transparent,
+          color: ColorsAppQy.qyPageBackground.withOpacity(0),
           child: InkWell(
             onTap: () {
               context.go(QyAppRoutesProvider.routeHome);
@@ -299,10 +299,10 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostMedium,
                 borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: ColorsAppQy.qyFrostMedium,
                   width: 1,
                 ),
               ),
@@ -350,7 +350,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
       child: const Icon(
         Icons.school_rounded,
         size: 50,
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
       ),
     );
   }
@@ -368,12 +368,12 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
               gradient: ColorsAppQy.qyFrostedGlassGradient,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostMedium,
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: ColorsAppQy.qyShadowLight,
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 ),
@@ -517,10 +517,10 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: ColorsAppQy.qyFrostLight,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: ColorsAppQy.qyFrostMedium,
         ),
       ),
       child: TextField(
@@ -580,7 +580,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 ? '${_countdown}s'
                 : QyAppLocalizationKeys.qySendCode.tr(context),
             style: ThemeTextStyles.button.copyWith(
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               fontSize: 14,
             ),
           ),
@@ -624,7 +624,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
                 ? QyAppLocalizationKeys.qyRegister.tr(context)
                 : QyAppLocalizationKeys.qyLogin.tr(context),
             style: ThemeTextStyles.button.copyWith(
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
