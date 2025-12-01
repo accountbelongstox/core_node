@@ -142,11 +142,11 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _continueLearning,
         backgroundColor: ColorsAppQy.qyPrimary,
-        icon: const Icon(Icons.play_arrow, color: Colors.white),
+        icon: const Icon(Icons.play_arrow, color: ColorsAppQy.qyTextOnPrimary),
         label: Text(
           QyAppLocalizationKeys.qyCourseContinue.tr(context),
           style: ThemeTextStyles.body1.copyWith(
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -166,7 +166,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
+                    color: ColorsAppQy.qyFrostMedium,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -206,7 +206,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: Text(
                   QyAppLocalizationKeys.qyCourseIelts.tr(context),
                   style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -227,7 +227,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -239,7 +239,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           gradient: ColorsAppQy.qyPrimaryGradient,
           borderRadius: BorderRadius.circular(25),
         ),
-        labelColor: Colors.white,
+        labelColor: ColorsAppQy.qyTextOnPrimary,
         unselectedLabelColor: ColorsAppQy.qyTextSecondary,
         indicatorSize: TabBarIndicatorSize.tab,
         labelStyle: ThemeTextStyles.caption.copyWith(
@@ -299,20 +299,20 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
               Text(
                 QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
                 style: ThemeTextStyles.h4.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: ColorsAppQy.qyFrostLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${(_userProgress * 100).toInt()}%',
                   style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -329,7 +329,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                   Container(
                     height: 8,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: ColorsAppQy.qyFrostMedium,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: FractionallySizedBox(
@@ -337,7 +337,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                       widthFactor: _progressAnimation.value,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -354,18 +354,18 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                                 '{completed}', _completedLessons.toString())
                             .replaceAll('{total}', _course!.lessons.toString()),
                         style: ThemeTextStyles.body1.copyWith(
-                          color: Colors.white.withOpacity(0.9),
+                          color: ColorsAppQy.qyFrostWhite,
                         ),
                       ),
                       Row(
                         children: [
                           Icon(Icons.local_fire_department,
-                              color: Colors.white.withOpacity(0.9), size: 16),
+                              color: ColorsAppQy.qyFrostWhite, size: 16),
                           const SizedBox(width: 4),
                           Text(
                             '${QyAppLocalizationKeys.qyConsecutiveDays.tr(context)} $_currentStreak ${QyAppLocalizationKeys.qyDays.tr(context)}',
                             style: ThemeTextStyles.body1.copyWith(
-                              color: Colors.white.withOpacity(0.9),
+                              color: ColorsAppQy.qyFrostWhite,
                             ),
                           ),
                         ],
@@ -509,7 +509,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                       ),
                       child: const Icon(
                         Icons.check,
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         size: 16,
                       ),
                     ),
@@ -560,7 +560,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 child: const Center(
                   child: Icon(
                     Icons.person,
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     size: 30,
                   ),
                 ),
@@ -640,7 +640,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                         child: Text(
                           '${index + 1}',
                           style: ThemeTextStyles.caption.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1020,7 +1020,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 QyAppLocalizationKeys.qyIeltsProgressChartPlaceholder
                     .tr(context),
                 style: const TextStyle(
-                  color: Colors.grey,
+                  color: ColorsAppQy.qyTextSecondary,
                   fontSize: 16,
                 ),
                 textAlign: TextAlign.center,

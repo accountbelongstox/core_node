@@ -741,14 +741,14 @@ ITTools.Implementations.Translation = {
             .map(cb => cb.value);
         
         const options = {
-            show_phonetics: document.getElementById('option-phonetics').checked,
-            show_words: document.getElementById('option-words').checked,
-            show_letters: document.getElementById('option-letters').checked,
-            show_ambiguity: document.getElementById('option-ambiguity').checked,
+            show_phonetics: document.getElementById('option-phonetics')?.checked || false,
+            show_words: document.getElementById('option-words')?.checked || false,
+            show_letters: document.getElementById('option-letters')?.checked || false,
+            show_ambiguity: document.getElementById('option-ambiguity')?.checked || false,
         };
         
-        const generateAudio = document.getElementById('option-audio').checked;
-        const skipCache = document.getElementById('option-skip-cache').checked;
+        const generateAudio = document.getElementById('option-audio')?.checked || false;
+        const skipCache = document.getElementById('option-skip-cache')?.checked || false;
         
         if (translationMethod === 'ai' && this.freeModels.length === 0) {
             ITTools.UI.showResult('learning-result', 'No AI model loaded', false);
