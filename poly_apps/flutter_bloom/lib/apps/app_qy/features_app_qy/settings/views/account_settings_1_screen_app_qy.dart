@@ -186,11 +186,11 @@ class _AccountSettings1ScreenAppQyState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: EdgeInsets.all(Dimensions.paddingSmall),
+                      padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
                       decoration: BoxDecoration(
                         color: (section['color'] as Color).withOpacity(0.1),
                         borderRadius:
-                            BorderRadius.circular(Dimensions.radiusSmall),
+                            BorderRadius.circular(ThemeDimensions.radiusSmall),
                       ),
                       child: Icon(
                         section['icon'] as IconData,
