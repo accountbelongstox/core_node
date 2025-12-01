@@ -227,6 +227,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Timer Tick
+    |--------------------------------------------------------------------------
+    |
+    | Enable Octane timer tick functionality for scheduled tasks
+    |
+    */
+
+    'tick' => env('OCTANE_TICK', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Swoole Configuration
     |--------------------------------------------------------------------------
     |
@@ -238,8 +249,11 @@ return [
 
     'swoole' => [
         'options' => [
+            'log_level' => SWOOLE_LOG_WARNING,
+            'log_file' => storage_path('logs/swoole_http.log'),
             'enable_coroutine' => true,
             'task_enable_coroutine' => true,
+            'task_worker_num' => env('OCTANE_TASK_WORKERS', 4),
             'package_max_length' => 50 * 1024 * 1024 * 1024,
             'buffer_output_size' => 100 * 1024 * 1024,
         ],
