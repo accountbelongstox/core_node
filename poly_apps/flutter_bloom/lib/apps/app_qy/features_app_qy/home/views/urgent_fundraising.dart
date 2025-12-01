@@ -17,6 +17,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/urgent_fund_rising_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
 class UrgentFundraisingScreenView extends StatelessWidget {
@@ -36,7 +37,7 @@ class UrgentFundraisingScreenView extends StatelessWidget {
           ActionWidget(
               actionIcon: Icon(
             Icons.more_vert,
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
           ))
         ],
       ),
@@ -80,7 +81,7 @@ class UrgentFundraisingScreenView extends StatelessWidget {
                                 BorderRadius.circular(ThemeDimensions.defaultSize),
                             border: Border.all(
                                 width: 1.5,
-                                color: Colors.grey.withOpacity(0.3))),
+                                color: ColorsAppQy.qyBorderLight)),
                         child: Column(
                           children: [
                             Padding(
@@ -93,7 +94,7 @@ class UrgentFundraisingScreenView extends StatelessWidget {
                                       height: ThemeDimensions.sizeOneTwenty,
                                       width: ThemeDimensions.sizeOneTwenty,
                                       decoration: const BoxDecoration(
-                                          color: Colors.grey,
+                                          color: ColorsAppQy.qyTextSecondary,
                                           borderRadius: BorderRadius.only(
                                               topLeft: Radius.circular(
                                                   ThemeDimensions.radiusLarge),

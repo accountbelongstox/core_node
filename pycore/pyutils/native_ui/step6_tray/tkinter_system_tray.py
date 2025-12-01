@@ -42,21 +42,36 @@ Usage:
     THREAD_BUS.on('tray_action_open', handle_open)
 """
 
+from __future__ import annotations  # Enable deferred type hint evaluation
+
 import threading
 from pathlib import Path
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-    PYSTRAY_AVAILABLE = True
-except ImportError:
-    PYSTRAY_AVAILABLE = False
-    pystray = None
-    Image = None
-
 from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_pystray
+
+# Use lazy loader to get pystray (handles X11 display errors gracefully)
+pystray = get_third_package_pystray()
+PYSTRAY_AVAILABLE = pystray is not None
+
+# Import PIL only if pystray is available
+if PYSTRAY_AVAILABLE:
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        PYSTRAY_AVAILABLE = False
+        pystray = None
+        Image = None
+        ImageDraw = None
+else:
+    Image = None
+    ImageDraw = None
+
+# Type checking imports (not evaluated at runtime)
+if TYPE_CHECKING and pystray is not None:
+    import pystray as pystray_types
 
 
 @dataclass
@@ -71,6 +86,8 @@ class TrayMenuItem:
         enabled: Whether the item is enabled (default: True)
         default: Whether this is the default action (double-click) (default: False)
         submenu: Optional list of submenu items
+        checked: Optional checked state (None = no checkbox, True = checked, False = unchecked)
+        state_getter: Optional callable that returns current state for dynamic updates
     """
     text: str
     action_signal: str
@@ -78,6 +95,28 @@ class TrayMenuItem:
     enabled: bool = True
     default: bool = False
     submenu: Optional[List['TrayMenuItem']] = None
+    checked: Optional[bool] = None
+    state_getter: Optional[Callable] = None
+
+    def get_display_text(self) -> str:
+        """
+        Get display text with state prefix
+
+        Returns:
+            Text with optional state indicator prefix
+        """
+        # If state_getter is provided, use it to get current state
+        if self.state_getter:
+            state_text = self.state_getter()
+            return f"{state_text} {self.text}" if state_text else self.text
+
+        # Otherwise use checked state
+        if self.checked is None:
+            return self.text
+        elif self.checked:
+            return f"[X] {self.text}"  # ASCII compatible
+        else:
+            return f"[ ] {self.text}"
 
     # Separator constant
     SEPARATOR = None  # Will be set after class definition
@@ -92,13 +131,15 @@ class TkinterSystemTray:
     System tray implementation using pystray
 
     Runs in the Tkinter thread and communicates via THREAD_BUS.
+    Supports global shutdown coordination to ensure all services exit together.
     """
 
     def __init__(
         self,
         app_name: str = "Application",
         icon_path: Optional[str] = None,
-        menu_items: Optional[List[TrayMenuItem]] = None
+        menu_items: Optional[List[TrayMenuItem]] = None,
+        trigger_shutdown_on_exit: bool = True
     ):
         """
         Initialize system tray
@@ -107,6 +148,8 @@ class TkinterSystemTray:
             app_name: Application name to display in tray
             icon_path: Path to tray icon image (.png, .ico)
             menu_items: List of TrayMenuItem objects
+            trigger_shutdown_on_exit: If True, trigger THREAD_BUS shutdown when tray exits
+                                     This ensures all services (UI, RPC, etc.) exit together
         """
         if not PYSTRAY_AVAILABLE:
             raise ImportError("pystray is not installed. Install it with: pip install pystray pillow")
@@ -114,6 +157,7 @@ class TkinterSystemTray:
         self.app_name = app_name
         self.icon_path = icon_path
         self.menu_items = menu_items or []
+        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
 
         self._tray_icon: Optional[pystray.Icon] = None
         self._running = False
@@ -182,26 +226,43 @@ class TkinterSystemTray:
             submenu = pystray.Menu(*[self._create_menu_item(sub_item) for sub_item in submenu_items])
             # In pystray, submenu is passed as the 'action' parameter (Menu object)
             return pystray.MenuItem(
-                text=item.text,
+                text=item.get_display_text(),
                 action=submenu,  # Menu object as action creates a submenu
                 enabled=item.enabled
             )
 
         # Create menu item with callback
         def callback(icon, menu_item):
-            """Callback that triggers THREAD_BUS event"""
+            """Callback that triggers THREAD_BUS event and updates menu"""
             if signal_name:
-                ColorPrint.blue(f"[TRAY] Menu item clicked: {item.text} -> signal: {signal_name}")
+                display_text = item.get_display_text()
+                ColorPrint.blue(f"[TRAY] Menu item clicked: {display_text} -> signal: {signal_name}")
                 THREAD_BUS.trigger_event(signal_name, {
                     "text": item.text,
                     "signal": signal_name  # Include signal name in event_data
                 })
 
+                # Auto-refresh menu after action to reflect state changes
+                if self._tray_icon and self._running:
+                    self._refresh_menu()
+
+        # Handle checked state
+        checked_func = None
+        if item.checked is not None or item.state_getter is not None:
+            def checked_func(menu_item):
+                """Dynamic checked state"""
+                if item.state_getter:
+                    # State getter returns string, we check if it's not empty/disabled
+                    state = item.state_getter()
+                    return state and state.strip() and state != "[ ]"
+                return item.checked or False
+
         return pystray.MenuItem(
-            text=item.text,
+            text=item.get_display_text(),
             action=callback,
             enabled=item.enabled,
-            default=item.default
+            default=item.default,
+            checked=checked_func
         )
 
     def _build_menu(self) -> pystray.Menu:
@@ -213,6 +274,24 @@ class TkinterSystemTray:
         """
         menu_items = [self._create_menu_item(item) for item in self.menu_items]
         return pystray.Menu(*menu_items)
+
+    def _register_thread_bus_handlers(self):
+        """Register THREAD_BUS event handlers (called in tray thread)"""
+        def handle_stop_request(event_data):
+            """Handle tray.request_stop event"""
+            ColorPrint.blue("[TRAY] Received stop request via THREAD_BUS")
+            self.stop()
+
+        def handle_update_menu(event_data):
+            """Handle tray.update_menu event"""
+            menu_items = event_data.get('menu_items')
+            if menu_items:
+                ColorPrint.blue("[TRAY] Received menu update via THREAD_BUS")
+                self.update_menu(menu_items)
+
+        THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
+        THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
+        ColorPrint.blue("[TRAY] THREAD_BUS event handlers registered")
 
     def run(self):
         """
@@ -232,7 +311,15 @@ class TkinterSystemTray:
         # Create menu
         menu = self._build_menu()
 
-        # Create tray icon
+        # Create tray icon with setup callback
+        def on_setup(icon):
+            """Called when tray is ready (in tray thread)"""
+            # Register THREAD_BUS event handlers
+            self._register_thread_bus_handlers()
+            # Signal that tray is ready
+            THREAD_BUS.signal('TkinterTray_ready', {"app_name": self.app_name})
+            ColorPrint.green(f"[TRAY] Tray icon ready: {self.app_name}")
+
         self._tray_icon = pystray.Icon(
             name=self.app_name,
             icon=icon_image,
@@ -240,26 +327,22 @@ class TkinterSystemTray:
             menu=menu
         )
 
-        # Signal that tray is ready
-        THREAD_BUS.signal('TkinterTray_ready', {"app_name": self.app_name})
-
         self._running = True
 
-        # Run tray (blocking)
-        try:
-            self._tray_icon.run()
-        except Exception as e:
-            ColorPrint.red(f"[TRAY] Error: {e}")
-        finally:
-            self._running = False
-            ColorPrint.blue("[TRAY] System tray stopped")
-            THREAD_BUS.signal('TkinterTray_stopped', {"app_name": self.app_name})
+        # Run tray with setup callback (blocking)
+        self._tray_icon.run(setup=on_setup)
+
+        # Cleanup after tray stops
+        self._running = False
+        ColorPrint.blue("[TRAY] System tray stopped")
+        THREAD_BUS.signal('TkinterTray_stopped', {"app_name": self.app_name})
 
     def stop(self):
         """
         Stop system tray
 
         This will cause run() to return.
+        If trigger_shutdown_on_exit=True, this will also trigger global shutdown.
         """
         if not self._running:
             return
@@ -269,6 +352,24 @@ class TkinterSystemTray:
 
         if self._tray_icon:
             self._tray_icon.stop()
+
+        # Trigger global shutdown if configured (but avoid duplicate shutdown)
+        if self.trigger_shutdown_on_exit and not THREAD_BUS.is_shutdown_requested():
+            ColorPrint.yellow("[TRAY] Triggering global shutdown...")
+            THREAD_BUS.request_shutdown(
+                reason="System tray closed",
+                execute_handlers=True
+            )
+
+    def _refresh_menu(self):
+        """
+        Refresh menu by rebuilding from current menu items
+
+        This is called automatically after menu actions to reflect state changes.
+        """
+        if self._tray_icon and self._running:
+            menu = self._build_menu()
+            self._tray_icon.menu = menu
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """

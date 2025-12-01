@@ -152,7 +152,7 @@ set_directory_permissions_from_php_common() {
         print_info_from_common_functions "$script_index Production server detected - skipping default directory permission changes"
         print_info_from_common_functions "$script_index To manually set full permissions (777), run the following commands:"
         echo ""
-        echo "    $USE_SUDO chown -R www-data:www-data \"$target_dir\""
+        echo "    $USE_SUDO chown -R root:root \"$target_dir\""
         echo "    $USE_SUDO find \"$target_dir\" -type d -exec chmod 777 {} \\;"
         echo "    $USE_SUDO find \"$target_dir\" -type f -exec chmod 777 {} \\;"
         echo ""
@@ -160,9 +160,9 @@ set_directory_permissions_from_php_common() {
     fi
 
     # For non-production environments (WSL/Desktop), set standard permissions
-    # Set ownership to www-data
-    print_step_from_common_functions "$script_index Setting ownership to www-data:www-data"
-    $USE_SUDO chown -R www-data:www-data "$target_dir" 2>/dev/null || true
+    # Set ownership to root
+    print_step_from_common_functions "$script_index Setting ownership to root:root"
+    $USE_SUDO chown -R root:root "$target_dir" 2>/dev/null || true
 
     # Set permissions
     print_step_from_common_functions "$script_index Setting directory permissions (755)"
@@ -178,7 +178,7 @@ set_directory_permissions_from_php_common() {
 # Configure PHP-FPM pool
 configure_php_fpm_pool_from_php_common() {
     local version="${1:-8.4}"
-    local socket_path="${2:-/run/php/php8.4-fpm.sock}"
+    local socket_path="${2:-/run/php/php8.5-fpm.sock}"
     local script_index="${3:-[PHP_FPM_POOL]}"
     
     print_step_from_common_functions "$script_index Configuring PHP-FPM pool for version $version"
@@ -194,13 +194,13 @@ configure_php_fpm_pool_from_php_common() {
         $USE_SUDO sed -i "s|listen = .*|listen = $socket_path|" "$pool_config"
         
         # Update user and group
-        print_step_from_common_functions "$script_index Setting user and group to www-data"
-        $USE_SUDO sed -i 's/^user = .*/user = www-data/' "$pool_config"
-        $USE_SUDO sed -i 's/^group = .*/group = www-data/' "$pool_config"
-        
+        print_step_from_common_functions "$script_index Setting user and group to root"
+        $USE_SUDO sed -i 's/^user = .*/user = root/' "$pool_config"
+        $USE_SUDO sed -i 's/^group = .*/group = root/' "$pool_config"
+
         # Update listen.owner and listen.group
-        $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = www-data/' "$pool_config"
-        $USE_SUDO sed -i 's/^listen.group = .*/listen.group = www-data/' "$pool_config"
+        $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = root/' "$pool_config"
+        $USE_SUDO sed -i 's/^listen.group = .*/listen.group = root/' "$pool_config"
         
         # CRITICAL: Remove open_basedir restrictions from pool config
         # This matches ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig() behavior
@@ -222,7 +222,7 @@ configure_php_fpm_pool_from_php_common() {
 
 # Ensure socket directory exists
 ensure_socket_directory_from_php_common() {
-    local socket_path="${1:-/run/php/php8.4-fpm.sock}"
+    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
     local script_index="${2:-[SOCKET_DIR]}"
     local socket_dir=$(dirname "$socket_path")
     
@@ -235,7 +235,7 @@ ensure_socket_directory_from_php_common() {
     
     # Set proper permissions
     $USE_SUDO chmod 755 "$socket_dir"
-    $USE_SUDO chown root:www-data "$socket_dir"
+    $USE_SUDO chown root:root "$socket_dir"
     
     print_success_from_common_functions "$script_index Socket directory ready: $socket_dir"
     return 0
@@ -243,7 +243,7 @@ ensure_socket_directory_from_php_common() {
 
 # Verify PHP-FPM socket with retry mechanism
 verify_php_fpm_socket_from_php_common() {
-    local socket_path="${1:-/run/php/php8.4-fpm.sock}"
+    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
     local script_index="${2:-[SOCKET_VERIFY]}"
     local max_attempts=10
     local attempt=1
@@ -270,7 +270,7 @@ verify_php_fpm_socket_from_php_common() {
 # Update Nginx configuration for PHP
 update_nginx_config_from_php_common() {
     local php_version="${1:-8.4}"
-    local socket_path="${2:-/run/php/php8.4-fpm.sock}"
+    local socket_path="${2:-/run/php/php8.5-fpm.sock}"
     local script_index="${3:-[NGINX_CONFIG]}"
     local install_nginx="${4:-false}"
     
@@ -302,7 +302,7 @@ update_nginx_config_from_php_common() {
 
 # Update Caddy configuration for PHP
 update_caddy_config_from_php_common() {
-    local socket_path="${1:-/run/php/php8.4-fpm.sock}"
+    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
     local script_index="${2:-[CADDY_CONFIG]}"
     local core_node_dir=$(get_core_node_dir)
     local shells_root="${3:-$core_node_dir/scripts/shells}"
@@ -370,37 +370,23 @@ configure_php_for_laravel_from_php_common() {
     done
     
     print_success_from_common_functions "$script_index PHP Laravel configuration completed"
-    
-    # Force reload PHP-FPM to apply new configuration
-    force_reload_php_fpm_from_php_common "$script_index"
-    
+
+    # NOTE: PHP-FPM reload DISABLED - Using Swoole with Laravel Octane
+    # PHP-FPM is not installed when using Swoole
+    # force_reload_php_fpm_from_php_common "$script_index"  # DISABLED
+
     return 0
 }
 
 # Force reload PHP-FPM service to apply configuration changes
+# NOTE: DISABLED - Not using PHP-FPM with Swoole setup
 force_reload_php_fpm_from_php_common() {
     local script_index="${1:-[PHP_RELOAD]}"
-    
-    print_step_from_common_functions "$script_index Forcing PHP-FPM reload to apply configuration changes"
-    
-    # Restart PHP-FPM service
-    if $USE_SUDO systemctl restart php8.4-fpm; then
-        print_success_from_common_functions "$script_index PHP-FPM service restarted successfully"
-    else
-        print_warning_from_common_functions "$script_index PHP-FPM restart failed, but continuing"
-    fi
-    
-    # Wait a moment for service to stabilize
-    sleep 2
-    
-    # Verify service is running
-    if systemctl is-active --quiet php8.4-fpm; then
-        print_success_from_common_functions "$script_index PHP-FPM service is active and running"
-    else
-        print_error_from_common_functions "$script_index PHP-FPM service is not running after restart"
-        return 1
-    fi
-    
+
+    print_step_from_common_functions "$script_index [SKIPPED] PHP-FPM reload not needed - Using Swoole with Laravel Octane"
+    print_step_from_common_functions "$script_index PHP-FPM is not installed in Swoole configuration"
+
+    # No need to restart PHP-FPM as it's not used with Swoole
     return 0
 }
 

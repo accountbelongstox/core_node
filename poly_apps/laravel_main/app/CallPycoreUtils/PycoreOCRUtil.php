@@ -197,6 +197,18 @@ class PycoreOCRUtil
     }
 
     /**
+     * Legacy compatibility wrapper used by older code paths.
+     *
+     * @param string $imagePath
+     * @param string $modelType
+     * @return array
+     */
+    public static function performOCR(string $imagePath, string $modelType = 'general'): array
+    {
+        return self::recognizeImage($imagePath, $modelType);
+    }
+
+    /**
      * Get OCR engine information
      *
      * @param string|null $modelType Specific model type (optional)

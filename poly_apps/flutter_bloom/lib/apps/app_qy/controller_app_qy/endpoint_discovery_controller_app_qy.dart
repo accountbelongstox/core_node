@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
 import '../config_app_qy/api_config_app_qy.dart';
 import '../localization_app_qy/localization_keys_app_qy.dart';
+import '../resources_app_qy/colors_app_qy.dart';
 import '../../../../common/localization/localization_manager.dart';
 
 class EndpointDiscoveryControllerAppQy extends ChangeNotifier {
@@ -165,10 +166,10 @@ class EndpointDiscoveryControllerAppQy extends ChangeNotifier {
             'Debug mode enabled. Set kDebugMode=false to disable.',
           ),
           duration: const Duration(seconds: 5),
-          backgroundColor: Colors.green,
+          backgroundColor: ColorsAppQy.qySuccess,
           action: SnackBarAction(
             label: QyAppLocalizationKeys.qyClose.tr(context),
-            textColor: Colors.white,
+            textColor: ColorsAppQy.qyTextOnPrimary,
             onPressed: () {},
           ),
         ),

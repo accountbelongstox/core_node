@@ -300,11 +300,11 @@ class FileSystemManager
         $escapedPath = escapeshellarg($mappedPath);
         $username = escapeshellarg($userInfo['username']);
 
-        if (is_file($mappedPath)) {
-            $command = "sudo -u {$username} rm {$escapedPath} 2>&1";
+        if (is_dir($mappedPath) && !is_link($mappedPath)) {
+            $command = "sudo -u {$username} rm -rf {$escapedPath} 2>&1";
             shell_exec($command);
-        } elseif (is_dir($mappedPath)) {
-            $command = "sudo -u {$username} rmdir {$escapedPath} 2>&1";
+        } else {
+            $command = "sudo -u {$username} rm {$escapedPath} 2>&1";
             shell_exec($command);
         }
 

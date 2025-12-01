@@ -142,7 +142,7 @@ class _CourseIeltsScreenRefactoredAppQyState
         gradient: ColorsAppQy.qyFrostedGlassGradient,
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withOpacity(0.2),
+            color: ColorsAppQy.qyFrostMedium,
             width: 1,
           ),
         ),
@@ -156,7 +156,7 @@ class _CourseIeltsScreenRefactoredAppQyState
                 icon: Container(
                   padding: const EdgeInsets.all(ThemeDimensions.spacing8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: ColorsAppQy.qyFrostMedium,
                     borderRadius: BorderRadius.circular(
                       ThemeDimensions.radiusMedium,
                     ),
@@ -188,10 +188,10 @@ class _CourseIeltsScreenRefactoredAppQyState
   Widget _buildTabBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+            color: ColorsAppQy.qyFrostMedium,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: ColorsAppQy.qyFrostMedium,
           width: 1,
         ),
       ),
@@ -206,7 +206,7 @@ class _CourseIeltsScreenRefactoredAppQyState
               gradient: ColorsAppQy.qyPrimaryGradient,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             ),
-            labelColor: Colors.white,
+            labelColor: ColorsAppQy.qyTextOnPrimary,
             unselectedLabelColor: ColorsAppQy.qyTextSecondary,
             labelStyle: ThemeTextStyles.button.copyWith(
               fontWeight: FontWeight.bold,
@@ -314,12 +314,12 @@ class _CourseIeltsScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: ColorsAppQy.qyShadowLight,
                 blurRadius: 20,
                 offset: const Offset(0, 5),
               ),
@@ -346,13 +346,13 @@ class _CourseIeltsScreenRefactoredAppQyState
                         Icon(
                           type == 'listening' ? Icons.headphones : Icons.book,
                           size: 16,
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                         ),
                         const SizedBox(width: ThemeDimensions.spacing8),
                         Text(
                           duration,
                           style: ThemeTextStyles.caption.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -482,12 +482,12 @@ class _CourseIeltsScreenRefactoredAppQyState
               gradient: ColorsAppQy.qyFrostedGlassGradient,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostMedium,
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: ColorsAppQy.qyShadowLight,
                   blurRadius: 20,
                   offset: const Offset(0, 5),
                 ),
@@ -588,7 +588,7 @@ class _CourseIeltsScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyPrimaryGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.3),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
             boxShadow: [
@@ -605,14 +605,14 @@ class _CourseIeltsScreenRefactoredAppQyState
               Text(
                 QyAppLocalizationKeys.qyVipPromotionTitle.tr(context),
                 style: ThemeTextStyles.caption.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               const SizedBox(height: ThemeDimensions.spacing8),
               Text(
                 QyAppLocalizationKeys.qyVipYearCard.tr(context),
                 style: ThemeTextStyles.h3.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -620,14 +620,14 @@ class _CourseIeltsScreenRefactoredAppQyState
               Text(
                 QyAppLocalizationKeys.qyVipBenefits.tr(context),
                 style: ThemeTextStyles.body2.copyWith(
-                  color: Colors.white.withOpacity(0.9),
+                  color: ColorsAppQy.qyFrostWhite,
                 ),
               ),
               const SizedBox(height: ThemeDimensions.spacing16),
               SizedBox(
                 width: double.infinity,
                 child: Material(
-                  color: Colors.transparent,
+                  color: ColorsAppQy.qyPageBackground.withOpacity(0),
                   child: InkWell(
                     onTap: () {},
                     borderRadius: BorderRadius.circular(
@@ -638,13 +638,13 @@ class _CourseIeltsScreenRefactoredAppQyState
                         vertical: ThemeDimensions.spacing12,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         borderRadius: BorderRadius.circular(
                           ThemeDimensions.radiusMedium,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: ColorsAppQy.qyShadowLight,
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),

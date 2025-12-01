@@ -9,6 +9,7 @@ import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_refa
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class SettingsScreenV2RefactoredAppQy extends StatefulWidget {
   const SettingsScreenV2RefactoredAppQy({super.key});
@@ -151,7 +152,7 @@ class _SettingsScreenV2RefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -174,7 +175,7 @@ class _SettingsScreenV2RefactoredAppQyState
                 child: const Icon(
                   Icons.person_outline_rounded,
                   size: 40,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               const SizedBox(height: ThemeDimensions.spacing16),
@@ -196,7 +197,7 @@ class _SettingsScreenV2RefactoredAppQyState
               ),
               const SizedBox(height: ThemeDimensions.spacing20),
               Material(
-                color: Colors.transparent,
+                color: ColorsAppQy.qyPageBackground.withOpacity(0),
                 child: InkWell(
                   onTap: () => context.go('/login'),
                   borderRadius:
@@ -220,7 +221,7 @@ class _SettingsScreenV2RefactoredAppQyState
                     child: Text(
                       'Login / Sign Up',
                       style: ThemeTextStyles.button.copyWith(
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
@@ -248,7 +249,7 @@ class _SettingsScreenV2RefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -272,7 +273,7 @@ class _SettingsScreenV2RefactoredAppQyState
                   child: Text(
                     user?.displayName?.substring(0, 1).toUpperCase() ?? 'U',
                     style: ThemeTextStyles.title1.copyWith(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -354,7 +355,7 @@ class _SettingsScreenV2RefactoredAppQyState
               title: QyAppLocalizationKeys.qyDisplay.tr(context),
               subtitle: controller.display.themeMode.capitalize(),
               gradient: LinearGradient(
-                colors: [Colors.orange.shade400, Colors.orange.shade600],
+                colors: [ColorsAppQy.qyWarning, ColorsAppQy.qyWarning],
               ),
               onTap: () => _showThemeModeDialog(controller),
             ),
@@ -363,7 +364,7 @@ class _SettingsScreenV2RefactoredAppQyState
               title: QyAppLocalizationKeys.qyAudioVoice.tr(context),
               subtitle: QyAppLocalizationKeys.qyTtsSettings.tr(context),
               gradient: LinearGradient(
-                colors: [Colors.green.shade400, Colors.green.shade600],
+                colors: [ColorsAppQy.qySuccess, ColorsAppQy.qySecondaryDark],
               ),
               onTap: () {},
             ),
@@ -374,7 +375,7 @@ class _SettingsScreenV2RefactoredAppQyState
                   ? QyAppLocalizationKeys.qyEnabled.tr(context)
                   : QyAppLocalizationKeys.qyDisabled.tr(context),
               gradient: LinearGradient(
-                colors: [Colors.pink.shade400, Colors.pink.shade600],
+                colors: [ColorsAppQy.qyAccent, ColorsAppQy.qyAccentDark],
               ),
               onTap: () {},
             ),
@@ -389,7 +390,7 @@ class _SettingsScreenV2RefactoredAppQyState
     AuthServiceAppQy authService,
   ) {
     final user = authService.currentUser;
-    final learningLanguages = user?.learningLanguages ?? ['en'];
+    final learningLanguages = user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,7 +418,7 @@ class _SettingsScreenV2RefactoredAppQyState
                 borderRadius:
                     BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: ColorsAppQy.qyFrostMedium,
                   width: 1.5,
                 ),
               ),
@@ -443,7 +444,7 @@ class _SettingsScreenV2RefactoredAppQyState
                         QyAppLocalizationKeys.qyManageWordLibraries.tr(context),
                     onTap: () => context.push('/vocabulary-collections'),
                     gradient: LinearGradient(
-                      colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      colors: [ColorsAppQy.qyInfo, ColorsAppQy.qyPrimaryDark],
                     ),
                   ),
                   _buildAccountActionItem(
@@ -473,7 +474,7 @@ class _SettingsScreenV2RefactoredAppQyState
     required VoidCallback onTap,
   }) {
     return Material(
-      color: Colors.transparent,
+      color: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
@@ -488,7 +489,7 @@ class _SettingsScreenV2RefactoredAppQyState
                 borderRadius:
                     BorderRadius.circular(ThemeDimensions.radiusLarge),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: ColorsAppQy.qyFrostMedium,
                   width: 1.5,
                 ),
               ),
@@ -504,13 +505,13 @@ class _SettingsScreenV2RefactoredAppQyState
                           BorderRadius.circular(ThemeDimensions.radiusMedium),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: ColorsAppQy.qyShadowMedium,
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: Icon(icon, color: Colors.white, size: 24),
+                    child: Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 24),
                   ),
                   const Spacer(),
                   Text(
@@ -548,14 +549,14 @@ class _SettingsScreenV2RefactoredAppQyState
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
           child: Container(
             padding: const EdgeInsets.all(ThemeDimensions.spacing12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: ColorsAppQy.qyFrostLight,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             ),
             child: Row(
@@ -568,7 +569,7 @@ class _SettingsScreenV2RefactoredAppQyState
                     borderRadius:
                         BorderRadius.circular(ThemeDimensions.radiusSmall),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 20),
+                  child: Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 20),
                 ),
                 const SizedBox(width: ThemeDimensions.spacing12),
                 Expanded(
@@ -616,7 +617,7 @@ class _SettingsScreenV2RefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -698,7 +699,7 @@ class _SettingsScreenV2RefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -761,14 +762,14 @@ class _SettingsScreenV2RefactoredAppQyState
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
           child: Container(
             padding: const EdgeInsets.all(ThemeDimensions.spacing12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: ColorsAppQy.qyFrostLight,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
             ),
             child: Row(
@@ -776,7 +777,7 @@ class _SettingsScreenV2RefactoredAppQyState
                 Icon(
                   icon,
                   color: isDestructive
-                      ? Colors.red.shade400
+                      ? ColorsAppQy.qyError
                       : ColorsAppQy.qyPrimary,
                   size: 20,
                 ),
@@ -789,7 +790,7 @@ class _SettingsScreenV2RefactoredAppQyState
                         title,
                         style: ThemeTextStyles.body.copyWith(
                           color: isDestructive
-                              ? Colors.red.shade400
+                              ? ColorsAppQy.qyError
                               : ColorsAppQy.qyTextPrimary,
                           fontWeight: FontWeight.w500,
                         ),
@@ -828,7 +829,7 @@ class _SettingsScreenV2RefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -979,7 +980,7 @@ class _SettingsScreenV2RefactoredAppQyState
               }
             },
             child: Text(QyAppLocalizationKeys.qyReset.tr(context),
-                style: const TextStyle(color: Colors.red)),
+                style: TextStyle(color: ColorsAppQy.qyError)),
           ),
         ],
       ),

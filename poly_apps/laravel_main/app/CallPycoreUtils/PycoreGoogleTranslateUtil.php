@@ -36,6 +36,25 @@ class PycoreGoogleTranslateUtil
         return 'python3';
     }
 
+    public static function translate(
+        string $text,
+        string $targetLang = 'en',
+        string $sourceLang = 'auto',
+        bool $useCache = true
+    ): array {
+        $result = self::translateSingle($text, $sourceLang, $targetLang, $useCache);
+
+        if ($result['success'] && isset($result['translated_text'])) {
+            return $result;
+        }
+
+        return [
+            'success' => false,
+            'error' => $result['error'] ?? 'Translation failed',
+            'translated_text' => $text,
+        ];
+    }
+
     public static function translateSingle(
         string $text,
         string $sourceLang = 'auto',

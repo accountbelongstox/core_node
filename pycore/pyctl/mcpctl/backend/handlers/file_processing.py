@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """File Processing Handlers (4 tools + backend_info)"""
 
+import logging
 from typing import Dict, Any
-from pycore import ColorPrint
 from pycore.pyctl.mcpctl.debug_config import debug_print
+
+# Use standard logging instead of ColorPrint (MCP standards requirement)
+logger = logging.getLogger(__name__)
 
 # Global controllers (initialized by main)
 backend_info = {}
@@ -50,7 +53,7 @@ async def handle_get_file_info_async(params: Dict[str, Any], request_id: str = N
         return result
 
     except Exception as e:
-        ColorPrint.red(f"[Backend] Error processing file {file_path}: {e}")
+        logger.error(f"[Backend] Error processing file {file_path}: {e}")
         return {
             "success": False,
             "backend_id": backend_id,

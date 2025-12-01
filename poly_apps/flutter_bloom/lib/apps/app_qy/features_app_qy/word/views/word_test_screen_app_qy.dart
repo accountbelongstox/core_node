@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/word_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class WordTestScreenRefactoredAppQy extends StatefulWidget {
   const WordTestScreenRefactoredAppQy({super.key});
@@ -144,7 +143,7 @@ class _WordTestScreenRefactoredAppQyState
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: Container(
           padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
           decoration: BoxDecoration(
@@ -163,7 +162,7 @@ class _WordTestScreenRefactoredAppQyState
             children: [
               Icon(
                 percentage >= 80 ? Icons.celebration : Icons.emoji_events,
-                size: 80,
+                size: ThemeDimensions.spacing80,
                 color: ThemeColors.surface,
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
@@ -183,7 +182,8 @@ class _WordTestScreenRefactoredAppQyState
                 padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
                 child: Column(
                   children: [
@@ -196,9 +196,7 @@ class _WordTestScreenRefactoredAppQyState
                     SizedBox(height: ThemeDimensions.spacingSmall),
                     Text(
                       '$percentage%',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
+                      style: ThemeTextStyles.largeTitleBold.copyWith(
                         color: ThemeColors.surface,
                       ),
                     ),
@@ -233,7 +231,8 @@ class _WordTestScreenRefactoredAppQyState
                           vertical: ThemeDimensions.paddingMedium,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusMedium),
                         ),
                       ),
                       child: Text(
@@ -259,7 +258,8 @@ class _WordTestScreenRefactoredAppQyState
                           vertical: ThemeDimensions.paddingMedium,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusMedium),
                         ),
                       ),
                       child: Text(
@@ -328,7 +328,8 @@ class _WordTestScreenRefactoredAppQyState
                   ...List.generate(
                     options.length,
                     (index) => Padding(
-                      padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
+                      padding: EdgeInsets.only(
+                          bottom: ThemeDimensions.spacingMedium),
                       child: _buildOptionCard(
                         options[index],
                         index,
@@ -376,7 +377,7 @@ class _WordTestScreenRefactoredAppQyState
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
+              minHeight: ThemeDimensions.spacingSmall,
               backgroundColor: ThemeColors.border,
               valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
             ),
@@ -477,17 +478,19 @@ class _WordTestScreenRefactoredAppQyState
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
-          border: Border.all(color: borderColor, width: 2),
+          border:
+              Border.all(color: borderColor, width: ThemeDimensions.spacing2),
         ),
         child: Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: ThemeDimensions.iconSizeMedium * 2,
+              height: ThemeDimensions.iconSizeMedium * 2,
               decoration: BoxDecoration(
                 color: borderColor.withOpacity(0.2),
                 shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: 2),
+                border: Border.all(
+                    color: borderColor, width: ThemeDimensions.spacing2),
               ),
               child: Center(
                 child: Text(
@@ -537,9 +540,11 @@ class _WordTestScreenRefactoredAppQyState
             style: ElevatedButton.styleFrom(
               backgroundColor: ThemeColors.primary,
               disabledBackgroundColor: ThemeColors.textTertiary,
-              padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingMedium),
+              padding:
+                  EdgeInsets.symmetric(vertical: ThemeDimensions.paddingMedium),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                borderRadius:
+                    BorderRadius.circular(ThemeDimensions.radiusMedium),
               ),
             ),
             child: Text(

@@ -51,6 +51,11 @@ THREAD_REGISTRY = {
         "default_enabled": False,
         "shutdown_priority": 70,
     },
+    "tray": {
+        "description": "System tray (platform-specific)",
+        "default_enabled": False,
+        "shutdown_priority": 85,  # Shutdown near last (keep visible until end)
+    },
 }
 
 

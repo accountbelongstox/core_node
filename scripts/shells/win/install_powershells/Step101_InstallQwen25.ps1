@@ -91,16 +91,16 @@ function Test-Qwen25ModelLoad {
 
     Write-Host "$SCRIPT_INDEX Testing model load (first run will download ~1GB)..." -ForegroundColor Yellow
 
-    # Get path to shared test script
+    # Get path to shared runner script
     $scriptRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-    $testScriptPath = Join-Path $scriptRoot "pytools\aitools\qwen25_tester.py"
+    $testScriptPath = Join-Path $scriptRoot "pytools\aitools\qwen25_runner.py"
 
     if (-not (Test-Path $testScriptPath)) {
-        Write-Host "$SCRIPT_INDEX Error: Test script not found at: $testScriptPath" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Error: Runner script not found at: $testScriptPath" -ForegroundColor Red
         return $false
     }
 
-    Write-Host "$SCRIPT_INDEX Using shared test script: $testScriptPath" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Using shared runner script: $testScriptPath" -ForegroundColor Cyan
 
     try {
         Write-Host ""
@@ -126,10 +126,10 @@ function New-Qwen25InteractiveScript {
     )
 
     $scriptRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-    $testScriptPath = Join-Path $scriptRoot "pytools\aitools\qwen25_tester.py"
+    $testScriptPath = Join-Path $scriptRoot "pytools\aitools\qwen25_runner.py"
 
     if (-not (Test-Path $testScriptPath)) {
-        Write-Host "$SCRIPT_INDEX Error: Test script not found at: $testScriptPath" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Error: Runner script not found at: $testScriptPath" -ForegroundColor Red
         return
     }
 

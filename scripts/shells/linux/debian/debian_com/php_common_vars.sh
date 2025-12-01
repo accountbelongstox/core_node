@@ -9,35 +9,36 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # PHP Version Configuration
-PHP_VERSION="8.4"
+PHP_VERSION="8.5"
 PHP_BINARY_NAME="php"
-PHP_FPM_SERVICE="php8.4-fpm"
-PHP_FPM_SOCKET_PATH="/run/php/php8.4-fpm.sock"
+# NO FPM - using Swoole for Laravel Octane
+# PHP_FPM_SERVICE=""  # Not used
+# PHP_FPM_SOCKET_PATH=""  # Not used
 TARGET_LINK_PATH="/usr/local/bin/php"
 
-# PHP 8.4 specific packages as per documentation
-PHP84_CORE_PACKAGES=(
-    "php8.4"
-    "php8.4-cli"
-    "php8.4-fpm"
-    "php8.4-common"
+# PHP 8.5 specific packages (NO FPM - using Swoole)
+# Note: opcache is now a core extension in PHP 8.5, no separate package needed
+PHP85_CORE_PACKAGES=(
+    "php8.5"
+    "php8.5-cli"
+    "php8.5-common"
 )
 
-# PHP 8.4 extensions for Laravel support (used in installation and configuration)
+# PHP 8.5 extensions for Laravel support (NO FPM - using Swoole)
+# Note: opcache is bundled in PHP 8.5, no php8.5-opcache package exists
 CORE_EXTENSIONS=(
-    "php8.4-cli"
-    "php8.4-fpm"
-    "php8.4-common"
-    "php8.4-opcache"
-    "php8.4-mysql"
-    "php8.4-sqlite3"
-    "php8.4-xml"
-    "php8.4-curl"
-    "php8.4-zip"
-    "php8.4-mbstring"
-    "php8.4-gd"
-    "php8.4-intl"
-    "php8.4-bcmath"
+    "php8.5-cli"
+    "php8.5-common"
+    "php8.5-mysql"
+    "php8.5-sqlite3"
+    "php8.5-xml"
+    "php8.5-curl"
+    "php8.5-zip"
+    "php8.5-mbstring"
+    "php8.5-gd"
+    "php8.5-intl"
+    "php8.5-bcmath"
+    "php8.5-readline"
 )
 
 # Extension mapping: package_name -> module_name
@@ -100,10 +101,9 @@ COMPOSER_SAFE_PATH="/usr/local/bin/composer-safe"
 # Set to empty string to disable open_basedir restrictions (will be set to "none" in PHP config)
 OPEN_BASEDIR_PATHS=""
 
-# PHP Configuration Files
+# PHP Configuration Files (FPM not used - using Swoole)
 PHP_INI_FILES=(
-    "/etc/php/8.4/cli/php.ini"
-    "/etc/php/8.4/fpm/php.ini"
+    "/etc/php/8.5/cli/php.ini"
 )
 
 # Web Server Configuration - Use map_web_path for proper path mapping

@@ -84,41 +84,48 @@ install_dotnet_microsoft_repo() {
     else
         log_message "Warning: Some prerequisites failed to install"
     fi
-    
-    # Add Microsoft package signing key
-    log_message "Adding Microsoft package signing key..."
-    if wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg; then
-        $USE_SUDO install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-        $USE_SUDO sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/microsoft-debian-bullseye-prod bullseye main" > /etc/apt/sources.list.d/microsoft-prod.list'
-        rm packages.microsoft.gpg
-        log_message "Microsoft repository added successfully"
-    else
-        log_message "Failed to add Microsoft repository"
-        return 1
-    fi
-    
-    # Update package lists with new repository
-    log_message "Updating package lists with Microsoft repository..."
-    if timeout 300 $USE_SUDO apt update; then
-        log_message "Package lists updated successfully"
-    else
-        log_message "Warning: Package update failed"
-    fi
-    
-    # Install .NET SDK
-    log_message "Installing .NET SDK $DOTNET_VERSION..."
-    if timeout 600 $USE_SUDO apt install -y "dotnet-sdk-$DOTNET_VERSION"; then
-        log_message "Successfully installed .NET SDK via Microsoft repository"
-        
-        # Verify installation
-        if command_exists dotnet; then
-            dotnet --version | head -1 | tee -a "$LOG_FILE"
-            dotnet --list-sdks | tee -a "$LOG_FILE"
+
+    # Use Microsoft's official installation script instead of adding repository
+    log_message "Downloading Microsoft .NET installation script..."
+    local install_script="/tmp/dotnet-install.sh"
+
+    if wget -q -O "$install_script" "https://dot.net/v1/dotnet-install.sh"; then
+        chmod +x "$install_script"
+        log_message ".NET installation script downloaded successfully"
+
+        # Install .NET SDK using the official script
+        log_message "Installing .NET SDK $DOTNET_VERSION using official Microsoft script..."
+        if bash "$install_script" --version "$DOTNET_VERSION" --install-dir /usr/share/dotnet; then
+            log_message "Successfully installed .NET SDK"
+
+            # Create symlinks
+            $USE_SUDO ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet 2>/dev/null || true
+            $USE_SUDO ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet 2>/dev/null || true
+
+            # Add to PATH
+            if ! grep -q "/usr/share/dotnet" /etc/environment 2>/dev/null; then
+                echo 'PATH="/usr/share/dotnet:$PATH"' | $USE_SUDO tee -a /etc/environment > /dev/null
+            fi
+
+            # Clean up
+            rm -f "$install_script"
+
+            # Verify installation
+            if command_exists dotnet; then
+                dotnet --version | head -1 | tee -a "$LOG_FILE"
+                dotnet --list-sdks | tee -a "$LOG_FILE"
+            fi
+
+            return 0
+        else
+            log_message "Failed to install .NET SDK using installation script"
+            rm -f "$install_script"
+            return 1
         fi
-        
-        return 0
     else
-        log_message "Failed to install .NET SDK via Microsoft repository"
+        log_message "Failed to download .NET installation script"
+        log_message "Please download manually from: https://dotnet.microsoft.com/download"
+        log_message "Or install via snap: sudo snap install dotnet-sdk --classic"
         return 1
     fi
 }

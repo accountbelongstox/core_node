@@ -1,0 +1,46 @@
+Porting from Qt 5 to Qt 6 using Qt5Compat library
+November 25, 2020 by Karsten Heimrich | Comments
+
+Porting from Qt 5 to Qt 6 has been intentionally kept easy. There has been a conscious effort throughout the development of Qt 6 to maintain as much source compatibility with Qt 5 as possible. Still, some effort is involved in porting. This short post summarizes some of the steps required when porting to Qt 6.
+
+In Qt 5 some of the classes already had existing replacements, and some classes got successors during the Qt 6 development phase. Therefore it might make sense to be able to compile your code with both the old and new Qt version. This can ensure that the amount of work where your code does not compile with either version is minimized, allowing your application or library to  continue to work with Qt 5 and Qt 6. Another advantage could be that existing unit tests continue to work for most of the duration of porting, and regressions resulting from porting your code are easily distinguished from bugs introduced in Qt 6.
+
+Types
+The table below lists the classes that have been removed in Qt 6, but kept in Qt5Compat for ease of porting. It also contains the classes that shall be used in new code in Qt6 instead.
+
+Qt 5 Class	 Qt 6 Replacement
+QLinkedList
+std::list*
+QRegExp	QRegularExpression
+QStringRef	QStringView
+QXmlSimpleReader	QXmlStreamReader
+QTextCodec	QStringConverter
+QTextEncoder	QStringEncoder
+QTextDecoder	QStringDecoder
+* If you do not need the reference stability of a linked list, you can consider using QList as well.
+
+Adapting the build system
+If you want to continue to use the above mentioned Qt 5 classes, first you need to adapt your build system to link against the new Qt5Compat module. For the qmake build system add the following line to your .pro file:
+
+QT += core5compat
+In case you already ported your application or library to the cmake build system, add the following to your CMakeList.txt:
+
+PUBLIC_LIBRARIESQt::Core5Compat
+Fixing up includes
+In addition to the obviously required build system changes, you may need to fix up your includes of the former mentioned classes. Your actual code might look like this:
+
+#include <QtCore/QRegExp>
+That needs to be updated for the new Qt5Compat module:
+
+#include <QtCore5Compat/QRegExp>
+Or using the much more simple and portable version:
+
+#include <QRegExp>
+Looking forward
+With Qt 6 on the horizon, you may already consider testing the new Qt 6 beta version. This will also allow early testing if your code is affected by the few Qt Core class changes mentioned above. For any issues you may find, please submit a detailed bug report to bugreports.qt.io. When filing a bug report, remember to mention which Qt version you found the issue with, and check for duplicates and known issues. You are also welcome to join the discussions in the Qt Project mailing lists and developer forums.
+
+Share with your friends
+
+Blog Topics:
+Qt 6
+Comments

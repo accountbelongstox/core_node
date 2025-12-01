@@ -6,7 +6,9 @@ import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../../../localization_app_qy/localization_manager.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../models/more_features_model.dart';
 import '../data/more_features_data.dart';
 
@@ -55,7 +57,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             colors: [
               AppTheme.auroraGradient.colors[0].withOpacity(0.1),
               AppTheme.auroraGradient.colors[1].withOpacity(0.05),
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
             ],
           ),
         ),
@@ -149,7 +151,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             end: Alignment.bottomRight,
             colors: [
               group.color.withOpacity(0.1),
-              Colors.white.withOpacity(0.9),
+              ColorsAppQy.qyFrostWhite,
             ],
           ),
           border: Border.all(
@@ -223,11 +225,11 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
       onPressed: isLocked ? _showLockedMessage : () => _openFeature(feature),
       child: Container(
         decoration: BoxDecoration(
-          color: isLocked ? Colors.grey.shade100 : Colors.white,
+          color: isLocked ? ColorsAppQy.qyBorderLight : ColorsAppQy.qyTextOnPrimary,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isLocked
-                ? Colors.grey.shade300
+                ? ColorsAppQy.qyBorderMedium
                 : feature.color.withOpacity(0.3),
             width: 1,
           ),
@@ -239,14 +241,14 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
             children: [
               Icon(
                 feature.icon,
-                color: isLocked ? Colors.grey.shade400 : feature.color,
+                color: isLocked ? ColorsAppQy.qyTextTertiary : feature.color,
                 size: 28,
               ),
               const SizedBox(height: 8),
               Text(
                 feature.titleKey.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
-                  color: isLocked ? Colors.grey.shade600 : AppTheme.textPrimary,
+                  color: isLocked ? ColorsAppQy.qyTextTertiary : AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
@@ -258,7 +260,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
                 feature.subtitleKey.tr(context),
                 style: AppTextStyles.bodySmall.copyWith(
                   color:
-                      isLocked ? Colors.grey.shade500 : AppTheme.textSecondary,
+                      isLocked ? ColorsAppQy.qyTextTertiary : AppTheme.textSecondary,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
