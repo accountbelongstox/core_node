@@ -115,63 +115,9 @@
                 </div>
             </div>
 
-            <div class="content-body">
-                <!-- Tab navigation for API Testing and System Information -->
-                <div class="tab-bar">
-                    <button class="tab active" onclick="showSection('api-testing'); setActiveTab(this);">API
-                        Testing</button>
-                    <button class="tab" onclick="showSection('system-info'); setActiveTab(this);">System
-                        Information</button>
-                </div>
-                <label class="form-label">Select Application:</label>
-                <select id="app-select" class="form-control" onchange="loadAppAPIs()">
-                    <option value="">Choose an app to test its APIs</option>
-                </select>
-
-                <div class="form-group" id="api-search-container" style="display: none;">
-                    <label class="form-label">🔍 Search APIs:</label>
-                    <input type="text" id="api-search" class="form-control"
-                        placeholder="Type to search APIs by path, description, or number..."
-                        oninput="searchAndJumpToAPI(this.value)">
-                    <small style="color: #666; font-size: 12px;">
-                        Search by API number (e.g., "1"), path (e.g., "initialize"), or description.
-                        Best match will be automatically highlighted and scrolled to.
-                    </small>
-                </div>
-
-                <div id="api-list" class="api-list">
-                    <p style="text-align: center; color: #666; padding: 40px;">
-                        Select an application to view and test its available APIs
-                    </p>
-                </div>
-            </div>
-
             <!-- NAMESPACE: Dynamic Content Sections Container -->
             <div id="content-sections-container">
-                <!-- Placeholder elements to ensure they always exist (will be replaced when sections load) -->
-                <div id="dict-stats-container" style="display: none;">
-                    <span id="dict-stats-loading">Loading dictionary stats...</span>
-                </div>
-                <div id="tasks-list-container" style="display: none;"></div>
-                <div id="system-info" style="display: none;"></div>
-                <div id="timer-status" style="display: none;">...</div>
-                <div id="total-tasks" style="display: none;">...</div>
-                <div id="running-tasks" style="display: none;">...</div>
-                <div id="total-ticks" style="display: none;">...</div>
-                <div id="heartbeat-status" style="display: none;"></div>
-                <div id="heartbeat-details" style="display: none;"></div>
-                <p id="static-resources-path-display" style="display: none;"></p>
-                <div id="static-file-list" style="display: none;"></div>
-                <div id="code-browser-auth-check" style="display: none;"></div>
-                <div id="code-browser-content" style="display: none;"></div>
-                <div id="prompt-mapping-panel-embedded" style="display: none;"></div>
-                <div id="mapping-empty-state" style="display: none;"></div>
-                <div id="mapping-editor-content" style="display: none;"></div>
-                <div id="mapping-actions" style="display: none;"></div>
-                <div id="mapping-editor-title" style="display: none;"></div>
-                <textarea id="mapping-prefix" style="display: none;"></textarea>
-                <textarea id="mapping-suffix" style="display: none;"></textarea>
-                <div id="replace-map-list" style="display: none;"></div>
+                <!-- Content will be loaded dynamically -->
             </div>
         </div>
     </div>
@@ -181,7 +127,8 @@
     </div>
     </div>
 
-    <!-- Context Menu for Static Resources -->
+    <!-- Dialogs and placeholders will be loaded dynamically -->
+
     <div id="static-context-menu"
         style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
         <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
