@@ -19,6 +19,8 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../config_app_qy/app_config_app_qy.dart';
 
 class AccountSettings1ScreenAppQy extends StatefulWidget {
   const AccountSettings1ScreenAppQy({super.key});
@@ -278,7 +280,7 @@ class _AccountSettings1ScreenAppQyState
                   style:
                       TextStyles.caption.copyWith(color: ThemeColors.primary),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.blueGrey),
+                Icon(Icons.chevron_right, color: ColorsAppQy.qyTextTertiary),
               ],
             ),
           ),
