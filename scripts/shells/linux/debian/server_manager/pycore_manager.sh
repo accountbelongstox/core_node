@@ -82,10 +82,10 @@ show_service_info() {
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${COLOR_CYAN}Health Check:${COLOR_RESET}"
         if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-            echo -e "${COLOR_GREEN}âœ?Service is healthy${COLOR_RESET}"
+            echo -e "${COLOR_GREEN}ï¿½?Service is healthy${COLOR_RESET}"
             curl -s "http://127.0.0.1:$SERVICE_PORT/health"
         else
-            echo -e "${COLOR_RED}âœ?Health check failed${COLOR_RESET}"
+            echo -e "${COLOR_RED}ï¿½?Health check failed${COLOR_RESET}"
         fi
         echo ""
     fi
@@ -110,9 +110,9 @@ start_service() {
             sleep 2
 
             if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-                echo -e "${COLOR_GREEN}âœ?Health check passed${COLOR_RESET}"
+                echo -e "${COLOR_GREEN}ï¿½?Health check passed${COLOR_RESET}"
             else
-                echo -e "${COLOR_YELLOW}âš?Health check failed - service may still be starting${COLOR_RESET}"
+                echo -e "${COLOR_YELLOW}ï¿½?Health check failed - service may still be starting${COLOR_RESET}"
             fi
         else
             echo -e "${COLOR_RED}Failed to start Pycore HTTP service${COLOR_RESET}"
@@ -159,9 +159,9 @@ restart_service() {
         sleep 2
 
         if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-            echo -e "${COLOR_GREEN}âœ?Health check passed${COLOR_RESET}"
+            echo -e "${COLOR_GREEN}ï¿½?Health check passed${COLOR_RESET}"
         else
-            echo -e "${COLOR_YELLOW}âš?Health check failed - service may still be starting${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}ï¿½?Health check failed - service may still be starting${COLOR_RESET}"
         fi
     else
         echo -e "${COLOR_RED}Failed to restart Pycore HTTP service${COLOR_RESET}"
@@ -189,12 +189,13 @@ test_health() {
     response=$(curl -s "http://127.0.0.1:$SERVICE_PORT/health")
 
     if [ $? -eq 0 ]; then
-        echo -e "${COLOR_GREEN}âœ?Health check passed${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}ï¿½?Health check passed${COLOR_RESET}"
         echo ""
         echo "Response:"
-        echo "$response" | python3 -m json.tool 2>/dev/null || echo "$response"
+        # Use python (venv) instead of python3 (system)
+        echo "$response" | python -m json.tool 2>/dev/null || echo "$response"
     else
-        echo -e "${COLOR_RED}âœ?Health check failed${COLOR_RESET}"
+        echo -e "${COLOR_RED}ï¿½?Health check failed${COLOR_RESET}"
     fi
 
     echo ""

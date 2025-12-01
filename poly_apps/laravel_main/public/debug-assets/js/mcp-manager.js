@@ -375,6 +375,8 @@ const McpScreenshotModule = {
             } else {
                 console.error('[McpScreenshotModule] Failed to load screenshots:', data.error);
             }
+        } catch (error) {
+            console.error('[McpScreenshotModule] Error loading screenshots:', error);
         }
     },
 
@@ -392,6 +394,8 @@ const McpScreenshotModule = {
                     `;
                 }
             }
+        } catch (error) {
+            console.error('[McpScreenshotModule] Error loading stats:', error);
         }
     },
 
@@ -556,9 +560,9 @@ const McpScreenshotModule = {
     copyToClipboard(inputId) {
         const input = document.getElementById(inputId);
         if (!input) return;
-        
+
         const text = input.value;
-        
+
         // Try modern clipboard API first
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(() => {
@@ -572,12 +576,12 @@ const McpScreenshotModule = {
             this.fallbackCopy(input, text);
         }
     },
-    
+
     fallbackCopy(input, text) {
         // Select the input text
         input.select();
         input.setSelectionRange(0, 99999); // For mobile
-        
+
         try {
             document.execCommand('copy');
             this.showCopySuccess(input);
@@ -586,14 +590,14 @@ const McpScreenshotModule = {
             alert('Copy failed. Please select and copy manually.');
         }
     },
-    
+
     showCopySuccess(input) {
         const btn = input.nextElementSibling;
         if (btn) {
             const original = btn.textContent;
             btn.textContent = '✓ Copied';
             btn.style.background = '#28a745';
-            setTimeout(() => { 
+            setTimeout(() => {
                 btn.textContent = original;
                 btn.style.background = '';
             }, 1500);
@@ -711,24 +715,20 @@ const McpScreenshotModule = {
         const previewEl = document.getElementById('mcp-ss-file-preview');
 
         if (this.uploadMode === 'multi') {
-            if (hint) hint.textContent = 'Merge multiple images into a single tall screenshot with numbered labels.';
-            if (help) help.textContent = 'Select at least two images. They will be resized to max 1080px width and merged top-to-bottom.';
-            if (submitBtn) submitBtn.textContent = 'Upload & Merge';
-            if (itemsContainer) {
-                if (itemsContainer.innerHTML.trim() === '') {
-                    itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select images to configure per-screenshot descriptions.</div>';
-                }
-                itemsContainer.style.display = 'block';
+            hint.textContent = 'Merge multiple images into a single tall screenshot with numbered labels.';
+            help.textContent = 'Select at least two images. They will be resized to max 1080px width and merged top-to-bottom.';
+            submitBtn.textContent = 'Upload & Merge';
+            if (itemsContainer.innerHTML.trim() === '') {
+                itemsContainer.innerHTML = '<div style="padding:12px;border:1px dashed #444;border-radius:6px;color:#bbb;">Select images to configure per-screenshot descriptions.</div>';
             }
-            if (previewEl) previewEl.innerHTML = '';
+            itemsContainer.style.display = 'block';
+            previewEl.innerHTML = '';
         } else {
-            if (hint) hint.textContent = 'Upload a single image without merging.';
-            if (help) help.textContent = 'Select one image to upload.';
-            if (submitBtn) submitBtn.textContent = 'Upload Screenshot';
-            if (itemsContainer) {
-                itemsContainer.innerHTML = '';
-                itemsContainer.style.display = 'none';
-            }
+            hint.textContent = 'Upload a single image without merging.';
+            help.textContent = 'Select one image to upload.';
+            submitBtn.textContent = 'Upload Screenshot';
+            itemsContainer.innerHTML = '';
+            itemsContainer.style.display = 'none';
         }
 
         document.querySelectorAll('input[name="mcp-ss-mode"]').forEach(radio => {
@@ -806,6 +806,9 @@ const McpScreenshotModule = {
             } else {
                 alert('Upload failed: ' + data.error);
             }
+        } catch (error) {
+            console.error('[McpScreenshotModule] Upload failed:', error);
+            alert('Upload error: ' + error.message);
         }
     },
 
@@ -829,6 +832,9 @@ const McpScreenshotModule = {
             } else {
                 alert('Delete failed: ' + data.error);
             }
+        } catch (error) {
+            console.error('[McpScreenshotModule] Delete failed:', error);
+            alert('Delete error: ' + error.message);
         }
     },
 
@@ -856,6 +862,9 @@ const McpScreenshotModule = {
             } else {
                 alert('Clear failed: ' + data.error);
             }
+        } catch (error) {
+            console.error('[McpScreenshotModule] Clear failed:', error);
+            alert('Clear error: ' + error.message);
         }
     },
 
@@ -968,7 +977,7 @@ const McpScreenshotModule = {
         submitBtn.disabled = true;
 
         try {
-            const endpoint = shouldMerge 
+            const endpoint = shouldMerge
                 ? '/api/mcp/v1/screenshots/upload-merge'
                 : '/api/mcp/v1/screenshots/upload-batch';
 
@@ -1095,6 +1104,8 @@ const McpTaskDispatchModule = {
                 this.categories = data.data.categories;
                 this.renderCategories();
             }
+        } catch (error) {
+            console.error('[McpTaskDispatchModule] Load categories failed:', error);
         }
     },
 
@@ -1142,6 +1153,10 @@ const McpTaskDispatchModule = {
                 this.tasks = tasksData.data.tasks;
                 this.renderTasks(statsData.data?.stats || {});
             }
+        } catch (error) {
+            console.error('[McpTaskDispatchModule] Load tasks failed:', error);
+            panel.innerHTML = '<div style="padding: 20px; color: #f48771;">Error loading tasks</div>';
+        }
     },
 
     renderTasks(stats) {
@@ -1282,6 +1297,8 @@ const McpPromptMappingsModule = {
                 this.mappings = data.data.mappings;
                 this.renderMappingsList();
             }
+        } catch (error) {
+            console.error('[McpPromptMappingsModule] Load mappings failed:', error);
         }
     },
 
@@ -1399,6 +1416,9 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
+        } catch (error) {
+            console.error('[McpPromptMappingsModule] Save mapping failed:', error);
+            alert('Save error: ' + error.message);
         }
     },
 
@@ -1417,6 +1437,9 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
+        } catch (error) {
+            console.error('[McpPromptMappingsModule] Reset mapping failed:', error);
+            alert('Reset error: ' + error.message);
         }
     },
 
@@ -1438,8 +1461,11 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
+        } catch (error) {
+            console.error('[McpPromptMappingsModule] Delete mapping failed:', error);
+            alert('Delete error: ' + error.message);
         }
-    }
+    },
 };
 
 /**
@@ -1537,8 +1563,11 @@ const McpSettingsModule = {
                     </div>
                 `;
             }
+        } catch (error) {
+            console.error('[McpSettingsModule] Load settings failed:', error);
+            document.getElementById('mcp-settings-screenshot-info').innerHTML = '<span style="color: #f48771;">Error loading settings</span>';
         }
-    }
+    },
 };
 
 /**
