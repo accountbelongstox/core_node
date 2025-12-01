@@ -16,7 +16,13 @@ class QyAppConfig {
   static const String appId = 'qy';
   static const String appName = 'QY App';
   static const String appVersion = '1.0.0';
+  static const String appBuildNumber = '100';
+  static const String appLastUpdated = '2024-03-01';
   static const String appDescription = 'QY application for demonstration';
+  
+  // Contact Information
+  static const String appWebsite = 'www.qyenglish.com';
+  static const String appSupportEmail = 'support@qyenglish.com';
 
   // API Configuration
   static const String baseUrl = 'https://api.example.com';
