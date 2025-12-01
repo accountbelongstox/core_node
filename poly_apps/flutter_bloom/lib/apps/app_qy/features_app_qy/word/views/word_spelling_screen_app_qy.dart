@@ -13,13 +13,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/word_controller_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class WordSpellingScreenRefactoredAppQy extends StatefulWidget {
   const WordSpellingScreenRefactoredAppQy({super.key});
@@ -50,7 +49,8 @@ class _WordSpellingScreenRefactoredAppQyState
     _spellingWords.addAll([
       {
         'word': 'knowledge',
-        'definition': 'Information and skills acquired through experience or education',
+        'definition':
+            'Information and skills acquired through experience or education',
         'phonetic': '/ˈnɒlɪdʒ/',
       },
       {
@@ -70,7 +70,8 @@ class _WordSpellingScreenRefactoredAppQyState
       },
       {
         'word': 'experience',
-        'definition': 'Practical contact with and observation of facts or events',
+        'definition':
+            'Practical contact with and observation of facts or events',
         'phonetic': '/ɪkˈspɪəriəns/',
       },
     ]);
@@ -147,7 +148,7 @@ class _WordSpellingScreenRefactoredAppQyState
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: Container(
           padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
           decoration: BoxDecoration(
@@ -166,7 +167,7 @@ class _WordSpellingScreenRefactoredAppQyState
             children: [
               Icon(
                 percentage >= 80 ? Icons.celebration : Icons.edit,
-                size: 80,
+                size: ThemeDimensions.spacing80,
                 color: ThemeColors.surface,
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
@@ -202,7 +203,8 @@ class _WordSpellingScreenRefactoredAppQyState
                     vertical: ThemeDimensions.paddingMedium,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusMedium),
                   ),
                 ),
                 child: Text(
@@ -309,7 +311,7 @@ class _WordSpellingScreenRefactoredAppQyState
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
+              minHeight: ThemeDimensions.spacingSmall,
               backgroundColor: ThemeColors.border,
               valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.primary),
             ),
@@ -344,7 +346,7 @@ class _WordSpellingScreenRefactoredAppQyState
         children: [
           Icon(
             Icons.book,
-            size: 48,
+            size: ThemeDimensions.iconSizeXXL,
             color: ThemeColors.surface,
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
@@ -368,7 +370,7 @@ class _WordSpellingScreenRefactoredAppQyState
             onPressed: () {},
             icon: Icon(
               Icons.volume_up,
-              size: 32,
+              size: ThemeDimensions.iconSizeXL,
               color: ThemeColors.surface,
             ),
           ),
@@ -387,7 +389,7 @@ class _WordSpellingScreenRefactoredAppQyState
           color: _showResult
               ? (_isCorrect ? ThemeColors.success : ThemeColors.error)
               : ThemeColors.border,
-          width: 2,
+          width: ThemeDimensions.spacing2,
         ),
       ),
       child: Column(
@@ -400,7 +402,7 @@ class _WordSpellingScreenRefactoredAppQyState
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           MinimumHeight(
-            height: 60,
+            height: ThemeDimensions.spacing64,
             child: Wrap(
               spacing: ThemeDimensions.spacingSmall,
               runSpacing: ThemeDimensions.spacingSmall,
@@ -408,11 +410,14 @@ class _WordSpellingScreenRefactoredAppQyState
               children: _selectedLetters.isEmpty
                   ? [
                       Container(
-                        width: 50,
-                        height: 50,
+                        width: ThemeDimensions.spacing48 +
+                            ThemeDimensions.spacing2,
+                        height: ThemeDimensions.spacing48 +
+                            ThemeDimensions.spacing2,
                         decoration: BoxDecoration(
                           color: ThemeColors.background,
-                          borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                              ThemeDimensions.radiusSmall),
                           border: Border.all(
                             color: ThemeColors.border,
                             style: BorderStyle.solid,
@@ -429,7 +434,8 @@ class _WordSpellingScreenRefactoredAppQyState
                           height: 50,
                           decoration: BoxDecoration(
                             color: ThemeColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+                            borderRadius: BorderRadius.circular(
+                                ThemeDimensions.radiusSmall),
                             border: Border.all(color: ThemeColors.primary),
                           ),
                           child: Center(
@@ -461,7 +467,7 @@ class _WordSpellingScreenRefactoredAppQyState
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         border: Border.all(
           color: _isCorrect ? ThemeColors.success : ThemeColors.error,
-          width: 2,
+          width: ThemeDimensions.spacing2,
         ),
       ),
       child: Row(
@@ -555,7 +561,8 @@ class _WordSpellingScreenRefactoredAppQyState
                       vertical: ThemeDimensions.paddingMedium,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                      borderRadius:
+                          BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
                   ),
                   child: Text(
@@ -580,7 +587,8 @@ class _WordSpellingScreenRefactoredAppQyState
                     vertical: ThemeDimensions.paddingMedium,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusMedium),
                   ),
                 ),
                 child: Text(
