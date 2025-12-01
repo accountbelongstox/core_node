@@ -22,15 +22,24 @@ const CodeBrowser = {
 
     async init() {
         await this.loadCsrfToken();
+        
+        const authCheckEl = document.getElementById('code-browser-auth-check');
+        const contentEl = document.getElementById('code-browser-content');
+        
+        if (!authCheckEl || !contentEl) {
+            console.warn('Code browser elements not found, section may not be loaded yet');
+            return;
+        }
+        
         const authResult = await this.checkAuth();
         if (!authResult.authenticated) {
-            document.getElementById('code-browser-auth-check').style.display = 'block';
-            document.getElementById('code-browser-content').style.display = 'none';
+            authCheckEl.style.display = 'block';
+            contentEl.style.display = 'none';
             return;
         }
 
-        document.getElementById('code-browser-auth-check').style.display = 'none';
-        document.getElementById('code-browser-content').style.display = 'block';
+        authCheckEl.style.display = 'none';
+        contentEl.style.display = 'block';
 
         if (authResult.base_directory) {
             this.baseDirectory = authResult.base_directory;
