@@ -33,62 +33,56 @@ class DiscoverScreenRefactoredAppQy extends StatefulWidget {
 
 class _DiscoverScreenRefactoredAppQyState
     extends State<DiscoverScreenRefactoredAppQy> {
-  final List<Map<String, dynamic>> _discoverItems;
-
-  _DiscoverScreenRefactoredAppQyState()
-      : _discoverItems = [];
-
   @override
   void initState() {
     super.initState();
-    _initDiscoverItems();
   }
 
-  void _initDiscoverItems() {
-    _discoverItems.addAll([
+  List<Map<String, dynamic>> _getDiscoverItems(BuildContext context) {
+    return [
       {
         'icon': Icons.check_circle_outline,
-        'title': 'Check-in Challenge',
-        'subtitle': 'Daily learning challenges',
+        'title': QyAppLocalizationKeys.qyCheckinChallenge.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyCheckinChallengeDesc.tr(context),
         'color': ColorsAppQy.qyWarning,
         'route': '/qy/social/checkin-challenge',
       },
       {
         'icon': Icons.message_outlined,
-        'title': 'Message Center',
-        'subtitle': 'Community updates & notifications',
+        'title': QyAppLocalizationKeys.qyMessageCenter.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyMessages.tr(context),
         'color': ColorsAppQy.qyInfo,
         'route': '/qy/social/message-center',
       },
       {
         'icon': Icons.people_outline,
-        'title': 'Learning Community',
-        'subtitle': 'Connect with learners',
+        'title': QyAppLocalizationKeys.qyLearningCommunity.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyLearningCommunityDesc.tr(context),
         'color': ColorsAppQy.qySuccess,
         'route': null,
       },
       {
         'icon': Icons.trending_up,
-        'title': 'Leaderboard',
-        'subtitle': 'See top learners',
+        'title': QyAppLocalizationKeys.qyLeaderboard.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyLeaderboardDesc.tr(context),
         'color': ColorsAppQy.qyAccent,
         'route': null,
       },
       {
         'icon': Icons.topic_outlined,
-        'title': 'Topics',
-        'subtitle': 'Join discussions',
+        'title': QyAppLocalizationKeys.qyTopics.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyTopicsDesc.tr(context),
         'color': ColorsAppQy.qyAccentLight,
         'route': null,
       },
       {
         'icon': Icons.card_giftcard,
-        'title': 'Rewards',
-        'subtitle': 'Claim your benefits',
+        'title': QyAppLocalizationKeys.qyRewards.tr(context),
+        'subtitle': QyAppLocalizationKeys.qyRewardsDesc.tr(context),
         'color': ColorsAppQy.qyWarning,
         'route': null,
       },
-    ]);
+    ];
   }
 
   void _handleItemTap(Map<String, dynamic> item) {
@@ -126,7 +120,7 @@ class _DiscoverScreenRefactoredAppQyState
                 SizedBox(height: ThemeDimensions.spacingLarge),
                 _buildSectionHeader(
                   QyAppLocalizationKeys.qyCommunity.tr(context),
-                  'Explore community features',
+                  QyAppLocalizationKeys.qyExploreCommunityFeatures.tr(context),
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 _buildDiscoverGrid(),
@@ -162,7 +156,7 @@ class _DiscoverScreenRefactoredAppQyState
               SizedBox(width: ThemeDimensions.spacingMedium),
               Expanded(
                 child: Text(
-                  'Discover Learning',
+                  QyAppLocalizationKeys.qyDiscoverLearning.tr(context),
                   style: ThemeTextStyles.h3.copyWith(
                     color: ThemeColors.surface,
                     fontWeight: FontWeight.bold,
@@ -173,7 +167,7 @@ class _DiscoverScreenRefactoredAppQyState
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           Text(
-            'Connect with millions of learners worldwide',
+            QyAppLocalizationKeys.qyConnectMillionsLearners.tr(context),
             style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.surface.withOpacity(0.9),
             ),
@@ -215,9 +209,9 @@ class _DiscoverScreenRefactoredAppQyState
         mainAxisSpacing: ThemeDimensions.spacingMedium,
         childAspectRatio: 1.1,
       ),
-      itemCount: _discoverItems.length,
+      itemCount: _getDiscoverItems(context).length,
       itemBuilder: (context, index) {
-        final item = _discoverItems[index];
+        final item = _getDiscoverItems(context)[index];
         return _buildDiscoverCard(item);
       },
     );
