@@ -25,7 +25,6 @@ param(
 # Declare all variables at the beginning
 $ErrorActionPreference = "Stop"
 $script:EncryptionCheckCompleted = $false
-$script:PullCompleted = $false
 $script:FileValidationCompleted = $false
 $originalWorkingDir = Get-Location
 $originalRemoteUrl = ""
@@ -38,6 +37,86 @@ $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
+$skipEncryptCacheDir = "C:\_node_core"
+$skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
+
+# Initialize skip encrypt cache
+function Initialize-SkipEncryptCache {
+    if (!(Test-Path $skipEncryptCacheDir)) {
+        New-Item -Path $skipEncryptCacheDir -ItemType Directory -Force | Out-Null
+    }
+    if (!(Test-Path $skipEncryptCacheFile)) {
+        New-Item -Path $skipEncryptCacheFile -ItemType File -Force | Out-Null
+    }
+}
+
+# Check if file is in skip cache
+function Test-FileInSkipCache {
+    param([string]$FilePath)
+
+    if (!(Test-Path $skipEncryptCacheFile)) {
+        return $false
+    }
+
+    $fileInfo = Get-Item $FilePath
+    $fileMtime = $fileInfo.LastWriteTime.ToFileTime()
+
+    $cacheContent = Get-Content $skipEncryptCacheFile -ErrorAction SilentlyContinue
+    foreach ($line in $cacheContent) {
+        $parts = $line -split '\|'
+        if ($parts.Length -eq 2 -and $parts[0] -eq $FilePath -and $parts[1] -eq $fileMtime) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+# Add file to skip cache
+function Add-FileToSkipCache {
+    param([string]$FilePath)
+
+    Initialize-SkipEncryptCache
+
+    if (Test-FileInSkipCache $FilePath) {
+        return
+    }
+
+    $fileInfo = Get-Item $FilePath
+    $fileMtime = $fileInfo.LastWriteTime.ToFileTime()
+
+    "$FilePath|$fileMtime" | Add-Content -Path $skipEncryptCacheFile
+}
+
+# Clean up outdated entries from skip cache
+function Clear-SkipEncryptCache {
+    if (!(Test-Path $skipEncryptCacheFile)) {
+        return
+    }
+
+    $tempFile = "$skipEncryptCacheFile.tmp"
+    New-Item -Path $tempFile -ItemType File -Force | Out-Null
+
+    $cacheContent = Get-Content $skipEncryptCacheFile -ErrorAction SilentlyContinue
+    foreach ($line in $cacheContent) {
+        $parts = $line -split '\|'
+        if ($parts.Length -eq 2) {
+            $cachedPath = $parts[0]
+            $cachedMtime = $parts[1]
+
+            if (Test-Path $cachedPath) {
+                $fileInfo = Get-Item $cachedPath
+                $currentMtime = $fileInfo.LastWriteTime.ToFileTime()
+
+                if ($currentMtime -eq $cachedMtime) {
+                    "$cachedPath|$cachedMtime" | Add-Content -Path $tempFile
+                }
+            }
+        }
+    }
+
+    Move-Item -Path $tempFile -Destination $skipEncryptCacheFile -Force
+}
 
 # File validation function for win_common directory
 function Test-WinCommonFiles {
@@ -572,6 +651,10 @@ function Invoke-GitOperations {
         if (-not $script:EncryptionCheckCompleted) {
             Write-ColorText "Checking for unencrypted sensitive files..." -ForegroundColor Cyan
 
+            # Initialize and cleanup skip cache
+            Initialize-SkipEncryptCache
+            Clear-SkipEncryptCache
+
             # Check for correct secret keys structure
             $coreNodeDir = Split-Path (Split-Path $scriptPath -Parent) -Parent
             $secretKeysDir = Join-Path $coreNodeDir ".secret_keys"
@@ -585,6 +668,11 @@ function Invoke-GitOperations {
                 $rawFiles = Get-ChildItem -Path $secretKeysRawDir -File
 
                 foreach ($rawFile in $rawFiles) {
+                    # Skip files that are in the skip cache
+                    if (Test-FileInSkipCache $rawFile.FullName) {
+                        continue
+                    }
+
                     $encryptedFile = Join-Path $secretKeysEncryptedDir "$($rawFile.Name).js"
 
                     # Check if corresponding encrypted .js file exists and is newer than raw file
@@ -606,14 +694,37 @@ function Invoke-GitOperations {
                     }
                     Write-Host ""
 
-                    # Ask if user wants to skip encryption
-                    Write-Host "Skip encryption? (y/N): " -NoNewline -ForegroundColor Yellow
-                    $skipResponse = Read-Host
-                    if ($skipResponse -eq 'y' -or $skipResponse -eq 'Y') {
-                        Write-ColorText "Skipping encryption as requested." -ForegroundColor Yellow
-                    } else {
+                    # Ask for encryption confirmation with skip option
+                    Write-ColorText "Do you want to encrypt these files before pushing? (Y/n/skip): " -ForegroundColor Yellow
+                    Write-ColorText "  Y     - Encrypt all files" -ForegroundColor Cyan
+                    Write-ColorText "  n     - Skip encryption this time (push unencrypted)" -ForegroundColor Cyan
+                    Write-ColorText "  skip  - Skip all and never ask again for these files (unless modified)" -ForegroundColor Cyan
+                    $encryptConfirm = Read-Host
 
-                    Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+                    if ($encryptConfirm -eq '' -or $encryptConfirm -match '^[Yy]$') {
+                        Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+                    } elseif ($encryptConfirm -match '^[Nn]$') {
+                        Write-ColorText "Skipping encryption. Continuing with git push." -ForegroundColor Yellow
+                        Write-ColorText "WARNING: Sensitive files will be pushed unencrypted!" -ForegroundColor Red
+                        $skipEncryption = $true
+                    } elseif ($encryptConfirm -match '^[Ss][Kk][Ii][Pp]$') {
+                        Write-ColorText "Adding files to skip cache..." -ForegroundColor Yellow
+                        foreach ($file in $unencryptedFiles) {
+                            $fileMtimeReadable = $file.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                            Add-FileToSkipCache $file.FullName
+                            Write-ColorText "  - Cached: $($file.Name) (Last modified: $fileMtimeReadable)" -ForegroundColor DarkGray
+                        }
+                        Write-ColorText "Files added to cache. They will not be checked again unless modified." -ForegroundColor Green
+                        Write-ColorText "Note: If any file is modified, it will be prompted again." -ForegroundColor Cyan
+                        Write-ColorText "Cache location: $skipEncryptCacheFile" -ForegroundColor DarkGray
+                        Write-ColorText "WARNING: Sensitive files will be pushed unencrypted!" -ForegroundColor Red
+                        $skipEncryption = $true
+                    } else {
+                        Write-ColorText "Invalid input. Defaulting to Yes." -ForegroundColor Yellow
+                        Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+                    }
+
+                    if (-not $skipEncryption) {
 
                 # Find disguise.js in scripts directory
                 Write-ColorText "Searching for disguise.js in scripts directory..." -ForegroundColor Cyan
@@ -744,21 +855,41 @@ function Invoke-GitOperations {
         } else {
             Write-Host "INFO: File validation already completed in this session." -ForegroundColor Gray
         }
-        
-        # Commit changes BEFORE pulling
+
+        # STEP 1: Pre-commit to save current state before asking user input
+        Write-ColorText "Pre-committing current changes to protect local work..." -ForegroundColor Cyan
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $preCommitMessage = "[AUTO] Pre-commit before user input - $timestamp"
+
+        # Check if there are changes to pre-commit
+        $stagedChanges = git diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "Executing: git commit -m `"$preCommitMessage`"" -ForegroundColor DarkGray
+            git commit -m $preCommitMessage
+            Write-ColorText "Pre-commit completed successfully" -ForegroundColor Green
+        } else {
+            Write-ColorText "No changes to pre-commit" -ForegroundColor DarkGray
+        }
+
+        # STEP 2: Get final commit message from user
         $commitMessage = Get-CommitMessage
+
+        # STEP 3: Stage any new changes and create final commit
+        Write-ColorText "Staging any new changes..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
+        git add .
+
         Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
         Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
         
-        # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
-        if (-not $script:PullCompleted) {
-            Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
-            Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-            git pull origin $currentBranch --no-edit
-            $script:PullCompleted = $true
-        } else {
-            Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
+        # Always pull to prevent push conflicts
+        Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
+        git pull origin $currentBranch --no-edit 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "WARNING: Pull failed. Attempting to resolve conflicts..." -ForegroundColor Yellow
+            Write-ColorText "TIP: Check for merge conflicts and resolve them manually if needed" -ForegroundColor Cyan
         }
         
         # Push changes to remote

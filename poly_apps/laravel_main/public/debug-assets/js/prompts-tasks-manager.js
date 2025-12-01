@@ -122,7 +122,6 @@ const PromptsTasksManager = {
 
     renderFilesList() {
         const container = document.getElementById('prompts-tasks-list');
-        if (!container) return;
 
         if (this.promptFiles.length === 0) {
             this.renderEmptyState('No prompt files in this category');
@@ -297,7 +296,6 @@ const PromptsTasksManager = {
 
     renderEmptyState(message) {
         const container = document.getElementById('prompts-tasks-list');
-        if (!container) return;
 
         container.innerHTML = `
             <div style="padding: 20px; text-align: center; color: #888;">

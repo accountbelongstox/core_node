@@ -397,8 +397,8 @@ ITTools.Implementations.RegexTester = {
 document.addEventListener('DOMContentLoaded', () => {
     const patternEl = document.getElementById('regex-pattern');
     const flagsEl = document.getElementById('regex-flags');
-    if (patternEl) patternEl.addEventListener('input', () => ITTools.Implementations.RegexTester.test());
-    if (flagsEl) flagsEl.addEventListener('input', () => ITTools.Implementations.RegexTester.test());
+    patternEl.addEventListener('input', () => ITTools.Implementations.RegexTester.test());
+    flagsEl.addEventListener('input', () => ITTools.Implementations.RegexTester.test());
 });
 
 console.log('ITTools Batch 9 loaded (url-parser, qr-generator, wifi-qr, http-status, device-info, keycode-info, regex-tester)');
