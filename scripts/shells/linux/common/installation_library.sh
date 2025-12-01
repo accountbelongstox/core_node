@@ -385,14 +385,12 @@ install_via_flatpak() {
         fi
 
         # Fix permissions for flatpak installation
-        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-            log_install "Fixing permissions for flatpak installation"
-            # Fix system flatpak directory
-            if [ -d "/var/lib/flatpak/app/$package_id" ]; then
-                fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "755" "true" 2>&1 | while IFS= read -r line; do
-                    log_install "$line"
-                done
-            fi
+        log_install "Fixing permissions for flatpak installation"
+        # Fix system flatpak directory
+        if [ -d "/var/lib/flatpak/app/$package_id" ]; then
+            fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "755" "true" 2>&1 | while IFS= read -r line; do
+                log_install "$line"
+            done
         fi
 
         return 0
@@ -712,13 +710,28 @@ install_via_curl() {
             return 1
         fi
     fi
-    
-    # Download and execute install script
-    if curl -fsSL "$package_url" | $USE_SUDO bash; then
+
+    # Save current PATH
+    local original_path="$PATH"
+
+    # Use clean PATH with only essential system directories
+    # This avoids issues with circular symlinks in custom bin directories
+    local clean_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    log_install "Executing installation script with clean PATH..."
+    log_install "Download URL: $package_url"
+
+    # Download and execute install script with clean environment
+    if PATH="$clean_path" curl -fsSL "$package_url" | PATH="$clean_path" $USE_SUDO bash; then
         log_success "Successfully installed $app_name via CURL"
+        # Restore original PATH
+        export PATH="$original_path"
         return 0
     else
         log_error "Failed to install $app_name via CURL"
+        log_error "This may be due to network issues or package unavailability"
+        # Restore original PATH
+        export PATH="$original_path"
         return 1
     fi
 }
@@ -827,7 +840,7 @@ universal_install() {
             install_via_npm "$package_id" "$app_name"
             install_result=$?
             # Fix NPM permissions after installation
-            if [ $install_result -eq 0 ] && command -v fix_npm_global_permissions_from_common_functions >/dev/null 2>&1; then
+            if [ $install_result -eq 0 ]; then
                 log_install "Fixing NPM permissions after installation"
                 fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
                     log_install "$line"
@@ -864,34 +877,98 @@ universal_install() {
             ;;
     esac
 
-    # Fix permissions for installed application if successful
+    # Fix permissions and create symlinks for installed application if successful
     if [ $install_result -eq 0 ]; then
-        # Try to find installation directory and fix permissions
+        local exec_path=""
+        local needs_symlink=false
+
+        # Check if command is available in PATH
         if [ -n "$exec_name" ] && command -v "$exec_name" >/dev/null 2>&1; then
-            local exec_path=$(command -v "$exec_name" 2>/dev/null)
-            if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
-                # Fix permissions for the executable
-                if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-                    log_install "Fixing permissions for: $exec_path"
-                    fix_installation_permissions_from_common_functions "$exec_path" "755" "true" 2>&1 | while IFS= read -r line; do
+            exec_path=$(command -v "$exec_name" 2>/dev/null)
+        else
+            # Command not in PATH, search common installation locations
+            needs_symlink=true
+            log_install "Executable $exec_name not found in PATH, searching common locations..."
+
+            local search_paths=(
+                "$HOME/.local/bin/$exec_name"
+                "$HOME/bin/$exec_name"
+                "$HOME/.$exec_name/bin/$exec_name"
+                "$HOME/.config/$exec_name/bin/$exec_name"
+                "/opt/$exec_name/bin/$exec_name"
+                "/opt/$exec_name/$exec_name"
+            )
+
+            # Also search for lowercase version if exec_name has uppercase
+            local exec_lower=$(echo "$exec_name" | tr '[:upper:]' '[:lower:]')
+            if [ "$exec_name" != "$exec_lower" ]; then
+                search_paths+=(
+                    "$HOME/.$exec_lower/bin/$exec_name"
+                    "$HOME/.config/$exec_lower/bin/$exec_name"
+                )
+            fi
+
+            for search_path in "${search_paths[@]}"; do
+                if [ -x "$search_path" ]; then
+                    exec_path="$search_path"
+                    log_install "Found executable at: $exec_path"
+                    break
+                fi
+            done
+        fi
+
+        # Process found executable
+        if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
+            # Fix permissions for the executable
+            log_install "Fixing permissions for: $exec_path"
+            fix_installation_permissions_from_common_functions "$exec_path" "755" "true" 2>&1 | while IFS= read -r line; do
+                log_install "$line"
+            done
+
+            # If it's a symlink, also fix the target
+            if [ -L "$exec_path" ]; then
+                local target_path=$(readlink -f "$exec_path" 2>/dev/null)
+                if [ -n "$target_path" ] && [ -e "$target_path" ]; then
+                    local target_dir=$(dirname "$target_path")
+                    log_install "Fixing permissions for target directory: $target_dir"
+                    fix_installation_permissions_from_common_functions "$target_dir" "755" "true" 2>&1 | while IFS= read -r line; do
                         log_install "$line"
                     done
                 fi
+            fi
 
-                # If it's a symlink, also fix the target
-                if [ -L "$exec_path" ]; then
-                    local target_path=$(readlink -f "$exec_path" 2>/dev/null)
-                    if [ -n "$target_path" ] && [ -e "$target_path" ]; then
-                        local target_dir=$(dirname "$target_path")
-                        if command -v fix_installation_permissions_from_common_functions >/dev/null 2>&1; then
-                            log_install "Fixing permissions for target directory: $target_dir"
-                            fix_installation_permissions_from_common_functions "$target_dir" "755" "true" 2>&1 | while IFS= read -r line; do
-                                log_install "$line"
-                            done
-                        fi
+            # Create symlink to /usr/local/bin if needed
+            if [ "$needs_symlink" = true ]; then
+                local symlink_path="/usr/local/bin/$exec_name"
+
+                # Remove old symlink if it points to wrong location
+                if [ -L "$symlink_path" ]; then
+                    local current_target=$(readlink "$symlink_path" 2>/dev/null)
+                    if [ "$current_target" != "$exec_path" ]; then
+                        log_install "Updating symlink to point to new location"
+                        $USE_SUDO rm -f "$symlink_path"
                     fi
                 fi
+
+                # Create symlink if it doesn't exist
+                if [ ! -e "$symlink_path" ]; then
+                    log_install "Creating symlink: $symlink_path -> $exec_path"
+                    if $USE_SUDO ln -sf "$exec_path" "$symlink_path"; then
+                        log_success "Symlink created successfully"
+                        # Verify it works
+                        if command -v "$exec_name" >/dev/null 2>&1; then
+                            log_success "$exec_name is now available in PATH"
+                        fi
+                    else
+                        log_warning "Failed to create symlink to /usr/local/bin"
+                    fi
+                else
+                    log_install "Symlink already exists: $symlink_path"
+                fi
             fi
+        elif [ "$needs_symlink" = true ]; then
+            log_warning "Could not find $exec_name in common installation locations"
+            log_warning "You may need to manually add it to PATH or create a symlink"
         fi
 
         log_success "Installation completed successfully: $app_name"

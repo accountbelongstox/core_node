@@ -125,9 +125,10 @@ check_php_version() {
     fi
 }
 
-# 1.3 Check PHP-FPM installation and service status - now using PHP common function
+# 1.3 Check PHP-FPM installation and service status - DISABLED (using Swoole)
 check_php_fpm_status() {
-    check_php_fpm_status_from_php_common "8.4" "$SCRIPT_INDEX"
+    echo -e "${CYAN}$SCRIPT_INDEX Skipping PHP-FPM check - Using Swoole instead${NC}"
+    return 0
 }
 
 # 1.4 Check required PHP extensions
@@ -314,7 +315,7 @@ fix_missing_extensions() {
 
 # 1.5 Check symbolic link integrity for universal PHP paths - now using PHP common function
 check_symbolic_link() {
-    check_symbolic_link_from_php_common "php" "8.4" "$SCRIPT_INDEX"
+    check_symbolic_link_from_php_common "php" "8.5" "$SCRIPT_INDEX"
 }
 
 # 1.6 Fix symbolic link and remove old PHP versions from PATH
@@ -351,7 +352,7 @@ fix_php_symbolic_link() {
 
     # Remove old symbolic links and binaries from /usr/local/bin
     echo -e "${YELLOW}$SCRIPT_INDEX Cleaning up old PHP links in /usr/local/bin...${NC}"
-    for old_version in 7.4 8.0 8.1 8.2 8.3; do
+    for old_version in 7.4 8.0 8.1 8.2 8.3 8.4; do
         local old_link="/usr/local/bin/php${old_version}"
         if [ -L "$old_link" ] || [ -f "$old_link" ]; then
             echo -e "${YELLOW}$SCRIPT_INDEX Removing old PHP link: $old_link${NC}"
@@ -407,15 +408,17 @@ fix_php_symbolic_link() {
 cleanup_old_php_versions() {
     echo -e "${BLUE}$SCRIPT_INDEX [CLEANUP] Removing old PHP versions from PATH and disabling services...${NC}"
 
-    # List of old PHP versions to clean up
+    # List of old PHP versions to clean up (including 8.4, but not 8.5)
     local old_versions=(7.4 8.0 8.1 8.2 8.3 8.4)
     local cleanup_errors=0
 
-    echo -e "${CYAN}$SCRIPT_INDEX Step 1: Stopping and disabling old PHP-FPM services...${NC}"
-    for version in "${old_versions[@]}"; do
-        echo -e "${YELLOW}$SCRIPT_INDEX Processing PHP $version cleanup...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Step 1: Stopping and disabling ALL PHP-FPM services (8.1-8.5)...${NC}"
+    # Include 8.5 in FPM cleanup since we're using Swoole instead
+    local all_versions=(8.1 8.2 8.3 8.4 8.5)
+    for version in "${all_versions[@]}"; do
+        echo -e "${YELLOW}$SCRIPT_INDEX Processing PHP $version FPM cleanup...${NC}"
 
-        # Stop and disable PHP-FPM service for old version
+        # Stop and disable PHP-FPM service
         local fpm_service="php${version}-fpm"
         if systemctl list-units --full -all | grep -q "$fpm_service.service"; then
             echo -e "${YELLOW}$SCRIPT_INDEX Stopping and disabling $fpm_service...${NC}"
@@ -425,6 +428,17 @@ cleanup_old_php_versions() {
             echo -e "${GREEN}$SCRIPT_INDEX Disabled and masked $fpm_service service${NC}"
         fi
 
+        # Remove FPM package
+        local fpm_package="php${version}-fpm"
+        if dpkg -l | grep -q "^ii.*$fpm_package[[:space:]]"; then
+            echo -e "${YELLOW}$SCRIPT_INDEX Removing $fpm_package package...${NC}"
+            $USE_SUDO apt remove --purge "$fpm_package" -y 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX Removed $fpm_package package${NC}"
+        fi
+    done
+
+    echo -e "${CYAN}$SCRIPT_INDEX Step 1.5: Cleaning up old PHP alternatives and symlinks...${NC}"
+    for version in "${old_versions[@]}"; do
         # Remove from alternatives if present
         if update-alternatives --list php 2>/dev/null | grep -q "php${version}"; then
             echo -e "${YELLOW}$SCRIPT_INDEX Removing PHP $version from alternatives...${NC}"
@@ -492,8 +506,8 @@ cleanup_old_php_versions() {
 
     # Add only PHP 8.5 to alternatives
     if [ -f "/usr/bin/php8.5" ] && [ -x "/usr/bin/php8.5" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.5 to alternatives with priority 84...${NC}"
-        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84 2>/dev/null || true
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.5 to alternatives with priority 85...${NC}"
+        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 85 2>/dev/null || true
 
         # Set PHP 8.5 as the default
         $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
@@ -505,8 +519,8 @@ cleanup_old_php_versions() {
     # Verify that 'php' command points to PHP 8.5
     if command -v php >/dev/null 2>&1; then
         local current_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
-        if [[ "$current_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX Verification: 'php' command points to PHP 8.5 �?{NC}"
+        if [[ "$current_version" == "8.5"* ]]; then
+            echo -e "${GREEN}$SCRIPT_INDEX Verification: 'php' command points to PHP 8.5 ✓${NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: 'php' command points to PHP $current_version${NC}"
         fi
@@ -562,10 +576,10 @@ verify_php_symbolic_link_fix() {
     # Test 2: Check if php command works and returns correct version
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
-        if [[ "$php_version" == "8.4"* ]]; then
+        if [[ "$php_version" == "8.5"* ]]; then
             echo -e "${GREEN}$SCRIPT_INDEX �?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX �?PHP command version incorrect: $php_version (expected: 8.4.x)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX �?PHP command version incorrect: $php_version (expected: 8.5.x)${NC}"
             verification_passed=false
         fi
     else
@@ -584,7 +598,7 @@ verify_php_symbolic_link_fix() {
 
     # Test 4: Check if old PHP versions are no longer in PATH
     local old_versions_found=false
-    for old_version in 7.4 8.0 8.1 8.2 8.3; do
+    for old_version in 7.4 8.0 8.1 8.2 8.3 8.4; do
         if command -v "php${old_version}" >/dev/null 2>&1; then
             local old_php_path=$(which "php${old_version}" 2>/dev/null)
             if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
@@ -642,10 +656,10 @@ verify_php_symbolic_link_fix() {
     # Test 2: Check if php command works and returns correct version
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
-        if [[ "$php_version" == "8.4"* ]]; then
+        if [[ "$php_version" == "8.5"* ]]; then
             echo -e "${GREEN}$SCRIPT_INDEX �?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX �?PHP command version incorrect: $php_version (expected: 8.4)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX �?PHP command version incorrect: $php_version (expected: 8.5)${NC}"
             success=false
         fi
     else
@@ -852,8 +866,8 @@ remove_existing_php() {
         done
 
         # Stop services only (do not remove packages)
-        echo -e "${YELLOW}$SCRIPT_INDEX Stopping non-8.4 PHP-FPM services...${NC}"
-        for version in 7.4 8.0 8.1 8.2 8.3; do
+        echo -e "${YELLOW}$SCRIPT_INDEX Stopping PHP-FPM services (we use Swoole instead)...${NC}"
+        for version in 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
             if systemctl is-active --quiet php${version}-fpm 2>/dev/null; then
                 echo -e "${YELLOW}$SCRIPT_INDEX Stopping php${version}-fpm service...${NC}"
                 $USE_SUDO systemctl stop php${version}-fpm || true
@@ -959,7 +973,7 @@ install_php_core() {
         echo -e "${GREEN}$SCRIPT_INDEX php8.5 already installed${NC}"
     fi
 
-    # Step 2: Install Laravel-required PHP extensions (CLI/FPM only, NO Apache2)
+    # Step 2: Install Laravel-required PHP extensions (CLI only, NO FPM - using Swoole)
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Installing Laravel-required PHP 8.5 extensions...${NC}"
 
     # Use core extensions from common variables
@@ -1086,82 +1100,21 @@ install_php_core() {
     fi
 
     # Set the actual installed version
-    ACTUAL_PHP_VERSION="8.4"
+    ACTUAL_PHP_VERSION="8.5"
     echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 core installation completed${NC}"
 }
 
 # Composer installation is now handled by separate script 32_install_composer.sh
 
-# 4.3 Install PHP 8.5 FPM - Following test_phpdoc.txt exactly
+# 4.3 FPM is NOT installed - Using Swoole instead
+# PHP-FPM removed because Laravel Octane with Swoole is used for better performance
 install_php_fpm() {
-    echo -e "${BLUE}$SCRIPT_INDEX [INSTALL] Installing PHP 8.5 FPM...${NC}"
-
-    # Prevent Apache2 installation during FPM setup
-    echo -e "${CYAN}$SCRIPT_INDEX Preventing Apache2 during FPM installation...${NC}"
-    $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
-
-    # Step 1: Install PHP 8.5 FPM only
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.5-fpm...${NC}"
-    if ! dpkg -l | grep -q "^ii.*php8.5-fpm[[:space:]]"; then
-        if $USE_SUDO apt install php8.5-fpm -y --no-install-recommends; then
-            echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm installed successfully${NC}"
-        else
-            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.5-fpm${NC}"
-            return 1
-        fi
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm already installed${NC}"
-    fi
-
-    # Remove Apache2 if it was installed during FPM installation
-    if dpkg -l | grep -q "^ii.*apache2"; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Apache2 installed during FPM setup, removing...${NC}"
-        $USE_SUDO systemctl stop apache2 2>/dev/null || true
-        $USE_SUDO systemctl disable apache2 2>/dev/null || true
-        $USE_SUDO apt remove --purge apache2* -y 2>/dev/null || true
-        $USE_SUDO apt autoremove -y 2>/dev/null || true
-    fi
-
-    # Step 2: Start the PHP-FPM service (as per documentation)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Starting $PHP_FPM_SERVICE service...${NC}"
-    if $USE_SUDO systemctl start $PHP_FPM_SERVICE; then
-        echo -e "${GREEN}$SCRIPT_INDEX $PHP_FPM_SERVICE service started successfully${NC}"
-    else
-        echo -e "${YELLOW}$SCRIPT_INDEX $PHP_FPM_SERVICE service may already be running${NC}"
-    fi
-
-    # Step 3: Enable PHP-FPM to start automatically on boot (as per documentation)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 3: Enabling $PHP_FPM_SERVICE service for auto-start...${NC}"
-    if $USE_SUDO systemctl enable $PHP_FPM_SERVICE; then
-        echo -e "${GREEN}$SCRIPT_INDEX $PHP_FPM_SERVICE service enabled for auto-start${NC}"
-    else
-        echo -e "${YELLOW}$SCRIPT_INDEX $PHP_FPM_SERVICE service may already be enabled${NC}"
-    fi
-
-    # Step 4: Check the status of PHP-FPM service (as per documentation)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 4: Checking $PHP_FPM_SERVICE service status...${NC}"
-    if systemctl is-active --quiet $PHP_FPM_SERVICE; then
-        echo -e "${GREEN}$SCRIPT_INDEX $PHP_FPM_SERVICE service is active and running${NC}"
-        # Show brief status
-        systemctl status $PHP_FPM_SERVICE --no-pager -l | head -10
-    else
-        echo -e "${RED}$SCRIPT_INDEX $PHP_FPM_SERVICE service is not running${NC}"
-        return 1
-    fi
-
-    # Store the installed version for other functions
-    ACTUAL_PHP_VERSION="$PHP_VERSION"
-    echo -e "${GREEN}$SCRIPT_INDEX PHP $PHP_VERSION FPM installation and setup completed successfully${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX [INFO] Skipping PHP-FPM installation - Using Swoole with Laravel Octane${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP-FPM is not needed when using Swoole${NC}"
+    return 0
 }
 
-# 4.4 Configure and start PHP-FPM service - moved to 32_configure_php85.sh
-
-# Configuration functions moved to 32_configure_php85.sh
-
-# Nginx configuration functions moved to 32_configure_php85.sh
-
-# Nginx site configuration moved to 32_configure_php85.sh
-
+# 4.4 Note: PHP-FPM not used - Using Swoole with Laravel Octane
 # Configuration functions moved to 32_configure_php85.sh
 
 # 4.6 Main installation execution function
@@ -1190,9 +1143,9 @@ execute_installation() {
         return 1
     }
 
-    # Step 5: Install PHP 8.5 FPM
+    # Step 5: Skip PHP-FPM (using Swoole)
     install_php_fpm || {
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 FPM installation failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP-FPM skip failed${NC}"
         return 1
     }
 
@@ -1237,7 +1190,7 @@ post_installation_verification() {
 
 display_final_status() {
     echo -e "${CYAN}========================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 Installation Summary (per test_phpdoc.txt)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 Installation Summary${NC}"
     echo -e "${CYAN}========================================================================${NC}"
 
     # PHP version verification (as per documentation)
@@ -1248,22 +1201,13 @@ display_final_status() {
         echo -e "${RED}$SCRIPT_INDEX PHP command not available${NC}"
     fi
 
-    # PHP-FPM service status (as per documentation)
+    # PHP-FPM service status (NOT USED - using Swoole)
     echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM Service Status:${NC}"
-    if systemctl is-active --quiet php8.5-fpm; then
-        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm service: [RUNNING]${NC}"
-        systemctl status php8.5-fpm --no-pager -l | head -5
+    echo -e "${CYAN}$SCRIPT_INDEX PHP-FPM not used - Using Swoole with Laravel Octane${NC}"
+    if systemctl is-active --quiet php8.5-fpm 2>/dev/null; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Warning: php8.5-fpm service is running (should be disabled)${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX php8.5-fpm service: [NOT RUNNING]${NC}"
-    fi
-
-    # Socket status (as per documentation)
-    if [ -S "/run/php/php8.5-fpm.sock" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM Socket: /run/php/php8.5-fpm.sock [OK]${NC}"
-        local socket_perms=$(stat -c "%a" "/run/php/php8.5-fpm.sock" 2>/dev/null || echo "unknown")
-        echo -e "${GREEN}$SCRIPT_INDEX Socket Permissions: $socket_perms${NC}"
-    else
-        echo -e "${RED}$SCRIPT_INDEX PHP-FPM Socket: Not found${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm service: [NOT RUNNING] ✓${NC}"
     fi
 
     # Active modules verification (as per documentation)
@@ -1296,9 +1240,7 @@ display_final_status() {
     # Configuration files
     echo -e "${YELLOW}$SCRIPT_INDEX Configuration Files:${NC}"
     local config_files=(
-        "/etc/php/8.4/fpm/pool.d/www.conf"
-        "/etc/php/8.4/cli/php.ini"
-        "/etc/php/8.4/fpm/php.ini"
+        "/etc/php/8.5/cli/php.ini"
     )
 
     for config_file in "${config_files[@]}"; do
@@ -1310,9 +1252,9 @@ display_final_status() {
     done
 
     echo -e "${CYAN}========================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.5 installation completed as per test_phpdoc.txt!${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.5 is ready for web development${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP-FPM is configured and running${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP 8.5 installation completed!${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.5 is ready for Laravel development with Swoole${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP-FPM disabled - Using Swoole with Laravel Octane${NC}"
     echo -e "${CYAN}========================================================================${NC}"
 }
 
@@ -1343,58 +1285,54 @@ main() {
         exit 1
     fi
 
-    # Phase 1: Pre-installation check for performance optimization
+    # Phase 1: Pre-installation check and state analysis
     local pre_check_result=0
     pre_installation_check; pre_check_result=$?
 
-    if [ $pre_check_result -eq 0 ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX System is already optimally configured. Exiting.${NC}"
-        exit 0
-    fi
-
-    echo -e "${YELLOW}$SCRIPT_INDEX Proceeding with installation/configuration...${NC}"
-
-    # Phase 1.5: Check if we only need to fix symbolic link
     local php_state_result=0
     analyze_php_state; php_state_result=$?
 
-    # ALWAYS try to fix missing extensions if PHP 8.5 is installed
+    echo -e "${CYAN}$SCRIPT_INDEX [PRECISION REPAIR MODE] Running comprehensive checks and repairs...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Even if installed, will verify and fix ALL components${NC}"
+
+    # STEP 1: ALWAYS clean up old PHP versions (精细化修复第1项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 1/5] Cleaning up old PHP versions...${NC}"
+    cleanup_old_php_versions || {
+        echo -e "${YELLOW}$SCRIPT_INDEX Old PHP cleanup completed with warnings${NC}"
+    }
+
+    # STEP 2: ALWAYS try to fix missing extensions if PHP 8.5 exists (精细化修复第2项)
     if command -v php8.5 >/dev/null 2>&1; then
-        echo -e "${CYAN}$SCRIPT_INDEX PHP 8.5 detected, checking for missing extensions...${NC}"
+        echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Checking and fixing PHP extensions...${NC}"
         fix_missing_extensions || {
             echo -e "${YELLOW}$SCRIPT_INDEX Extension fix completed with warnings${NC}"
         }
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX [STEP 2/5] PHP 8.5 not found, skipping extension fix${NC}"
     fi
 
-    # If PHP is installed but only symbolic link is wrong, just fix the link
-    if [ $php_state_result -eq 5 ] || [ $php_state_result -eq 6 ] || [ $php_state_result -eq 2 ]; then
-        echo -e "${CYAN}$SCRIPT_INDEX Only symbolic link needs fixing. Performing targeted fix...${NC}"
+    # STEP 3: ALWAYS fix symbolic link (精细化修复第3项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Fixing PHP symbolic link...${NC}"
+    fix_php_symbolic_link || {
+        echo -e "${YELLOW}$SCRIPT_INDEX Symbolic link fix completed with warnings${NC}"
+    }
 
-        # Clean up old versions and fix symbolic link
-        cleanup_old_php_versions || {
-            echo -e "${YELLOW}$SCRIPT_INDEX Old PHP cleanup completed with warnings${NC}"
-        }
+    # STEP 4: ALWAYS verify symbolic link fix (精细化修复第4项)
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 4/5] Verifying PHP symbolic link...${NC}"
+    verify_php_symbolic_link_fix || {
+        echo -e "${YELLOW}$SCRIPT_INDEX Symbolic link verification completed with warnings${NC}"
+    }
 
-        fix_php_symbolic_link || {
-            echo -e "${RED}$SCRIPT_INDEX Failed to fix PHP symbolic link${NC}"
-            exit 1
-        }
-
-        # Verify the fix worked
-        verify_php_symbolic_link_fix || {
-            echo -e "${RED}$SCRIPT_INDEX Symbolic link fix verification failed${NC}"
-            exit 1
-        }
-
-        echo -e "${GREEN}$SCRIPT_INDEX Symbolic link fix completed successfully. Running final verification...${NC}"
-        post_installation_verification
-        exit $?
+    # STEP 5: If not fully installed, run full installation (精细化修复第5项)
+    if [ $pre_check_result -ne 0 ]; then
+        echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Running full installation/repair...${NC}"
+        execute_installation
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX [STEP 5/5] PHP already installed, repairs completed${NC}"
     fi
 
-    # Phase 2: Execute full installation based on state analysis
-    execute_installation
-
-    # Phase 3: Post-installation verification
+    # Phase 3: Post-installation verification (ALWAYS run)
+    echo -e "${BLUE}$SCRIPT_INDEX [FINAL] Running comprehensive verification...${NC}"
     post_installation_verification
 }
 
@@ -1409,6 +1347,7 @@ if [ $exit_code -eq 0 ]; then
     echo -e "${GREEN}$SCRIPT_INDEX [INFO] PHP 8.5 is now available via 'php' command${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX [INFO] Symbolic link: /usr/local/bin/php -> /usr/bin/php8.5${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX [INFO] Old PHP versions have been cleaned up${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [INFO] ALL PHP-FPM services disabled (using Swoole)${NC}"
 else
     echo -e "${RED}$SCRIPT_INDEX [FAILED] PHP 8.5 installation/configuration failed with exit code: $exit_code${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX [INFO] Check the output above for specific error details${NC}"

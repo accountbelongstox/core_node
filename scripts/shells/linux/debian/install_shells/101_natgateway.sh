@@ -1676,11 +1676,37 @@ main() {
         return 0
     fi
 
+    # Check if non-desktop system - skip directly
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+        log_header "NAT Gateway - Non-Desktop System Detected"
+        log_info "Non-desktop system detected - NAT Gateway is typically not needed on server systems"
+        log_info "This tool is designed for systems with multiple network interfaces"
+        log_info "and is typically used for desktop/routing scenarios"
+        echo ""
+        log_success "Skipping installation automatically"
+        return 0
+    fi
+
     # Check if already installed
     if check_installation; then
-        # If installed, show status first
+        # If installed, ask if user wants to skip
         log_header "NAT Gateway Status"
         log_success "NAT Gateway is already installed and configured"
+        echo ""
+
+        echo -e "${YELLOW}Do you want to skip this script? (Y/n, default: Yes)${NC}"
+        read -p "Skip? [Y/n]: " skip_response
+
+        # Default to Yes (skip)
+        if [[ -z "$skip_response" ]]; then
+            skip_response="y"
+        fi
+
+        if [[ "$skip_response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            log_success "Skipping NAT Gateway configuration"
+            return 0
+        fi
+
         echo ""
 
         # Show installation info
@@ -1797,15 +1823,6 @@ main() {
                 log_info "Installation skipped on desktop system."
                 exit 0
             fi
-        else
-            # Non-desktop system: skip directly
-            log_header "NAT Gateway Installation"
-            log_info "Non-desktop system detected - skipping NAT Gateway installation"
-            log_info "NAT Gateway is designed for systems with multiple network interfaces"
-            log_info "and is typically used for routing/gateway scenarios, not server environments"
-            echo ""
-            log_success "Skipping installation automatically"
-            exit 0
         fi
     fi
 }
