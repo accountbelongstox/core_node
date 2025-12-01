@@ -231,7 +231,7 @@ EOF
 
     # Set proper permissions
     $USE_SUDO chmod 640 "$ssl_config_file"
-    $USE_SUDO chown www-data:www-data "$ssl_config_file"
+    $USE_SUDO chown root:root "$ssl_config_file"
 
     # Create legacy configuration for backward compatibility
     if [ ! -d "$legacy_ssl_config_dir" ]; then
@@ -275,7 +275,7 @@ setup_nginx_directories() {
     # Set proper permissions (skip chown in WSL as Windows filesystem doesn't support it)
     local www_root=$(map_web_path "wwwroot")
     if [ "$IS_WSL" = false ]; then
-        $USE_SUDO chown -R www-data:www-data "$www_root"
+        $USE_SUDO chown -R root:root "$www_root"
     fi
     $USE_SUDO chmod 755 "$www_root" 2>/dev/null || true
 
@@ -363,7 +363,7 @@ setup_nginx_directories() {
 </body>
 </html>
 EOF
-        $USE_SUDO chown www-data:www-data /usr/wwwroot/index.html
+        $USE_SUDO chown root:root /usr/wwwroot/index.html
         echo "[$SCRIPT_INDEX] Enhanced default page created with nginx and certbot information"
     fi
 

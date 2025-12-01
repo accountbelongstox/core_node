@@ -123,10 +123,158 @@ show_system_information() {
     read
 }
 
+# Function to restart GNOME Remote Desktop and fix connection issues
+restart_gnome_rdp() {
+    echo ""
+    echo "=========================================="
+    echo "GNOME Remote Desktop Connection Repair"
+    echo "=========================================="
+    echo ""
+
+    # Check if desktop environment exists
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ]; then
+        echo "Error: No desktop environment detected."
+        echo "GNOME Remote Desktop requires a desktop system."
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 1
+    fi
+
+    # Detect desktop user
+    local TARGET_USER="${ACTUAL_DESKTOP_USER:-$(whoami)}"
+
+    echo "Detected user: $TARGET_USER"
+    echo ""
+
+    # Verify user exists
+    if ! id "$TARGET_USER" &>/dev/null; then
+        echo "Error: User $TARGET_USER does not exist"
+        echo ""
+        read -p "Enter username to repair: " TARGET_USER
+        if ! id "$TARGET_USER" &>/dev/null; then
+            echo "Error: User $TARGET_USER does not exist"
+            echo ""
+            echo "Press Enter to continue..."
+            read
+            return 1
+        fi
+    fi
+
+    # Check if user is logged in
+    local USER_UID=$(id -u "$TARGET_USER" 2>/dev/null)
+    local DBUS_SESSION=$(pgrep -u "$TARGET_USER" gnome-session 2>/dev/null | head -1)
+
+    echo "Step 1: Checking desktop session status..."
+    if [ -z "$DBUS_SESSION" ]; then
+        echo "  [WARNING] User $TARGET_USER is NOT logged in to desktop"
+        echo ""
+        echo "GNOME Remote Desktop requires the user to be logged in."
+        echo "Please log in to the desktop first, then run this repair again."
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 1
+    fi
+
+    echo "  [OK] Desktop session found (PID: $DBUS_SESSION)"
+
+    # Get D-Bus session address
+    local DBUS_ADDRESS=$(tr '\0' '\n' < /proc/$DBUS_SESSION/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+
+    if [ -z "$DBUS_ADDRESS" ]; then
+        echo "  [ERROR] Failed to detect D-Bus session address"
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 1
+    fi
+
+    echo "  [OK] D-Bus session detected"
+    echo ""
+
+    # Step 2: Stop the service
+    echo "Step 2: Stopping GNOME Remote Desktop service..."
+    if sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        systemctl --user stop gnome-remote-desktop 2>/dev/null; then
+        echo "  [OK] Service stopped"
+    else
+        echo "  [WARNING] Service may not have been running"
+    fi
+    echo ""
+
+    # Step 3: Restart the service
+    echo "Step 3: Starting GNOME Remote Desktop service..."
+    if sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        systemctl --user start gnome-remote-desktop 2>/dev/null; then
+        echo "  [OK] Service started"
+    else
+        echo "  [ERROR] Failed to start service"
+        echo ""
+        echo "Trying to enable and start..."
+        sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+            systemctl --user enable gnome-remote-desktop 2>/dev/null
+        sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+            systemctl --user start gnome-remote-desktop 2>/dev/null
+    fi
+    echo ""
+
+    # Step 4: Verify RDP status
+    echo "Step 4: Checking RDP status..."
+    local rdp_status=$(sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+        grdctl status 2>/dev/null)
+
+    if echo "$rdp_status" | grep -q "RDP.*enabled"; then
+        echo "  [OK] RDP is enabled"
+
+        # Show connection information
+        echo ""
+        echo "=========================================="
+        echo "Connection Information"
+        echo "=========================================="
+        echo "Username: $TARGET_USER"
+        echo "Port: 3389"
+        echo ""
+        echo "Available IP addresses:"
+        hostname -I | tr ' ' '\n' | grep -v '^$' | sed 's/^/  /'
+        echo ""
+
+        # Auto-detect primary IP
+        local PRIMARY_IP=$(hostname -I | awk '{print $1}')
+
+        echo "Quick .rdp file template (save as linux.rdp):"
+        echo "-------------------------------------------"
+        cat << EOF
+full address:s:$PRIMARY_IP
+username:s:$TARGET_USER
+enablecredsspsupport:i:0
+authentication level:i:0
+negotiate security layer:i:0
+prompt for credentials:i:1
+redirectclipboard:i:1
+EOF
+        echo "-------------------------------------------"
+        echo ""
+        echo "[SUCCESS] GNOME Remote Desktop is ready!"
+    else
+        echo "  [WARNING] RDP may not be enabled"
+        echo ""
+        echo "RDP Status:"
+        echo "$rdp_status"
+        echo ""
+        echo "To enable RDP, run:"
+        echo "  bash $CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/125_setup_gnome_rdp.sh"
+    fi
+
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=6
+    local total=7
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -135,6 +283,7 @@ show_linux_management_submenu() {
         "Disable Ubuntu Automatic Updates"
         "Permissions Repair Menu"
         "NAT Gateway Configuration"
+        "Restart GNOME Remote Desktop (Fix RDP Connection)"
         "Clear and Re-decrypt Secret Keys"
         "Show System Information"
         "Back to Main Menu"
@@ -189,12 +338,15 @@ show_linux_management_submenu() {
                         manage_natgateway
                         ;;
                     3)
-                        clear_and_redecrypt_secrets
+                        restart_gnome_rdp
                         ;;
                     4)
-                        show_system_information
+                        clear_and_redecrypt_secrets
                         ;;
                     5)
+                        show_system_information
+                        ;;
+                    6)
                         return 0
                         ;;
                 esac

@@ -351,8 +351,8 @@ update_antigravity() {
 
 # Function: Prompt user to update if already installed
 prompt_update_decision() {
-    local default_answer="N"
-    local prompt="[y/N]"
+    local default_answer="Y"
+    local prompt="[Y/n]"
 
     echo ""
     log "$DESKTOP_ENTRY_NAME is already installed."

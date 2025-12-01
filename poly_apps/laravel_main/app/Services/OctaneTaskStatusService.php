@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Provides unified interface for querying and monitoring all Octane timer tasks.
  * Used by sys:init for verification and debug interface for display.
+ *
+ * Now uses Laravel Schedule as single heartbeat center.
  */
 class OctaneTaskStatusService
 {
@@ -66,6 +68,27 @@ class OctaneTaskStatusService
             return OctaneTimerService::getRegisteredTasks();
         } catch (\Throwable $e) {
             return [];
+        }
+    }
+
+    /**
+     * Count running tasks
+     */
+    private function countRunning(array $runtimeStatus): int
+    {
+        return count($runtimeStatus);
+    }
+
+    /**
+     * Get total ticks from timer
+     */
+    private function getTotalTicks(): int
+    {
+        try {
+            $status = OctaneTimerService::getStatus();
+            return $status['total_ticks'] ?? 0;
+        } catch (\Throwable $e) {
+            return 0;
         }
     }
 
@@ -189,27 +212,6 @@ class OctaneTaskStatusService
         }
 
         return 'waiting';
-    }
-
-    /**
-     * Count running tasks
-     */
-    private function countRunning(array $runtimeStatus): int
-    {
-        return count($runtimeStatus);
-    }
-
-    /**
-     * Get total ticks from timer
-     */
-    private function getTotalTicks(): int
-    {
-        try {
-            $status = OctaneTimerService::getStatus();
-            return $status['total_ticks'] ?? 0;
-        } catch (\Throwable $e) {
-            return 0;
-        }
     }
 
     /**

@@ -806,6 +806,9 @@ ensure_vendor() {
     else
         echo "Vendor directory exists."
     fi
+
+    # Apply Octane/Swoole compatibility patch immediately after vendor is available
+    fix_octane_swoole_compatibility
 }
 
 # Function to clear Laravel cache
@@ -881,6 +884,29 @@ handle_database() {
     chmod 644 "$DB_FILE"
     echo -e "${GREEN}Database setup complete${NC}"
 }
+# Function to fix Octane/Swoole compatibility
+# PHP Version: 8.5 (Upgraded from 8.4)
+# Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
+#
+# Swoole 6.x compatibility patch for Laravel Octane v2.13.x
+# Issue: Swoole 6.x changed task event signature (breaking change)
+# - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
+# - Swoole 6.x: task(Server $server, Server\Task $task)
+#
+# This function calls OctaneSwooleCompatFixer.php to apply the patch
+# The patch is idempotent (safe to run multiple times)
+fix_octane_swoole_compatibility() {
+    local laravel_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local fixer_script="${laravel_root}/app/Support/OctaneSwooleCompatFixer.php"
+
+    # Always try to apply patch, silently skip if conditions not met
+    if [ -f "$fixer_script" ] && [ -d "$laravel_root/vendor/laravel/octane" ]; then
+        php "$fixer_script" "$laravel_root" >/dev/null 2>&1 || true
+    fi
+
+    return 0
+}
+
 # Function to start Laravel server
 start_server() {
     echo "Starting Laravel development server..."
@@ -957,6 +983,7 @@ if [ -f /etc/debian_version ]; then
     ensure_php_extensions
     ensure_composer
     ensure_vendor
+    fix_octane_swoole_compatibility
     clear_cache
     handle_database
     configure_project_open_basedir

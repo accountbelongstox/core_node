@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Subtitle Player</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/debug-tools/assets/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🎙️</span>
+                    <span class="logo-text">VoiceSub</span>
+                </div>
+                <div class="user-info-mini">
+                    <div class="user-status-dot"></div>
+                    <span class="user-identifier" id="userIdentifier">Loading...</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active tab-button" onclick="switchTab('player')">
+                    <span class="nav-icon">▶️</span>
+                    <span class="nav-label">Player</span>
+                </button>
+                <button class="nav-item tab-button" onclick="switchTab('add')">
+                    <span class="nav-icon">➕</span>
+                    <span class="nav-label">Add New</span>
+                </button>
+                <button class="nav-item tab-button" onclick="switchTab('queue')">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Queue</span>
+                </button>
+                <button class="nav-item tab-button" onclick="switchTab('settings')">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="version-tag">v1.0.0</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Player Tab -->
+            <section id="playerTab" class="tab-content active">
+                <div class="player-wrapper">
+                    <!-- Top Controls -->
+                    <div class="player-header">
+                        <div class="header-actions">
+                            <button class="action-btn queue-toggle" onclick="togglePlayerQueue()">
+                                <span class="icon">📋</span> <span class="text">Queue</span>
+                            </button>
+                            <button class="action-btn fullscreen-toggle" onclick="toggleFullscreen()">
+                                <span class="icon">⛶</span> <span class="text">Fullscreen</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Main Display -->
+                    <div class="subtitle-stage">
+                        <div class="subtitle-display">
+                            <div class="subtitle-text" id="subtitleText">Ready to play...</div>
+                        </div>
+                        <div class="subtitle-meta" id="subtitleMeta"></div>
+                    </div>
+
+                    <!-- Floating Queue Panel -->
+                    <div class="player-queue-panel" id="playerQueuePanel">
+                        <div class="panel-header">
+                            <h3>Current Queue</h3>
+                            <button class="close-btn" onclick="togglePlayerQueue()">✕</button>
+                        </div>
+                        <div class="panel-filter">
+                            <label for="playerQueueGroupFilter">Group:</label>
+                            <select id="playerQueueGroupFilter" onchange="setPlayerQueueFilter(this.value)">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div class="player-queue-list custom-scrollbar" id="playerQueueList">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <div class="empty-state-text">No items loaded</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Controls Bar -->
+                    <div class="player-controls-container glass-panel">
+                        <div class="control-group playback-options">
+                            <div class="select-wrapper">
+                                <select id="playMode" onchange="updatePlayOptions()" class="glass-select">
+                                    <option value="all">All Items</option>
+                                    <option value="latest">Latest 300</option>
+                                    <option value="today">Today Only</option>
+                                    <option value="group">By Group</option>
+                                    <option value="language">By Language</option>
+                                </select>
+                            </div>
+                            
+                            <div class="select-wrapper" id="groupSelectWrapper" style="display: none;">
+                                <select id="playGroupSelect" class="glass-select"></select>
+                            </div>
+                            
+                            <div class="select-wrapper" id="languageSelectWrapper" style="display: none;">
+                                <select id="playLanguageSelect" class="glass-select"></select>
+                            </div>
+
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoPlayCheckbox" onchange="updateAutoPlay()">
+                                <span class="slider"></span>
+                                <span class="label-text">Auto Play</span>
+                            </label>
+                        </div>
+
+                        <div class="control-group main-transport">
+                            <button class="transport-btn prev" onclick="previousSubtitle()">⏮</button>
+                            <button class="transport-btn play" id="playBtn" onclick="playPause()">▶</button>
+                            <button class="transport-btn next" onclick="nextSubtitle()">⏭</button>
+                        </div>
+
+                        <div class="control-group rate-control">
+                            <span class="rate-label">Speed</span>
+                            <input type="range" id="playbackRateSlider" min="0.5" max="2" step="0.1" value="1.0" onchange="updatePlaybackRate(this.value)" class="glass-slider">
+                            <span class="rate-value" id="playbackRateValue">1.0x</span>
+                        </div>
+                    </div>
+                    
+                    <audio id="audioPlayer" style="display: none;"></audio>
+                </div>
+            </section>
+
+            <!-- Add Tab -->
+            <section id="addTab" class="tab-content">
+                <div class="content-container">
+                    <div class="page-header">
+                        <h2>Add Content</h2>
+                        <p class="subtitle">Import text, images, or URLs to your queue</p>
+                    </div>
+
+                    <div class="grid-layout">
+                        <div class="card glass-panel form-section">
+                            <div id="addMessage"></div>
+
+                            <div class="target-lang-display">
+                                <span class="label">Target Languages:</span>
+                                <div id="targetLangBadges" class="badges-container">Loading...</div>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Input Type</label>
+                                <div class="select-wrapper">
+                                    <select id="inputType" onchange="toggleInputMethod()" class="glass-select full-width">
+                                        <option value="text">Text</option>
+                                        <option value="image_url">Image URL</option>
+                                        <option value="image_file">Image Upload</option>
+                                        <option value="url">Webpage URL</option>
+                                        <option value="file_url">File URL</option>
+                                        <option value="file_upload">File Upload</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="input-group" id="contentGroup">
+                                <label>Content</label>
+                                <textarea id="inputContent" placeholder="Enter text or URL..." class="glass-input"></textarea>
+                            </div>
+
+                            <div class="input-group" id="fileGroup" style="display: none;">
+                                <label>Upload File</label>
+                                <div class="file-upload-wrapper">
+                                    <input type="file" id="inputFile" class="file-input">
+                                    <div class="file-upload-ui">
+                                        <span class="icon">📁</span>
+                                        <span class="text">Choose a file...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Group (optional)</label>
+                                <input type="text" id="inputGroup" placeholder="default" list="groupSuggestions" class="glass-input">
+                                <datalist id="groupSuggestions"></datalist>
+                                <div class="helper-text">Group name for organizing queue items.</div>
+                            </div>
+
+                            <button class="btn-primary full-width" onclick="addToQueue()">Add to Queue</button>
+                        </div>
+
+                        <div class="side-column">
+                            <div class="card glass-panel task-monitor">
+                                <div class="card-header">
+                                    <h3>Processing Tasks</h3>
+                                    <span class="last-updated" id="taskLastUpdated"></span>
+                                </div>
+                                <div id="taskList" class="task-list custom-scrollbar">Loading...</div>
+                            </div>
+
+                            <div class="card glass-panel api-docs">
+                                <h3>API Usage</h3>
+                                <div class="accordion">
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">Text Example</div>
+                                        <pre id="apiExampleText" class="code-block">Loading...</pre>
+                                    </div>
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">Image Example</div>
+                                        <pre id="apiExampleImage" class="code-block">Loading...</pre>
+                                    </div>
+                                    <div class="accordion-item">
+                                        <div class="accordion-header">URL Example</div>
+                                        <pre id="apiExampleUrl" class="code-block">Loading...</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Queue Tab -->
+            <section id="queueTab" class="tab-content">
+                <div class="content-container">
+                    <div class="page-header">
+                        <h2>Queue Management</h2>
+                        <div class="header-stats">
+                            <span id="queueTotalCount" class="stat-number">0</span>
+                            <span class="stat-label">items total</span>
+                        </div>
+                    </div>
+
+                    <div class="card glass-panel queue-manager">
+                        <div class="queue-toolbar">
+                            <div class="filter-group">
+                                <label>Filter by Group:</label>
+                                <div class="select-wrapper">
+                                    <select id="groupFilter" onchange="filterByGroup()" class="glass-select">
+                                        <option value="">All Groups</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="queue-list-container custom-scrollbar" id="queueList">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <div class="empty-state-text">Queue is empty</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settingsTab" class="tab-content">
+                <div class="content-container">
+                    <div class="page-header">
+                        <h2>Settings</h2>
+                        <p class="subtitle">Configure your playback and language preferences</p>
+                    </div>
+
+                    <div class="grid-layout">
+                        <div class="card glass-panel settings-form">
+                            <div class="card-header">
+                                <h3>User Preferences</h3>
+                            </div>
+                            <div id="settingsMessage"></div>
+
+                            <div class="setting-item">
+                                <label class="setting-label">Target Languages</label>
+                                <input type="text" class="glass-input search-input" placeholder="Search languages..." oninput="filterLanguageOptions(this.value)">
+                                <div class="language-grid custom-scrollbar" id="languageCheckboxes">
+                                    <div>Loading...</div>
+                                </div>
+                                <div class="helper-text">Select languages for AI translation and TTS generation.</div>
+                            </div>
+
+                            <div class="setting-item">
+                                <label class="setting-label">Default Voice</label>
+                                <div class="select-wrapper">
+                                    <select id="defaultVoice" class="glass-select full-width">
+                                        <option value="en-US-AriaNeural">English (US) - Aria</option>
+                                        <option value="en-GB-SoniaNeural">English (UK) - Sonia</option>
+                                        <option value="ja-JP-NanamiNeural">Japanese - Nanami</option>
+                                        <option value="ko-KR-SunHiNeural">Korean - SunHi</option>
+                                        <option value="es-ES-ElviraNeural">Spanish - Elvira</option>
+                                        <option value="fr-FR-DeniseNeural">French - Denise</option>
+                                        <option value="de-DE-KatjaNeural">German - Katja</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <label class="setting-label">
+                                    Default Playback Rate
+                                    <span class="value-badge" id="defaultPlaybackRateValue">1.0x</span>
+                                </label>
+                                <input type="range" id="defaultPlaybackRate" min="0.5" max="2" step="0.1" value="1.0" oninput="document.getElementById('defaultPlaybackRateValue').textContent = this.value + 'x'" class="glass-slider">
+                            </div>
+
+                            <button class="btn-primary full-width" onclick="saveSettings()">Save Settings</button>
+                        </div>
+
+                        <div class="card glass-panel stats-panel">
+                            <div class="card-header">
+                                <h3>System Statistics</h3>
+                            </div>
+                            <div id="statsInfo" class="stats-content">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-backdrop" id="groupEditModal">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3>Update Group</h3>
+                <button class="close-modal-btn" onclick="closeGroupEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="groupEditPath" class="modal-subtitle"></p>
+                <input type="text" id="groupEditInput" placeholder="Enter new group name" class="glass-input">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeGroupEditModal()">Cancel</button>
+                <button class="btn-primary" onclick="submitGroupEditModal()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/debug-tools/assets/main.js"></script>
+</body>
+</html>
