@@ -284,7 +284,6 @@ const ITTools = {
     UI: {
         showResult(elementId, result, isSuccess = true) {
             const element = document.getElementById(elementId);
-            if (!element) return;
             
             if (typeof result === 'object') {
                 element.textContent = JSON.stringify(result, null, 2);
@@ -297,17 +296,14 @@ const ITTools = {
         
         clearResult(elementId) {
             const element = document.getElementById(elementId);
-            if (element) {
-                element.style.display = 'none';
-                element.textContent = '';
-            }
+            element.style.display = 'none';
+            element.textContent = '';
         },
         
         showLoading(elementId, message = 'Processing...') {
             const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = message;
-                element.className = 'ittools-result';
+            element.textContent = message;
+            element.className = 'ittools-result';
                 element.style.display = 'block';
             }
         },
@@ -342,9 +338,7 @@ const ITTools = {
         toggleRightPanel() {
             const state = ITTools.State.toggleRightPanel();
             const panel = document.querySelector('.ittools-right-panel');
-            if (panel) {
-                panel.classList.toggle('visible', state.rightPanelVisible);
-            }
+            panel.classList.toggle('visible', state.rightPanelVisible);
         }
     },
     
@@ -440,9 +434,7 @@ const ITTools = {
         },
         
         selectTool(toolId, toolLabel) {
-            if (typeof ITTools.UniversalMenu !== 'undefined' && ITTools.UniversalMenu.selectTool) {
-                ITTools.UniversalMenu.selectTool(toolId, toolLabel);
-            }
+            ITTools.UniversalMenu.selectTool(toolId, toolLabel);
             this.hideResults();
             this.clearSearch();
         },

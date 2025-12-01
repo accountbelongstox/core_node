@@ -221,7 +221,6 @@ const PromptMappingManager = {
 
     renderCategoryList() {
         const container = document.getElementById('mapping-categories');
-        if (!container) return;
 
         container.innerHTML = '';
 
@@ -340,7 +339,6 @@ const PromptMappingManager = {
 
     getReplaceMapFromUI() {
         const container = document.getElementById('replace-map-list');
-        if (!container) return {};
 
         const replaceMap = {};
         const rules = container.querySelectorAll('div');

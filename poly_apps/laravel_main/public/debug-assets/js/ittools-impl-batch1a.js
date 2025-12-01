@@ -273,9 +273,7 @@ ITTools.Implementations.UnitConverter = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('unit-from')) {
-        ITTools.Implementations.UnitConverter.updateUnits();
-    }
+    ITTools.Implementations.UnitConverter.updateUnits();
 });
 
 console.log('ITTools Batch 1a Implementations loaded');

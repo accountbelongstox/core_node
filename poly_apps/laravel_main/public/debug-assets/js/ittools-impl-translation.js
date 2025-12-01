@@ -1178,7 +1178,7 @@ ITTools.Implementations.Translation = {
         
         outputDiv.innerHTML = html;
         
-        if (generateAudio && typeof ITTools.TTS !== 'undefined') {
+        if (generateAudio) {
             setTimeout(() => {
                 const containers = outputDiv.querySelectorAll('.audio-btn-container');
                 containers.forEach(container => {
