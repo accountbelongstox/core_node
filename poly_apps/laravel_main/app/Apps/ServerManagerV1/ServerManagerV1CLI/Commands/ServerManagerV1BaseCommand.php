@@ -14,15 +14,19 @@ abstract class ServerManagerV1BaseCommand extends Command
 {
     /**
      * Initialize command - called before handle()
-     * 
+     *
+     * PHP Version: 8.5 (Upgraded from 8.4)
+     *
      * This method ensures PHP configuration is correct before any ServerManagerV1
      * operations. It calls ServerManagerV1PHPConfigFixer to fix open_basedir
      * restrictions that might prevent Laravel files from being accessed.
-     * 
-     * This is a PRE-REQUISITE that matches the behavior of 32_configure_php84.sh
-     * but runs at runtime instead of installation time.
-     * 
-     * See: ../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php84.sh
+     *
+     * It also checks Octane/Swoole compatibility and applies patches if needed.
+     * Swoole 6.x compatibility patch for Laravel Octane v2.13.x is applied automatically.
+     *
+     * This is a PRE-REQUISITE that runs at runtime.
+     *
+     * See: ../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php85.sh
      */
     protected function initializeCommand(): void
     {
@@ -30,6 +34,39 @@ abstract class ServerManagerV1BaseCommand extends Command
         // This ensures open_basedir restrictions are removed/configured correctly
         // based on current path mapping (matches 32_configure_php84.sh behavior)
         ServerManagerV1PHPConfigFixer::fixPHPConfiguration();
+
+        // Fix Octane/Swoole compatibility (Swoole 6.x patch for Laravel Octane v2.13.x)
+        // Issue: Swoole 6.x changed task event signature (breaking change)
+        // - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
+        // - Swoole 6.x: task(Server $server, Server\Task $task)
+        // This patch makes vendor/laravel/octane/bin/swoole-server compatible with both versions
+        $this->fixOctaneSwooleCompatibility();
+    }
+
+    /**
+     * Fix Octane/Swoole compatibility
+     *
+     * Applies a patch to make Laravel Octane v2.13.x compatible with Swoole 6.x
+     * The patch is idempotent (safe to run multiple times)
+     */
+    private function fixOctaneSwooleCompatibility(): void
+    {
+        if (!is_dir(base_path('vendor/laravel/octane'))) {
+            return;
+        }
+
+        try {
+            $fixer = new \App\Support\OctaneSwooleCompatFixer(base_path());
+            $result = $fixer->run();
+
+            // Only show message if patch was actually applied (not for already-fixed or compatible)
+            if ($result['status'] === 'fixed') {
+                $this->line("[OCTANE] Compatibility patch applied (Swoole {$result['swoole_version']})");
+            }
+        } catch (\Exception $e) {
+            // Silently continue if patch fails (non-critical)
+            Log::warning('Octane compatibility check failed', ['error' => $e->getMessage()]);
+        }
     }
     /**
      * Execute system command with proper logging

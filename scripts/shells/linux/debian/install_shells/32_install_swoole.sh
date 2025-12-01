@@ -11,8 +11,12 @@
 
 # Script: 32_install_swoole.sh
 # Description: Install Swoole extension for PHP 8.5 and Laravel Octane support
+# PHP Version: 8.5 (Upgraded from 8.4)
+# Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
+# Laravel Octane: v2.13.x (Requires compatibility patch for Swoole 6.x)
+# Compatibility: Automatically applies Octane/Swoole 6.x patch after installation
 # Author: System Administrator
-# Version: 1.0
+# Version: 1.1
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -123,6 +127,57 @@ ensure_php_symlink() {
     fi
 }
 
+uninstall_old_swoole() {
+    echo -e "${BLUE}$SCRIPT_INDEX Checking for existing Swoole installation...${NC}"
+
+    local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null)
+
+    if [ -n "$swoole_version" ] && [ "$swoole_version" != "false" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Found existing Swoole version: $swoole_version${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Removing old Swoole installation...${NC}"
+
+        # Try pecl uninstall first
+        if command -v pecl >/dev/null 2>&1; then
+            echo -e "${CYAN}$SCRIPT_INDEX Attempting PECL uninstall...${NC}"
+            echo "" | $USE_SUDO pecl uninstall swoole 2>/dev/null || true
+        fi
+
+        # Remove swoole.so from extension directory
+        local ext_dir=$(php -r "echo ini_get('extension_dir');" 2>/dev/null)
+        if [ -n "$ext_dir" ] && [ -f "$ext_dir/swoole.so" ]; then
+            echo -e "${CYAN}$SCRIPT_INDEX Removing $ext_dir/swoole.so${NC}"
+            $USE_SUDO rm -f "$ext_dir/swoole.so"
+        fi
+
+        # Remove swoole.ini configuration
+        local swoole_ini="/etc/php/8.5/mods-available/swoole.ini"
+        if [ -f "$swoole_ini" ]; then
+            echo -e "${CYAN}$SCRIPT_INDEX Removing $swoole_ini${NC}"
+            $USE_SUDO rm -f "$swoole_ini"
+        fi
+
+        # Remove symlinks
+        for sapi in cli fpm; do
+            local link="/etc/php/8.5/$sapi/conf.d/20-swoole.ini"
+            if [ -L "$link" ]; then
+                echo -e "${CYAN}$SCRIPT_INDEX Removing $link${NC}"
+                $USE_SUDO rm -f "$link"
+            fi
+        done
+
+        # Verify removal
+        if php -m 2>/dev/null | grep -q "swoole"; then
+            echo -e "${YELLOW}$SCRIPT_INDEX Warning: Swoole still loaded, may require PHP restart${NC}"
+        else
+            echo -e "${GREEN}$SCRIPT_INDEX Old Swoole removed successfully${NC}"
+        fi
+    else
+        echo -e "${CYAN}$SCRIPT_INDEX No existing Swoole installation found${NC}"
+    fi
+
+    return 0
+}
+
 install_swoole_dependencies() {
     echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole build dependencies...${NC}"
 
@@ -158,16 +213,20 @@ install_swoole_pecl() {
     local php_ver=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
     
     # For PHP 8.5+, install from source (master) as PECL version is incompatible
+    # Note: Swoole 6.x requires compatibility patch for Laravel Octane v2.13.x
+    # The patch will be automatically applied by octane_swoole_compat_fixer.php
     if [[ "$php_ver" == "8.5" ]]; then
         echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (master branch)...${NC}"
-        
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Swoole 6.x will be patched for Octane v2.13.x compatibility${NC}"
+
         if ! command -v git >/dev/null 2>&1; then
             $USE_SUDO apt-get install -y git
         fi
-        
-        local build_dir="/tmp/swoole-src-build"
+
+        # Use GLOBAL_TEMP_DIR from gvar_common.sh
+        local build_dir="$GLOBAL_TEMP_DIR/swoole-src-build-$$"
         rm -rf "$build_dir"
-        
+
         echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole repository...${NC}"
         git clone --depth 1 https://github.com/swoole/swoole-src.git "$build_dir"
         
@@ -276,6 +335,30 @@ verify_swoole() {
     fi
 }
 
+check_octane_compatibility() {
+    echo ""
+    echo -e "${BLUE}$SCRIPT_INDEX Checking Laravel Octane compatibility...${NC}"
+
+    # Get Laravel root using map_web_path
+    local laravel_root=$(map_web_path "core_node" "poly_apps/laravel_main")
+
+    if [ ! -d "$laravel_root" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Laravel not found at: $laravel_root, skipping compatibility check${NC}"
+        return 0
+    fi
+
+    local fixer_script="$laravel_root/app/Support/OctaneSwooleCompatFixer.php"
+
+    if [ ! -f "$fixer_script" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Compatibility fixer not found, skipping${NC}"
+        return 0
+    fi
+
+    php "$fixer_script" "$laravel_root"
+
+    return 0
+}
+
 main() {
     echo -e "${BLUE}$SCRIPT_INDEX Starting Swoole installation/configuration check...${NC}"
     echo ""
@@ -290,6 +373,14 @@ main() {
 
     if $swoole_installed && $config_valid; then
         echo -e "${GREEN}$SCRIPT_INDEX Swoole is fully configured and working${NC}"
+
+        # Check Swoole version and compatibility
+        local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null)
+        echo -e "${CYAN}$SCRIPT_INDEX Swoole version: $swoole_version${NC}"
+
+        # Run compatibility check for Octane
+        check_octane_compatibility
+
         echo -e "${GREEN}$SCRIPT_INDEX Nothing to do${NC}"
         exit 0
     elif $swoole_installed && ! $config_valid; then
@@ -300,6 +391,7 @@ main() {
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
+        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"
@@ -311,11 +403,13 @@ main() {
         echo -e "${CYAN}$SCRIPT_INDEX Reinstalling Swoole...${NC}"
         echo ""
 
+        uninstall_old_swoole
         install_swoole_dependencies || exit 1
         install_swoole_pecl || exit 1
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
+        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"
@@ -326,11 +420,13 @@ main() {
         echo -e "${CYAN}$SCRIPT_INDEX Performing fresh installation...${NC}"
         echo ""
 
+        uninstall_old_swoole
         install_swoole_dependencies || exit 1
         install_swoole_pecl || exit 1
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
+        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"
