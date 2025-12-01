@@ -244,6 +244,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     webview_url = config.get('webview_url', 'http://localhost:59000')
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
+    icon_path = config.get('icon_path')
     enable_tray = config.get('enable_tray', False)
     enable_webview = config.get('enable_webview', True)
     enable_dev_tools = config.get('enable_dev_tools', False)
@@ -260,6 +261,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ColorPrint.blue(f"[ui]   - webview_url: {webview_url}")
     ColorPrint.blue(f"[ui]   - show_on_start: {show_on_start}")
     ColorPrint.blue(f"[ui]   - frameless: {frameless}")
+    ColorPrint.blue(f"[ui]   - icon_path: {icon_path}")
     ColorPrint.blue(f"[ui]   - enable_tray: {enable_tray}")
     ColorPrint.blue(f"[ui]   - enable_webview: {enable_webview}")
     ColorPrint.blue(f"[ui]   - enable_dev_tools: {enable_dev_tools}")
@@ -275,6 +277,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
         window_size=window_size,
         show_on_start=show_on_start,
         frameless=frameless,
+        icon_path=icon_path,
         enable_tray=enable_tray,
         enable_webview=enable_webview,
         webview_url=webview_url,

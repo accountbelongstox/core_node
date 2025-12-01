@@ -66,6 +66,7 @@ class PySide6MainWindow(QMainWindow):
         width: int = 1280,
         height: int = 800,
         frameless: bool = True,
+        icon_path: Optional[str] = None,
         cache_window_state: bool = True,
         parent: Optional[QWidget] = None
     ):
@@ -78,6 +79,7 @@ class PySide6MainWindow(QMainWindow):
             width: Default window width (used if no cached state)
             height: Default window height (used if no cached state)
             frameless: Enable frameless window
+            icon_path: Path to window icon file (.png or .ico)
             cache_window_state: Enable window state caching
             parent: Parent widget
         """
@@ -86,6 +88,7 @@ class PySide6MainWindow(QMainWindow):
         self.app_name = app_name
         self.app_id = app_id
         self._frameless = frameless
+        self._icon_path = icon_path
         self._is_maximized = False
         self._cache_window_state = cache_window_state
 
@@ -118,6 +121,10 @@ class PySide6MainWindow(QMainWindow):
         """Setup window properties."""
         # Set window title
         self.setWindowTitle(self.app_name)
+
+        # Set window icon if provided
+        if self._icon_path and Path(self._icon_path).exists():
+            self.setWindowIcon(QIcon(self._icon_path))
 
         # Load cached window state if available
         loaded_state = None
