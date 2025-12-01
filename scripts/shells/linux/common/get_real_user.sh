@@ -180,9 +180,9 @@ find_most_recent_home_user() {
 
                 # Collect subdirectories for next level (limit to prevent hanging)
                 local subdir_count=0
-                for subdir in "$dir"/* 2>/dev/null; do
-                    # Skip if not a directory or not accessible
-                    if [ ! -d "$subdir" ]; then
+                for subdir in "$dir"/*; do
+                    # Skip if glob didn't match or not a directory
+                    if [ ! -e "$subdir" ] || [ ! -d "$subdir" ]; then
                         continue
                     fi
 

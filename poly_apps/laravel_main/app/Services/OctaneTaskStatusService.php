@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Provides unified interface for querying and monitoring all Octane timer tasks.
  * Used by sys:init for verification and debug interface for display.
+ *
+ * Now uses Laravel Schedule as single heartbeat center.
  */
 class OctaneTaskStatusService
 {
@@ -22,51 +24,38 @@ class OctaneTaskStatusService
      */
     public function getAllTasksStatus(): array
     {
-        $registeredTasks = $this->getRegisteredTasks();
         $discoveredTasks = $this->discoverTaskClasses();
-        $runtimeStatus = $this->getRuntimeStatus();
+        $scheduleRunning = $this->isScheduleRunning();
 
         return [
             'summary' => [
                 'total_discovered' => count($discoveredTasks),
-                'total_registered' => count($registeredTasks),
-                'total_running' => $this->countRunning($runtimeStatus),
-                'timer_running' => OctaneTimerService::isRunning(),
-                'timer_uptime' => OctaneTimerService::getUptime(),
-                'total_ticks' => $this->getTotalTicks(),
+                'total_enabled' => $this->countEnabled($discoveredTasks),
+                'schedule_running' => $scheduleRunning,
+                'heartbeat_method' => 'Laravel Schedule (1s)',
+                'runner' => 'Octane::tick + schedule:run',
             ],
-            'tasks' => $this->mergeTaskStatus($discoveredTasks, $registeredTasks, $runtimeStatus),
+            'tasks' => $discoveredTasks,
             'heartbeat' => $this->getHeartbeatStatus(),
             'timestamp' => now()->toDateTimeString(),
         ];
     }
 
     /**
-     * Get runtime status from OctaneTimerService
+     * Check if Laravel Schedule is running (via heartbeat file)
      */
-    private function getRuntimeStatus(): array
+    private function isScheduleRunning(): bool
     {
-        try {
-            $status = OctaneTimerService::getStatus();
-            return $status['tasks'] ?? [];
-        } catch (\Throwable $e) {
-            Log::warning('[OctaneTaskStatus] Failed to get runtime status', [
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
+        $heartbeat = $this->getHeartbeatStatus();
+        return $heartbeat['exists'] && $heartbeat['status'] === 'alive';
     }
 
     /**
-     * Get registered task names from OctaneTimerService
+     * Count enabled tasks
      */
-    private function getRegisteredTasks(): array
+    private function countEnabled(array $tasks): int
     {
-        try {
-            return OctaneTimerService::getRegisteredTasks();
-        } catch (\Throwable $e) {
-            return [];
-        }
+        return count(array_filter($tasks, fn($task) => $task['enabled'] ?? false));
     }
 
     /**
@@ -108,6 +97,8 @@ class OctaneTaskStatusService
                     'name' => $instance->getName(),
                     'interval' => $instance->getInterval(),
                     'enabled' => $instance->isEnabled(),
+                    'status' => $instance->isEnabled() ? 'enabled' : 'disabled',
+                    'schedule_method' => $this->getScheduleMethod($instance->getInterval()),
                     'file' => basename($file),
                 ];
             } catch (\Throwable $e) {
@@ -117,6 +108,7 @@ class OctaneTaskStatusService
                     'name' => null,
                     'interval' => null,
                     'enabled' => false,
+                    'status' => 'error',
                     'error' => $e->getMessage(),
                     'file' => basename($file),
                 ];
@@ -127,89 +119,20 @@ class OctaneTaskStatusService
     }
 
     /**
-     * Merge discovered, registered, and runtime status
+     * Get Laravel Schedule method name for interval
      */
-    private function mergeTaskStatus(array $discovered, array $registered, array $runtimeStatus): array
+    private function getScheduleMethod(int $interval): string
     {
-        $merged = [];
-
-        foreach ($discovered as $task) {
-            $taskName = $task['name'] ?? null;
-
-            if (!$taskName) {
-                $merged[] = array_merge($task, [
-                    'registered' => false,
-                    'running' => false,
-                    'status' => 'error',
-                ]);
-                continue;
-            }
-
-            $isRegistered = in_array($taskName, $registered);
-            $runtime = $runtimeStatus[$taskName] ?? null;
-
-            $merged[] = array_merge($task, [
-                'registered' => $isRegistered,
-                'running' => $isRegistered && $runtime !== null,
-                'status' => $this->determineTaskStatus($task, $isRegistered, $runtime),
-                'runtime' => $runtime,
-            ]);
-        }
-
-        return $merged;
-    }
-
-    /**
-     * Determine task status
-     */
-    private function determineTaskStatus(array $task, bool $isRegistered, $runtime): string
-    {
-        if (isset($task['error'])) {
-            return 'error';
-        }
-
-        if (!$task['enabled']) {
-            return 'disabled';
-        }
-
-        if (!$isRegistered) {
-            return 'not_registered';
-        }
-
-        if ($runtime === null) {
-            return 'registered';
-        }
-
-        if (($runtime['error_count'] ?? 0) > 0) {
-            return 'running_with_errors';
-        }
-
-        if (($runtime['run_count'] ?? 0) > 0) {
-            return 'running';
-        }
-
-        return 'waiting';
-    }
-
-    /**
-     * Count running tasks
-     */
-    private function countRunning(array $runtimeStatus): int
-    {
-        return count($runtimeStatus);
-    }
-
-    /**
-     * Get total ticks from timer
-     */
-    private function getTotalTicks(): int
-    {
-        try {
-            $status = OctaneTimerService::getStatus();
-            return $status['total_ticks'] ?? 0;
-        } catch (\Throwable $e) {
-            return 0;
-        }
+        return match ($interval) {
+            1 => 'everySecond()',
+            2 => 'everyTwoSeconds()',
+            5 => 'everyFiveSeconds()',
+            10 => 'everyTenSeconds()',
+            15 => 'everyFifteenSeconds()',
+            30 => 'everyThirtySeconds()',
+            60 => 'everyMinute()',
+            default => "cron(*/{$interval} * * * * *)",
+        };
     }
 
     /**
@@ -247,15 +170,11 @@ class OctaneTaskStatusService
         $status = $this->getAllTasksStatus();
         $issues = [];
 
-        if (!$status['summary']['timer_running']) {
-            $issues[] = 'Octane timer is not running';
+        if (!$status['summary']['schedule_running']) {
+            $issues[] = 'Laravel Schedule heartbeat is not running';
         }
 
         foreach ($status['tasks'] as $task) {
-            if ($task['enabled'] && !$task['registered']) {
-                $issues[] = "Task {$task['name']} is enabled but not registered";
-            }
-
             if (isset($task['error'])) {
                 $issues[] = "Task {$task['class']} has error: {$task['error']}";
             }
@@ -306,11 +225,8 @@ class OctaneTaskStatusService
                 'class' => $task['class'],
                 'interval' => $task['interval'] ?? 0,
                 'enabled' => $task['enabled'] ?? false,
-                'registered' => $task['registered'] ?? false,
                 'status' => $task['status'],
-                'last_run' => $task['runtime']['last_run'] ?? null,
-                'run_count' => $task['runtime']['run_count'] ?? 0,
-                'error_count' => $task['runtime']['error_count'] ?? 0,
+                'schedule_method' => $task['schedule_method'] ?? 'unknown',
             ];
         }
 

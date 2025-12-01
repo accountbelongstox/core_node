@@ -140,20 +140,19 @@
 /* Mobile File List Toggle Button */
 .mobile-file-list-toggle {
     display: none;
-    position: fixed;
+    position: absolute;
     left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 10px;
     background: rgba(122, 162, 247, 0.9);
     color: #1a1b26;
     border: none;
-    padding: 15px 8px;
+    padding: 10px 8px;
     border-radius: 0 8px 8px 0;
     cursor: pointer;
     z-index: 150;
     font-size: 14px;
     transition: left 0.3s ease, background 0.2s;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .mobile-file-list-toggle:hover {
@@ -405,7 +404,9 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .static-resources-container {
-        height: calc(100vh - 120px);
+        height: calc(100vh - 45px);
+        border: none;
+        border-radius: 0;
     }
 
     /* Mobile: File list slides from left */
@@ -447,9 +448,10 @@
     /* Preview panel takes full width */
     .static-preview-panel {
         width: 100%;
-        padding: 10px;
+        padding: 0;
         display: flex;
         flex-direction: column;
+        height: 100%;
     }
 
     .static-preview-header {
@@ -457,6 +459,8 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
+        background: rgba(30, 30, 35, 0.95);
+        z-index: 10;
     }
 
     .static-preview-controls {
@@ -471,11 +475,13 @@
 
     .static-preview-container {
         padding: 0;
-        height: auto;
-        min-height: 200px;
+        height: 100%;
         width: 100%;
-        aspect-ratio: 16/9;
-        margin-bottom: 10px;
+        margin-bottom: 0;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     /* Video player full width */
