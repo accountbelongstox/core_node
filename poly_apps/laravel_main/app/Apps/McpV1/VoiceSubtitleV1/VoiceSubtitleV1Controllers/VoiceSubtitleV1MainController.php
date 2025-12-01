@@ -314,15 +314,16 @@ class VoiceSubtitleV1MainController
         $sanitizedFiltered = $this->sanitizeQueueItems($filteredQueue);
         $sanitizedAllQueue = $this->sanitizeQueueItems($allQueue);
 
+        $formattedQueue = $this->formatQueueItemsForRemote($sanitizedFiltered);
+
         return response()->json([
             'success' => true,
-            'queue' => $sanitizedFiltered,
+            'queue' => $formattedQueue,
             'all_queue' => $sanitizedAllQueue,
             'current_index' => $currentIndex,
             'queue_length' => count($filteredQueue),
             'total_length' => count($allQueue),
             'play_mode' => $userSettings['play_mode'],
-            'items' => $this->formatQueueItemsForRemote($sanitizedFiltered),
         ]);
     }
 
@@ -924,17 +925,25 @@ class VoiceSubtitleV1MainController
 
         $created = $item['created_at'] ?? $item['added_at'] ?? date('Y-m-d H:i:s');
 
-        return [
+        $formatted = [
             'text' => $item['translated_text'] ?? $item['original_text'] ?? '',
             'audio_path' => $audioPath,
             'audio_url' => $this->buildAudioUrl($audioPath),
-            'category' => $item['group'] ?? 'default',
+            'category' => $item['group'] ?? $item['type'] ?? 'default',
             'play_count' => $item['play_count'] ?? 0,
             'created_at' => $this->formatIso8601($created),
             'langs' => $this->normalizeLangs($item),
             'language' => $item['language'] ?? null,
             'voice' => $item['voice'] ?? null,
         ];
+
+        foreach ($item as $key => $value) {
+            if (!isset($formatted[$key])) {
+                $formatted[$key] = $value;
+            }
+        }
+
+        return $formatted;
     }
 
     private function normalizeLangs(array $item): array
