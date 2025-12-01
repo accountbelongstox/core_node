@@ -13,7 +13,7 @@
 
         body {
             overflow: hidden;
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-family: 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif;
             background: #000;
             width: 100vw;
             height: 100vh;
@@ -88,150 +88,67 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 100;
+            z-index: 9999;
             text-align: center;
             perspective: 1000px;
             width: 100%;
             padding: 20px;
             box-sizing: border-box;
             pointer-events: none;
-        }
-
-        /* 备用文字层 */
-        .main-title-backup {
-            font-size: 5rem;
-            font-weight: 900;
-            margin: 0;
-            padding: 0;
-            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
-            color: #00aaff;
-            letter-spacing: 0.05em;
-            word-spacing: 0.1em;
-            white-space: nowrap;
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            display: inline-block;
-            z-index: 1;
-            pointer-events: none;
-            opacity: 0.5;
-            text-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
-        }
-
-        .sub-title-backup {
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin: 0;
-            padding: 0;
-            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
-            color: #ffffff;
-            letter-spacing: 0.05em;
-            word-spacing: 0.1em;
-            white-space: nowrap;
-            position: absolute;
-            top: 6rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: inline-block;
-            z-index: 1;
-            pointer-events: none;
-            opacity: 0.5;
-            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+            isolation: isolate;
         }
 
         .main-title {
             font-size: 5rem;
             font-weight: 900;
-            margin-bottom: 1rem;
-            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
-            color: #00aaff;
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif;
             background: linear-gradient(45deg, 
                 #00aaff, #ffffff, #0088ff, #ffffff, #00aaff, #ffffff);
             background-size: 300% 300%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: hologramText 3s ease infinite, 
-                       textGlow 2s ease-in-out infinite alternate,
-                       textFloat 4s ease-in-out infinite;
-            text-shadow: 0 0 20px rgba(0, 170, 255, 0.8),
-                         0 0 40px rgba(255, 255, 255, 0.6),
-                         0 0 60px rgba(0, 170, 255, 0.4),
-                         0 0 80px rgba(0, 170, 255, 0.3);
+            animation: gradientMove 3s ease infinite;
             letter-spacing: 0.05em;
             word-spacing: 0.1em;
             white-space: nowrap;
             position: relative;
             display: inline-block;
-            z-index: 11;
-            filter: drop-shadow(0 0 10px rgba(0, 170, 255, 0.5));
+            z-index: 10000;
         }
 
         .sub-title {
             font-size: 2.5rem;
             font-weight: 600;
-            margin-top: 1rem;
-            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', 'SimSun', sans-serif;
-            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif;
             background: linear-gradient(45deg, 
                 #00aaff, #ffffff, #0088ff, #ffffff);
             background-size: 300% 300%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: hologramText 3s ease infinite 0.5s,
-                       textGlow 2s ease-in-out infinite alternate 0.5s,
-                       textFloat 4s ease-in-out infinite 0.5s;
-            text-shadow: 0 0 15px rgba(0, 170, 255, 0.7),
-                         0 0 30px rgba(255, 255, 255, 0.5),
-                         0 0 45px rgba(0, 170, 255, 0.4);
+            animation: gradientMove 3s ease infinite 0.5s;
             letter-spacing: 0.05em;
             word-spacing: 0.1em;
             white-space: nowrap;
             position: relative;
             display: inline-block;
-            z-index: 11;
-            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+            z-index: 10000;
         }
 
-        @keyframes hologramText {
+        @keyframes gradientMove {
             0%, 100% { 
                 background-position: 0% 50%;
-                filter: hue-rotate(0deg);
-            }
-            25% { 
-                background-position: 100% 50%;
-                filter: hue-rotate(90deg);
             }
             50% { 
-                background-position: 100% 100%;
-                filter: hue-rotate(180deg);
-            }
-            75% { 
-                background-position: 0% 100%;
-                filter: hue-rotate(270deg);
+                background-position: 100% 50%;
             }
         }
 
-        @keyframes textGlow {
-            0% {
-                text-shadow: 0 0 20px rgba(0, 170, 255, 0.8),
-                             0 0 40px rgba(255, 255, 255, 0.6),
-                             0 0 60px rgba(0, 170, 255, 0.4);
-            }
-            100% {
-                text-shadow: 0 0 30px rgba(0, 170, 255, 1),
-                             0 0 60px rgba(255, 255, 255, 0.8),
-                             0 0 90px rgba(0, 170, 255, 0.6),
-                             0 0 120px rgba(255, 255, 255, 0.4);
-            }
-        }
-
-        @keyframes textFloat {
-            0%, 100% { transform: translateY(0px) rotateX(0deg); }
-            50% { transform: translateY(-20px) rotateX(5deg); }
-        }
 
         /* 全息扫描线效果 */
         .hologram-scanline {
@@ -262,7 +179,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 5;
+            z-index: 50;
             pointer-events: none;
         }
 
@@ -270,10 +187,11 @@
             position: absolute;
             width: 200px;
             height: 200px;
-            border: 2px solid rgba(0, 170, 255, 0.5);
-            background: rgba(0, 170, 255, 0.1);
-            backdrop-filter: blur(10px);
+            border: 2px solid rgba(0, 170, 255, 0.3);
+            background: transparent;
+            backdrop-filter: none;
             animation: transform3D 8s ease-in-out infinite;
+            pointer-events: none;
         }
 
         @keyframes transform3D {
@@ -332,11 +250,6 @@
         
         <!-- 全息文字容器 -->
         <div id="hologram-container">
-            <div class="hologram-scanline"></div>
-            <!-- 备用文字层（确保文字可见） -->
-            <h1 class="main-title-backup" id="main-title-backup">星灿传媒科技</h1>
-            <h2 class="sub-title-backup" id="sub-title-backup">云矩阵服务集群</h2>
-            <!-- 渐变文字层 -->
             <h1 class="main-title" id="main-title">星灿传媒科技</h1>
             <h2 class="sub-title" id="sub-title">云矩阵服务集群</h2>
         </div>
@@ -799,16 +712,7 @@
             }
 
             init() {
-                this.createScanlines();
-                this.setupGlitchEffect();
-                this.setupHologramDistortion();
-                this.setupColorShift();
-                this.setupParticleText();
-                this.setupReflection();
-                this.setupInterference();
-                this.setupTextDecomposition();
-                this.setupTextWave();
-                this.setupTextScan();
+                // 移除所有复杂动画，只保留简单渐变
             }
 
             createScanlines() {
@@ -873,8 +777,9 @@
                         }, 80);
                         break;
                     case 'color':
-                        this.mainTitle.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1.5 + Math.random()})`;
-                        this.subTitle.style.filter = `hue-rotate(${Math.random() * 360}deg) saturate(${1.5 + Math.random()})`;
+                        const blueHue = -20 + Math.random() * 40; // 限制在蓝色范围
+                        this.mainTitle.style.filter = `hue-rotate(${blueHue}deg) saturate(${1.2 + Math.random() * 0.3}) brightness(${1 + Math.random() * 0.2})`;
+                        this.subTitle.style.filter = `hue-rotate(${blueHue}deg) saturate(${1.2 + Math.random() * 0.3}) brightness(${1 + Math.random() * 0.2})`;
                         setTimeout(() => {
                             this.mainTitle.style.filter = '';
                             this.subTitle.style.filter = '';
@@ -882,8 +787,8 @@
                         break;
                     case 'offset':
                         this.mainTitle.style.textShadow = `
-                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(255, 0, 255, 0.8),
-                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(0, 255, 255, 0.8)
+                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(0, 170, 255, 0.8),
+                            ${(Math.random() - 0.5) * 10}px ${(Math.random() - 0.5) * 10}px 0 rgba(255, 255, 255, 0.8)
                         `;
                         setTimeout(() => {
                             this.mainTitle.style.textShadow = '';
@@ -902,6 +807,7 @@
                 distortionCanvas.style.pointerEvents = 'none';
                 distortionCanvas.style.mixBlendMode = 'screen';
                 distortionCanvas.style.opacity = '0.3';
+                distortionCanvas.style.zIndex = '30';
                 this.container.appendChild(distortionCanvas);
                 
                 const ctx = distortionCanvas.getContext('2d');
@@ -980,6 +886,7 @@
                 particleCanvas.style.pointerEvents = 'none';
                 particleCanvas.style.mixBlendMode = 'screen';
                 particleCanvas.style.opacity = '0.5';
+                particleCanvas.style.zIndex = '30';
                 this.container.appendChild(particleCanvas);
                 
                 const ctx = particleCanvas.getContext('2d');
@@ -1086,6 +993,7 @@
                 interferenceCanvas.style.pointerEvents = 'none';
                 interferenceCanvas.style.mixBlendMode = 'difference';
                 interferenceCanvas.style.opacity = '0.2';
+                interferenceCanvas.style.zIndex = '30';
                 this.container.appendChild(interferenceCanvas);
                 
                 const ctx = interferenceCanvas.getContext('2d');
@@ -1145,6 +1053,7 @@
                 decompositionCanvas.style.pointerEvents = 'none';
                 decompositionCanvas.style.mixBlendMode = 'screen';
                 decompositionCanvas.style.opacity = '0.4';
+                decompositionCanvas.style.zIndex = '30';
                 this.container.appendChild(decompositionCanvas);
                 
                 const ctx = decompositionCanvas.getContext('2d');
@@ -1238,6 +1147,7 @@
                 waveCanvas.style.pointerEvents = 'none';
                 waveCanvas.style.mixBlendMode = 'overlay';
                 waveCanvas.style.opacity = '0.3';
+                waveCanvas.style.zIndex = '30';
                 this.container.appendChild(waveCanvas);
                 
                 const ctx = waveCanvas.getContext('2d');
@@ -1287,6 +1197,7 @@
                 scanCanvas.style.pointerEvents = 'none';
                 scanCanvas.style.mixBlendMode = 'screen';
                 scanCanvas.style.opacity = '0.5';
+                scanCanvas.style.zIndex = '30';
                 this.container.appendChild(scanCanvas);
                 
                 const ctx = scanCanvas.getContext('2d');
@@ -1342,7 +1253,7 @@
                 this.canvas.style.left = '0';
                 this.canvas.style.width = '100%';
                 this.canvas.style.height = '100%';
-                this.canvas.style.zIndex = '1';
+                this.canvas.style.zIndex = '2';
                 this.container.appendChild(this.canvas);
                 
                 this.ctx = this.canvas.getContext('2d');
@@ -1500,7 +1411,8 @@
                 });
 
                 this.ctx.fillStyle = grad;
-                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                // 不填充整个画布，避免遮挡文字
+                // this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 this.ctx.restore();
             }
 
@@ -1591,7 +1503,7 @@
                     noise.phase += 0.01;
                     noise.value = Math.sin(noise.phase) * 0.5 + 0.5;
                     const hue = (this.time * 30 + noise.x * 0.1 + noise.y * 0.1) % 360;
-                    this.ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${noise.value * 0.1})`;
+                    this.ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${noise.value * 0.02})`;
                     this.ctx.fillRect(noise.x, noise.y, 50, 50);
                 });
             }
@@ -1732,11 +1644,11 @@
                     this.drawNoiseField();
                 }
 
-                // 绘制渐变层
-                this.gradients.forEach(gradient => {
-                    this.updateGradient(gradient);
-                    this.drawGradient(gradient);
-                });
+                // 不绘制渐变层，避免遮挡文字
+                // this.gradients.forEach(gradient => {
+                //     this.updateGradient(gradient);
+                //     this.drawGradient(gradient);
+                // });
 
                 // 绘制光晕
                 if (this.lightRays) {
@@ -2463,7 +2375,7 @@
                 canvas.style.width = '100%';
                 canvas.style.height = '100%';
                 canvas.style.pointerEvents = 'none';
-                canvas.style.zIndex = '6';
+                canvas.style.zIndex = '40';
                 this.container.appendChild(canvas);
                 
                 const ctx = canvas.getContext('2d');
