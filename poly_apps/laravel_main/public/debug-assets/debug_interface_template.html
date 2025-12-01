@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="">
+    <title>Laravel API Debug Interface</title>
+
+    <!-- NAMESPACE: External CSS Imports -->
+    <link rel="stylesheet" href="/debug-assets/css/debug-interface.css">
+    <link rel="stylesheet" href="/debug-assets/css/ittools-layout.css">
+    <link rel="stylesheet" href="/debug-assets/css/mcp-manager.css">
+    <link rel="stylesheet" href="/debug-assets/css/static-resources.css">
+    <link rel="stylesheet" href="/debug-assets/css/video-js.min.css">
+</head>
+
+<body>
+    <!-- Mobile Navigation Bar -->
+    <div class="mobile-nav" id="mobile-nav">
+        <button class="mobile-nav-toggle" onclick="toggleMobileSidebar()">☰</button>
+        <span class="mobile-nav-title" id="mobile-nav-title">API Debug Center</span>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileSidebar()"></div>
+
+    <div class="layout">
+        <!-- NAMESPACE: Left Sidebar (Collapsible) -->
+        <div class="sidebar" id="main-sidebar">
+            <div class="sidebar-header" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <span class="sidebar-toggle-btn">☰</span>
+                <h1>API Debug Center</h1>
+            </div>
+            <ul class="menu-items">
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('api-testing'); return false;" class="active" data-section="api-testing">
+                        <span class="menu-icon">🚀</span>
+                        <span class="menu-text">API Testing Dashboard</span>
+                        <span class="menu-tooltip">API Testing Dashboard</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('dev-tools'); return false;" data-section="dev-tools">
+                        <span class="menu-icon">🛠️</span>
+                        <span class="menu-text">Development Tools</span>
+                        <span class="menu-tooltip">Development Tools</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('system-info'); return false;" data-section="system-info">
+                        <span class="menu-icon">📊</span>
+                        <span class="menu-text">System Information</span>
+                        <span class="menu-tooltip">System Information</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('learning'); return false;" data-section="learning">
+                        <span class="menu-icon">📚</span>
+                        <span class="menu-text">Vocabulary Learning</span>
+                        <span class="menu-tooltip">Vocabulary Learning</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('code-browser'); return false;" data-section="code-browser">
+                        <span class="menu-icon">💻</span>
+                        <span class="menu-text">Code Browser</span>
+                        <span class="menu-tooltip">Code Browser</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('static-resources'); return false;" data-section="static-resources">
+                        <span class="menu-icon">🎬</span>
+                        <span class="menu-text">Static Resources</span>
+                        <span class="menu-tooltip">Static Resources</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('mcp-manager'); return false;" data-section="mcp-manager">
+                        <span class="menu-icon">📸</span>
+                        <span class="menu-text">MCP Manager</span>
+                        <span class="menu-tooltip">MCP Manager</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" onclick="showSection('octane-tasks'); return false;" data-section="octane-tasks">
+                        <span class="menu-icon">⏱️</span>
+                        <span class="menu-text">Octane Timer Tasks</span>
+                        <span class="menu-tooltip">Octane Timer Tasks</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <div style="display: none;">
+                    <h2 id="page-title">API Testing Dashboard</h2>
+                    <p id="page-description">Test and debug your Laravel API endpoints</p>
+                </div>
+                <div id="user-info-area"
+                    style="width: 100%; display: flex; justify-content: flex-end; align-items: center;">
+                    <div id="user-logged-in" style="display: none;">
+                        <span style="color: #28a745; font-weight: 500;">● Logged in as: </span>
+                        <span id="user-display-name" style="font-weight: 600; color: #2c3e50;"></span>
+                        <button onclick="handleLogout()"
+                            style="margin-left: 10px; padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Logout</button>
+                    </div>
+                    <div id="user-not-logged-in">
+                        <span style="color: #6c757d; font-weight: 500;">● Not logged in</span>
+                        <button onclick="AuthHelper.showAuthModal()"
+                            style="margin-left: 10px; padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Login</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NAMESPACE: Dynamic Content Sections Container -->
+            <div id="content-sections-container">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+    </div>
+
+    </div>
+    </div>
+    </div>
+
+    <!-- Dialogs and placeholders will be loaded dynamically -->
+
+    <!-- NAMESPACE: Global Dropdown Container (Outside all overflow containers) -->
+    <div id="global-dropdown-container"
+        style="position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 99999; pointer-events: none;"></div>
+
+    <!-- NAMESPACE: Global Search Results Container -->
+    <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
+
+    <!-- NAMESPACE: External JavaScript Imports -->
+        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
+        <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📂 Enter this folder
+        </div>
+        <div id="static-menu-expand-all" onclick="StaticResourceBrowser.expandAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬇️ Expand all subfolders
+        </div>
+        <div id="static-menu-collapse-all" onclick="StaticResourceBrowser.collapseAllFromMenu()"
+            style="padding: 8px 16px; cursor: pointer; color: #ce9178; font-size: 13px; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            ⬆️ Collapse all subfolders
+        </div>
+        <div id="static-menu-upload-to" onclick="StaticResourceBrowser.uploadToFolder()"
+            style="padding: 8px 16px; cursor: pointer; color: #dcdcaa; font-size: 13px; display: none; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            📤 Upload to this folder
+        </div>
+        <div onclick="StaticResourceBrowser.renameWithTranslation()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">
+            🌐 Rename to English
+        </div>
+        <div onclick="StaticResourceBrowser.promptDeleteSelection()"
+            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'">
+            🗑️ Delete
+        </div>
+    </div>
+
+    <!-- Upload Dialog -->
+    <div id="upload-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📤 Upload Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <div id="upload-drop-zone"
+                    style="border: 2px dashed #454545; border-radius: 8px; padding: 60px 20px; text-align: center; background: #1e1e1e; cursor: pointer;"
+                    onclick="document.getElementById('upload-file-input').click()">
+                    <p style="color: #888; font-size: 16px; margin-bottom: 10px;">📁 Drag and drop files or folders here
+                    </p>
+                    <p style="color: #666; font-size: 13px;">or click to browse</p>
+                    <input type="file" id="upload-file-input" multiple webkitdirectory directory style="display: none;">
+                </div>
+                <div id="upload-file-list" style="margin-top: 15px; max-height: 200px; overflow-y: auto;"></div>
+                <p id="upload-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Target: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeUploadDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="upload-btn" onclick="StaticResourceBrowser.executeUploadWithChunking()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'" onmouseout="this.style.background='#0e639c'"
+                    disabled>Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Directory Dialog -->
+    <div id="create-dir-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #2d2d30; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">📁 Create New Folder</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input type="text" id="new-dir-name" placeholder="Folder name..."
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace; margin-bottom: 15px;">
+                <div
+                    style="display: flex; align-items: center; padding: 10px; background: #1e1e1e; border-radius: 4px;">
+                    <input type="checkbox" id="translate-dir-name" style="margin-right: 10px; cursor: pointer;">
+                    <label for="translate-dir-name" style="color: #cccccc; font-size: 13px; cursor: pointer;">🌐
+                        Translate to English automatically</label>
+                </div>
+                <p id="create-dir-target-path"
+                    style="margin-top: 15px; font-size: 12px; color: #888; font-family: monospace;">Parent: /</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-bottom: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeCreateDirDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#4a4a4a'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="create-dir-btn" onclick="StaticResourceBrowser.executeCreateDir()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <div id="static-delete-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 8px; width: 90%; max-width: 520px; box-shadow: 0 8px 32px rgba(0,0,0,0.8);">
+            <div
+                style="padding: 20px 24px; border-bottom: 1px solid #454545; background: #323233; border-radius: 8px 8px 0 0;">
+                <h3 style="margin: 0; color: #ff7373; font-size: 16px; font-weight: 500;">🗑️ Delete Files</h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="static-delete-summary"
+                    style="margin: 0 0 15px 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;">Preparing delete
+                    summary...</p>
+                <input type="text" id="static-delete-confirm-input" placeholder="Type 确认 to confirm"
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #f1f1f1; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;">
+                <p style="margin-top: 10px; font-size: 12px; color: #888;">For safety, please type <strong>确认</strong>
+                    to proceed.</p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="StaticResourceBrowser.closeDeleteDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="static-delete-confirm-btn" onclick="StaticResourceBrowser.executeDelete()"
+                    style="padding: 8px 20px; background: #b33939; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#c74a4a'" onmouseout="this.style.background='#b33939'"
+                    disabled>Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu for File Tree -->
+    <div id="file-context-menu"
+        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10000; min-width: 180px; border-radius: 4px; padding: 4px 0;">
+        <div onclick="CodeBrowser.copyRelativePath()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-copy-path">
+            📋 Copy Relative Path
+        </div>
+        <div onclick="CodeBrowser.copyAbsolutePath()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-copy-abspath">
+            📋 Copy Absolute Path
+        </div>
+        <div onclick="CodeBrowser.renameItem()"
+            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-rename">
+            ✏️ Rename
+        </div>
+        <div onclick="CodeBrowser.autoRenameToEnglish()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-auto-rename">
+            🔤 Auto Rename to English
+        </div>
+        <div onclick="CodeBrowser.translateChineseLines()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-translate">
+            🌐 Translate Chinese Lines
+        </div>
+        <div onclick="CodeBrowser.deleteFile()"
+            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
+            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'"
+            id="menu-delete">
+            🗑️ Delete
+        </div>
+        <div onclick="CodeBrowser.restoreFile()"
+            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545; display: none;"
+            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
+            id="menu-restore">
+            ♻️ Restore
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirm-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 id="confirm-title" style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Confirm
+                </h3>
+            </div>
+            <div style="padding: 24px;">
+                <p id="confirm-message" style="margin: 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;"></p>
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeConfirmDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button id="confirm-ok-btn" onclick="CodeBrowser.confirmDialogOk()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Dialog -->
+    <div id="rename-dialog"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
+        <div
+            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
+                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Rename</h3>
+            </div>
+            <div style="padding: 24px;">
+                <input id="rename-input" type="text"
+                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;"
+                    placeholder="Enter new name...">
+            </div>
+            <div
+                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
+                <button onclick="CodeBrowser.closeRenameDialog()"
+                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                    onmouseover="this.style.background='#505050'"
+                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
+                <button onclick="CodeBrowser.executeRename()"
+                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                    onmouseover="this.style.background='#1177bb'"
+                    onmouseout="this.style.background='#0e639c'">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NAMESPACE: Global Dropdown Container (Outside all overflow containers) -->
+    <div id="global-dropdown-container"
+        style="position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 99999; pointer-events: none;"></div>
+
+    <!-- NAMESPACE: Global Search Results Container -->
+    <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
+
+    <!-- NAMESPACE: External JavaScript Imports -->
+    <!-- API Client Library (Load First - Required by all other modules) -->
+    <script src="/debug-assets/js/api-client.js"></script>
+
+    <!-- Core Framework (Load Second) -->
+    <script src="/debug-assets/js/ittools-menu-config.js"></script>
+    <script src="/debug-assets/js/ittools-core.js"></script>
+    <script src="/debug-assets/js/ittools-menu-universal.js"></script>
+    <script src="/debug-assets/js/ittools-client-tools.js"></script>
+    <script src="/debug-assets/js/ittools-advanced-tools.js"></script>
+    <script src="/debug-assets/js/ittools-tools.js"></script>
+
+    <!-- Category Implementations (Load After Core) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-clipboard.js"></script>
+    <script src="/debug-assets/js/ittools-impl-images.js"></script>
+    <script src="/debug-assets/js/ittools-impl-crypto.js"></script>
+    <script src="/debug-assets/js/ittools-impl-converters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-formatters.js"></script>
+    <script src="/debug-assets/js/ittools-impl-web.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators.js"></script>
+    <script src="/debug-assets/js/ittools-impl-generators-2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-text.js"></script>
+    <script src="/debug-assets/js/ittools-impl-dev.js"></script>
+
+    <!-- Batch Implementations (New Tools) - Each file < 500 lines -->
+    <script src="/debug-assets/js/ittools-impl-batch1a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch1b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch2.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch3b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch4.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch5.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch6a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch6b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch7a.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch7b.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch8.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch9.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch10.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch11.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch12.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch13.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch14.js"></script>
+    <script src="/debug-assets/js/ittools-impl-batch15.js"></script>
+    <script src="/debug-assets/js/ittools-tts-helper.js"></script>
+    <script src="/debug-assets/js/auth-helper.js"></script>
+    <script src="/debug-assets/js/ittools-impl-translation.js"></script>
+
+    <!-- Debug Registry Checker (Development Only) -->
+    <script src="/debug-assets/js/debug-registry.js"></script>
+
+    <!-- NAMESPACE: Initialize Dynamic Menu -->
+    <script src="/debug-assets/js/debug-init.js"></script>
+
+    <!-- Debug Interface Core JS -->
+    <script src="/debug-assets/js/debug-interface.js"></script>
+
+    <!-- Note: All JS functionality is now in external debug-interface.js file -->
+
+
+    <!-- Code Browser Module -->
+    <script src="/debug-assets/js/code-browser.js"></script>
+
+    <!-- Prompts Manager Module -->
+    <script src="/debug-assets/js/prompts-manager.js"></script>
+
+    <!-- Video.js Library -->
+    <script src="/debug-assets/js/video.min.js"></script>
+
+    <!-- Static Resource Browser Module -->
+    <script src="/debug-assets/js/static-resource-browser.js"></script>
+
+    <!-- Prompts/Tasks Manager Module (Integrated with Code Browser) -->
+    <script src="/debug-assets/js/prompts-tasks-manager.js"></script>
+
+    <!-- Prompt Mapping Manager Module -->
+    <script src="/debug-assets/js/prompt-mapping-manager.js"></script>
+
+    <!-- MCP Placeholder Module -->
+    <script src="/debug-assets/js/mcp-placeholder-module.js"></script>
+
+    <!-- MCP Manager Module -->
+    <script src="/debug-assets/js/mcp-manager.js"></script>
+
+    <!-- Octane Tasks Manager Module -->
+    <script src="/debug-assets/js/octane-tasks-manager.js"></script>
+</body>
+
+</html>

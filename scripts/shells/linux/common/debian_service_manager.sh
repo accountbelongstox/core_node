@@ -246,19 +246,11 @@ ensure_dependencies() {
 
 # Function to get mapped paths (ensures paths are always correctly mapped)
 get_mapped_log_dir() {
-    if command -v map_web_path >/dev/null 2>&1; then
-        map_web_path "logs" "ncore_services" 2>/dev/null || echo "/var/log/ncore_services"
-    else
-        echo "${LOG_DIR:-/var/log/ncore_services}"
-    fi
+    map_web_path "logs" "ncore_services"
 }
 
 get_mapped_services_log_dir() {
-    if command -v map_web_path >/dev/null 2>&1; then
-        map_web_path "www" "services_log" 2>/dev/null || echo "/www/services_log"
-    else
-        echo "${SERVICES_LOG_DIR:-/www/services_log}"
-    fi
+    map_web_path "www" "services_log"
 }
 
 # Function to ensure required directories exist

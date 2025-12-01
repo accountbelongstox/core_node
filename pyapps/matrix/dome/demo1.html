@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机占位图 - 代码雨效果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif;
+            background: #000;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .phone-container {
+            position: relative;
+            width: 375px;
+            height: 812px;
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 50%,
+                rgba(255, 255, 255, 0.1) 100%);
+            border-radius: 40px;
+            padding: 20px;
+            box-shadow: 
+                0 0 60px rgba(255, 255, 255, 0.3),
+                inset 0 0 40px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .holographic-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(45deg, 
+                    rgba(255, 255, 255, 0.1) 0%,
+                    transparent 25%,
+                    transparent 75%,
+                    rgba(255, 255, 255, 0.1) 100%),
+                radial-gradient(circle at 50% 50%, 
+                    rgba(255, 255, 255, 0.15) 0%,
+                    transparent 70%);
+            animation: holographic 3s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes holographic {
+            0%, 100% { opacity: 0.5; transform: translateX(-10px); }
+            50% { opacity: 0.8; transform: translateX(10px); }
+        }
+
+        .code-rain {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.6;
+        }
+
+        .code-column {
+            position: absolute;
+            top: -100%;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 18px;
+            line-height: 24px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            animation: fall linear infinite;
+            text-align: center;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(900px); }
+        }
+
+        .waiting-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 18px;
+            text-align: center;
+            z-index: 10;
+            text-shadow: 
+                0 0 20px rgba(255, 255, 255, 0.8),
+                0 0 40px rgba(255, 255, 255, 0.4);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        .blur-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            filter: blur(30px);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="phone-screen">
+            <div class="blur-layer"></div>
+            <div class="holographic-overlay"></div>
+            <div class="code-rain" id="codeRain"></div>
+            <div class="waiting-text">
+                <div style="font-size: 48px; margin-bottom: 20px;">📱</div>
+                <div>等待连接...</div>
+                <div style="font-size: 12px; margin-top: 10px; opacity: 0.7;">Waiting for connection...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const codeRain = document.getElementById('codeRain');
+        const textLines = ['星灿传媒科技', '云矩阵集群服务'];
+        const columns = 8;
+
+        for (let i = 0; i < columns; i++) {
+            const column = document.createElement('div');
+            column.className = 'code-column';
+            // 让列更分散，不占满整个宽度
+            column.style.left = (10 + i * 11) + '%';
+            column.style.animationDuration = (Math.random() * 4 + 3) + 's';
+            column.style.animationDelay = Math.random() * 2 + 's';
+            
+            let text = '';
+            // 减少每列的文字数量
+            for (let j = 0; j < 15; j++) {
+                const lineIndex = j % 2;
+                const currentText = textLines[lineIndex];
+                // 将每个字符拆分成单独一行
+                for (let k = 0; k < currentText.length; k++) {
+                    text += currentText[k] + '<br>';
+                }
+            }
+            column.innerHTML = text;
+            
+            codeRain.appendChild(column);
+        }
+    </script>
+</body>
+</html>
+

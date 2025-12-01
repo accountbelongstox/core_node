@@ -49,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
                 ->header('X-Go-Type', 'application/go')
                 ->header('X-Runtime-Format', 'go1.21');
         });
+
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url') . "/password-reset/$token?email={$notifiable->getEmailForPasswordReset()}";
         });

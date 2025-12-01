@@ -837,6 +837,91 @@ function Set-SecretKeyBatch {
     return $true
 }
 
+<#
+.SYNOPSIS
+    Clear all decrypted secrets and re-decrypt them
+
+.DESCRIPTION
+    Clears all decrypted files from .secret_ignore directory and triggers batch decryption again
+    Useful for refreshing decrypted files or re-entering password
+
+.EXAMPLE
+    Clear-AndRedecryptSecrets
+#>
+function Clear-AndRedecryptSecrets {
+    $dirs = Get-SecretDirectories
+    $fileCount = 0
+
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Clear and Re-decrypt Secret Keys" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+
+    if (-not (Test-Path $dirs.ENCRYPTED_DIR)) {
+        Write-Host "[INFO] No encrypted directory found at: $($dirs.ENCRYPTED_DIR)" -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "Press Enter to continue"
+        return $true
+    }
+
+    if (-not (Test-Path $dirs.RAW_DIR)) {
+        Write-Host "[INFO] No decrypted directory found. Nothing to clear." -ForegroundColor Yellow
+        Write-Host "[INFO] Proceeding to decrypt..." -ForegroundColor Cyan
+        Write-Host ""
+    } else {
+        $decryptedFiles = Get-ChildItem -Path $dirs.RAW_DIR -File -ErrorAction SilentlyContinue
+        $fileCount = $decryptedFiles.Count
+
+        if ($fileCount -eq 0) {
+            Write-Host "[INFO] No decrypted files found in: $($dirs.RAW_DIR)" -ForegroundColor Yellow
+            Write-Host "[INFO] Proceeding to decrypt..." -ForegroundColor Cyan
+            Write-Host ""
+        } else {
+            Write-Host "Decrypted files location: $($dirs.RAW_DIR)" -ForegroundColor White
+            Write-Host "Found $fileCount decrypted file(s)" -ForegroundColor White
+            Write-Host ""
+            Write-Host "[WARNING] This will permanently delete all decrypted secret files!" -ForegroundColor Yellow
+            Write-Host "[WARNING] You will need to re-enter the password to decrypt them again." -ForegroundColor Yellow
+            Write-Host ""
+
+            $confirmChoice = Read-Host "Are you sure you want to clear all decrypted files? (yes/no)"
+
+            if ($confirmChoice -notmatch "^[Yy](es)?$") {
+                Write-Host "[CANCELLED] Operation cancelled. No files were deleted." -ForegroundColor Green
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+                return $true
+            }
+
+            Write-Host ""
+            Write-Host "[CLEARING] Removing all decrypted files..." -ForegroundColor Cyan
+
+            try {
+                Remove-Item -Path "$($dirs.RAW_DIR)\*" -Force -ErrorAction Stop
+                Write-Host "[SUCCESS] All decrypted files have been cleared" -ForegroundColor Green
+            } catch {
+                Write-Host "[ERROR] Failed to clear some files: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+                return $false
+            }
+        }
+    }
+
+    Write-Host ""
+    Write-Host "[RE-DECRYPT] Starting re-decryption process..." -ForegroundColor Cyan
+    Write-Host ""
+
+    $script:BatchDecryptionCompleted = $false
+
+    $result = Invoke-SecretDecryptAll -OutputDir $dirs.RAW_DIR
+
+    Write-Host ""
+    Read-Host "Press Enter to continue"
+
+    return $result
+}
+
 Write-Host "[SECRET_MANAGER] Library loaded successfully" -ForegroundColor Green
 
 # Note: This is a script file (.ps1), not a module (.psm1)

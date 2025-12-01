@@ -109,22 +109,66 @@ ensure_secret_keys_ready() {
         return 0
     fi
 
-    echo -e "\033[36m[SECRETS] Detected ${#pending_files[@]} encrypted secret files without decrypted copies\033[0m"
+    echo ""
+    echo -e "\033[36m========================================"
+    echo -e "Missing Decrypted Secret Files Detected"
+    echo -e "========================================\033[0m"
+    echo -e "\033[37mFound ${#pending_files[@]} encrypted files without decrypted copies:\033[0m"
+    echo -e "\033[37m  Encrypted dir: $encrypted_dir\033[0m"
+    echo -e "\033[37m  Raw dir: $raw_dir\033[0m"
+    echo ""
+    echo -e "\033[33mMissing files:\033[0m"
 
-    if command -v node >/dev/null 2>&1; then
-        node_cmd="node"
-    else
-        if command -v nodejs >/dev/null 2>&1; then
-            node_cmd="nodejs"
-        else
-            echo -e "\033[31m[SECRETS] Node.js not found. Install node to decrypt secret files.\033[0m"
-            return 1
-        fi
+    # List encrypted files that need decryption
+    for enc_file in "${pending_files[@]}"; do
+        local display_name="$(basename "$enc_file")"
+        echo -e "\033[31m  - $display_name\033[0m"
+    done
+    echo ""
+
+    # Ask user if they want to decrypt (like Windows version)
+    read -r -p "Would you like to decrypt all secrets now? (yes/no): " decrypt_choice
+
+    if [[ ! "$decrypt_choice" =~ ^[Yy](es)?$ ]]; then
+        echo -e "\033[33mSkipping decryption. You can decrypt secrets later via the menu.\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
+        return 0
     fi
 
-    if [ ! -t 0 ]; then
-        echo -e "\033[33m[SECRETS] Skipping decryption (non-interactive session).\033[0m"
-        return 1
+    echo ""
+    echo -e "\033[36mStarting batch decryption...\033[0m"
+    echo ""
+
+    # First, try to use NODE_BIN from gvar_common (absolute path)
+    if [ -n "$NODE_BIN" ] && [ -x "$NODE_BIN" ]; then
+        node_cmd="$NODE_BIN"
+        echo -e "\033[36m[SECRETS] Using Node.js from: $node_cmd\033[0m"
+    else
+        # Try to find node in PATH
+        if command -v node >/dev/null 2>&1; then
+            node_cmd="node"
+            echo -e "\033[36m[SECRETS] Using Node.js from PATH: $(command -v node)\033[0m"
+        elif command -v nodejs >/dev/null 2>&1; then
+            node_cmd="nodejs"
+            echo -e "\033[36m[SECRETS] Using Node.js from PATH: $(command -v nodejs)\033[0m"
+        else
+            # Node.js not found - provide installation instructions
+            echo -e "\033[31m[SECRETS] Node.js not found!\033[0m"
+            echo -e "\033[33m[SECRETS] Node.js is required to decrypt secret files.\033[0m"
+            echo ""
+            echo -e "\033[36m[SECRETS] To install Node.js, run:\033[0m"
+
+            # Get the install script path (trust-based)
+            local install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/14_install_node_24.sh"
+            echo -e "\033[32m  bash $install_script\033[0m"
+
+            echo ""
+            echo -e "\033[36m[SECRETS] After installing Node.js, please run this script again.\033[0m"
+            echo ""
+            read -p "Press Enter to continue..."
+            return 1
+        fi
     fi
 
     echo -e "\033[36m[SECRETS] Password input is hidden and shows * for each character.\033[0m"
@@ -142,24 +186,107 @@ ensure_secret_keys_ready() {
 
     for enc_file in "${pending_files[@]}"; do
         file_name="$(basename "$enc_file")"
-        echo -e "\033[36m[SECRETS] Decrypting $file_name...\033[0m"
-        output=$("$node_cmd" "$enc_file" pwd "$password" "$raw_dir" 2>&1)
+        echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
+
+        # Call: node encrypted_file.js pwd PASSWORD OUTPUT_DIR
+        "$node_cmd" "$enc_file" pwd "$password" "$raw_dir"
+
         if [ $? -eq 0 ]; then
             ((success_count++))
-            echo -e "\033[32m[SECRETS]   OK\033[0m"
+            echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
         else
-            echo -e "\033[33m[SECRETS]   Failed\033[0m"
-            if [ -n "$output" ]; then
-                echo -e "\033[33m[SECRETS]   $output\033[0m"
-            fi
+            echo -e "\033[31m[SECRETS]   FAILED\033[0m"
         fi
     done
 
     password=""
 
+    echo ""
+    echo -e "\033[36m========================================"
+    echo -e "Decryption Summary:"
+    echo -e "========================================\033[0m"
+    echo -e "\033[36m  Total files: ${#pending_files[@]}\033[0m"
+    echo -e "\033[32m  Successful:  $success_count\033[0m"
+    echo -e "\033[31m  Failed:      $((${#pending_files[@]} - success_count))\033[0m"
+    echo -e "\033[36m========================================\033[0m"
+    echo ""
+
     if [ $success_count -eq ${#pending_files[@]} ]; then
-        echo -e "\033[32m[SECRETS] All secret files decrypted successfully\033[0m"
+        echo -e "\033[32mSecrets decrypted successfully!\033[0m"
     else
-        echo -e "\033[33m[SECRETS] Decrypted $success_count/${#pending_files[@]} secret files\033[0m"
+        echo -e "\033[33mSome secrets failed to decrypt. You can retry later.\033[0m"
     fi
+
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+clear_and_redecrypt_secrets() {
+    local secret_root="$CORE_NODE_ROOT_DIR/.secret_keys"
+    local encrypted_dir="$secret_root/already_encrypted"
+    local raw_dir="$secret_root/.secret_ignore"
+    local file_count=0
+
+    echo ""
+    echo -e "\033[36m========================================"
+    echo -e "Clear and Re-decrypt Secret Keys"
+    echo -e "========================================\033[0m"
+
+    if [ ! -d "$encrypted_dir" ]; then
+        echo -e "\033[33m[INFO] No encrypted directory found at: $encrypted_dir\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
+        return 0
+    fi
+
+    if [ ! -d "$raw_dir" ]; then
+        echo -e "\033[33m[INFO] No decrypted directory found. Nothing to clear.\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
+        return 0
+    fi
+
+    file_count=$(find "$raw_dir" -type f 2>/dev/null | wc -l)
+
+    if [ "$file_count" -eq 0 ]; then
+        echo -e "\033[33m[INFO] No decrypted files found in: $raw_dir\033[0m"
+        echo -e "\033[36m[INFO] Proceeding to decrypt...\033[0m"
+        echo ""
+    else
+        echo -e "\033[37mDecrypted files location: $raw_dir\033[0m"
+        echo -e "\033[37mFound $file_count decrypted file(s)\033[0m"
+        echo ""
+        echo -e "\033[33m[WARNING] This will permanently delete all decrypted secret files!\033[0m"
+        echo -e "\033[33m[WARNING] You will need to re-enter the password to decrypt them again.\033[0m"
+        echo ""
+
+        read -r -p "Are you sure you want to clear all decrypted files? (yes/no): " confirm_choice
+
+        if [[ ! "$confirm_choice" =~ ^[Yy](es)?$ ]]; then
+            echo -e "\033[32m[CANCELLED] Operation cancelled. No files were deleted.\033[0m"
+            echo ""
+            read -p "Press Enter to continue..."
+            return 0
+        fi
+
+        echo ""
+        echo -e "\033[36m[CLEARING] Removing all decrypted files...\033[0m"
+
+        if rm -rf "$raw_dir"/* 2>/dev/null; then
+            echo -e "\033[32m[SUCCESS] All decrypted files have been cleared\033[0m"
+        else
+            echo -e "\033[31m[ERROR] Failed to clear some files\033[0m"
+            echo ""
+            read -p "Press Enter to continue..."
+            return 1
+        fi
+    fi
+
+    echo ""
+    echo -e "\033[36m[RE-DECRYPT] Starting re-decryption process...\033[0m"
+    echo ""
+
+    ensure_secret_keys_ready
+
+    return $?
 }

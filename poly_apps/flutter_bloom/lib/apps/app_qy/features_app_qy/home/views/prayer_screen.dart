@@ -17,6 +17,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/prayer_data.dart
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/prayer_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class PrayerScreen extends StatelessWidget {
   final PrayerModel? prayerModel;
@@ -34,12 +35,12 @@ class PrayerScreen extends StatelessWidget {
             ActionWidget(
                 actionIcon: Icon(
               Icons.search,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
             )),
             ActionWidget(
                 actionIcon: Icon(
               Icons.more_vert,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
             ))
           ],
         ),
@@ -71,7 +72,7 @@ class PrayerScreen extends StatelessWidget {
                   hintText: 'Search',
                   suffixIcon: const Icon(
                     Icons.send,
-                    color: Colors.green,
+                    color: ColorsAppQy.qySuccess,
                   ),
                 ),
               ),

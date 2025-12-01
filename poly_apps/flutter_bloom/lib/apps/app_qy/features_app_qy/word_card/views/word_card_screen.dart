@@ -18,7 +18,7 @@ import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
-import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class WordCardScreen extends StatelessWidget {
   const WordCardScreen({super.key});
@@ -49,12 +49,12 @@ class WordCardScreen extends StatelessWidget {
     return Container(
       padding: ThemeDimensions.paddingM,
       child: Card(
-        elevation: 4,
+        elevation: ThemeDimensions.spacing4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         ),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: ThemeDimensions.paddingL,
           child: GetBuilder<WordCardController>(
             builder: (controller) => Builder(
               builder: (context) => Column(
@@ -116,14 +116,14 @@ class WordCardScreen extends StatelessWidget {
               icon: Icons.check_circle,
               label: QyAppLocalizationKeys.qyKnown.tr(context),
               onPressed: () => Get.find<WordCardController>().markAsKnown(),
-              color: Colors.green,
+              color: ColorsAppQy.qySuccess,
             ),
             _buildActionButton(
               context: context,
               icon: Icons.close,
               label: QyAppLocalizationKeys.qyUnknown.tr(context),
               onPressed: () => Get.find<WordCardController>().markAsUnknown(),
-              color: Colors.red,
+              color: ColorsAppQy.qyError,
             ),
           ],
         ),

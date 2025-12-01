@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class FqaWidget extends StatelessWidget {
   final String fqaName;
@@ -26,7 +27,7 @@ class FqaWidget extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(ThemeDimensions.defaultSize),
-          border: Border.all(width: 1.5, color: Colors.grey.withOpacity(0.2)),
+          border: Border.all(width: 1.5, color: ColorsAppQy.qyBorderLight),
         ),
         child: Padding(
           padding: const EdgeInsets.all(ThemeDimensions.defaultSize),

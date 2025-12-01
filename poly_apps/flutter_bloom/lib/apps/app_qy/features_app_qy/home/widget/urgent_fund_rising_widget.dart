@@ -19,6 +19,7 @@ import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class UrgentFundRisingWidget extends StatefulWidget {
   const UrgentFundRisingWidget({super.key});
@@ -104,7 +105,7 @@ class FundRisingTypeItem extends StatelessWidget {
                 style: ThemeTextStyles.textMedium.copyWith(
                   color: index == selectedIndex
                       ? Theme.of(context).cardColor
-                      : Colors.black,
+                      : ColorsAppQy.qyTextPrimary,
                 ),
               )))),
     );

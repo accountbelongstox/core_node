@@ -21,6 +21,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/assets/common_assets_icons.dart';
 import 'package:get/get.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart' as LocalizationManager;
 
 class ProfileScreenView extends StatelessWidget {
@@ -122,18 +123,18 @@ class ProfileScreenView extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
+                    color: ColorsAppQy.qyError.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
+                    border: Border.all(color: ColorsAppQy.qyError.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error, color: Colors.red.shade700),
+                      Icon(Icons.error, color: ColorsAppQy.qyError),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           controller.errorMessage ?? '',
-                          style: TextStyle(color: Colors.red.shade700),
+                          style: TextStyle(color: ColorsAppQy.qyError),
                         ),
                       ),
                     ],

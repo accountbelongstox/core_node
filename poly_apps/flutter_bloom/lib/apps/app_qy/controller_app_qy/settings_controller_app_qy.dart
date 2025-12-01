@@ -15,6 +15,7 @@ import 'package:flutter_localization/flutter_localization.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../config_app_qy/default_language_config_app_qy.dart';
 
 // AI MODIFICATION NOTE: This controller was enhanced to follow development guide standards
 // - Added integration with common SettingsController
@@ -107,7 +108,7 @@ class SettingsControllerAppQy extends ChangeNotifier {
   String getCurrentLocaleIdentifier() {
     return _storage.getLocale() ??
         _localization.currentLocale?.languageCode ??
-        'zh';
+        DefaultLanguageConfigAppQy.defaultNativeLanguage;
   }
 
   // Change language and notify UI

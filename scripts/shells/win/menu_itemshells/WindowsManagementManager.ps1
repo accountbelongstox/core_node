@@ -26,6 +26,7 @@ $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "SecretManager.ps1")
 
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -82,18 +83,18 @@ function Show-WindowsManagementSubMenu {
     Write-Host ""
     
     $subItems = @(
-        @{ 
-            Text = "Display System Information"; 
-            Values = @("default"); 
-            CurrentValueIndex = 0; 
-            Key = $null; 
-            Action = { 
+        @{
+            Text = "Display System Information";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
                 Write-Host ""
                 Write-ColorMessage -Message "Detailed System Information:" -Type "Info"
                 systeminfo | Select-String -Pattern "OS Name|OS Version|System Type|Total Physical Memory|Available Physical Memory"
                 Write-Host ""
                 Read-Host "Press Enter to continue"
-            } 
+            }
         },
         @{
             Text = "Extend Windows Update Pause Days";
@@ -113,6 +114,16 @@ function Show-WindowsManagementSubMenu {
                     Write-ColorMessage -Message "Step7 script not found at: $step7Script" -Type "Error"
                     Read-Host "Press Enter to continue"
                 }
+            }
+        },
+        @{
+            Text = "Clear and Re-decrypt Secret Keys";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                Clear-AndRedecryptSecrets
             }
         },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
