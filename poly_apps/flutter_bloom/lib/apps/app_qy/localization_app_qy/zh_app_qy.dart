@@ -86,6 +86,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyListenAndType: '听音打字',
     QyAppLocalizationKeys.qyTypeHere: '在此输入',
     QyAppLocalizationKeys.qyPlayAgain: '再次播放',
+    QyAppLocalizationKeys.qyWordListeningDictation: '单词听写',
+    QyAppLocalizationKeys.qyUnderDevelopment: '此页面正在开发中',
 
     // Authentication
     QyAppLocalizationKeys.qySignIn: '登录',
