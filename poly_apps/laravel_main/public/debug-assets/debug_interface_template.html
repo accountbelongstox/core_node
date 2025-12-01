@@ -129,7 +129,14 @@
 
     <!-- Dialogs and placeholders will be loaded dynamically -->
 
-    <div id="static-context-menu"
+    <!-- NAMESPACE: Global Dropdown Container (Outside all overflow containers) -->
+    <div id="global-dropdown-container"
+        style="position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 99999; pointer-events: none;"></div>
+
+    <!-- NAMESPACE: Global Search Results Container -->
+    <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
+
+    <!-- NAMESPACE: External JavaScript Imports -->
         style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
         <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
             style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
