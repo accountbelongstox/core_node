@@ -9,13 +9,16 @@ Advanced download plugin with file monitoring and link detection (synchronous)
 import os
 import re
 import time
-import requests
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.pybrowser.interfaces import IPlugin
+
+# Get requests via third_party manager
+requests = get_third_package_requests()
 
 
 class FileMonitor:
