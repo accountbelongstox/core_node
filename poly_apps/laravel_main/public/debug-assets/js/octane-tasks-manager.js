@@ -170,7 +170,7 @@ const OctaneTasksManager = {
 
         this.refreshInterval = setInterval(() => {
             const section = document.getElementById('octane-tasks-section');
-            if (section && section.classList.contains('active')) {
+            if (section.classList.contains('active')) {
                 this.loadStatus();
             }
         }, 5000);
@@ -186,17 +186,15 @@ const OctaneTasksManager = {
 
 document.addEventListener('DOMContentLoaded', () => {
     const octaneSection = document.getElementById('octane-tasks-section');
-    if (octaneSection) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    if (octaneSection.classList.contains('active')) {
-                        OctaneTasksManager.init();
-                    }
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                if (octaneSection.classList.contains('active')) {
+                    OctaneTasksManager.init();
                 }
-            });
+            }
         });
+    });
 
-        observer.observe(octaneSection, { attributes: true });
-    }
+    observer.observe(octaneSection, { attributes: true });
 });

@@ -675,8 +675,36 @@ def get_third_package_cv2():
 
 
 def get_third_package_pyautogui():
-    """Get pyautogui package (lazy load)"""
-    return _lazy_import('pyautogui', 'import pyautogui')
+    """
+    Get pyautogui package (lazy load)
+
+    On Linux, pyautogui may fail to import if X11 display is not accessible.
+    In this case, returns None instead of raising an exception.
+    """
+    if 'pyautogui' not in _PACKAGE_CACHE:
+        try:
+            import pyautogui
+            _PACKAGE_CACHE['pyautogui'] = pyautogui
+            return pyautogui
+        except Exception as e:
+            # Check if this is a display-related error (common on Linux when running as root or headless)
+            error_msg = str(e)
+            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
+                ColorPrint.yellow(f"[WARN] pyautogui unavailable due to display error: {type(e).__name__}")
+                ColorPrint.yellow("[INFO] This is normal when running without X11 display access")
+                ColorPrint.yellow("[INFO] pyautogui features will be disabled")
+                _PACKAGE_CACHE['pyautogui'] = None
+                return None
+            else:
+                # Some other error, try lazy import (might trigger auto-install)
+                try:
+                    return _lazy_import('pyautogui', 'import pyautogui')
+                except Exception as e2:
+                    ColorPrint.yellow(f"[WARN] pyautogui import failed: {e2}")
+                    _PACKAGE_CACHE['pyautogui'] = None
+                    return None
+
+    return _PACKAGE_CACHE['pyautogui']
 
 
 def get_third_package_psutil():
@@ -806,8 +834,36 @@ def get_third_package_tkhtmlview():
 
 
 def get_third_package_pystray():
-    """Get pystray package (lazy load)"""
-    return _lazy_import('pystray', 'import pystray')
+    """
+    Get pystray package (lazy load)
+
+    On Linux, pystray may fail to import if X11 display is not accessible.
+    In this case, returns None instead of raising an exception.
+    """
+    if 'pystray' not in _PACKAGE_CACHE:
+        try:
+            import pystray
+            _PACKAGE_CACHE['pystray'] = pystray
+            return pystray
+        except Exception as e:
+            # Check if this is a display-related error (common on Linux when running as service or headless)
+            error_msg = str(e)
+            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
+                ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
+                ColorPrint.yellow("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
+                ColorPrint.yellow("[INFO] System tray features will be disabled")
+                _PACKAGE_CACHE['pystray'] = None
+                return None
+            else:
+                # Some other error, try lazy import (might trigger auto-install)
+                try:
+                    return _lazy_import('pystray', 'import pystray')
+                except Exception as e2:
+                    ColorPrint.yellow(f"[WARN] pystray import failed: {e2}")
+                    _PACKAGE_CACHE['pystray'] = None
+                    return None
+
+    return _PACKAGE_CACHE['pystray']
 
 
 def get_third_package_cnocr():
@@ -1006,6 +1062,13 @@ def get_third_package_tkinter():
     if 'tkinter' not in _PACKAGE_CACHE:
         try:
             import tkinter as _tkinter_module
+            # IMPORTANT: Import tkinter.ttk to ensure ttk becomes an attribute of tkinter
+            # This is required because tkinter.ttk is a submodule and not automatically imported
+            import tkinter.ttk  # noqa: F401
+            import tkinter.font  # noqa: F401
+            import tkinter.messagebox  # noqa: F401
+            import tkinter.filedialog  # noqa: F401
+            import tkinter.scrolledtext  # noqa: F401
             _PACKAGE_CACHE['tkinter'] = _tkinter_module
         except ImportError as e:
             # tkinter import failed - guide user to run installation script
