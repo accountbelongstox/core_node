@@ -6,21 +6,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== ITTools Registry Debug ===');
     
-    if (typeof ITTools === 'undefined') {
-        console.error('ERROR: ITTools is not defined!');
-        return;
-    }
-    
-    if (typeof ITTools.Tools === 'undefined') {
-        console.error('ERROR: ITTools.Tools is not defined!');
-        return;
-    }
-    
-    if (typeof ITTools.Tools.Registry === 'undefined') {
-        console.error('ERROR: ITTools.Tools.Registry is not defined!');
-        return;
-    }
-    
     const allTools = ITTools.Tools.Registry.getAll();
     const toolCount = Object.keys(allTools).length;
     

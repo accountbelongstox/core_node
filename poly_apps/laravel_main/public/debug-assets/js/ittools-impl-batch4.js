@@ -450,9 +450,7 @@ ITTools.Implementations.QuickUnit = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('quick-unit-value')) {
-        ITTools.Implementations.QuickUnit.convert();
-    }
+    ITTools.Implementations.QuickUnit.convert();
 });
 
 console.log('ITTools Batch 4 Implementations loaded');
