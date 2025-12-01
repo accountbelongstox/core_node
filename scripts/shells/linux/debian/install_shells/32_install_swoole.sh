@@ -10,7 +10,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script: 32_install_swoole.sh
-# Description: Install Swoole extension for PHP 8.4 and Laravel Octane support
+# Description: Install Swoole extension for PHP 8.5 and Laravel Octane support
 # Author: System Administrator
 # Version: 1.0
 
@@ -37,12 +37,16 @@ echo -e "${CYAN}========================================${NC}"
 check_swoole_installed() {
     echo -e "${BLUE}$SCRIPT_INDEX Checking Swoole installation...${NC}"
 
-    local swoole_so="/usr/lib/php/20240924/swoole.so"
+    # Get dynamic extension directory from PHP
+    local ext_dir=$(php -r "echo ini_get('extension_dir');" 2>/dev/null)
+    local swoole_so="$ext_dir/swoole.so"
+
+    echo -e "${CYAN}$SCRIPT_INDEX PHP extension directory: $ext_dir${NC}"
 
     if [ -f "$swoole_so" ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Swoole extension file exists: $swoole_so${NC}"
 
-        if php -m | grep -q "swoole"; then
+        if php -m 2>/dev/null | grep -q "swoole"; then
             local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
             echo -e "${GREEN}$SCRIPT_INDEX Swoole module loaded in CLI: $swoole_version${NC}"
         else
@@ -61,7 +65,7 @@ check_swoole_configuration() {
     echo -e "${BLUE}$SCRIPT_INDEX Checking Swoole configuration files...${NC}"
 
     local config_valid=true
-    local swoole_ini="/etc/php/8.4/mods-available/swoole.ini"
+    local swoole_ini="/etc/php/8.5/mods-available/swoole.ini"
 
     if [ ! -f "$swoole_ini" ]; then
         echo -e "${YELLOW}$SCRIPT_INDEX Configuration file missing: $swoole_ini${NC}"
@@ -70,8 +74,9 @@ check_swoole_configuration() {
         echo -e "${GREEN}$SCRIPT_INDEX Configuration file exists: $swoole_ini${NC}"
     fi
 
-    for sapi in cli fpm; do
-        local link="/etc/php/8.4/$sapi/conf.d/20-swoole.ini"
+    # Only check CLI - FPM is not installed when using Swoole
+    for sapi in cli; do
+        local link="/etc/php/8.5/$sapi/conf.d/20-swoole.ini"
         if [ ! -L "$link" ]; then
             echo -e "${YELLOW}$SCRIPT_INDEX Symlink missing for $sapi: $link${NC}"
             config_valid=false
@@ -89,11 +94,40 @@ check_swoole_configuration() {
     fi
 }
 
+ensure_php_symlink() {
+    echo -e "${BLUE}$SCRIPT_INDEX Ensuring PHP 8.5 symlink exists...${NC}"
+
+    if [ ! -f "/usr/bin/php" ] || ! /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.5"; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 symlink missing or incorrect, fixing...${NC}"
+
+        if [ -f "/usr/bin/php8.5" ]; then
+            $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
+            $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.5
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 set as default${NC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary not found at /usr/bin/php8.5${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php84_intelligent.sh first${NC}"
+            return 1
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 symlink already exists${NC}"
+    fi
+
+    if /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.5"; then
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP 8.5 is available at /usr/bin/php${NC}"
+        return 0
+    else
+        echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
+        return 1
+    fi
+}
+
 install_swoole_dependencies() {
     echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole build dependencies...${NC}"
 
     local deps=(
-        "php8.4-dev"
+        "php8.5-dev"
         "php-pear"
         "build-essential"
         "libssl-dev"
@@ -107,6 +141,9 @@ install_swoole_dependencies() {
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Dependencies installed${NC}"
+
+        ensure_php_symlink || return 1
+
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX Failed to install dependencies${NC}"
@@ -115,15 +152,69 @@ install_swoole_dependencies() {
 }
 
 install_swoole_pecl() {
-    echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole via PECL...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole...${NC}"
 
+    # Check PHP version
+    local php_ver=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
+    
+    # For PHP 8.5+, install from source (master) as PECL version is incompatible
+    if [[ "$php_ver" == "8.5" ]]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (master branch)...${NC}"
+        
+        if ! command -v git >/dev/null 2>&1; then
+            $USE_SUDO apt-get install -y git
+        fi
+        
+        local build_dir="/tmp/swoole-src-build"
+        rm -rf "$build_dir"
+        
+        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole repository...${NC}"
+        git clone --depth 1 https://github.com/swoole/swoole-src.git "$build_dir"
+        
+        if [ ! -d "$build_dir" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Failed to clone repository${NC}"
+            return 1
+        fi
+        
+        # Save current directory
+        local original_dir=$(pwd)
+        cd "$build_dir"
+        
+        echo -e "${CYAN}$SCRIPT_INDEX Compiling Swoole...${NC}"
+        phpize
+        ./configure --enable-openssl --enable-swoole-curl --enable-mysqlnd
+        make -j$(nproc)
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}$SCRIPT_INDEX Build failed${NC}"
+            cd "$original_dir"
+            return 1
+        fi
+        
+        $USE_SUDO make install
+        local install_status=$?
+        
+        cd "$original_dir"
+        rm -rf "$build_dir"
+        
+        if [ $install_status -eq 0 ]; then
+            echo -e "${GREEN}$SCRIPT_INDEX Swoole installed from source${NC}"
+            return 0
+        else
+            echo -e "${RED}$SCRIPT_INDEX Installation failed${NC}"
+            return 1
+        fi
+    fi
+
+    # Fallback to PECL for older versions
+    echo -e "${BLUE}$SCRIPT_INDEX Installing via PECL...${NC}"
     if ! command -v pecl >/dev/null 2>&1; then
         echo -e "${RED}$SCRIPT_INDEX PECL not found, installing php-pear...${NC}"
         $USE_SUDO apt-get install -y php-pear
     fi
 
-    echo -e "${CYAN}$SCRIPT_INDEX Running: pecl install swoole${NC}"
-    echo "" | $USE_SUDO pecl install swoole
+    echo -e "${CYAN}$SCRIPT_INDEX Running: pecl install --force swoole${NC}"
+    echo "" | $USE_SUDO pecl install --force swoole
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Swoole installed via PECL${NC}"
@@ -137,17 +228,18 @@ install_swoole_pecl() {
 enable_swoole_extension() {
     echo -e "${BLUE}$SCRIPT_INDEX Enabling Swoole extension...${NC}"
 
-    local swoole_ini="/etc/php/8.4/mods-available/swoole.ini"
+    local swoole_ini="/etc/php/8.5/mods-available/swoole.ini"
 
     if [ ! -f "$swoole_ini" ]; then
         echo -e "${CYAN}$SCRIPT_INDEX Creating $swoole_ini${NC}"
         echo "extension=swoole.so" | $USE_SUDO tee "$swoole_ini" > /dev/null
     fi
 
-    $USE_SUDO phpenmod -v 8.4 swoole
+    $USE_SUDO phpenmod -v 8.5 swoole
 
-    for sapi in cli fpm; do
-        local link="/etc/php/8.4/$sapi/conf.d/20-swoole.ini"
+    # Only check CLI - FPM is not installed when using Swoole
+    for sapi in cli; do
+        local link="/etc/php/8.5/$sapi/conf.d/20-swoole.ini"
         if [ ! -L "$link" ]; then
             echo -e "${CYAN}$SCRIPT_INDEX Creating symlink for $sapi${NC}"
             $USE_SUDO ln -sf "$swoole_ini" "$link"
@@ -159,14 +251,10 @@ enable_swoole_extension() {
 }
 
 restart_php_fpm() {
-    echo -e "${BLUE}$SCRIPT_INDEX Restarting PHP-FPM...${NC}"
-
-    if systemctl is-active --quiet php8.4-fpm; then
-        $USE_SUDO systemctl restart php8.4-fpm
-        echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM restarted${NC}"
-    else
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM not running, skipping restart${NC}"
-    fi
+    echo -e "${BLUE}$SCRIPT_INDEX [SKIPPED] PHP-FPM restart not needed - Using Swoole${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Swoole runs independently, no FPM service required${NC}"
+    # PHP-FPM is not installed when using Swoole with Laravel Octane
+    return 0
 }
 
 verify_swoole() {
@@ -174,7 +262,7 @@ verify_swoole() {
 
     if php -m | grep -q "swoole"; then
         local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?Swoole installed successfully${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Swoole installed successfully${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX   Version: $swoole_version${NC}"
 
         echo ""
@@ -183,7 +271,7 @@ verify_swoole() {
 
         return 0
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?Swoole verification failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿½?Swoole verification failed${NC}"
         return 1
     fi
 }

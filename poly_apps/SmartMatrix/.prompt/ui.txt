@@ -1,0 +1,6 @@
+D:\programing\core_node\poly_apps\SmartMatrix\error_qt1.txt  先修复错误，然后继续下面的任务
+···"D:\programing\core_node\poly_apps\SmartMatrix\output_20251013_055726\x64\RelWithDebInfo\new.png"
+"D:\programing\core_node\poly_apps\qtscrcpy_tc\预期.png"
+确实最新的集成了很多功能，但似乎精简了某些功能，你查看预期的，同时结合原来的代码，相当于你要更加激进的集成两边的功能，并
+进行更加先进的UI功能划分。1：你要设计单个设备的管理，比点击击设置后显示一组操作，2：你要设计组的管理，包含单一组，全局。
+ 3:你不应该是为了只保证编译过，而是要保证功能的全部集成。···

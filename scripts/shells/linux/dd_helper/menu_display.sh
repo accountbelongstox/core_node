@@ -51,9 +51,37 @@ show_interactive_menu() {
     local selected=0
     local total=${#menu_order[@]}
     local old_settings=$(stty -g)
+
+    # Pause before showing menu with auto-countdown (before changing terminal settings)
+    echo ""
+    echo -e "\033[33mPress Enter to continue, or any other key to pause (auto-continue in 3 seconds)...\033[0m"
+    echo -ne "\033[36mAuto-continuing in \033[0m"
+
+    # Countdown with non-blocking key check
+    for i in 3 2 1; do
+        echo -ne "\033[36m$i \033[0m"
+
+        # Check if key is available (non-blocking)
+        if read -t 1 -n 1 key; then
+            echo ""
+            if [ "$key" = "" ]; then
+                # Enter pressed - continue immediately
+                break
+            else
+                # Any other key pauses
+                echo -e "\033[36mPaused. Press Enter to continue...\033[0m"
+                read -r
+                break
+            fi
+        fi
+    done
+
+    echo ""
+    echo ""
+
     stty -icanon -echo
     trap 'stty "$old_settings"; exit' EXIT
-    
+
     while true; do
         printf "\033c"
         local current_sys=$(get_global_var "CURRENT_SYSTEM" "$SYSTEM_VERSION")
