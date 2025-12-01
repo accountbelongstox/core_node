@@ -33,6 +33,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     # Import routers (from independent files)
     from pycore.callmodule.routers.web_router import router as web_router
     from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
+    from pycore.callmodule.routers.mcp_router import mcp_router
 
     # Define static mounts configuration
     PYCORE_ROOT = Path(__file__).parent.parent
@@ -56,7 +57,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'debug': debug,
             'fastapi_routers': [
                 web_router,              # Web UI routes
-                voice_subtitle_router    # Voice subtitle API routes
+                voice_subtitle_router,   # Voice subtitle API routes
+                mcp_router               # MCP backend routes (file, database, codebase tools)
             ],
             'static_mounts': static_mounts  # Mount static files
         },
