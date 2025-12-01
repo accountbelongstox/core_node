@@ -12,7 +12,7 @@ let cachedHeaders = {}; // Browser cache for app headers
 function toggleSidebar() {
     const sidebar = document.getElementById('main-sidebar');
     const overlay = document.getElementById('mobile-overlay');
-    
+
     // Check if we're on mobile
     if (window.innerWidth <= 768) {
         toggleMobileSidebar();
@@ -26,7 +26,7 @@ function toggleSidebar() {
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('main-sidebar');
     const overlay = document.getElementById('mobile-overlay');
-    
+
     if (sidebar.classList.contains('expanded')) {
         closeMobileSidebar();
     } else {
@@ -39,7 +39,7 @@ function toggleMobileSidebar() {
 function closeMobileSidebar() {
     const sidebar = document.getElementById('main-sidebar');
     const overlay = document.getElementById('mobile-overlay');
-    
+
     sidebar.classList.remove('expanded');
     if (overlay) overlay.classList.remove('active');
     document.body.style.overflow = ''; // Restore body scroll
@@ -47,7 +47,7 @@ function closeMobileSidebar() {
 
 function restoreSidebarState() {
     const sidebar = document.getElementById('main-sidebar');
-    
+
     // Only restore on desktop
     if (window.innerWidth > 768) {
         const wasExpanded = localStorage.getItem('sidebar_expanded') === 'true';
@@ -58,10 +58,10 @@ function restoreSidebarState() {
 }
 
 // Handle window resize
-window.addEventListener('resize', function() {
+window.addEventListener('resize', function () {
     const sidebar = document.getElementById('main-sidebar');
     const overlay = document.getElementById('mobile-overlay');
-    
+
     if (window.innerWidth > 768) {
         // Desktop: remove mobile classes, restore desktop state
         if (overlay) overlay.classList.remove('active');
@@ -77,77 +77,177 @@ window.addEventListener('resize', function() {
 
 // NAMESPACE: Navigation Functions
 function showSection(sectionType) {
+    console.log('[showSection] Switching to section:', sectionType);
+    
     // Close mobile sidebar when selecting a menu item
     if (window.innerWidth <= 768) {
         closeMobileSidebar();
     }
-    
+
     // Update menu active state
     document.querySelectorAll('.menu-item a').forEach(link => {
         link.classList.remove('active');
     });
-    
+
     const targetLink = document.querySelector(`[data-section="${sectionType}"]`);
     if (targetLink) {
         targetLink.classList.add('active');
+        console.log('[showSection] Menu item activated');
+    } else {
+        console.warn('[showSection] Menu item not found for:', sectionType);
     }
 
-    // Hide all sections
+    // Section file mapping
+    const sectionFileMap = {
+        'dev-tools': '/debug-tools/sections/dev-tools-section.html',
+        'system-info': '/debug-tools/sections/system-info-section.html',
+        'code-browser': '/debug-tools/sections/code-browser-section.html',
+        'static-resources': '/debug-tools/sections/static-resources-section.html',
+        'mcp-manager': '/debug-tools/sections/mcp-manager-section.html',
+        'learning': '/debug-tools/sections/learning-section.html',
+        'octane-tasks': '/debug-tools/sections/octane-tasks-section.html'
+    };
+
+    // Section titles and descriptions
+    const sectionTitles = {
+        'system-info': { title: 'System Information', desc: 'View comprehensive system and application information' },
+        'dev-tools': { title: 'Development Tools', desc: 'Professional developer utilities and tools' },
+        'api-testing': { title: 'API Testing Dashboard', desc: 'Test and debug your Laravel API endpoints' },
+        'code-browser': { title: 'Code Browser', desc: 'Browse, edit files, manage tasks and prompt mappings' },
+        'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
+        'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
+        'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
+        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' }
+    };
+
+    // Hide all sections first
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
+        section.style.display = 'none';
     });
     
-    // Update mobile nav title
-    const mobileNavTitle = document.getElementById('mobile-nav-title');
-    const sectionTitles = {
-        'system-info': 'System Information',
-        'dev-tools': 'Development Tools',
-        'api-testing': 'API Testing',
-        'code-browser': 'Code Browser',
-        'static-resources': 'Static Resources',
-        'mcp-manager': 'MCP Manager',
-        'learning': 'Vocabulary Learning'
-    };
-    if (mobileNavTitle && sectionTitles[sectionType]) {
-        mobileNavTitle.textContent = sectionTitles[sectionType];
+    // Handle main content body visibility
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        const contentBody = mainContent.querySelector('.content-body');
+        if (contentBody) {
+            if (sectionType === 'api-testing') {
+                contentBody.style.display = 'block';
+                console.log('[showSection] Showing API testing content body');
+            } else {
+                contentBody.style.display = 'none';
+                console.log('[showSection] Hiding API testing content body');
+            }
+        }
     }
 
-    // Show selected section and update header
-    if (sectionType === 'system-info') {
-        document.getElementById('system-info-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'System Information';
-        document.getElementById('page-description').textContent = 'View comprehensive system and application information';
-    } else if (sectionType === 'dev-tools') {
-        document.getElementById('dev-tools-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Development Tools';
-        document.getElementById('page-description').textContent = 'Professional developer utilities and tools';
-    } else if (sectionType === 'api-testing') {
-        document.getElementById('api-testing-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'API Testing Dashboard';
-        document.getElementById('page-description').textContent = 'Test and debug your Laravel API endpoints';
-    } else if (sectionType === 'code-browser') {
-        document.getElementById('code-browser-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Code Browser';
-        document.getElementById('page-description').textContent = 'Browse, edit files, manage tasks and prompt mappings';
-        if (typeof CodeBrowser !== 'undefined') {
-            CodeBrowser.init();
+    // Update mobile nav title
+    const mobileNavTitle = document.getElementById('mobile-nav-title');
+    if (mobileNavTitle && sectionTitles[sectionType]) {
+        mobileNavTitle.textContent = sectionTitles[sectionType].title;
+    }
+
+    // Update page title and description
+    const pageTitle = document.getElementById('page-title');
+    const pageDescription = document.getElementById('page-description');
+    if (sectionTitles[sectionType]) {
+        if (pageTitle) pageTitle.textContent = sectionTitles[sectionType].title;
+        if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
+    }
+
+    // Handle API testing (no external file)
+    if (sectionType === 'api-testing') {
+        return;
+    }
+
+    // Load section from external file
+    const sectionId = `${sectionType}-section`;
+    let section = document.getElementById(sectionId);
+    const container = document.getElementById('content-sections-container') || document.body;
+
+    // If section doesn't exist, load it from external file
+    if (!section && sectionFileMap[sectionType]) {
+        const filePath = sectionFileMap[sectionType];
+        console.log('[showSection] Loading section from:', filePath);
+        
+        fetch(filePath)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load section: ${response.statusText}`);
+                }
+                return response.text();
+            })
+            .then(html => {
+                // Create a temporary container to parse the HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html.trim();
+                
+                // Find the section element
+                section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
+                
+                if (section) {
+                    // Insert into container
+                    container.appendChild(section);
+                    
+                    // Show the section
+                    section.classList.add('active');
+                    section.style.display = 'block';
+                    
+                    console.log('[showSection] Section loaded and activated:', sectionType);
+                    
+                    // Initialize module-specific functionality
+                    if (sectionType === 'code-browser') {
+                        if (typeof CodeBrowser !== 'undefined') {
+                            CodeBrowser.init();
+                        }
+                        initCodeBrowserIntegratedModules();
+                    } else if (sectionType === 'static-resources') {
+                        if (typeof StaticResourceBrowser !== 'undefined') {
+                            StaticResourceBrowser.init();
+                        }
+                    } else if (sectionType === 'mcp-manager') {
+                        if (typeof McpManager !== 'undefined') {
+                            McpManager.init();
+                        }
+                    } else if (sectionType === 'octane-tasks') {
+                        if (typeof OctaneTasksManager !== 'undefined') {
+                            OctaneTasksManager.init();
+                        }
+                    }
+                } else {
+                    console.error('[showSection] Section element not found in loaded HTML');
+                }
+            })
+            .catch(error => {
+                console.error('[showSection] Error loading section:', error);
+            });
+    } else if (section) {
+        // Section already exists, just show it
+        section.classList.add('active');
+        section.style.display = 'block';
+        console.log('[showSection] Section activated:', sectionType);
+        
+        // Initialize module-specific functionality
+        if (sectionType === 'code-browser') {
+            if (typeof CodeBrowser !== 'undefined') {
+                CodeBrowser.init();
+            }
+            initCodeBrowserIntegratedModules();
+        } else if (sectionType === 'static-resources') {
+            if (typeof StaticResourceBrowser !== 'undefined') {
+                StaticResourceBrowser.init();
+            }
+        } else if (sectionType === 'mcp-manager') {
+            if (typeof McpManager !== 'undefined') {
+                McpManager.init();
+            }
+        } else if (sectionType === 'octane-tasks') {
+            if (typeof OctaneTasksManager !== 'undefined') {
+                OctaneTasksManager.init();
+            }
         }
-        // Initialize integrated modules
-        initCodeBrowserIntegratedModules();
-    } else if (sectionType === 'static-resources') {
-        document.getElementById('static-resources-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Static Resources';
-        document.getElementById('page-description').textContent = 'Browse and manage static media files';
-        if (typeof StaticResourceBrowser !== 'undefined') {
-            StaticResourceBrowser.init();
-        }
-    } else if (sectionType === 'mcp-manager') {
-        document.getElementById('mcp-manager-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'MCP Manager';
-        document.getElementById('page-description').textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
-        if (typeof McpManager !== 'undefined') {
-            McpManager.init();
-        }
+    } else {
+        console.warn('[showSection] Unknown section type or no file mapping:', sectionType);
     }
 
     // Save active section
@@ -155,7 +255,7 @@ function showSection(sectionType) {
 }
 
 // Restore sidebar and active section on load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     restoreSidebarState();
 
     const activeSection = localStorage.getItem('active_section');
@@ -175,9 +275,9 @@ async function updateUserDisplay() {
 
     if (isLoggedIn && AuthHelper.currentUser) {
         const displayName = AuthHelper.currentUser.username ||
-                           AuthHelper.currentUser.email ||
-                           AuthHelper.currentUser.name ||
-                           'User';
+            AuthHelper.currentUser.email ||
+            AuthHelper.currentUser.name ||
+            'User';
         displayNameSpan.textContent = displayName;
         loggedInDiv.style.display = 'block';
         notLoggedInDiv.style.display = 'none';
@@ -245,18 +345,18 @@ function saveParamsToServer(appName, endpoint, method, params) {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            showStatus('Parameters saved successfully!', 'success');
-        } else {
-            showStatus('Failed to save parameters: ' + result.message, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error saving parameters:', error);
-        showStatus('Error saving parameters', 'error');
-    });
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showStatus('Parameters saved successfully!', 'success');
+            } else {
+                showStatus('Failed to save parameters: ' + result.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving parameters:', error);
+            showStatus('Error saving parameters', 'error');
+        });
 }
 
 function loadParamsFromServer(appName, endpoint) {
@@ -264,17 +364,17 @@ function loadParamsFromServer(appName, endpoint) {
         app_name: appName,
         api_endpoint: endpoint
     }))
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            return result.data;
-        }
-        return null;
-    })
-    .catch(error => {
-        console.error('Error loading parameters:', error);
-        return null;
-    });
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                return result.data;
+            }
+            return null;
+        })
+        .catch(error => {
+            console.error('Error loading parameters:', error);
+            return null;
+        });
 }
 
 function saveToBrowserCache(appName, endpoint, params) {
@@ -311,15 +411,15 @@ fetch("/api_info")
     .then(data => {
         apiData = data.api_reference || {};
         publicInfo = data.public_info || {};
-        
+
         // Display complete system info (all data including API references)
         const completeInfo = {
             public_info: publicInfo,
             api_reference: apiData
         };
-        document.getElementById("system-info").innerHTML = 
+        document.getElementById("system-info").innerHTML =
             "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
-        
+
         // Populate app selector
         const appSelect = document.getElementById("app-select");
         Object.keys(apiData).forEach(appName => {
@@ -328,7 +428,7 @@ fetch("/api_info")
             option.textContent = appName;
             appSelect.appendChild(option);
         });
-        
+
         // Load previously selected app from cache
         const cachedApp = localStorage.getItem('selected_app');
         if (cachedApp && apiData[cachedApp]) {
@@ -338,7 +438,7 @@ fetch("/api_info")
     })
     .catch(error => {
         console.error("Error loading API data:", error);
-        document.getElementById("system-info").innerHTML = 
+        document.getElementById("system-info").innerHTML =
             "<div class=\"status-error\">Error loading system information</div>";
     });
 
@@ -348,53 +448,53 @@ function loadAppAPIs() {
     const selectedApp = document.getElementById("app-select").value;
     const apiListDiv = document.getElementById("api-list");
     const searchContainer = document.getElementById("api-search-container");
-    
+
     // Cache the selected app
     if (selectedApp) {
         localStorage.setItem('selected_app', selectedApp);
     }
-    
+
     if (!selectedApp || !apiData[selectedApp]) {
         apiListDiv.innerHTML = "<p style=\"text-align: center; color: #666; padding: 40px;\">No APIs found for this app</p>";
         searchContainer.style.display = "none";
         currentAppAPIs = [];
         return;
     }
-    
+
     // Show search container when app is selected
     searchContainer.style.display = "block";
 
     const appAPIs = apiData[selectedApp];
     let html = "";
-    
+
     // Add shared headers management section at the top
     if (appAPIs.supported_headers && typeof appAPIs.supported_headers === 'object') {
         html += createSharedHeadersSection(selectedApp, appAPIs.supported_headers);
     }
-    
+
     // Store APIs for searching and reset search
     currentAppAPIs = [];
     document.getElementById("api-search").value = "";
-    
+
     if (typeof appAPIs === "string") {
         html += "<div class=\"card\"><div class=\"card-body\"><p>" + appAPIs + "</p></div></div>";
     } else if (Array.isArray(appAPIs) || typeof appAPIs === "object") {
         // Handle new simplified format with endpoints array
         if (appAPIs.endpoints && Array.isArray(appAPIs.endpoints)) {
             appAPIs.endpoints.forEach((api, index) => {
-                currentAppAPIs.push({...api, apiIndex: index + 1});
+                currentAppAPIs.push({ ...api, apiIndex: index + 1 });
                 html += createAPIItem(api, index, selectedApp);
             });
         } else if (appAPIs.legacy_api_documentation && appAPIs.legacy_api_documentation.apis && Array.isArray(appAPIs.legacy_api_documentation.apis)) {
             // Handle legacy format
             appAPIs.legacy_api_documentation.apis.forEach((api, index) => {
-                currentAppAPIs.push({...api, apiIndex: index + 1});
+                currentAppAPIs.push({ ...api, apiIndex: index + 1 });
                 html += createAPIItem(api, index, selectedApp);
             });
         } else if (Array.isArray(appAPIs)) {
             // Handle direct array format
             appAPIs.forEach((api, index) => {
-                currentAppAPIs.push({...api, apiIndex: index + 1});
+                currentAppAPIs.push({ ...api, apiIndex: index + 1 });
                 html += createAPIItem(api, index, selectedApp);
             });
         } else {
@@ -402,7 +502,7 @@ function loadAppAPIs() {
             html = "<div class=\"card\"><div class=\"card-body\"><div class=\"json-viewer\"><pre>" + JSON.stringify(appAPIs, null, 2) + "</pre></div></div></div>";
         }
     }
-    
+
     apiListDiv.innerHTML = html;
 }
 
@@ -410,40 +510,40 @@ function createAPIItem(api, index, appName) {
     // Handle both old and new API data formats
     const apiPath = api.path || "";
     const feature = api.feature || "";
-    
+
     // Parse feature information: auth_required/POST|Description|Controller
     const featureParts = feature.split('|');
     const authAndMethod = featureParts[0] || "";
     const description = featureParts[1] || "";
     const controller = featureParts[2] || "";
-    
+
     const method = extractMethodFromFeature(authAndMethod) || api.method || "GET";
     const endpoint = extractEndpointFromPath(apiPath);
     const fullUrl = apiPath || ("/api" + endpoint);
-    
+
     // Generate enhanced feature documentation using new parser
     let featureDocs = '';
     if (feature) {
         try {
             const parsedFeature = parseFeatureString(feature);
-            
+
             if (parsedFeature && typeof parsedFeature === 'object') {
                 featureDocs = '<div class="feature-docs" style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin-bottom: 15px;">' +
                     '<h5 style="color: #2c3e50; margin-bottom: 10px;">API Details:</h5>' +
                     '<div style="font-size: 13px; color: #34495e; line-height: 1.5;">' +
-                        '<strong>Authentication:</strong> ' + (authAndMethod.includes('auth_required') ? 'Required' : 'Not Required') + '<br>' +
-                        '<strong>Method:</strong> ' + method + '<br>' +
-                        (description ? '<strong>Description:</strong> ' + description + '<br>' : '') +
-                        (controller ? '<strong>Controller:</strong> ' + controller + '<br>' : '') +
-                        (parsedFeature.tags && parsedFeature.tags.length > 0 ? '<strong>Tags:</strong> ' + parsedFeature.tags.join(', ') + '<br>' : '') +
+                    '<strong>Authentication:</strong> ' + (authAndMethod.includes('auth_required') ? 'Required' : 'Not Required') + '<br>' +
+                    '<strong>Method:</strong> ' + method + '<br>' +
+                    (description ? '<strong>Description:</strong> ' + description + '<br>' : '') +
+                    (controller ? '<strong>Controller:</strong> ' + controller + '<br>' : '') +
+                    (parsedFeature.tags && parsedFeature.tags.length > 0 ? '<strong>Tags:</strong> ' + parsedFeature.tags.join(', ') + '<br>' : '') +
                     '</div>';
-                
+
                 // Add parameters info if available
                 if (parsedFeature.params && Object.keys(parsedFeature.params).length > 0) {
                     featureDocs += '<div style="margin-top: 10px;">' +
                         '<strong style="color: #2c3e50;">Parameters:</strong><br>' +
                         '<div style="font-size: 12px; margin-left: 10px;">';
-                    
+
                     Object.values(parsedFeature.params).forEach(param => {
                         if (param && param.name) {
                             const required = param.requirement === 'required' ? '* ' : '  ';
@@ -454,13 +554,13 @@ function createAPIItem(api, index, appName) {
                     });
                     featureDocs += '</div></div>';
                 }
-                
+
                 // Add response info if available
                 if (parsedFeature.response && Object.keys(parsedFeature.response).length > 0) {
                     featureDocs += '<div style="margin-top: 10px;">' +
                         '<strong style="color: #2c3e50;">Response:</strong><br>' +
                         '<div style="font-size: 12px; margin-left: 10px;">';
-                    
+
                     Object.values(parsedFeature.response).forEach(resp => {
                         if (resp && resp.name) {
                             featureDocs += `- <code>${resp.name}</code> (${resp.type || 'string'})`;
@@ -470,7 +570,7 @@ function createAPIItem(api, index, appName) {
                     });
                     featureDocs += '</div></div>';
                 }
-                
+
                 featureDocs += '</div>';
             }
         } catch (error) {
@@ -478,58 +578,58 @@ function createAPIItem(api, index, appName) {
             featureDocs = '<div class="feature-docs" style="background: #ffebee; padding: 15px; border-radius: 6px; margin-bottom: 15px;">' +
                 '<h5 style="color: #c62828;">Feature parsing error</h5>' +
                 '<p style="font-size: 12px; color: #666;">Unable to parse feature string for this endpoint.</p>' +
-            '</div>';
+                '</div>';
         }
     }
-    
+
     // No longer show individual headers info since we have shared headers at app level
     let headersInfo = '';
-    
+
     // Generate preset JSON based on feature with header linking
     const presetJson = generatePresetJson(feature, method, appName);
-    
+
     return '<div class="api-item" id="api-item-' + index + '">' +
         '<div class="api-number">#' + (index + 1) + '</div>' +
         '<div class="api-header" onclick="toggleAPIDetails(' + index + ', \'' + appName + '\', \'' + endpoint + '\')">' +
-            '<div>' +
-                '<span class="api-method method-' + method.toLowerCase() + '">' + method + '</span>' +
-                '<strong style="margin-right: 10px;">' + endpoint + '</strong>' +
-                (description ? '<small style="color: #666; font-family: monospace;">' + description + '</small>' : '') +
-            '</div>' +
-            '<span id="toggle-' + index + '">&#9660;</span>' +
+        '<div>' +
+        '<span class="api-method method-' + method.toLowerCase() + '">' + method + '</span>' +
+        '<strong style="margin-right: 10px;">' + endpoint + '</strong>' +
+        (description ? '<small style="color: #666; font-family: monospace;">' + description + '</small>' : '') +
+        '</div>' +
+        '<span id="toggle-' + index + '">&#9660;</span>' +
         '</div>' +
         '<div id="details-' + index + '" class="api-details">' +
-            featureDocs +
-            headersInfo +
-            '<div class="form-group">' +
-                '<label class="form-label">API Endpoint URL:</label>' +
-                '<input type="text" id="url-' + index + '" class="form-control" value="' + fullUrl + '">' +
-            '</div>' +
-            '<div class="form-group">' +
-                '<label class="form-label">Request Parameters (JSON):</label>' +
-                '<textarea id="params-' + index + '" class="form-control" placeholder="Enter JSON parameters" rows="6">' + presetJson + '</textarea>' +
-            '</div>' +
-            '<div class="btn-group" style="margin-bottom: 15px;">' +
-                '<button class="btn btn-primary" onclick="testAPI(' + index + ', \'' + method + '\', \'' + appName + '\', \'' + endpoint + '\')">Send Request</button>' +
-                '<button class="btn btn-secondary" onclick="saveParams(' + index + ', \'' + appName + '\', \'' + endpoint + '\', \'' + method + '\')">Save Params</button>' +
-                '<button class="btn btn-secondary" onclick="loadParamsWithReset(' + index + ', \'' + appName + '\', \'' + endpoint + '\')">Load Params</button>' +
-                '<button class="btn btn-success" onclick="copyHeaders(' + index + ', \'' + appName + '\')">Copy Headers</button>' +
-            '</div>' +
-            '<div id="response-' + index + '" class="response-area" style="display: none;"></div>' +
+        featureDocs +
+        headersInfo +
+        '<div class="form-group">' +
+        '<label class="form-label">API Endpoint URL:</label>' +
+        '<input type="text" id="url-' + index + '" class="form-control" value="' + fullUrl + '">' +
         '</div>' +
-    '</div>';
+        '<div class="form-group">' +
+        '<label class="form-label">Request Parameters (JSON):</label>' +
+        '<textarea id="params-' + index + '" class="form-control" placeholder="Enter JSON parameters" rows="6">' + presetJson + '</textarea>' +
+        '</div>' +
+        '<div class="btn-group" style="margin-bottom: 15px;">' +
+        '<button class="btn btn-primary" onclick="testAPI(' + index + ', \'' + method + '\', \'' + appName + '\', \'' + endpoint + '\')">Send Request</button>' +
+        '<button class="btn btn-secondary" onclick="saveParams(' + index + ', \'' + appName + '\', \'' + endpoint + '\', \'' + method + '\')">Save Params</button>' +
+        '<button class="btn btn-secondary" onclick="loadParamsWithReset(' + index + ', \'' + appName + '\', \'' + endpoint + '\')">Load Params</button>' +
+        '<button class="btn btn-success" onclick="copyHeaders(' + index + ', \'' + appName + '\')">Copy Headers</button>' +
+        '</div>' +
+        '<div id="response-' + index + '" class="response-area" style="display: none;"></div>' +
+        '</div>' +
+        '</div>';
 }
 
 function extractMethodFromFeature(feature) {
     if (!feature) return "GET";
     const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
     const upperFeature = feature.toUpperCase();
-    
+
     // Handle "ANY" method specially - default to POST for parameter generation
     if (upperFeature.includes('ANY')) {
         return "POST";
     }
-    
+
     for (let method of methods) {
         if (upperFeature.includes(method)) {
             return method;
@@ -559,45 +659,45 @@ function parseFeatureInfo(feature) {
         other: parts.filter(part => !part.includes('required') && !['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].some(m => part.toUpperCase().includes(m)))
     };
 }
- 
+
 /**
  * Create shared headers management section for an app
  */
 function createSharedHeadersSection(appName, supportedHeaders) {
     const cachedAppHeaders = loadAppHeadersFromCache(appName);
-    
+
     let html = '<div class="card" style="margin-bottom: 20px; border-left: 4px solid #28a745;">' +
         '<div class="card-header" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">' +
-            '<h3 style="color: #2c3e50; margin: 0;">' + appName + ' - Shared Headers</h3>' +
-            '<p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Edit these values to use across all ' + appName + ' APIs. Changes are automatically cached.</p>' +
+        '<h3 style="color: #2c3e50; margin: 0;">' + appName + ' - Shared Headers</h3>' +
+        '<p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Edit these values to use across all ' + appName + ' APIs. Changes are automatically cached.</p>' +
         '</div>' +
         '<div class="card-body">' +
-            '<div class="form-group">' +
-                '<div id="shared-headers-' + appName + '" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; align-items: center;">';
-    
+        '<div class="form-group">' +
+        '<div id="shared-headers-' + appName + '" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; align-items: center;">';
+
     Object.keys(supportedHeaders).forEach(headerName => {
         const currentValue = cachedAppHeaders[headerName] || '';
         const description = supportedHeaders[headerName];
-        
+
         html += '<label style="font-weight: 500; color: #555;">' + headerName + ':</label>' +
             '<input type="text" id="header-' + appName + '-' + headerName + '" ' +
-                'class="form-control" placeholder="' + description + '" ' +
-                'value="' + currentValue + '" ' +
-                'onchange="saveAppHeader(\'' + appName + '\', \'' + headerName + '\', this.value)">' +
+            'class="form-control" placeholder="' + description + '" ' +
+            'value="' + currentValue + '" ' +
+            'onchange="saveAppHeader(\'' + appName + '\', \'' + headerName + '\', this.value)">' +
             '<small style="color: #666; font-size: 12px;">' + description + '</small>';
     });
-    
+
     html += '</div>' +
         '</div>' +
         '<div style="padding: 15px; background: #f8f9fa; border-top: 1px solid #e9ecef;">' +
-            '<div class="btn-group">' +
-                '<button class="btn btn-success" onclick="saveAllAppHeaders(\'' + appName + '\')">Save All Headers</button>' +
-                '<button class="btn btn-secondary" onclick="resetAppHeaders(\'' + appName + '\')">Reset to Defaults</button>' +
-                '<button class="btn btn-primary" onclick="copyAppHeaders(\'' + appName + '\')">Copy Headers JSON</button>' +
-            '</div>' +
+        '<div class="btn-group">' +
+        '<button class="btn btn-success" onclick="saveAllAppHeaders(\'' + appName + '\')">Save All Headers</button>' +
+        '<button class="btn btn-secondary" onclick="resetAppHeaders(\'' + appName + '\')">Reset to Defaults</button>' +
+        '<button class="btn btn-primary" onclick="copyAppHeaders(\'' + appName + '\')">Copy Headers JSON</button>' +
         '</div>' +
-    '</div>';
-    
+        '</div>' +
+        '</div>';
+
     return html;
 }
 
@@ -625,13 +725,13 @@ function saveAppHeader(appName, headerName, value) {
     const cacheKey = 'app_headers_' + appName;
     let headers = loadAppHeadersFromCache(appName);
     headers[headerName] = value;
-    
+
     localStorage.setItem(cacheKey, JSON.stringify(headers));
     cachedHeaders[appName] = headers;
-    
+
     // Save to server as well
     saveAppHeadersToServer(appName, headers);
-    
+
     showStatus('Header "' + headerName + '" saved for ' + appName, 'success');
 }
 
@@ -641,21 +741,21 @@ function saveAppHeader(appName, headerName, value) {
 function saveAllAppHeaders(appName) {
     const headers = {};
     const supportedHeaders = apiData[appName]?.supported_headers || {};
-    
+
     Object.keys(supportedHeaders).forEach(headerName => {
         const input = document.getElementById('header-' + appName + '-' + headerName);
         if (input) {
             headers[headerName] = input.value;
         }
     });
-    
+
     const cacheKey = 'app_headers_' + appName;
     localStorage.setItem(cacheKey, JSON.stringify(headers));
     cachedHeaders[appName] = headers;
-    
+
     // Save to server as well
     saveAppHeadersToServer(appName, headers);
-    
+
     showStatus('All headers saved for ' + appName, 'success');
 }
 
@@ -667,13 +767,13 @@ function resetAppHeaders(appName) {
         const cacheKey = 'app_headers_' + appName;
         localStorage.removeItem(cacheKey);
         delete cachedHeaders[appName];
-        
+
         // Clear server cache as well
         resetAppHeadersOnServer(appName);
-        
+
         // Reload the app to refresh the UI
         loadAppAPIs();
-        
+
         showStatus('Headers reset for ' + appName, 'success');
     }
 }
@@ -684,7 +784,7 @@ function resetAppHeaders(appName) {
 function copyAppHeaders(appName) {
     const headers = loadAppHeadersFromCache(appName);
     const headersJson = JSON.stringify(headers, null, 2);
-    
+
     navigator.clipboard.writeText(headersJson).then(() => {
         showStatus('Headers JSON copied to clipboard!', 'success');
     }).catch(err => {
@@ -710,15 +810,15 @@ function saveAppHeadersToServer(appName, headers) {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
-    .then(result => {
-        if (!result.success) {
-            console.error('Failed to save headers to server:', result.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error saving headers to server:', error);
-    });
+        .then(response => response.json())
+        .then(result => {
+            if (!result.success) {
+                console.error('Failed to save headers to server:', result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving headers to server:', error);
+        });
 }
 
 /**
@@ -733,15 +833,15 @@ function resetAppHeadersOnServer(appName) {
         },
         body: JSON.stringify({ app_name: appName })
     })
-    .then(response => response.json())
-    .then(result => {
-        if (!result.success) {
-            console.error('Failed to reset headers on server:', result.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error resetting headers on server:', error);
-    });
+        .then(response => response.json())
+        .then(result => {
+            if (!result.success) {
+                console.error('Failed to reset headers on server:', result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error resetting headers on server:', error);
+        });
 }
 
 
@@ -762,7 +862,7 @@ function parseFeatureString(feature) {
             tags: []
         };
     }
-    
+
     const parts = feature.split('|');
     const result = {
         authAndMethod: parts[0] || '',
@@ -773,7 +873,7 @@ function parseFeatureString(feature) {
         response: {},
         tags: []
     };
-    
+
     // Parse additional sections
     for (let i = 3; i < parts.length; i++) {
         const section = parts[i];
@@ -787,7 +887,7 @@ function parseFeatureString(feature) {
             result.tags = section.substring(5).split(',').map(tag => tag.trim());
         }
     }
-    
+
     return result;
 }
 
@@ -799,12 +899,12 @@ function parseFeatureString(feature) {
 function parseParameterSection(section) {
     const params = {};
     if (!section) return params;
-    
+
     // More sophisticated splitting to handle commas inside parentheses
     const paramList = [];
     let current = '';
     let depth = 0;
-    
+
     for (let i = 0; i < section.length; i++) {
         const char = section[i];
         if (char === '(') depth++;
@@ -819,14 +919,14 @@ function parseParameterSection(section) {
     if (current.trim()) {
         paramList.push(current.trim());
     }
-    
+
     paramList.forEach(param => {
         const parsed = parseParameterDefinition(param.trim());
         if (parsed.name) {
             params[parsed.name] = parsed;
         }
     });
-    
+
     return params;
 }
 
@@ -840,15 +940,15 @@ function parseParameterDefinition(paramDef) {
     if (!match) {
         return { name: paramDef, type: 'string', requirement: 'optional', example: '' };
     }
-    
+
     const name = match[1].trim();
     const detailsString = match[2];
-    
+
     // Split details more carefully - handle commas in examples
     const details = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < detailsString.length; i++) {
         const char = detailsString[i];
         if (char === '"' || char === "'") {
@@ -862,14 +962,14 @@ function parseParameterDefinition(paramDef) {
         }
     }
     details.push(current.trim());
-    
+
     const result = {
         name: name,
         type: details[0] || 'string',
         requirement: details[1] || 'optional',
         example: details[2] || ''
     };
-    
+
     return result;
 }
 
@@ -882,66 +982,66 @@ function parseParameterDefinition(paramDef) {
  */
 function generateParamsFromFeature(feature, method, appName = null) {
     if (!feature || typeof feature !== 'string' || method === 'GET') return '';
-    
+
     try {
         const parsed = parseFeatureString(feature);
         if (!parsed || typeof parsed !== 'object') {
             return '';
         }
-    
-    const jsonParams = {};
-    
-    // Get cached headers for the app if available
-    let cachedAppHeaders = appName ? loadAppHeadersFromCache(appName) : {};
-    
-    // Ensure cachedHeaders is not null or undefined
-    if (!cachedAppHeaders || typeof cachedAppHeaders !== 'object') {
-        cachedAppHeaders = {};
-    }
-    
-    // Generate parameters from parsed feature
-    if (parsed.params && typeof parsed.params === 'object') {
-        // First add all required parameters
-        Object.values(parsed.params).forEach(param => {
-            if (param && param.name && param.requirement === 'required') {
-                let value = param.example || getDefaultValueForType(param.type);
-                
-                // Check if this parameter references a shared header
-                value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                
-                jsonParams[param.name] = value;
-            }
-        });
-        
-        // Then add optional parameters that have examples
-        Object.values(parsed.params).forEach(param => {
-            if (param && param.name && param.requirement === 'optional' && param.example) {
-                let value = param.example;
-                
-                // Check if this parameter references a shared header
-                value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                
-                jsonParams[param.name] = value;
-            }
-        });
-        
-        // If no required params but have optional params with examples, use them
-        if (Object.keys(jsonParams).length === 0) {
+
+        const jsonParams = {};
+
+        // Get cached headers for the app if available
+        let cachedAppHeaders = appName ? loadAppHeadersFromCache(appName) : {};
+
+        // Ensure cachedHeaders is not null or undefined
+        if (!cachedAppHeaders || typeof cachedAppHeaders !== 'object') {
+            cachedAppHeaders = {};
+        }
+
+        // Generate parameters from parsed feature
+        if (parsed.params && typeof parsed.params === 'object') {
+            // First add all required parameters
             Object.values(parsed.params).forEach(param => {
-                if (param && param.name && param.example) {
-                    let value = param.example;
-                    
+                if (param && param.name && param.requirement === 'required') {
+                    let value = param.example || getDefaultValueForType(param.type);
+
                     // Check if this parameter references a shared header
                     value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-                    
+
                     jsonParams[param.name] = value;
                 }
             });
+
+            // Then add optional parameters that have examples
+            Object.values(parsed.params).forEach(param => {
+                if (param && param.name && param.requirement === 'optional' && param.example) {
+                    let value = param.example;
+
+                    // Check if this parameter references a shared header
+                    value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
+
+                    jsonParams[param.name] = value;
+                }
+            });
+
+            // If no required params but have optional params with examples, use them
+            if (Object.keys(jsonParams).length === 0) {
+                Object.values(parsed.params).forEach(param => {
+                    if (param && param.name && param.example) {
+                        let value = param.example;
+
+                        // Check if this parameter references a shared header
+                        value = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
+
+                        jsonParams[param.name] = value;
+                    }
+                });
+            }
         }
-    }
-    
-    return Object.keys(jsonParams).length > 0 ? JSON.stringify(jsonParams, null, 2) : '';
-    
+
+        return Object.keys(jsonParams).length > 0 ? JSON.stringify(jsonParams, null, 2) : '';
+
     } catch (error) {
         console.error('Error generating parameters from feature:', error);
         return '';
@@ -960,15 +1060,15 @@ function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
     if (paramValue === null || paramValue === undefined) {
         paramValue = '';
     }
-    
+
     // Convert to string if it's not already
     const paramValueStr = String(paramValue);
-    
+
     // Ensure cachedHeaders is valid
     if (!cachedHeaders || typeof cachedHeaders !== 'object') {
         return paramValue;
     }
-    
+
     // Common parameter-to-header mappings
     const paramHeaderMap = {
         'token': 'Authorization',
@@ -981,20 +1081,20 @@ function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
         'username': 'X-Auth-Username',
         'password': 'X-Auth-Password'
     };
-    
+
     // Check if parameter name maps to a header
     const headerName = paramHeaderMap[paramName.toLowerCase()];
     if (headerName && cachedHeaders[headerName]) {
         return cachedHeaders[headerName];
     }
-    
+
     // Check for direct header name matches (case insensitive)
     for (const [headerKey, headerValue] of Object.entries(cachedHeaders)) {
         if (headerKey.toLowerCase() === paramName.toLowerCase() && headerValue) {
             return headerValue;
         }
     }
-    
+
     // Check if parameter value contains header placeholder like {{header_name}}
     try {
         const headerPlaceholderMatch = paramValueStr.match(/\{\{([^}]+)\}\}/);
@@ -1009,7 +1109,7 @@ function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
     } catch (error) {
         console.error('Error processing parameter value for header linking:', error);
     }
-    
+
     return paramValue;
 }
 
@@ -1057,11 +1157,11 @@ function copyHeaders(index, appName) {
 function toggleAPIDetails(index, appName, endpoint) {
     const details = document.getElementById("details-" + index);
     const toggle = document.getElementById("toggle-" + index);
-    
+
     if (details.style.display === "none" || details.style.display === "") {
         details.style.display = "block";
         toggle.innerHTML = "&#9650;";
-        
+
         // Auto-load cached parameters when opening
         loadParams(index, appName, endpoint);
     } else {
@@ -1072,26 +1172,26 @@ function toggleAPIDetails(index, appName, endpoint) {
 
 function saveParams(index, appName, endpoint, method) {
     const params = document.getElementById("params-" + index).value;
-    
+
     // Save to browser cache immediately
     saveToBrowserCache(appName, endpoint, params);
-    
+
     // Save to server cache
     saveParamsToServer(appName, endpoint, method, params);
 }
 
 function loadParams(index, appName, endpoint) {
     const paramsTextarea = document.getElementById("params-" + index);
-    
+
     // Priority: 1. Browser cache (highest), 2. Server cache, 3. Parsed from feature (lowest)
-    
+
     // Try browser cache first
     const browserCached = loadFromBrowserCache(appName, endpoint);
     if (browserCached) {
         paramsTextarea.value = browserCached;
         return;
     }
-    
+
     // If no browser cache, try server cache
     loadParamsFromServer(appName, endpoint)
         .then(serverData => {
@@ -1128,7 +1228,7 @@ function loadParams(index, appName, endpoint) {
 function loadParamsWithReset(index, appName, endpoint) {
     if (confirm('This will reset parameters to parsed defaults and may override your current changes. Continue?')) {
         const paramsTextarea = document.getElementById("params-" + index);
-        
+
         // Find the API feature for this endpoint
         const apiInfo = apiData[appName];
         if (apiInfo && apiInfo.endpoints) {
@@ -1157,10 +1257,10 @@ function testAPI(index, method, appName, endpoint) {
     const url = document.getElementById("url-" + index).value;
     const params = document.getElementById("params-" + index).value;
     const responseDiv = document.getElementById("response-" + index);
-    
+
     responseDiv.style.display = "block";
     responseDiv.innerHTML = '<div class="loading"></div>Sending request...';
-    
+
     let requestOptions = {
         method: method,
         headers: {
@@ -1168,7 +1268,7 @@ function testAPI(index, method, appName, endpoint) {
             "Accept": "application/json"
         }
     };
-    
+
     if (params && (method === "POST" || method === "PUT" || method === "PATCH")) {
         try {
             JSON.parse(params); // Validate JSON
@@ -1178,7 +1278,7 @@ function testAPI(index, method, appName, endpoint) {
             return;
         }
     }
-    
+
     fetch(url, requestOptions)
         .then(response => {
             return response.text().then(text => ({
@@ -1193,16 +1293,16 @@ function testAPI(index, method, appName, endpoint) {
             let responseText = "Status: " + (result.ok ? "OK" : "ERROR") + " " + result.status + " " + result.statusText + "\n\n";
             responseText += "Headers:\n" + JSON.stringify(result.headers, null, 2) + "\n\n";
             responseText += "Response:\n";
-            
+
             try {
                 const jsonBody = JSON.parse(result.body);
                 responseText += JSON.stringify(jsonBody, null, 2);
             } catch (e) {
                 responseText += result.body;
             }
-            
+
             responseDiv.textContent = responseText;
-            
+
             // Auto-save successful parameters
             if (result.ok && params) {
                 saveToBrowserCache(appName, endpoint, params);
@@ -1223,21 +1323,21 @@ let searchTimeout;
 function searchAndJumpToAPI(searchTerm) {
     // Clear previous timeout to avoid excessive searching
     clearTimeout(searchTimeout);
-    
+
     // Clear previous highlighting
     document.querySelectorAll('.api-item').forEach(item => {
         item.classList.remove('search-highlighted');
     });
-    
+
     if (!searchTerm || searchTerm.trim() === '') {
         return;
     }
-    
+
     searchTimeout = setTimeout(() => {
         const term = searchTerm.trim().toLowerCase();
         let bestMatch = null;
         let bestScore = 0;
-        
+
         currentAppAPIs.forEach((api, arrayIndex) => {
             const score = calculateMatchScore(api, term, arrayIndex);
             if (score > bestScore) {
@@ -1245,7 +1345,7 @@ function searchAndJumpToAPI(searchTerm) {
                 bestMatch = { api, index: arrayIndex, score };
             }
         });
-        
+
         if (bestMatch && bestScore > 0) {
             jumpToAPI(bestMatch.index);
         }
@@ -1265,63 +1365,63 @@ function calculateMatchScore(api, term, index) {
     const path = (api.path || '').toLowerCase();
     const feature = (api.feature || '').toLowerCase();
     const method = (extractMethodFromFeature(api.feature) || '').toLowerCase();
-    
+
     // Parse feature for description
     const featureParts = feature.split('|');
     const description = (featureParts[1] || '').toLowerCase();
-    
+
     // Extract endpoint from path for easier matching
     const endpoint = extractEndpointFromPath(path).toLowerCase();
-    
+
     // Exact number match gets highest priority
     if (term === apiNumber) {
         return 1000;
     }
-    
+
     // Number prefix match
     if (apiNumber.startsWith(term)) {
         score += 500;
     }
-    
+
     // Exact endpoint match gets high priority
     if (endpoint === term) {
         score += 800;
     }
-    
+
     // Endpoint starts with term
     if (endpoint.startsWith(term)) {
         score += 400;
     }
-    
+
     // Endpoint contains term
     if (endpoint.includes(term)) {
         score += 200;
     }
-    
+
     // Path contains term
     if (path.includes(term)) {
         score += 150;
     }
-    
+
     // Method match
     if (method === term) {
         score += 300;
     }
-    
+
     // Description contains term
     if (description.includes(term)) {
         score += 100;
     }
-    
+
     // Feature contains term
     if (feature.includes(term)) {
         score += 50;
     }
-    
+
     // Fuzzy matching for endpoints (character-by-character)
     score += calculateFuzzyScore(endpoint, term) * 10;
     score += calculateFuzzyScore(description, term) * 5;
-    
+
     return score;
 }
 
@@ -1333,22 +1433,22 @@ function calculateMatchScore(api, term, index) {
  */
 function calculateFuzzyScore(text, term) {
     if (!text || !term) return 0;
-    
+
     let score = 0;
     let termIndex = 0;
-    
+
     for (let i = 0; i < text.length && termIndex < term.length; i++) {
         if (text[i] === term[termIndex]) {
             score++;
             termIndex++;
-            
+
             // Bonus for consecutive matches
-            if (i > 0 && text[i-1] === term[termIndex-2]) {
+            if (i > 0 && text[i - 1] === term[termIndex - 2]) {
                 score += 0.5;
             }
         }
     }
-    
+
     // Normalize by term length
     return termIndex === term.length ? score / term.length : 0;
 }
@@ -1362,22 +1462,22 @@ function jumpToAPI(apiIndex) {
     if (apiItem) {
         // Highlight the API
         apiItem.classList.add('search-highlighted');
-        
+
         // Scroll to the API with smooth animation
         apiItem.scrollIntoView({
             behavior: 'smooth',
             block: 'center'
         });
-        
+
         // Auto-expand the API details if not already open
         const details = document.getElementById('details-' + apiIndex);
         const toggle = document.getElementById('toggle-' + apiIndex);
-        
+
         if (details && (details.style.display === 'none' || details.style.display === '')) {
             setTimeout(() => {
                 details.style.display = 'block';
                 if (toggle) toggle.innerHTML = '&#9650;';
-                
+
                 // Load cached parameters for convenience
                 const selectedApp = document.getElementById("app-select").value;
                 const api = currentAppAPIs[apiIndex];
@@ -1387,7 +1487,7 @@ function jumpToAPI(apiIndex) {
                 }
             }, 500);
         }
-        
+
         // Show success message
         showStatus('Jumped to API #' + (apiIndex + 1), 'success');
     }
@@ -1397,13 +1497,13 @@ async function loadDictionaryStatistics() {
     try {
         const response = await fetch('/api/dict/v1/system/dictionary-statistics');
         const result = await response.json();
-        
+
         if (result.status === 'success') {
             const container = document.getElementById('dict-stats-container');
             const data = result.data;
-            
+
             let html = '<div style="display: flex; gap: 20px; align-items: center;">';
-            
+
             data.languages.forEach(lang => {
                 html += `
                     <div style="display: flex; flex-direction: column; gap: 2px;">
@@ -1413,7 +1513,7 @@ async function loadDictionaryStatistics() {
                     </div>
                 `;
             });
-            
+
             html += `
                 <div style="border-left: 2px solid #ddd; padding-left: 20px; display: flex; flex-direction: column; gap: 2px;">
                     <span style="font-weight: 600; color: #333;">Total</span>
@@ -1421,7 +1521,7 @@ async function loadDictionaryStatistics() {
                     <span style="color: #999;">Reviewed: ${data.summary.total_reviewed.toLocaleString()} (${data.summary.overall_review_percentage}%)</span>
                 </div>
             `;
-            
+
             html += '</div>';
             container.innerHTML = html;
         } else {
@@ -1433,7 +1533,7 @@ async function loadDictionaryStatistics() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     loadDictionaryStatistics();
 });
 
