@@ -49,12 +49,14 @@ import os
 from typing import Optional, Any
 from pathlib import Path
 
-# Import standard library tkinter (avoid local tkinter package)
-import tkinter as tk
-from tkinter import ttk
-
-# Import after tkinter to avoid circular import
+# Import after standard imports to avoid circular import
 from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_tkinter
+
+# Get tkinter via third_party manager (auto-installs python3-tk on Linux)
+tk = get_third_package_tkinter()
+ttk = tk.ttk
+
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
