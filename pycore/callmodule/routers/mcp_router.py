@@ -6,6 +6,7 @@ All MCP tools are now available via /mcp/* routes on the unified backend.
 This eliminates the need for separate MCP backend process.
 """
 
+import logging
 from typing import Dict, Any
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
@@ -14,6 +15,9 @@ APIRouter = fastapi.APIRouter
 
 from pycore.pyctl.mcpctl.backend import handlers
 from pycore.pyctl.mcpctl.global_state import get_backend_state_dict, get_global_state
+
+# Use standard logging instead of ColorPrint (MCP standards requirement)
+logger = logging.getLogger(__name__)
 
 # Create router with /mcp prefix
 mcp_router = APIRouter(prefix="/mcp", tags=["MCP Backend"])
@@ -73,8 +77,7 @@ def ensure_mcp_backend_initialized():
 
     _controllers_initialized = True
 
-    from pycore import ColorPrint
-    ColorPrint.green(f"[MCP Backend] Initialized (ID: {backend_id}, integrated into port 59000)")
+    logger.info(f"[MCP Backend] Initialized (ID: {backend_id}, integrated into port 59000)")
 
     return _backend_info
 

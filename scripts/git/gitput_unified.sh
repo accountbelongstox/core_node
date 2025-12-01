@@ -1115,10 +1115,7 @@ invoke_git_operations() {
         # Always pull to prevent push conflicts
         write_color_text "Pulling and merging remote changes after commit..." "Cyan"
         write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
-        if ! git pull origin "$current_branch" --no-edit; then
-            write_color_text "WARNING: Pull failed. Attempting to resolve conflicts..." "Yellow"
-            write_color_text "TIP: Check for merge conflicts and resolve them manually if needed" "Cyan"
-        fi
+        git pull origin "$current_branch" --no-edit
     fi
     
     # Push changes to remote
