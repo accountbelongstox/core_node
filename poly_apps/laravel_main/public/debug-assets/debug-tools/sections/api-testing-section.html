@@ -1,0 +1,34 @@
+    <!-- NAMESPACE: API Testing Section -->
+    <div id="api-testing-section" class="content-section">
+        <div class="content-body">
+            <!-- Tab navigation for API Testing and System Information -->
+            <div class="tab-bar">
+                <button class="tab active" onclick="showSection('api-testing'); setActiveTab(this);">API
+                    Testing</button>
+                <button class="tab" onclick="showSection('system-info'); setActiveTab(this);">System
+                    Information</button>
+            </div>
+            <label class="form-label">Select Application:</label>
+            <select id="app-select" class="form-control" onchange="loadAppAPIs()">
+                <option value="">Choose an app to test its APIs</option>
+            </select>
+
+            <div class="form-group" id="api-search-container" style="display: none;">
+                <label class="form-label">🔍 Search APIs:</label>
+                <input type="text" id="api-search" class="form-control"
+                    placeholder="Type to search APIs by path, description, or number..."
+                    oninput="searchAndJumpToAPI(this.value)">
+                <small style="color: #666; font-size: 12px;">
+                    Search by API number (e.g., "1"), path (e.g., "initialize"), or description.
+                    Best match will be automatically highlighted and scrolled to.
+                </small>
+            </div>
+
+            <div id="api-list" class="api-list">
+                <p style="text-align: center; color: #666; padding: 40px;">
+                    Select an application to view and test its available APIs
+                </p>
+            </div>
+        </div>
+    </div>
+
