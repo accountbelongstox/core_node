@@ -77,6 +77,8 @@ window.addEventListener('resize', function () {
 
 // NAMESPACE: Navigation Functions
 function showSection(sectionType) {
+    console.log('[showSection] Switching to section:', sectionType);
+    
     // Close mobile sidebar when selecting a menu item
     if (window.innerWidth <= 768) {
         closeMobileSidebar();
@@ -90,86 +92,162 @@ function showSection(sectionType) {
     const targetLink = document.querySelector(`[data-section="${sectionType}"]`);
     if (targetLink) {
         targetLink.classList.add('active');
+        console.log('[showSection] Menu item activated');
+    } else {
+        console.warn('[showSection] Menu item not found for:', sectionType);
     }
 
-    // Hide all sections
+    // Section file mapping
+    const sectionFileMap = {
+        'dev-tools': '/debug-tools/sections/dev-tools-section.html',
+        'system-info': '/debug-tools/sections/system-info-section.html',
+        'code-browser': '/debug-tools/sections/code-browser-section.html',
+        'static-resources': '/debug-tools/sections/static-resources-section.html',
+        'mcp-manager': '/debug-tools/sections/mcp-manager-section.html',
+        'learning': '/debug-tools/sections/learning-section.html',
+        'octane-tasks': '/debug-tools/sections/octane-tasks-section.html'
+    };
+
+    // Section titles and descriptions
+    const sectionTitles = {
+        'system-info': { title: 'System Information', desc: 'View comprehensive system and application information' },
+        'dev-tools': { title: 'Development Tools', desc: 'Professional developer utilities and tools' },
+        'api-testing': { title: 'API Testing Dashboard', desc: 'Test and debug your Laravel API endpoints' },
+        'code-browser': { title: 'Code Browser', desc: 'Browse, edit files, manage tasks and prompt mappings' },
+        'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
+        'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
+        'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
+        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' }
+    };
+
+    // Hide all sections first
     document.querySelectorAll('.content-section').forEach(section => {
         section.classList.remove('active');
+        section.style.display = 'none';
     });
+    
+    // Handle main content body visibility
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        const contentBody = mainContent.querySelector('.content-body');
+        if (contentBody) {
+            if (sectionType === 'api-testing') {
+                contentBody.style.display = 'block';
+                console.log('[showSection] Showing API testing content body');
+            } else {
+                contentBody.style.display = 'none';
+                console.log('[showSection] Hiding API testing content body');
+            }
+        }
+    }
 
     // Update mobile nav title
     const mobileNavTitle = document.getElementById('mobile-nav-title');
-    const sectionTitles = {
-        'system-info': 'System Information',
-        'dev-tools': 'Development Tools',
-        'api-testing': 'API Testing',
-        'code-browser': 'Code Browser',
-        'static-resources': 'Static Resources',
-        'mcp-manager': 'MCP Manager',
-        'learning': 'Vocabulary Learning',
-        'octane-tasks': 'Octane Timer Tasks'
-    };
     if (mobileNavTitle && sectionTitles[sectionType]) {
-        mobileNavTitle.textContent = sectionTitles[sectionType];
+        mobileNavTitle.textContent = sectionTitles[sectionType].title;
     }
 
-    // Show selected section and update header
+    // Update page title and description
     const pageTitle = document.getElementById('page-title');
     const pageDescription = document.getElementById('page-description');
+    if (sectionTitles[sectionType]) {
+        if (pageTitle) pageTitle.textContent = sectionTitles[sectionType].title;
+        if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
+    }
 
-    if (sectionType === 'system-info') {
-        const section = document.getElementById('system-info-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'System Information';
-        if (pageDescription) pageDescription.textContent = 'View comprehensive system and application information';
-    } else if (sectionType === 'dev-tools') {
-        const section = document.getElementById('dev-tools-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Development Tools';
-        if (pageDescription) pageDescription.textContent = 'Professional developer utilities and tools';
-    } else if (sectionType === 'api-testing') {
-        const section = document.getElementById('api-testing-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'API Testing Dashboard';
-        if (pageDescription) pageDescription.textContent = 'Test and debug your Laravel API endpoints';
-    } else if (sectionType === 'code-browser') {
-        const section = document.getElementById('code-browser-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Code Browser';
-        if (pageDescription) pageDescription.textContent = 'Browse, edit files, manage tasks and prompt mappings';
-        if (typeof CodeBrowser !== 'undefined') {
-            CodeBrowser.init();
+    // Handle API testing (no external file)
+    if (sectionType === 'api-testing') {
+        return;
+    }
+
+    // Load section from external file
+    const sectionId = `${sectionType}-section`;
+    let section = document.getElementById(sectionId);
+    const container = document.getElementById('content-sections-container') || document.body;
+
+    // If section doesn't exist, load it from external file
+    if (!section && sectionFileMap[sectionType]) {
+        const filePath = sectionFileMap[sectionType];
+        console.log('[showSection] Loading section from:', filePath);
+        
+        fetch(filePath)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load section: ${response.statusText}`);
+                }
+                return response.text();
+            })
+            .then(html => {
+                // Create a temporary container to parse the HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html.trim();
+                
+                // Find the section element
+                section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
+                
+                if (section) {
+                    // Insert into container
+                    container.appendChild(section);
+                    
+                    // Show the section
+                    section.classList.add('active');
+                    section.style.display = 'block';
+                    
+                    console.log('[showSection] Section loaded and activated:', sectionType);
+                    
+                    // Initialize module-specific functionality
+                    if (sectionType === 'code-browser') {
+                        if (typeof CodeBrowser !== 'undefined') {
+                            CodeBrowser.init();
+                        }
+                        initCodeBrowserIntegratedModules();
+                    } else if (sectionType === 'static-resources') {
+                        if (typeof StaticResourceBrowser !== 'undefined') {
+                            StaticResourceBrowser.init();
+                        }
+                    } else if (sectionType === 'mcp-manager') {
+                        if (typeof McpManager !== 'undefined') {
+                            McpManager.init();
+                        }
+                    } else if (sectionType === 'octane-tasks') {
+                        if (typeof OctaneTasksManager !== 'undefined') {
+                            OctaneTasksManager.init();
+                        }
+                    }
+                } else {
+                    console.error('[showSection] Section element not found in loaded HTML');
+                }
+            })
+            .catch(error => {
+                console.error('[showSection] Error loading section:', error);
+            });
+    } else if (section) {
+        // Section already exists, just show it
+        section.classList.add('active');
+        section.style.display = 'block';
+        console.log('[showSection] Section activated:', sectionType);
+        
+        // Initialize module-specific functionality
+        if (sectionType === 'code-browser') {
+            if (typeof CodeBrowser !== 'undefined') {
+                CodeBrowser.init();
+            }
+            initCodeBrowserIntegratedModules();
+        } else if (sectionType === 'static-resources') {
+            if (typeof StaticResourceBrowser !== 'undefined') {
+                StaticResourceBrowser.init();
+            }
+        } else if (sectionType === 'mcp-manager') {
+            if (typeof McpManager !== 'undefined') {
+                McpManager.init();
+            }
+        } else if (sectionType === 'octane-tasks') {
+            if (typeof OctaneTasksManager !== 'undefined') {
+                OctaneTasksManager.init();
+            }
         }
-        initCodeBrowserIntegratedModules();
-    } else if (sectionType === 'static-resources') {
-        const section = document.getElementById('static-resources-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Static Resources';
-        if (pageDescription) pageDescription.textContent = 'Browse and manage static media files';
-        if (typeof StaticResourceBrowser !== 'undefined') {
-            StaticResourceBrowser.init();
-        }
-    } else if (sectionType === 'mcp-manager') {
-        const section = document.getElementById('mcp-manager-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'MCP Manager';
-        if (pageDescription) pageDescription.textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
-        if (typeof McpManager !== 'undefined') {
-            McpManager.init();
-        }
-    } else if (sectionType === 'learning') {
-        const section = document.getElementById('learning-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Vocabulary Learning';
-        if (pageDescription) pageDescription.textContent = 'Learn and practice vocabulary with interactive tools';
-    } else if (sectionType === 'octane-tasks') {
-        const section = document.getElementById('octane-tasks-section');
-        if (section) section.classList.add('active');
-        if (pageTitle) pageTitle.textContent = 'Octane Timer Tasks';
-        if (pageDescription) pageDescription.textContent = 'Monitor and manage Octane timer tasks status';
-        if (typeof OctaneTasksManager !== 'undefined') {
-            OctaneTasksManager.init();
-        }
+    } else {
+        console.warn('[showSection] Unknown section type or no file mapping:', sectionType);
     }
 
     // Save active section
