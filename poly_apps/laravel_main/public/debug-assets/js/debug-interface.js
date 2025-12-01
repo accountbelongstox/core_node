@@ -152,8 +152,8 @@ function showSection(sectionType) {
     const pageTitle = document.getElementById('page-title');
     const pageDescription = document.getElementById('page-description');
     if (sectionTitles[sectionType]) {
-        if (pageTitle) pageTitle.textContent = sectionTitles[sectionType].title;
-        if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
+        pageTitle.textContent = sectionTitles[sectionType].title;
+        pageDescription.textContent = sectionTitles[sectionType].desc;
     }
 
     // Handle API testing - load from external file
@@ -248,22 +248,14 @@ function showSection(sectionType) {
 // Initialize module-specific functionality for a section
 function initializeSectionModules(sectionType) {
     if (sectionType === 'code-browser') {
-        if (typeof CodeBrowser !== 'undefined') {
-            CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
-        }
+        CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
         initCodeBrowserIntegratedModules();
     } else if (sectionType === 'static-resources') {
-        if (typeof StaticResourceBrowser !== 'undefined') {
-            StaticResourceBrowser.init();
-        }
+        StaticResourceBrowser.init();
     } else if (sectionType === 'mcp-manager') {
-        if (typeof McpManager !== 'undefined') {
-            McpManager.init();
-        }
+        McpManager.init();
     } else if (sectionType === 'octane-tasks') {
-        if (typeof OctaneTasksManager !== 'undefined') {
-            OctaneTasksManager.init();
-        }
+        OctaneTasksManager.init();
     } else if (sectionType === 'dev-tools') {
         // Initialize ITTools menu system when dev-tools section is shown
         setTimeout(() => {
@@ -329,7 +321,7 @@ async function updateUserDisplay() {
     const notLoggedInDiv = document.getElementById('user-not-logged-in');
     const displayNameSpan = document.getElementById('user-display-name');
 
-    if (isLoggedIn && typeof AuthHelper.currentUser !== 'undefined' && AuthHelper.currentUser !== null) {
+    if (isLoggedIn && AuthHelper.currentUser) {
         const displayName = AuthHelper.currentUser.username ||
             AuthHelper.currentUser.email ||
             AuthHelper.currentUser.name ||
@@ -445,7 +437,7 @@ function saveToBrowserCache(appName, endpoint, params) {
 function loadFromBrowserCache(appName, endpoint) {
     const cacheKey = appName + '_' + endpoint;
     const cached = localStorage.getItem('api_debug_cache');
-    if (typeof cached !== 'undefined' && cached !== null && cached !== '') {
+    {
         cachedParams = JSON.parse(cached);
         return cachedParams[cacheKey]?.params || '';
     }
@@ -501,7 +493,7 @@ function loadAppAPIs() {
         localStorage.setItem('selected_app', selectedApp);
     }
 
-    if (!selectedApp || (typeof apiData[selectedApp] === 'undefined' || apiData[selectedApp] === null)) {
+    if (!selectedApp || !apiData[selectedApp]) {
         apiListDiv.innerHTML = "<p style=\"text-align: center; color: #666; padding: 40px;\">No APIs found for this app</p>";
         if (searchContainer) {
             searchContainer.style.display = "none";
@@ -675,7 +667,6 @@ function createAPIItem(api, index, appName) {
 }
 
 function extractMethodFromFeature(feature) {
-    if (typeof feature === 'undefined' || feature === null || feature === '') return "GET";
     const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
     const upperFeature = feature.toUpperCase();
 
@@ -693,7 +684,6 @@ function extractMethodFromFeature(feature) {
 }
 
 function extractEndpointFromPath(path) {
-    if (typeof path === 'undefined' || path === null || path === '') return "";
     try {
         const url = new URL(path);
         return url.pathname;
@@ -704,7 +694,6 @@ function extractEndpointFromPath(path) {
 }
 
 function parseFeatureInfo(feature) {
-    if (typeof feature === 'undefined' || feature === null || feature === '') return {};
     const parts = feature.split('/');
     return {
         requirements: parts.filter(part => part.includes('required')),
@@ -761,7 +750,7 @@ function createSharedHeadersSection(appName, supportedHeaders) {
 function loadAppHeadersFromCache(appName) {
     const cacheKey = 'app_headers_' + appName;
     const cached = localStorage.getItem(cacheKey);
-    if (typeof cached !== 'undefined' && cached !== null && cached !== '') {
+    {
         try {
             return JSON.parse(cached);
         } catch (e) {
@@ -1111,9 +1100,7 @@ function generateParamsFromFeature(feature, method, appName = null) {
  */
 function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
     // Ensure paramValue is a string for processing
-    if (paramValue === null || paramValue === undefined) {
-        paramValue = '';
-    }
+    paramValue = paramValue || '';
 
     // Convert to string if it's not already
     const paramValueStr = String(paramValue);
@@ -1527,10 +1514,10 @@ function jumpToAPI(apiIndex) {
         const details = document.getElementById('details-' + apiIndex);
         const toggle = document.getElementById('toggle-' + apiIndex);
 
-        if (details && (details.style.display === 'none' || details.style.display === '')) {
+        if (details.style.display === 'none' || details.style.display === '') {
             setTimeout(() => {
                 details.style.display = 'block';
-                if (toggle) toggle.innerHTML = '&#9650;';
+                toggle.innerHTML = '&#9650;';
 
                 // Load cached parameters for convenience
                 const selectedApp = document.getElementById("app-select").value;
@@ -1611,18 +1598,11 @@ function initCodeBrowserIntegratedModules() {
         // Initialize Prompt Mapping Manager first (right panel in lower section)
         // This must be done before PromptsTasksManager because PromptsTasksManager.loadCategory
         // will call PromptMappingManager.switchCategory
-        const mappingPanel = document.querySelector('#prompt-mapping-panel-embedded');
-        if (mappingPanel && typeof PromptMappingManager !== 'undefined') {
-            await PromptMappingManager.init('#prompt-mapping-panel-embedded');
-        } else {
-            console.warn('Prompt mapping panel not found, may need to wait for section to load');
-        }
+        await PromptMappingManager.init('#prompt-mapping-panel-embedded');
 
         // Initialize Prompts/Tasks Manager (left panel in lower section)
         // This will automatically load 'global' category and sync with mapping manager
-        if (typeof PromptsTasksManager !== 'undefined') {
-            await PromptsTasksManager.init();
-        }
+        await PromptsTasksManager.init();
 
         codeBrowserIntegratedModulesInitialized = true;
     }, 200);

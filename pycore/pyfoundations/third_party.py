@@ -1001,8 +1001,36 @@ def get_third_package_tkhtmlview():
 
 
 def get_third_package_pystray():
-    """Get pystray package (lazy load)"""
-    return _lazy_import('pystray', 'import pystray')
+    """
+    Get pystray package (lazy load)
+
+    On Linux, pystray may fail to import if X11 display is not accessible.
+    In this case, returns None instead of raising an exception.
+    """
+    if 'pystray' not in _PACKAGE_CACHE:
+        try:
+            import pystray
+            _PACKAGE_CACHE['pystray'] = pystray
+            return pystray
+        except Exception as e:
+            # Check if this is a display-related error (common on Linux when running as service or headless)
+            error_msg = str(e)
+            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
+                ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
+                ColorPrint.yellow("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
+                ColorPrint.yellow("[INFO] System tray features will be disabled")
+                _PACKAGE_CACHE['pystray'] = None
+                return None
+            else:
+                # Some other error, try lazy import (might trigger auto-install)
+                try:
+                    return _lazy_import('pystray', 'import pystray')
+                except Exception as e2:
+                    ColorPrint.yellow(f"[WARN] pystray import failed: {e2}")
+                    _PACKAGE_CACHE['pystray'] = None
+                    return None
+
+    return _PACKAGE_CACHE['pystray']
 
 
 def get_third_package_cnocr():
