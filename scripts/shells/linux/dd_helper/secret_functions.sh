@@ -220,3 +220,73 @@ ensure_secret_keys_ready() {
     echo ""
     read -p "Press Enter to continue..."
 }
+
+clear_and_redecrypt_secrets() {
+    local secret_root="$CORE_NODE_ROOT_DIR/.secret_keys"
+    local encrypted_dir="$secret_root/already_encrypted"
+    local raw_dir="$secret_root/.secret_ignore"
+    local file_count=0
+
+    echo ""
+    echo -e "\033[36m========================================"
+    echo -e "Clear and Re-decrypt Secret Keys"
+    echo -e "========================================\033[0m"
+
+    if [ ! -d "$encrypted_dir" ]; then
+        echo -e "\033[33m[INFO] No encrypted directory found at: $encrypted_dir\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
+        return 0
+    fi
+
+    if [ ! -d "$raw_dir" ]; then
+        echo -e "\033[33m[INFO] No decrypted directory found. Nothing to clear.\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
+        return 0
+    fi
+
+    file_count=$(find "$raw_dir" -type f 2>/dev/null | wc -l)
+
+    if [ "$file_count" -eq 0 ]; then
+        echo -e "\033[33m[INFO] No decrypted files found in: $raw_dir\033[0m"
+        echo -e "\033[36m[INFO] Proceeding to decrypt...\033[0m"
+        echo ""
+    else
+        echo -e "\033[37mDecrypted files location: $raw_dir\033[0m"
+        echo -e "\033[37mFound $file_count decrypted file(s)\033[0m"
+        echo ""
+        echo -e "\033[33m[WARNING] This will permanently delete all decrypted secret files!\033[0m"
+        echo -e "\033[33m[WARNING] You will need to re-enter the password to decrypt them again.\033[0m"
+        echo ""
+
+        read -r -p "Are you sure you want to clear all decrypted files? (yes/no): " confirm_choice
+
+        if [[ ! "$confirm_choice" =~ ^[Yy](es)?$ ]]; then
+            echo -e "\033[32m[CANCELLED] Operation cancelled. No files were deleted.\033[0m"
+            echo ""
+            read -p "Press Enter to continue..."
+            return 0
+        fi
+
+        echo ""
+        echo -e "\033[36m[CLEARING] Removing all decrypted files...\033[0m"
+
+        if rm -rf "$raw_dir"/* 2>/dev/null; then
+            echo -e "\033[32m[SUCCESS] All decrypted files have been cleared\033[0m"
+        else
+            echo -e "\033[31m[ERROR] Failed to clear some files\033[0m"
+            echo ""
+            read -p "Press Enter to continue..."
+            return 1
+        fi
+    fi
+
+    echo ""
+    echo -e "\033[36m[RE-DECRYPT] Starting re-decryption process...\033[0m"
+    echo ""
+
+    ensure_secret_keys_ready
+
+    return $?
+}
