@@ -20,6 +20,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
 
 class DiscoverScreenRefactoredAppQy extends StatefulWidget {
@@ -49,42 +50,42 @@ class _DiscoverScreenRefactoredAppQyState
         'icon': Icons.check_circle_outline,
         'title': 'Check-in Challenge',
         'subtitle': 'Daily learning challenges',
-        'color': Colors.orange,
+        'color': ColorsAppQy.qyWarning,
         'route': '/qy/social/checkin-challenge',
       },
       {
         'icon': Icons.message_outlined,
         'title': 'Message Center',
         'subtitle': 'Community updates & notifications',
-        'color': Colors.blue,
+        'color': ColorsAppQy.qyInfo,
         'route': '/qy/social/message-center',
       },
       {
         'icon': Icons.people_outline,
         'title': 'Learning Community',
         'subtitle': 'Connect with learners',
-        'color': Colors.green,
+        'color': ColorsAppQy.qySuccess,
         'route': null,
       },
       {
         'icon': Icons.trending_up,
         'title': 'Leaderboard',
         'subtitle': 'See top learners',
-        'color': Colors.purple,
+        'color': ColorsAppQy.qyAccent,
         'route': null,
       },
       {
         'icon': Icons.topic_outlined,
         'title': 'Topics',
         'subtitle': 'Join discussions',
-        'color': Colors.pink,
+        'color': ColorsAppQy.qyAccentLight,
         'route': null,
       },
       {
         'icon': Icons.card_giftcard,
         'title': 'Rewards',
         'subtitle': 'Claim your benefits',
-        'color': Colors.amber,
+        'color': ColorsAppQy.qyWarning,
         'route': null,
       },
     ]);
