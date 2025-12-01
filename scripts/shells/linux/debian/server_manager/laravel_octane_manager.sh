@@ -68,11 +68,11 @@ create_new_service() {
     read -p "Laravel path (default: $LARAVEL_MAIN_PATH): " laravel_path
     laravel_path="${laravel_path:-$LARAVEL_MAIN_PATH}"
 
-    read -p "Service user (default: www-data): " service_user
-    service_user="${service_user:-www-data}"
+    read -p "Service user (default: root): " service_user
+    service_user="${service_user:-root}"
 
-    read -p "Service group (default: www-data): " service_group
-    service_group="${service_group:-www-data}"
+    read -p "Service group (default: root): " service_group
+    service_group="${service_group:-root}"
 
     echo ""
     echo -e "${YELLOW}Creating service with:${NC}"
