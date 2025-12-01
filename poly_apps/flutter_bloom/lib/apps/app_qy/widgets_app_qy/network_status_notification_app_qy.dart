@@ -61,7 +61,7 @@ class NetworkStatusNotificationAppQy extends StatelessWidget {
                 borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: ColorsAppQy.qyShadowMedium,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -77,7 +77,7 @@ class NetworkStatusNotificationAppQy extends StatelessWidget {
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
+                          ColorsAppQy.qyTextOnPrimary,
                         ),
                       ),
                     )
@@ -85,7 +85,7 @@ class NetworkStatusNotificationAppQy extends StatelessWidget {
                     Icon(
                       Icons.wifi_off,
                       size: 16,
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                     ),
                   const SizedBox(width: ThemeDimensions.spacing8),
                   Expanded(
@@ -94,7 +94,7 @@ class NetworkStatusNotificationAppQy extends StatelessWidget {
                           ? QyAppLocalizationKeys.qyNetworkRetrying.tr(context)
                           : QyAppLocalizationKeys.qyNetworkUnavailableMessage.tr(context),
                       style: ThemeTextStyles.body2.copyWith(
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
@@ -105,7 +105,7 @@ class NetworkStatusNotificationAppQy extends StatelessWidget {
                     icon: const Icon(
                       Icons.close,
                       size: 18,
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                     ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(

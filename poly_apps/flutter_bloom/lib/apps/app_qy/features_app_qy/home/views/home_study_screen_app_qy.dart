@@ -164,7 +164,7 @@ class _HomeStudyScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostMedium,
                 width: 1,
               ),
             ),
@@ -236,12 +236,12 @@ class _HomeStudyScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostLight,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: ColorsAppQy.qyShadowLight,
                 blurRadius: 20,
                 offset: const Offset(0, 5),
               ),
@@ -274,7 +274,7 @@ class _HomeStudyScreenRefactoredAppQyState
                 child: LinearProgressIndicator(
                   value: stats.learnedPercentage / 100,
                   minHeight: 8,
-                  backgroundColor: Colors.white.withOpacity(0.3),
+                  backgroundColor: ColorsAppQy.qyFrostMedium,
                   valueColor:
                       AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
                 ),
@@ -319,12 +319,12 @@ class _HomeStudyScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostLight,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: ColorsAppQy.qyShadowLight,
                 blurRadius: 20,
                 offset: const Offset(0, 5),
               ),
@@ -357,7 +357,7 @@ class _HomeStudyScreenRefactoredAppQyState
     return SizedBox(
       width: double.infinity,
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: controller.isLoading ? null : _handleStartLearning,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
@@ -368,8 +368,8 @@ class _HomeStudyScreenRefactoredAppQyState
               gradient: controller.isLoading
                   ? LinearGradient(
                       colors: [
-                        Colors.grey.shade400,
-                        Colors.grey.shade500,
+                        ColorsAppQy.qyTextSecondary,
+                        ColorsAppQy.qyTextTertiary,
                       ],
                     )
                   : ColorsAppQy.qyPrimaryGradient,
@@ -387,7 +387,7 @@ class _HomeStudyScreenRefactoredAppQyState
             child: Text(
               QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
               style: ThemeTextStyles.h3.copyWith(
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
@@ -403,7 +403,7 @@ class _HomeStudyScreenRefactoredAppQyState
       child: GestureDetector(
         onTap: controller.closeMoreFeatures,
         child: Container(
-          color: Colors.black.withOpacity(0.5),
+          color: ColorsAppQy.qyShadowDark,
           child: GestureDetector(
             onTap: () {},
             child: Align(
@@ -419,7 +419,7 @@ class _HomeStudyScreenRefactoredAppQyState
                   ),
                   border: Border(
                     right: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: ColorsAppQy.qyFrostMedium,
                       width: 1,
                     ),
                   ),

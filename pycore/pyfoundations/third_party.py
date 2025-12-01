@@ -210,133 +210,9 @@ WINDOWS_ONLY_PACKAGES = {
     "pyaudio": "pyaudio",
 }
 
-# System packages required for Python packages (Debian/Ubuntu only)
-# These are installed via apt-get, not pip
-SYSTEM_PACKAGES = [
-    "python3-tk",              # Required for tkinter GUI support
-    "python3-dev",              # Required for building Python extensions
-    "gir1.2-appindicator3-0.1", # Required for system tray indicators
-    "gir1.2-gtk-3.0",          # Required for GTK3 GUI support
-    "python3-gi",               # Required for GObject Introspection (GTK bindings)
-    "python3-gi-cairo",         # Required for Cairo graphics with GObject
-    "python3-pil",              # Required for PIL/Pillow image processing
-    "python3-pil.imagetk",      # Required for PIL/Pillow with Tkinter support
-]
-
-
-def check_system_package_installed(package_name: str) -> bool:
-    """
-    Check if a system package is installed (Debian/Ubuntu only).
-    
-    Args:
-        package_name: Name of the system package to check
-        
-    Returns:
-        True if package is installed, False otherwise
-    """
-    try:
-        # Use dpkg to check if package is installed
-        result = subprocess.run(
-            ["dpkg", "-l", package_name],
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        # If package is installed, dpkg -l will show it (exit code 0 and output contains package)
-        return result.returncode == 0 and package_name in result.stdout
-    except (FileNotFoundError, subprocess.SubprocessError):
-        # dpkg not available or error occurred
-        return False
-
-
-def install_system_packages():
-    """
-    Check and install required system packages (Linux/Debian/Ubuntu only).
-    
-    Uses apt-get to install system packages. Requires sudo privileges.
-    Only runs on Linux systems with apt-get available.
-    First fixes any broken packages, then updates package list, then installs missing packages.
-    """
-    current_platform = platform.system()
-    
-    # Only run on Linux
-    if current_platform != 'Linux':
-        return
-    
-    # Check if apt-get is available
-    try:
-        subprocess.run(["which", "apt-get"], capture_output=True, check=True)
-    except (FileNotFoundError, subprocess.SubprocessError):
-        ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
-        return
-    
-    # Check if we have sudo privileges (or running as root)
-    has_sudo = False
-    if os.geteuid() == 0:
-        has_sudo = True
-    else:
-        # Check if sudo is available and we can use it
-        try:
-            result = subprocess.run(
-                ["sudo", "-n", "true"],
-                capture_output=True,
-                check=False
-            )
-            if result.returncode == 0:
-                has_sudo = True
-        except (FileNotFoundError, subprocess.SubprocessError):
-            pass
-    
-    if not has_sudo:
-        ColorPrint.yellow("[WARNING] Sudo privileges required for system package installation")
-        ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(SYSTEM_PACKAGES)}")
-        return
-    
-    ColorPrint.blue("[INFO] Checking for required system packages...")
-    missing_packages = []
-    
-    for package in SYSTEM_PACKAGES:
-        if not check_system_package_installed(package):
-            missing_packages.append(package)
-            ColorPrint.yellow(f"[INSTALL] System package '{package}' not found. Installing...")
-        else:
-            ColorPrint.green(f"[OK] System package '{package}' is installed")
-    
-    if missing_packages:
-        try:
-            # Fix broken packages first (if any)
-            ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
-            fix_cmd = ["sudo", "apt", "--fix-broken", "install", "-y"]
-            fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
-            if fix_result.returncode == 0:
-                ColorPrint.green("[OK] Broken packages fixed (or none found)")
-            else:
-                # Try alternative command
-                fix_cmd2 = ["sudo", "apt", "-f", "install", "-y"]
-                fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
-                if fix_result2.returncode == 0:
-                    ColorPrint.green("[OK] Broken packages fixed (or none found)")
-                else:
-                    ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
-            
-            # Update package list
-            ColorPrint.blue("[INFO] Updating package list...")
-            update_cmd = ["sudo", "apt-get", "update", "-qq"]
-            subprocess.run(update_cmd, check=True)
-            
-            # Install missing packages
-            install_cmd = ["sudo", "apt-get", "install", "-y"] + missing_packages
-            ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
-            result = subprocess.run(install_cmd, check=True)
-            
-            ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
-        except subprocess.CalledProcessError as e:
-            ColorPrint.red(f"[ERROR] Failed to install system packages: {e}")
-            ColorPrint.yellow(f"[WARNING] Please install manually: sudo apt-get install {' '.join(missing_packages)}")
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Unexpected error installing system packages: {e}")
-    else:
-        ColorPrint.green("[INFO] All required system packages are installed")
+# NOTE: System packages (python3-tk, python3-gi, etc.) are now installed by
+# scripts/shells/linux/debian/install_shells/13_ensure_python.sh
+# This file only handles Python packages installable via pip
 
 
 def build_pip_install_command(package_name: str) -> list:
@@ -508,8 +384,8 @@ def check_and_install_dependencies():
     # Mark as checking to prevent recursion
     ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
-    # Check and install system packages first (before Python packages)
-    install_system_packages()
+    # NOTE: System packages are now installed by shell scripts
+    # See: scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 
     installed_packages = set()
     missing_packages = set()
@@ -799,8 +675,36 @@ def get_third_package_cv2():
 
 
 def get_third_package_pyautogui():
-    """Get pyautogui package (lazy load)"""
-    return _lazy_import('pyautogui', 'import pyautogui')
+    """
+    Get pyautogui package (lazy load)
+
+    On Linux, pyautogui may fail to import if X11 display is not accessible.
+    In this case, returns None instead of raising an exception.
+    """
+    if 'pyautogui' not in _PACKAGE_CACHE:
+        try:
+            import pyautogui
+            _PACKAGE_CACHE['pyautogui'] = pyautogui
+            return pyautogui
+        except Exception as e:
+            # Check if this is a display-related error (common on Linux when running as root or headless)
+            error_msg = str(e)
+            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
+                ColorPrint.yellow(f"[WARN] pyautogui unavailable due to display error: {type(e).__name__}")
+                ColorPrint.yellow("[INFO] This is normal when running without X11 display access")
+                ColorPrint.yellow("[INFO] pyautogui features will be disabled")
+                _PACKAGE_CACHE['pyautogui'] = None
+                return None
+            else:
+                # Some other error, try lazy import (might trigger auto-install)
+                try:
+                    return _lazy_import('pyautogui', 'import pyautogui')
+                except Exception as e2:
+                    ColorPrint.yellow(f"[WARN] pyautogui import failed: {e2}")
+                    _PACKAGE_CACHE['pyautogui'] = None
+                    return None
+
+    return _PACKAGE_CACHE['pyautogui']
 
 
 def get_third_package_psutil():
@@ -930,8 +834,36 @@ def get_third_package_tkhtmlview():
 
 
 def get_third_package_pystray():
-    """Get pystray package (lazy load)"""
-    return _lazy_import('pystray', 'import pystray')
+    """
+    Get pystray package (lazy load)
+
+    On Linux, pystray may fail to import if X11 display is not accessible.
+    In this case, returns None instead of raising an exception.
+    """
+    if 'pystray' not in _PACKAGE_CACHE:
+        try:
+            import pystray
+            _PACKAGE_CACHE['pystray'] = pystray
+            return pystray
+        except Exception as e:
+            # Check if this is a display-related error (common on Linux when running as service or headless)
+            error_msg = str(e)
+            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
+                ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
+                ColorPrint.yellow("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
+                ColorPrint.yellow("[INFO] System tray features will be disabled")
+                _PACKAGE_CACHE['pystray'] = None
+                return None
+            else:
+                # Some other error, try lazy import (might trigger auto-install)
+                try:
+                    return _lazy_import('pystray', 'import pystray')
+                except Exception as e2:
+                    ColorPrint.yellow(f"[WARN] pystray import failed: {e2}")
+                    _PACKAGE_CACHE['pystray'] = None
+                    return None
+
+    return _PACKAGE_CACHE['pystray']
 
 
 def get_third_package_cnocr():
@@ -1125,6 +1057,44 @@ def get_third_package_pyaudio():
 
 
 # GUI packages
+def get_third_package_tkinter():
+    """Get tkinter module (lazy load, requires system packages on Linux)"""
+    if 'tkinter' not in _PACKAGE_CACHE:
+        try:
+            import tkinter as _tkinter_module
+            # IMPORTANT: Import tkinter.ttk to ensure ttk becomes an attribute of tkinter
+            # This is required because tkinter.ttk is a submodule and not automatically imported
+            import tkinter.ttk  # noqa: F401
+            import tkinter.font  # noqa: F401
+            import tkinter.messagebox  # noqa: F401
+            import tkinter.filedialog  # noqa: F401
+            import tkinter.scrolledtext  # noqa: F401
+            _PACKAGE_CACHE['tkinter'] = _tkinter_module
+        except ImportError as e:
+            # tkinter import failed - guide user to run installation script
+            import sys
+            ColorPrint.red("[ERROR] Failed to import tkinter")
+            ColorPrint.yellow(f"[INFO] Python: {sys.executable} (version {sys.version_info.major}.{sys.version_info.minor})")
+            ColorPrint.yellow("")
+            ColorPrint.yellow("[FIX] System packages required for tkinter are missing")
+            ColorPrint.yellow("[FIX] Run the Python setup script to install them:")
+            ColorPrint.yellow("")
+
+            if platform.system() == 'Linux':
+                ColorPrint.cyan("      sudo bash scripts/shells/linux/debian/install_shells/13_ensure_python.sh")
+            else:
+                ColorPrint.cyan("      (tkinter should be included with Python on Windows/Mac)")
+
+            ColorPrint.yellow("")
+            ColorPrint.yellow("[INFO] Required packages: python3.{}-tk, tk-dev, tcl-dev".format(sys.version_info.minor))
+
+            raise ImportError(
+                f"tkinter not available for Python {sys.version_info.major}.{sys.version_info.minor}\n"
+                f"Run installation script: scripts/shells/linux/debian/install_shells/13_ensure_python.sh"
+            ) from e
+    return _PACKAGE_CACHE['tkinter']
+
+
 def get_third_package_pyside6():
     """Get PySide6 package (lazy load)"""
     return _lazy_import('PySide6', 'import PySide6')
@@ -1318,6 +1288,7 @@ __all__ = [
     'get_third_package_eng_to_ipa',
     'get_third_package_pyaudio',
     # GUI packages
+    'get_third_package_tkinter',
     'get_third_package_pyside6',
     # Windows-only packages
     'get_third_package_win32gui',

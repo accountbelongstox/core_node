@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌐 AI Translation & Language Learning Tool</title>
+    <link rel="stylesheet" href="/debug-assets/debug-tools/assets/main.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 AI Translation & Language Learning Tool</h1>
+            <p>Master new languages with spaced repetition and AI-powered translations</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('languages')">🌍 Languages</button>
+            <button class="tab" onclick="switchTab('stats')">📊 Dashboard</button>
+            <button class="tab" onclick="switchTab('libraries')">📚 Libraries</button>
+            <button class="tab" onclick="switchTab('learn')">🎯 Learn</button>
+            <button class="tab" onclick="switchTab('upload')">📤 Upload</button>
+        </div>
+
+        <!-- Languages Tab -->
+        <div id="languages-tab" class="tab-content active">
+            <div class="card">
+                <h2>Select Your Learning Languages</h2>
+                <div class="language-selector">
+                    <label><strong>Native Language:</strong></label>
+                    <select id="native-language" onchange="saveLanguages()">
+                        <option value="zh">中文 Chinese</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語 Japanese</option>
+                        <option value="ko">한국어 Korean</option>
+                        <option value="vi">Tiếng Việt Vietnamese</option>
+                        <option value="lo">ລາວ Lao</option>
+                    </select>
+                </div>
+                <div class="language-selector">
+                    <label><strong>Learning Languages (Select one or more):</strong></label>
+                    <div class="language-tags" id="learning-languages">
+                        <div class="language-tag" data-lang="en" onclick="toggleLearningLanguage('en')">🇺🇸 English</div>
+                        <div class="language-tag" data-lang="ja" onclick="toggleLearningLanguage('ja')">🇯🇵 Japanese</div>
+                        <div class="language-tag" data-lang="ko" onclick="toggleLearningLanguage('ko')">🇰🇷 Korean</div>
+                        <div class="language-tag" data-lang="vi" onclick="toggleLearningLanguage('vi')">🇻🇳 Vietnamese</div>
+                        <div class="language-tag" data-lang="lo" onclick="toggleLearningLanguage('lo')">🇱🇦 Lao</div>
+                        <div class="language-tag" data-lang="zh" onclick="toggleLearningLanguage('zh')">🇨🇳 Chinese</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" onclick="saveLanguages()">💾 Save Language Settings</button>
+                <div id="language-result"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="stats-tab" class="tab-content">
+            <div class="card">
+                <h2>Your Learning Statistics</h2>
+                <div id="stats-content" class="loading">Loading stats</div>
+            </div>
+        </div>
+
+        <!-- Libraries Tab -->
+        <div id="libraries-tab" class="tab-content">
+            <div class="card">
+                <label><strong>Select Language:</strong></label>
+                <select id="library-lang-selector" onchange="loadLibraries()">
+                    <option value="en">English</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="lo">Lao</option>
+                </select>
+            </div>
+            <div class="card">
+                <h2>Public Libraries</h2>
+                <div id="public-libraries" class="library-grid loading">Loading libraries</div>
+            </div>
+            <div class="card">
+                <h2>My Private Libraries</h2>
+                <div id="private-libraries" class="library-grid loading">Loading libraries</div>
+            </div>
+        </div>
+
+        <!-- Learn Tab -->
+        <div id="learn-tab" class="tab-content">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h2>Learning Session</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="learn-lang" style="padding: 8px 16px; border-radius: 6px; border: 2px solid #e0e0e0;">
+                            <option value="en">English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                            <option value="vi">Vietnamese</option>
+                            <option value="lo">Lao</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadWords()">Load Words</button>
+                    </div>
+                </div>
+                <div id="word-card-container"></div>
+            </div>
+        </div>
+
+        <!-- Upload Tab -->
+        <div id="upload-tab" class="tab-content">
+            <div class="card">
+                <h2>Create Custom Vocabulary Library</h2>
+                <input type="text" id="library-name" placeholder="Library Name (e.g., My Business English)">
+                <select id="upload-language">
+                    <option value="en">English</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="lo">Lao</option>
+                </select>
+                <textarea id="document-text" placeholder="Paste your document here... Words will be automatically extracted."></textarea>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="uploadDocument()">Extract & Create Library</button>
+                <div id="upload-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/debug-assets/debug-tools/assets/main.js"></script>
+</body>
+</html>

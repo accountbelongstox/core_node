@@ -334,6 +334,146 @@ class StaticResourceController
         ]);
     }
 
+    public function previewDelete(Request $request)
+    {
+        $relativePath = null;
+        $fullPath = null;
+        $stats = null;
+
+        $relativePath = $request->input('path');
+
+        if ($relativePath === null || $relativePath === '') {
+            return response()->json([
+                'error' => 'Path is required'
+            ], 400);
+        }
+
+        $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $relativePath;
+
+        if (!$this->isPathSafe($fullPath)) {
+            return response()->json([
+                'error' => 'Access denied'
+            ], 403);
+        }
+
+        if (!FileSystemManager::exists($fullPath)) {
+            return response()->json([
+                'error' => 'File or directory not found'
+            ], 404);
+        }
+
+        try {
+            $stats = $this->calculateDeleteStatistics($fullPath);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => 'Failed to analyze target'
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'path' => $relativePath,
+            'type' => FileSystemManager::isDir($fullPath) && !is_link($fullPath) ? 'directory' : 'file',
+            'stats' => $stats
+        ]);
+    }
+
+    public function deleteItem(Request $request)
+    {
+        $relativePath = null;
+        $fullPath = null;
+        $stats = null;
+        $deleteResult = null;
+
+        $relativePath = $request->input('path');
+
+        if ($relativePath === null || $relativePath === '') {
+            return response()->json([
+                'error' => 'Path is required'
+            ], 400);
+        }
+
+        $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $relativePath;
+
+        if (!$this->isPathSafe($fullPath)) {
+            return response()->json([
+                'error' => 'Access denied'
+            ], 403);
+        }
+
+        if (!FileSystemManager::exists($fullPath)) {
+            return response()->json([
+                'error' => 'File or directory not found'
+            ], 404);
+        }
+
+        try {
+            $stats = $this->calculateDeleteStatistics($fullPath);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => 'Failed to analyze target'
+            ], 500);
+        }
+
+        $deleteResult = FileSystemManager::delete($fullPath);
+        clearstatcache();
+
+        if (!$deleteResult) {
+            return response()->json([
+                'error' => 'Failed to delete target'
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'path' => $relativePath,
+            'deleted' => $stats
+        ]);
+    }
+
+    private function calculateDeleteStatistics(string $fullPath): array
+    {
+        $stats = [
+            'files' => 0,
+            'directories' => 0,
+            'total_items' => 0
+        ];
+
+        if (FileSystemManager::isFile($fullPath) || is_link($fullPath)) {
+            $stats['files'] = 1;
+            $stats['total_items'] = 1;
+            return $stats;
+        }
+
+        $stats['directories'] = 1;
+
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($fullPath, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                if ($item->isLink()) {
+                    $stats['files']++;
+                    continue;
+                }
+
+                if ($item->isDir()) {
+                    $stats['directories']++;
+                } else {
+                    $stats['files']++;
+                }
+            }
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Failed to inspect directory: ' . $fullPath, 0, $e);
+        }
+
+        $stats['total_items'] = $stats['files'] + $stats['directories'];
+
+        return $stats;
+    }
+
     private function sanitizeFileName($filename)
     {
         $filename = str_replace(' ', '_', $filename);

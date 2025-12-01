@@ -72,12 +72,33 @@ detect_system_type() {
 check_ssh_installed() {
     print_step_from_common_functions "Checking SSH server installation status..."
 
+    local has_sshd_binary=false
+    local has_service_file=false
+    local has_config_file=false
+
     if command -v sshd >/dev/null 2>&1; then
-        print_success_from_common_functions "SSH server is already installed"
+        has_sshd_binary=true
+    fi
+
+    if systemctl list-unit-files | grep -q "ssh.service\|sshd.service"; then
+        has_service_file=true
+    fi
+
+    if [ -f "$SSH_CONFIG_FILE" ]; then
+        has_config_file=true
+    fi
+
+    if [ "$has_sshd_binary" = true ] && [ "$has_config_file" = true ]; then
+        print_success_from_common_functions "SSH server is properly installed"
         return 0
-    elif systemctl list-unit-files | grep -q "ssh.service\|sshd.service"; then
-        print_success_from_common_functions "SSH service exists"
-        return 0
+    elif [ "$has_service_file" = true ] && [ "$has_config_file" = false ]; then
+        print_warning_from_common_functions "SSH service file exists but config file is missing"
+        print_warning_from_common_functions "This indicates a broken installation"
+        return 1
+    elif [ "$has_sshd_binary" = true ] && [ "$has_config_file" = false ]; then
+        print_warning_from_common_functions "SSH binary exists but config file is missing"
+        print_warning_from_common_functions "This indicates a broken installation"
+        return 1
     else
         print_warning_from_common_functions "SSH server not found"
         return 1
@@ -93,15 +114,40 @@ install_ssh_server() {
         return 0
     fi
 
+    local needs_reinstall=false
+
+    if systemctl list-unit-files | grep -q "ssh.service\|sshd.service" && [ ! -f "$SSH_CONFIG_FILE" ]; then
+        print_warning_from_common_functions "Detected broken SSH installation (missing config file)"
+        print_step_from_common_functions "Attempting to repair by reinstalling openssh-server..."
+        needs_reinstall=true
+
+        print_step_from_common_functions "Removing broken openssh-server package..."
+        $USE_SUDO apt-get remove -y openssh-server 2>/dev/null || true
+        $USE_SUDO apt-get purge -y openssh-server 2>/dev/null || true
+        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
+    fi
+
     print_step_from_common_functions "Updating package lists..."
     if ! $USE_SUDO apt-get update -qq; then
         print_error_from_common_functions "Failed to update package lists"
         return 1
     fi
 
-    print_step_from_common_functions "Installing openssh-server package..."
+    if [ "$needs_reinstall" = true ]; then
+        print_step_from_common_functions "Reinstalling openssh-server package..."
+    else
+        print_step_from_common_functions "Installing openssh-server package..."
+    fi
+
     if $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server; then
         print_success_from_common_functions "OpenSSH server installed successfully"
+
+        if [ ! -f "$SSH_CONFIG_FILE" ]; then
+            print_error_from_common_functions "Installation completed but config file still missing: $SSH_CONFIG_FILE"
+            print_error_from_common_functions "Please check package installation logs"
+            return 1
+        fi
+
         return 0
     else
         print_error_from_common_functions "Failed to install OpenSSH server"

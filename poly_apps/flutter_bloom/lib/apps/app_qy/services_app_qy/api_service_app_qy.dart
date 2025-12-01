@@ -56,7 +56,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> post(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {
@@ -92,7 +92,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> put(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {
@@ -128,7 +128,7 @@ class ApiServiceAppQy {
 
   Future<Map<String, dynamic>> patch(
     String endpoint, {
-    Map<String, dynamic>? data,
+    dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
   }) async {
@@ -282,7 +282,7 @@ class ApiServiceAppQy {
 
   String getTtsAudioUrl(String audioPath) {
     // ApiEndpointsAppQy.ttsAudio is /api/app_qy_v1/ai_tools/tts/audio
-    // baseUrl is http://192.168.50.2:9000/api
+    // baseUrl is http://192.168.50.2:9000 (host:port only)
     // Result: http://192.168.50.2:9000/api/app_qy_v1/ai_tools/tts/audio/{audioPath}
     return '${_dio.options.baseUrl}${ApiEndpointsAppQy.ttsAudio}/$audioPath';
   }
@@ -318,6 +318,293 @@ class ApiServiceAppQy {
       'name': name,
       'lang_code': langCode,
       if (description != null) 'description': description,
+    });
+  }
+
+  // User Initialization
+  Future<Map<String, dynamic>> getUserInitializationStatus() async {
+    return get(ApiEndpointsAppQy.userInitializationStatus);
+  }
+
+  Future<Map<String, dynamic>> initializeUser({
+    required List<String> learningLanguages,
+    required String occupation,
+    required int dailyWordsTarget,
+    required int dailyStudyTime,
+    Map<String, dynamic>? preferences,
+  }) async {
+    return post(ApiEndpointsAppQy.userInitialize, data: {
+      'learning_languages': learningLanguages,
+      'occupation': occupation,
+      'daily_words_target': dailyWordsTarget,
+      'daily_study_time': dailyStudyTime,
+      if (preferences != null) 'preferences': preferences,
+    });
+  }
+
+  Future<Map<String, dynamic>> updateUserProfile({
+    String? occupation,
+    int? dailyWordsTarget,
+    int? dailyStudyTime,
+    Map<String, dynamic>? preferences,
+  }) async {
+    return patch(ApiEndpointsAppQy.userProfileUpdate, data: {
+      if (occupation != null) 'occupation': occupation,
+      if (dailyWordsTarget != null) 'daily_words_target': dailyWordsTarget,
+      if (dailyStudyTime != null) 'daily_study_time': dailyStudyTime,
+      if (preferences != null) 'preferences': preferences,
+    });
+  }
+
+  // Memory Bank
+  Future<Map<String, dynamic>> getMemoryBank({
+    String? language,
+    int page = 1,
+    int perPage = 50,
+    String? status,
+  }) async {
+    return get(ApiEndpointsAppQy.memoryBank, queryParameters: {
+      if (language != null) 'language': language,
+      'page': page,
+      'per_page': perPage,
+      if (status != null) 'status': status,
+    });
+  }
+
+  Future<Map<String, dynamic>> addLibraryToMemoryBank({
+    required int libraryId,
+  }) async {
+    return post(ApiEndpointsAppQy.memoryBankLibrary, data: {
+      'library_id': libraryId,
+    });
+  }
+
+  Future<Map<String, dynamic>> removeLibraryFromMemoryBank({
+    required int libraryId,
+  }) async {
+    return delete(
+      '${ApiEndpointsAppQy.memoryBankLibrary}/$libraryId',
+    );
+  }
+
+  Future<Map<String, dynamic>> uploadFileToMemoryBank({
+    required String filePath,
+    String? language,
+    String? extractMode,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath),
+      if (language != null) 'language': language,
+      if (extractMode != null) 'extract_mode': extractMode,
+    });
+    return post(ApiEndpointsAppQy.memoryBankUploadFile, data: formData);
+  }
+
+  Future<Map<String, dynamic>> uploadTextToMemoryBank({
+    required String text,
+    String? language,
+    String? extractMode,
+  }) async {
+    return post(ApiEndpointsAppQy.memoryBankUploadText, data: {
+      'text': text,
+      if (language != null) 'language': language,
+      if (extractMode != null) 'extract_mode': extractMode,
+    });
+  }
+
+  Future<Map<String, dynamic>> setMemoryBankStatus({
+    required String status,
+    String? language,
+  }) async {
+    return patch(ApiEndpointsAppQy.memoryBankStatus, data: {
+      'status': status,
+      if (language != null) 'language': language,
+    });
+  }
+
+  Future<Map<String, dynamic>> setWordStatusInMemoryBank({
+    required int wordId,
+    required String status,
+    double? masteryLevel,
+    DateTime? nextReviewAt,
+  }) async {
+    return patch('${ApiEndpointsAppQy.memoryBankWordStatus}/$wordId/status', data: {
+      'status': status,
+      if (masteryLevel != null) 'mastery_level': masteryLevel,
+      if (nextReviewAt != null) 'next_review_at': nextReviewAt.toIso8601String(),
+    });
+  }
+
+  // Vocabulary Libraries (Public)
+  Future<Map<String, dynamic>> getRecommendedVocabularyLibraries({
+    String? language,
+    int limit = 10,
+  }) async {
+    return get(ApiEndpointsAppQy.vocabularyLibrariesRecommended, queryParameters: {
+      if (language != null) 'language': language,
+      'limit': limit,
+    });
+  }
+
+  Future<Map<String, dynamic>> getAllVocabularyLibraries({
+    int page = 1,
+    int perPage = 20,
+    String? language,
+    String? category,
+    String? difficulty,
+    String? search,
+  }) async {
+    return get(ApiEndpointsAppQy.vocabularyLibrariesAll, queryParameters: {
+      'page': page,
+      'per_page': perPage,
+      if (language != null) 'language': language,
+      if (category != null) 'category': category,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (search != null) 'search': search,
+    });
+  }
+
+  // Reading Materials
+  Future<Map<String, dynamic>> getRecommendedDailyReading({
+    String? language,
+    int limit = 5,
+  }) async {
+    return get(ApiEndpointsAppQy.readingDailyRecommended, queryParameters: {
+      if (language != null) 'language': language,
+      'limit': limit,
+    });
+  }
+
+  Future<Map<String, dynamic>> getAllDailyReading({
+    int page = 1,
+    int perPage = 20,
+    String? language,
+    String? difficulty,
+    String? search,
+  }) async {
+    return get(ApiEndpointsAppQy.readingDailyAll, queryParameters: {
+      'page': page,
+      'per_page': perPage,
+      if (language != null) 'language': language,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (search != null) 'search': search,
+    });
+  }
+
+  Future<Map<String, dynamic>> getRecommendedBooks({
+    String? language,
+    int limit = 10,
+  }) async {
+    return get(ApiEndpointsAppQy.readingBooksRecommended, queryParameters: {
+      if (language != null) 'language': language,
+      'limit': limit,
+    });
+  }
+
+  Future<Map<String, dynamic>> getAllBooks({
+    int page = 1,
+    int perPage = 20,
+    String? language,
+    String? difficulty,
+    String? search,
+  }) async {
+    return get(ApiEndpointsAppQy.readingBooksAll, queryParameters: {
+      'page': page,
+      'per_page': perPage,
+      if (language != null) 'language': language,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (search != null) 'search': search,
+    });
+  }
+
+  Future<Map<String, dynamic>> getReadingArticle({
+    required int articleId,
+  }) async {
+    return get('${ApiEndpointsAppQy.readingArticle}/$articleId');
+  }
+
+  Future<Map<String, dynamic>> getBookDetails({
+    required int bookId,
+  }) async {
+    return get('${ApiEndpointsAppQy.readingBook}/$bookId');
+  }
+
+  Future<Map<String, dynamic>> getBookChapter({
+    required int bookId,
+    required int chapterId,
+  }) async {
+    return get('${ApiEndpointsAppQy.readingBookChapter}/$bookId/chapter/$chapterId');
+  }
+
+  // AI Features
+  Future<Map<String, dynamic>> getAiUsageLimit() async {
+    return get(ApiEndpointsAppQy.aiUsageLimit);
+  }
+
+  Future<Map<String, dynamic>> getAiWordExplanation({
+    required String word,
+    String? language,
+    String? context,
+  }) async {
+    return post(ApiEndpointsAppQy.aiWordExplanation, data: {
+      'word': word,
+      if (language != null) 'language': language,
+      if (context != null) 'context': context,
+    });
+  }
+
+  Future<Map<String, dynamic>> getAiLearningAssistant({
+    required String question,
+    String? context,
+  }) async {
+    return post(ApiEndpointsAppQy.aiLearningAssistant, data: {
+      'question': question,
+      if (context != null) 'context': context,
+    });
+  }
+
+  // Word Search (Public)
+  Future<Map<String, dynamic>> lookupWordPublic({
+    required String word,
+    String? language,
+  }) async {
+    return get('${ApiEndpointsAppQy.wordPublicLookup}/$word', queryParameters: {
+      if (language != null) 'language': language,
+    });
+  }
+
+  // Enhanced Word Query
+  Future<Map<String, dynamic>> getEnhancedWord({
+    required String word,
+    String? language,
+  }) async {
+    return get('${ApiEndpointsAppQy.wordEnhanced}/$word/enhanced', queryParameters: {
+      if (language != null) 'language': language,
+    });
+  }
+
+  // Translation
+  Future<Map<String, dynamic>> translateText({
+    required String text,
+    required String sourceLang,
+    required String targetLang,
+  }) async {
+    return post(ApiEndpointsAppQy.translateText, data: {
+      'text': text,
+      'source_lang': sourceLang,
+      'target_lang': targetLang,
+    });
+  }
+
+  Future<Map<String, dynamic>> translateBatch({
+    required List<String> texts,
+    required String sourceLang,
+    required String targetLang,
+  }) async {
+    return post(ApiEndpointsAppQy.translateBatch, data: {
+      'texts': texts,
+      'source_lang': sourceLang,
+      'target_lang': targetLang,
     });
   }
 }

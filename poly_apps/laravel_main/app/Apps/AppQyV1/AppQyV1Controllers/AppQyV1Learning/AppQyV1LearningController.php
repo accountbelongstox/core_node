@@ -12,9 +12,17 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 
 class AppQyV1LearningController extends Controller
 {
+    private AppQyV1VocabularyCoverService $coverService;
+
+    public function __construct(AppQyV1VocabularyCoverService $coverService)
+    {
+        $this->coverService = $coverService;
+    }
+
     public function getUserLanguages(Request $request)
     {
         $user = Auth::user();
@@ -91,6 +99,7 @@ class AppQyV1LearningController extends Controller
                         'total_words' => $lib->total_words,
                         'description' => $lib->description,
                         'is_selected' => in_array($lib->id, $selectedIds),
+                        'cover_image_url' => $this->coverService->getDefaultCoverUrl(),
                     ];
                 }),
                 'user_libraries' => $userLibraries->map(function($lib) use ($selectedIds) {
@@ -101,6 +110,7 @@ class AppQyV1LearningController extends Controller
                         'total_words' => $lib->total_words,
                         'description' => $lib->description,
                         'is_selected' => in_array($lib->id, $selectedIds),
+                        'cover_image_url' => $this->coverService->getDefaultCoverUrl(),
                     ];
                 }),
                 'lang_code' => $langCode,

@@ -6,6 +6,10 @@ use Illuminate\Console\Command;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
+use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
+use App\Services\OctaneTaskStatusService;
+use App\Services\AI\UnifiedAIRouter;
 
 class InitializeApps extends Command
 {
@@ -16,6 +20,10 @@ class InitializeApps extends Command
     public function handle()
     {
         $this->info('Initializing system...');
+        $this->newLine();
+
+        $this->info('Checking Octane/Swoole compatibility...');
+        $this->fixOctaneSwooleCompatibility();
         $this->newLine();
 
         $this->info('Checking Octane hot-reload dependencies...');
@@ -105,7 +113,15 @@ class InitializeApps extends Command
             $this->line("  {$icon} {$table}: {$status}");
         }
         $this->newLine();
-        
+
+        $this->info('Creating voice subtitle user settings tables...');
+        $voiceSubtitleResults = \App\Services\UserSyncService::ensureVoiceSubtitleTablesExist();
+        foreach ($voiceSubtitleResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
         $this->info('Creating multilingual word tables...');
         $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
         foreach ($wordTableResults as $table => $status) {
@@ -201,9 +217,49 @@ class InitializeApps extends Command
         }
         
         $this->newLine();
+
+        $this->info('Creating AppQyV1 user initialization tables...');
+        $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
+        foreach ($userInitResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
+        $this->info('Verifying Octane Timer tasks...');
+        $taskStatusService = new OctaneTaskStatusService();
+        $taskVerification = $taskStatusService->verifyInitialization();
+
+        if ($taskVerification['success']) {
+            $this->line("  ✅ All Octane timer tasks properly configured");
+            $summary = $taskVerification['summary'];
+            $this->line("     Discovered: {$summary['total_discovered']} tasks");
+            $this->line("     Registered: {$summary['total_registered']} tasks");
+            $this->line("     Running: {$summary['total_running']} tasks");
+            $this->line("     Timer: " . ($summary['timer_running'] ? 'Running' : 'Not Running'));
+
+            $basicTasks = $taskStatusService->getBasicTaskObjects();
+            foreach ($basicTasks as $task) {
+                $statusIcon = match($task['status']) {
+                    'running' => '✅',
+                    'waiting' => '⏳',
+                    'disabled' => '⏸️',
+                    'error' => '❌',
+                    default => '○'
+                };
+                $this->line("     {$statusIcon} {$task['name']} ({$task['interval']}s) - {$task['status']}");
+            }
+        } else {
+            $this->warn("  ⚠️  Octane timer tasks have issues:");
+            foreach ($taskVerification['issues'] as $issue) {
+                $this->line("     • {$issue}");
+            }
+            $this->line("  ℹ️  Note: Run Octane to activate timer tasks");
+        }
+        $this->newLine();
         
         $this->info('Creating vocabulary library tables...');
-        $vocabResults = \App\Services\AppQyV1VocabularyService::ensureVocabularyTablesExist();
+        $vocabResults = AppQyV1VocabularyService::ensureVocabularyTablesExist();
         foreach ($vocabResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
@@ -212,7 +268,7 @@ class InitializeApps extends Command
         $this->newLine();
         
         $this->info('Importing vocabulary libraries from files...');
-        $importResults = \App\Services\AppQyV1VocabularyService::importVocabularyFromFiles();
+        $importResults = AppQyV1VocabularyService::importVocabularyFromFiles();
         $this->line("  ✅ Imported: {$importResults['imported']} libraries");
         $this->line("  ✓ Skipped: {$importResults['skipped']} libraries");
         if ($importResults['errors'] > 0) {
@@ -242,7 +298,30 @@ class InitializeApps extends Command
         }
         
         $this->newLine();
-        
+
+        $this->info('Verifying AI providers...');
+        $aiRouter = new UnifiedAIRouter();
+        $providersStatus = $aiRouter->getProvidersStatus();
+
+        foreach ($providersStatus as $provider => $status) {
+            $icon = $status['available'] ? '✅' : '❌';
+            $type = $status['type'] ?? 'unknown';
+            $priority = isset($status['priority']) ? " (Priority: {$status['priority']})" : '';
+
+            $this->line("  {$icon} {$provider}: " . ($status['available'] ? 'Available' : 'Not configured') . " ({$type}){$priority}");
+
+            if ($status['available'] && isset($status['usage'])) {
+                $usage = $status['usage'];
+                if (isset($usage['minute']['requests'])) {
+                    $this->line("     Minute: {$usage['minute']['requests']} requests");
+                }
+                if (isset($usage['day']['requests'])) {
+                    $this->line("     Day: {$usage['day']['requests']} requests");
+                }
+            }
+        }
+        $this->newLine();
+
         $this->info('Initializing apps...');
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());
@@ -504,6 +583,55 @@ class InitializeApps extends Command
 
         } catch (\Exception $e) {
             $this->error("  ❌ Migration error: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Fix Octane/Swoole compatibility
+     *
+     * PHP Version: 8.5 (Upgraded from 8.4)
+     * Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
+     *
+     * Swoole 6.x compatibility patch for Laravel Octane v2.13.x
+     * Issue: Swoole 6.x changed task event signature (breaking change)
+     * - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
+     * - Swoole 6.x: task(Server $server, Server\Task $task)
+     *
+     * This method calls App\Support\OctaneSwooleCompatFixer to apply the patch
+     * The patch is idempotent (safe to run multiple times)
+     */
+    private function fixOctaneSwooleCompatibility()
+    {
+        if (!is_dir(base_path('vendor/laravel/octane'))) {
+            $this->line("  <fg=yellow>⏭️  Laravel Octane not installed, skipping</>");
+            return;
+        }
+
+        try {
+            $fixer = new \App\Support\OctaneSwooleCompatFixer(base_path());
+            $result = $fixer->run();
+
+            switch ($result['status']) {
+                case 'fixed':
+                    $this->line("  ✅ Compatibility patch applied (Swoole {$result['swoole_version']})");
+                    break;
+                case 'already_fixed':
+                    $this->line("  ✓ Compatibility patch already applied (Swoole {$result['swoole_version']})");
+                    break;
+                case 'compatible':
+                    $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
+                    break;
+                case 'skipped':
+                    $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
+                    break;
+                case 'unknown':
+                    $this->line("  <fg=yellow>⚠️  Unknown Swoole version: {$result['swoole_version']}</>");
+                    break;
+                default:
+                    $this->line("  <fg=yellow>⚠️  Unexpected status: {$result['status']}</>");
+            }
+        } catch (\Exception $e) {
+            $this->warn("  ⚠️  Compatibility check error: " . $e->getMessage());
         }
     }
 

@@ -12,6 +12,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1UserInitializationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,70 +24,77 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::prefix('user')->middleware('auth:sanctum')->group(function () {
+$version = getAppVersionFromFilename(__FILE__);
+$apiVersionPrefix = 'dict/' . $version;
 
-    // User learning progress
-    Route::get('/progress', function () {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'totalWords' => 150,
-                'learnedWords' => 45,
-                'reviewedWords' => 30,
-                'studyStreak' => 7,
-                'lastStudyDate' => now()->toDateString()
-            ]
-        ]);
+Route::prefix($apiVersionPrefix)->group(function () {
+    Route::prefix('user')->middleware('auth:sanctum')->group(function () {
+
+        Route::get('/initialization-status', [AppQyV1UserInitializationController::class, 'status']);
+        Route::post('/initialize', [AppQyV1UserInitializationController::class, 'initialize']);
+
+        // User learning progress
+        Route::get('/progress', function () {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'totalWords' => 150,
+                    'learnedWords' => 45,
+                    'reviewedWords' => 30,
+                    'studyStreak' => 7,
+                    'lastStudyDate' => now()->toDateString()
+                ]
+            ]);
+        });
+
+        // User statistics
+        Route::get('/stats', function () {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'studyDays' => 25,
+                    'totalWords' => 150,
+                    'completionRate' => 30.0,
+                    'averageAccuracy' => 85.5,
+                    'totalStudyTime' => 1200 // minutes
+                ]
+            ]);
+        });
+
+        // User profile
+        Route::get('/profile', function () {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => auth()->id(),
+                    'displayName' => auth()->user()->display_name ?? 'User',
+                    'avatar' => auth()->user()->avatar,
+                    'studyLevel' => 'Beginner',
+                    'joinDate' => auth()->user()->created_at->toDateString()
+                ]
+            ]);
+        });
+
+        // Update profile
+        Route::put('/profile', function (\Illuminate\Http\Request $request) {
+            $request->validate([
+                'displayName' => 'string|max:255',
+                'avatar' => 'string|url|nullable'
+            ]);
+
+            $user = auth()->user();
+            if ($request->has('displayName')) {
+                $user->display_name = $request->input('displayName');
+            }
+            if ($request->has('avatar')) {
+                $user->avatar = $request->input('avatar');
+            }
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully'
+            ]);
+        });
     });
-
-    // User statistics
-    Route::get('/stats', function () {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'studyDays' => 25,
-                'totalWords' => 150,
-                'completionRate' => 30.0,
-                'averageAccuracy' => 85.5,
-                'totalStudyTime' => 1200 // minutes
-            ]
-        ]);
-    });
-
-    // User profile
-    Route::get('/profile', function () {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => auth()->id(),
-                'displayName' => auth()->user()->display_name ?? 'User',
-                'avatar' => auth()->user()->avatar,
-                'studyLevel' => 'Beginner',
-                'joinDate' => auth()->user()->created_at->toDateString()
-            ]
-        ]);
-    });
-
-    // Update profile
-    Route::put('/profile', function (\Illuminate\Http\Request $request) {
-        $request->validate([
-            'displayName' => 'string|max:255',
-            'avatar' => 'string|url|nullable'
-        ]);
-
-        $user = auth()->user();
-        if ($request->has('displayName')) {
-            $user->display_name = $request->input('displayName');
-        }
-        if ($request->has('avatar')) {
-            $user->avatar = $request->input('avatar');
-        }
-        $user->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Profile updated successfully'
-        ]);
-    });
-
 });

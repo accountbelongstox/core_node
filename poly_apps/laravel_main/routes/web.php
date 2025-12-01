@@ -20,10 +20,12 @@ use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
 use App\Http\EnvironmentApiInfo\StaticResourceController;
 use App\Http\EnvironmentApiInfo\ChunkedUploadController;
+use App\Http\EnvironmentApiInfo\OctaneTaskController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
 use App\Http\Controllers\StartupMonitorController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -36,12 +38,12 @@ use App\Http\Controllers\StartupMonitorController;
 |
 */
 
+// Root route displays a complete HTML debugging interface (MUST be first to avoid conflicts)
+Route::get('/', [DebugIndex::class, 'index']);
+
 // This route is the single web entry point for debugging and must not be modified.
 // It points to the ApiInfoIndex class which is responsible for gathering all information.
 Route::get('/api_info', [ApiInfoIndex::class, 'index']);
-
-// Root route displays a complete HTML debugging interface
-Route::get('/', [DebugIndex::class, 'index']);
 
 // API parameters cache routes
 Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
@@ -50,7 +52,7 @@ Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
 
 // Debug assets serving routes
 Route::get('/debug-assets/css/{file}', function ($file) {
-    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/css/' . $file;
+    $path = public_path('debug-assets/css/' . $file);
     if (file_exists($path)) {
         return response()->file($path, ['Content-Type' => 'text/css']);
     }
@@ -58,7 +60,7 @@ Route::get('/debug-assets/css/{file}', function ($file) {
 });
 
 Route::get('/debug-assets/js/{file}', function ($file) {
-    $path = __DIR__ . '/../app/Http/EnvironmentApiInfo/assets/js/' . $file;
+    $path = public_path('debug-assets/js/' . $file);
     if (file_exists($path)) {
         return response()->file($path, [
             'Content-Type' => 'application/javascript',
@@ -67,6 +69,22 @@ Route::get('/debug-assets/js/{file}', function ($file) {
     }
     abort(404);
 });
+
+// Debug tools HTML files serving routes
+Route::get('/debug-assets/debug-tools/{path}', function ($path) {
+    $filePath = public_path('debug-assets/debug-tools/' . $path);
+    if (file_exists($filePath) && is_file($filePath)) {
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        $contentType = match($extension) {
+            'html' => 'text/html',
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            default => 'text/plain'
+        };
+        return response()->file($filePath, ['Content-Type' => $contentType]);
+    }
+    abort(404);
+})->where('path', '.*');
 
 // Online Clipboard routes
 Route::get('/clipboard/namespace', [ClipboardController::class, 'getOrCreateNamespace']);
@@ -109,14 +127,6 @@ Route::prefix('system/init')->group(function () {
     Route::post('/all', [AppInitializationController::class, 'initializeAll']);
     Route::post('/{appName}', [AppInitializationController::class, 'initialize']);
     Route::post('/{appName}/reset', [AppInitializationController::class, 'reset']);
-});
-
-Route::get('/learning', function () {
-    return response()->file(public_path('learning.html'));
-});
-
-Route::get('/learning/demo', function () {
-    return response()->file(public_path('learning-demo.html'));
 });
 
 Route::get('/csrf-token', function () {
@@ -251,10 +261,10 @@ Route::prefix('api/mcp/v1/screenshots')->group(function () {
     Route::get('/search', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'search']);
     Route::get('/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getStats']);
     Route::get('/', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getAll']);
-    Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById']);
-    Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile']);
     // Support URLs with image extension for AI recognition: /screenshots/{id}.jpg, /screenshots/{id}.png, etc.
     Route::get('/{id}.{ext}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFileWithExt'])->where('ext', 'jpg|jpeg|png|gif|webp|bmp');
+    Route::get('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'getById'])->where('id', '[A-Za-z0-9_\-]+');
+    Route::get('/{id}/file', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'streamFile'])->where('id', '[A-Za-z0-9_\-]+');
     Route::delete('/{id}', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'delete']);
     Route::delete('/clear-all/confirm', [\App\Apps\McpV1\McpV1Controllers\McpV1ScreenshotCtl::class, 'clearAll']);
 });
@@ -277,6 +287,8 @@ Route::prefix('static-resources')->group(function () {
     Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
     Route::post('/rename', [StaticResourceController::class, 'renameItem']);
     Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+    Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
+    Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
 
     Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
     Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
@@ -289,4 +301,11 @@ Route::prefix('startup-monitor')->group(function () {
     Route::get('/logs', [StartupMonitorController::class, 'getLogs']);
     Route::get('/view', [StartupMonitorController::class, 'viewLogs']);
     Route::get('/health', [StartupMonitorController::class, 'healthCheck']);
+});
+
+Route::prefix('octane-tasks')->group(function () {
+    Route::get('/status', [OctaneTaskController::class, 'getAllStatus']);
+    Route::get('/task/{taskName}', [OctaneTaskController::class, 'getTaskDetail']);
+    Route::get('/basic', [OctaneTaskController::class, 'getBasicObjects']);
+    Route::get('/verify', [OctaneTaskController::class, 'verifyInitialization']);
 });

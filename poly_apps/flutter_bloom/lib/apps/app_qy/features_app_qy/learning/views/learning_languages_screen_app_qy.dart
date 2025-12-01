@@ -8,6 +8,7 @@ import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/api_service_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/models_app_qy/vocabulary_models_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/default_language_config_app_qy.dart';
 
 class LearningLanguagesScreenAppQy extends StatefulWidget {
   const LearningLanguagesScreenAppQy({super.key});
@@ -21,7 +22,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
   late final AnimationController _shimmerController;
 
   final Set<String> _selectedLanguages = {};
-  String _nativeLanguage = 'zh';
+  String _nativeLanguage = DefaultLanguageConfigAppQy.defaultNativeLanguage;
   List<SupportedLanguageModel> _languages = [];
   bool _isLoading = true;
   String? _error;
@@ -55,8 +56,8 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
       final user = authService.currentUser;
 
       _selectedLanguages.clear();
-      _selectedLanguages.addAll(user?.learningLanguages ?? ['en']);
-      _nativeLanguage = user?.nativeLanguage ?? 'zh';
+      _selectedLanguages.addAll(user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages);
+      _nativeLanguage = user?.nativeLanguage ?? DefaultLanguageConfigAppQy.defaultNativeLanguage;
 
       final apiService = ApiServiceAppQy();
       final response = await apiService.getSupportedLanguages();
@@ -111,7 +112,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Languages updated successfully'),
-              backgroundColor: Colors.green.shade600,
+              backgroundColor: ColorsAppQy.qySuccess,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -136,7 +137,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red.shade400,
+        backgroundColor: ColorsAppQy.qyError,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -233,7 +234,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          Icon(Icons.error_outline, size: 64, color: ColorsAppQy.qyError),
           const SizedBox(height: ThemeDimensions.spacing16),
           Text(
             _error ?? 'An error occurred',
@@ -261,7 +262,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
           subtitle: 'Select your primary language',
           icon: Icons.home_rounded,
           iconGradient: LinearGradient(
-            colors: [Colors.blue.shade400, Colors.blue.shade600],
+            colors: [ColorsAppQy.qyInfo, ColorsAppQy.qyPrimaryDark],
           ),
           children: _languages.map((lang) {
             final isSelected = _nativeLanguage == lang.code;
@@ -329,7 +330,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostMedium,
               width: 1.5,
             ),
           ),
@@ -344,7 +345,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       gradient: iconGradient,
                       borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
                     ),
-                    child: Icon(icon, color: Colors.white, size: 20),
+                    child: Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 20),
                   ),
                   const SizedBox(width: ThemeDimensions.spacing12),
                   Expanded(
@@ -380,7 +381,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       child: Text(
                         badge,
                         style: ThemeTextStyles.caption.copyWith(
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -405,7 +406,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing8),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -417,12 +418,12 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
             decoration: BoxDecoration(
               color: isSelected
                   ? ColorsAppQy.qyPrimary.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.05),
+                  : ColorsAppQy.qyFrostLight,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
               border: Border.all(
                 color: isSelected
                     ? ColorsAppQy.qyPrimary.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.1),
+                    : ColorsAppQy.qyFrostMedium,
                 width: 1.5,
               ),
             ),
@@ -436,14 +437,14 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       gradient: isSelected ? ColorsAppQy.qyPrimaryGradient : null,
                       border: !isSelected
                           ? Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: ColorsAppQy.qyFrostMedium,
                               width: 2,
                             )
                           : null,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? Icon(Icons.check, size: 16, color: ColorsAppQy.qyTextOnPrimary)
                         : null,
                   )
                 else
@@ -454,14 +455,14 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       gradient: isSelected ? ColorsAppQy.qyPrimaryGradient : null,
                       border: !isSelected
                           ? Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: ColorsAppQy.qyFrostMedium,
                               width: 2,
                             )
                           : null,
                       shape: BoxShape.circle,
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? Icon(Icons.check, size: 16, color: ColorsAppQy.qyTextOnPrimary)
                         : null,
                   ),
                 const SizedBox(width: ThemeDimensions.spacing12),
@@ -509,7 +510,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.transparent,
+            ColorsAppQy.qyPageBackground.withOpacity(0),
             ColorsAppQy.qyPageBackground.withOpacity(0.95),
           ],
         ),
@@ -517,7 +518,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
       child: SafeArea(
         top: false,
         child: Material(
-          color: Colors.transparent,
+          color: ColorsAppQy.qyPageBackground.withOpacity(0),
           child: InkWell(
             onTap: _selectedLanguages.isNotEmpty && _hasChanges ? _handleSave : null,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
@@ -528,7 +529,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                 gradient: _selectedLanguages.isNotEmpty && _hasChanges
                     ? ColorsAppQy.qyPrimaryGradient
                     : LinearGradient(
-                        colors: [Colors.grey.shade400, Colors.grey.shade500],
+                        colors: [ColorsAppQy.qyTextSecondary, ColorsAppQy.qyTextTertiary],
                       ),
                 borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
                 boxShadow: _selectedLanguages.isNotEmpty && _hasChanges
@@ -544,7 +545,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
               child: Text(
                 'Continue to Vocabulary Selection',
                 style: ThemeTextStyles.button.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,

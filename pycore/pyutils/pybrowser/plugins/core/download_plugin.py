@@ -7,15 +7,18 @@ File download functionality using synchronous requests and threading
 """
 
 import os
-import requests
 import threading
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.pybrowser.interfaces.iplugin import IPlugin
 from pycore.pyutils.pybrowser.interfaces.idownloader import IDownloader
+
+# Get requests via third_party manager
+requests = get_third_package_requests()
 
 
 class HttpDownloader(IDownloader):
