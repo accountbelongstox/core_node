@@ -137,8 +137,9 @@ install_python_essentials() {
         fix_apt_gpg_if_needed
     fi
 
-    # Install Python and essential packages
-    print_step_from_common_functions "Installing Python3 and development tools..."
+    # Install Python and essential packages (base packages first)
+    print_step_from_common_functions "Installing Python3 base packages..."
+
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         python3-pip \
@@ -149,7 +150,35 @@ install_python_essentials() {
         build-essential \
         libssl-dev \
         libffi-dev \
-        --no-install-recommends
+        --no-install-recommends 2>&1 || {
+            print_warning_from_common_functions "Some base packages may have failed to install, continuing..."
+        }
+
+    # Now detect Python version AFTER installation
+    local py_major=$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo "3")
+    local py_minor=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "12")
+    local py_version="${py_major}.${py_minor}"
+    local version_specific_tk="python${py_version}-tk"
+
+    print_info_from_common_functions "Detected Python version: ${py_version}"
+    print_info_from_common_functions "Version-specific tkinter package: ${version_specific_tk}"
+
+    # Install GUI and system packages with version-specific tk
+    print_step_from_common_functions "Installing GUI and system packages..."
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        python3-tk \
+        ${version_specific_tk} \
+        tk-dev \
+        tcl-dev \
+        python3-gi \
+        python3-gi-cairo \
+        python3-pil \
+        python3-pil.imagetk \
+        gir1.2-appindicator3-0.1 \
+        gir1.2-gtk-3.0 \
+        --no-install-recommends 2>&1 || {
+            print_warning_from_common_functions "Some GUI packages may have failed to install, continuing..."
+        }
 
     # Verify installations
     if python3 -V >/dev/null 2>&1; then
@@ -325,6 +354,45 @@ verify_installation() {
     fi
 }
 
+# Function to check if venv needs rebuild
+check_venv_needs_rebuild() {
+    local venv_dir="$1"
+    local rebuild_needed=false
+
+    # Check if venv exists
+    if [ ! -d "$venv_dir" ]; then
+        echo "true"  # Needs creation
+        return 0
+    fi
+
+    # Check if venv has --system-site-packages enabled
+    # This file exists if venv was created with --system-site-packages
+    if [ ! -f "$venv_dir/pyvenv.cfg" ]; then
+        print_warning_from_common_functions "venv config file missing, rebuild needed"
+        echo "true"
+        return 0
+    fi
+
+    # Check if system-site-packages is enabled
+    if ! grep -q "include-system-site-packages = true" "$venv_dir/pyvenv.cfg" 2>/dev/null; then
+        print_warning_from_common_functions "venv does not have system-site-packages enabled, rebuild needed"
+        echo "true"
+        return 0
+    fi
+
+    # Check if venv python can import tkinter (test system packages)
+    if [ -f "$venv_dir/bin/python3" ]; then
+        if ! "$venv_dir/bin/python3" -c "import tkinter" 2>/dev/null; then
+            print_warning_from_common_functions "venv python cannot import tkinter, rebuild needed"
+            echo "true"
+            return 0
+        fi
+    fi
+
+    echo "false"
+    return 0
+}
+
 # Function to create Python venv and replace system commands
 create_python_venv_and_replace_system() {
     print_step_from_common_functions "Creating Python virtual environment and replacing system commands..."
@@ -336,9 +404,19 @@ create_python_venv_and_replace_system() {
         $USE_SUDO chmod 755 "$COMPILE_DIR"
     fi
 
-    # Create venv if it doesn't exist
-    if [ ! -d "$VENV_DIR" ]; then
-        print_step_from_common_functions "Creating Python virtual environment in: $VENV_DIR"
+    # Check if venv needs rebuild
+    local rebuild_needed=$(check_venv_needs_rebuild "$VENV_DIR")
+
+    if [ "$rebuild_needed" = "true" ]; then
+        if [ -d "$VENV_DIR" ]; then
+            print_step_from_common_functions "Rebuilding Python virtual environment (old venv will be backed up)..."
+            # Backup old venv
+            local backup_dir="${VENV_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+            mv "$VENV_DIR" "$backup_dir" 2>/dev/null || true
+            print_info_from_common_functions "Old venv backed up to: $backup_dir"
+        else
+            print_step_from_common_functions "Creating new Python virtual environment in: $VENV_DIR"
+        fi
 
         # Ensure python3-venv is installed
         if ! python3 -m venv --help >/dev/null 2>&1; then
@@ -346,9 +424,11 @@ create_python_venv_and_replace_system() {
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends
         fi
 
-        # Create the virtual environment
-        if python3 -m venv "$VENV_DIR"; then
-            print_success_from_common_functions "Virtual environment created successfully"
+        # Create the virtual environment WITH system-site-packages
+        # This allows venv to use system packages like python3.12-tk
+        print_step_from_common_functions "Creating venv with --system-site-packages (allows access to system tkinter, PIL, etc.)..."
+        if python3 -m venv --system-site-packages "$VENV_DIR"; then
+            print_success_from_common_functions "Virtual environment created successfully with system-site-packages"
         else
             print_error_from_common_functions "Failed to create virtual environment"
             return 1
@@ -360,7 +440,7 @@ create_python_venv_and_replace_system() {
             "$VENV_PYTHON3" -m pip install --upgrade pip setuptools wheel 2>&1 | head -20 || true
         fi
     else
-        print_info_from_common_functions "Virtual environment already exists at: $VENV_DIR"
+        print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
     fi
 
     # Verify venv executables exist

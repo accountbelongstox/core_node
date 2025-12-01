@@ -19,6 +19,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../controllers/social_controller_app_qy.dart';
 
 class SocialRankingScreenRefactoredAppQy extends StatefulWidget {
@@ -308,11 +309,11 @@ class _SocialRankingScreenRefactoredAppQyState
     Color getRankColor() {
       switch (rank) {
         case 1:
-          return Colors.amber;
+          return ColorsAppQy.qyWarning;
         case 2:
-          return Colors.grey[400]!;
+          return ColorsAppQy.qyTextSecondary;
         case 3:
-          return Colors.brown[300]!;
+          return ColorsAppQy.qyTextTertiary;
         default:
           return ThemeColors.textSecondary;
       }
