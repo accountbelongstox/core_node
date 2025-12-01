@@ -83,7 +83,7 @@ class _AccountSettings1ScreenAppQyState
       },
       {
         'title': QyAppLocalizationKeys.qyAboutUs,
-        'subtitle': '${QyAppLocalizationKeys.qyVersion.tr(context)} ${QyAppConfig.appVersion}',
+        'subtitle': '${QyAppLocalizationKeys.qyAboutVersion.tr(context)} ${QyAppConfig.appVersion}',
         'icon': Icons.info_outline,
       },
       {
@@ -130,18 +130,18 @@ class _AccountSettings1ScreenAppQyState
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(Dimensions.paddingMedium),
+          padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildQuickGrid(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildNightModeCard(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildOtherOptions(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildIcpInfo(),
-              SizedBox(height: Dimensions.spacingMedium),
+              SizedBox(height: ThemeDimensions.spacingMedium),
               _buildLogoutButton(),
             ],
           ),
@@ -157,9 +157,9 @@ class _AccountSettings1ScreenAppQyState
         Text(
           QyAppLocalizationKeys.qySettingsCenter.tr(context),
           style:
-              TextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
+              ThemeTextStyles.subtitle1.copyWith(color: ThemeColors.textSecondary),
         ),
-        SizedBox(height: Dimensions.spacingSmall),
+        SizedBox(height: ThemeDimensions.spacingSmall),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -174,12 +174,12 @@ class _AccountSettings1ScreenAppQyState
             final section = _quickSections[index];
             return InkWell(
               onTap: () => _handleSectionTap(section),
-              borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
               child: Container(
-                padding: EdgeInsets.all(Dimensions.paddingMedium),
+                padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface,
-                  borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
                   border: Border.all(color: ThemeColors.border),
                 ),
                 child: Column(
@@ -197,7 +197,7 @@ class _AccountSettings1ScreenAppQyState
                         color: section['color'] as Color,
                       ),
                     ),
-                    SizedBox(height: Dimensions.spacingSmall),
+                    SizedBox(height: ThemeDimensions.spacingSmall),
                     Text(
                       (section['title'] as String).tr(context),
                       style: TextStyles.body1.copyWith(
@@ -271,7 +271,7 @@ class _AccountSettings1ScreenAppQyState
           ),
           SizedBox(height: Dimensions.spacingMedium),
           Container(
-            padding: EdgeInsets.all(Dimensions.paddingMedium),
+            padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
             decoration: BoxDecoration(
               color: ThemeColors.primary.withOpacity(0.05),
               borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
@@ -369,7 +369,7 @@ class _AccountSettings1ScreenAppQyState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            QyAppLocalizationKeys.qyIcpLicense.tr(context),
+            QyAppLocalizationKeys.qyAboutLicense.tr(context),
             style: ThemeTextStyles.caption.copyWith(color: ThemeColors.textSecondary),
           ),
           SizedBox(height: ThemeDimensions.spacingXSmall),
