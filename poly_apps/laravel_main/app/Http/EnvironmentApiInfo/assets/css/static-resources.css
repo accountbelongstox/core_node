@@ -447,10 +447,22 @@
     /* Preview panel takes full width */
     .static-preview-panel {
         width: 100%;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
     }
 
     .static-preview-header {
         padding: 8px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .static-preview-controls {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 10px;
     }
 
     .static-preview-file-name {
@@ -459,6 +471,11 @@
 
     .static-preview-container {
         padding: 0;
+        height: auto;
+        min-height: 200px;
+        width: 100%;
+        aspect-ratio: 16/9;
+        margin-bottom: 10px;
     }
 
     /* Video player full width */
@@ -468,8 +485,8 @@
 
     .video-js {
         width: 100% !important;
-        height: auto !important;
-        min-height: 200px;
+        height: 100% !important;
+        border-radius: 8px;
     }
 
     /* Hide fixed settings bar on mobile, show floating */
