@@ -8,10 +8,11 @@ It shows a title and real-time installation logs using ColorPrint.
 
 IMPORTANT: This is the ONLY component using pure Python/Tkinter.
 All other UI components should use PySide6.
+
+NOTE: tkinter is loaded lazily via third_party.py to ensure
+system dependencies (python3-tk) are installed first on Linux.
 """
 
-import tkinter as tk
-from tkinter import ttk
 import queue
 import threading
 from typing import Optional, Callable, Any
@@ -19,6 +20,11 @@ import sys
 import io
 
 from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_tkinter
+
+# Get tkinter via third_party manager (auto-installs python3-tk on Linux)
+tk = get_third_package_tkinter()
+ttk = tk.ttk
 
 
 class StartupWindow:
@@ -78,12 +84,13 @@ class StartupWindow:
         self.i18n_manager = i18n_manager
         self.daemon = daemon
 
-        self.root: Optional[tk.Tk] = None
-        self.text_widget: Optional[tk.Text] = None
-        self.progress_bar: Optional[ttk.Progressbar] = None
-        self.status_label: Optional[tk.Label] = None
-        self.language_var: Optional[tk.StringVar] = None
-        self.language_frame: Optional[tk.Frame] = None
+        # Type annotations as strings to avoid import errors
+        self.root: Optional[Any] = None  # tk.Tk
+        self.text_widget: Optional[Any] = None  # tk.Text
+        self.progress_bar: Optional[Any] = None  # ttk.Progressbar
+        self.status_label: Optional[Any] = None  # tk.Label
+        self.language_var: Optional[Any] = None  # tk.StringVar
+        self.language_frame: Optional[Any] = None  # tk.Frame
 
         self._running = False
         self._log_queue = queue.Queue()
@@ -452,7 +459,11 @@ class StartupWindow:
             self.root.after(0, _safe_close)
 
     def _create_language_selector(self, parent):
-        """Create language selector with radio buttons"""
+        """Create language selector with radio buttons
+
+        Args:
+            parent: Parent widget
+        """
         self.language_frame = tk.Frame(parent, bg="#34495e")
         self.language_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 

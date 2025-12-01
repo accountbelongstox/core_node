@@ -1,9 +1,14 @@
 """WebSocket connection manager"""
 
-from fastapi import WebSocket
 from typing import Dict, Set, Optional, Any
 import asyncio
 from datetime import datetime
+
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+
+# Get fastapi via third_party manager
+fastapi = get_third_package_fastapi()
+WebSocket = fastapi.WebSocket
 
 
 class WebSocketManager:

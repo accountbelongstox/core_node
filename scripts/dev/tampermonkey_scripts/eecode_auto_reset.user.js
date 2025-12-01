@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         88code Auto Reset Quota
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Auto reset quota on 88code.org - smart reset based on quota status and time
+// @version      6.0
+// @description  Auto reset quota on 88code.org
 // @author       CoreNode
 // @match        *://www.88code.org/*
 // @match        *://88code.org/*
@@ -15,49 +15,19 @@
 
     const CONFIG = {
         TARGET_PATH: '/my-subscription',
-        CHECK_INTERVAL: 60 * 1000,
-        HOURS_THRESHOLD: 4 + 1/60, // 4小时零1分钟（4.0167小时）
-        RESET_KEYWORD: '上次重置',
-        QUOTA_KEYWORD: '额度状态',
-        REMAINING_KEYWORD: '今日剩余重置次数',
+        HOURS_THRESHOLD: 4 + 1/60,
         BUTTON_KEYWORD: '重置额度',
-        CONFIRM_KEYWORD: '重置',
-        CONFIRM_DIALOG_KEYWORD: '重置', // 确认对话框中的重置按钮
-        CONFIRM_ICON_CLASS: 'fa-redo',
         CONFIRM_DELAY: 1500,
-        NEAR_MIDNIGHT_HOUR: 22,
-        NEAR_MIDNIGHT_MINUTE: 54,
         NEAR_11PM_START_HOUR: 22,
         NEAR_11PM_START_MINUTE: 58,
         NEAR_11PM_END_HOUR: 22,
         NEAR_11PM_END_MINUTE: 59,
         NEAR_11PM_END_SECOND: 50,
-        STORAGE_KEY: 'eecode_auto_reset_clicks',
+        STORAGE_KEY: '88code_auto_reset_clicks',
     };
 
     function log(message) {
-        const time = new Date().toLocaleTimeString();
-        console.log(`[88code Auto Reset ${time}] ${message}`);
-    }
-
-    function getQuotaStatusText(status) {
-        if (status.isFull) return 'FULL';
-        if (status.isDepleted) return 'DEPLETED';
-        return 'IN USE';
-    }
-
-    function logStatus(status) {
-        console.log('='.repeat(50));
-        log('Status Report:');
-        log(`  Quota: $${status.currentQuota} / $${status.maxQuota} (${getQuotaStatusText(status)})`);
-        log(`  Remaining Resets Today: ${status.remainingResets}`);
-        log(`  Last Reset Time: ${status.lastResetTime || 'Unknown'}`);
-        log(`  Hours Since Reset: ${status.hoursSinceReset?.toFixed(2) || 'Unknown'}`);
-        log(`  Current Time: ${new Date().toLocaleString()}`);
-        log(`  Near Midnight (${CONFIG.NEAR_MIDNIGHT_HOUR}:${CONFIG.NEAR_MIDNIGHT_MINUTE}): ${status.isNearMidnight ? 'YES' : 'NO'}`);
-        log(`  Should Reset: ${status.shouldReset ? 'YES' : 'NO'}`);
-        log(`  Reason: ${status.reason}`);
-        console.log('='.repeat(50));
+        console.log(`[88code Auto Reset ${new Date().toLocaleTimeString()}] ${message}`);
     }
 
     function findElementByKeyword(keyword, tagName = '*') {
@@ -70,94 +40,10 @@
         return null;
     }
 
-    function findSpanByKeyword(keyword) {
-        return findElementByKeyword(keyword, 'span');
-    }
-
-    function findDivByKeyword(keyword) {
-        return findElementByKeyword(keyword, 'div');
-    }
-
-    function findButtonByKeyword(keyword, excludeKeyword) {
-        // 宽泛且严格的查找：不检查disabled状态
+    function findButtonByKeyword(keyword) {
         const buttons = document.querySelectorAll('button');
-        
-        // 精确匹配：完全包含关键词
         for (let btn of buttons) {
-            const text = (btn.textContent || '').trim();
-            if (text.includes(keyword)) {
-                if (excludeKeyword && text.includes(excludeKeyword)) {
-                    continue;
-                }
-                return btn;
-            }
-        }
-        
-        // 通过属性查找：查找data-slot="button"的按钮
-        const dataSlotButtons = document.querySelectorAll('button[data-slot="button"]');
-        for (let btn of dataSlotButtons) {
-            const text = (btn.textContent || '').trim();
-            if (text.includes(keyword)) {
-                if (excludeKeyword && text.includes(excludeKeyword)) {
-                    continue;
-                }
-                return btn;
-            }
-        }
-        
-        return null;
-    }
-
-    function closeIntroDialog() {
-        // 查找"关闭"按钮，优先查找data-slot="button"的按钮
-        const closeButtons = document.querySelectorAll('button[data-slot="button"]');
-        for (let btn of closeButtons) {
-            const text = (btn.textContent || '').trim();
-            if (text === '关闭' || text === '关闭' || text.includes('关闭')) {
-                // 检查按钮是否可见
-                const rect = btn.getBoundingClientRect();
-                const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 &&
-                                style.display !== 'none' &&
-                                style.visibility !== 'hidden' &&
-                                style.opacity !== '0';
-                
-                if (isVisible) {
-                    log('Found intro dialog close button, clicking...');
-                    btn.click();
-                    return true;
-                }
-            }
-        }
-        
-        // 如果没找到，尝试查找所有包含"关闭"的按钮
-        const allButtons = document.querySelectorAll('button');
-        for (let btn of allButtons) {
-            const text = (btn.textContent || '').trim();
-            if (text === '关闭' || text.includes('关闭')) {
-                const rect = btn.getBoundingClientRect();
-                const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 &&
-                                style.display !== 'none' &&
-                                style.visibility !== 'hidden' &&
-                                style.opacity !== '0';
-                
-                if (isVisible) {
-                    log('Found close button, clicking...');
-                    btn.click();
-                    return true;
-                }
-            }
-        }
-        
-        return false;
-    }
-
-    function findConfirmButtonByIcon(iconClass) {
-        const icons = document.querySelectorAll('i.' + iconClass.replace(/\s+/g, '.'));
-        for (let icon of icons) {
-            const btn = icon.closest('button');
-            if (btn) {
+            if ((btn.textContent || '').trim().includes(keyword)) {
                 return btn;
             }
         }
@@ -165,270 +51,98 @@
     }
 
     function parseQuotaStatus() {
-        const result = {
-            currentQuota: 0,
-            maxQuota: 0,
-            isFull: false,
-            isDepleted: false,
-            found: false
-        };
+        const result = { currentQuota: 0, maxQuota: 0, isFull: false, found: false };
+        const quotaDiv = findElementByKeyword('额度余额', 'div') || findElementByKeyword('额度', 'div');
+        if (!quotaDiv) return result;
 
-        // 宽泛查找：先尝试通过关键词查找
-        let quotaDiv = findDivByKeyword(CONFIG.QUOTA_KEYWORD);
-        
-        // 如果没找到，尝试查找包含"额度余额"的元素
-        if (!quotaDiv) {
-            quotaDiv = findElementByKeyword('额度余额', 'div');
-        }
-        
-        // 如果还没找到，尝试查找包含"额度"的元素
-        if (!quotaDiv) {
-            quotaDiv = findElementByKeyword('额度', 'div');
-        }
-        
-        // 如果还没找到，尝试查找包含余额格式的span
-        if (!quotaDiv) {
-            const spans = document.querySelectorAll('span');
-            for (let span of spans) {
-                const text = span.textContent || '';
-                if (text.match(/\$\s*-?\d+(?:\.\d+)?\s*\/\s*\$\s*\d+(?:\.\d+)?/)) {
-                    quotaDiv = span.closest('div');
-                    if (quotaDiv) break;
-                }
-            }
-        }
-        
-        if (!quotaDiv) {
-            log('Quota status div not found');
-            return result;
-        }
-
-        // 查找包含余额格式的文本（可能在div内部任何地方）
-        const text = quotaDiv.textContent || '';
-        
-        // Match patterns like "$50 / $50", "$-0.5 / $50", "$ 30.5 / $ 50", "$-0.02194605 / $50"
-        // Support negative numbers and optional spaces
-        const match = text.match(/\$\s*(-?\d+(?:\.\d+)?)\s*\/\s*\$\s*(\d+(?:\.\d+)?)/);
-        
+        const match = (quotaDiv.textContent || '').match(/\$\s*(-?\d+(?:\.\d+)?)\s*\/\s*\$\s*(\d+(?:\.\d+)?)/);
         if (match) {
             result.currentQuota = parseFloat(match[1]);
             result.maxQuota = parseFloat(match[2]);
             result.isFull = result.currentQuota >= result.maxQuota;
-            result.isDepleted = result.currentQuota <= 0;
             result.found = true;
-        } else {
-            log('Failed to parse quota from: ' + text);
         }
-
-        return result;
-    }
-
-    function parseRemainingResets() {
-        const result = {
-            count: 0,
-            found: false,
-            lastResetTime: null,
-            nextResetTime: null
-        };
-
-        // 先尝试查找包含"今日剩余"和"上次重置"的span
-        const spans = document.querySelectorAll('span.text-xs.text-muted-foreground, span');
-        for (let span of spans) {
-            const text = span.textContent || '';
-            if (text.includes('今日剩余') && text.includes('上次重置')) {
-                // 解析"今日剩余 X 次"
-                const countMatch = text.match(/今日剩余\s*(\d+)\s*次/);
-                if (countMatch) {
-                    result.count = parseInt(countMatch[1]);
-                }
-                
-                // 解析"上次重置: 12/01 13:44" 或 "上次重置: 12/01 13:44:00"
-                const timeMatch = text.match(/上次重置[：:]\s*(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-                if (timeMatch) {
-                    const now = new Date();
-                    const year = now.getFullYear();
-                    const month = parseInt(timeMatch[1]) - 1; // 月份从0开始
-                    const day = parseInt(timeMatch[2]);
-                    const hour = parseInt(timeMatch[3]);
-                    const minute = parseInt(timeMatch[4]);
-                    const second = timeMatch[5] ? parseInt(timeMatch[5]) : 0;
-                    
-                    // 创建上次重置时间
-                    let lastReset = new Date(year, month, day, hour, minute, second);
-                    
-                    // 如果日期是未来的（可能是去年的），调整为去年
-                    if (lastReset > now) {
-                        lastReset = new Date(year - 1, month, day, hour, minute, second);
-                    }
-                    
-                    result.lastResetTime = lastReset;
-                    
-                    // 计算下次重置时间（24小时后）
-                    result.nextResetTime = new Date(lastReset.getTime() + 24 * 60 * 60 * 1000);
-                    
-                    result.found = true;
-                    log(`Parsed: 今日剩余 ${result.count} 次, 上次重置: ${lastReset.toLocaleString()}, 下次重置: ${result.nextResetTime.toLocaleString()}`);
-                }
-                
-                if (result.count !== undefined || result.lastResetTime) {
-                    result.found = true;
-                }
-                break;
-            }
-        }
-        
-        // 如果没找到，尝试原来的方法
-        if (!result.found) {
-            const resetDiv = findDivByKeyword(CONFIG.REMAINING_KEYWORD);
-            if (resetDiv) {
-                const text = resetDiv.textContent || '';
-                const match = text.match(/(\d+)\s*次/);
-                if (match) {
-                    result.count = parseInt(match[1]);
-                    result.found = true;
-                }
-            }
-        }
-
         return result;
     }
 
     function parseLastResetTime() {
-        // 先尝试从包含"今日剩余"和"上次重置"的span中解析
-        const spans = document.querySelectorAll('span.text-xs.text-muted-foreground, span');
+        log('[DEBUG] parseLastResetTime() called');
+        const spans = document.querySelectorAll('span');
+        log(`[DEBUG] Found ${spans.length} span elements`);
         for (let span of spans) {
             const text = span.textContent || '';
             if (text.includes('上次重置')) {
-                // 解析"上次重置: 12/01 13:44" 或 "上次重置: 12/01 13:44:00"
-                // 格式可能是 月/日 或 日/月，需要根据当前系统时间判断
-                const timeMatch = text.match(/上次重置[：:]\s*(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-                if (timeMatch) {
+                log(`[DEBUG] Found span with "上次重置": ${text}`);
+                const match = text.match(/上次重置[：:]\s*(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+                if (match) {
+                    log(`[DEBUG] Match found: month=${match[1]}, day=${match[2]}, hour=${match[3]}, minute=${match[4]}, second=${match[5] || 0}`);
                     const now = new Date();
-                    const currentYear = now.getFullYear();
-                    const currentMonth = now.getMonth() + 1; // 1-12
-                    const currentDay = now.getDate();
+                    const year = now.getFullYear();
+                    const month = parseInt(match[1]);
+                    const day = parseInt(match[2]);
+                    const hour = parseInt(match[3]);
+                    const minute = parseInt(match[4]);
+                    const second = match[5] ? parseInt(match[5]) : 0;
+
+                    // 先尝试当前月份
+                    let lastReset = new Date(year, month - 1, day, hour, minute, second);
+                    log(`[DEBUG] Initial lastReset (current month): ${lastReset.toLocaleString()}`);
                     
-                    const num1 = parseInt(timeMatch[1]);
-                    const num2 = parseInt(timeMatch[2]);
-                    const hour = parseInt(timeMatch[3]);
-                    const minute = parseInt(timeMatch[4]);
-                    const second = timeMatch[5] ? parseInt(timeMatch[5]) : 0;
-                    
-                    // 判断是 月/日 还是 日/月 格式
-                    // 如果第一个数字 > 12，肯定是日/月格式
-                    // 如果第二个数字 > 12，肯定是月/日格式
-                    // 否则，尝试两种格式，选择更接近当前日期的那个
-                    let month, day;
-                    
-                    if (num1 > 12) {
-                        // 第一个数字 > 12，肯定是日/月格式
-                        day = num1;
-                        month = num2;
-                    } else if (num2 > 12) {
-                        // 第二个数字 > 12，肯定是月/日格式
-                        month = num1;
-                        day = num2;
-                    } else {
-                        // 两个数字都 <= 12，需要判断
-                        // 尝试月/日格式
-                        const try1 = new Date(currentYear, num1 - 1, num2, hour, minute, second);
-                        // 尝试日/月格式
-                        const try2 = new Date(currentYear, num2 - 1, num1, hour, minute, second);
-                        
-                        // 选择更接近当前日期的那个（但不能是未来日期）
-                        const diff1 = Math.abs(try1 - now);
-                        const diff2 = Math.abs(try2 - now);
-                        
-                        // 如果一个是未来日期，选择另一个
-                        if (try1 > now && try2 <= now) {
-                            day = num1;
-                            month = num2;
-                        } else if (try2 > now && try1 <= now) {
-                            month = num1;
-                            day = num2;
-                        } else {
-                            // 选择更接近的
-                            if (diff1 <= diff2) {
-                                month = num1;
-                                day = num2;
-                            } else {
-                                day = num1;
-                                month = num2;
-                            }
-                        }
-                    }
-                    
-                    // 创建上次重置时间
-                    let lastReset = new Date(currentYear, month - 1, day, hour, minute, second);
-                    
-                    // 如果日期是未来的（可能是上个月的），调整为上个月
+                    // 如果解析的时间在未来，尝试上个月
                     if (lastReset > now) {
-                        lastReset = new Date(currentYear, month - 2, day, hour, minute, second);
-                        // 如果还是未来，可能是去年的
+                        log('[DEBUG] lastReset > now, trying previous month');
+                        lastReset = new Date(year, month - 2, day, hour, minute, second);
+                        log(`[DEBUG] lastReset (previous month): ${lastReset.toLocaleString()}`);
+                        // 如果还是未来，尝试去年
                         if (lastReset > now) {
-                            lastReset = new Date(currentYear - 1, month - 1, day, hour, minute, second);
+                            log('[DEBUG] lastReset still > now, trying previous year');
+                            lastReset = new Date(year - 1, month - 1, day, hour, minute, second);
+                            log(`[DEBUG] lastReset (previous year): ${lastReset.toLocaleString()}`);
                         }
                     }
                     
-                    // 调试日志
-                    log(`Parsed last reset time: ${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`);
-                    log(`Current system time: ${now.toLocaleString('zh-CN')}`);
-                    log(`Last reset time object: ${lastReset.toLocaleString('zh-CN')}`);
+                    // 如果解析的时间太早（超过31天前），可能是本月
+                    const daysDiff = (now - lastReset) / (1000 * 60 * 60 * 24);
+                    log(`[DEBUG] daysDiff: ${daysDiff}`);
+                    if (daysDiff > 31) {
+                        log('[DEBUG] daysDiff > 31, resetting to current month');
+                        lastReset = new Date(year, month - 1, day, hour, minute, second);
+                        log(`[DEBUG] lastReset reset to: ${lastReset.toLocaleString()}`);
+                    }
                     
-                    // 返回格式化的时间字符串
-                    return `${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+                    // 确保 lastReset 不超过 now
+                    if (lastReset > now) {
+                        log('[DEBUG] lastReset still > now after all checks, trying previous month again');
+                        lastReset = new Date(year, month - 2, day, hour, minute, second);
+                        if (lastReset > now) {
+                            lastReset = new Date(year - 1, month - 1, day, hour, minute, second);
+                        }
+                        log(`[DEBUG] Final lastReset after correction: ${lastReset.toLocaleString()}`);
+                    }
+
+                    log(`[DEBUG] Returning lastReset: ${lastReset.toLocaleString()}`);
+                    return lastReset;
+                } else {
+                    log('[DEBUG] No match found in regex');
                 }
             }
         }
-        
-        // 如果没找到，尝试原来的方法
-        const resetSpan = findSpanByKeyword(CONFIG.RESET_KEYWORD);
-        if (!resetSpan) {
-            return null;
-        }
-
-        const parent = resetSpan.closest('div');
-        if (!parent) {
-            return null;
-        }
-
-        const text = parent.textContent || '';
-        const match = text.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
-        
-        if (match) {
-            return match[1];
-        }
-
+        log('[DEBUG] No span with "上次重置" found, returning null');
         return null;
     }
 
-    function parseTime(timeStr) {
-        const parts = timeStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-        if (!parts) return null;
-
-        return new Date(
-            parseInt(parts[1]),
-            parseInt(parts[2]) - 1,
-            parseInt(parts[3]),
-            parseInt(parts[4]),
-            parseInt(parts[5]),
-            parseInt(parts[6])
-        );
-    }
-
-    function isNearMidnight() {
-        const now = new Date();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-
-        if (hour === CONFIG.NEAR_MIDNIGHT_HOUR && minute >= CONFIG.NEAR_MIDNIGHT_MINUTE) {
-            return true;
+    function parseRemainingResets() {
+        const spans = document.querySelectorAll('span');
+        for (let span of spans) {
+            const text = span.textContent || '';
+            if (text.includes('今日剩余') && text.includes('次')) {
+                const match = text.match(/今日剩余\s*(\d+)\s*次/);
+                if (match) {
+                    return parseInt(match[1]);
+                }
+            }
         }
-        if (hour === 23) {
-            return true;
-        }
-
-        return false;
+        return 0;
     }
 
     function isNear11PM() {
@@ -436,493 +150,528 @@
         const hour = now.getHours();
         const minute = now.getMinutes();
         const second = now.getSeconds();
-
-        // 检查是否在10:58:00到10:59:50之间
         if (hour === CONFIG.NEAR_11PM_START_HOUR && minute >= CONFIG.NEAR_11PM_START_MINUTE) {
-            if (minute < CONFIG.NEAR_11PM_END_MINUTE) {
-                return true; // 10:58:xx 到 10:58:59
-            }
-            if (minute === CONFIG.NEAR_11PM_END_MINUTE && second < CONFIG.NEAR_11PM_END_SECOND) {
-                return true; // 10:59:00 到 10:59:49
+            if (minute < CONFIG.NEAR_11PM_END_MINUTE) return true;
+            if (minute === CONFIG.NEAR_11PM_END_MINUTE && second < CONFIG.NEAR_11PM_END_SECOND) return true;
+        }
+        return false;
+    }
+
+    function canClick() {
+        const quota = parseQuotaStatus();
+        if (quota.isFull) return { can: false, reason: '额度已满' };
+        const remaining = parseRemainingResets();
+        if (remaining <= 0) return { can: false, reason: '无剩余次数' };
+        return { can: true, reason: '' };
+    }
+
+    // 检查是否一切就绪可以点击
+    function isEverythingReady() {
+        log('[DEBUG] isEverythingReady() called');
+        
+        // 0. 检查是否正在点击中
+        if (isClickingInProgress) {
+            log('[DEBUG] Click already in progress, not ready');
+            return { ready: false, reason: '点击进行中' };
+        }
+        
+        // 1. 检查重置按钮是否存在
+        const resetButton = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
+        if (!resetButton) {
+            log('[DEBUG] Reset button not found');
+            return { ready: false, reason: '重置按钮未找到' };
+        }
+        log('[DEBUG] Reset button found');
+        
+        // 2. 检查是否可以点击（额度、剩余次数）
+        const clickCheck = canClick();
+        if (!clickCheck.can) {
+            log(`[DEBUG] Cannot click: ${clickCheck.reason}`);
+            return { ready: false, reason: clickCheck.reason };
+        }
+        log('[DEBUG] Can click check passed');
+        
+        // 3. 检查是否应该重置（时间、额度条件）
+        const resetCheck = shouldReset();
+        if (!resetCheck.should) {
+            log(`[DEBUG] Should not reset: ${resetCheck.reason}`);
+            return { ready: false, reason: resetCheck.reason };
+        }
+        log('[DEBUG] Should reset check passed');
+        
+        // 4. 检查确认按钮是否存在（先点击重置按钮后会出现）
+        // 这里不检查确认按钮，因为确认按钮是在点击重置按钮后才出现的
+        
+        log('[DEBUG] Everything is ready');
+        return { ready: true, reason: '一切就绪' };
+    }
+
+    function findConfirmButton() {
+        const buttons = document.querySelectorAll('button');
+        for (let btn of buttons) {
+            const text = (btn.textContent || '').trim();
+            if (text === '重置' || (text.includes('重置') && !text.includes('额度'))) {
+                const rect = btn.getBoundingClientRect();
+                const style = window.getComputedStyle(btn);
+                if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+                    return btn;
+                }
             }
         }
+        return null;
+    }
 
+    function findCancelButton() {
+        const buttons = document.querySelectorAll('button');
+        for (let btn of buttons) {
+            const text = (btn.textContent || '').trim();
+            if (text === '取消') {
+                const rect = btn.getBoundingClientRect();
+                const style = window.getComputedStyle(btn);
+                if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+                    return btn;
+                }
+            }
+        }
+        return null;
+    }
+
+    // 测试按钮：点击重置按钮，检查确认对话框，点击取消
+    function testButtons() {
+        log('[DEBUG] testButtons() called');
+        updateButtonTestStatus('测试中...');
+        
+        const resetButton = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
+        if (!resetButton) {
+            log('[DEBUG] Reset button not found for testing');
+            updateButtonTestStatus('重置按钮未找到');
+            return;
+        }
+
+        log('[DEBUG] Clicking reset button for testing');
+        resetButton.click();
+
+        // 等待对话框出现
+        setTimeout(function() {
+            log('[DEBUG] Checking for confirm button after click');
+            const confirmButton = findConfirmButton();
+            if (confirmButton) {
+                log('[DEBUG] Confirm button found, clicking cancel');
+                updateButtonTestStatus('确认按钮已找到，点击取消');
+                
+                // 点击取消按钮
+                setTimeout(function() {
+                    const cancelButton = findCancelButton();
+                    if (cancelButton) {
+                        log('[DEBUG] Cancel button found, clicking it');
+                        cancelButton.click();
+                        updateButtonTestStatus('确认按钮已找到，已点击取消');
+                    } else {
+                        log('[DEBUG] Cancel button not found');
+                        updateButtonTestStatus('确认按钮已找到，但取消按钮未找到');
+                    }
+                }, 500);
+            } else {
+                log('[DEBUG] Confirm button not found');
+                updateButtonTestStatus('确认按钮未找到');
+            }
+        }, 1000);
+    }
+
+    function updateButtonTestStatus(message) {
+        if (!uiElement) return;
+        const testStatus = uiElement.querySelector('#button-test-status');
+        if (testStatus) {
+            testStatus.textContent = message;
+            if (message.includes('已找到') && message.includes('已点击取消')) {
+                testStatus.style.color = '#10b981';
+            } else if (message.includes('已找到')) {
+                testStatus.style.color = '#f59e0b';
+            } else if (message.includes('未找到')) {
+                testStatus.style.color = '#ef4444';
+            } else {
+                testStatus.style.color = '#6b7280';
+            }
+        }
+    }
+
+    function clickConfirmButton() {
+        const btn = findConfirmButton();
+        if (btn) {
+            log('Clicking confirm button');
+            btn.click();
+            return true;
+        }
         return false;
+    }
+
+    // 检查点击是否成功（额度是否恢复到50）
+    function isClickSuccessful() {
+        log('[DEBUG] isClickSuccessful() called');
+        const quota = parseQuotaStatus();
+        log(`[DEBUG] quota.currentQuota: ${quota.currentQuota}, quota.maxQuota: ${quota.maxQuota}`);
+        // 额度恢复到接近最大值（>= 49.9）才算成功
+        const isSuccess = quota.currentQuota >= 49.9;
+        log(`[DEBUG] isClickSuccessful: ${isSuccess}`);
+        return isSuccess;
+    }
+
+    // 保存点击前的额度，用于对比
+    function saveQuotaBeforeClick() {
+        const quota = parseQuotaStatus();
+        sessionStorage.setItem('88code_quota_before_click', quota.currentQuota.toString());
+        log(`[DEBUG] Saved quota before click: ${quota.currentQuota}`);
+    }
+
+    // 检查点击后额度是否恢复
+    function checkClickSuccessAfterDelay() {
+        log('[DEBUG] checkClickSuccessAfterDelay() called');
+        // 等待5秒后检查
+        setTimeout(function() {
+            log('[DEBUG] Checking quota after click');
+            if (isClickSuccessful()) {
+                log('[DEBUG] Click successful, quota restored');
+                recordSuccessfulClick();
+                // 清除点击进行中标志
+                isClickingInProgress = false;
+                log('[DEBUG] Setting isClickingInProgress = false (success)');
+            } else {
+                log('[DEBUG] Click not successful yet, quota not restored, will check again');
+                // 如果还没恢复，再等5秒检查一次
+                setTimeout(function() {
+                    if (isClickSuccessful()) {
+                        log('[DEBUG] Click successful after second check');
+                        recordSuccessfulClick();
+                    } else {
+                        log('[DEBUG] Click failed, quota not restored');
+                    }
+                    // 清除点击进行中标志
+                    isClickingInProgress = false;
+                    log('[DEBUG] Setting isClickingInProgress = false (after check)');
+                }, 5000);
+            }
+        }, 5000);
+    }
+
+    function clickResetButton() {
+        // 防止重复点击
+        if (isClickingInProgress) {
+            log('[DEBUG] Click already in progress, skipping');
+            return false;
+        }
+        
+        const button = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
+        if (!button) {
+            log('Reset button not found');
+            return false;
+        }
+
+        // 设置点击进行中标志
+        isClickingInProgress = true;
+        log('[DEBUG] Setting isClickingInProgress = true');
+
+        // 保存点击前的额度
+        saveQuotaBeforeClick();
+
+        log('Clicking reset button');
+        button.click();
+
+        // 等待对话框出现，确保确认按钮存在后再点击
+        setTimeout(function() {
+            log('[DEBUG] Checking for confirm button after clicking reset button');
+            const confirmButton = findConfirmButton();
+            if (!confirmButton) {
+                log('[DEBUG] Confirm button not found, waiting and retrying');
+                // 再等1秒重试
+                setTimeout(function() {
+                    const confirmButton2 = findConfirmButton();
+                    if (confirmButton2) {
+                        log('[DEBUG] Confirm button found on retry, clicking');
+                        clickConfirmButton();
+                        // 只点击一次确认按钮，然后检查结果
+                        checkClickSuccessAfterDelay();
+                    } else {
+                        log('[DEBUG] Confirm button still not found, click may have failed');
+                        // 清除点击进行中标志
+                        isClickingInProgress = false;
+                        log('[DEBUG] Setting isClickingInProgress = false (confirm button not found)');
+                    }
+                }, 1000);
+                return;
+            }
+            
+            log('[DEBUG] Confirm button found, clicking');
+            clickConfirmButton();
+            // 只点击一次确认按钮，然后检查结果
+            checkClickSuccessAfterDelay();
+        }, CONFIG.CONFIRM_DELAY);
+
+        return true;
     }
 
     function recordSuccessfulClick() {
         try {
             const clicks = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
-            const clickRecord = {
-                timestamp: new Date().toISOString(),
-                time: new Date().toLocaleString('zh-CN')
-            };
-            clicks.push(clickRecord);
+            const quota = parseQuotaStatus();
+            clicks.push({ 
+                timestamp: new Date().toISOString(), 
+                time: new Date().toLocaleString('zh-CN'),
+                quotaAfter: quota.currentQuota
+            });
             localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(clicks));
-            log(`Recorded successful click #${clicks.length} at ${clickRecord.time}`);
-            return clicks.length;
+            log(`Recorded successful click #${clicks.length}, quota after: ${quota.currentQuota}`);
+            // 清除点击前额度记录
+            sessionStorage.removeItem('88code_quota_before_click');
         } catch (e) {
-            log('Error recording click: ' + e.message);
-            return 0;
+            log('Error: ' + e.message);
         }
     }
 
     function getTotalClicks() {
         try {
-            const clicks = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
-            return clicks.length;
+            return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]').length;
         } catch (e) {
             return 0;
         }
     }
 
-    function calculateHoursSinceReset(timeStr) {
-        if (!timeStr) return null;
-
-        const lastResetTime = parseTime(timeStr);
-        if (!lastResetTime) return null;
-
+    // 判断是否到了重置时间
+    function isResetTimeReached() {
+        log('[DEBUG] isResetTimeReached() called');
+        const lastReset = parseLastResetTime();
+        if (!lastReset) {
+            log('[DEBUG] lastReset is null, returning false');
+            return { reached: false, reason: '未找到上次重置时间' };
+        }
+        
         const now = new Date();
-        const diffMs = now - lastResetTime;
-        const hours = diffMs / (1000 * 60 * 60);
+        const hoursSinceReset = (now - lastReset) / (1000 * 60 * 60);
+        log(`[DEBUG] hoursSinceReset: ${hoursSinceReset}, CONFIG.HOURS_THRESHOLD: ${CONFIG.HOURS_THRESHOLD}`);
         
-        // 调试日志
-        log(`Time calculation:`);
-        log(`  Last reset: ${lastResetTime.toLocaleString('zh-CN')}`);
-        log(`  Current time: ${now.toLocaleString('zh-CN')}`);
-        log(`  Difference: ${hours.toFixed(4)} hours (${(hours * 60).toFixed(2)} minutes)`);
-        log(`  Threshold: ${CONFIG.HOURS_THRESHOLD.toFixed(4)} hours (${(CONFIG.HOURS_THRESHOLD * 60).toFixed(2)} minutes)`);
-        
-        return hours;
+        if (hoursSinceReset >= CONFIG.HOURS_THRESHOLD) {
+            log('[DEBUG] Reset time reached');
+            return { reached: true, reason: '时间已到' };
+        } else {
+            const waitHours = (CONFIG.HOURS_THRESHOLD - hoursSinceReset).toFixed(2);
+            log(`[DEBUG] Reset time not reached, need to wait ${waitHours} hours`);
+            return { reached: false, reason: `还需等待 ${waitHours} 小时` };
+        }
     }
 
-    function determineResetAction() {
+    // 判断余额是否大于2
+    function isQuotaGreaterThan2() {
+        log('[DEBUG] isQuotaGreaterThan2() called');
         const quota = parseQuotaStatus();
-        const remaining = parseRemainingResets();
-        const lastResetTime = parseLastResetTime();
-        const hoursSinceReset = calculateHoursSinceReset(lastResetTime);
-        const nearMidnight = isNearMidnight();
+        log(`[DEBUG] quota.currentQuota: ${quota.currentQuota}`);
+        const result = quota.currentQuota > 2;
+        log(`[DEBUG] isQuotaGreaterThan2: ${result}`);
+        return result;
+    }
+
+    // 判断是否临近11点且应该重置
+    function shouldResetNear11PM() {
+        log('[DEBUG] shouldResetNear11PM() called');
         const near11PM = isNear11PM();
-
-        const status = {
-            currentQuota: quota.currentQuota,
-            maxQuota: quota.maxQuota,
-            isFull: quota.isFull,
-            isDepleted: quota.isDepleted,
-            remainingResets: remaining.count,
-            lastResetTime: lastResetTime,
-            hoursSinceReset: hoursSinceReset,
-            isNearMidnight: nearMidnight,
-            isNear11PM: near11PM,
-            shouldReset: false,
-            reason: ''
-        };
-
-        // Check 1: If no remaining resets today, cannot reset
-        if (remaining.count <= 0) {
-            status.reason = 'No remaining resets today (0 times left)';
-            logStatus(status);
-            return status;
+        log(`[DEBUG] isNear11PM(): ${near11PM}`);
+        
+        if (!near11PM) {
+            log('[DEBUG] Not near 11PM, returning false');
+            return { should: false, reason: '' };
         }
-
-        // Check 2: 临近11点且还有剩余次数，直接点击（10:58-10:59:50）
-        if (near11PM && remaining.count > 0) {
-            status.shouldReset = true;
-            status.reason = `Near 11PM (10:58-10:59:50) with ${remaining.count} remaining resets, triggering reset`;
-            logStatus(status);
-            return status;
-        }
-
-        // Check 3: 只要满4小时就重置（主要逻辑）
-        if (hoursSinceReset !== null && hoursSinceReset >= CONFIG.HOURS_THRESHOLD) {
-            status.shouldReset = true;
-            status.reason = `Hours since reset (${hoursSinceReset.toFixed(2)}) >= ${CONFIG.HOURS_THRESHOLD} hours, triggering reset`;
-            logStatus(status);
-            return status;
-        }
-
-        // Check 4: If quota is full, no need to reset
-        if (quota.isFull) {
-            status.reason = 'Quota is full ($' + quota.currentQuota + '/$' + quota.maxQuota + '), no need to reset';
-            logStatus(status);
-            return status;
-        }
-
-        // Not time yet, wait
-        if (hoursSinceReset !== null) {
-            const remainingHours = CONFIG.HOURS_THRESHOLD - hoursSinceReset;
-            status.reason = `Hours since reset (${hoursSinceReset.toFixed(2)}) < ${CONFIG.HOURS_THRESHOLD} hours, waiting ${remainingHours.toFixed(2)} more hours`;
+        
+        const quota = parseQuotaStatus();
+        log(`[DEBUG] quota.currentQuota: ${quota.currentQuota}`);
+        
+        if (quota.currentQuota < 50) {
+            log('[DEBUG] Near 11PM and quota < 50, returning true');
+            return { should: true, reason: '临近11点，额度小于50' };
         } else {
-            status.reason = 'Last reset time not found, waiting...';
-        }
-        logStatus(status);
-        return status;
-    }
-
-    function findTopmostConfirmDialog() {
-        // 查找所有可能包含"重置"的对话框按钮（确认对话框中的重置按钮）
-        const confirmButtons = [];
-        
-        // 先查找所有包含"重置"的按钮，但要排除主重置按钮（通过排除"重置额度"来区分）
-        const allButtons = document.querySelectorAll('button');
-        for (let btn of allButtons) {
-            const text = (btn.textContent || '').trim();
-            // 查找文本为"重置"的按钮（不是"重置额度"）
-            if (text === '重置' || (text.includes('重置') && !text.includes('额度'))) {
-                // 检查按钮是否在可见的对话框中
-                let dialog = btn.closest('div[role="dialog"], div[class*="dialog"], div[class*="modal"], div[class*="popup"]');
-                
-                // 检查按钮本身是否可见
-                const rect = btn.getBoundingClientRect();
-                const btnStyle = window.getComputedStyle(btn);
-                const isBtnVisible = rect.width > 0 && rect.height > 0 && 
-                                    btnStyle.display !== 'none' &&
-                                    btnStyle.visibility !== 'hidden' &&
-                                    btnStyle.opacity !== '0';
-                
-                if (!isBtnVisible) {
-                    continue;
-                }
-                
-                if (dialog) {
-                    // 检查对话框是否可见
-                    const dialogRect = dialog.getBoundingClientRect();
-                    const dialogStyle = window.getComputedStyle(dialog);
-                    const isDialogVisible = dialogRect.width > 0 && dialogRect.height > 0 &&
-                                          dialogStyle.display !== 'none' &&
-                                          dialogStyle.visibility !== 'hidden';
-                    if (isDialogVisible) {
-                        const zIndex = parseInt(dialogStyle.zIndex) || 0;
-                        confirmButtons.push({
-                            button: btn,
-                            zIndex: zIndex,
-                            rect: dialogRect,
-                            dialog: dialog
-                        });
-                    }
-                } else {
-                    // 按钮不在对话框中，但可能是弹出的确认按钮
-                    // 检查按钮是否有特定的样式（确认对话框中的重置按钮通常有bg-destructive样式）
-                    const hasDestructiveStyle = btnStyle.backgroundColor && 
-                                                (btn.className.includes('destructive') || 
-                                                 btn.className.includes('bg-destructive'));
-                    if (hasDestructiveStyle) {
-                        confirmButtons.push({
-                            button: btn,
-                            zIndex: 9999, // 给高优先级
-                            rect: rect
-                        });
-                    }
-                }
-            }
-        }
-        
-        // 按z-index排序，找到最顶层的
-        if (confirmButtons.length > 0) {
-            confirmButtons.sort((a, b) => {
-                // 先按z-index排序
-                if (a.zIndex !== b.zIndex) {
-                    return b.zIndex - a.zIndex;
-                }
-                // 如果z-index相同，按位置排序（更靠上的优先）
-                return a.rect.top - b.rect.top;
-            });
-            return confirmButtons[0].button;
-        }
-        
-        // 如果没找到，尝试查找包含"确认"、"确定"的按钮
-        for (let btn of allButtons) {
-            const text = (btn.textContent || '').trim();
-            if (text.includes('确认') || text.includes('确定') || text.includes('OK')) {
-                const rect = btn.getBoundingClientRect();
-                const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 && 
-                                style.display !== 'none' &&
-                                style.visibility !== 'hidden';
-                if (isVisible) {
-                    return btn;
-                }
-            }
-        }
-        
-        // 如果没找到，尝试原来的方法
-        let confirmBtn = findConfirmButtonByIcon(CONFIG.CONFIRM_ICON_CLASS);
-        if (!confirmBtn) {
-            // 最后尝试查找"重置"按钮（排除"重置额度"）
-            confirmBtn = findButtonByKeyword('重置', '额度');
-        }
-        
-        return confirmBtn;
-    }
-
-    function clickConfirmButton() {
-        const confirmBtn = findTopmostConfirmDialog();
-        if (confirmBtn) {
-            log('Found confirm button, clicking...');
-            confirmBtn.click();
-            return true;
-        } else {
-            log('Confirm button not found');
-            return false;
+            log('[DEBUG] Near 11PM but quota >= 50, returning false');
+            return { should: false, reason: '临近11点，但额度已满' };
         }
     }
 
-    function clickAllConfirmDialogs() {
-        let clicked = false;
-        let attempts = 0;
-        const maxAttempts = 10; // 最多尝试10次，防止无限循环
+    function shouldReset() {
+        log('[DEBUG] shouldReset() called');
         
-        while (attempts < maxAttempts) {
-            const confirmBtn = findTopmostConfirmDialog();
-            if (confirmBtn) {
-                log(`Found confirm dialog (attempt ${attempts + 1}), clicking...`);
-                confirmBtn.click();
-                clicked = true;
-                attempts++;
-                
-                // 等待一下，让对话框消失或新对话框出现
-                // 这里不等待，立即继续查找下一个
-            } else {
-                break; // 没有找到更多确认对话框
-            }
+        const remaining = parseRemainingResets();
+        log(`[DEBUG] remaining resets: ${remaining}`);
+        if (remaining <= 0) {
+            log('[DEBUG] No remaining resets, returning should: false');
+            return { should: false, reason: '无剩余次数' };
         }
-        
-        if (clicked) {
-            log(`Clicked ${attempts} confirm dialog(s)`);
+
+        // 条件3: 如果临近11点，无论是否到点击时间，只要额度 < 50 都点击
+        const near11PMCheck = shouldResetNear11PM();
+        if (near11PMCheck.should) {
+            log('[DEBUG] Should reset near 11PM');
+            return { should: true, reason: near11PMCheck.reason };
         }
-        
-        return clicked;
-    }
-
-    function clickResetButton() {
-        const button = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
-        if (button) {
-            log('Found reset button, clicking...');
-            button.click();
-
-            // 等待对话框出现，然后循环点击所有确认对话框
-            setTimeout(function() {
-                log('Waiting for confirm dialog...');
-                // 循环点击所有确认对话框，直到没有为止
-                let hasMore = true;
-                let attempts = 0;
-                const maxAttempts = 10;
-                
-                const clickLoop = function() {
-                    if (attempts >= maxAttempts) {
-                        log('Max attempts reached, stopping confirm dialog loop');
-                        // 如果所有确认对话框都点击完了，记录成功点击
-                        recordSuccessfulClick();
-                        return;
-                    }
-                    
-                    attempts++;
-                    const clicked = clickAllConfirmDialogs();
-                    
-                    if (clicked) {
-                        // 如果点击了，再等一会儿继续查找
-                        setTimeout(clickLoop, CONFIG.CONFIRM_DELAY);
-                    } else {
-                        log('No more confirm dialogs found');
-                        // 所有确认对话框都点击完了，记录成功点击
-                        recordSuccessfulClick();
-                    }
-                };
-                
-                // 开始循环点击
-                setTimeout(clickLoop, CONFIG.CONFIRM_DELAY);
-            }, CONFIG.CONFIRM_DELAY);
-
-            return true;
-        } else {
-            log('Reset button not found');
-            return false;
+        if (near11PMCheck.reason) {
+            log('[DEBUG] Near 11PM but should not reset');
+            return { should: false, reason: near11PMCheck.reason };
         }
+
+        // 条件1: 只有到了重置时间才刷新点击
+        const timeCheck = isResetTimeReached();
+        if (!timeCheck.reached) {
+            log('[DEBUG] Reset time not reached');
+            return { should: false, reason: timeCheck.reason };
+        }
+
+        // 条件2: 点击前判断余额，如果余额 > 2 则不点击
+        if (isQuotaGreaterThan2()) {
+            const quota = parseQuotaStatus();
+            log('[DEBUG] Quota > 2, returning should: false');
+            return { should: false, reason: `余额大于2，当前余额: ${quota.currentQuota}` };
+        }
+
+        // 时间到了且余额 <= 2，可以点击
+        log('[DEBUG] Time reached and quota <= 2, returning should: true');
+        return { should: true, reason: '时间已到，余额小于等于2' };
     }
 
-    function refreshAndClick() {
-        log('Refreshing page before clicking reset button...');
-        updateStatusMessage('正在刷新页面...');
-        
-        // 刷新页面
-        window.location.reload();
-    }
-
-    // 检查是否刚刷新完页面
-    let isPageJustRefreshed = false;
-    const refreshFlag = sessionStorage.getItem('eecode_auto_reset_refresh');
-    if (refreshFlag === 'true') {
-        isPageJustRefreshed = true;
-        sessionStorage.removeItem('eecode_auto_reset_refresh');
-    }
-
-    // 临近11点的持续点击定时器
     let near11PMInterval = null;
+    let quotaRefreshInterval = null;
+    let isClickingInProgress = false; // 防止重复点击
 
     function checkAndReset() {
-        log('Running scheduled check...');
-        updateStatusMessage('正在检查...');
-
-        if (!window.location.pathname.includes(CONFIG.TARGET_PATH)) {
-            log('Not on target page, redirecting to ' + CONFIG.TARGET_PATH);
-            updateStatusMessage('正在跳转到目标页面...');
+        log('[DEBUG] checkAndReset() called');
+        log(`[DEBUG] Current pathname: ${window.location.pathname}, TARGET_PATH: ${CONFIG.TARGET_PATH}`);
+        const currentPath = window.location.pathname;
+        // 如果不在精确路径上，跳转到目标路径
+        if (currentPath !== CONFIG.TARGET_PATH) {
+            log(`[DEBUG] Not on exact target path (current: ${currentPath}), redirecting to ${CONFIG.TARGET_PATH}`);
             window.location.href = CONFIG.TARGET_PATH;
             return;
         }
 
-        // 更新UI
+        log('[DEBUG] Calling updateUI()');
         updateUI();
 
-        // 如果刚刷新完页面，直接尝试点击按钮
-        if (isPageJustRefreshed) {
-            log('Page just refreshed, attempting to click reset button...');
-            updateStatusMessage('页面已刷新，正在点击重置按钮...');
-            isPageJustRefreshed = false;
-            
-            setTimeout(function() {
-                const clicked = clickResetButton();
-                if (clicked) {
-                    updateStatusMessage('已点击重置按钮，等待确认...');
-                } else {
-                    updateStatusMessage('未找到重置按钮');
-                }
-            }, 2000); // 等待页面完全加载
-            
-            return;
+        log('[DEBUG] Calling shouldReset()');
+        const reset = shouldReset();
+        log(`[DEBUG] reset.should: ${reset.should}, reset.reason: ${reset.reason}`);
+        
+        log('[DEBUG] Calling isNear11PM()');
+        const near11PM = isNear11PM();
+        log(`[DEBUG] isNear11PM(): ${near11PM}`);
+
+        if (!near11PM && near11PMInterval) {
+            log('[DEBUG] Not near 11PM and interval exists, clearing it');
+            clearInterval(near11PMInterval);
+            near11PMInterval = null;
         }
 
-        const status = determineResetAction();
-        const near11PM = isNear11PM();
-        const remaining = parseRemainingResets();
-
-        // 处理临近11点的持续点击逻辑
-        if (near11PM && remaining.count > 0) {
-            // 如果还没有启动持续点击，则启动
-            if (!near11PMInterval) {
-                log('Near 11PM detected, starting continuous click attempts...');
-                updateStatusMessage('临近11点，持续尝试点击中...');
-                
-                // 立即尝试一次
-                setTimeout(function() {
-                    const clicked = clickResetButton();
-                    if (clicked) {
-                        updateStatusMessage('已点击重置按钮（临近11点模式）...');
-                    }
-                }, 500);
-                
-                // 每2秒尝试一次，直到10:59:50
-                near11PMInterval = setInterval(function() {
-                    // 检查是否还在时间范围内
-                    if (!isNear11PM()) {
-                        log('Past 10:59:50, stopping continuous click attempts');
-                        clearInterval(near11PMInterval);
-                        near11PMInterval = null;
-                        updateStatusMessage('已过10:59:50，停止持续点击');
-                        return;
-                    }
-                    
-                    // 检查是否还有剩余次数
-                    const remainingCheck = parseRemainingResets();
-                    if (remainingCheck.count <= 0) {
-                        log('No remaining resets, stopping continuous click attempts');
-                        clearInterval(near11PMInterval);
-                        near11PMInterval = null;
-                        updateStatusMessage('无剩余次数，停止持续点击');
-                        return;
-                    }
-                    
-                    // 尝试点击
-                    const clicked = clickResetButton();
-                    if (clicked) {
-                        log('Clicked reset button (near 11PM mode)');
-                        updateStatusMessage('已点击重置按钮（临近11点模式）...');
-                    }
-                }, 2000); // 每2秒尝试一次
-            }
-        } else {
-            // 如果不在临近11点的时间，停止持续点击
+        if (reset.should) {
+            log('[DEBUG] reset.should is true');
             if (near11PMInterval) {
-                log('No longer near 11PM, stopping continuous click attempts');
+                log('[DEBUG] Clearing near11PMInterval');
                 clearInterval(near11PMInterval);
                 near11PMInterval = null;
             }
-        }
 
-        if (status.shouldReset) {
-            // 如果是临近11点的重置，不需要刷新页面，直接点击
-            if (near11PM && remaining.count > 0) {
-                log('Near 11PM reset - clicking directly without refresh');
-                updateStatusMessage('临近11点，直接点击重置按钮...');
+            // 根据当前实际状态判断：检查额度
+            const quota = parseQuotaStatus();
+            log(`[DEBUG] Current quota: ${quota.currentQuota}`);
+            
+            // 如果临近11点，无论额度多少（只要 < 50），都直接点击
+            if (near11PM && quota.currentQuota < 50) {
+                log('[DEBUG] Near 11PM and quota < 50, clicking directly');
+                if (quotaRefreshInterval) {
+                    clearInterval(quotaRefreshInterval);
+                    quotaRefreshInterval = null;
+                }
+                // 检查一切就绪后点击
+                const readyCheck = isEverythingReady();
+                if (readyCheck.ready) {
+                    clickResetButton();
+                } else {
+                    log(`[DEBUG] Not ready for click: ${readyCheck.reason}`);
+                    updateStatusMessage(`准备点击但未就绪: ${readyCheck.reason}`);
+                }
+            } else if (quota.currentQuota > 2) {
+                // 额度大于2，启动刷新循环，每分钟刷新一次
+                // 如果已经在刷新循环中，不重复启动
+                if (quotaRefreshInterval) {
+                    log('[DEBUG] Quota > 2, refresh loop already running');
+                    return;
+                }
                 
+                log('[DEBUG] Quota > 2, starting refresh loop');
+                updateStatusMessage(`额度大于2 (${quota.currentQuota})，每分钟刷新一次直到额度小于等于2...`);
+                
+                // 立即刷新一次
                 setTimeout(function() {
-                    const clicked = clickResetButton();
-                    if (clicked) {
-                        updateStatusMessage('已点击重置按钮（临近11点模式）...');
-                    } else {
-                        updateStatusMessage('未找到重置按钮');
-                    }
-                }, 500);
+                    window.location.reload();
+                }, 1000);
+                
+                // 设置定时器，每分钟刷新一次
+                quotaRefreshInterval = setInterval(function() {
+                    log('[DEBUG] quotaRefreshInterval: refreshing page');
+                    window.location.reload();
+                }, 60 * 1000);
             } else {
-                // 正常4小时重置逻辑：刷新页面
-                log('Executing reset - refreshing page first...');
-                updateStatusMessage('需要重置，正在刷新页面...');
-                
-                // 设置刷新标志
-                sessionStorage.setItem('eecode_auto_reset_refresh', 'true');
-                
-                // 刷新页面
+                // 额度 <= 2，刷新页面后点击
+                log('[DEBUG] Quota <= 2, refreshing page to click');
+                if (quotaRefreshInterval) {
+                    clearInterval(quotaRefreshInterval);
+                    quotaRefreshInterval = null;
+                }
+                updateStatusMessage('准备点击，正在刷新页面...');
+                // 设置标记，刷新后检查一切就绪再点击
+                sessionStorage.setItem('88code_ready_to_click', 'true');
                 setTimeout(function() {
                     window.location.reload();
                 }, 1000);
             }
         } else {
+            log('[DEBUG] reset.should is false');
+            if (near11PM && !near11PMInterval) {
+                log('[DEBUG] Near 11PM and no interval, creating interval');
+                near11PMInterval = setInterval(function() {
+                    log('[DEBUG] near11PMInterval callback called');
+                    if (!isNear11PM()) {
+                        log('[DEBUG] No longer near 11PM, clearing interval');
+                        clearInterval(near11PMInterval);
+                        near11PMInterval = null;
+                        return;
+                    }
+                    // 临近11点时也要检查一切是否就绪
+                    log('[DEBUG] Still near 11PM, checking if everything is ready');
+                    const readyCheck = isEverythingReady();
+                    log(`[DEBUG] readyCheck.ready: ${readyCheck.ready}, reason: ${readyCheck.reason}`);
+                    if (readyCheck.ready) {
+                        log('[DEBUG] Everything is ready, clicking reset button');
+                        clickResetButton();
+                    } else {
+                        log(`[DEBUG] Not ready: ${readyCheck.reason}`);
+                    }
+                }, 2000);
+            }
             if (!near11PM) {
-                updateStatusMessage(status.reason || '等待条件满足...');
+                log(`[DEBUG] Not near 11PM, updating status message: ${reset.reason}`);
+                updateStatusMessage(reset.reason);
             }
         }
+        log('[DEBUG] checkAndReset() finished');
     }
 
-    // UI显示
     let uiElement = null;
-    let countdownInterval = null;
-    let nextCheckTime = null;
-    let nextResetTime = null;
+    let timeUpdateInterval = null;
 
     function createUI() {
-        // 移除旧的UI
-        if (uiElement) {
-            uiElement.remove();
-        }
+        if (uiElement) uiElement.remove();
 
-        // 创建UI容器
         uiElement = document.createElement('div');
-        uiElement.id = 'eecode-auto-reset-ui';
-        uiElement.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            z-index: 10000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 14px;
-            min-width: 280px;
-        `;
+        uiElement.id = '88code-auto-reset-ui';
+        uiElement.style.cssText = 'position: fixed; top: 20px; right: 20px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; min-width: 280px;';
 
-        // 创建内容
-        const content = document.createElement('div');
-        content.innerHTML = `
+        uiElement.innerHTML = `
             <div style="margin-bottom: 12px; font-weight: 600; color: #1f2937;">88code Auto Reset</div>
-            <div class="flex justify-between items-center" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span class="text-muted-foreground" style="color: #6b7280;">额度余额:</span>
-                <span id="quota-display" class="text-red-500 font-medium" style="color: #ef4444; font-weight: 500;">加载中...</span>
-            </div>
-            <div style="margin-bottom: 8px;">
-                <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">下次检查倒计时:</div>
-                <div id="countdown-display" style="color: #1f2937; font-weight: 600; font-size: 16px;">--:--</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="color: #6b7280;">额度余额:</span>
+                <span id="quota-display" style="color: #ef4444; font-weight: 500;">加载中...</span>
             </div>
             <div style="margin-bottom: 8px;">
                 <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">下次重置时间:</div>
@@ -931,6 +680,10 @@
             <div style="margin-bottom: 8px;">
                 <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">按钮状态:</div>
                 <div id="button-status" style="color: #1f2937; font-size: 12px;">检查中...</div>
+            </div>
+            <div style="margin-bottom: 8px;">
+                <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">按钮测试:</div>
+                <div id="button-test-status" style="color: #1f2937; font-size: 12px;">未测试</div>
             </div>
             <div style="margin-bottom: 8px;">
                 <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">距离下次重置:</div>
@@ -945,182 +698,149 @@
             </div>
         `;
 
-        uiElement.appendChild(content);
         document.body.appendChild(uiElement);
-
         updateUI();
     }
 
     function updateUI() {
         if (!uiElement) return;
 
-        // 更新额度显示
         const quota = parseQuotaStatus();
         const quotaDisplay = uiElement.querySelector('#quota-display');
         if (quotaDisplay) {
             if (quota.found) {
-                const color = quota.isDepleted ? '#ef4444' : (quota.isFull ? '#10b981' : '#f59e0b');
                 quotaDisplay.textContent = `$${quota.currentQuota} / $${quota.maxQuota}`;
-                quotaDisplay.style.color = color;
+                quotaDisplay.style.color = quota.isFull ? '#10b981' : '#f59e0b';
             } else {
                 quotaDisplay.textContent = '未找到';
                 quotaDisplay.style.color = '#6b7280';
             }
         }
 
-        // 更新按钮状态
-        const button = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
         const buttonStatus = uiElement.querySelector('#button-status');
         if (buttonStatus) {
-            if (button) {
-                buttonStatus.textContent = '已找到';
-                buttonStatus.style.color = '#10b981';
-            } else {
-                buttonStatus.textContent = '未找到';
-                buttonStatus.style.color = '#ef4444';
-            }
+            const button = findButtonByKeyword(CONFIG.BUTTON_KEYWORD);
+            buttonStatus.textContent = button ? '已找到' : '未找到';
+            buttonStatus.style.color = button ? '#10b981' : '#ef4444';
         }
 
-        // 更新倒计时
-        updateCountdown();
-        updateNextResetTime();
-        updateTimeToReset();
-        
-        // 更新总点击次数
         const totalClicksDisplay = uiElement.querySelector('#total-clicks-display');
         if (totalClicksDisplay) {
-            const totalClicks = getTotalClicks();
-            totalClicksDisplay.textContent = totalClicks.toString();
-        }
-    }
-
-    function updateCountdown() {
-        if (!uiElement || !nextCheckTime) return;
-
-        const countdownDisplay = uiElement.querySelector('#countdown-display');
-        if (!countdownDisplay) return;
-
-        const now = new Date();
-        const diff = nextCheckTime - now;
-
-        if (diff <= 0) {
-            countdownDisplay.textContent = '00:00';
-            nextCheckTime = new Date(now.getTime() + CONFIG.CHECK_INTERVAL);
-            return;
+            totalClicksDisplay.textContent = getTotalClicks().toString();
         }
 
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        countdownDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        updateNextResetTime();
+        updateTimeToReset();
     }
 
     function updateNextResetTime() {
         if (!uiElement) return;
+        const display = uiElement.querySelector('#next-reset-time-display');
+        if (!display) return;
 
-        const nextResetTimeDisplay = uiElement.querySelector('#next-reset-time-display');
-        if (!nextResetTimeDisplay) return;
+        const lastReset = parseLastResetTime();
+        if (!lastReset) {
+            display.textContent = '--:--:--';
+            return;
+        }
 
-        // 通过上次重置时间计算下次重置时间（上次重置 + 4小时）
-        const lastResetTime = parseLastResetTime();
-        if (lastResetTime) {
-            const lastReset = parseTime(lastResetTime);
-            if (lastReset) {
-                const nextReset = new Date(lastReset.getTime() + CONFIG.HOURS_THRESHOLD * 60 * 60 * 1000);
-                
-                // 显示格式：HH:MM:SS（小时:分钟:秒），小时范围是0-23
-                const hours = nextReset.getHours(); // 0-23
-                const minutes = nextReset.getMinutes(); // 0-59
-                const seconds = nextReset.getSeconds(); // 0-59
-                
-                // 确保是两位数格式
-                const hoursStr = String(hours).padStart(2, '0');
-                const minutesStr = String(minutes).padStart(2, '0');
-                const secondsStr = String(seconds).padStart(2, '0');
-                
-                // 显示格式：HH:MM:SS（例如：17:44:00 表示下午5点44分0秒）
-                nextResetTimeDisplay.textContent = `${hoursStr}:${minutesStr}:${secondsStr}`;
-                
-                const now = new Date();
-                const diff = nextReset - now;
-                
-                // 如果已经过了重置时间，显示为可重置
-                if (diff <= 0) {
-                    nextResetTimeDisplay.style.color = '#10b981';
-                    nextResetTimeDisplay.textContent = `${hoursStr}:${minutesStr}:${secondsStr} (可重置)`;
-                } else if (diff < 60 * 60 * 1000) {
-                    // 如果剩余时间少于1小时，显示红色警告
-                    nextResetTimeDisplay.style.color = '#ef4444';
-                } else if (diff < 3 * 60 * 60 * 1000) {
-                    nextResetTimeDisplay.style.color = '#f59e0b';
-                } else {
-                    nextResetTimeDisplay.style.color = '#1f2937';
-                }
-                
-                // 调试日志
-                log(`Next reset time: ${hoursStr}:${minutesStr}:${secondsStr} (${hours}小时${minutes}分钟${seconds}秒)`);
-            } else {
-                nextResetTimeDisplay.textContent = '--:--:--';
-                nextResetTimeDisplay.style.color = '#6b7280';
-            }
+        const nextReset = new Date(lastReset.getTime() + CONFIG.HOURS_THRESHOLD * 60 * 60 * 1000);
+        const now = new Date();
+        const nextYear = nextReset.getFullYear();
+        const nextMonth = nextReset.getMonth() + 1;
+        const nextDay = nextReset.getDate();
+        const nowYear = now.getFullYear();
+        const nowMonth = now.getMonth() + 1;
+        const nowDay = now.getDate();
+
+        let dateStr = '';
+        if (nextYear === nowYear && nextMonth === nowMonth && nextDay === nowDay) {
+            dateStr = '今天';
+        } else if (nextYear === nowYear && nextMonth === nowMonth && nextDay === nowDay + 1) {
+            dateStr = '明天';
         } else {
-            nextResetTimeDisplay.textContent = '--:--:--';
-            nextResetTimeDisplay.style.color = '#6b7280';
+            dateStr = `${nextMonth}/${nextDay}`;
+        }
+
+        const hoursStr = String(nextReset.getHours()).padStart(2, '0');
+        const minutesStr = String(nextReset.getMinutes()).padStart(2, '0');
+        const secondsStr = String(nextReset.getSeconds()).padStart(2, '0');
+
+        const diff = nextReset - now;
+        if (diff <= 0) {
+            display.textContent = `${dateStr} ${hoursStr}:${minutesStr}:${secondsStr} (可重置)`;
+            display.style.color = '#10b981';
+        } else {
+            display.textContent = `${dateStr} ${hoursStr}:${minutesStr}:${secondsStr}`;
+            display.style.color = diff < 60 * 60 * 1000 ? '#ef4444' : (diff < 3 * 60 * 60 * 1000 ? '#f59e0b' : '#1f2937');
         }
     }
 
     function updateTimeToReset() {
-        if (!uiElement) return;
-
-        const timeToResetDisplay = uiElement.querySelector('#time-to-reset-display');
-        if (!timeToResetDisplay) return;
-
-        // 通过上次重置时间计算下次重置时间（上次重置 + 4小时零1分钟）
-        const lastResetTime = parseLastResetTime();
-        if (lastResetTime) {
-            const lastReset = parseTime(lastResetTime);
-            if (lastReset) {
-                const nextReset = new Date(lastReset.getTime() + CONFIG.HOURS_THRESHOLD * 60 * 60 * 1000);
-                const now = new Date();
-                const diff = nextReset - now;
-                
-                if (diff <= 0) {
-                    // 已经可以重置了
-                    timeToResetDisplay.textContent = '00:00:00 (可点击)';
-                    timeToResetDisplay.style.color = '#10b981';
-                } else {
-                    // 计算剩余时间
-                    const totalSeconds = Math.floor(diff / 1000);
-                    const hours = Math.floor(totalSeconds / 3600);
-                    const minutes = Math.floor((totalSeconds % 3600) / 60);
-                    const seconds = totalSeconds % 60;
-                    
-                    // 格式化显示：HH:MM:SS
-                    const hoursStr = String(hours).padStart(2, '0');
-                    const minutesStr = String(minutes).padStart(2, '0');
-                    const secondsStr = String(seconds).padStart(2, '0');
-                    
-                    timeToResetDisplay.textContent = `${hoursStr}:${minutesStr}:${secondsStr}`;
-                    
-                    // 根据剩余时间设置颜色
-                    if (diff < 60 * 60 * 1000) {
-                        // 少于1小时，显示红色
-                        timeToResetDisplay.style.color = '#ef4444';
-                    } else if (diff < 3 * 60 * 60 * 1000) {
-                        // 少于3小时，显示橙色
-                        timeToResetDisplay.style.color = '#f59e0b';
-                    } else {
-                        // 正常显示
-                        timeToResetDisplay.style.color = '#1f2937';
-                    }
-                }
-            } else {
-                timeToResetDisplay.textContent = '--:--:--';
-                timeToResetDisplay.style.color = '#6b7280';
-            }
-        } else {
-            timeToResetDisplay.textContent = '--:--:--';
-            timeToResetDisplay.style.color = '#6b7280';
+        log('[DEBUG] updateTimeToReset() called');
+        if (!uiElement) {
+            log('[DEBUG] uiElement is null, returning');
+            return;
         }
+        const display = uiElement.querySelector('#time-to-reset-display');
+        if (!display) {
+            log('[DEBUG] display element not found, returning');
+            return;
+        }
+
+        log('[DEBUG] Parsing last reset time...');
+        const lastReset = parseLastResetTime();
+        if (!lastReset) {
+            log('[DEBUG] lastReset is null, displaying --:--:--');
+            display.textContent = '--:--:--';
+            return;
+        }
+        log(`[DEBUG] lastReset parsed: ${lastReset.toLocaleString()}`);
+
+        log(`[DEBUG] CONFIG.HOURS_THRESHOLD: ${CONFIG.HOURS_THRESHOLD}`);
+        const nextReset = new Date(lastReset.getTime() + CONFIG.HOURS_THRESHOLD * 60 * 60 * 1000);
+        log(`[DEBUG] nextReset calculated: ${nextReset.toLocaleString()}`);
+        
+        const now = new Date();
+        log(`[DEBUG] now: ${now.toLocaleString()}`);
+        
+        const diff = nextReset - now;
+        log(`[DEBUG] diff (ms): ${diff}, diff (hours): ${diff / (1000 * 60 * 60)}`);
+        
+        const quota = parseQuotaStatus();
+        log(`[DEBUG] quota.isFull: ${quota.isFull}, quota.currentQuota: ${quota.currentQuota}, quota.maxQuota: ${quota.maxQuota}`);
+
+        // 计算剩余时间（无论额度是否已满都显示倒计时）
+        const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+        log(`[DEBUG] totalSeconds: ${totalSeconds}`);
+        
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        log(`[DEBUG] hours: ${hours}, minutes: ${minutes}, seconds: ${seconds}`);
+        
+        const hoursStr = String(hours).padStart(2, '0');
+        const minutesStr = String(minutes).padStart(2, '0');
+        const secondsStr = String(seconds).padStart(2, '0');
+        log(`[DEBUG] Formatted time: ${hoursStr}:${minutesStr}:${secondsStr}`);
+
+        // 即使额度已满，也显示倒计时
+        if (quota.isFull) {
+            log('[DEBUG] Quota is full, displaying countdown with (额度已满)');
+            display.textContent = `${hoursStr}:${minutesStr}:${secondsStr} (额度已满)`;
+            display.style.color = '#6b7280';
+        } else {
+            if (diff <= 0) {
+                log('[DEBUG] diff <= 0, but quota not full, displaying 00:00:00 (可点击)');
+                display.textContent = '00:00:00 (可点击)';
+                display.style.color = '#10b981';
+            } else {
+                log(`[DEBUG] diff > 0, displaying countdown: ${hoursStr}:${minutesStr}:${secondsStr}`);
+                display.textContent = `${hoursStr}:${minutesStr}:${secondsStr}`;
+                display.style.color = diff < 60 * 60 * 1000 ? '#ef4444' : (diff < 3 * 60 * 60 * 1000 ? '#f59e0b' : '#1f2937');
+            }
+        }
+        log(`[DEBUG] Final display text: ${display.textContent}`);
     }
 
     function updateStatusMessage(message) {
@@ -1132,93 +852,112 @@
     }
 
     function closeIntroDialog() {
-        // 查找"关闭"按钮，优先查找data-slot="button"的按钮
-        const closeButtons = document.querySelectorAll('button[data-slot="button"]');
-        for (let btn of closeButtons) {
+        const buttons = document.querySelectorAll('button');
+        for (let btn of buttons) {
             const text = (btn.textContent || '').trim();
-            if (text === '关闭' || text.includes('关闭')) {
-                // 检查按钮是否可见
+            if (text.includes('关闭')) {
                 const rect = btn.getBoundingClientRect();
                 const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 &&
-                                style.display !== 'none' &&
-                                style.visibility !== 'hidden' &&
-                                style.opacity !== '0';
-                
-                if (isVisible) {
-                    log('Found intro dialog close button, clicking...');
+                if (rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
                     btn.click();
                     return true;
                 }
             }
         }
-        
-        // 如果没找到，尝试查找所有包含"关闭"的按钮
-        const allButtons = document.querySelectorAll('button');
-        for (let btn of allButtons) {
-            const text = (btn.textContent || '').trim();
-            if (text === '关闭' || text.includes('关闭')) {
-                const rect = btn.getBoundingClientRect();
-                const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 &&
-                                style.display !== 'none' &&
-                                style.visibility !== 'hidden' &&
-                                style.opacity !== '0';
-                
-                if (isVisible) {
-                    log('Found close button, clicking...');
-                    btn.click();
-                    return true;
-                }
-            }
-        }
-        
         return false;
     }
 
     function init() {
-        log('Script initialized v2.3');
-        log('Target path: ' + CONFIG.TARGET_PATH);
-        log('Check interval: ' + (CONFIG.CHECK_INTERVAL / 1000) + ' seconds');
-        log('Reset triggers:');
-        log('  1. Hours since reset >= ' + CONFIG.HOURS_THRESHOLD + ' hours');
-        log('Will NOT reset if no remaining resets today');
+        log('[DEBUG] init() called');
+        log('Script initialized v6.0');
 
-        // 初次打开时关闭介绍弹窗
-        setTimeout(function() {
-            closeIntroDialog();
-        }, 500);
+        // 首先检查是否在目标页面，如果不在则立即跳转
+        log(`[DEBUG] Checking pathname: ${window.location.pathname}, TARGET_PATH: ${CONFIG.TARGET_PATH}`);
+        const currentPath = window.location.pathname;
+        // 如果不在精确路径上，跳转到目标路径
+        if (currentPath !== CONFIG.TARGET_PATH) {
+            log(`[DEBUG] Not on exact target path (current: ${currentPath}), redirecting to ${CONFIG.TARGET_PATH}`);
+            window.location.href = CONFIG.TARGET_PATH;
+            return;
+        }
 
-        // 再次尝试关闭（有些弹窗可能延迟出现）
-        setTimeout(function() {
-            closeIntroDialog();
-        }, 2000);
+        log('[DEBUG] On target path, continuing initialization');
+        
+        // 检查是否准备点击（刷新后检查一切就绪再点击）
+        const readyToClick = sessionStorage.getItem('88code_ready_to_click');
+        if (readyToClick === 'true') {
+            log('[DEBUG] Ready to click flag found, checking if everything is ready');
+            sessionStorage.removeItem('88code_ready_to_click');
+            setTimeout(function() {
+                const readyCheck = isEverythingReady();
+                log(`[DEBUG] readyCheck.ready: ${readyCheck.ready}, reason: ${readyCheck.reason}`);
+                if (readyCheck.ready) {
+                    log('[DEBUG] Everything is ready, clicking reset button');
+                    clickResetButton();
+                } else {
+                    log(`[DEBUG] Not ready: ${readyCheck.reason}`);
+                    updateStatusMessage(`未就绪: ${readyCheck.reason}`);
+                }
+            }, 3000);
+        }
+        
+        // 检查是否有未确认的点击（刷新后检查额度是否恢复）
+        const quotaBeforeClick = sessionStorage.getItem('88code_quota_before_click');
+        if (quotaBeforeClick) {
+            log(`[DEBUG] Found quota before click: ${quotaBeforeClick}, checking if quota restored`);
+            setTimeout(function() {
+                if (isClickSuccessful()) {
+                    log('[DEBUG] Quota restored after page refresh, recording successful click');
+                    recordSuccessfulClick();
+                } else {
+                    log('[DEBUG] Quota not restored yet, will check again');
+                    // 再等5秒检查一次
+                    setTimeout(function() {
+                        if (isClickSuccessful()) {
+                            log('[DEBUG] Quota restored after second check');
+                            recordSuccessfulClick();
+                        } else {
+                            log('[DEBUG] Click failed, quota not restored, clearing flag');
+                            sessionStorage.removeItem('88code_quota_before_click');
+                        }
+                    }, 5000);
+                }
+            }, 3000);
+        }
+        
+        setTimeout(closeIntroDialog, 500);
+        setTimeout(closeIntroDialog, 2000);
 
-        // 创建UI
         createUI();
 
-        // 启动倒计时更新
-        nextCheckTime = new Date(Date.now() + CONFIG.CHECK_INTERVAL);
-        if (countdownInterval) {
-            clearInterval(countdownInterval);
-        }
-        countdownInterval = setInterval(function() {
-            updateCountdown();
+        // 测试按钮：点击重置按钮，检查确认对话框，点击取消（仅在非点击进行中时测试）
+        setTimeout(function() {
+            if (!isClickingInProgress) {
+                testButtons();
+            }
+        }, 4000);
+
+        setTimeout(checkAndReset, 3000);
+
+        let uiUpdateCounter = 0;
+        if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+        timeUpdateInterval = setInterval(function() {
             updateNextResetTime();
             updateTimeToReset();
+            checkAndReset();
+            uiUpdateCounter++;
+            if (uiUpdateCounter >= 5) {
+                uiUpdateCounter = 0;
+                updateUI();
+            }
         }, 1000);
-
-        // 定期更新UI
-        setInterval(updateUI, 5000);
-
-        setTimeout(function() {
-            checkAndReset();
-        }, 3000);
-
-        setInterval(function() {
-            nextCheckTime = new Date(Date.now() + CONFIG.CHECK_INTERVAL);
-            checkAndReset();
-        }, CONFIG.CHECK_INTERVAL);
+        
+        // 清理间隔：页面卸载时清理所有间隔
+        window.addEventListener('beforeunload', function() {
+            if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+            if (near11PMInterval) clearInterval(near11PMInterval);
+            if (quotaRefreshInterval) clearInterval(quotaRefreshInterval);
+        });
     }
 
     if (document.readyState === 'complete') {
@@ -1228,3 +967,4 @@
     }
 
 })();
+
