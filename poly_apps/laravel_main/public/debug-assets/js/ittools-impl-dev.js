@@ -96,9 +96,7 @@ ITTools.Implementations.ChmodCalculator = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('chmod-result')) {
-        ITTools.Implementations.ChmodCalculator.calculate();
-    }
+    ITTools.Implementations.ChmodCalculator.calculate();
 });
 
 // ============================================
