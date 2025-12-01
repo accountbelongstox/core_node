@@ -1,15 +1,135 @@
 #!/usr/bin/env node
 
+// ============================================================
+// Phase 1: Use ONLY built-in Node.js modules (no third-party packages)
+// ============================================================
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const fsp = fs.promises;
-const { spawn } = require('child_process');
-const chokidar = require('chokidar');
-const fsExtra = require('fs-extra');
+const { spawn, execSync } = require('child_process');
 
 const SOURCE_ROOT = path.resolve(__dirname, '..');
 const ORIGINAL_CWD = process.cwd();
+const NODE_MODULES_DIR = path.join(SOURCE_ROOT, 'node_modules');
+
+// ============================================================
+// Pre-check: Ensure node_modules exists before loading third-party packages
+// ============================================================
+
+function checkAndInstallDependencies() {
+  console.log('');
+  console.log('[Pre-check] Checking frontend dependencies...');
+  console.log('[Pre-check] Location:', SOURCE_ROOT);
+
+  // Check if node_modules directory exists
+  if (!fs.existsSync(NODE_MODULES_DIR)) {
+    console.log('[Pre-check] ❌ node_modules not found');
+    console.log('[Pre-check] Will install all dependencies...');
+    installDependencies();
+    return;
+  }
+
+  console.log('[Pre-check] ✓ node_modules directory exists');
+
+  // Check if required packages exist
+  const requiredPackages = ['chokidar', 'fs-extra'];
+  const missingPackages = [];
+
+  for (const pkg of requiredPackages) {
+    const pkgPath = path.join(NODE_MODULES_DIR, pkg);
+    if (!fs.existsSync(pkgPath)) {
+      missingPackages.push(pkg);
+      console.log(`[Pre-check] ❌ Missing package: ${pkg}`);
+    } else {
+      console.log(`[Pre-check] ✓ Package found: ${pkg}`);
+    }
+  }
+
+  if (missingPackages.length > 0) {
+    console.log(`[Pre-check] Missing ${missingPackages.length} package(s), installing...`);
+    installDependencies();
+    return;
+  }
+
+  console.log('[Pre-check] ✓ All dependencies found');
+  console.log('');
+}
+
+function installDependencies() {
+  try {
+    console.log('');
+    console.log('='.repeat(70));
+    console.log('[Pre-check] Installing frontend dependencies...');
+    console.log('='.repeat(70));
+    console.log('[Pre-check] Command: pnpm install');
+    console.log('[Pre-check] Working directory:', SOURCE_ROOT);
+
+    // Verify SOURCE_ROOT is correct (should be poly_apps/nuxt_main)
+    const expectedDir = path.join(SOURCE_ROOT, 'package.json');
+    if (!fs.existsSync(expectedDir)) {
+      console.error('[Pre-check] ERROR: package.json not found in:', SOURCE_ROOT);
+      console.error('[Pre-check] Please check the working directory');
+      process.exit(1);
+    }
+
+    console.log('[Pre-check] package.json found - directory verified');
+    console.log('');
+    console.log('[Pre-check] Starting installation (this may take a few minutes)...');
+    console.log('='.repeat(70));
+    console.log('');
+
+    // Change to SOURCE_ROOT directory before running pnpm install
+    // This ensures pnpm uses the correct package.json
+    const originalCwd = process.cwd();
+    process.chdir(SOURCE_ROOT);
+
+    console.log(`[Pre-check] Changed directory to: ${process.cwd()}`);
+    console.log('');
+
+    // Run pnpm install synchronously with real-time output
+    // Use --yes flag to automatically answer yes to all prompts
+    execSync('pnpm install --yes', {
+      stdio: 'inherit', // Show output in real-time (stdout, stderr, stdin)
+      encoding: 'utf-8',
+      env: process.env
+    });
+
+    // Restore original working directory
+    process.chdir(originalCwd);
+
+    console.log('');
+    console.log('='.repeat(70));
+    console.log('[Pre-check] Dependencies installed successfully!');
+    console.log('='.repeat(70));
+    console.log('');
+  } catch (error) {
+    console.error('');
+    console.error('='.repeat(70));
+    console.error('[Pre-check] ERROR: Failed to install dependencies');
+    console.error('='.repeat(70));
+    console.error('[Pre-check] Error:', error.message);
+    console.error('');
+    console.error('[Pre-check] Please install dependencies manually:');
+    console.error(`  1. cd ${SOURCE_ROOT}`);
+    console.error('  2. pnpm install');
+    console.error('');
+    console.error('[Pre-check] Or ensure pnpm is installed:');
+    console.error('  npm install -g pnpm');
+    console.error('='.repeat(70));
+    console.error('');
+    process.exit(1);
+  }
+}
+
+// Run pre-check
+checkAndInstallDependencies();
+
+// ============================================================
+// Phase 2: Load third-party packages (after ensuring they exist)
+// ============================================================
+const chokidar = require('chokidar');
+const fsExtra = require('fs-extra');
 const PAGES_DIR = path.join(SOURCE_ROOT, 'pages');
 const BACKUP_DIR = path.join(SOURCE_ROOT, '.app-backups');
 const APP_MAIN_PAGES_DIR = path.join(SOURCE_ROOT, 'app_main_pages');
@@ -52,21 +172,55 @@ function info(message) {
 }
 
 function scanAvailableApps() {
-  const apps = [];
-  const entries = fs.readdirSync(SOURCE_ROOT, { withFileTypes: true });
-  
-  entries.forEach(entry => {
+  console.log('[Scan] Scanning for available apps...');
+  const apps = new Set(); // Use Set to avoid duplicates
+
+  // Method 1: Scan app_{namespace}_pages directories (standard location)
+  console.log('[Scan] Method 1: Scanning app_*_pages directories...');
+  const rootEntries = fs.readdirSync(SOURCE_ROOT, { withFileTypes: true });
+
+  rootEntries.forEach(entry => {
     if (entry.isDirectory() && entry.name.startsWith('app_') && entry.name.endsWith('_pages')) {
       const appName = entry.name.replace(/^app_/, '').replace(/_pages$/, '');
       if (appName !== 'main') {
-        apps.push(appName);
+        console.log(`[Scan]   ✓ Found: ${appName} (from ${entry.name})`);
+        apps.add(appName);
       }
     }
   });
-  
-  return apps.sort();
+
+  // Method 2: Scan apps/app_{namespace} directories (app code location)
+  console.log('[Scan] Method 2: Scanning apps/app_* directories...');
+  const appsDir = path.join(SOURCE_ROOT, 'apps');
+  if (fs.existsSync(appsDir)) {
+    const appEntries = fs.readdirSync(appsDir, { withFileTypes: true });
+
+    appEntries.forEach(entry => {
+      if (entry.isDirectory() && entry.name.startsWith('app_')) {
+        const appName = entry.name.replace(/^app_/, '');
+        if (appName !== 'main') {
+          // Check if this app has either app_{name}_pages OR apps/app_{name}
+          const hasPagesDir = fs.existsSync(path.join(SOURCE_ROOT, `app_${appName}_pages`));
+          const hasAppsDir = fs.existsSync(path.join(appsDir, entry.name));
+
+          if (hasPagesDir || hasAppsDir) {
+            console.log(`[Scan]   ✓ Found: ${appName} (from apps/${entry.name})`);
+            apps.add(appName);
+          }
+        }
+      }
+    });
+  }
+
+  const appsList = Array.from(apps).sort();
+  console.log('[Scan] Total apps found:', appsList.length);
+  console.log('[Scan] Available apps:', appsList.join(', '));
+  console.log('');
+
+  return appsList;
 }
 
+// Dynamically scan apps on every run (not hardcoded)
 const SUPPORTED_APPS = scanAvailableApps();
 
 function clearDirectory(dirPath) {

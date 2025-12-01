@@ -6,18 +6,18 @@ This `pages/` directory is automatically managed by the multi-app architecture s
 
 ## Current Active App
 
-**App Name:** pymatrix
-**Source Directory:** `app_pymatrix_pages/`
+**App Name:** codemart
+**Source Directory:** `app_codemart_pages/`
 
 ## How It Works
 
 1. The `pages/` directory is **recursively cleared and repopulated** when switching apps
-2. All files are copied from `app_pymatrix_pages/` to `pages/`
+2. All files are copied from `app_codemart_pages/` to `pages/`
 3. Any changes made directly to `pages/` will be **lost** when switching apps
 
 ## How to Modify Pages
 
-**✅ CORRECT:** Edit files in `app_pymatrix_pages/`
+**✅ CORRECT:** Edit files in `app_codemart_pages/`
 - Changes persist across app switches
 - Source of truth for app pages
 
@@ -37,4 +37,4 @@ To switch to a different app:
 node scripts/switch-app.js [appname]
 ```
 
-Available apps: admin, codemart, dashboard, dev, example, ittools, pymatrix, main
+Available apps: codemart, ittools, main
