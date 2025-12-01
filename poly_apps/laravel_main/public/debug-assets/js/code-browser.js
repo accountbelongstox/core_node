@@ -22,15 +22,19 @@ const CodeBrowser = {
 
     async init() {
         await this.loadCsrfToken();
+        
+        const authCheckEl = document.getElementById('code-browser-auth-check');
+        const contentEl = document.getElementById('code-browser-content');
+        
         const authResult = await this.checkAuth();
         if (!authResult.authenticated) {
-            document.getElementById('code-browser-auth-check').style.display = 'block';
-            document.getElementById('code-browser-content').style.display = 'none';
+            authCheckEl.style.display = 'block';
+            contentEl.style.display = 'none';
             return;
         }
 
-        document.getElementById('code-browser-auth-check').style.display = 'none';
-        document.getElementById('code-browser-content').style.display = 'block';
+        authCheckEl.style.display = 'none';
+        contentEl.style.display = 'block';
 
         if (authResult.base_directory) {
             this.baseDirectory = authResult.base_directory;
@@ -53,9 +57,6 @@ const CodeBrowser = {
 
             const response = await APIClient.get('/code-browser/auth-check', { headers });
             return await response.json();
-        } catch (error) {
-            console.error('Auth check failed:', error);
-            return { authenticated: false };
         }
     },
 
@@ -70,8 +71,6 @@ const CodeBrowser = {
             }
 
             this.renderFileTree(data.items, path);
-        } catch (error) {
-            console.error('Failed to load file tree:', error);
         }
     },
 
@@ -236,8 +235,6 @@ const CodeBrowser = {
 
                 container.appendChild(itemDiv);
             });
-        } catch (error) {
-            console.error('Failed to load folder contents:', error);
         }
     },
 
@@ -281,8 +278,6 @@ const CodeBrowser = {
             document.getElementById('close-file-btn').disabled = false;
 
             this.isModified = false;
-        } catch (error) {
-            console.error('Failed to load file:', error);
         }
     },
 
@@ -309,8 +304,6 @@ const CodeBrowser = {
             this.isModified = false;
             document.getElementById('file-status').textContent = `Saved successfully - Backup: ${data.backup}`;
             setTimeout(() => this.loadFile(this.currentFile.path), 1000);
-        } catch (error) {
-            console.error('Failed to save file:', error);
         }
     },
 
@@ -455,8 +448,6 @@ const CodeBrowser = {
 
                     console.log('File restored successfully');
                     this.refreshTree();
-                } catch (error) {
-                    console.error('Failed to restore file:', error);
                 }
             }
         );
@@ -492,8 +483,6 @@ const CodeBrowser = {
             console.log('Item renamed successfully');
             this.closeRenameDialog();
             this.refreshTree();
-        } catch (error) {
-            console.error('Failed to rename item:', error);
         }
     },
 
@@ -526,9 +515,6 @@ const CodeBrowser = {
             }
 
             this.refreshTree();
-        } catch (error) {
-            console.error('Failed to auto-rename file:', error);
-            alert('Failed to auto-rename file');
         }
     },
 
@@ -609,9 +595,6 @@ const CodeBrowser = {
                     } else {
                         translatedLines.push(line);
                     }
-                } catch (error) {
-                    console.error(`[CodeBrowser] Failed to translate line ${i + 1}:`, error);
-                    translatedLines.push(line);
                 }
             }
 
@@ -652,10 +635,6 @@ const CodeBrowser = {
                     }
                 }, 2000);
             }
-        } catch (error) {
-            console.error('Translation failed:', error);
-            alert('Failed to translate file. Please check console for details.');
-            document.getElementById('file-status').textContent = 'Translation failed';
         }
     },
 
@@ -675,8 +654,6 @@ const CodeBrowser = {
                     }
                 });
             }
-        } catch (error) {
-            console.error('Failed to load expanded state:', error);
         }
     },
 
@@ -686,8 +663,6 @@ const CodeBrowser = {
                 !this.shouldSkipCache(folder)
             );
             localStorage.setItem('code_browser_expanded_folders', JSON.stringify(foldersToSave));
-        } catch (error) {
-            console.error('Failed to save expanded state:', error);
         }
     }
 };

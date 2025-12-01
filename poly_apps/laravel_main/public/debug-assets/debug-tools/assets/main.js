@@ -75,17 +75,40 @@ async function loadUserSettings() {
 
     if (result.success) {
         userSettings = result.settings;
-        document.getElementById('userIdentifier').textContent = userSettings.user_identifier || 'Unknown';
+        const userIdentifierEl = document.getElementById('userIdentifier');
+        if (userIdentifierEl) {
+            userIdentifierEl.textContent = userSettings.user_identifier || 'Unknown';
+        }
 
-        document.getElementById('defaultPlaybackRate').value = userSettings.playback_rate || 1.0;
-        document.getElementById('defaultPlaybackRateValue').textContent = (userSettings.playback_rate || 1.0) + 'x';
+        const defaultPlaybackRateEl = document.getElementById('defaultPlaybackRate');
+        if (defaultPlaybackRateEl) {
+            defaultPlaybackRateEl.value = userSettings.playback_rate || 1.0;
+        }
+        const defaultPlaybackRateValueEl = document.getElementById('defaultPlaybackRateValue');
+        if (defaultPlaybackRateValueEl) {
+            defaultPlaybackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
+        }
 
-        document.getElementById('playbackRateSlider').value = userSettings.playback_rate || 1.0;
-        document.getElementById('playbackRateValue').textContent = (userSettings.playback_rate || 1.0) + 'x';
-        audioPlayer.playbackRate = userSettings.playback_rate || 1.0;
+        const playbackRateSliderEl = document.getElementById('playbackRateSlider');
+        if (playbackRateSliderEl) {
+            playbackRateSliderEl.value = userSettings.playback_rate || 1.0;
+        }
+        const playbackRateValueEl = document.getElementById('playbackRateValue');
+        if (playbackRateValueEl) {
+            playbackRateValueEl.textContent = (userSettings.playback_rate || 1.0) + 'x';
+        }
+        if (audioPlayer) {
+            audioPlayer.playbackRate = userSettings.playback_rate || 1.0;
+        }
 
-        document.getElementById('autoPlayCheckbox').checked = userSettings.auto_play || false;
-        document.getElementById('playMode').value = userSettings.play_mode || 'all';
+        const autoPlayCheckboxEl = document.getElementById('autoPlayCheckbox');
+        if (autoPlayCheckboxEl) {
+            autoPlayCheckboxEl.checked = userSettings.auto_play || false;
+        }
+        const playModeEl = document.getElementById('playMode');
+        if (playModeEl) {
+            playModeEl.value = userSettings.play_mode || 'all';
+        }
 
         updatePlayOptions();
         updateTargetLanguageDisplay();
@@ -774,14 +797,19 @@ async function playPause() {
     }
 }
 
-audioPlayer.addEventListener('ended', async () => {
-    isPlaying = false;
-    document.getElementById('playBtn').textContent = '▶️ Play';
-    if (!isLoopEnabled()) {
-        return;
-    }
-    await advancePlaybackLoop();
-});
+if (audioPlayer) {
+    audioPlayer.addEventListener('ended', async () => {
+        isPlaying = false;
+        const playBtnEl = document.getElementById('playBtn');
+        if (playBtnEl) {
+            playBtnEl.textContent = '▶️ Play';
+        }
+        if (!isLoopEnabled()) {
+            return;
+        }
+        await advancePlaybackLoop();
+    });
+}
 
 async function previousSubtitle() {
     const response = await fetch(`${API_BASE}/previous`, { method: 'POST' });
