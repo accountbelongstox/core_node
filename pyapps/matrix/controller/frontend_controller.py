@@ -1,6 +1,8 @@
 """Frontend Controller
 
 Manages Nuxt frontend lifecycle for Matrix application
+
+Uses poly_apps/nuxt_main/scripts/start.py for launching frontend
 """
 
 import os
@@ -45,9 +47,8 @@ class FrontendController:
         self.nuxt_main_dir = self.project_root / "poly_apps" / "nuxt_main"
         self.scripts_dir = self.nuxt_main_dir / "scripts"
 
-        # Scripts
-        self.switch_entry_script = self.scripts_dir / "switch-app-entry.js"
-        self.switch_plus_script = self.scripts_dir / "switch-app-entry-plus.js"
+        # New unified launcher (Python version - equivalent to start.ps1)
+        self.start_script = self.scripts_dir / "start.py"
 
         # State
         self.running = False
@@ -61,83 +62,44 @@ class FrontendController:
             ColorPrint.red(f"Nuxt directory not found: {self.nuxt_main_dir}")
             return False
 
-        if not self.switch_entry_script.exists():
-            ColorPrint.red(f"Script not found: {self.switch_entry_script}")
-            return False
-
-        if not self.switch_plus_script.exists():
-            ColorPrint.red(f"Script not found: {self.switch_plus_script}")
+        if not self.start_script.exists():
+            ColorPrint.red(f"Start script not found: {self.start_script}")
             return False
 
         return True
 
-    def switch_entry_point(self) -> bool:
+    def start_nuxt_frontend(self) -> bool:
         """
-        Switch app entry point (Step 1)
+        Start Nuxt frontend using start.py launcher
 
-        Executes: node switch-app-entry.js pymatrix
-        Synchronously switches index.vue to pymatrix
-
-        Returns:
-            True if successful
-        """
-        ColorPrint.green("[FrontendController] Step 1: Switching entry point...")
-        ColorPrint.gray(f"Command: node \"{self.switch_entry_script}\" pymatrix")
-
-        try:
-            result = subprocess.run(
-                ["node", str(self.switch_entry_script), "pymatrix"],
-                cwd=str(self.nuxt_main_dir),
-                capture_output=True,
-                text=True,
-                encoding='utf-8'
-            )
-
-            if result.returncode != 0:
-                ColorPrint.red(f"[ERROR] Failed to switch entry point:")
-                ColorPrint.red(result.stderr)
-                return False
-
-            # Print output
-            if result.stdout:
-                for line in result.stdout.strip().split('\n'):
-                    ColorPrint.white(f"  {line}")
-
-            ColorPrint.green("[SUCCESS] Entry point switched")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Exception during entry point switch: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def start_factory_sync(self) -> bool:
-        """
-        Start factory sync and dev server (Step 2)
-
-        Executes: node switch-app-entry-plus.js pymatrix --mode dev
-        Asynchronously starts factory sync and Nuxt dev server in new console
+        Executes: python start.py pymatrix
+        This will:
+        1. Switch pages directory to pymatrix
+        2. Start factory sync and Nuxt dev server
 
         Returns:
             True if started successfully
         """
-        ColorPrint.green("[FrontendController] Step 2: Starting factory sync and dev server...")
-        ColorPrint.gray(f"Command: node \"{self.switch_plus_script}\" pymatrix --mode dev")
+        ColorPrint.green("[FrontendController] Starting Nuxt frontend for pymatrix...")
+        ColorPrint.gray(f"Command: python \"{self.start_script}\" pymatrix")
+        ColorPrint.gray(f"Port: {self.frontend_port}")
 
         try:
             import platform
 
             if platform.system() == 'Windows':
-                # Create temporary batch script for new console window
+                # Windows: Launch in new console window
                 fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
                 self.temp_script = Path(temp_script_path)
 
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
                     f.write('@echo off\n')
-                    f.write('title Matrix Frontend - Factory Sync\n')
+                    f.write('title Matrix Frontend - Nuxt Dev Server\n')
                     f.write(f'cd /d "{self.nuxt_main_dir}"\n')
-                    f.write(f'node "{self.switch_plus_script}" pymatrix --mode dev\n')
+                    # Set NUXT_PORT environment variable for Matrix frontend
+                    f.write(f'set NUXT_PORT={self.frontend_port}\n')
+                    f.write(f'set NUXT_HOST=0.0.0.0\n')
+                    f.write(f'python "{self.start_script}" pymatrix debug\n')
                     f.write('echo.\n')
                     f.write('echo Frontend process ended. Press any key to close...\n')
                     f.write('pause > nul\n')
@@ -150,27 +112,31 @@ class FrontendController:
                 )
 
             else:
-                # Linux: Launch in background
+                # Linux/Mac: Launch in background
+                env = os.environ.copy()
+                env['NUXT_PORT'] = str(self.frontend_port)
+                env['NUXT_HOST'] = '0.0.0.0'
                 self.process = subprocess.Popen(
-                    ["node", str(self.switch_plus_script), "pymatrix", "--mode", "dev"],
+                    ["python3", str(self.start_script), "pymatrix", "debug"],
                     cwd=str(self.nuxt_main_dir),
+                    env=env,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
 
             self.running = True
-            ColorPrint.green("[SUCCESS] Factory sync launched")
+            ColorPrint.green("[SUCCESS] Nuxt frontend launcher started")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Failed to start factory sync: {e}")
+            ColorPrint.red(f"[ERROR] Failed to start Nuxt frontend: {e}")
             import traceback
             traceback.print_exc()
             return False
 
     def wait_for_ready(self, timeout: int = 120, check_interval: int = 2) -> bool:
         """
-        Wait for frontend to become ready
+        Wait for frontend to become ready with detailed progress reporting
 
         Args:
             timeout: Maximum wait time in seconds
@@ -181,38 +147,76 @@ class FrontendController:
         """
         import requests
 
-        ColorPrint.yellow(f"[FrontendController] Waiting for frontend: {self.frontend_url}")
-        ColorPrint.white(f"Timeout: {timeout}s | Check interval: {check_interval}s")
+        ColorPrint.blue("=" * 79)
+        ColorPrint.blue("[FrontendController] 等待前端初始化")
+        ColorPrint.blue("=" * 79)
+        ColorPrint.cyan(f"目标地址: {self.frontend_url}")
+        ColorPrint.cyan(f"超时时间: {timeout}s | 检测间隔: {check_interval}s")
+        ColorPrint.blue("=" * 79)
         ColorPrint.white("")
 
+        start_time = time.time()
         elapsed = 0
+        attempt = 0
         dots = 0
 
         while elapsed < timeout:
+            attempt += 1
+            current_elapsed = time.time() - start_time
+
             try:
                 response = requests.get(self.frontend_url, timeout=2)
                 if response.status_code == 200:
                     ColorPrint.white("")
-                    ColorPrint.green(f"[SUCCESS] Frontend ready at {self.frontend_url}")
+                    ColorPrint.blue("=" * 79)
+                    ColorPrint.green(f"✓ 前端就绪: {self.frontend_url}")
+                    ColorPrint.green(f"✓ 启动耗时: {current_elapsed:.2f}秒")
+                    ColorPrint.green(f"✓ 检测次数: {attempt}次")
+                    ColorPrint.blue("=" * 79)
                     self.ready = True
                     return True
-            except:
+            except requests.exceptions.ConnectionError:
+                # Connection refused - service not ready yet
                 pass
+            except requests.exceptions.Timeout:
+                # Request timeout - service may be starting
+                pass
+            except Exception as e:
+                # Other errors - log but continue
+                ColorPrint.gray(f"\r[检测 #{attempt}] 异常: {str(e)[:50]}", end='', flush=True)
 
-            # Print progress
+            # Print animated progress with time and attempt count
             dots = (dots + 1) % 4
-            print(f"\r[WAITING] Connecting{'.' * dots}{' ' * (3 - dots)}", end='', flush=True)
+            progress_bar = '.' * dots + ' ' * (3 - dots)
+            print(
+                f"\r[等待前端初始化{progress_bar}] "
+                f"已耗时: {current_elapsed:>5.1f}s | "
+                f"检测次数: {attempt:>3} | "
+                f"剩余: {timeout - current_elapsed:>5.1f}s",
+                end='',
+                flush=True
+            )
 
             time.sleep(check_interval)
-            elapsed += check_interval
+            elapsed = time.time() - start_time
 
+        # Timeout reached
         ColorPrint.white("")
-        ColorPrint.red(f"[ERROR] Frontend did not start within {timeout} seconds")
+        ColorPrint.blue("=" * 79)
+        ColorPrint.red(f"✗ 前端启动超时: {elapsed:.2f}秒")
+        ColorPrint.red(f"✗ 检测次数: {attempt}次")
+        ColorPrint.yellow(f"⚠ 请检查前端进程是否正常启动")
+        ColorPrint.blue("=" * 79)
         return False
 
     def start(self) -> bool:
         """
         Start frontend (full flow)
+
+        Uses start.py launcher which handles:
+        - Switching pages directory
+        - Starting factory sync
+        - Starting Nuxt dev server
 
         Returns:
             True if started successfully
@@ -220,12 +224,8 @@ class FrontendController:
         if not self.validate_paths():
             return False
 
-        # Step 1: Switch entry point
-        if not self.switch_entry_point():
-            return False
-
-        # Step 2: Start factory sync
-        if not self.start_factory_sync():
+        # Start Nuxt frontend using unified launcher
+        if not self.start_nuxt_frontend():
             return False
 
         return True
