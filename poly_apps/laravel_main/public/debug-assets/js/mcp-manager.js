@@ -559,7 +559,6 @@ const McpScreenshotModule = {
 
     copyToClipboard(inputId) {
         const input = document.getElementById(inputId);
-        if (!input) return;
 
         const text = input.value;
 
@@ -1111,7 +1110,6 @@ const McpTaskDispatchModule = {
 
     renderCategories() {
         const container = document.getElementById('mcp-td-categories');
-        if (!container) return;
 
         if (this.categories.length === 0) {
             container.innerHTML = '<div class="mcp-td-empty">No categories found</div>';
