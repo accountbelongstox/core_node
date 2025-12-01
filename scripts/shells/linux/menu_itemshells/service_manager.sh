@@ -643,6 +643,8 @@ show_main_menu() {
         for service in "${SERVICES[@]}"; do
             local service_name="${SERVICE_NAME[$service]}"
             local status=$(get_service_status "$service")
+            local manager_script="${SERVICE_MANAGER_SCRIPT[$service]}"
+            local systemd_name="${SERVICE_SYSTEMD[$service]}"
 
             # Format: [#] Service Name    [STATUS] [Actions]
             printf "${CYAN}%d.${NC} %-15s " "$index" "$service_name"
@@ -660,9 +662,15 @@ show_main_menu() {
                 fi
             fi
 
-            # Show advanced manager indicator
+            # Show systemd service name
+            if [ -n "$systemd_name" ]; then
+                echo -e "   ${BLUE}Service: $systemd_name${NC}"
+            fi
+
+            # Show advanced manager indicator with path
             if has_advanced_manager "$service"; then
                 echo -e "   ${BLUE}[Advanced Manager: ${index}m]${NC}"
+                echo -e "   ${BLUE}Manager: $manager_script${NC}"
             fi
 
             ((index++))

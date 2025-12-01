@@ -256,8 +256,11 @@ enable_rdp() {
     print_step_from_common_functions "Configuring RDP..."
 
     # Configure RDP using sudo with environment variables
+    # Escape password to handle special characters safely
+    local ESCAPED_PASSWORD=$(printf '%s' "$RDP_PASSWORD" | sed "s/'/'\\\\''/g")
+
     if ! sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
-        bash -c "grdctl rdp set-credentials '$TARGET_USER' '$RDP_PASSWORD'"; then
+        bash -c "grdctl rdp set-credentials '$TARGET_USER' '$ESCAPED_PASSWORD'"; then
         print_error_from_common_functions "Failed to set RDP credentials"
         exit 1
     fi
@@ -292,6 +295,24 @@ enable_rdp() {
     print_step_from_common_functions "Configuring firewall..."
     if command -v ufw &>/dev/null; then
         sudo ufw allow 3389/tcp comment 'GNOME Remote Desktop'
+        sudo ufw allow 3389/udp comment 'GNOME Remote Desktop UDP'
+    fi
+
+    # Configure TLS certificate trust (workaround for self-signed cert issues)
+    print_step_from_common_functions "Configuring TLS certificate..."
+    USER_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+    CERT_DIR="$USER_HOME/.local/share/gnome-remote-desktop"
+
+    if [ -d "$CERT_DIR" ]; then
+        print_info_from_common_functions "Certificate directory exists: $CERT_DIR"
+        if [ -f "$CERT_DIR/rdp-tls.crt" ]; then
+            print_info_from_common_functions "Self-signed certificate found"
+            print_warning_from_common_functions "Windows may not trust this certificate"
+            echo ""
+            echo "To fix certificate trust issues on Windows:"
+            echo "  1. Use 'mstsc /v:<ip>' without certificate validation"
+            echo "  2. Or disable NLA in Windows RDP client settings"
+        fi
     fi
 
     # Display connection info
@@ -306,13 +327,26 @@ enable_rdp() {
     echo "Available IP addresses:"
     hostname -I | tr ' ' '\n' | grep -v '^$' | sed 's/^/  /'
     echo ""
-    print_info_from_common_functions "Connect from Windows using:"
-    echo "  1. Press Win+R"
-    echo "  2. Type: mstsc"
-    echo "  3. Enter IP address above"
-    echo "  4. Use credentials: $TARGET_USER / (your password)"
+
+    print_warning_from_common_functions "IMPORTANT: To avoid authentication errors on Windows:"
     echo ""
-    print_warning_from_common_functions "IMPORTANT: User must be logged in to the desktop for RDP to work!"
+    echo "Method 1: Disable NLA in RDP connection (Recommended)"
+    echo "  1. Open Remote Desktop Connection (mstsc)"
+    echo "  2. Enter IP address, click 'Show Options'"
+    echo "  3. Go to 'Advanced' tab → 'Settings'"
+    echo "  4. Set authentication to 'Do not connect if authentication fails'"
+    echo ""
+    echo "Method 2: Create .rdp file with:"
+    echo "  full address:s:<IP>"
+    echo "  username:s:$TARGET_USER"
+    echo "  enablecredsspsupport:i:0"
+    echo "  authentication level:i:0"
+    echo "  negotiate security layer:i:0"
+    echo ""
+    print_warning_from_common_functions "CRITICAL: User MUST remain logged in to desktop for RDP to work!"
+    echo "  - Do NOT log out"
+    echo "  - Locking screen is OK"
+    echo "  - System sleep/hibernate will disconnect RDP"
     echo ""
 }
 

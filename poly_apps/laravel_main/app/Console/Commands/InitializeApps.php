@@ -22,6 +22,10 @@ class InitializeApps extends Command
         $this->info('Initializing system...');
         $this->newLine();
 
+        $this->info('Checking Octane/Swoole compatibility...');
+        $this->fixOctaneSwooleCompatibility();
+        $this->newLine();
+
         $this->info('Checking Octane hot-reload dependencies...');
         $this->installChokidar();
         $this->newLine();
@@ -579,6 +583,55 @@ class InitializeApps extends Command
 
         } catch (\Exception $e) {
             $this->error("  ❌ Migration error: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Fix Octane/Swoole compatibility
+     *
+     * PHP Version: 8.5 (Upgraded from 8.4)
+     * Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
+     *
+     * Swoole 6.x compatibility patch for Laravel Octane v2.13.x
+     * Issue: Swoole 6.x changed task event signature (breaking change)
+     * - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
+     * - Swoole 6.x: task(Server $server, Server\Task $task)
+     *
+     * This method calls App\Support\OctaneSwooleCompatFixer to apply the patch
+     * The patch is idempotent (safe to run multiple times)
+     */
+    private function fixOctaneSwooleCompatibility()
+    {
+        if (!is_dir(base_path('vendor/laravel/octane'))) {
+            $this->line("  <fg=yellow>⏭️  Laravel Octane not installed, skipping</>");
+            return;
+        }
+
+        try {
+            $fixer = new \App\Support\OctaneSwooleCompatFixer(base_path());
+            $result = $fixer->run();
+
+            switch ($result['status']) {
+                case 'fixed':
+                    $this->line("  ✅ Compatibility patch applied (Swoole {$result['swoole_version']})");
+                    break;
+                case 'already_fixed':
+                    $this->line("  ✓ Compatibility patch already applied (Swoole {$result['swoole_version']})");
+                    break;
+                case 'compatible':
+                    $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
+                    break;
+                case 'skipped':
+                    $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
+                    break;
+                case 'unknown':
+                    $this->line("  <fg=yellow>⚠️  Unknown Swoole version: {$result['swoole_version']}</>");
+                    break;
+                default:
+                    $this->line("  <fg=yellow>⚠️  Unexpected status: {$result['status']}</>");
+            }
+        } catch (\Exception $e) {
+            $this->warn("  ⚠️  Compatibility check error: " . $e->getMessage());
         }
     }
 

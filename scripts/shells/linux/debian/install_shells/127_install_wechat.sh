@@ -40,7 +40,8 @@ INSTALL_DIR="$APPIMAGE_DIR/$EXEC_NAME"
 APPIMAGE_FILE="$INSTALL_DIR/${EXEC_NAME}.AppImage"
 EXTRACTED_DIR="$INSTALL_DIR/extracted"
 APPRUN_PATH="$EXTRACTED_DIR/squashfs-root/AppRun"
-WRAPPER_SCRIPT="/usr/local/super_scripts/${EXEC_NAME}.sh"
+USER_BIN_DIR="$REAL_USER_HOME/.local/bin"
+USER_SYMLINK="$USER_BIN_DIR/$EXEC_NAME"
 DESKTOP_FILE="/usr/share/applications/${EXEC_NAME}.desktop"
 
 # Version tracking
@@ -106,7 +107,12 @@ save_installed_version() {
 
 # Function to check if WeChat is installed
 check_wechat_installed() {
-    if [ -f "/usr/local/bin/$EXEC_NAME" ] && [ -x "/usr/local/bin/$EXEC_NAME" ]; then
+    # Check if AppImage or AppRun exists and is executable
+    if [ -f "$APPIMAGE_FILE" ] && [ -x "$APPIMAGE_FILE" ]; then
+        print_info_from_common_functions "WeChat is already installed"
+        return 0
+    fi
+    if [ -f "$APPRUN_PATH" ] && [ -x "$APPRUN_PATH" ]; then
         print_info_from_common_functions "WeChat is already installed"
         return 0
     fi
@@ -252,54 +258,45 @@ fix_chrome_sandbox_permissions() {
     fi
 }
 
-# Function to create wrapper script
-create_wrapper_script() {
-    print_step_from_common_functions "Creating wrapper script..."
+# Function to create user-level symlink (optional, for terminal access)
+create_user_symlink() {
+    print_step_from_common_functions "Creating user-level symlink..."
 
-    $USE_SUDO mkdir -p "/usr/local/super_scripts"
+    # Ensure REAL_USER_HOME is set
+    if [ -z "$REAL_USER_HOME" ] || [ ! -d "$REAL_USER_HOME" ]; then
+        print_warning_from_common_functions "Real user home not found, skipping user symlink"
+        return 0
+    fi
 
-    # Determine which executable to use
+    # Create user bin directory if it doesn't exist
+    if [ ! -d "$USER_BIN_DIR" ]; then
+        mkdir -p "$USER_BIN_DIR" 2>/dev/null || {
+            print_warning_from_common_functions "Failed to create $USER_BIN_DIR, skipping user symlink"
+            return 0
+        }
+        # Set ownership to real user
+        chown "$REAL_USER:$REAL_USER_GROUP" "$USER_BIN_DIR" 2>/dev/null || true
+    fi
+
+    # Determine target executable
     local exec_target=""
     if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
         exec_target="$APPRUN_PATH"
-        print_info_from_common_functions "Using extracted AppRun: $exec_target"
     else
         exec_target="$APPIMAGE_FILE"
-        print_info_from_common_functions "Using AppImage directly: $exec_target"
     fi
 
-    # Create wrapper script
-    cat << 'WRAPPER_EOF' | $USE_SUDO tee "$WRAPPER_SCRIPT" > /dev/null
-#!/bin/bash
-# WeChat Launcher Script (AppImage Installation)
+    # Create symlink
+    ln -sf "$exec_target" "$USER_SYMLINK" 2>/dev/null || {
+        print_warning_from_common_functions "Failed to create user symlink, but installation can continue"
+        return 0
+    }
 
-EXEC_PATH="EXEC_TARGET_PLACEHOLDER"
+    # Set ownership to real user
+    chown -h "$REAL_USER:$REAL_USER_GROUP" "$USER_SYMLINK" 2>/dev/null || true
 
-if [[ ! -f "$EXEC_PATH" ]]; then
-    echo "Error: WeChat executable not found at $EXEC_PATH"
-    echo "Please reinstall WeChat"
-    exit 1
-fi
-
-# Launch WeChat
-exec "$EXEC_PATH" "$@"
-WRAPPER_EOF
-
-    # Replace placeholder with actual path
-    $USE_SUDO sed -i "s|EXEC_TARGET_PLACEHOLDER|$exec_target|g" "$WRAPPER_SCRIPT"
-
-    $USE_SUDO chmod +x "$WRAPPER_SCRIPT"
-
-    print_success_from_common_functions "Wrapper script created: $WRAPPER_SCRIPT"
-}
-
-# Function to create symlink
-create_symlink() {
-    print_step_from_common_functions "Creating system symlink..."
-
-    $USE_SUDO ln -sf "$WRAPPER_SCRIPT" "/usr/local/bin/$EXEC_NAME"
-
-    print_success_from_common_functions "Symlink created: /usr/local/bin/$EXEC_NAME"
+    print_success_from_common_functions "User symlink created: $USER_SYMLINK"
+    print_info_from_common_functions "You can run 'wechat' from terminal (after adding ~/.local/bin to PATH)"
 }
 
 # Function to find icon
@@ -321,8 +318,79 @@ find_icon() {
     echo "$icon_path"
 }
 
+# Function to clean up old desktop entries (both root and non-root directories)
+cleanup_old_desktop_entries() {
+    print_step_from_common_functions "Cleaning up old WeChat desktop entries..."
+
+    local desktop_files_removed=0
+    local search_paths=(
+        "/usr/share/applications"
+        "/usr/local/share/applications"
+    )
+
+    # Add user directories (both current user and real user)
+    if [ -n "$REAL_USER_HOME" ] && [ -d "$REAL_USER_HOME" ]; then
+        search_paths+=("$REAL_USER_HOME/.local/share/applications")
+    fi
+
+    if [ -n "$HOME" ] && [ "$HOME" != "$REAL_USER_HOME" ]; then
+        search_paths+=("$HOME/.local/share/applications")
+    fi
+
+    # Add root's home directory
+    if [ -d "/root/.local/share/applications" ]; then
+        search_paths+=("/root/.local/share/applications")
+    fi
+
+    # Find and remove all WeChat desktop files
+    for search_path in "${search_paths[@]}"; do
+        if [ ! -d "$search_path" ]; then
+            continue
+        fi
+
+        # Find all wechat desktop files (including core_node_ prefixed ones)
+        local desktop_files=()
+        while IFS= read -r -d '' desktop_file; do
+            desktop_files+=("$desktop_file")
+        done < <(find "$search_path" -maxdepth 1 \( -name "*wechat*.desktop" -o -name "*WeChat*.desktop" \) -type f -print0 2>/dev/null)
+
+        # Remove each desktop file
+        for desktop_file in "${desktop_files[@]}"; do
+            print_info_from_common_functions "Removing old desktop entry: $desktop_file"
+            if [ -w "$desktop_file" ]; then
+                rm -f "$desktop_file" 2>/dev/null && ((desktop_files_removed++))
+            else
+                $USE_SUDO rm -f "$desktop_file" 2>/dev/null && ((desktop_files_removed++))
+            fi
+        done
+    done
+
+    if [ $desktop_files_removed -gt 0 ]; then
+        print_success_from_common_functions "Removed $desktop_files_removed old desktop entry/entries"
+    else
+        print_info_from_common_functions "No old desktop entries found"
+    fi
+
+    # Update desktop database
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        for search_path in "${search_paths[@]}"; do
+            if [ -d "$search_path" ]; then
+                if [ -w "$search_path" ]; then
+                    update-desktop-database "$search_path" 2>/dev/null || true
+                else
+                    $USE_SUDO update-desktop-database "$search_path" 2>/dev/null || true
+                fi
+            fi
+        done
+        print_info_from_common_functions "Desktop database updated"
+    fi
+}
+
 # Function to create desktop entry
 create_desktop_entry() {
+    # Clean up old desktop entries first
+    cleanup_old_desktop_entries
+
     print_step_from_common_functions "Creating desktop entry..."
 
     local icon_path=$(find_icon)
@@ -368,13 +436,21 @@ create_desktop_entry() {
     else
         print_warning_from_common_functions "desktop_entry_manager.sh not found, using fallback method"
 
+        # Determine exec target
+        local exec_target=""
+        if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
+            exec_target="$APPRUN_PATH"
+        else
+            exec_target="$APPIMAGE_FILE"
+        fi
+
         # Fallback: create desktop file manually
         cat << DESKTOP_EOF | $USE_SUDO tee "$DESKTOP_FILE" > /dev/null
 [Desktop Entry]
 Name=$DESKTOP_NAME
 Comment=$DESKTOP_COMMENT
 GenericName=$DESKTOP_NAME
-Exec=/usr/local/bin/$EXEC_NAME
+Exec=$exec_target
 Icon=$icon_path
 Type=Application
 Terminal=false
@@ -399,14 +475,9 @@ DESKTOP_EOF
 repair_installation() {
     print_step_from_common_functions "Repairing WeChat installation..."
 
-    # Recreate wrapper script if missing or different
-    if [ ! -f "$WRAPPER_SCRIPT" ] || ! grep -q "WeChat" "$WRAPPER_SCRIPT" 2>/dev/null; then
-        create_wrapper_script
-    fi
-
-    # Recreate symlink if missing or broken
-    if [ ! -L "/usr/local/bin/$EXEC_NAME" ] || [ ! -e "/usr/local/bin/$EXEC_NAME" ]; then
-        create_symlink
+    # Recreate user symlink if missing or broken
+    if [ ! -L "$USER_SYMLINK" ] || [ ! -e "$USER_SYMLINK" ]; then
+        create_user_symlink
     fi
 
     # Recreate/update desktop entry
@@ -490,11 +561,8 @@ main() {
     # Fix permissions
     fix_chrome_sandbox_permissions
 
-    # Create wrapper script
-    create_wrapper_script
-
-    # Create symlink
-    create_symlink
+    # Create user-level symlink (optional)
+    create_user_symlink
 
     # Create desktop entry
     create_desktop_entry
@@ -519,9 +587,13 @@ main() {
     echo ""
     print_info_from_common_functions "Installation Details:"
     print_info_from_common_functions "  AppImage: $APPIMAGE_FILE"
-    print_info_from_common_functions "  Wrapper: $WRAPPER_SCRIPT"
-    print_info_from_common_functions "  Symlink: /usr/local/bin/$EXEC_NAME"
-    print_info_from_common_functions "  Desktop: $DESKTOP_FILE"
+    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
+        print_info_from_common_functions "  AppRun: $APPRUN_PATH"
+    fi
+    if [ -L "$USER_SYMLINK" ]; then
+        print_info_from_common_functions "  User symlink: $USER_SYMLINK"
+    fi
+    print_info_from_common_functions "  Desktop entry: Created via desktop_entry_manager.sh"
     print_info_from_common_functions "  Owner: $REAL_USER:$REAL_USER_GROUP"
     if [ -n "$new_version" ]; then
         print_info_from_common_functions "  Version: $new_version"
@@ -529,7 +601,9 @@ main() {
     echo ""
     print_info_from_common_functions "You can now launch WeChat from:"
     print_info_from_common_functions "  - Application menu"
-    print_info_from_common_functions "  - Terminal: wechat"
+    if [ -L "$USER_SYMLINK" ]; then
+        print_info_from_common_functions "  - Terminal: wechat (if ~/.local/bin is in PATH)"
+    fi
     echo ""
 }
 
