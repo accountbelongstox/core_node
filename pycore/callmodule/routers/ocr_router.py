@@ -32,6 +32,39 @@ class OCRResponse(BaseModel):
     error: Optional[str] = None
 
 
+class OCRRecognizeRequest(BaseModel):
+    """OCR recognize request"""
+    image_path: str
+    model_type: Optional[str] = "general"
+    use_cache: Optional[bool] = True
+
+
+@ocr_router.post("/recognize", response_model=OCRResponse)
+async def recognize_image(request: OCRRecognizeRequest):
+    """
+    Recognize text in an image using OCR.
+
+    Args:
+        request: OCRRecognizeRequest with image_path, model_type, use_cache
+
+    Returns:
+        OCRResponse: OCR recognition result with detected text
+    """
+    if not OCR_AVAILABLE or ocr_manager is None:
+        raise HTTPException(status_code=503, detail="OCR service not available")
+
+    try:
+        # Call OCR manager to recognize image
+        result = await ocr_manager.recognize_image(
+            image_path=request.image_path,
+            model_type=request.model_type,
+            use_cache=request.use_cache
+        )
+        return OCRResponse(success=True, result=result)
+    except Exception as e:
+        return OCRResponse(success=False, error=str(e))
+
+
 @ocr_router.get("/models", response_model=OCRResponse)
 async def get_available_models():
     """
