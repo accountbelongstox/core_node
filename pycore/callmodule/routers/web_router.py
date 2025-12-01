@@ -161,6 +161,61 @@ async def homepage():
                     "description": "Voice subtitle UI (redirects to desktop)",
                     "parameters": {}
                 }
+            },
+            "code_sync": {
+                "GET /code-sync/ping": {
+                    "description": "Ping endpoint for server discovery",
+                    "parameters": {}
+                },
+                "POST /code-sync/register": {
+                    "description": "Register a client connection",
+                    "parameters": {
+                        "client_id": {"type": "string", "required": True}
+                    }
+                },
+                "POST /code-sync/initial-sync": {
+                    "description": "Get all files for initial sync",
+                    "parameters": {
+                        "client_id": {"type": "string", "required": True}
+                    }
+                },
+                "POST /code-sync/changes": {
+                    "description": "Get changed files for incremental sync",
+                    "parameters": {
+                        "client_id": {"type": "string", "required": True},
+                        "received_count": {"type": "integer", "required": False, "default": 0},
+                        "skipped_count": {"type": "integer", "required": False, "default": 0}
+                    }
+                },
+                "GET /code-sync/status": {
+                    "description": "Get code sync status",
+                    "parameters": {}
+                },
+                "POST /code-sync/set-server": {
+                    "description": "Switch to server mode",
+                    "parameters": {}
+                },
+                "POST /code-sync/set-client": {
+                    "description": "Switch to client mode",
+                    "parameters": {}
+                },
+                "POST /code-sync/stop": {
+                    "description": "Stop code sync (both server and client)",
+                    "parameters": {}
+                },
+                "POST /code-sync/download": {
+                    "description": "Download file content from server",
+                    "parameters": {
+                        "client_id": {"type": "string", "required": True},
+                        "file_path": {"type": "string", "required": True}
+                    }
+                },
+                "POST /code-sync/toggle-backup": {
+                    "description": "Toggle backup setting for client",
+                    "parameters": {
+                        "enabled": {"type": "boolean", "required": False, "default": True}
+                    }
+                }
             }
         },
         "documentation": {
