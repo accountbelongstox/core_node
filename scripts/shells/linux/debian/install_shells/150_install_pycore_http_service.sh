@@ -23,13 +23,43 @@ SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/local/bin/python $S
 echo "Installing $SERVICE_DESCRIPTION..."
 echo "  Port: $SERVICE_PORT"
 echo "  Script: $SERVICE_SCRIPT"
+echo "  Service File: /etc/systemd/system/$SERVICE_NAME.service"
 echo ""
-read -p "Continue installation? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+read -p "Continue installation? [Y/n]: " -r
+# Default to Y if user just presses Enter
+REPLY=${REPLY:-Y}
+if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
     echo "Installation cancelled"
     exit 0
 fi
+
+echo ""
+echo "=== Service File Content ==="
+cat <<EOF
+
+[Unit]
+Description=$SERVICE_DESCRIPTION
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$SERVICE_WORKING_DIR
+ExecStart=$SERVICE_EXEC
+Restart=always
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+Environment="PYTHONPATH=$SERVICE_WORKING_DIR"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+echo "============================"
+echo ""
 
 if [ ! -f "$SERVICE_SCRIPT" ]; then
     echo "Error: Service script not found at $SERVICE_SCRIPT"

@@ -22,8 +22,12 @@ from pycore.pyfoundations.third_party import get_third_package_pystray, get_thir
 pystray = get_third_package_pystray()
 PIL = get_third_package_PIL()
 
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
+# Handle PIL submodules - must explicitly import them
+if PIL is not None:
+    from PIL import Image, ImageDraw
+else:
+    Image = None
+    ImageDraw = None
 
 from ..core.config import get_global_config
 from ..server.unified import UnifiedHTTPServer

@@ -357,7 +357,7 @@ ITTools.Implementations.Translation = {
         
         setTimeout(() => {
             const learningModelSelect = document.getElementById('ai-model-select');
-            if (learningModelSelect && learningModelSelect.innerHTML.includes('Loading models')) {
+            if (learningModelSelect.innerHTML.includes('Loading models')) {
                 this.loadFreeModels(false);
             }
         }, 200);
@@ -504,23 +504,23 @@ ITTools.Implementations.Translation = {
         
         if (mode === 'learning') {
             tabs[0].classList.add('active');
-            if (learningMode) learningMode.style.display = 'block';
-            if (simpleMode) simpleMode.style.display = 'none';
-            if (ttsMode) ttsMode.style.display = 'none';
+            learningMode.style.display = 'block';
+            simpleMode.style.display = 'none';
+            ttsMode.style.display = 'none';
         } else if (mode === 'simple') {
             tabs[1].classList.add('active');
-            if (learningMode) learningMode.style.display = 'none';
-            if (simpleMode) simpleMode.style.display = 'block';
-            if (ttsMode) ttsMode.style.display = 'none';
+            learningMode.style.display = 'none';
+            simpleMode.style.display = 'block';
+            ttsMode.style.display = 'none';
             
             setTimeout(() => {
                 this.onSimpleProviderChange();
             }, 100);
         } else if (mode === 'tts') {
             tabs[2].classList.add('active');
-            if (learningMode) learningMode.style.display = 'none';
-            if (simpleMode) simpleMode.style.display = 'none';
-            if (ttsMode) ttsMode.style.display = 'block';
+            learningMode.style.display = 'none';
+            simpleMode.style.display = 'none';
+            ttsMode.style.display = 'block';
         }
         
         this.saveState();
@@ -642,9 +642,9 @@ ITTools.Implementations.Translation = {
             aiPanel.style.display = 'block';
             
             const simpleModelSelect = document.getElementById('simple-ai-model-select');
-            if (simpleModelSelect && simpleModelSelect.innerHTML.includes('Loading models')) {
+            if (simpleModelSelect.innerHTML.includes('Loading models')) {
                 this.loadFreeModels(true);
-            } else if (simpleModelSelect && this.freeModels.length > 0) {
+            } else if (this.freeModels.length > 0) {
                 simpleModelSelect.innerHTML = this.freeModels.map((model, index) => 
                     `<option value="${index}">${this.escapeHtml(model.name)}</option>`
                 ).join('');

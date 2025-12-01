@@ -271,7 +271,8 @@ ITTools.Implementations.NumberToWords = {
     scales: ['', 'thousand', 'million', 'billion', 'trillion'],
     convert() {
         let input = document.getElementById('num-words-input').value.replace(/,/g, '').trim();
-        if (!input) { document.getElementById('num-words-result').style.display = 'none'; return; }
+        document.getElementById('num-words-result').style.display = 'none';
+        if (!input.value) return;
         const num = parseInt(input);
         if (isNaN(num)) { ITTools.UI.showResult('num-words-result', 'Invalid number', false); return; }
         if (num === 0) { ITTools.UI.showResult('num-words-result', '<strong>Zero</strong>', true); return; }
