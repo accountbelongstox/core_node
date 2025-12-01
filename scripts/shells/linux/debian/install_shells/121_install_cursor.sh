@@ -260,6 +260,54 @@ find_cursor_files_deprecated() {
     return 1
 }
 
+# Remove old installer files from Downloads directories
+find_and_remove_old_installers() {
+    local pattern="$1"
+    local search_dirs=()
+
+    # Add global shared download directory first
+    if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ] && [ -d "$CORE_NODE_SHARED_DOWNLOADS" ]; then
+        search_dirs+=("$CORE_NODE_SHARED_DOWNLOADS")
+    fi
+
+    # Add current user's Downloads
+    if [[ -d "$HOME/Downloads" ]]; then
+        search_dirs+=("$HOME/Downloads")
+    fi
+
+    # Add all other users' Downloads directories
+    if [[ -d "/home" ]]; then
+        for user_home in /home/*; do
+            if [[ -d "$user_home/Downloads" ]]; then
+                search_dirs+=("$user_home/Downloads")
+            fi
+        done
+    fi
+
+    # Add root's Downloads
+    if [ -d "/root/Downloads" ]; then
+        search_dirs+=("/root/Downloads")
+    fi
+
+    # Find and remove matching files
+    local files_removed=0
+    for dir in "${search_dirs[@]}"; do
+        while IFS= read -r -d '' file; do
+            print_info_from_common_functions "  Removing: $(basename "$file")"
+            rm -f "$file" 2>/dev/null || true
+            files_removed=$((files_removed + 1))
+        done < <(find "$dir" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null)
+    done
+
+    if [[ $files_removed -gt 0 ]]; then
+        print_success_from_common_functions "Removed $files_removed old installer file(s)"
+    else
+        print_info_from_common_functions "No old installer files found to remove"
+    fi
+
+    return 0
+}
+
 # Filter out installer-related PIDs when terminating processes
 should_skip_pid() {
     local pid="$1"
@@ -929,6 +977,9 @@ cleanup_cursor() {
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
+    # Track if this is an upgrade operation
+    local is_upgrade_operation=false
+
     # Prompt for root mode if not already specified via command line
     if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
         echo ""
@@ -1025,6 +1076,14 @@ install_cursor() {
         if [[ "$should_proceed" == true ]]; then
             print_info_from_common_functions "Cleaning up existing installation..."
             cleanup_cursor
+
+            # Mark as upgrade operation
+            is_upgrade_operation=true
+
+            # Remove old installer files from Downloads to force fresh download
+            print_step_from_common_functions "Removing old installer files from Downloads..."
+            find_and_remove_old_installers "cursor*.AppImage"
+            find_and_remove_old_installers "cursor*.deb"
         fi
     fi
 
@@ -1087,7 +1146,12 @@ install_cursor() {
             cleanup_cursor
         fi
     else
-        print_warning_from_common_functions "No Cursor installer detected in any Downloads directories"
+        if [[ "$is_upgrade_operation" == true ]]; then
+            print_warning_from_common_functions "No Cursor installer found (upgrade requires fresh download)"
+            print_info_from_common_functions "Old installer files were removed to ensure clean upgrade"
+        else
+            print_warning_from_common_functions "No Cursor installer detected in any Downloads directories"
+        fi
         print_step_from_common_functions "Attempting automatic download from Cursor API..."
         print_info_from_common_functions "API URL: $CURSOR_API_URL"
 
