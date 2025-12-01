@@ -37,7 +37,6 @@ const PromptMappingManager = {
                 this.mappings = data.data.mappings;
             } else {
                 console.error('Failed to load mappings:', data.error);
-                this.mappings = {};
             }
         } catch (error) {
             console.error('Error loading mappings:', error);
