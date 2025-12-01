@@ -262,7 +262,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
           subtitle: 'Select your primary language',
           icon: Icons.home_rounded,
           iconGradient: LinearGradient(
-            colors: [ColorsAppQy.qyInfo, ColorsAppQy.qyInfoDark],
+            colors: [ColorsAppQy.qyInfo, ColorsAppQy.qyPrimaryDark],
           ),
           children: _languages.map((lang) {
             final isSelected = _nativeLanguage == lang.code;
@@ -423,7 +423,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
               border: Border.all(
                 color: isSelected
                     ? ColorsAppQy.qyPrimary.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.1),
+                    : ColorsAppQy.qyFrostMedium,
                 width: 1.5,
               ),
             ),
@@ -437,14 +437,14 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       gradient: isSelected ? ColorsAppQy.qyPrimaryGradient : null,
                       border: !isSelected
                           ? Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: ColorsAppQy.qyFrostMedium,
                               width: 2,
                             )
                           : null,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? Icon(Icons.check, size: 16, color: ColorsAppQy.qyTextOnPrimary)
                         : null,
                   )
                 else
@@ -455,14 +455,14 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                       gradient: isSelected ? ColorsAppQy.qyPrimaryGradient : null,
                       border: !isSelected
                           ? Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: ColorsAppQy.qyFrostMedium,
                               width: 2,
                             )
                           : null,
                       shape: BoxShape.circle,
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? Icon(Icons.check, size: 16, color: ColorsAppQy.qyTextOnPrimary)
                         : null,
                   ),
                 const SizedBox(width: ThemeDimensions.spacing12),
@@ -510,7 +510,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.transparent,
+            ColorsAppQy.qyPageBackground.withOpacity(0),
             ColorsAppQy.qyPageBackground.withOpacity(0.95),
           ],
         ),
@@ -529,7 +529,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
                 gradient: _selectedLanguages.isNotEmpty && _hasChanges
                     ? ColorsAppQy.qyPrimaryGradient
                     : LinearGradient(
-                        colors: [Colors.grey.shade400, Colors.grey.shade500],
+                        colors: [ColorsAppQy.qyTextSecondary, ColorsAppQy.qyTextTertiary],
                       ),
                 borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
                 boxShadow: _selectedLanguages.isNotEmpty && _hasChanges
@@ -545,7 +545,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
               child: Text(
                 'Continue to Vocabulary Selection',
                 style: ThemeTextStyles.button.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
