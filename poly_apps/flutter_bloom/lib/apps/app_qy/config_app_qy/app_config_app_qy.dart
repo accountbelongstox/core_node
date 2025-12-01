@@ -23,6 +23,7 @@ class QyAppConfig {
   // Contact Information
   static const String appWebsite = 'www.qyenglish.com';
   static const String appSupportEmail = 'support@qyenglish.com';
+  static const String appIcpLicense = '苏ICP备13045540号-20A';
 
   // API Configuration
   static const String baseUrl = 'https://api.example.com';
