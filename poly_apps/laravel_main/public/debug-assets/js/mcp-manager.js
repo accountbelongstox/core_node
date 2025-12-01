@@ -375,8 +375,6 @@ const McpScreenshotModule = {
             } else {
                 console.error('[McpScreenshotModule] Failed to load screenshots:', data.error);
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Error loading screenshots:', error);
         }
     },
 
@@ -394,8 +392,6 @@ const McpScreenshotModule = {
                     `;
                 }
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Error loading stats:', error);
         }
     },
 
@@ -810,9 +806,6 @@ const McpScreenshotModule = {
             } else {
                 alert('Upload failed: ' + data.error);
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Upload error:', error);
-            alert('Upload failed: ' + error.message);
         }
     },
 
@@ -836,9 +829,6 @@ const McpScreenshotModule = {
             } else {
                 alert('Delete failed: ' + data.error);
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Delete error:', error);
-            alert('Delete failed: ' + error.message);
         }
     },
 
@@ -866,9 +856,6 @@ const McpScreenshotModule = {
             } else {
                 alert('Clear failed: ' + data.error);
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Clear all error:', error);
-            alert('Clear failed: ' + error.message);
         }
     },
 
@@ -1010,9 +997,6 @@ const McpScreenshotModule = {
             } else {
                 alert('Upload failed: ' + (data.error || 'Unknown error'));
             }
-        } catch (error) {
-            console.error('[McpScreenshotModule] Batch upload error:', error);
-            alert('Upload failed: ' + error.message);
         } finally {
             submitBtn.textContent = originalText;
             submitBtn.disabled = false;
@@ -1111,8 +1095,6 @@ const McpTaskDispatchModule = {
                 this.categories = data.data.categories;
                 this.renderCategories();
             }
-        } catch (error) {
-            console.error('[McpTaskDispatchModule] Error:', error);
         }
     },
 
@@ -1160,9 +1142,6 @@ const McpTaskDispatchModule = {
                 this.tasks = tasksData.data.tasks;
                 this.renderTasks(statsData.data?.stats || {});
             }
-        } catch (error) {
-            panel.innerHTML = '<div class="mcp-error">Failed to load tasks</div>';
-        }
     },
 
     renderTasks(stats) {
@@ -1303,8 +1282,6 @@ const McpPromptMappingsModule = {
                 this.mappings = data.data.mappings;
                 this.renderMappingsList();
             }
-        } catch (error) {
-            console.error('[McpPromptMappingsModule] Error:', error);
         }
     },
 
@@ -1422,8 +1399,6 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
-        } catch (error) {
-            alert('Error: ' + error.message);
         }
     },
 
@@ -1442,8 +1417,6 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
-        } catch (error) {
-            alert('Error: ' + error.message);
         }
     },
 
@@ -1465,8 +1438,6 @@ const McpPromptMappingsModule = {
             } else {
                 alert('Failed: ' + (data.error || 'Unknown error'));
             }
-        } catch (error) {
-            alert('Error: ' + error.message);
         }
     }
 };
@@ -1566,8 +1537,6 @@ const McpSettingsModule = {
                     </div>
                 `;
             }
-        } catch (error) {
-            console.error('[McpSettingsModule] Error:', error);
         }
     }
 };
@@ -1580,7 +1549,7 @@ const McpVoiceSubtitleModule = {
         container.innerHTML = `
             <div class="mcp-module-container" style="height: 100%;">
                 <iframe
-                    src="/debug-tools/voice-subtitle.html"
+                    src="/debug-assets/debug-tools/voice-subtitle.html"
                     style="width: 100%; height: calc(100vh - 250px); border: none; border-radius: 8px; background: #fff;"
                     title="Voice Subtitle Console"
                 ></iframe>
