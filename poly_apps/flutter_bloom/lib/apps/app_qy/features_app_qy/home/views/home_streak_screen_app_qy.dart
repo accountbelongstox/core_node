@@ -13,7 +13,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
@@ -21,8 +20,8 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../router_app_qy/routes_provider_app_qy.dart';
-import '../controllers/home_controller_app_qy.dart';
 
 class HomeStreakScreenRefactoredAppQy extends StatefulWidget {
   const HomeStreakScreenRefactoredAppQy({super.key});
@@ -105,14 +104,14 @@ class _HomeStreakScreenRefactoredAppQyState
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.orange,
-            Colors.orange.shade700,
+            ColorsAppQy.qyWarning,
+            ColorsAppQy.qyWarning,
           ],
         ),
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: ColorsAppQy.qyWarning.withOpacity(0.3),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -123,13 +122,13 @@ class _HomeStreakScreenRefactoredAppQyState
           Icon(
             Icons.local_fire_department,
             size: 80,
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
           ),
           SizedBox(height: ThemeDimensions.spacingLarge),
           Text(
             QyAppLocalizationKeys.qyCurrentStreak.tr(context),
             style: ThemeTextStyles.body1.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: ColorsAppQy.qyFrostWhite,
             ),
           ),
           SizedBox(height: ThemeDimensions.spacingSmall),
@@ -142,7 +141,7 @@ class _HomeStreakScreenRefactoredAppQyState
                 style: TextStyle(
                   fontSize: 64,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               SizedBox(width: ThemeDimensions.spacingSmall),
@@ -151,7 +150,7 @@ class _HomeStreakScreenRefactoredAppQyState
                 child: Text(
                   QyAppLocalizationKeys.qyDays.tr(context),
                   style: ThemeTextStyles.h4.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                    color: ColorsAppQy.qyFrostWhite,
                   ),
                 ),
               ),
@@ -161,7 +160,7 @@ class _HomeStreakScreenRefactoredAppQyState
           Text(
             QyAppLocalizationKeys.qyKeepItUp.tr(context),
             style: ThemeTextStyles.body2.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: ColorsAppQy.qyFrostWhite,
             ),
           ),
         ],
@@ -186,7 +185,7 @@ class _HomeStreakScreenRefactoredAppQyState
             Icons.calendar_today,
             QyAppLocalizationKeys.qyTotalDays.tr(context),
             '$_totalDays ${QyAppLocalizationKeys.qyDays.tr(context)}',
-            Colors.blue,
+            ColorsAppQy.qyInfo,
           ),
         ),
       ],
@@ -300,12 +299,12 @@ class _HomeStreakScreenRefactoredAppQyState
                   height: 32,
                   decoration: BoxDecoration(
                     color: isActive
-                        ? Colors.orange.withOpacity(0.8)
+                        ? ColorsAppQy.qyWarning.withOpacity(0.8)
                         : ThemeColors.background,
                     borderRadius:
                         BorderRadius.circular(ThemeDimensions.radiusSmall),
                     border: Border.all(
-                      color: isActive ? Colors.orange : ThemeColors.border,
+                      color: isActive ? ColorsAppQy.qyWarning : ThemeColors.border,
                     ),
                   ),
                   child: Center(
@@ -313,7 +312,7 @@ class _HomeStreakScreenRefactoredAppQyState
                         ? Icon(
                             Icons.local_fire_department,
                             size: 16,
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                           )
                         : null,
                   ),
@@ -334,8 +333,8 @@ class _HomeStreakScreenRefactoredAppQyState
           width: 16,
           height: 16,
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(ThemeDimensions.radiusXSmall),
+            color: ColorsAppQy.qyWarning.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
           ),
         ),
         SizedBox(width: ThemeDimensions.spacingSmall),
@@ -351,7 +350,7 @@ class _HomeStreakScreenRefactoredAppQyState
           height: 16,
           decoration: BoxDecoration(
             color: ThemeColors.background,
-            borderRadius: BorderRadius.circular(ThemeDimensions.radiusXSmall),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
             border: Border.all(color: ThemeColors.border),
           ),
         ),
