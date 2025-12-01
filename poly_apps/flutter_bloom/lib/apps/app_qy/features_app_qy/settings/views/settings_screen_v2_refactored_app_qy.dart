@@ -390,7 +390,7 @@ class _SettingsScreenV2RefactoredAppQyState
     AuthServiceAppQy authService,
   ) {
     final user = authService.currentUser;
-    final learningLanguages = user?.learningLanguages ?? ['en'];
+    final learningLanguages = user?.learningLanguages ?? DefaultLanguageConfigAppQy.defaultLearningLanguages;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

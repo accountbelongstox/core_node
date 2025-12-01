@@ -115,6 +115,32 @@ class FastAPIRPCServer:
         self._static_mounts: Dict[str, str] = {}
         self._register_builtin_routes()
         self._add_default_static_dirs()
+
+        # Register FastAPI routers (from config)
+        fastapi_routers = options.get("fastapi_routers", [])
+        for router in fastapi_routers:
+            if self.debug:
+                ColorPrint.blue(f"[FastAPIRPC] Registering FastAPI router: {router}")
+            self.app.include_router(router)
+            if self.debug:
+                ColorPrint.green(f"[FastAPIRPC] Router registered")
+
+        # Mount static directories (from config)
+        static_mounts = options.get("static_mounts", [])
+        for mount_config in static_mounts:
+            url_prefix = mount_config.get("url_prefix")
+            directory = mount_config.get("directory")
+            name = mount_config.get("name", url_prefix.strip("/").replace("/", "_"))
+            if url_prefix and directory:
+                path = Path(directory)
+                if path.exists():
+                    self.app.mount(url_prefix, StaticFiles(directory=str(path), html=True), name=name)
+                    if self.debug:
+                        ColorPrint.green(f"[FastAPIRPC] Mounted static dir {url_prefix} -> {path}")
+                else:
+                    if self.debug:
+                        ColorPrint.yellow(f"[FastAPIRPC] Static directory does not exist: {directory}")
+
         self.protocol_server = RPCProtocolServer(self)
 
         # Event loop for async broadcast

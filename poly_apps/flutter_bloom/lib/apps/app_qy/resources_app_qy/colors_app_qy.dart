@@ -162,5 +162,15 @@ class ColorsAppQy {
     if (mastery >= 20) return qyWarning;
     return qyTextTertiary;
   }
+  
+  /// Get list of all available gradients for bento box layouts
+  /// Centralized gradient collection to avoid hardcoding
+  static List<LinearGradient> get qyBentoGradients => [
+    qyPrimaryGradient,
+    qySecondaryGradient,
+    qyAccentGradient,
+    qyTealGradient,
+    qyPinkGradient,
+  ];
 }
 
