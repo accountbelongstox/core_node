@@ -94,9 +94,7 @@ ITTools.Implementations.RegexCheatsheet = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('regex-cheatsheet-content')) {
-        ITTools.Implementations.RegexCheatsheet.search();
-    }
+    ITTools.Implementations.RegexCheatsheet.search();
 });
 
 // ============================================
@@ -194,9 +192,7 @@ ITTools.Implementations.GitCheatsheet = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('git-cheatsheet-content')) {
-        ITTools.Implementations.GitCheatsheet.search();
-    }
+    ITTools.Implementations.GitCheatsheet.search();
 });
 
 // ============================================
