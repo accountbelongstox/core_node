@@ -48,7 +48,6 @@ const AuthHelper = {
     },
     
     createAuthModal() {
-        if (document.getElementById(this.authModalId)) return;
         
         const modalHTML = `
             <div id="${this.authModalId}" class="auth-modal" style="display: none;">
@@ -242,7 +241,7 @@ const AuthHelper = {
         
         setTimeout(() => {
             const hintEl = document.getElementById('invitation-hint');
-            if (hintEl && this.maskedInvitationCode) {
+            if (this.maskedInvitationCode) {
                 hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
             }
         }, 100);
@@ -250,22 +249,18 @@ const AuthHelper = {
     
     showAuthModal() {
         const modal = document.getElementById(this.authModalId);
-        if (modal) {
-            modal.style.display = 'flex';
-            this.switchTab('login');
-            
-            const hintEl = document.getElementById('invitation-hint');
-            if (hintEl && this.maskedInvitationCode) {
-                hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
-            }
+        modal.style.display = 'flex';
+        this.switchTab('login');
+        
+        const hintEl = document.getElementById('invitation-hint');
+        if (this.maskedInvitationCode) {
+            hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
         }
     },
     
     closeAuthModal() {
         const modal = document.getElementById(this.authModalId);
-        if (modal) {
-            modal.style.display = 'none';
-        }
+        modal.style.display = 'none';
     },
     
     switchTab(tab) {
