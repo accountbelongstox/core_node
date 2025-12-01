@@ -56,28 +56,103 @@ class OctaneTimerServiceProvider extends ServiceProvider
             return;
         }
 
-        // Hook into Octane tick event (single heartbeat center)
-        // This runs Laravel Schedule every second, which drives all sub-minute tasks
+        // Auto-discover and register all timer tasks
+        $this->autoDiscoverAndRegisterTasks();
+
+        // Hook into Octane tick event (single timer instance)
         $this->hookOctaneTick();
 
-        Log::info('OctaneTimerServiceProvider: Bootstrapped on Octane-Swoole with Laravel Schedule', [
+        Log::info('OctaneTimerServiceProvider: Bootstrapped on Octane-Swoole', [
             'server' => $this->getServerType(),
+            'tasks' => OctaneTimerService::getRegisteredTasks()
         ]);
     }
 
+    /**
+     * Auto-discover and register all timer tasks
+     */
+    protected function autoDiscoverAndRegisterTasks(): void
+    {
+        if (!is_dir(self::TASKS_DIRECTORY)) {
+            Log::warning('OctaneTimerServiceProvider: Tasks directory not found', [
+                'directory' => self::TASKS_DIRECTORY
+            ]);
+            return;
+        }
+
+        $files = glob(self::TASKS_DIRECTORY . '/*.php');
+        $registeredCount = 0;
+        $skippedCount = 0;
+
+        foreach ($files as $file) {
+            $className = basename($file, '.php');
+
+            if (in_array($className, ['OctaneTimerTaskInterface', 'OctaneTimerTaskAbstract'])) {
+                continue;
+            }
+
+            $fullClassName = self::TASKS_NAMESPACE . $className;
+
+            if (!class_exists($fullClassName)) {
+                Log::warning('OctaneTimerServiceProvider: Task class not found', [
+                    'class' => $fullClassName
+                ]);
+                continue;
+            }
+
+            $implements = class_implements($fullClassName);
+            if (!isset($implements[OctaneTimerTaskInterface::class])) {
+                Log::debug('OctaneTimerServiceProvider: Class does not implement OctaneTimerTaskInterface', [
+                    'class' => $className
+                ]);
+                continue;
+            }
+
+            try {
+                $task = new $fullClassName();
+
+                if (!$task->isEnabled()) {
+                    Log::debug('OctaneTimerServiceProvider: Task is disabled', [
+                        'task' => $task->getName(),
+                        'class' => $className
+                    ]);
+                    $skippedCount++;
+                    continue;
+                }
+
+                OctaneTimerService::register(
+                    $task->getName(),
+                    function () use ($task) {
+                        $task->exec();
+                    },
+                    $task->getInterval()
+                );
+
+                Log::info('OctaneTimerServiceProvider: Task registered', [
+                    'task' => $task->getName(),
+                    'class' => $className,
+                    'interval' => $task->getInterval() . 's'
+                ]);
+
+                $registeredCount++;
+
+            } catch (\Throwable $e) {
+                Log::error('OctaneTimerServiceProvider: Failed to register task', [
+                    'class' => $className,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        Log::info('OctaneTimerServiceProvider: Auto-discovery completed', [
+            'registered' => $registeredCount,
+            'skipped' => $skippedCount,
+            'total_files' => count($files)
+        ]);
+    }
 
     /**
      * Hook into Octane tick event
-     *
-     * Creates the SINGLE heartbeat center that drives all scheduled tasks.
-     * This follows the Common Timer Design Specification:
-     * - One timer instance per application (Octane tick)
-     * - All tasks registered via Laravel Schedule in routes/console.php
-     * - Basic 1-second heartbeat runs schedule:run every second
-     * - Resource efficient (single timer loop, standard Laravel Schedule)
-     * - Extensible (add tasks to routes/console.php, auto-discovered from TimerTasks directory)
-     *
-     * @return void
      */
     protected function hookOctaneTick(): void
     {
@@ -86,19 +161,15 @@ class OctaneTimerServiceProvider extends ServiceProvider
         }
 
         try {
-            // Single heartbeat center: run Laravel Schedule every second
-            // This allows sub-minute tasks (everySecond, everyFiveSeconds, etc.) to work
-            Octane::tick('laravel-schedule-runner', function () {
-                \Illuminate\Support\Facades\Artisan::call('schedule:run');
+            Octane::tick('octane-timer', function () {
+                if (!OctaneTimerService::isRunning()) {
+                    OctaneTimerService::start();
+                }
+                OctaneTimerService::tick();
             })->seconds(1)->immediate();
 
-            Log::info('OctaneTimerServiceProvider: Laravel Schedule runner registered', [
-                'heartbeat_interval' => '1 second',
-                'method' => 'Octane::tick',
-            ]);
-
         } catch (\Throwable $e) {
-            Log::error('OctaneTimerServiceProvider: Failed to register schedule runner', [
+            Log::error('OctaneTimerServiceProvider: Failed to register tick', [
                 'error' => $e->getMessage()
             ]);
         }
