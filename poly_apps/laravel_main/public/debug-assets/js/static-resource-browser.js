@@ -36,14 +36,10 @@ const StaticResourceBrowser = {
         const skipIntro = localStorage.getItem('video-skip-intro');
         const autoPlayNext = localStorage.getItem('video-auto-play-next');
         
-        if (skipIntro !== null) {
-            const skipInput = document.getElementById('video-skip-intro');
-            if (skipInput) skipInput.value = skipIntro;
-        }
-        if (autoPlayNext !== null) {
-            const autoPlayCheckbox = document.getElementById('video-auto-play-next');
-            if (autoPlayCheckbox) autoPlayCheckbox.checked = autoPlayNext === 'true';
-        }
+        const skipInput = document.getElementById('video-skip-intro');
+        skipInput.value = skipIntro;
+        const autoPlayCheckbox = document.getElementById('video-auto-play-next');
+        autoPlayCheckbox.checked = autoPlayNext === 'true';
     },
     
     // Save video settings to localStorage
@@ -51,8 +47,8 @@ const StaticResourceBrowser = {
         const skipInput = document.getElementById('video-skip-intro');
         const autoPlayCheckbox = document.getElementById('video-auto-play-next');
         
-        if (skipInput) localStorage.setItem('video-skip-intro', skipInput.value);
-        if (autoPlayCheckbox) localStorage.setItem('video-auto-play-next', autoPlayCheckbox.checked);
+        localStorage.setItem('video-skip-intro', skipInput.value);
+        localStorage.setItem('video-auto-play-next', autoPlayCheckbox.checked);
     },
     
     // Setup hover events for showing video controls
@@ -644,8 +640,8 @@ const StaticResourceBrowser = {
         this.disposeVideoPlayer();
         
         // Hide video controls by default
-        if (settingsBar) settingsBar.style.display = 'none';
-        if (playlistPanel) playlistPanel.style.display = 'none';
+        settingsBar.style.display = 'none';
+        playlistPanel.style.display = 'none';
 
         const response = await fetch(`/static-resources/read-file?path=${encodeURIComponent(path)}`);
         const data = await response.json();
@@ -739,8 +735,7 @@ const StaticResourceBrowser = {
         `;
         
         // Initialize Video.js
-        if (typeof videojs !== 'undefined') {
-            this.videoPlayer = videojs('static-video-player', {
+        this.videoPlayer = videojs('static-video-player', {
                 controls: true,
                 autoplay: false,
                 preload: 'auto',
@@ -783,11 +778,9 @@ const StaticResourceBrowser = {
             const skipInput = document.getElementById('video-skip-intro');
             const autoPlayCheckbox = document.getElementById('video-auto-play-next');
             
-            if (skipInput) {
-                skipInput.removeEventListener('change', this.saveVideoSettings);
-                skipInput.addEventListener('change', () => this.saveVideoSettings());
-            }
-            if (autoPlayCheckbox) {
+            skipInput.removeEventListener('change', this.saveVideoSettings);
+            skipInput.addEventListener('change', () => this.saveVideoSettings());
+            {
                 autoPlayCheckbox.removeEventListener('change', this.saveVideoSettings);
                 autoPlayCheckbox.addEventListener('change', () => this.saveVideoSettings());
             }
@@ -850,7 +843,7 @@ const StaticResourceBrowser = {
     // Apply skip intro setting
     applySkipIntro() {
         const skipInput = document.getElementById('video-skip-intro');
-        if (skipInput && this.videoPlayer) {
+        if (this.videoPlayer) {
             const skipSeconds = parseInt(skipInput.value) || 0;
             if (skipSeconds > 0) {
                 this.videoPlayer.currentTime(skipSeconds);

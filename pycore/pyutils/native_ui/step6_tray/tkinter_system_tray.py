@@ -42,21 +42,36 @@ Usage:
     THREAD_BUS.on('tray_action_open', handle_open)
 """
 
+from __future__ import annotations  # Enable deferred type hint evaluation
+
 import threading
 from pathlib import Path
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-    PYSTRAY_AVAILABLE = True
-except ImportError:
-    PYSTRAY_AVAILABLE = False
-    pystray = None
-    Image = None
-
 from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_pystray
+
+# Use lazy loader to get pystray (handles X11 display errors gracefully)
+pystray = get_third_package_pystray()
+PYSTRAY_AVAILABLE = pystray is not None
+
+# Import PIL only if pystray is available
+if PYSTRAY_AVAILABLE:
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        PYSTRAY_AVAILABLE = False
+        pystray = None
+        Image = None
+        ImageDraw = None
+else:
+    Image = None
+    ImageDraw = None
+
+# Type checking imports (not evaluated at runtime)
+if TYPE_CHECKING and pystray is not None:
+    import pystray as pystray_types
 
 
 @dataclass

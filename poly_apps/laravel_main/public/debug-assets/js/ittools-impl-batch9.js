@@ -29,7 +29,8 @@ ITTools.Tools.Registry.register('url-parser', {
 ITTools.Implementations.UrlParser = {
     parse() {
         const input = document.getElementById('url-parse-input').value.trim();
-        if (!input) { document.getElementById('url-parse-result').innerHTML = ''; return; }
+        document.getElementById('url-parse-result').innerHTML = '';
+        if (!input.value) return;
         try {
             const url = new URL(input);
             const params = [...url.searchParams.entries()];
