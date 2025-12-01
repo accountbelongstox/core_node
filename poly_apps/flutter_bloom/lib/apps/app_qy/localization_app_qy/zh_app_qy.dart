@@ -88,6 +88,12 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyPlayAgain: '再次播放',
     QyAppLocalizationKeys.qyWordListeningDictation: '单词听写',
     QyAppLocalizationKeys.qyUnderDevelopment: '此页面正在开发中',
+    QyAppLocalizationKeys.qyPlaying: '播放中',
+    QyAppLocalizationKeys.qyDictationComplete: '听写完成',
+    QyAppLocalizationKeys.qyAccuracy: '准确率',
+    QyAppLocalizationKeys.qyPlayAudio: '播放音频',
+    QyAppLocalizationKeys.qyWrongAnswer: '错误答案',
+    QyAppLocalizationKeys.qyCorrectWord: '正确答案',
 
     // Authentication
     QyAppLocalizationKeys.qySignIn: '登录',
