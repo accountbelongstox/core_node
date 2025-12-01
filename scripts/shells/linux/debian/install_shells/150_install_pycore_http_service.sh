@@ -16,18 +16,50 @@ SERVICE_PORT=59000
 SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
 SERVICE_WORKING_DIR="$CORE_NODE_ROOT_FROM_SCRIPTS"
 SERVICE_USER="root"
-SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/bin/python3 $SERVICE_SCRIPT"
+# IMPORTANT: Use /usr/local/bin/python (venv) instead of /usr/bin/python3 (system)
+# This ensures the service runs with venv Python that has all required packages
+SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/local/bin/python $SERVICE_SCRIPT"
 
 echo "Installing $SERVICE_DESCRIPTION..."
 echo "  Port: $SERVICE_PORT"
 echo "  Script: $SERVICE_SCRIPT"
+echo "  Service File: /etc/systemd/system/$SERVICE_NAME.service"
 echo ""
-read -p "Continue installation? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+read -p "Continue installation? [Y/n]: " -r
+# Default to Y if user just presses Enter
+REPLY=${REPLY:-Y}
+if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
     echo "Installation cancelled"
     exit 0
 fi
+
+echo ""
+echo "=== Service File Content ==="
+cat <<EOF
+
+[Unit]
+Description=$SERVICE_DESCRIPTION
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$SERVICE_WORKING_DIR
+ExecStart=$SERVICE_EXEC
+Restart=always
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+Environment="PYTHONPATH=$SERVICE_WORKING_DIR"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+echo "============================"
+echo ""
 
 if [ ! -f "$SERVICE_SCRIPT" ]; then
     echo "Error: Service script not found at $SERVICE_SCRIPT"
@@ -48,7 +80,7 @@ sleep 3
 
 # Check service status
 if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-    echo "âœ?Pycore FastAPI service started successfully"
+    echo "ï¿½?Pycore FastAPI service started successfully"
     echo "  Service: $SERVICE_NAME"
     echo "  Port: $SERVICE_PORT"
     echo "  Health: http://127.0.0.1:$SERVICE_PORT/health"
@@ -56,12 +88,12 @@ if systemctl is-active --quiet "$SERVICE_NAME.service"; then
 
     # Test health endpoint
     if curl -s "http://127.0.0.1:$SERVICE_PORT/health" > /dev/null 2>&1; then
-        echo "âœ?Health check passed"
+        echo "ï¿½?Health check passed"
     else
-        echo "âœ?Health check failed"
+        echo "ï¿½?Health check failed"
     fi
 else
-    echo "âœ?Failed to start Pycore FastAPI service"
+    echo "ï¿½?Failed to start Pycore FastAPI service"
     systemctl status "$SERVICE_NAME.service" --no-pager
     exit 1
 fi

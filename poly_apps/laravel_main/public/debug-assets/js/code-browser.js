@@ -22,10 +22,10 @@ const CodeBrowser = {
 
     async init() {
         await this.loadCsrfToken();
-        
+
         const authCheckEl = document.getElementById('code-browser-auth-check');
         const contentEl = document.getElementById('code-browser-content');
-        
+
         const authResult = await this.checkAuth();
         if (!authResult.authenticated) {
             authCheckEl.style.display = 'block';
@@ -57,6 +57,9 @@ const CodeBrowser = {
 
             const response = await APIClient.get('/code-browser/auth-check', { headers });
             return await response.json();
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            return { authenticated: false };
         }
     },
 
@@ -71,6 +74,8 @@ const CodeBrowser = {
             }
 
             this.renderFileTree(data.items, path);
+        } catch (error) {
+            console.error('Load file tree failed:', error);
         }
     },
 
@@ -235,11 +240,12 @@ const CodeBrowser = {
 
                 container.appendChild(itemDiv);
             });
+        } catch (error) {
+            console.error('Load folder contents failed:', error);
         }
     },
 
     getDepth(path) {
-        if (!path) return 0;
         return path.split('/').length - 1;
     },
 
@@ -278,14 +284,12 @@ const CodeBrowser = {
             document.getElementById('close-file-btn').disabled = false;
 
             this.isModified = false;
+        } catch (error) {
+            console.error('Load file failed:', error);
         }
     },
 
     async saveFile() {
-        if (!this.currentFile) {
-            alert('No file is currently open');
-            return;
-        }
 
         try {
             const content = document.getElementById('code-editor').value;
@@ -304,6 +308,8 @@ const CodeBrowser = {
             this.isModified = false;
             document.getElementById('file-status').textContent = `Saved successfully - Backup: ${data.backup}`;
             setTimeout(() => this.loadFile(this.currentFile.path), 1000);
+        } catch (error) {
+            console.error('Save file failed:', error);
         }
     },
 
@@ -402,7 +408,6 @@ const CodeBrowser = {
     },
 
     async deleteFile() {
-        if (!this.contextMenuTarget) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         this.showConfirmDialog(
@@ -426,7 +431,6 @@ const CodeBrowser = {
     },
 
     restoreFile() {
-        if (!this.contextMenuTarget) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         this.showConfirmDialog(
@@ -448,13 +452,14 @@ const CodeBrowser = {
 
                     console.log('File restored successfully');
                     this.refreshTree();
+                } catch (error) {
+                    console.error('Restore file failed:', error);
                 }
             }
         );
     },
 
     renameItem() {
-        if (!this.contextMenuTarget) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         const currentName = this.contextMenuTarget.split('/').pop();
@@ -483,6 +488,8 @@ const CodeBrowser = {
             console.log('Item renamed successfully');
             this.closeRenameDialog();
             this.refreshTree();
+        } catch (error) {
+            console.error('Rename item failed:', error);
         }
     },
 
@@ -492,7 +499,6 @@ const CodeBrowser = {
     },
 
     async autoRenameToEnglish() {
-        if (!this.contextMenuTarget) return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         try {
@@ -515,6 +521,8 @@ const CodeBrowser = {
             }
 
             this.refreshTree();
+        } catch (error) {
+            console.error('Auto rename failed:', error);
         }
     },
 
@@ -539,7 +547,7 @@ const CodeBrowser = {
     },
 
     async translateChineseLines() {
-        if (!this.contextMenuTarget || this.contextMenuTargetType !== 'file') return;
+        if (this.contextMenuTargetType !== 'file') return;
         document.getElementById('file-context-menu').style.display = 'none';
 
         try {
@@ -595,6 +603,9 @@ const CodeBrowser = {
                     } else {
                         translatedLines.push(line);
                     }
+                } catch (error) {
+                    console.error(`[CodeBrowser] Translation error for line ${i + 1}:`, error);
+                    translatedLines.push(line);
                 }
             }
 
@@ -635,6 +646,8 @@ const CodeBrowser = {
                     }
                 }, 2000);
             }
+        } catch (error) {
+            console.error('Translate Chinese lines failed:', error);
         }
     },
 
@@ -646,7 +659,7 @@ const CodeBrowser = {
     loadExpandedState() {
         try {
             const saved = localStorage.getItem('code_browser_expanded_folders');
-            if (saved) {
+            {
                 const folders = JSON.parse(saved);
                 folders.forEach(folder => {
                     if (!this.shouldSkipCache(folder)) {
@@ -654,6 +667,8 @@ const CodeBrowser = {
                     }
                 });
             }
+        } catch (error) {
+            console.error('Load expanded state failed:', error);
         }
     },
 
@@ -663,6 +678,8 @@ const CodeBrowser = {
                 !this.shouldSkipCache(folder)
             );
             localStorage.setItem('code_browser_expanded_folders', JSON.stringify(foldersToSave));
+        } catch (error) {
+            console.error('Save expanded state failed:', error);
         }
     }
 };

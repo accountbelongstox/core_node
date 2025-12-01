@@ -78,7 +78,7 @@ window.addEventListener('resize', function () {
 // NAMESPACE: Navigation Functions
 function showSection(sectionType) {
     console.log('[showSection] Switching to section:', sectionType);
-    
+
     // Close mobile sidebar when selecting a menu item
     if (window.innerWidth <= 768) {
         closeMobileSidebar();
@@ -99,6 +99,7 @@ function showSection(sectionType) {
 
     // Section file mapping
     const sectionFileMap = {
+        'api-testing': '/debug-assets/debug-tools/sections/api-testing-section.html',
         'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
         'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
         'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
@@ -125,7 +126,7 @@ function showSection(sectionType) {
         section.classList.remove('active');
         section.style.display = 'none';
     });
-    
+
     // Handle main content body visibility
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
@@ -151,13 +152,13 @@ function showSection(sectionType) {
     const pageTitle = document.getElementById('page-title');
     const pageDescription = document.getElementById('page-description');
     if (sectionTitles[sectionType]) {
-        if (pageTitle) pageTitle.textContent = sectionTitles[sectionType].title;
-        if (pageDescription) pageDescription.textContent = sectionTitles[sectionType].desc;
+        pageTitle.textContent = sectionTitles[sectionType].title;
+        pageDescription.textContent = sectionTitles[sectionType].desc;
     }
 
-    // Handle API testing (no external file)
+    // Handle API testing - load from external file
     if (sectionType === 'api-testing') {
-        return;
+        // Continue to load from external file
     }
 
     // Load section from external file
@@ -166,13 +167,13 @@ function showSection(sectionType) {
 
     // Check if section already exists
     let section = document.getElementById(sectionId);
-    
+
     // If section exists, just show it (already loaded)
     if (section) {
         section.classList.add('active');
         section.style.display = 'block';
         console.log('[showSection] Section activated:', sectionType);
-        
+
         // Initialize module-specific functionality after DOM is ready
         requestAnimationFrame(() => {
             initializeSectionModules(sectionType);
@@ -188,7 +189,7 @@ function showSection(sectionType) {
 
     const filePath = sectionFileMap[sectionType];
     console.log('[showSection] Loading section from:', filePath);
-    
+
     fetch(filePath)
         .then(response => {
             if (!response.ok) {
@@ -200,13 +201,13 @@ function showSection(sectionType) {
             // Parse HTML to get the section element
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = html.trim();
-            
+
             // Get the section element from parsed HTML
             section = tempDiv.querySelector(`#${sectionId}`) || tempDiv.querySelector('.content-section');
-            
+
             // Remove section from tempDiv
             section = tempDiv.removeChild(section);
-            
+
             // Remove placeholder elements if they exist (they will be in the section HTML)
             const placeholderIds = [
                 'dict-stats-container', 'dict-stats-loading', 'tasks-list-container', 'system-info',
@@ -222,16 +223,16 @@ function showSection(sectionType) {
                     placeholder.remove();
                 }
             });
-            
+
             // Insert section into container
             container.appendChild(section);
-            
+
             // Show the section
             section.classList.add('active');
             section.style.display = 'block';
-            
+
             console.log('[showSection] Section loaded and activated:', sectionType);
-            
+
             // Wait for DOM to be fully updated before initializing modules
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -247,22 +248,14 @@ function showSection(sectionType) {
 // Initialize module-specific functionality for a section
 function initializeSectionModules(sectionType) {
     if (sectionType === 'code-browser') {
-        if (typeof CodeBrowser !== 'undefined') {
-            CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
-        }
+        CodeBrowser.init().catch(err => console.error('CodeBrowser.init error:', err));
         initCodeBrowserIntegratedModules();
     } else if (sectionType === 'static-resources') {
-        if (typeof StaticResourceBrowser !== 'undefined') {
-            StaticResourceBrowser.init();
-        }
+        StaticResourceBrowser.init();
     } else if (sectionType === 'mcp-manager') {
-        if (typeof McpManager !== 'undefined') {
-            McpManager.init();
-        }
+        McpManager.init();
     } else if (sectionType === 'octane-tasks') {
-        if (typeof OctaneTasksManager !== 'undefined') {
-            OctaneTasksManager.init();
-        }
+        OctaneTasksManager.init();
     } else if (sectionType === 'dev-tools') {
         // Initialize ITTools menu system when dev-tools section is shown
         setTimeout(() => {
@@ -272,24 +265,50 @@ function initializeSectionModules(sectionType) {
         loadDictionaryStatisticsIfAvailable();
     } else if (sectionType === 'system-info') {
         // Set system-info content when system-info section is loaded
-        const systemInfoEl = document.getElementById("system-info");
-        if (systemInfoEl) {
-            const completeInfo = {
-                public_info: publicInfo,
-                api_reference: apiData
-            };
-            systemInfoEl.innerHTML = "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
+        const completeInfo = {
+            public_info: publicInfo,
+            api_reference: apiData
+        };
+        document.getElementById("system-info").innerHTML = "<pre>" + JSON.stringify(completeInfo, null, 2) + "</pre>";
+    }
+}
+
+// Load dialogs and placeholders on page load
+async function loadDialogsAndPlaceholders() {
+    // Load placeholders
+    const placeholdersResponse = await fetch('/debug-assets/debug-tools/placeholders/placeholder-elements.html');
+    const placeholdersHtml = await placeholdersResponse.text();
+    const placeholdersContainer = document.getElementById('content-sections-container');
+    if (placeholdersContainer) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = placeholdersHtml.trim();
+        while (tempDiv.firstChild) {
+            placeholdersContainer.appendChild(tempDiv.firstChild);
         }
     }
+
+    // Load static resources dialogs
+    const staticDialogsResponse = await fetch('/debug-assets/debug-tools/dialogs/static-resources-dialogs.html');
+    const staticDialogsHtml = await staticDialogsResponse.text();
+    document.body.insertAdjacentHTML('beforeend', staticDialogsHtml);
+
+    // Load code browser dialogs
+    const codeBrowserDialogsResponse = await fetch('/debug-assets/debug-tools/dialogs/code-browser-dialogs.html');
+    const codeBrowserDialogsHtml = await codeBrowserDialogsResponse.text();
+    document.body.insertAdjacentHTML('beforeend', codeBrowserDialogsHtml);
 }
 
 // Restore sidebar and active section on load
 document.addEventListener('DOMContentLoaded', function () {
     restoreSidebarState();
+    loadDialogsAndPlaceholders();
 
     const activeSection = localStorage.getItem('active_section');
-    if (activeSection && activeSection !== 'api-testing') {
+    if (activeSection) {
         showSection(activeSection);
+    } else {
+        // Default to api-testing
+        showSection('api-testing');
     }
 
     updateUserDisplay();
@@ -418,7 +437,7 @@ function saveToBrowserCache(appName, endpoint, params) {
 function loadFromBrowserCache(appName, endpoint) {
     const cacheKey = appName + '_' + endpoint;
     const cached = localStorage.getItem('api_debug_cache');
-    if (cached) {
+    {
         cachedParams = JSON.parse(cached);
         return cachedParams[cacheKey]?.params || '';
     }
@@ -464,7 +483,7 @@ let currentAppAPIs = []; // Store current APIs for searching
 
 function loadAppAPIs() {
     const appSelectEl = document.getElementById("app-select");
-    
+
     const selectedApp = appSelectEl.value;
     const apiListDiv = document.getElementById("api-list");
     const searchContainer = document.getElementById("api-search-container");
@@ -648,7 +667,6 @@ function createAPIItem(api, index, appName) {
 }
 
 function extractMethodFromFeature(feature) {
-    if (!feature) return "GET";
     const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
     const upperFeature = feature.toUpperCase();
 
@@ -666,7 +684,6 @@ function extractMethodFromFeature(feature) {
 }
 
 function extractEndpointFromPath(path) {
-    if (!path) return "";
     try {
         const url = new URL(path);
         return url.pathname;
@@ -677,7 +694,6 @@ function extractEndpointFromPath(path) {
 }
 
 function parseFeatureInfo(feature) {
-    if (!feature) return {};
     const parts = feature.split('/');
     return {
         requirements: parts.filter(part => part.includes('required')),
@@ -734,7 +750,7 @@ function createSharedHeadersSection(appName, supportedHeaders) {
 function loadAppHeadersFromCache(appName) {
     const cacheKey = 'app_headers_' + appName;
     const cached = localStorage.getItem(cacheKey);
-    if (cached) {
+    {
         try {
             return JSON.parse(cached);
         } catch (e) {
@@ -1084,9 +1100,7 @@ function generateParamsFromFeature(feature, method, appName = null) {
  */
 function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
     // Ensure paramValue is a string for processing
-    if (paramValue === null || paramValue === undefined) {
-        paramValue = '';
-    }
+    paramValue = paramValue || '';
 
     // Convert to string if it's not already
     const paramValueStr = String(paramValue);
@@ -1500,10 +1514,10 @@ function jumpToAPI(apiIndex) {
         const details = document.getElementById('details-' + apiIndex);
         const toggle = document.getElementById('toggle-' + apiIndex);
 
-        if (details && (details.style.display === 'none' || details.style.display === '')) {
+        if (details.style.display === 'none' || details.style.display === '') {
             setTimeout(() => {
                 details.style.display = 'block';
-                if (toggle) toggle.innerHTML = '&#9650;';
+                toggle.innerHTML = '&#9650;';
 
                 // Load cached parameters for convenience
                 const selectedApp = document.getElementById("app-select").value;
@@ -1522,9 +1536,9 @@ function jumpToAPI(apiIndex) {
 
 async function loadDictionaryStatistics() {
     const container = document.getElementById('dict-stats-container');
-    
+
     const loadingEl = document.getElementById('dict-stats-loading');
-    
+
     const response = await fetch('/api/dict/v1/system/dictionary-statistics');
     const result = await response.json();
 
@@ -1574,27 +1588,22 @@ function loadDictionaryStatisticsIfAvailable() {
 
 // Initialize integrated modules when Code Browser section is shown
 let codeBrowserIntegratedModulesInitialized = false;
+
 function initCodeBrowserIntegratedModules() {
     // Reset initialization flag when switching sections to allow re-initialization
     codeBrowserIntegratedModulesInitialized = false;
-    
-    if (codeBrowserIntegratedModulesInitialized) return;
-    
-    // Wait a bit for the section to be fully rendered
-    setTimeout(() => {
-        // Initialize Prompts/Tasks Manager (left panel in lower section)
-        if (typeof PromptsTasksManager !== 'undefined') {
-            PromptsTasksManager.init();
-        }
 
-        // Initialize Prompt Mapping Manager in embedded mode (right panel in lower section)
-        const mappingPanel = document.querySelector('#prompt-mapping-panel-embedded');
-        if (mappingPanel && typeof PromptMappingManager !== 'undefined') {
-            PromptMappingManager.init('#prompt-mapping-panel-embedded');
-        } else {
-            console.warn('Prompt mapping panel not found, may need to wait for section to load');
-        }
-        
+    // Wait a bit for the section to be fully rendered
+    setTimeout(async () => {
+        // Initialize Prompt Mapping Manager first (right panel in lower section)
+        // This must be done before PromptsTasksManager because PromptsTasksManager.loadCategory
+        // will call PromptMappingManager.switchCategory
+        await PromptMappingManager.init('#prompt-mapping-panel-embedded');
+
+        // Initialize Prompts/Tasks Manager (left panel in lower section)
+        // This will automatically load 'global' category and sync with mapping manager
+        await PromptsTasksManager.init();
+
         codeBrowserIntegratedModulesInitialized = true;
     }, 200);
 }
