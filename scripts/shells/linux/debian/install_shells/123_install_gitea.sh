@@ -340,9 +340,10 @@ download_gitea() {
     $USE_SUDO mkdir -p "$GITEA_CACHE_DIR"
     $USE_SUDO chmod 750 "$GITEA_CACHE_DIR" 2>/dev/null || true
 
-    # Find user's Downloads directory using helper function from pycore
-    local real_user=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user; print(get_real_user())" 2>/dev/null || echo "ubuntu")
-    local downloads_dir=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user_downloads; print(get_real_user_downloads())" 2>/dev/null || echo "/home/ubuntu/Downloads")
+    # Use ACTUAL_DESKTOP_USER from gvar_common.sh (already detected)
+    local real_user="${ACTUAL_DESKTOP_USER:-ubuntu}"
+    local real_user_home="${ACTUAL_DESKTOP_USER_HOME:-/home/ubuntu}"
+    local downloads_dir="$real_user_home/Downloads"
     local downloads_binary="$downloads_dir/$cached_binary_filename"
 
     # Ensure Downloads directory exists
@@ -846,7 +847,7 @@ prompt_cleanup_reinstall() {
         echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
         echo "  3) Keep current installation and exit"
         echo ""
-        echo -n "Select action (1/2/3) [1]: "
+        echo -n "Select action (1/2/3) [3]: "
         read -r response
 
         case "$response" in
@@ -863,11 +864,11 @@ prompt_cleanup_reinstall() {
                     return 1
                 fi
                 ;;
-            3|[nN]|[nN][oO])
+            3|""|[nN]|[nN][oO])
                 print_info_from_common_functions "Keeping current installation"
                 return 1
                 ;;
-            1|""|[yY]|[yY][eE][sS])
+            1|[yY]|[yY][eE][sS])
                 print_info_from_common_functions "Repairing configuration..."
                 repair_gitea_configuration
                 return 1
