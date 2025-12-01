@@ -26,7 +26,7 @@ class DebugIndex
      */
     public static function index(Request $request)
     {
-        $html = file_get_contents(__DIR__ . '/debug_interface_template.html');
-        return response($html)->header('Content-Type', 'text/html');
+        $html = file_get_contents(public_path('debug-assets/debug_interface_template.html'));
+        return response($html)->header('Content-Type', 'text/html; charset=utf-8');
     }
 }
