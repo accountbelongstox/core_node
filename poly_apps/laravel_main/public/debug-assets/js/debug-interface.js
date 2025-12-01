@@ -114,49 +114,59 @@ function showSection(sectionType) {
     }
 
     // Show selected section and update header
+    const pageTitle = document.getElementById('page-title');
+    const pageDescription = document.getElementById('page-description');
+
     if (sectionType === 'system-info') {
-        document.getElementById('system-info-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'System Information';
-        document.getElementById('page-description').textContent = 'View comprehensive system and application information';
+        const section = document.getElementById('system-info-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'System Information';
+        if (pageDescription) pageDescription.textContent = 'View comprehensive system and application information';
     } else if (sectionType === 'dev-tools') {
-        document.getElementById('dev-tools-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Development Tools';
-        document.getElementById('page-description').textContent = 'Professional developer utilities and tools';
+        const section = document.getElementById('dev-tools-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'Development Tools';
+        if (pageDescription) pageDescription.textContent = 'Professional developer utilities and tools';
     } else if (sectionType === 'api-testing') {
-        document.getElementById('api-testing-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'API Testing Dashboard';
-        document.getElementById('page-description').textContent = 'Test and debug your Laravel API endpoints';
+        const section = document.getElementById('api-testing-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'API Testing Dashboard';
+        if (pageDescription) pageDescription.textContent = 'Test and debug your Laravel API endpoints';
     } else if (sectionType === 'code-browser') {
-        document.getElementById('code-browser-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Code Browser';
-        document.getElementById('page-description').textContent = 'Browse, edit files, manage tasks and prompt mappings';
+        const section = document.getElementById('code-browser-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'Code Browser';
+        if (pageDescription) pageDescription.textContent = 'Browse, edit files, manage tasks and prompt mappings';
         if (typeof CodeBrowser !== 'undefined') {
             CodeBrowser.init();
         }
-        // Initialize integrated modules
         initCodeBrowserIntegratedModules();
     } else if (sectionType === 'static-resources') {
-        document.getElementById('static-resources-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Static Resources';
-        document.getElementById('page-description').textContent = 'Browse and manage static media files';
+        const section = document.getElementById('static-resources-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'Static Resources';
+        if (pageDescription) pageDescription.textContent = 'Browse and manage static media files';
         if (typeof StaticResourceBrowser !== 'undefined') {
             StaticResourceBrowser.init();
         }
     } else if (sectionType === 'mcp-manager') {
-        document.getElementById('mcp-manager-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'MCP Manager';
-        document.getElementById('page-description').textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
+        const section = document.getElementById('mcp-manager-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'MCP Manager';
+        if (pageDescription) pageDescription.textContent = 'Manage MCP features including screenshots, task dispatch, and prompt mappings';
         if (typeof McpManager !== 'undefined') {
             McpManager.init();
         }
     } else if (sectionType === 'learning') {
-        document.getElementById('learning-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Vocabulary Learning';
-        document.getElementById('page-description').textContent = 'Learn and practice vocabulary with interactive tools';
+        const section = document.getElementById('learning-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'Vocabulary Learning';
+        if (pageDescription) pageDescription.textContent = 'Learn and practice vocabulary with interactive tools';
     } else if (sectionType === 'octane-tasks') {
-        document.getElementById('octane-tasks-section').classList.add('active');
-        document.getElementById('page-title').textContent = 'Octane Timer Tasks';
-        document.getElementById('page-description').textContent = 'Monitor and manage Octane timer tasks status';
+        const section = document.getElementById('octane-tasks-section');
+        if (section) section.classList.add('active');
+        if (pageTitle) pageTitle.textContent = 'Octane Timer Tasks';
+        if (pageDescription) pageDescription.textContent = 'Monitor and manage Octane timer tasks status';
         if (typeof OctaneTasksManager !== 'undefined') {
             OctaneTasksManager.init();
         }
