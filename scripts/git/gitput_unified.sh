@@ -46,7 +46,6 @@ done
 
 # Declare all variables at the beginning
 ENCRYPTION_CHECK_COMPLETED=false
-PULL_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
@@ -58,6 +57,71 @@ PROJECT_NAME="core_node"  # Hardcoded project name
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 export COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
+SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
+
+# Initialize skip encrypt cache
+init_skip_encrypt_cache() {
+    if [ ! -d "$SKIP_ENCRYPT_CACHE_DIR" ]; then
+        $USE_SUDO mkdir -p "$SKIP_ENCRYPT_CACHE_DIR" 2>/dev/null || true
+    fi
+    if [ ! -f "$SKIP_ENCRYPT_CACHE_FILE" ]; then
+        $USE_SUDO touch "$SKIP_ENCRYPT_CACHE_FILE" 2>/dev/null || true
+    fi
+}
+
+# Check if file is in skip cache
+is_file_in_skip_cache() {
+    local file_path="$1"
+    local file_mtime=$(stat -c %Y "$file_path" 2>/dev/null || stat -f %m "$file_path" 2>/dev/null)
+
+    if [ ! -f "$SKIP_ENCRYPT_CACHE_FILE" ]; then
+        return 1
+    fi
+
+    while IFS='|' read -r cached_path cached_mtime; do
+        if [ "$cached_path" = "$file_path" ] && [ "$cached_mtime" = "$file_mtime" ]; then
+            return 0
+        fi
+    done < "$SKIP_ENCRYPT_CACHE_FILE"
+
+    return 1
+}
+
+# Add file to skip cache
+add_file_to_skip_cache() {
+    local file_path="$1"
+    local file_mtime=$(stat -c %Y "$file_path" 2>/dev/null || stat -f %m "$file_path" 2>/dev/null)
+
+    init_skip_encrypt_cache
+
+    if is_file_in_skip_cache "$file_path"; then
+        return 0
+    fi
+
+    echo "${file_path}|${file_mtime}" | $USE_SUDO tee -a "$SKIP_ENCRYPT_CACHE_FILE" > /dev/null
+}
+
+# Clean up outdated entries from skip cache
+cleanup_skip_encrypt_cache() {
+    if [ ! -f "$SKIP_ENCRYPT_CACHE_FILE" ]; then
+        return
+    fi
+
+    local temp_file="${SKIP_ENCRYPT_CACHE_FILE}.tmp"
+    $USE_SUDO touch "$temp_file"
+
+    while IFS='|' read -r cached_path cached_mtime; do
+        if [ -f "$cached_path" ]; then
+            local current_mtime=$(stat -c %Y "$cached_path" 2>/dev/null || stat -f %m "$cached_path" 2>/dev/null)
+            if [ "$current_mtime" = "$cached_mtime" ]; then
+                echo "${cached_path}|${cached_mtime}" | $USE_SUDO tee -a "$temp_file" > /dev/null
+            fi
+        fi
+    done < "$SKIP_ENCRYPT_CACHE_FILE"
+
+    $USE_SUDO mv "$temp_file" "$SKIP_ENCRYPT_CACHE_FILE"
+}
 
 read_masked_password() {
     local prompt="$1"
@@ -827,6 +891,10 @@ invoke_git_operations() {
     if [ "$ENCRYPTION_CHECK_COMPLETED" = false ]; then
         write_color_text "Checking for unencrypted sensitive files..." "Cyan"
 
+        # Initialize and cleanup skip cache
+        init_skip_encrypt_cache
+        cleanup_skip_encrypt_cache
+
         # Check for correct secret keys structure
         local secret_keys_dir="$CORE_NODE_DIR/.secret_keys"
         local secret_keys_raw_dir="$secret_keys_dir/.secret_ignore"
@@ -840,9 +908,14 @@ invoke_git_operations() {
             # Check raw files that need encryption (raw files newer than encrypted files or no encrypted version)
             if [ -d "$secret_keys_raw_dir" ]; then
                 while IFS= read -r -d '' raw_file; do
+                    # Skip files that are in the skip cache
+                    if is_file_in_skip_cache "$raw_file"; then
+                        continue
+                    fi
+
                     local base_name=$(basename "$raw_file")
                     local encrypted_file="$secret_keys_encrypted_dir/$base_name.js"
-                    
+
                     # Check if raw file needs encryption
                     if [ ! -f "$encrypted_file" ]; then
                         # No encrypted version exists, need to encrypt
@@ -863,18 +936,29 @@ invoke_git_operations() {
                 done
                 echo ""
 
-                # Ask for encryption confirmation with default Y
-                write_color_text "Do you want to encrypt these files before pushing? (Y/n): " "Yellow"
+                # Ask for encryption confirmation with skip option
+                write_color_text "Do you want to encrypt these files before pushing? (Y/n/skip): " "Yellow"
+                write_color_text "  Y     - Encrypt all files" "Cyan"
+                write_color_text "  n     - Skip encryption this time (push unencrypted)" "Cyan"
+                write_color_text "  skip  - Skip all and never ask again for these files (unless modified)" "Cyan"
                 read -r encrypt_confirm
 
-                # Default to Y if empty or Enter pressed
+                # Handle different options
                 if [[ -z "$encrypt_confirm" ]] || [[ "$encrypt_confirm" =~ ^[Yy]$ ]]; then
                     write_color_text "Starting automatic encryption using disguise.js..." "Cyan"
                 elif [[ "$encrypt_confirm" =~ ^[Nn]$ ]]; then
                     write_color_text "Skipping encryption. Continuing with git push." "Yellow"
                     write_color_text "WARNING: Sensitive files will be pushed unencrypted!" "Red"
-                    # Skip encryption by jumping to the end of this block
-                    # We'll use a flag to control this
+                    local skip_encryption=true
+                elif [[ "$encrypt_confirm" =~ ^[Ss][Kk][Ii][Pp]$ ]]; then
+                    write_color_text "Adding files to skip cache..." "Yellow"
+                    for file in "${unencrypted_files[@]}"; do
+                        add_file_to_skip_cache "$file"
+                        write_color_text "  - Cached: $(basename "$file")" "DarkGray"
+                    done
+                    write_color_text "Files added to cache. They will not be checked again unless modified." "Green"
+                    write_color_text "Cache location: $SKIP_ENCRYPT_CACHE_FILE" "DarkGray"
+                    write_color_text "WARNING: Sensitive files will be pushed unencrypted!" "Red"
                     local skip_encryption=true
                 else
                     # Invalid input, default to Y
@@ -988,21 +1072,36 @@ invoke_git_operations() {
     # Ensure we're on the target branch (main)
     ensure_target_branch
     
-    # Stage all changes FIRST (before pull)
-    write_color_text "Staging all changes..." "Cyan"
+    # STEP 1: Pre-commit to save current state before asking user input
+    # This prevents losing local changes if pull overwrites them
+    write_color_text "Pre-committing current changes to protect local work..." "Cyan"
     write_color_text "Executing: git add ." "DarkGray"
     git add .
-    
-    # Validate win_common files before commit (only once per session)
+
+    local pre_commit_message="[AUTO] Pre-commit before user input - $(date '+%Y-%m-%d %H:%M:%S')"
+    write_color_text "Executing: git commit -m '$pre_commit_message' --allow-empty" "DarkGray"
+    if git diff --cached --quiet; then
+        write_color_text "No changes to pre-commit" "DarkGray"
+    else
+        git commit -m "$pre_commit_message"
+        write_color_text "Pre-commit completed successfully" "Green"
+    fi
+
+    # STEP 2: Validate win_common files (only once per session)
     if [ "$FILE_VALIDATION_COMPLETED" = false ]; then
         test_win_common_files
         FILE_VALIDATION_COMPLETED=true
     else
         write_color_text "INFO: File validation already completed in this session." "DarkGray"
     fi
-    
-    # Commit changes BEFORE pulling
+
+    # STEP 3: Get final commit message from user
     local commit_message=$(get_commit_message)
+
+    # STEP 4: Stage any new changes and create final commit
+    write_color_text "Staging all changes for final commit..." "Cyan"
+    write_color_text "Executing: git add ." "DarkGray"
+    git add .
     write_color_text "Committing changes with message: $commit_message" "Cyan"
     write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
     git commit -m "$commit_message"
@@ -1010,14 +1109,12 @@ invoke_git_operations() {
     # Now handle synchronization
     local current_branch=$(get_current_branch)
     if git branch -r | grep -q "origin/$current_branch"; then
-        # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
-        if [ "$PULL_COMPLETED" = false ]; then
-            write_color_text "Pulling and merging remote changes after commit..." "Cyan"
-            write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
-            git pull origin "$current_branch" --no-edit
-            PULL_COMPLETED=true
-        else
-            write_color_text "Skipping pull - already synchronized in this session" "Yellow"
+        # Always pull to prevent push conflicts
+        write_color_text "Pulling and merging remote changes after commit..." "Cyan"
+        write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
+        if ! git pull origin "$current_branch" --no-edit; then
+            write_color_text "WARNING: Pull failed. Attempting to resolve conflicts..." "Yellow"
+            write_color_text "TIP: Check for merge conflicts and resolve them manually if needed" "Cyan"
         fi
     fi
     
