@@ -418,7 +418,7 @@ class _LearningLanguagesScreenAppQyState extends State<LearningLanguagesScreenAp
             decoration: BoxDecoration(
               color: isSelected
                   ? ColorsAppQy.qyPrimary.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.05),
+                  : ColorsAppQy.qyFrostLight,
               borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
               border: Border.all(
                 color: isSelected
