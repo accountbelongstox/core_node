@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning App - Demo Login</title>
+    <link rel="stylesheet" href="/debug-tools/assets/demo.css">
+</head>
+<body>
+    <div class="login-container">
+        <h1>🌐 Language Learning</h1>
+        <p class="subtitle">Demo Login - Quick Access</p>
+
+        <div id="message-area"></div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+            <button type="button" class="btn btn-secondary" onclick="useDemoToken()">Use Demo Token</button>
+        </form>
+
+        <div class="divider"><span>Quick Demo Users</span></div>
+
+        <div class="demo-users">
+            <h3>Click to auto-fill credentials:</h3>
+            <div class="demo-user" onclick="fillCredentials('demo_user', 'password123')">
+                <strong>🎯 Demo User</strong>
+                <small>Username: demo_user | Password: password123</small>
+            </div>
+            <div class="demo-user" onclick="fillCredentials('test', 'test123')">
+                <strong>🧪 Test User</strong>
+                <small>Username: test | Password: test123</small>
+            </div>
+            <div class="demo-user" onclick="fillCredentials('admin', 'admin123')">
+                <strong>👑 Admin User</strong>
+                <small>Username: admin | Password: admin123</small>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <small style="color: #999;">
+                This is a demo environment. You can also use the demo token directly.
+            </small>
+        </div>
+    </div>
+
+    <script src="/debug-tools/assets/demo.js"></script>
+</body>
+</html>

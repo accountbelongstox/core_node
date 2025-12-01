@@ -152,7 +152,7 @@ set_directory_permissions_from_php_common() {
         print_info_from_common_functions "$script_index Production server detected - skipping default directory permission changes"
         print_info_from_common_functions "$script_index To manually set full permissions (777), run the following commands:"
         echo ""
-        echo "    $USE_SUDO chown -R www-data:www-data \"$target_dir\""
+        echo "    $USE_SUDO chown -R root:root \"$target_dir\""
         echo "    $USE_SUDO find \"$target_dir\" -type d -exec chmod 777 {} \\;"
         echo "    $USE_SUDO find \"$target_dir\" -type f -exec chmod 777 {} \\;"
         echo ""
@@ -160,9 +160,9 @@ set_directory_permissions_from_php_common() {
     fi
 
     # For non-production environments (WSL/Desktop), set standard permissions
-    # Set ownership to www-data
-    print_step_from_common_functions "$script_index Setting ownership to www-data:www-data"
-    $USE_SUDO chown -R www-data:www-data "$target_dir" 2>/dev/null || true
+    # Set ownership to root
+    print_step_from_common_functions "$script_index Setting ownership to root:root"
+    $USE_SUDO chown -R root:root "$target_dir" 2>/dev/null || true
 
     # Set permissions
     print_step_from_common_functions "$script_index Setting directory permissions (755)"
@@ -194,13 +194,13 @@ configure_php_fpm_pool_from_php_common() {
         $USE_SUDO sed -i "s|listen = .*|listen = $socket_path|" "$pool_config"
         
         # Update user and group
-        print_step_from_common_functions "$script_index Setting user and group to www-data"
-        $USE_SUDO sed -i 's/^user = .*/user = www-data/' "$pool_config"
-        $USE_SUDO sed -i 's/^group = .*/group = www-data/' "$pool_config"
-        
+        print_step_from_common_functions "$script_index Setting user and group to root"
+        $USE_SUDO sed -i 's/^user = .*/user = root/' "$pool_config"
+        $USE_SUDO sed -i 's/^group = .*/group = root/' "$pool_config"
+
         # Update listen.owner and listen.group
-        $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = www-data/' "$pool_config"
-        $USE_SUDO sed -i 's/^listen.group = .*/listen.group = www-data/' "$pool_config"
+        $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = root/' "$pool_config"
+        $USE_SUDO sed -i 's/^listen.group = .*/listen.group = root/' "$pool_config"
         
         # CRITICAL: Remove open_basedir restrictions from pool config
         # This matches ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig() behavior
@@ -235,7 +235,7 @@ ensure_socket_directory_from_php_common() {
     
     # Set proper permissions
     $USE_SUDO chmod 755 "$socket_dir"
-    $USE_SUDO chown root:www-data "$socket_dir"
+    $USE_SUDO chown root:root "$socket_dir"
     
     print_success_from_common_functions "$script_index Socket directory ready: $socket_dir"
     return 0

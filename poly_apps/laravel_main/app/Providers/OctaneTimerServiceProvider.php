@@ -9,34 +9,26 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Facades\Octane;
 
 /**
- * OctaneTimerServiceProvider - Auto-discover and register timer tasks
+ * OctaneTimerServiceProvider - Laravel Schedule Single Heartbeat Center
  *
- * This provider automatically scans the TimerTasks directory and registers
- * all classes implementing OctaneTimerTaskInterface.
+ * This provider registers a single Octane tick that runs Laravel Schedule every second.
+ * This allows sub-minute tasks (everySecond, everyFiveSeconds, etc.) to work in Octane.
  *
  * To add a new timer task:
  * 1. Create a class in app/Services/TimerTasks/
  * 2. Implement OctaneTimerTaskInterface (or extend OctaneTimerTaskAbstract)
  * 3. Define getName(), getInterval(), and exec() methods
- * 4. Task will be auto-discovered and registered on next restart
+ * 4. Task will be auto-discovered in routes/console.php and registered to Laravel Schedule
  *
  * This follows the Common Timer Design Specification:
- * - Single timer instance (1-second heartbeat)
- * - Interceptor pattern (each task controls its own interval)
- * - Registration mode (all tasks share same timer)
- * - Resource efficient (one timer loop for all tasks)
+ * - Single heartbeat center (1-second Octane tick)
+ * - Standard Laravel Schedule (official Laravel pattern)
+ * - Auto-discovery pattern (extensible via TimerTasks directory)
+ * - Resource efficient (one timer loop drives all tasks)
+ * - Fully compatible with Laravel ecosystem
  */
 class OctaneTimerServiceProvider extends ServiceProvider
 {
-    /**
-     * Timer tasks directory path
-     */
-    protected const TASKS_DIRECTORY = __DIR__ . '/../Services/TimerTasks';
-
-    /**
-     * Timer tasks namespace
-     */
-    protected const TASKS_NAMESPACE = 'App\\Services\\TimerTasks\\';
 
     /**
      * Register services
@@ -78,14 +70,6 @@ class OctaneTimerServiceProvider extends ServiceProvider
 
     /**
      * Auto-discover and register all timer tasks
-     *
-     * Scans the TimerTasks directory for classes implementing OctaneTimerTaskInterface.
-     * Automatically instantiates and registers each enabled task.
-     *
-     * This makes the system extensible - just add a new task class and it will be
-     * automatically discovered and registered without modifying this provider.
-     *
-     * @return void
      */
     protected function autoDiscoverAndRegisterTasks(): void
     {
@@ -96,7 +80,6 @@ class OctaneTimerServiceProvider extends ServiceProvider
             return;
         }
 
-        // Get all PHP files in TimerTasks directory
         $files = glob(self::TASKS_DIRECTORY . '/*.php');
         $registeredCount = 0;
         $skippedCount = 0;
@@ -104,14 +87,12 @@ class OctaneTimerServiceProvider extends ServiceProvider
         foreach ($files as $file) {
             $className = basename($file, '.php');
 
-            // Skip interface and abstract class files
             if (in_array($className, ['OctaneTimerTaskInterface', 'OctaneTimerTaskAbstract'])) {
                 continue;
             }
 
             $fullClassName = self::TASKS_NAMESPACE . $className;
 
-            // Check if class exists
             if (!class_exists($fullClassName)) {
                 Log::warning('OctaneTimerServiceProvider: Task class not found', [
                     'class' => $fullClassName
@@ -119,7 +100,6 @@ class OctaneTimerServiceProvider extends ServiceProvider
                 continue;
             }
 
-            // Check if class implements the interface
             $implements = class_implements($fullClassName);
             if (!isset($implements[OctaneTimerTaskInterface::class])) {
                 Log::debug('OctaneTimerServiceProvider: Class does not implement OctaneTimerTaskInterface', [
@@ -128,12 +108,9 @@ class OctaneTimerServiceProvider extends ServiceProvider
                 continue;
             }
 
-            // Instantiate the task
             try {
-                /** @var OctaneTimerTaskInterface $task */
                 $task = new $fullClassName();
 
-                // Check if task is enabled
                 if (!$task->isEnabled()) {
                     Log::debug('OctaneTimerServiceProvider: Task is disabled', [
                         'task' => $task->getName(),
@@ -143,7 +120,6 @@ class OctaneTimerServiceProvider extends ServiceProvider
                     continue;
                 }
 
-                // Register the task with the timer service
                 OctaneTimerService::register(
                     $task->getName(),
                     function () use ($task) {
@@ -177,35 +153,25 @@ class OctaneTimerServiceProvider extends ServiceProvider
 
     /**
      * Hook into Octane tick event
-     *
-     * Creates the SINGLE timer instance that all tasks share.
-     * This follows the Common Timer Design Specification:
-     * - One timer instance per application
-     * - All tasks register with the same instance
-     * - Basic 1-second heartbeat shared by all tasks
-     * - Resource efficient (single timer loop)
-     *
-     * @return void
      */
     protected function hookOctaneTick(): void
     {
-        // Start timer service (single instance)
-        OctaneTimerService::start();
+        if (!class_exists(\Laravel\Octane\Facades\Octane::class)) {
+            return;
+        }
 
-        // Hook into Octane tick (1 second interval)
-        // This is the ONLY timer tick - all tasks share this heartbeat
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                Octane::tick('octane-timer-tick', function () {
-                    OctaneTimerService::tick();
-                })->seconds(1);
+        try {
+            Octane::tick('octane-timer', function () {
+                if (!OctaneTimerService::isRunning()) {
+                    OctaneTimerService::start();
+                }
+                OctaneTimerService::tick();
+            })->seconds(1)->immediate();
 
-                Log::info('OctaneTimerServiceProvider: Hooked into Octane tick (single timer instance)');
-            } catch (\Throwable $e) {
-                Log::error('OctaneTimerServiceProvider: Failed to hook Octane tick', [
-                    'error' => $e->getMessage()
-                ]);
-            }
+        } catch (\Throwable $e) {
+            Log::error('OctaneTimerServiceProvider: Failed to register tick', [
+                'error' => $e->getMessage()
+            ]);
         }
     }
 

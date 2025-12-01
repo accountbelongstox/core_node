@@ -93,6 +93,13 @@ body {
 
 .menu-item {
     padding: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.menu-item a {
+    position: relative;
+    z-index: 2;
 }
 
 .menu-item a {
@@ -108,6 +115,10 @@ body {
     position: relative;
     white-space: nowrap;
     height: 54px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
 }
 
 /* Fix for chaotic icons when expanded */
@@ -186,6 +197,13 @@ body {
     background: rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
+    position: relative;
+    z-index: 1;
+}
+
+/* When content-section is active, hide main-content body */
+body:has(.content-section.active) .main-content .content-body {
+    display: none !important;
 }
 
 .content-header {
@@ -209,18 +227,74 @@ body {
 }
 
 .content-body {
-    padding: 30px;
+    padding: 15px;
     flex: 1;
     overflow-y: auto;
 }
 
-.content-section {
+/* Tab navigation styling */
+.tab-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    border-radius: 6px;
+    color: #c0caf5;
+    cursor: pointer;
+    font-size: 14px;
+    text-align: center;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tab.active {
+    background: rgba(122, 162, 247, 0.2);
+    color: #fff;
+}
+
+/* Hide left sidebar when System Information tab active */
+.system-info-active .sidebar {
     display: none;
-    height: 100%;
+}
+
+/* Adjust content-body padding for System Info */
+.system-info-active .content-body {
+    padding: 15px;
+}
+
+.content-section {
+    display: none !important;
+    position: fixed;
+    top: 0;
+    left: 60px;
+    right: 0;
+    bottom: 0;
+    width: calc(100% - 60px);
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: rgba(0, 0, 0, 0.2);
+    z-index: 100;
+}
+
+.sidebar.expanded ~ * .content-section,
+body:has(.sidebar.expanded) .content-section {
+    left: 250px;
+    width: calc(100% - 250px);
 }
 
 .content-section.active {
-    display: block;
+    display: block !important;
     animation: fadeIn 0.3s ease;
 }
 
@@ -676,6 +750,7 @@ body {
         overflow: visible;
         padding-top: 45px;
         /* Space for mobile header */
+        height: 100vh;
     }
 
     /* Mobile top navigation bar */
@@ -686,7 +761,7 @@ body {
         left: 0;
         right: 0;
         height: 45px;
-        background: rgba(30, 30, 35, 0.95);
+        background: rgba(30, 30, 35, 0.98);
         backdrop-filter: blur(10px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 150;
@@ -715,13 +790,31 @@ body {
         text-overflow: ellipsis;
     }
 
-    .content-header {
-        padding: 10px 15px;
-        min-height: 50px;
+    /* Hide redundant headers on mobile */
+    .content-header,
+    .card-header {
+        display: none !important;
     }
 
+    /* Maximize space on mobile */
     .content-body {
-        padding: 15px;
+        padding: 0;
+        height: calc(100vh - 45px);
+        overflow-y: auto;
+    }
+
+    .card {
+        border-radius: 0;
+        box-shadow: none;
+        border: none;
+        background: transparent;
+        margin-bottom: 0;
+        height: 100%;
+    }
+
+    .card-body {
+        padding: 10px;
+        height: 100%;
     }
 
     .btn-group {
@@ -738,12 +831,25 @@ body {
         margin-bottom: 8px;
     }
 
-    .card-header {
-        padding: 12px 15px;
+    /* Mobile-specific API Testing layout */
+    .api-list {
+        max-height: 40vh;
+        overflow-y: auto;
     }
 
-    .card-body {
+    .api-details {
         padding: 15px;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 12px;
+    }
+
+    .btn-group {
+        justify-content: center;
+        flex-wrap: wrap;
     }
 }
 
