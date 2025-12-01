@@ -20,6 +20,7 @@ import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../models_app_qy/user_model_app_qy.dart';
 import '../controllers/home_controller_app_qy.dart';
 
@@ -95,8 +96,8 @@ class _HomeScreenRefactoredAppQyState
       type: BottomNavigationBarType.fixed,
       selectedItemColor: ThemeColors.primary,
       unselectedItemColor: ThemeColors.textSecondary,
-      selectedFontSize: Dimensions.fontSize12,
-      unselectedFontSize: Dimensions.fontSize12,
+      selectedFontSize: ThemeTextStyles.caption.fontSize ?? 12.0,
+      unselectedFontSize: ThemeTextStyles.caption.fontSize ?? 12.0,
       elevation: 0,
       items: [
         BottomNavigationBarItem(
@@ -144,15 +145,15 @@ class StudyTabViewRefactored extends StatelessWidget {
           slivers: [
             _buildAppBar(context),
             SliverPadding(
-              padding: EdgeInsets.all(Dimensions.paddingMedium),
+              padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _buildMoreFeaturesButton(context),
-                  SizedBox(height: Dimensions.spacingMedium),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
                   _buildStudyProgressCard(context, user),
-                  SizedBox(height: Dimensions.spacingLarge),
+                  SizedBox(height: ThemeDimensions.spacingLarge),
                   _buildQuickAccessGrid(context),
-                  SizedBox(height: Dimensions.spacingXLarge),
+                  SizedBox(height: ThemeDimensions.spacingXLarge),
                 ]),
               ),
             ),
@@ -169,13 +170,13 @@ class StudyTabViewRefactored extends StatelessWidget {
       backgroundColor: ThemeColors.background,
       elevation: 0,
       leading: Padding(
-        padding: EdgeInsets.all(Dimensions.paddingSmall),
+        padding: EdgeInsets.all(ThemeDimensions.paddingSmall),
         child: CircleAvatar(
           backgroundColor: ThemeColors.primary.withOpacity(0.1),
           child: Icon(
             Icons.person,
             color: ThemeColors.primary,
-            size: Dimensions.iconSizeMedium,
+            size: ThemeDimensions.iconSizeMedium,
           ),
         ),
       ),
@@ -184,7 +185,7 @@ class StudyTabViewRefactored extends StatelessWidget {
           icon: Icon(
             Icons.search,
             color: ThemeColors.textPrimary,
-            size: Dimensions.iconSizeMedium,
+            size: ThemeDimensions.iconSizeMedium,
           ),
           onPressed: () {},
         ),
@@ -192,7 +193,7 @@ class StudyTabViewRefactored extends StatelessWidget {
           icon: Icon(
             Icons.close,
             color: ThemeColors.textPrimary,
-            size: Dimensions.iconSizeMedium,
+            size: ThemeDimensions.iconSizeMedium,
           ),
           onPressed: () {},
         ),
@@ -204,7 +205,7 @@ class StudyTabViewRefactored extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: ThemeColors.surface,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         boxShadow: [
           BoxShadow(
             color: ThemeColors.shadow.withOpacity(0.05),
@@ -214,21 +215,21 @@ class StudyTabViewRefactored extends StatelessWidget {
         ],
       ),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
-          borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+          borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
           onTap: () {},
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: Dimensions.paddingMedium,
-              vertical: Dimensions.paddingSmall,
+              horizontal: ThemeDimensions.paddingMedium,
+              vertical: ThemeDimensions.paddingSmall,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   QyAppLocalizationKeys.qyHomeMoreFeatures.tr(context),
-                  style: TextStyles.body1.copyWith(
+                  style: ThemeTextStyles.body1.copyWith(
                     color: ThemeColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
@@ -236,7 +237,7 @@ class StudyTabViewRefactored extends StatelessWidget {
                 Icon(
                   Icons.keyboard_arrow_down,
                   color: ThemeColors.textSecondary,
-                  size: Dimensions.iconSizeSmall,
+                  size: ThemeDimensions.iconSizeSmall,
                 ),
               ],
             ),
@@ -257,13 +258,13 @@ class StudyTabViewRefactored extends StatelessWidget {
             ThemeColors.secondary.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(
           color: ThemeColors.primary.withOpacity(0.2),
           width: 1,
         ),
       ),
-      padding: EdgeInsets.all(Dimensions.paddingLarge),
+      padding: EdgeInsets.all(ThemeDimensions.paddingLarge),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -275,13 +276,13 @@ class StudyTabViewRefactored extends StatelessWidget {
                 children: [
                   Text(
                     QyAppLocalizationKeys.qyHomeLearnSettings.tr(context),
-                    style: TextStyles.caption.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: ThemeColors.textSecondary,
                     ),
                   ),
                   Text(
                     QyAppLocalizationKeys.qyHomeLearnData.tr(context),
-                    style: TextStyles.caption.copyWith(
+                    style: ThemeTextStyles.caption.copyWith(
                       color: ThemeColors.textSecondary,
                     ),
                   ),
@@ -289,41 +290,41 @@ class StudyTabViewRefactored extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingMedium),
+          SizedBox(height: ThemeDimensions.spacingMedium),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
                 QyAppLocalizationKeys.qyHomeLearned.tr(context),
-                style: TextStyles.body1.copyWith(
+                style: ThemeTextStyles.body1.copyWith(
                   color: ThemeColors.textSecondary,
                 ),
               ),
-              SizedBox(width: Dimensions.spacingSmall),
+              SizedBox(width: ThemeDimensions.spacingSmall),
               Text(
                 user.progressPercentage,
-                style: TextStyles.h2.copyWith(
+                style: ThemeTextStyles.h2.copyWith(
                   color: ThemeColors.primary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
                 '%',
-                style: TextStyles.body1.copyWith(
+                style: ThemeTextStyles.body1.copyWith(
                   color: ThemeColors.textSecondary,
                 ),
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingXSmall),
+          SizedBox(height: ThemeDimensions.spacingXSmall),
           Text(
             '${user.learnedWords}/${user.totalWords}${QyAppLocalizationKeys.qyHomeWordsTotal.tr(context)}',
-            style: TextStyles.body2.copyWith(
+            style: ThemeTextStyles.body2.copyWith(
               color: ThemeColors.textSecondary,
             ),
           ),
-          SizedBox(height: Dimensions.spacingLarge),
+          SizedBox(height: ThemeDimensions.spacingLarge),
           Row(
             children: [
               Expanded(
@@ -333,7 +334,7 @@ class StudyTabViewRefactored extends StatelessWidget {
                   '${user.todayNewWords ?? 0}/${user.todayNewWords ?? 200}',
                 ),
               ),
-              SizedBox(width: Dimensions.spacingMedium),
+              SizedBox(width: ThemeDimensions.spacingMedium),
               Expanded(
                 child: _buildStatItem(
                   context,
@@ -343,7 +344,7 @@ class StudyTabViewRefactored extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: Dimensions.spacingLarge),
+          SizedBox(height: ThemeDimensions.spacingLarge),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -352,19 +353,19 @@ class StudyTabViewRefactored extends StatelessWidget {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeColors.primary,
-                foregroundColor: ThemeColors.onPrimary,
+                foregroundColor: ColorsAppQy.qyTextOnPrimary,
                 padding: EdgeInsets.symmetric(
-                  vertical: Dimensions.paddingMedium,
+                  vertical: ThemeDimensions.paddingMedium,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
                 ),
                 elevation: 2,
               ),
               child: Text(
                 QyAppLocalizationKeys.qyHomeStartLearning.tr(context),
-                style: TextStyles.button.copyWith(
-                  color: ThemeColors.onPrimary,
+                style: ThemeTextStyles.button.copyWith(
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
             ),
@@ -380,14 +381,14 @@ class StudyTabViewRefactored extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyles.caption.copyWith(
+          style: ThemeTextStyles.caption.copyWith(
             color: ThemeColors.textSecondary,
           ),
         ),
-        SizedBox(height: Dimensions.spacingXSmall),
+        SizedBox(height: ThemeDimensions.spacingXSmall),
         Text(
           value,
-          style: TextStyles.body1.copyWith(
+          style: ThemeTextStyles.body1.copyWith(
             color: ThemeColors.textPrimary,
             fontWeight: FontWeight.w600,
           ),
@@ -462,7 +463,7 @@ class StudyTabViewRefactored extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: feature.onTap,
-        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -471,18 +472,18 @@ class StudyTabViewRefactored extends StatelessWidget {
               height: 48,
               decoration: BoxDecoration(
                 color: ThemeColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
               ),
               child: Icon(
                 feature.icon,
                 color: ThemeColors.primary,
-                size: Dimensions.iconSizeMedium,
+                size: ThemeDimensions.iconSizeMedium,
               ),
             ),
-            SizedBox(height: Dimensions.spacingSmall),
+            SizedBox(height: ThemeDimensions.spacingSmall),
             Text(
               feature.label,
-              style: TextStyles.caption.copyWith(
+              style: ThemeTextStyles.caption.copyWith(
                 color: ThemeColors.textPrimary,
               ),
               textAlign: TextAlign.center,
@@ -521,7 +522,7 @@ class CourseTabViewRefactored extends StatelessWidget {
       body: Center(
         child: Text(
           'Course - Coming Soon',
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
       ),
     );
@@ -541,7 +542,7 @@ class AIStudyTabViewRefactored extends StatelessWidget {
       body: Center(
         child: Text(
           'AI Study - Coming Soon',
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
       ),
     );
@@ -561,7 +562,7 @@ class DiscoverTabViewRefactored extends StatelessWidget {
       body: Center(
         child: Text(
           'Discover - Coming Soon',
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
       ),
     );
@@ -581,7 +582,7 @@ class ProfileTabViewRefactored extends StatelessWidget {
       body: Center(
         child: Text(
           'Profile - Coming Soon',
-          style: TextStyles.body1.copyWith(color: ThemeColors.textSecondary),
+          style: ThemeTextStyles.body1.copyWith(color: ThemeColors.textSecondary),
         ),
       ),
     );

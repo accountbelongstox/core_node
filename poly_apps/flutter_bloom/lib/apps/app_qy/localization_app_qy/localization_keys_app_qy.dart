@@ -1978,6 +1978,15 @@ class QyAppLocalizationKeys {
   static const String qyOpeningFeature = 'qy_opening_feature';
   static const String qyFeatureNotAvailable = 'qy_feature_not_available';
   static const String qyClickToSearchFeatures = 'qy_click_to_search_features';
+  static const String qyCheckinChallenge = 'qy_checkin_challenge';
+  static const String qyCheckinChallengeDesc = 'qy_checkin_challenge_desc';
+  static const String qyRewards = 'qy_rewards';
+  static const String qyRewardsDesc = 'qy_rewards_desc';
+  static const String qyTopics = 'qy_topics';
+  static const String qyTopicsDesc = 'qy_topics_desc';
+  static const String qyDiscoverLearning = 'qy_discover_learning';
+  static const String qyConnectMillionsLearners = 'qy_connect_millions_learners';
+  static const String qyExploreCommunityFeatures = 'qy_explore_community_features';
 
   // Word Listening AI Explain
   static const String qyListeningAIExplainTitle =
