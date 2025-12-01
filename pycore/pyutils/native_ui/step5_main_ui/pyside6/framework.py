@@ -160,7 +160,9 @@ class PySide6Framework(QObject):
         # Configuration
         self.config = config or PySide6UIConfig()
         self.startup_config = startup_config or StartupWindowConfig(
-            app_name=self.config.app_name
+            app_name=self.config.app_name,
+            show_startup=True,  # Default: show startup window
+            auto_close=True  # Default: auto-close when PySide6 starts
         )
 
         # Qt Application
@@ -178,7 +180,29 @@ class PySide6Framework(QObject):
         self._started = False
         self._qt_app_created_internally = False
 
+        # Register event handler for auto-closing startup window
+        self._register_startup_autoclose_handler()
+
     # ========== Startup Window (Tkinter) ==========
+
+    def _register_startup_autoclose_handler(self):
+        """Register event handler to auto-close startup window when third-party packages are loaded."""
+        def handle_packages_loaded(event_data):
+            """Handle system.third_party_packages_loaded event"""
+            # Set signal to mark initialization complete (thread-safe via THREAD_BUS)
+            # StartupWindow will check this signal when user tries to close
+            THREAD_BUS.signal('startup_window.initialization_complete', True)
+            ColorPrint.green("[PySide6Framework] Set startup_window.initialization_complete signal")
+
+            if self.startup_config.auto_close and self.startup_window:
+                ColorPrint.blue("[PySide6Framework] Third-party packages loaded, auto-closing startup window...")
+                self.close_startup()
+                ColorPrint.green("[PySide6Framework] Startup window auto-closed")
+            else:
+                if not self.startup_config.auto_close:
+                    ColorPrint.yellow("[PySide6Framework] auto_close=False, keeping startup window as debug window")
+
+        THREAD_BUS.register_event_handler('system.third_party_packages_loaded', handle_packages_loaded, priority=50)
 
     def show_startup(self):
         """Show startup window (tkinter) for dependency installation."""
@@ -190,7 +214,8 @@ class PySide6Framework(QObject):
                 app_name=self.startup_config.app_name,
                 width=self.startup_config.width,
                 height=self.startup_config.height,
-                on_complete=self.startup_config.on_complete
+                on_complete=self.startup_config.on_complete,
+                daemon=self.startup_config.daemon
             )
 
         self.startup_window.show()
@@ -216,54 +241,95 @@ class PySide6Framework(QObject):
 
     def start(self):
         """Start main application (PySide6)."""
+        ColorPrint.blue(f"[PySide6Framework] ========== START SEQUENCE BEGIN ==========")
+        ColorPrint.blue(f"[PySide6Framework] Config: app_name={self.config.app_name}, app_id={self.config.app_id}")
+        ColorPrint.blue(f"[PySide6Framework] Window size: {self.config.window_size}")
+        ColorPrint.blue(f"[PySide6Framework] show_on_start: {self.config.show_on_start}")
+        ColorPrint.blue(f"[PySide6Framework] enable_webview: {self.config.enable_webview}")
+        ColorPrint.blue(f"[PySide6Framework] webview_url: {self.config.webview_url}")
+        ColorPrint.blue(f"[PySide6Framework] enable_tray: {self.config.enable_tray}")
+        ColorPrint.blue(f"[PySide6Framework] trigger_shutdown_on_close: {self.config.trigger_shutdown_on_close}")
+        ColorPrint.blue(f"[PySide6Framework] Startup window: show={self.startup_config.show_startup}, auto_close={self.startup_config.auto_close}")
+
         if self._started:
+            ColorPrint.yellow("[PySide6Framework] Already started, skipping")
             return
 
-        # Close startup window if still open
-        self.close_startup()
+        # Show startup window if configured (for debug/log output)
+        if self.startup_config.show_startup and not self.startup_window:
+            ColorPrint.blue("[PySide6Framework] Step 0: Showing tk startup/debug window...")
+            self.show_startup()
+            ColorPrint.green("[PySide6Framework] Tk startup window is now visible (will capture ColorPrint output)")
+
+        # Note: Startup window will auto-close when 'system.third_party_packages_loaded' event is received
+        # This event is triggered by launcher after all services start (i.e., when next step begins)
+        ColorPrint.blue("[PySide6Framework] Step 1: Startup window will auto-close after third-party packages loaded")
+        ColorPrint.blue(f"[PySide6Framework] auto_close={self.startup_config.auto_close}")
 
         # Create Qt application if not exists
+        ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
         if not QApplication.instance():
             self.qt_app = QApplication(sys.argv)
             self._qt_app_created_internally = True
+            ColorPrint.green("[PySide6Framework] Created new QApplication instance")
         else:
             self.qt_app = QApplication.instance()
+            ColorPrint.green("[PySide6Framework] Using existing QApplication instance")
 
         # Set application properties
         self.qt_app.setApplicationName(self.config.app_name)
+        ColorPrint.blue(f"[PySide6Framework] Set app name: {self.config.app_name}")
 
         if self.config.icon_path and Path(self.config.icon_path).exists():
             self.qt_app.setWindowIcon(QIcon(self.config.icon_path))
+            ColorPrint.blue(f"[PySide6Framework] Set app icon: {self.config.icon_path}")
 
         # Create components
+        ColorPrint.blue("[PySide6Framework] Step 3: Creating components...")
         self._create_components()
+        ColorPrint.green("[PySide6Framework] Components created")
 
         # Setup signal connections
+        ColorPrint.blue("[PySide6Framework] Step 4: Setting up signal connections...")
         self._setup_connections()
+        ColorPrint.green("[PySide6Framework] Signal connections established")
 
         # Show window if configured
+        ColorPrint.blue("[PySide6Framework] Step 5: Checking if window should be shown...")
         if self.config.show_on_start:
+            ColorPrint.green("[PySide6Framework] show_on_start=True, showing window now")
             self.main_window.show()
+        else:
+            ColorPrint.yellow("[PySide6Framework] show_on_start=False, window will NOT be shown automatically")
+            ColorPrint.yellow("[PySide6Framework] Use tray menu 'Toggle Voice Subtitle' to show window")
 
         # Start tick timer if enabled
         if self.config.enable_tick_timer:
+            ColorPrint.blue("[PySide6Framework] Starting tick timer...")
             self.tick_timer.start()
 
         # Emit ready signal
+        ColorPrint.blue("[PySide6Framework] Step 6: Emitting ready signal...")
         self.ready.emit()
 
         # Call ready callback
         if self.config.on_ready:
+            ColorPrint.blue("[PySide6Framework] Calling on_ready callback...")
             self.config.on_ready()
 
         self._started = True
+        ColorPrint.green(f"[PySide6Framework] ========== START SEQUENCE COMPLETE ==========")
+        ColorPrint.green(f"[PySide6Framework] Framework is now running")
+        ColorPrint.green(f"[PySide6Framework] Window visible: {self.main_window.isVisible() if self.main_window else False}")
 
         # Start Qt event loop (blocking)
         if self._qt_app_created_internally:
+            ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
             sys.exit(self.qt_app.exec())
 
     def _create_components(self):
         """Create UI components."""
+        ColorPrint.blue("[PySide6Framework] Creating main window...")
         # Main window
         self.main_window = PySide6MainWindow(
             app_name=self.config.app_name,
@@ -273,9 +339,11 @@ class PySide6Framework(QObject):
             frameless=self.config.frameless,
             cache_window_state=self.config.cache_window_state
         )
+        ColorPrint.green(f"[PySide6Framework] Main window created: {self.config.window_size[0]}x{self.config.window_size[1]}, frameless={self.config.frameless}")
 
         # Title bar
         if self.config.enable_title_bar:
+            ColorPrint.blue("[PySide6Framework] Creating title bar...")
             # Create custom styles from config
             custom_styles = {
                 'bar_height': self.config.title_bar_height,
@@ -290,16 +358,22 @@ class PySide6Framework(QObject):
                 custom_styles=custom_styles
             )
             self.main_window.set_title_bar(self.title_bar)
+            ColorPrint.green("[PySide6Framework] Title bar created and attached")
+        else:
+            ColorPrint.yellow("[PySide6Framework] Title bar disabled")
 
         # WebView
         if self.config.enable_webview:
+            ColorPrint.blue("[PySide6Framework] Creating WebView...")
             self.webview = PySide6WebView(
                 enable_dev_tools=self.config.enable_dev_tools,
                 enable_javascript=self.config.enable_javascript
             )
+            ColorPrint.green(f"[PySide6Framework] WebView created: dev_tools={self.config.enable_dev_tools}")
 
             # Show loading page
             if self.config.enable_loading_page:
+                ColorPrint.blue("[PySide6Framework] Showing loading page...")
                 self.webview.show_loading_page(
                     html_path=self.config.loading_page_path,
                     style=self.config.loading_style,
@@ -309,12 +383,17 @@ class PySide6Framework(QObject):
 
             # Load URL after a delay
             if self.config.webview_url:
+                ColorPrint.blue(f"[PySide6Framework] Scheduling URL load (500ms delay): {self.config.webview_url}")
                 QTimer.singleShot(500, lambda: self.webview.load_url(self.config.webview_url))
 
             self.main_window.set_content(self.webview)
+            ColorPrint.green("[PySide6Framework] WebView attached to main window")
+        else:
+            ColorPrint.yellow("[PySide6Framework] WebView disabled")
 
         # System tray
         if self.config.enable_tray:
+            ColorPrint.blue("[PySide6Framework] Creating system tray...")
             self.system_tray = PySide6SystemTray(
                 app_name=self.config.app_name,
                 icon_path=self.config.tray_icon_path or self.config.icon_path
@@ -322,6 +401,7 @@ class PySide6Framework(QObject):
 
             # Create default menu if no custom items
             if not self.config.tray_menu_items:
+                ColorPrint.blue("[PySide6Framework] Creating default tray menu...")
                 menu_items = create_default_tray_menu(
                     show_callback=self.show_window,
                     hide_callback=self.hide_window,
@@ -330,10 +410,15 @@ class PySide6Framework(QObject):
                 self.system_tray.set_menu_items(menu_items)
 
             self.system_tray.show()
+            ColorPrint.green("[PySide6Framework] System tray created and shown")
+        else:
+            ColorPrint.yellow("[PySide6Framework] System tray disabled (using external tray)")
 
         # Tick timer
         if self.config.enable_tick_timer:
+            ColorPrint.blue(f"[PySide6Framework] Creating tick timer (interval={self.config.tick_interval}s)...")
             self.tick_timer = TickTimer(interval=self.config.tick_interval)
+            ColorPrint.green("[PySide6Framework] Tick timer created")
 
     def _setup_connections(self):
         """Setup signal connections."""
@@ -468,6 +553,16 @@ class PySide6Framework(QObject):
 
     def quit(self):
         """Quit application."""
+        # Trigger global shutdown if configured
+        if self.config.trigger_shutdown_on_close and not THREAD_BUS.is_shutdown_requested():
+            ColorPrint.blue("[PySide6Framework] Triggering global shutdown via THREAD_BUS...")
+            THREAD_BUS.request_shutdown(
+                reason="UI window closed",
+                execute_handlers=True
+            )
+            # Return early - shutdown handlers will clean up everything
+            return
+
         # Stop tick timer
         if self.tick_timer:
             self.tick_timer.stop()
