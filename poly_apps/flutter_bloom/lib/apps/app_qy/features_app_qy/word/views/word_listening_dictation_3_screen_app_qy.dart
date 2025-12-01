@@ -24,10 +24,12 @@ class WordListeningDictation3ScreenAppQy extends StatefulWidget {
   const WordListeningDictation3ScreenAppQy({super.key});
 
   @override
-  State<WordListeningDictation3ScreenAppQy> createState() => _WordListeningDictation3ScreenAppQyState();
+  State<WordListeningDictation3ScreenAppQy> createState() =>
+      _WordListeningDictation3ScreenAppQyState();
 }
 
-class _WordListeningDictation3ScreenAppQyState extends State<WordListeningDictation3ScreenAppQy> {
+class _WordListeningDictation3ScreenAppQyState
+    extends State<WordListeningDictation3ScreenAppQy> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

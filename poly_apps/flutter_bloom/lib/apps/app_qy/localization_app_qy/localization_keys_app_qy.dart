@@ -86,6 +86,12 @@ class QyAppLocalizationKeys {
   static const String qyPlayAgain = 'qy_play_again';
   static const String qyWordListeningDictation = 'qy_word_listening_dictation';
   static const String qyUnderDevelopment = 'qy_under_development';
+  static const String qyPlaying = 'qy_playing';
+  static const String qyDictationComplete = 'qy_dictation_complete';
+  static const String qyAccuracy = 'qy_accuracy';
+  static const String qyPlayAudio = 'qy_play_audio';
+  static const String qyWrongAnswer = 'qy_wrong_answer';
+  static const String qyCorrectWord = 'qy_correct_word';
 
   static const String qySignIn = 'qy_sign_in';
   static const String qySignUp = 'qy_sign_up';
