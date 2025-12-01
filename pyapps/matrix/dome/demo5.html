@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机占位图 - 波纹扩散效果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #000;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .phone-container {
+            position: relative;
+            width: 375px;
+            height: 812px;
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 50%,
+                rgba(255, 255, 255, 0.1) 100%);
+            border-radius: 40px;
+            padding: 20px;
+            box-shadow: 
+                0 0 65px rgba(255, 255, 255, 0.32),
+                inset 0 0 42px rgba(255, 255, 255, 0.11);
+            backdrop-filter: blur(21px);
+            border: 2px solid rgba(255, 255, 255, 0.21);
+            overflow: hidden;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .holographic-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(45deg,
+                    rgba(255, 255, 255, 0.12) 0%,
+                    transparent 25%,
+                    transparent 75%,
+                    rgba(255, 255, 255, 0.12) 100%),
+                repeating-linear-gradient(90deg,
+                    rgba(255, 255, 255, 0.05) 0px,
+                    transparent 1px,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.05) 3px);
+            animation: holographic-shimmer 4s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes holographic-shimmer {
+            0%, 100% { 
+                opacity: 0.5;
+                background-position: 0% 0%;
+            }
+            50% { 
+                opacity: 0.8;
+                background-position: 100% 100%;
+            }
+        }
+
+        .ripple {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0;
+            height: 0;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: ripple-expand 3s ease-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-expand {
+            to {
+                width: 600px;
+                height: 600px;
+                opacity: 0;
+                border-width: 1px;
+            }
+        }
+
+        .waiting-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 19px;
+            text-align: center;
+            z-index: 10;
+            text-shadow: 
+                0 0 21px rgba(255, 255, 255, 0.82),
+                0 0 42px rgba(255, 255, 255, 0.42);
+            animation: text-pulse 2.3s ease-in-out infinite;
+        }
+
+        @keyframes text-pulse {
+            0%, 100% { 
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% { 
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.03);
+            }
+        }
+
+        .blur-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.14) 0%, transparent 55%);
+            filter: blur(32px);
+            opacity: 0.52;
+            pointer-events: none;
+        }
+
+        .connection-icon {
+            font-size: 65px;
+            margin-bottom: 26px;
+            display: block;
+            animation: icon-bounce 2.5s ease-in-out infinite;
+        }
+
+        @keyframes icon-bounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-10px) scale(1.05); }
+        }
+
+        .ripple-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="phone-screen">
+            <div class="blur-layer"></div>
+            <div class="holographic-overlay"></div>
+            <div class="ripple-container" id="rippleContainer"></div>
+            <div class="waiting-text">
+                <span class="connection-icon">📱</span>
+                <div>等待连接中...</div>
+                <div style="font-size: 13px; margin-top: 13px; opacity: 0.76;">Please wait...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rippleContainer = document.getElementById('rippleContainer');
+        
+        function createRipple() {
+            const ripple = document.createElement('div');
+            ripple.className = 'ripple';
+            ripple.style.animationDelay = Math.random() * 1 + 's';
+            rippleContainer.appendChild(ripple);
+            
+            setTimeout(() => ripple.remove(), 3000);
+        }
+        
+        setInterval(createRipple, 1500);
+        createRipple();
+    </script>
+</body>
+</html>
+
