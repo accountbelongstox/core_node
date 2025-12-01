@@ -78,9 +78,14 @@ class QyAppLocalizationKeys {
   static const String qyCorrectAnswer = 'qy_correct_answer';
   static const String qyYourAnswer = 'qy_your_answer';
   static const String qyProgress = 'qy_progress';
+  static const String qySpellingPractice = 'qy_spelling_practice';
+  static const String qySpellTheWord = 'qy_spell_the_word';
+  static const String qyHint = 'qy_hint';
   static const String qyListenAndType = 'qy_listen_and_type';
   static const String qyTypeHere = 'qy_type_here';
   static const String qyPlayAgain = 'qy_play_again';
+  static const String qyWordListeningDictation = 'qy_word_listening_dictation';
+  static const String qyUnderDevelopment = 'qy_under_development';
 
   static const String qySignIn = 'qy_sign_in';
   static const String qySignUp = 'qy_sign_up';
@@ -912,6 +917,8 @@ class QyAppLocalizationKeys {
   static const String qyEnterSentence = 'qy_enter_sentence';
   static const String qyFinish = 'qy_finish';
   static const String qyCheck = 'qy_check';
+  static const String qyExit = 'qy_exit';
+  static const String qyWordTest = 'qy_word_test';
   static const String qyFlashcards = 'qy_flashcards';
   static const String qyTapToFlip = 'qy_tap_to_flip';
   static const String qyDefinition = 'qy_definition';
@@ -1965,6 +1972,21 @@ class QyAppLocalizationKeys {
   static const String qyAchievementsSystemDesc = 'qy_achievements_system_desc';
   static const String qyLeaderboard = 'qy_leaderboard';
   static const String qyLeaderboardDesc = 'qy_leaderboard_desc';
+  static const String qyRankings = 'qy_rankings';
+  static const String qyWeek = 'qy_week';
+  static const String qyMonth = 'qy_month';
+  static const String qyAllTime = 'qy_all_time';
+  static const String qyYourRank = 'qy_your_rank';
+  static const String qyCurrentStreak = 'qy_current_streak';
+  static const String qyKeepItUp = 'qy_keep_it_up';
+  static const String qyLongestStreak = 'qy_longest_streak';
+  static const String qyActivityCalendar = 'qy_activity_calendar';
+  static const String qyStudied = 'qy_studied';
+  static const String qyNoActivity = 'qy_no_activity';
+  static const String qyStreakTips = 'qy_streak_tips';
+  static const String qyTip1 = 'qy_tip1';
+  static const String qyTip2 = 'qy_tip2';
+  static const String qyTip3 = 'qy_tip3';
   static const String qyProfessionalTools = 'qy_professional_tools';
   static const String qyDictionaryQuery = 'qy_dictionary_query';
   static const String qyDictionaryQueryDesc = 'qy_dictionary_query_desc';
