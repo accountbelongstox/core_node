@@ -37,55 +37,67 @@ class _AccountSettings1ScreenAppQyState
   bool _isNightModeEnabled;
 
   _AccountSettings1ScreenAppQyState()
-      : _quickSections = [
-          {
-            'title': QyAppLocalizationKeys.qyReminderSettings,
-            'description': '每日提醒 • 打卡日程',
-            'icon': Icons.notifications_active_outlined,
-            'color': ThemeColors.primary,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyAccountSettings,
-            'description': '账号安全 • 登录方式',
-            'icon': Icons.person_outline,
-            'color': ThemeColors.secondaryColor,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyRecommendSettings,
-            'description': '智能推荐 • 难度偏好',
-            'icon': Icons.auto_awesome,
-            'color': ThemeColors.warning,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyOtherSettings,
-            'description': '关于我们 • 客服帮助',
-            'icon': Icons.widgets_outlined,
-            'color': ThemeColors.info,
-          },
-        ],
-        _otherOptions = [
-          {
-            'title': QyAppLocalizationKeys.qyDisplayMode,
-            'subtitle': QyAppLocalizationKeys.qySettingsStandardMode,
-            'icon': Icons.dark_mode_outlined,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyAboutUs,
-            'subtitle': '版本 6.3.1',
-            'icon': Icons.info_outline,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyCheckForUpdate,
-            'subtitle': QyAppLocalizationKeys.qyLatestVersion.tr(context),
-            'icon': Icons.system_update_alt,
-          },
-          {
-            'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
-            'subtitle': QyAppLocalizationKeys.qyNetworkStable.tr(context),
-            'icon': Icons.wifi_tethering,
-          },
-        ],
+      : _quickSections = [],
+        _otherOptions = [],
         _isNightModeEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeSections();
+  }
+
+  void _initializeSections() {
+    _quickSections.addAll([
+      {
+        'title': QyAppLocalizationKeys.qyReminderSettings,
+        'description': QyAppLocalizationKeys.qyReminderSettingsDesc,
+        'icon': Icons.notifications_active_outlined,
+        'color': ThemeColors.primary,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyAccountSettings,
+        'description': QyAppLocalizationKeys.qyAccountSettings,
+        'icon': Icons.person_outline,
+        'color': ThemeColors.secondaryColor,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyRecommendSettings,
+        'description': QyAppLocalizationKeys.qyRecommendSettingsDesc,
+        'icon': Icons.auto_awesome,
+        'color': ThemeColors.warning,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyOtherSettings,
+        'description': QyAppLocalizationKeys.qyOtherSettings,
+        'icon': Icons.widgets_outlined,
+        'color': ThemeColors.info,
+      },
+    ]);
+
+    _otherOptions.addAll([
+      {
+        'title': QyAppLocalizationKeys.qyDisplayMode,
+        'subtitle': QyAppLocalizationKeys.qySettingsStandardMode,
+        'icon': Icons.dark_mode_outlined,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyAboutUs,
+        'subtitle': '${QyAppLocalizationKeys.qyVersion.tr(context)} ${QyAppConfig.appVersion}',
+        'icon': Icons.info_outline,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyCheckForUpdate,
+        'subtitle': QyAppLocalizationKeys.qyLatestVersion.tr(context),
+        'icon': Icons.system_update_alt,
+      },
+      {
+        'title': QyAppLocalizationKeys.qyNetworkDiagnostics,
+        'subtitle': QyAppLocalizationKeys.qyNetworkStable.tr(context),
+        'icon': Icons.wifi_tethering,
+      },
+    ]);
+  }
 
   void _handleSectionTap(Map<String, dynamic> section) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -228,8 +240,8 @@ class _AccountSettings1ScreenAppQyState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '夜间/护眼模式',
-                      style: TextStyles.body1.copyWith(
+                      QyAppLocalizationKeys.qyDisplayMode.tr(context),
+                      style: ThemeTextStyles.body1.copyWith(
                         color: ThemeColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
@@ -357,14 +369,13 @@ class _AccountSettings1ScreenAppQyState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ICP 备案号',
-            style:
-                TextStyles.caption.copyWith(color: ThemeColors.textSecondary),
+            QyAppLocalizationKeys.qyIcpLicense.tr(context),
+            style: ThemeTextStyles.caption.copyWith(color: ThemeColors.textSecondary),
           ),
-          SizedBox(height: Dimensions.spacingXSmall),
+          SizedBox(height: ThemeDimensions.spacingXSmall),
           Text(
-            '苏ICP备13045540号-20A',
-            style: TextStyles.body1.copyWith(
+            QyAppConfig.appIcpLicense,
+            style: ThemeTextStyles.body1.copyWith(
               color: ThemeColors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
