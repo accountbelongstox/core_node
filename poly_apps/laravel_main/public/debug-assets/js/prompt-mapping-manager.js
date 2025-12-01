@@ -30,84 +30,60 @@ const PromptMappingManager = {
     },
 
     async loadAllMappings() {
-        try {
-            const response = await APIClient.get('/api/mcp/v1/task-dispatch/mappings');
-            const data = await response.json();
-            if (data.success) {
-                this.mappings = data.data.mappings;
-            } else {
-                console.error('Failed to load mappings:', data.error);
-            }
-        } catch (error) {
-            console.error('Error loading mappings:', error);
+        const response = await APIClient.get('/api/mcp/v1/task-dispatch/mappings');
+        const data = await response.json();
+        if (data.success) {
+            this.mappings = data.data.mappings;
+        } else {
+            console.error('Failed to load mappings:', data.error);
+            this.mappings = {};
         }
     },
 
     async loadCategoryMapping(categoryId) {
-        try {
-            const response = await APIClient.get(`/api/mcp/v1/task-dispatch/mappings/${categoryId}`);
-            const data = await response.json();
-            if (data.success) {
-                return data.data.mapping;
-            } else {
-                console.error('Failed to load category mapping:', data.error);
-                return null;
-            }
-        } catch (error) {
-            console.error('Error loading category mapping:', error);
+        const response = await APIClient.get(`/api/mcp/v1/task-dispatch/mappings/${categoryId}`);
+        const data = await response.json();
+        if (data.success) {
+            return data.data.mapping;
+        } else {
+            console.error('Failed to load category mapping:', data.error);
             return null;
         }
     },
 
     async updateMapping(categoryId, prefix, suffix, replaceMap) {
-        try {
-            const response = await APIClient.put(`/api/mcp/v1/task-dispatch/mappings/${categoryId}`, {
-                prefix: prefix,
-                suffix: suffix,
-                replace_map: replaceMap
-            });
-            const data = await response.json();
-            if (data.success) {
-                this.mappings[categoryId] = data.data.mapping;
-                this.showNotification('Mapping updated successfully', 'success');
-                return true;
-            } else {
-                this.showNotification(`Failed to update mapping: ${data.error}`, 'error');
-                return false;
-            }
-        } catch (error) {
-            console.error('Error updating mapping:', error);
-            this.showNotification('Error updating mapping', 'error');
+        const response = await APIClient.put(`/api/mcp/v1/task-dispatch/mappings/${categoryId}`, {
+            prefix: prefix,
+            suffix: suffix,
+            replace_map: replaceMap
+        });
+        const data = await response.json();
+        if (data.success) {
+            this.mappings[categoryId] = data.data.mapping;
+            this.showNotification('Mapping updated successfully', 'success');
+            return true;
+        } else {
+            this.showNotification(`Failed to update mapping: ${data.error}`, 'error');
             return false;
         }
     },
 
     async resetMapping(categoryId) {
-        try {
-            const response = await APIClient.post(`/api/mcp/v1/task-dispatch/mappings/${categoryId}/reset`, {});
-            const data = await response.json();
-            if (data.success) {
-                this.mappings[categoryId] = data.data.mapping;
-                this.showNotification('Mapping reset to default', 'success');
-                this.renderEditor(categoryId);
-                return true;
-            } else {
-                this.showNotification(`Failed to reset mapping: ${data.error}`, 'error');
-                return false;
-            }
-        } catch (error) {
-            console.error('Error resetting mapping:', error);
-            this.showNotification('Error resetting mapping', 'error');
+        const response = await APIClient.post(`/api/mcp/v1/task-dispatch/mappings/${categoryId}/reset`, {});
+        const data = await response.json();
+        if (data.success) {
+            this.mappings[categoryId] = data.data.mapping;
+            this.showNotification('Mapping reset to default', 'success');
+            this.renderEditor(categoryId);
+            return true;
+        } else {
+            this.showNotification(`Failed to reset mapping: ${data.error}`, 'error');
             return false;
         }
     },
 
     renderUI() {
         const container = document.querySelector(this.containerSelector);
-        if (!container) {
-            console.error('Prompt mapping container not found:', this.containerSelector);
-            return;
-        }
 
         if (this.embedMode) {
             // Embedded mode: no category list, only editor
@@ -333,7 +309,6 @@ const PromptMappingManager = {
 
     renderReplaceMap(replaceMap) {
         const container = document.getElementById('replace-map-list');
-        if (!container) return;
 
         container.innerHTML = '';
 

@@ -3,6 +3,7 @@
 namespace App\Apps\McpV1\McpV1Utils;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 
 /**
  * Task Category Service (McpV1)
@@ -84,14 +85,7 @@ class TaskCategoryService
      */
     private function ensureDefaultStructure()
     {
-        if (!file_exists($this->promptsDirectory)) {
-            mkdir($this->promptsDirectory, 0755, true);
-        }
-
-        $configDir = dirname($this->categoriesConfigFile);
-        if (!file_exists($configDir)) {
-            mkdir($configDir, 0755, true);
-        }
+        FileSystemManager::ensureDirectoryExists($this->promptsDirectory);
 
         if (!file_exists($this->categoriesConfigFile)) {
             $this->initializeCategoriesConfig();
@@ -128,9 +122,7 @@ class TaskCategoryService
         foreach ($config['categories'] as $category) {
             if (!empty($category['auto_create']) && !empty($category['path'])) {
                 $categoryPath = $this->promptsDirectory . DIRECTORY_SEPARATOR . $category['path'];
-                if (!file_exists($categoryPath)) {
-                    mkdir($categoryPath, 0755, true);
-                }
+                FileSystemManager::ensureDirectoryExists($categoryPath);
             }
         }
     }
@@ -202,8 +194,8 @@ class TaskCategoryService
         // 创建目录
         if (!empty($path)) {
             $categoryPath = $this->promptsDirectory . DIRECTORY_SEPARATOR . $path;
-            if (!file_exists($categoryPath)) {
-                mkdir($categoryPath, 0755, true);
+            if (!is_dir($categoryPath)) {
+                @mkdir($categoryPath, 0755, true);
             }
         }
 
