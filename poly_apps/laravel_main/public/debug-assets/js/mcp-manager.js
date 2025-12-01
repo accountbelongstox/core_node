@@ -1302,7 +1302,6 @@ const McpPromptMappingsModule = {
 
     renderMappingsList() {
         const list = document.getElementById('mcp-pm-list');
-        if (!list) return;
 
         const categories = Object.keys(this.mappings);
         if (categories.length === 0) {
