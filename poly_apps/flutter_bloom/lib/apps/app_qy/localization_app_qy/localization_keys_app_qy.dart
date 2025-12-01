@@ -92,6 +92,8 @@ class QyAppLocalizationKeys {
   static const String qyPlayAudio = 'qy_play_audio';
   static const String qyWrongAnswer = 'qy_wrong_answer';
   static const String qyCorrectWord = 'qy_correct_word';
+  static const String qyAiExplain = 'qy_ai_explain';
+  static const String qyAskQuestion = 'qy_ask_question';
 
   static const String qySignIn = 'qy_sign_in';
   static const String qySignUp = 'qy_sign_up';
