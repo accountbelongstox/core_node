@@ -21,8 +21,8 @@ class _LanguageSelectionScreenAppQyState extends State<LanguageSelectionScreenAp
     with TickerProviderStateMixin {
   late final AnimationController _shimmerController;
 
-  final Set<String> _selectedLearningLanguages = {'en'};
-  String _selectedNativeLanguage = 'zh';
+  final Set<String> _selectedLearningLanguages = {DefaultLanguageConfigAppQy.defaultLearningLanguage};
+  String _selectedNativeLanguage = DefaultLanguageConfigAppQy.defaultNativeLanguage;
 
   List<SupportedLanguageModel> _languages = [];
   bool _isLoading = true;

@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Platform-Specific Launchers
+Platform-Specific Utilities
 
-Handle platform differences for running the callmodule service:
-- Windows: System tray + singleton detection
-- Linux: Service mode (systemd compatible)
+Contains platform-specific utilities (e.g., Windows startup manager).
+The main launcher has been moved to pycore/callmodule/config.py
 """
 
-from .launcher import launch_platform_aware
-
-__all__ = ['launch_platform_aware']
+# This module now only contains utilities, not the main launcher
