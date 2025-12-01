@@ -54,7 +54,6 @@ ITTools.Tools = {
         }
         
         const container = document.getElementById('ittools-main-content');
-        if (!container) return;
         
         const tool = this.Registry.get(toolId);
         

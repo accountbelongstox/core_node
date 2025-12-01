@@ -953,10 +953,13 @@ invoke_git_operations() {
                 elif [[ "$encrypt_confirm" =~ ^[Ss][Kk][Ii][Pp]$ ]]; then
                     write_color_text "Adding files to skip cache..." "Yellow"
                     for file in "${unencrypted_files[@]}"; do
+                        local file_mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null)
+                        local file_mtime_readable=$(date -d @"$file_mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || date -r "$file_mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
                         add_file_to_skip_cache "$file"
-                        write_color_text "  - Cached: $(basename "$file")" "DarkGray"
+                        write_color_text "  - Cached: $(basename "$file") (Last modified: $file_mtime_readable)" "DarkGray"
                     done
                     write_color_text "Files added to cache. They will not be checked again unless modified." "Green"
+                    write_color_text "Note: If any file is modified, it will be prompted again." "Cyan"
                     write_color_text "Cache location: $SKIP_ENCRYPT_CACHE_FILE" "DarkGray"
                     write_color_text "WARNING: Sensitive files will be pushed unencrypted!" "Red"
                     local skip_encryption=true
