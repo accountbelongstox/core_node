@@ -42,8 +42,7 @@ ITTools.Tools.Registry.register('query-string-parser', {
 ITTools.Implementations.QueryStringParser = {
     parse() {
         let input = document.getElementById('qs-input').value.trim();
-        document.getElementById('qs-result').innerHTML = '';
-        if (!input.value) return;
+        if (!input) { document.getElementById('qs-result').innerHTML = ''; return; }
         if (input.includes('?')) input = input.split('?')[1];
         if (input.includes('#')) input = input.split('#')[0];
         const params = new URLSearchParams(input);
