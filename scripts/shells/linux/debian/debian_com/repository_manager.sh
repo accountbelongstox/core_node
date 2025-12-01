@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Repository Manager - Common functions for managing apt repositories
-# This script provides functions for managing Microsoft Edge and MariaDB repositories
+# This script provides functions for managing Microsoft Edge, Chrome, MariaDB, and PHP repositories
 
 # Function to check if a repository is already added
 is_repo_added() {
@@ -77,6 +77,136 @@ remove_edge_repository() {
     $USE_SUDO apt-key del 0xBC528686B50D79E3 2>/dev/null || true
     
     echo "Microsoft Edge repository removed successfully"
+}
+
+# Function to add Google Chrome repository
+add_chrome_repository() {
+    echo "Adding Google Chrome repository..."
+
+    local chrome_repo_file="/etc/apt/sources.list.d/google-chrome.list"
+    local chrome_gpg_file="/usr/share/keyrings/google-chrome.gpg"
+
+    # Check if already added
+    if [ "$(is_repo_added "chrome" "$chrome_repo_file")" = "true" ]; then
+        echo "Google Chrome repository already added"
+        return 0
+    fi
+
+    # Add Google Chrome GPG key
+    echo "Adding Google Chrome GPG key..."
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > google-chrome.gpg
+    $USE_SUDO install -o root -g root -m 644 google-chrome.gpg "$chrome_gpg_file"
+    rm google-chrome.gpg
+
+    # Add repository
+    echo "deb [arch=amd64 signed-by=$chrome_gpg_file] http://dl.google.com/linux/chrome/deb/ stable main" | \
+        $USE_SUDO tee "$chrome_repo_file"
+
+    echo "Google Chrome repository added successfully"
+}
+
+# Function to remove Google Chrome repository
+remove_chrome_repository() {
+    local script_tag="${SCRIPT_INDEX:-[REPO_MGR]}"
+    echo "$script_tag Removing Google Chrome repository..."
+
+    local chrome_repo_file="/etc/apt/sources.list.d/google-chrome.list"
+    local chrome_gpg_file="/usr/share/keyrings/google-chrome.gpg"
+
+    # Remove repository file
+    if [ -f "$chrome_repo_file" ]; then
+        $USE_SUDO rm -f "$chrome_repo_file"
+        echo "$script_tag Removed Google Chrome repository file"
+    fi
+
+    # Remove GPG key
+    if [ -f "$chrome_gpg_file" ]; then
+        $USE_SUDO rm -f "$chrome_gpg_file"
+        echo "$script_tag Removed Google Chrome GPG key"
+    fi
+
+    # Remove any Google GPG keys from apt keyring (old method)
+    $USE_SUDO apt-key del 7FAC5991 2>/dev/null || true
+    $USE_SUDO apt-key del D38B4796 2>/dev/null || true
+
+    echo "$script_tag Google Chrome repository removed successfully"
+}
+
+# Function to add PHP repository (Ondrej PPA)
+add_php_repository() {
+    local script_tag="${SCRIPT_INDEX:-[REPO_MGR]}"
+    echo "$script_tag Adding PHP repository (Ondrej PPA)..."
+
+    # Detect OS
+    local os_id=$(lsb_release -si 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "unknown")
+    local os_codename=$(lsb_release -sc 2>/dev/null || echo "unknown")
+
+    echo "$script_tag Detected OS: $os_id $os_codename"
+
+    # Install required packages
+    $USE_SUDO apt install -y software-properties-common lsb-release ca-certificates curl wget gnupg2 2>/dev/null || true
+
+    # Remove existing PHP repository configurations to avoid conflicts
+    $USE_SUDO rm -f /etc/apt/sources.list.d/php.list 2>/dev/null || true
+    $USE_SUDO rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list 2>/dev/null || true
+    $USE_SUDO rm -f /usr/share/keyrings/php-archive-keyring.gpg 2>/dev/null || true
+
+    # Setup repository based on OS
+    if [[ "$os_id" == "ubuntu" ]]; then
+        echo "$script_tag Setting up Ubuntu PPA repository..."
+        if $USE_SUDO add-apt-repository ppa:ondrej/php -y 2>/dev/null; then
+            echo "$script_tag Ubuntu PPA added successfully"
+        else
+            echo "$script_tag PPA failed, trying manual method..."
+            $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
+        fi
+    elif [[ "$os_id" == "debian" ]]; then
+        echo "$script_tag Setting up Debian Sury repository..."
+        $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://packages.sury.org/php/ $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
+        echo "$script_tag Debian Sury repository added"
+    else
+        echo "$script_tag Unsupported OS: $os_id"
+        return 1
+    fi
+
+    # Update package index
+    echo "$script_tag Updating package index..."
+    $USE_SUDO apt update 2>/dev/null || $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
+
+    echo "$script_tag PHP repository added successfully"
+}
+
+# Function to remove PHP repository
+remove_php_repository() {
+    local script_tag="${SCRIPT_INDEX:-[REPO_MGR]}"
+    echo "$script_tag Removing PHP repository..."
+
+    local php_repo_files=(
+        "/etc/apt/sources.list.d/php.list"
+        "/etc/apt/sources.list.d/ondrej-ubuntu-php-*.list"
+    )
+    local php_gpg_file="/usr/share/keyrings/php-archive-keyring.gpg"
+
+    # Remove repository files
+    for file in "${php_repo_files[@]}"; do
+        if [ -f "$file" ] || ls $file 2>/dev/null; then
+            $USE_SUDO rm -f $file
+            echo "$script_tag Removed $file"
+        fi
+    done
+
+    # Remove GPG key
+    if [ -f "$php_gpg_file" ]; then
+        $USE_SUDO rm -f "$php_gpg_file"
+        echo "$script_tag Removed PHP GPG key"
+    fi
+
+    # Remove PPA from sources (Ubuntu)
+    $USE_SUDO add-apt-repository --remove ppa:ondrej/php -y 2>/dev/null || true
+
+    echo "$script_tag PHP repository removed successfully"
 }
 
 # Function to add MariaDB repository

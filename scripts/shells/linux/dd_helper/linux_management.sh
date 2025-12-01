@@ -126,15 +126,16 @@ show_system_information() {
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=5
+    local total=6
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
-    
+
     local menu_items=(
         "Disable Ubuntu Automatic Updates"
         "Permissions Repair Menu"
         "NAT Gateway Configuration"
+        "Clear and Re-decrypt Secret Keys"
         "Show System Information"
         "Back to Main Menu"
     )
@@ -188,9 +189,12 @@ show_linux_management_submenu() {
                         manage_natgateway
                         ;;
                     3)
-                        show_system_information
+                        clear_and_redecrypt_secrets
                         ;;
                     4)
+                        show_system_information
+                        ;;
+                    5)
                         return 0
                         ;;
                 esac
