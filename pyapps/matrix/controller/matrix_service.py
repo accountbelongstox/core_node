@@ -19,7 +19,8 @@ class MatrixServiceConfig:
     """
     Matrix Service Configuration
 
-    Combines frontend and backend configuration
+    Combines frontend and backend configuration.
+    UI and Tray are now managed by pylauncher, not by MatrixService.
     """
     # Project paths
     project_root: Optional[Path] = None
@@ -32,10 +33,6 @@ class MatrixServiceConfig:
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
     backend_mode: str = "dev"
-
-    # UI configuration (for webview)
-    enable_ui: bool = True
-    enable_tray: bool = True
 
     # Service control
     enabled: bool = True
