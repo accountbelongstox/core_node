@@ -46,6 +46,14 @@ Route::prefix('mcp/v1')->group(function () {
         Route::get('/settings', [VoiceSubtitleV1MainController::class, 'getUserSettings']);
         Route::post('/settings', [VoiceSubtitleV1MainController::class, 'updateUserSettings']);
         Route::get('/languages', [VoiceSubtitleV1MainController::class, 'getSupportedLanguages']);
+
+        Route::get('/ping', function () {
+            return response()->json([
+                'success' => true,
+                'message' => 'Voice Subtitle Service is running',
+                'timestamp' => now()->toIso8601String()
+            ]);
+        });
     });
 
     Route::get('/health', function () {
