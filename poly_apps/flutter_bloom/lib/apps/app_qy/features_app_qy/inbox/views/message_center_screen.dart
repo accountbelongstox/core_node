@@ -7,7 +7,10 @@ import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 import '../domain/model/inbox_model.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../../../localization_app_qy/localization_manager.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/localization/localization_manager.dart';
 import '../data/inbox_data.dart';
 
 class MessageCenterScreen extends StatefulWidget {
@@ -57,7 +60,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
             colors: [
               AppTheme.auroraGradient.colors[0].withOpacity(0.1),
               AppTheme.auroraGradient.colors[1].withOpacity(0.05),
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
             ],
           ),
         ),
@@ -102,7 +105,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
             ),
             child: const Icon(
               Icons.add,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 28,
             ),
           ),
@@ -176,7 +179,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
@@ -192,7 +195,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
           gradient: AppTheme.primaryGradient,
           borderRadius: BorderRadius.circular(25),
         ),
-        labelColor: Colors.white,
+        labelColor: ColorsAppQy.qyTextOnPrimary,
         unselectedLabelColor: AppTheme.textSecondary,
         indicatorSize: TabBarIndicatorSize.tab,
         labelStyle: AppTextStyles.bodyMedium.copyWith(
@@ -248,7 +251,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
               end: Alignment.bottomRight,
               colors: [
                 _getConversationColor(conversation).withOpacity(0.05),
-                Colors.white.withOpacity(0.9),
+                ColorsAppQy.qyFrostWhite,
               ],
             ),
           ),
@@ -313,7 +316,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
                             child: Text(
                               conversation.unreadCount.toString(),
                               style: AppTextStyles.bodySmall.copyWith(
-                                color: Colors.white,
+                                color: ColorsAppQy.qyTextOnPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -366,7 +369,7 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
                   color: AppTheme.success,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     width: 2,
                   ),
                 ),
@@ -496,16 +499,16 @@ class _MessageCenterScreenState extends State<MessageCenterScreen>
     // Show new chat options
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       builder: (context) => _buildNewChatSheet(),
     );
   }
 
   Widget _buildNewChatSheet() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: ColorsAppQy.qyTextOnPrimary,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(ThemeDimensions.radiusLarge)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

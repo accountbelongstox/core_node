@@ -67,7 +67,7 @@ class _RouteNavigationQyState extends State<RouteNavigationQy>
           child: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 120,
+                expandedHeight: ThemeDimensions.spacing96 + ThemeDimensions.spacing24,
                 floating: false,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
@@ -237,7 +237,7 @@ class _RouteNavigationQyState extends State<RouteNavigationQy>
                 borderRadius: ThemeDimensions.borderRadiusM,
               ),
               child: Material(
-                color: Colors.transparent,
+                color: ColorsAppQy.qyPageBackground.withOpacity(0),
                 child: InkWell(
                   onTap: () => Navigator.pushNamed(context, routePath),
                   borderRadius: ThemeDimensions.borderRadiusM,
