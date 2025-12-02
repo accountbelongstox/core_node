@@ -16,6 +16,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_constants.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import '../../../../resources_app_qy/colors_app_qy.dart';
 
 class UrgentFundraisingScreen extends StatelessWidget {
   final UrgentFundingModel? urgentFundingModel;
@@ -73,7 +74,7 @@ class UrgentFundraisingScreen extends StatelessWidget {
                           urgentFundingModel?.donators ?? '',
                           style: ThemeTextStyles.textMedium.copyWith(
                               fontSize: ThemeDimensions.fontSizeDefault,
-                              color: Colors.green),
+                              color: ColorsAppQy.qySuccess),
                         ),
                         Text(
                             "Found reside from ${urgentFundingModel?.donators}")

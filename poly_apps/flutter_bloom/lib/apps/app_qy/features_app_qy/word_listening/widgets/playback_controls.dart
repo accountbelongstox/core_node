@@ -3,7 +3,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/widgets/cards/premium_cards.dart';
@@ -193,7 +192,7 @@ class PlaybackControls extends StatelessWidget {
                             vertical: ThemeDimensions.spacing4,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected ? ColorsAppQy.qyPrimary : Colors.transparent,
+                            color: isSelected ? ColorsAppQy.qyPrimary : ColorsAppQy.qyPageBackground.withOpacity(0),
                             borderRadius: ThemeDimensions.borderRadiusS,
                           ),
                           child: Text(

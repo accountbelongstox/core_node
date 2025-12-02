@@ -23,7 +23,9 @@ class QyAppConfig {
   // Contact Information
   static const String appWebsite = 'www.qyenglish.com';
   static const String appSupportEmail = 'support@qyenglish.com';
-  static const String appIcpLicense = '苏ICP备13045540号-20A';
+  // ICP License - Use localization key for display
+  // Actual license number should be stored in localization files
+  static const String appIcpLicenseKey = 'qy_app_icp_license';
 
   // API Configuration
   static const String baseUrl = 'https://api.example.com';

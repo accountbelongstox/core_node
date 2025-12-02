@@ -177,7 +177,7 @@ Try to fill in the blanks with the vocabulary you've learned.
     if (mounted) {
       showDialog(
         context: context,
-        barrierColor: Colors.transparent,
+        barrierColor: ColorsAppQy.qyPageBackground.withOpacity(0),
         builder: (context) => ClipRRect(
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
           child: BackdropFilter(
@@ -247,7 +247,7 @@ Try to fill in the blanks with the vocabulary you've learned.
               children: [
                 CustomAppBar(
                   title: _lessonTitle,
-                  backgroundColor: Colors.transparent,
+                  backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
                   titleColor: ColorsAppQy.qyTextPrimary,
                   iconColor: ColorsAppQy.qyTextPrimary,
                   elevation: 0,
@@ -298,7 +298,7 @@ Try to fill in the blanks with the vocabulary you've learned.
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -329,7 +329,7 @@ Try to fill in the blanks with the vocabulary you've learned.
                 child: LinearProgressIndicator(
                   value: (_currentSection + 1) / _lessonSections.length,
                   minHeight: 6,
-                  backgroundColor: Colors.white.withOpacity(0.3),
+                  backgroundColor: ColorsAppQy.qyFrostMedium,
                   valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
                 ),
               ),
@@ -379,7 +379,7 @@ Try to fill in the blanks with the vocabulary you've learned.
                 icon: Icon(
                   _isPlaying ? Icons.pause_circle : Icons.play_circle,
                   size: 64,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
             ),
@@ -440,13 +440,13 @@ Try to fill in the blanks with the vocabulary you've learned.
             Icon(
               Icons.headphones,
               size: 80,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
             ),
             const SizedBox(height: ThemeDimensions.spacing16),
             Text(
               section['title'] as String,
               style: ThemeTextStyles.h4.copyWith(
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -454,7 +454,7 @@ Try to fill in the blanks with the vocabulary you've learned.
             Text(
               section['duration'] as String,
               style: ThemeTextStyles.body2.copyWith(
-                color: Colors.white.withOpacity(0.9),
+                color: ColorsAppQy.qyFrostWhite,
               ),
             ),
             const SizedBox(height: ThemeDimensions.spacing24),
@@ -463,7 +463,7 @@ Try to fill in the blanks with the vocabulary you've learned.
                   ? QyAppLocalizationKeys.qyPause.tr(context)
                   : QyAppLocalizationKeys.qyPlay.tr(context),
               onPressed: _togglePlay,
-              backgroundColor: Colors.white,
+              backgroundColor: ColorsAppQy.qyTextOnPrimary,
               foregroundColor: ColorsAppQy.qyPrimary,
               icon: _isPlaying ? Icons.pause : Icons.play_arrow,
             ),
@@ -553,7 +553,7 @@ Try to fill in the blanks with the vocabulary you've learned.
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               top: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),

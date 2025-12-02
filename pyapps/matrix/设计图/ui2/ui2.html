@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星灿传媒(云矩阵) - 旗舰版控制台</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/ui-kit.css">
+<link rel="stylesheet" href="css/phone-item.css">
+</head>
+<body>
+
+  <!-- 动态背景 -->
+  <div class="bg-layer">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- 顶部导航栏 -->
+  <header class="top-bar glass-panel">
+    <div class="brand-area">
+      <button class="icon-btn" onclick="toggleSidebar('left')" title="切换侧栏">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="logo-icon">✨</div>
+      <h1 class="brand-name">星灿传媒(云矩阵)</h1>
+    </div>
+
+    <!-- 美化后的顶部菜单触发器 -->
+    <nav class="top-menu">
+      <button class="nav-pill active" onclick="openModal('settings-modal', 'tab-monitor')">
+        <span>📊</span> 监控大屏
+      </button>
+      <button class="nav-pill" onclick="openModal('settings-modal', 'tab-scripts')">
+        <span>⚡</span> 脚本中心
+      </button>
+      <button class="nav-pill" onclick="openModal('settings-modal', 'tab-ui')">
+        <span>🎨</span> UI 组件库
+      </button>
+      <button class="nav-pill" onclick="openModal('settings-modal', 'tab-settings')">
+        <span>⚙️</span> 系统设置
+      </button>
+    </nav>
+
+    <div class="top-actions">
+      <div class="status-badge success">
+        <span class="dot"></span> 云端在线
+      </div>
+      <div class="user-profile">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User">
+        <span>Admin</span>
+      </div>
+      <button class="icon-btn" onclick="toggleSidebar('right')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12h2M2 12h2M12 2v2M12 19v2M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 全局设置弹窗 (Modal) -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-window glass-panel">
+      <div class="modal-header">
+        <h3>控制台中心</h3>
+        <button class="close-btn" onclick="closeModal('settings-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- 侧边 Tab 导航 -->
+        <div class="modal-tabs">
+          <button class="tab-btn active" data-target="tab-monitor">实时监控</button>
+          <button class="tab-btn" data-target="tab-scripts">脚本配置</button>
+          <button class="tab-btn" data-target="tab-ui">UI 元素展示</button>
+          <button class="tab-btn" data-target="tab-settings">系统偏好</button>
+        </div>
+        <!-- Tab 内容区 -->
+        <div class="modal-content">
+          <!-- 内容 1 -->
+          <div id="tab-monitor" class="tab-pane active">
+            <h2>大屏显示设置</h2>
+            <p>配置主屏幕的刷新率与显示模式。</p>
+            <div class="form-row">
+              <label>刷新率</label>
+              <select class="ui-select"><option>30 FPS (节能)</option><option>60 FPS (流畅)</option></select>
+            </div>
+          </div>
+          <!-- 内容 2 -->
+          <div id="tab-scripts" class="tab-pane">
+            <h2>自动化脚本库</h2>
+            <div class="ui-alert info">当前有 3 个脚本正在运行中。</div>
+          </div>
+          <!-- 内容 3: UI 展示区 -->
+          <div id="tab-ui" class="tab-pane">
+            <h2>UI 组件库 (复用参考)</h2>
+            <div class="ui-showcase-grid">
+              <div>
+                <h4>Buttons</h4>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="ui-btn primary">Primary</button>
+                  <button class="ui-btn secondary">Secondary</button>
+                  <button class="ui-btn danger">Danger</button>
+                  <button class="ui-btn ghost">Ghost</button>
+                </div>
+              </div>
+              <div>
+                <h4>Inputs</h4>
+                <input type="text" class="ui-input" placeholder="Text Input...">
+                <select class="ui-select" style="margin-top:5px;"><option>Dropdown Select</option></select>
+              </div>
+              <div>
+                <h4>Toggles & Checks</h4>
+                <label class="ui-switch"><input type="checkbox" checked><span class="slider"></span></label>
+                <label class="ui-checkbox"><input type="checkbox"><span>Checkbox</span></label>
+                <label class="ui-radio"><input type="radio" name="r1" checked><span>Radio A</span></label>
+              </div>
+              <div>
+                <h4>Badges & Bars</h4>
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                  <span class="ui-tag blue">Tag</span>
+                  <span class="ui-tag purple">V2.0</span>
+                  <span class="ui-tag red">Hot</span>
+                </div>
+                <div class="ui-progress"><div class="bar" style="width: 60%"></div></div>
+              </div>
+            </div>
+          </div>
+          <!-- 内容 4 -->
+          <div id="tab-settings" class="tab-pane">
+            <h2>系统偏好</h2>
+            <div class="form-row">
+              <label>暗黑模式</label>
+              <label class="ui-switch"><input type="checkbox"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主布局容器 -->
+  <div class="main-layout">
+    
+    <!-- 左侧：丰富的设备管理 -->
+    <aside id="left-panel" class="sidebar glass-panel expanded">
+      <div class="sidebar-scroll">
+        
+        <!-- 迷你仪表盘 -->
+        <div class="mini-dashboard">
+          <div class="stat-box">
+            <div class="val">128</div>
+            <div class="lbl">总设备</div>
+          </div>
+          <div class="stat-box success">
+            <div class="val">112</div>
+            <div class="lbl">在线</div>
+          </div>
+          <div class="stat-box error">
+            <div class="val">16</div>
+            <div class="lbl">异常</div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-title">视图过滤</div>
+          <div class="ui-search-bar">
+            <span>🔍</span>
+            <input type="text" placeholder="搜索设备 ID / 备注...">
+          </div>
+          <div class="filter-tags">
+            <span class="filter-chip active">全部</span>
+            <span class="filter-chip">直播中</span>
+            <span class="filter-chip">空闲</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-title">矩阵分组</div>
+          <!-- 手风琴菜单效果 -->
+          <div class="accordion-item open">
+            <div class="acc-header" onclick="toggleAcc(this)">
+              <span>📂 抖音直播组 (A)</span>
+              <span class="arrow">▼</span>
+            </div>
+            <div class="acc-content">
+              <div class="tree-node active"><span class="dot green"></span> 主力机群 (20)</div>
+              <div class="tree-node"><span class="dot orange"></span> 备用机群 (5)</div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <div class="acc-header" onclick="toggleAcc(this)">
+              <span>📂 TK 养号组 (B)</span>
+              <span class="arrow">▶</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 任务队列监控 -->
+        <div class="sidebar-section">
+          <div class="section-title">任务负载</div>
+          <div class="task-monitor-item">
+            <div class="flex-between"><span>点赞脚本</span><span>80%</span></div>
+            <div class="ui-progress sm"><div class="bar" style="width: 80%"></div></div>
+          </div>
+          <div class="task-monitor-item">
+            <div class="flex-between"><span>视频发布</span><span>45%</span></div>
+            <div class="ui-progress sm"><div class="bar purple" style="width: 45%"></div></div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- 中间：监控舞台 -->
+    <main class="stage-area">
+      <!-- 顶部工具条 -->
+      <div class="stage-toolbar glass-panel-light">
+        <div class="toolbar-left">
+          <button class="ui-btn sm">全选</button>
+          <button class="ui-btn sm">反选</button>
+          <span class="divider"></span>
+          <span class="info-text">已选中: <b>0</b> 台设备</span>
+        </div>
+        <div class="toolbar-right">
+          <select class="ui-select sm">
+            <option>排序: ID 升序</option>
+            <option>排序: 信号强度</option>
+          </select>
+          <div class="view-toggles">
+            <button class="icon-btn active">▦</button>
+            <button class="icon-btn">☰</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 手机列表 (左到右排列) -->
+      <div class="phone-matrix">
+        <!-- 手机 1 -->
+        <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content gradient-1">
+              <div class="screen-overlay">
+                <span class="ui-tag live">LIVE</span>
+                <div class="tech-circle"></div>
+              </div>
+            </div>
+            <div class="device-meta">
+              <div class="d-id">XM-001</div>
+              <div class="d-stat green">32ms</div>
+            </div>
+          </div>
+          <div class="phone-side-tools">
+             <button class="tool-icon" title="解锁">🔓</button>
+             <button class="tool-icon" title="截图">📷</button>
+             <button class="tool-icon" title="旋转">⚡</button>
+             <button class="tool-icon red" title="停止">⏹</button>
+          </div>
+        </div>
+
+        <!-- 手机 2 -->
+        <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content gradient-2">
+              <div class="screen-overlay">
+                 <div class="icon-lg">🎵</div>
+                 <div class="status-text">运行中...</div>
+              </div>
+            </div>
+            <div class="device-meta">
+              <div class="d-id">XM-002</div>
+              <div class="d-stat green">41ms</div>
+            </div>
+          </div>
+          <div class="phone-side-tools">
+             <button class="tool-icon">🔓</button>
+             <button class="tool-icon">📷</button>
+             <button class="tool-icon">⚡</button>
+             <button class="tool-icon red">⏹</button>
+          </div>
+        </div>
+
+         <!-- 手机 3 (离线) -->
+         <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content offline-bg">
+              <div class="screen-overlay">
+                 <div class="icon-lg">🚫</div>
+                 <div class="status-text">OFFLINE</div>
+              </div>
+            </div>
+            <div class="device-meta">
+              <div class="d-id">XM-003</div>
+              <div class="d-stat gray">---</div>
+            </div>
+          </div>
+          <div class="phone-side-tools">
+             <button class="tool-icon">🔗</button>
+          </div>
+        </div>
+
+        <!-- 循环生成填充以便查看效果 -->
+        <div class="phone-wrapper"><div class="phone-body"><div class="screen-content gradient-3"></div><div class="device-meta"><div class="d-id">XM-004</div><div class="d-stat green">20ms</div></div></div><div class="phone-side-tools"><button class="tool-icon">🔓</button></div></div>
+        <div class="phone-wrapper"><div class="phone-body"><div class="screen-content gradient-1"></div><div class="device-meta"><div class="d-id">XM-005</div><div class="d-stat green">22ms</div></div></div><div class="phone-side-tools"><button class="tool-icon">🔓</button></div></div>
+      </div>
+    </main>
+
+    <!-- 右侧：全局控制与 UI 展示 -->
+    <aside id="right-panel" class="sidebar glass-panel expanded">
+      <div class="sidebar-scroll">
+        
+        <div class="sidebar-section">
+          <div class="section-title">快捷控制台</div>
+          <div class="control-grid">
+            <button class="big-icon-btn">
+              <span class="emoji">🏠</span>
+              <span>Home</span>
+            </button>
+            <button class="big-icon-btn">
+              <span class="emoji">🔙</span>
+              <span>Back</span>
+            </button>
+            <button class="big-icon-btn">
+              <span class="emoji">🔳</span>
+              <span>Recent</span>
+            </button>
+            <button class="big-icon-btn warning">
+              <span class="emoji">🌙</span>
+              <span>息屏</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-title">批量操作</div>
+          <label class="form-label">同步输入</label>
+          <div class="input-group">
+            <input type="text" class="ui-input" placeholder="输入内容...">
+            <button class="ui-btn primary sm">发送</button>
+          </div>
+          
+          <label class="form-label mt-10">屏幕亮度</label>
+          <div class="range-wrapper">
+            <span>☀</span>
+            <input type="range" class="ui-range" value="80">
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-title">系统日志</div>
+          <div class="log-container">
+            <div class="log-item info">
+              <span class="time">11:02</span> 系统初始化完成
+            </div>
+            <div class="log-item success">
+              <span class="time">11:03</span> XM-001 接入成功
+            </div>
+            <div class="log-item warning">
+              <span class="time">11:05</span> XM-003 连接断开
+            </div>
+          </div>
+        </div>
+
+        <!-- 这里展示部分小组件 -->
+        <div class="sidebar-section">
+          <div class="section-title">组件预览</div>
+          <div class="ui-alert warning sm">
+            <span>⚠ 网络波动监测中</span>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- JavaScript 逻辑 -->
+  <script>
+    // 侧边栏切换
+    function toggleSidebar(side) {
+      const panel = document.getElementById(side + '-panel');
+      panel.classList.toggle('expanded');
+      panel.classList.toggle('collapsed');
+    }
+
+    // 手风琴菜单
+    function toggleAcc(header) {
+      header.parentElement.classList.toggle('open');
+      const arrow = header.querySelector('.arrow');
+      arrow.textContent = header.parentElement.classList.contains('open') ? '▼' : '▶';
+    }
+
+    // Modal & Tab 逻辑
+    function openModal(modalId, tabId) {
+      document.getElementById(modalId).classList.remove('hidden');
+      if(tabId) switchTab(tabId);
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    // Tab 切换
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchTab(btn.dataset.target);
+      });
+    });
+
+    function switchTab(targetId) {
+      // 移除所有激活状态
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      
+      // 激活目标
+      document.querySelector(`[data-target="${targetId}"]`).classList.add('active');
+      document.getElementById(targetId).classList.add('active');
+    }
+
+    // 点击遮罩关闭
+    window.onclick = function(event) {
+      if (event.target.classList.contains('modal-overlay')) {
+        event.target.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
