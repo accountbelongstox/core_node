@@ -512,12 +512,11 @@
     }
 
     ITTools.Tools.Registry.register('online-clipboard', {
-            name: 'Online Clipboard',
-            category: 'clipboard',
-            render: renderUI,
-            init: attachEvents
-        });
-    }
+        name: 'Online Clipboard',
+        category: 'clipboard',
+        render: renderUI,
+        init: attachEvents
+    });
 
     console.log('ITTools Clipboard Tool loaded');
 })();

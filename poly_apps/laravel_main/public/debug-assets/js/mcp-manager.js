@@ -99,18 +99,14 @@ const McpManager = {
             item.classList.remove('active');
         });
         const activeItem = document.querySelector(`.mcp-menu-item[data-module="${moduleId}"]`);
-        if (activeItem) {
-            activeItem.classList.add('active');
-        }
+        activeItem.classList.add('active');
 
         // Load module content
         const contentContainer = document.getElementById('mcp-content-container');
-        if (contentContainer) {
-            contentContainer.innerHTML = '<div style="padding: 20px; color: #ccc;">Loading...</div>';
+        contentContainer.innerHTML = '<div style="padding: 20px; color: #ccc;">Loading...</div>';
 
-            if (module.component && module.component.init) {
-                await module.component.init(contentContainer);
-            }
+        if (module.component && module.component.init) {
+            await module.component.init(contentContainer);
         }
 
         this.currentModule = moduleId;
@@ -452,9 +448,7 @@ const McpScreenshotModule = {
             item.classList.remove('active');
         });
         const activeItem = document.querySelector(`.mcp-ss-list-item[data-id="${screenshot.id}"]`);
-        if (activeItem) {
-            activeItem.classList.add('active');
-        }
+        activeItem.classList.add('active');
 
         const detailPanel = document.getElementById('mcp-ss-detail-panel');
         if (!detailPanel) return;
