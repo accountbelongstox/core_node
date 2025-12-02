@@ -279,12 +279,10 @@ async function loadDialogsAndPlaceholders() {
     const placeholdersResponse = await fetch('/debug-assets/debug-tools/placeholders/placeholder-elements.html');
     const placeholdersHtml = await placeholdersResponse.text();
     const placeholdersContainer = document.getElementById('content-sections-container');
-    if (placeholdersContainer) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = placeholdersHtml.trim();
-        while (tempDiv.firstChild) {
-            placeholdersContainer.appendChild(tempDiv.firstChild);
-        }
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = placeholdersHtml.trim();
+    while (tempDiv.firstChild) {
+        placeholdersContainer.appendChild(tempDiv.firstChild);
     }
 
     // Load static resources dialogs
