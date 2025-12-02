@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/prayer_model.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class PrayerWidget extends StatelessWidget {
   final PrayerModel? prayerModel;
@@ -55,7 +56,7 @@ class PrayerWidget extends StatelessWidget {
                           Text(
                             prayerModel?.name ?? '',
                             style: ThemeTextStyles.prayerTitle.copyWith(
-                                fontSize: 18, color: Colors.black),
+                                fontSize: 18, color: ColorsAppQy.qyTextPrimary),
                           ),
                           Text(
                             "Today",
@@ -63,9 +64,9 @@ class PrayerWidget extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Icon(
+                      Icon(
                         Icons.more_vert,
-                        color: Colors.green,
+                        color: ColorsAppQy.qySuccess,
                       ),
                     ],
                   ),
@@ -84,21 +85,21 @@ class PrayerWidget extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Icon(
                   Icons.favorite_border,
-                  color: Colors.red,
+                  color: ColorsAppQy.qyError,
                 ),
-                SizedBox(
+                const SizedBox(
                   width: ThemeDimensions.defaultSize,
                 ),
-                Text("Aamiin"),
-                SizedBox(width: ThemeDimensions.sizeTwenty),
+                const Text("Aamiin"),
+                const SizedBox(width: ThemeDimensions.sizeTwenty),
                 Icon(
                   Icons.share,
-                  color: Colors.green,
+                  color: ColorsAppQy.qySuccess,
                 ),
                 SizedBox(
                   width: ThemeDimensions.defaultSize,

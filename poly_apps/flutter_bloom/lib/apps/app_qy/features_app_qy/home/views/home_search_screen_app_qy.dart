@@ -164,7 +164,7 @@ class _HomeSearchScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -253,14 +253,14 @@ class _HomeSearchScreenRefactoredAppQyState
             Text(
               QyAppLocalizationKeys.qyHomeCheckInDays.tr(context),
               style: ThemeTextStyles.body1.copyWith(
-                color: Colors.white.withOpacity(0.9),
+                color: ColorsAppQy.qyFrostWhite,
               ),
             ),
             const SizedBox(height: ThemeDimensions.spacing16),
             Text(
               stats.checkInDays.toString(),
               style: ThemeTextStyles.display1.copyWith(
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 72,
               ),
@@ -324,7 +324,7 @@ class _HomeSearchScreenRefactoredAppQyState
             child: LinearProgressIndicator(
               value: stats.learnedPercentage / 100,
               minHeight: 6,
-              backgroundColor: Colors.white.withOpacity(0.3),
+              backgroundColor: ColorsAppQy.qyFrostMedium,
               valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
             ),
           ),

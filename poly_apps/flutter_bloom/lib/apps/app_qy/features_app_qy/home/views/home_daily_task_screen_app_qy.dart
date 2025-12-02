@@ -13,7 +13,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
@@ -22,7 +21,6 @@ import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../router_app_qy/routes_provider_app_qy.dart';
-import '../controllers/home_controller_app_qy.dart';
 
 class HomeDailyTaskScreenRefactoredAppQy extends StatefulWidget {
   const HomeDailyTaskScreenRefactoredAppQy({super.key});
@@ -93,7 +91,7 @@ class _HomeDailyTaskScreenRefactoredAppQyState
         'total': 1,
         'completed': false,
         'icon': Icons.quiz,
-        'color': Colors.orange,
+        'color': ColorsAppQy.qyWarning,
       },
       {
         'id': 't5',

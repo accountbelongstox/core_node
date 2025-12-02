@@ -338,14 +338,14 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                     height: 60,
                     decoration: BoxDecoration(
                       color: isLocked
-                          ? Colors.grey.shade300
+                          ? ColorsAppQy.qyBorderLight
                           : level.color.withOpacity(0.1),
                       borderRadius: ThemeDimensions.borderRadiusM,
                     ),
                     child: Icon(
                       level.icon,
                       color: isLocked
-                          ? Colors.grey.shade500
+                          ? ColorsAppQy.qyTextTertiary
                           : level.color,
                       size: 30,
                     ),
@@ -359,7 +359,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                           level.titleKey.tr(context),
                           style: ThemeTextStyles.headlineSmall.copyWith(
                             color: isLocked
-                                ? Colors.grey.shade600
+                                ? ColorsAppQy.qyTextTertiary
                                 : ColorsAppQy.qyTextPrimary,
                             fontWeight: FontWeight.bold,
                           ),
@@ -369,7 +369,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                           level.subtitleKey.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
                             color: isLocked
-                                ? Colors.grey.shade500
+                                ? ColorsAppQy.qyTextTertiary
                                 : ColorsAppQy.qyTextSecondary,
                           ),
                         ),
@@ -379,7 +379,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                   if (isLocked)
                     Icon(
                       Icons.lock,
-                      color: Colors.grey.shade500,
+                      color: ColorsAppQy.qyTextTertiary,
                       size: 24,
                     )
                   else

@@ -4,6 +4,9 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../config_app_qy/storage_app_qy.dart';
 
 class CheckinChallengeScreen extends StatefulWidget {
   const CheckinChallengeScreen({super.key});
@@ -13,23 +16,91 @@ class CheckinChallengeScreen extends StatefulWidget {
 }
 
 class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
+  final StorageAppQy _storage = StorageAppQy.instance;
   int _currentStreak = 0;
   int _totalFlowers = 0;
-  final int _vouchers = 0;
+  int _vouchers = 0;
   bool _isCheckedInToday = false;
+  List<DailyReward> _dailyRewards = [];
+  bool _isLoading = true;
 
-  final List<DailyReward> _dailyRewards = [
-    DailyReward(day: 1, flowers: 1, checked: false),
-    DailyReward(day: 2, flowers: 1, checked: false),
-    DailyReward(day: 3, flowers: 2, checked: false),
-    DailyReward(day: 4, flowers: 2, checked: false),
-    DailyReward(day: 5, flowers: 3, checked: false),
-    DailyReward(day: 6, flowers: 3, checked: false),
-    DailyReward(day: 7, flowers: 5, checked: false),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadCheckinData();
+  }
+
+  Future<void> _loadCheckinData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _storage.initAppStorage();
+
+      // Load streak, flowers, vouchers
+      _currentStreak =
+          await _storage.getApp<int>(StorageAppQy.keyCheckinStreak) ?? 0;
+      _totalFlowers =
+          await _storage.getApp<int>(StorageAppQy.keyCheckinFlowers) ?? 0;
+      _vouchers =
+          await _storage.getApp<int>(StorageAppQy.keyCheckinVouchers) ?? 0;
+
+      // Load daily rewards from storage
+      final storedRewards =
+          await _storage.getApp<List<dynamic>>(StorageAppQy.keyCheckinRewards);
+      if (storedRewards != null && storedRewards.isNotEmpty) {
+        _dailyRewards = storedRewards
+            .map((json) => DailyReward.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        // Initialize with default rewards
+        _dailyRewards = _getDefaultRewards();
+        await _saveRewardsToStorage();
+      }
+    } catch (e) {
+      _dailyRewards = _getDefaultRewards();
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<DailyReward> _getDefaultRewards() {
+    return [
+      DailyReward(day: 1, flowers: 1, checked: false),
+      DailyReward(day: 2, flowers: 1, checked: false),
+      DailyReward(day: 3, flowers: 2, checked: false),
+      DailyReward(day: 4, flowers: 2, checked: false),
+      DailyReward(day: 5, flowers: 3, checked: false),
+      DailyReward(day: 6, flowers: 3, checked: false),
+      DailyReward(day: 7, flowers: 5, checked: false),
+    ];
+  }
+
+  Future<void> _saveRewardsToStorage() async {
+    try {
+      final rewardsJson = _dailyRewards.map((r) => r.toJson()).toList();
+      await _storage.setApp<List<dynamic>>(
+          StorageAppQy.keyCheckinRewards, rewardsJson);
+    } catch (e) {
+      // Silently fail
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.primaryGreen,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -38,7 +109,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             end: Alignment.bottomCenter,
             colors: [
               AppTheme.primaryGreen.withOpacity(0.1),
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
             ],
           ),
         ),
@@ -56,7 +127,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                     const SizedBox(height: 24),
                     _buildDailyCheckIn(),
                     const SizedBox(height: 24),
-                    _buildShareSection(),
+                    _buildShareSection(context),
                     const SizedBox(height: 24),
                     _buildLotterySection(),
                     const SizedBox(height: 40),
@@ -81,7 +152,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
           ),
           Expanded(
             child: Text(
-              '打卡挑战',
+              QyAppLocalizationKeys.qyCheckinChallenge.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -115,23 +186,23 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             children: [
               Icon(
                 Icons.local_fire_department,
-                color: Colors.orange,
+                color: ColorsAppQy.qyWarning,
                 size: 32,
               ),
               const SizedBox(width: 8),
               Text(
-                '$_currentStreak天',
+                '$_currentStreak${QyAppLocalizationKeys.qyCheckinConsecutiveDays.tr(context)}',
                 style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               Text(
-                '连续打卡',
+                QyAppLocalizationKeys.qyCheckinStreak.tr(context),
                 style: TextStyle(
                   fontSize: 18,
-                  color: Colors.white.withOpacity(0.9),
+                  color: ColorsAppQy.qyFrostWhite,
                 ),
               ),
             ],
@@ -140,9 +211,18 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStreakStat('花瓣', '$_totalFlowers', Icons.local_florist),
-              _buildStreakStat('赏花券', '$_vouchers', Icons.card_giftcard),
-              _buildStreakStat('同桌', '寻找', Icons.people),
+              _buildStreakStat(
+                  QyAppLocalizationKeys.qyCheckinFlowers.tr(context),
+                  '$_totalFlowers',
+                  Icons.local_florist),
+              _buildStreakStat(
+                  QyAppLocalizationKeys.qyCheckinVouchers.tr(context),
+                  '$_vouchers',
+                  Icons.card_giftcard),
+              _buildStreakStat(
+                  QyAppLocalizationKeys.qyCheckinFindPartner.tr(context),
+                  QyAppLocalizationKeys.qyCheckinFindPartner.tr(context),
+                  Icons.people),
             ],
           ),
         ],
@@ -153,21 +233,21 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
   Widget _buildStreakStat(String label, String value, IconData icon) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white, size: 24),
+        Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 24),
         const SizedBox(height: 4),
         Text(
           value,
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
           ),
         ),
         Text(
           label,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.white.withOpacity(0.8),
+            color: ColorsAppQy.qyFrostMedium,
           ),
         ),
       ],
@@ -178,11 +258,11 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -195,12 +275,12 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             children: [
               Icon(
                 Icons.emoji_events,
-                color: Colors.orange,
+                color: ColorsAppQy.qyWarning,
                 size: 24,
               ),
               const SizedBox(width: 12),
               Text(
-                '新一期挑战已开始',
+                QyAppLocalizationKeys.qyCheckinNewChallengeStarted.tr(context),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -222,22 +302,22 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: ColorsAppQy.qyWarning.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.card_giftcard,
-                  color: Colors.orange,
+                  color: ColorsAppQy.qyWarning,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '秋日任务派送站\n赚赏花券 得「小组件皮肤」',
+                  QyAppLocalizationKeys.qyCheckinFlowerToVoucher.tr(context),
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.orange,
+                    color: ColorsAppQy.qyWarning,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -246,10 +326,10 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '10花瓣=1赏花券',
+            QyAppLocalizationKeys.qyCheckinFlowerToVoucher.tr(context),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
+              color: ColorsAppQy.qyTextTertiary,
             ),
           ),
         ],
@@ -260,11 +340,11 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
   Widget _buildDailyCheckIn() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -296,7 +376,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '开学每日签到',
+                    QyAppLocalizationKeys.qyCheckinDailyCheckin.tr(context),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -306,21 +386,23 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                 ),
                 if (!_isCheckedInToday)
                   GradientButton(
-                    text: '点击签到',
+                    text: QyAppLocalizationKeys.qyCheckinClickToCheckin
+                        .tr(context),
                     onPressed: _checkIn,
                     gradient: AppTheme.primaryGradient,
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppTheme.accentGreen,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      '已签到',
-                      style: TextStyle(
-                        color: Colors.white,
+                    child: Text(
+                      QyAppLocalizationKeys.qyCheckinCheckedIn.tr(context),
+                      style: const TextStyle(
+                        color: ColorsAppQy.qyTextOnPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -342,20 +424,26 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                     decoration: BoxDecoration(
                       color: reward.checked
                           ? AppTheme.accentGreen.withOpacity(0.1)
-                          : Colors.grey.shade100,
+                          : ColorsAppQy.qyBorderLight,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Icon(
                       Icons.local_florist,
-                      color: reward.checked ? AppTheme.accentGreen : Colors.grey,
+                      color: reward.checked
+                          ? ColorsAppQy.qySuccess
+                          : ColorsAppQy.qyTextTertiary,
                       size: 20,
                     ),
                   ),
                   title: Text(
-                    '第${reward.day}天',
+                    QyAppLocalizationKeys.qyCheckinDay
+                        .tr(context)
+                        .replaceAll('{day}', '${reward.day}'),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: reward.checked ? AppTheme.accentGreen : AppTheme.textPrimary,
+                      color: reward.checked
+                          ? AppTheme.accentGreen
+                          : AppTheme.textPrimary,
                     ),
                   ),
                   trailing: Row(
@@ -363,22 +451,27 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                     children: [
                       Icon(
                         Icons.add,
-                        color: reward.checked ? AppTheme.accentGreen : Colors.grey,
+                        color: reward.checked
+                            ? ColorsAppQy.qySuccess
+                            : ColorsAppQy.qyTextTertiary,
                         size: 16,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '花瓣x${reward.flowers}',
+                        QyAppLocalizationKeys.qyCheckinFlowersX
+                            .tr(context)
+                            .replaceAll('{count}', '${reward.flowers}'),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: reward.checked ? AppTheme.accentGreen : Colors.grey,
+                          color: reward.checked
+                              ? ColorsAppQy.qySuccess
+                              : ColorsAppQy.qyTextTertiary,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (!isLast)
-                  const Divider(height: 1, indent: 72),
+                if (!isLast) const Divider(height: 1, indent: 72),
               ],
             );
           }),
@@ -387,15 +480,15 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
     );
   }
 
-  Widget _buildShareSection() {
+  Widget _buildShareSection(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -404,26 +497,29 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
       child: Column(
         children: [
           _buildShareCard(
-            '分享人参汤打卡图',
+            context,
+            QyAppLocalizationKeys.qyCheckinShareGinsengSoup.tr(context),
             '0/5',
-            '• 花瓣x1 累计分享1/3/5天还能得限定徽章',
-            Colors.orange,
-            () => _shareCheckIn('人参汤'),
+            QyAppLocalizationKeys.qyCheckinShareGinsengSoupDesc.tr(context),
+            ColorsAppQy.qyWarning,
+            () => _shareCheckIn(context, 'ginseng_soup'),
           ),
           const SizedBox(height: 16),
           _buildShareCard(
-            '分享旅行熊熊打卡图',
+            context,
+            QyAppLocalizationKeys.qyCheckinShareTravelBear.tr(context),
             '0/9',
-            '分享打卡图获得额外花瓣奖励',
+            QyAppLocalizationKeys.qyCheckinShareTravelBearDesc.tr(context),
             AppTheme.primaryGreen,
-            () => _shareCheckIn('旅行熊熊'),
+            () => _shareCheckIn(context, 'travel_bear'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildShareCard(String title, String progress, String description, Color color, VoidCallback onTap) {
+  Widget _buildShareCard(BuildContext context, String title, String progress,
+      String description, Color color, VoidCallback onTap) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -464,7 +560,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                   description,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: ColorsAppQy.qyTextTertiary,
                   ),
                 ),
               ],
@@ -485,11 +581,12 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                 onPressed: onTap,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: color,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  foregroundColor: ColorsAppQy.qyTextOnPrimary,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,
                 ),
-                child: const Text('去分享'),
+                child: Text(QyAppLocalizationKeys.qyCheckinGoShare.tr(context)),
               ),
             ],
           ),
@@ -506,7 +603,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: ColorsAppQy.qyInfo.withOpacity(0.3),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -519,36 +616,35 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             children: [
               Icon(
                 Icons.casino,
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
                 size: 32,
               ),
               const SizedBox(width: 12),
               Text(
-                '去抽奖',
+                QyAppLocalizationKeys.qyCheckinGoToLottery.tr(context),
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           Text(
-            '使用赏花券参与抽奖',
+            QyAppLocalizationKeys.qyCheckinUseVouchers.tr(context),
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white.withOpacity(0.9),
+              color: ColorsAppQy.qyFrostWhite,
             ),
           ),
           const SizedBox(height: 12),
           GradientButton(
-            text: '立即抽奖',
+            text: QyAppLocalizationKeys.qyCheckinLotteryNow.tr(context),
             onPressed: _showLotteryDialog,
             gradient: LinearGradient(
-              colors: [Colors.white, Colors.white.withOpacity(0.8)],
+              colors: [ColorsAppQy.qyTextOnPrimary, ColorsAppQy.qyFrostMedium],
             ),
-            textColor: AppTheme.primaryGreen,
           ),
         ],
       ),
@@ -564,22 +660,24 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('签到成功！获得花瓣x${_dailyRewards[_currentStreak % 7].flowers}'),
+        content: Text(
+            '${QyAppLocalizationKeys.qyCheckinCheckinSuccess.tr(context)}${QyAppLocalizationKeys.qyCheckinGotFlowers.tr(context).replaceAll('{count}', '${_dailyRewards[_currentStreak % 7].flowers}')}'),
         backgroundColor: AppTheme.accentGreen,
       ),
     );
   }
 
-  void _shareCheckIn(String type) {
+  void _shareCheckIn(BuildContext context, String type) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('分享打卡图'),
-        content: Text('分享$type打卡图功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qyCheckinShareImage.tr(context)),
+        content:
+            Text(QyAppLocalizationKeys.qyCheckinShareFeatureInDev.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -590,7 +688,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('抽奖系统'),
+        title: Text(QyAppLocalizationKeys.qyCheckinLotterySystem.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -601,7 +699,9 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              '当前赏花券: $_vouchers',
+              QyAppLocalizationKeys.qyCheckinCurrentVouchers
+                  .tr(context)
+                  .replaceAll('{count}', '$_vouchers'),
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -609,11 +709,11 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '10花瓣=1赏花券\n需要赏花券参与抽奖',
+              '${QyAppLocalizationKeys.qyCheckinVoucherConversion.tr(context)}\n${QyAppLocalizationKeys.qyCheckinVoucherRequired.tr(context)}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[600],
+                color: ColorsAppQy.qyTextTertiary,
               ),
             ),
           ],
@@ -621,7 +721,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -639,4 +739,20 @@ class DailyReward {
     required this.flowers,
     this.checked = false,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'day': day,
+      'flowers': flowers,
+      'checked': checked,
+    };
+  }
+
+  factory DailyReward.fromJson(Map<String, dynamic> json) {
+    return DailyReward(
+      day: json['day'] as int,
+      flowers: json['flowers'] as int,
+      checked: json['checked'] as bool? ?? false,
+    );
+  }
 }

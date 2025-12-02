@@ -158,7 +158,7 @@ class _WordListViewState extends State<WordListView> {
   void _showWordDetail(WordItem word) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.85,
@@ -270,7 +270,7 @@ class _WordListViewState extends State<WordListView> {
   void _showWordActions(WordItem word) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       builder: (context) => GlassCard(
         borderRadius: ThemeDimensions.borderRadiusL,
         padding: EdgeInsets.all(ThemeDimensions.spacing16),
