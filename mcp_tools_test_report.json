@@ -1,0 +1,4093 @@
+{
+  "test_info": {
+    "base_url": "http://192.168.50.3:59000",
+    "test_time": "2025-12-02T06:02:57.111808",
+    "total_tools": 19,
+    "successful_tools": 14,
+    "failed_tools": 5,
+    "success_rate": "73.68%",
+    "average_response_time": "0.220s"
+  },
+  "tools_list": [
+    "imgocr_doc_file_parser_info_tool",
+    "generate_placeholder_image_with_ocr_tool",
+    "query_file_processing_history_tool",
+    "clear_file_cache_tool",
+    "database_namespace_negotiation_tool",
+    "database_register_and_connect_tool",
+    "database_execute_query_with_safety_tool",
+    "database_batch_operations_tool",
+    "database_schema_inspection_tool",
+    "database_get_statistics_tool",
+    "database_health_check_tool",
+    "codebase_get_directory_tree_tool",
+    "codebase_find_files_by_pattern_tool",
+    "codebase_search_content_tool",
+    "codebase_get_file_content_tool",
+    "codebase_analyze_statistics_tool",
+    "codebase_describe_directory_tool",
+    "codebase_scan_framework_apps_tool",
+    "codebase_health_check_tool"
+  ],
+  "test_results": [
+    {
+      "tool_name": "imgocr_doc_file_parser_info_tool",
+      "success": true,
+      "response_time": 0.04885053634643555,
+      "error_message": null,
+      "response_data": {
+        "file_type": "unknown",
+        "file_path": "/etc/passwd",
+        "file_size_bytes": 3107,
+        "mime_type": "unknown",
+        "file_hash_sha256": "19cf99a10285c0783e1cdbc614442ba1a16afcc8612b1d15802069a823ba3d3b",
+        "processing_comprehensive_stats": {
+          "processing_timestamp_utc": "2025-12-01T22:42:14.507892",
+          "processing_duration_seconds": 0,
+          "processing_methods_applied": [
+            "basic_file_info"
+          ],
+          "processing_engine_versions": {},
+          "errors_and_warnings": [
+            {
+              "severity": "warning",
+              "message": "Unsupported file type, only basic info extracted",
+              "component": "file_info_extractor"
+            }
+          ],
+          "cache_status": {
+            "was_cached": true,
+            "cache_key": "19cf99a10285c0783e1cdbc614442ba1a16afcc8612b1d15802069a823ba3d3b",
+            "cache_timestamp": "2025-12-01T22:42:14.507892"
+          }
+        },
+        "backend_id": "3774f3bc",
+        "rpc_version": "v2",
+        "_http_status": 200
+      },
+      "test_params": {
+        "file_path": "/etc/passwd"
+      },
+      "timestamp": "2025-12-02T06:02:52.947944"
+    },
+    {
+      "tool_name": "generate_placeholder_image_with_ocr_tool",
+      "success": false,
+      "response_time": 0.0050008296966552734,
+      "error_message": "'NoneType' object has no attribute 'read'",
+      "response_data": {
+        "success": false,
+        "error": "'NoneType' object has no attribute 'read'",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "width": 100,
+        "height": 100,
+        "text": "Test"
+      },
+      "timestamp": "2025-12-02T06:02:52.953944"
+    },
+    {
+      "tool_name": "query_file_processing_history_tool",
+      "success": true,
+      "response_time": 0.0050029754638671875,
+      "error_message": null,
+      "response_data": {
+        "total_count": 1,
+        "limit": 10,
+        "offset": 0,
+        "results": [
+          {
+            "id": 1,
+            "file_path": "/etc/passwd",
+            "file_hash_sha256": "19cf99a10285c0783e1cdbc614442ba1a16afcc8612b1d15802069a823ba3d3b",
+            "processing_timestamp_utc": "2025-12-01T22:42:14.508415",
+            "processing_duration_seconds": 0.0,
+            "processing_methods": [
+              "basic_file_info"
+            ],
+            "error_occurred": true,
+            "error_message": [
+              {
+                "severity": "warning",
+                "message": "Unsupported file type, only basic info extracted",
+                "component": "file_info_extractor"
+              }
+            ]
+          }
+        ],
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "limit": 10
+      },
+      "timestamp": "2025-12-02T06:02:52.959945"
+    },
+    {
+      "tool_name": "clear_file_cache_tool",
+      "success": true,
+      "response_time": 0.003998994827270508,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "message": "Cache clear operation not fully implemented",
+        "file_path": null,
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {},
+      "timestamp": "2025-12-02T06:02:52.963944"
+    },
+    {
+      "tool_name": "database_namespace_negotiation_tool",
+      "success": true,
+      "response_time": 0.0040018558502197266,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "namespace": "test_client_45399b52",
+        "session_key": "test_client_45399b52",
+        "session_info": {
+          "session_id": "45399b52",
+          "session_key": "test_client_45399b52",
+          "client_id": "test_client",
+          "namespace": "test_client_45399b52",
+          "workspace": "/root/.core_node/pytools/tmp/mcp_database_sessions/test_client_45399b52",
+          "created_at": "2025-12-02T06:02:54.708922",
+          "last_active": "2025-12-02T06:02:54.708928",
+          "databases": {},
+          "status": "active"
+        },
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "client_identifier": "test_client"
+      },
+      "timestamp": "2025-12-02T06:02:52.967946"
+    },
+    {
+      "tool_name": "database_register_and_connect_tool",
+      "success": true,
+      "response_time": 0.0029993057250976562,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "database_name": "test_db",
+        "identifier": "test_db_2c053648",
+        "namespace": "test_client_1c7299e3",
+        "status": "registered",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "namespace": "test_client_1c7299e3",
+        "database_name": "test_db",
+        "connection_string": "sqlite:///:memory:"
+      },
+      "timestamp": "2025-12-02T06:02:52.971943"
+    },
+    {
+      "tool_name": "database_execute_query_with_safety_tool",
+      "success": false,
+      "response_time": 0.004999876022338867,
+      "error_message": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+      "response_data": {
+        "success": false,
+        "query_hash": "a43aebdf",
+        "error": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+        "error_type": "TypeError",
+        "execution_time_seconds": 0.0005,
+        "timestamp": "2025-12-02T06:02:54.718440",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "namespace": "test_client_1c7299e3",
+        "database_name": "test_db",
+        "query": "SELECT 1 as test"
+      },
+      "timestamp": "2025-12-02T06:02:52.977945"
+    },
+    {
+      "tool_name": "database_batch_operations_tool",
+      "success": false,
+      "response_time": 0.003998279571533203,
+      "error_message": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+      "response_data": {
+        "success": false,
+        "operation_type": "insert",
+        "table_name": "test_table",
+        "error": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+        "error_type": "TypeError",
+        "execution_time_seconds": 0.0002,
+        "timestamp": "2025-12-02T06:02:54.723654",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "namespace": "test_client_1c7299e3",
+        "database_name": "test_db",
+        "operation_type": "insert",
+        "table_name": "test_table",
+        "data": [
+          {
+            "id": 1,
+            "name": "test"
+          }
+        ]
+      },
+      "timestamp": "2025-12-02T06:02:52.982944"
+    },
+    {
+      "tool_name": "database_schema_inspection_tool",
+      "success": false,
+      "response_time": 0.005000591278076172,
+      "error_message": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+      "response_data": {
+        "success": false,
+        "error": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+        "error_type": "TypeError",
+        "timestamp": "2025-12-02T06:02:54.729444",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "namespace": "test_client_1c7299e3",
+        "database_name": "test_db"
+      },
+      "timestamp": "2025-12-02T06:02:52.988944"
+    },
+    {
+      "tool_name": "database_get_statistics_tool",
+      "success": false,
+      "response_time": 0.005000591278076172,
+      "error_message": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+      "response_data": {
+        "success": false,
+        "error": "Invalid argument(s) 'max_overflow' sent to create_engine(), using configuration SQLiteDialect_pysqlite/SingletonThreadPool/Engine.  Please check that the keyword arguments are appropriate for this combination of components.",
+        "error_type": "TypeError",
+        "timestamp": "2025-12-02T06:02:54.735547",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "namespace": "test_client_1c7299e3",
+        "database_name": "test_db"
+      },
+      "timestamp": "2025-12-02T06:02:52.994944"
+    },
+    {
+      "tool_name": "database_health_check_tool",
+      "success": true,
+      "response_time": 0.0030012130737304688,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "subsystem": "database",
+        "namespaces": {
+          "total_sessions": 2,
+          "namespaces": [
+            {
+              "namespace": "test_client_1c7299e3",
+              "client_id": "test_client",
+              "databases_count": 1,
+              "created_at": "2025-12-02T06:02:01.425601",
+              "last_active": "2025-12-02T06:02:54.734443"
+            },
+            {
+              "namespace": "test_client_45399b52",
+              "client_id": "test_client",
+              "databases_count": 0,
+              "created_at": "2025-12-02T06:02:54.708922",
+              "last_active": "2025-12-02T06:02:54.708928"
+            }
+          ]
+        },
+        "recent_queries_count": 1,
+        "active_connections": 0,
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {},
+      "timestamp": "2025-12-02T06:02:52.998946"
+    },
+    {
+      "tool_name": "codebase_get_directory_tree_tool",
+      "success": true,
+      "response_time": 0.08399677276611328,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "root": "/www/programing/core_node",
+        "root_name": "core_node",
+        "scan_settings": {
+          "max_depth": 2,
+          "include_files": true,
+          "include_hidden": false
+        },
+        "timestamp": "2025-12-02T06:02:54.744686",
+        "tree_json": {
+          "name": "core_node",
+          "path": "/www/programing/core_node",
+          "type": "directory",
+          "children": [
+            {
+              "name": "__misc__",
+              "path": "/www/programing/core_node/__misc__",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "_pycore",
+                  "path": "/www/programing/core_node/__misc__/_pycore",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "_analysis",
+              "path": "/www/programing/core_node/_analysis",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/_analysis/consistency_analysis.md",
+                  "name": "consistency_analysis.md",
+                  "size_bytes": 6537,
+                  "size_readable": "6.4KB",
+                  "modified": "2025-11-06T06:35:24.119891",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_analysis/fix_summary.md",
+                  "name": "fix_summary.md",
+                  "size_bytes": 5344,
+                  "size_readable": "5.2KB",
+                  "modified": "2025-11-06T06:35:24.120493",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_analysis/process_conflict_analysis.md",
+                  "name": "process_conflict_analysis.md",
+                  "size_bytes": 5240,
+                  "size_readable": "5.1KB",
+                  "modified": "2025-11-06T06:35:24.120493",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_analysis/process_conflict_fix_summary.md",
+                  "name": "process_conflict_fix_summary.md",
+                  "size_bytes": 5441,
+                  "size_readable": "5.3KB",
+                  "modified": "2025-11-06T06:35:24.120493",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_analysis/pymatrix_layout_progress.md",
+                  "name": "pymatrix_layout_progress.md",
+                  "size_bytes": 1620,
+                  "size_readable": "1.6KB",
+                  "modified": "2025-11-06T06:35:24.120493",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "_delete",
+              "path": "/www/programing/core_node/_delete",
+              "type": "directory",
+              "children": []
+            },
+            {
+              "name": "_prompt",
+              "path": "/www/programing/core_node/_prompt",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/_prompt/AI 工具系统设计.txt",
+                  "name": "AI 工具系统设计.txt",
+                  "size_bytes": 23,
+                  "size_readable": "23.0B",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/ai_trans.txt",
+                  "name": "ai_trans.txt",
+                  "size_bytes": 941,
+                  "size_readable": "941.0B",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/anlyze.txt",
+                  "name": "anlyze.txt",
+                  "size_bytes": 1915,
+                  "size_readable": "1.9KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/aug_task.txt",
+                  "name": "aug_task.txt",
+                  "size_bytes": 3398,
+                  "size_readable": "3.3KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/aug_task2.txt",
+                  "name": "aug_task2.txt",
+                  "size_bytes": 5899,
+                  "size_readable": "5.8KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/backup.txt",
+                  "name": "backup.txt",
+                  "size_bytes": 9213,
+                  "size_readable": "9.0KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/bloom-flutter-bank.txt",
+                  "name": "bloom-flutter-bank.txt",
+                  "size_bytes": 7265,
+                  "size_readable": "7.1KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/bloom-flutterbuildv2.txt",
+                  "name": "bloom-flutterbuildv2.txt",
+                  "size_bytes": 8105,
+                  "size_readable": "7.9KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/bloom-flutterbuildv3.txt",
+                  "name": "bloom-flutterbuildv3.txt",
+                  "size_bytes": 11510,
+                  "size_readable": "11.2KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/build_by_flutter.txt",
+                  "name": "build_by_flutter.txt",
+                  "size_bytes": 4539,
+                  "size_readable": "4.4KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/cerbot_by_laravel.txt",
+                  "name": "cerbot_by_laravel.txt",
+                  "size_bytes": 7067,
+                  "size_readable": "6.9KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/flutter_bloombuild.txt",
+                  "name": "flutter_bloombuild.txt",
+                  "size_bytes": 7185,
+                  "size_readable": "7.0KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/FLUTTER端单词记忆.txt",
+                  "name": "FLUTTER端单词记忆.txt",
+                  "size_bytes": 82924,
+                  "size_readable": "81.0KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/folder_codefolder.txt",
+                  "name": "folder_codefolder.txt",
+                  "size_bytes": 5011,
+                  "size_readable": "4.9KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/his.txt",
+                  "name": "his.txt",
+                  "size_bytes": 516,
+                  "size_readable": "516.0B",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/log.txt",
+                  "name": "log.txt",
+                  "size_bytes": 11106,
+                  "size_readable": "10.8KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/log2.txt",
+                  "name": "log2.txt",
+                  "size_bytes": 11108,
+                  "size_readable": "10.8KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/lxrouter.txt",
+                  "name": "lxrouter.txt",
+                  "size_bytes": 26503,
+                  "size_readable": "25.9KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcp.json",
+                  "name": "mcp.json",
+                  "size_bytes": 3087,
+                  "size_readable": "3.0KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpCodexLinuxTemplate.toml",
+                  "name": "mcpCodexLinuxTemplate.toml",
+                  "size_bytes": 3106,
+                  "size_readable": "3.0KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".toml",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpCodexUbuntoDesktopTemplate.toml",
+                  "name": "mcpCodexUbuntoDesktopTemplate.toml",
+                  "size_bytes": 2724,
+                  "size_readable": "2.7KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".toml",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpCodexWindowsTemplate.toml",
+                  "name": "mcpCodexWindowsTemplate.toml",
+                  "size_bytes": 2107,
+                  "size_readable": "2.1KB",
+                  "modified": "2025-11-06T06:35:24.121795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".toml",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpCodexWSLTemplate.toml",
+                  "name": "mcpCodexWSLTemplate.toml",
+                  "size_bytes": 2156,
+                  "size_readable": "2.1KB",
+                  "modified": "2025-11-06T06:35:24.121795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".toml",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpLinuxTemplate.json",
+                  "name": "mcpLinuxTemplate.json",
+                  "size_bytes": 1156,
+                  "size_readable": "1.1KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpUbuntoDesktopTemplate.json",
+                  "name": "mcpUbuntoDesktopTemplate.json",
+                  "size_bytes": 1160,
+                  "size_readable": "1.1KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpWindowsTemplate.json",
+                  "name": "mcpWindowsTemplate.json",
+                  "size_bytes": 1144,
+                  "size_readable": "1.1KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/mcpWSLTemplate.json",
+                  "name": "mcpWSLTemplate.json",
+                  "size_bytes": 1161,
+                  "size_readable": "1.1KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/MCP客户端.txt",
+                  "name": "MCP客户端.txt",
+                  "size_bytes": 1180,
+                  "size_readable": "1.2KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/MCP开发任务-网络发现.txt",
+                  "name": "MCP开发任务-网络发现.txt",
+                  "size_bytes": 3046,
+                  "size_readable": "3.0KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/nust_ittool设计.txt",
+                  "name": "nust_ittool设计.txt",
+                  "size_bytes": 2431,
+                  "size_readable": "2.4KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/php-install",
+                  "name": "php-install",
+                  "size_bytes": 795,
+                  "size_readable": "795.0B",
+                  "modified": "2025-11-06T06:35:24.121795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": "",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/phpfeedback.txt",
+                  "name": "phpfeedback.txt",
+                  "size_bytes": 20505,
+                  "size_readable": "20.0KB",
+                  "modified": "2025-11-06T06:35:24.121795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/PromptsAURO-EN.md",
+                  "name": "PromptsAURO-EN.md",
+                  "size_bytes": 909,
+                  "size_readable": "909.0B",
+                  "modified": "2025-11-06T06:35:24.120633",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/QY手机APP.txt",
+                  "name": "QY手机APP.txt",
+                  "size_bytes": 3640,
+                  "size_readable": "3.6KB",
+                  "modified": "2025-12-01T15:05:11.483807",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/task.txt",
+                  "name": "task.txt",
+                  "size_bytes": 379976,
+                  "size_readable": "371.1KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/task2.txt",
+                  "name": "task2.txt",
+                  "size_bytes": 6589,
+                  "size_readable": "6.4KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/TODO1.md",
+                  "name": "TODO1.md",
+                  "size_bytes": 1016,
+                  "size_readable": "1016.0B",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/TODO2.md",
+                  "name": "TODO2.md",
+                  "size_bytes": 78733,
+                  "size_readable": "76.9KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/TODO3.MD",
+                  "name": "TODO3.MD",
+                  "size_bytes": 159477,
+                  "size_readable": "155.7KB",
+                  "modified": "2025-11-06T06:35:24.120633",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/TODO4.MD",
+                  "name": "TODO4.MD",
+                  "size_bytes": 106099,
+                  "size_readable": "103.6KB",
+                  "modified": "2025-11-06T06:35:24.120795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/uni.prompt",
+                  "name": "uni.prompt",
+                  "size_bytes": 12472,
+                  "size_readable": "12.2KB",
+                  "modified": "2025-11-06T06:35:24.121795",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".prompt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/任务.txt",
+                  "name": "任务.txt",
+                  "size_bytes": 17961,
+                  "size_readable": "17.5KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/_prompt/播放语音.txt",
+                  "name": "播放语音.txt",
+                  "size_bytes": 9986,
+                  "size_readable": "9.8KB",
+                  "modified": "2025-11-30T16:07:33.752304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "_prompts",
+              "path": "/www/programing/core_node/_prompts",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "laravel-main-dev",
+                  "path": "/www/programing/core_node/_prompts/laravel-main-dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "mcp-dev",
+                  "path": "/www/programing/core_node/_prompts/mcp-dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "ncore-dev",
+                  "path": "/www/programing/core_node/_prompts/ncore-dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "nuxt-dev",
+                  "path": "/www/programing/core_node/_prompts/nuxt-dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pycore-dev",
+                  "path": "/www/programing/core_node/_prompts/pycore-dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "task-data",
+                  "path": "/www/programing/core_node/_prompts/task-data",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "api_test_results",
+              "path": "/www/programing/core_node/api_test_results",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/api_test_results/local_categories.json",
+                  "name": "local_categories.json",
+                  "size_bytes": 53,
+                  "size_readable": "53.0B",
+                  "modified": "2025-12-01T15:05:11.483807",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/local_queue.json",
+                  "name": "local_queue.json",
+                  "size_bytes": 195352,
+                  "size_readable": "190.8KB",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/local_queue_category.json",
+                  "name": "local_queue_category.json",
+                  "size_bytes": 11103,
+                  "size_readable": "10.8KB",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/local_queue_latest.json",
+                  "name": "local_queue_latest.json",
+                  "size_bytes": 1948,
+                  "size_readable": "1.9KB",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/local_queue_today.json",
+                  "name": "local_queue_today.json",
+                  "size_bytes": 37,
+                  "size_readable": "37.0B",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/remote_categories.json",
+                  "name": "remote_categories.json",
+                  "size_bytes": 41,
+                  "size_readable": "41.0B",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/remote_queue.json",
+                  "name": "remote_queue.json",
+                  "size_bytes": 9892,
+                  "size_readable": "9.7KB",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/remote_queue_category.json",
+                  "name": "remote_queue_category.json",
+                  "size_bytes": 57,
+                  "size_readable": "57.0B",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/remote_queue_latest.json",
+                  "name": "remote_queue_latest.json",
+                  "size_bytes": 1560,
+                  "size_readable": "1.5KB",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/api_test_results/remote_queue_today.json",
+                  "name": "remote_queue_today.json",
+                  "size_bytes": 37,
+                  "size_readable": "37.0B",
+                  "modified": "2025-12-01T15:05:11.485062",
+                  "created": "2025-12-02T06:02:48.006655",
+                  "extension": ".json",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "apps",
+              "path": "/www/programing/core_node/apps",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "ai_translator_app",
+                  "path": "/www/programing/core_node/apps/ai_translator_app",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "core_node_init",
+                  "path": "/www/programing/core_node/apps/core_node_init",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "DevOps",
+                  "path": "/www/programing/core_node/apps/DevOps",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "DocumentOffline",
+                  "path": "/www/programing/core_node/apps/DocumentOffline",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "flutter_icon_manager",
+                  "path": "/www/programing/core_node/apps/flutter_icon_manager",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "GetDocFromUrlByPuppeteer",
+                  "path": "/www/programing/core_node/apps/GetDocFromUrlByPuppeteer",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "okx_price_monitor",
+                  "path": "/www/programing/core_node/apps/okx_price_monitor",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "ScreenCast",
+                  "path": "/www/programing/core_node/apps/ScreenCast",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "VideoCompression",
+                  "path": "/www/programing/core_node/apps/VideoCompression",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "VoiceClientAndCaddy",
+                  "path": "/www/programing/core_node/apps/VoiceClientAndCaddy",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "WebLocalAreaNetwork",
+                  "path": "/www/programing/core_node/apps/WebLocalAreaNetwork",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "cache",
+              "path": "/www/programing/core_node/cache",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "system",
+                  "path": "/www/programing/core_node/cache/system",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "config",
+              "path": "/www/programing/core_node/config",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/config/base.config.json",
+                  "name": "base.config.json",
+                  "size_bytes": 1631,
+                  "size_readable": "1.6KB",
+                  "modified": "2025-11-06T06:35:24.198915",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/config/index.js",
+                  "name": "index.js",
+                  "size_bytes": 3934,
+                  "size_readable": "3.8KB",
+                  "modified": "2025-11-06T06:35:24.199152",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".js",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/config/nodemon.json",
+                  "name": "nodemon.json",
+                  "size_bytes": 284,
+                  "size_readable": "284.0B",
+                  "modified": "2025-11-06T06:35:24.442577",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".json",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "development-guides",
+              "path": "/www/programing/core_node/development-guides",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/development-guides/AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "name": "AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "size_bytes": 2376,
+                  "size_readable": "2.3KB",
+                  "modified": "2025-11-06T06:35:24.442577",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/COMMON_TIMER_DESIGN_SPECIFICATION.md",
+                  "name": "COMMON_TIMER_DESIGN_SPECIFICATION.md",
+                  "size_bytes": 7628,
+                  "size_readable": "7.4KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "name": "DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "size_bytes": 21337,
+                  "size_readable": "20.8KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "name": "DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+                  "size_bytes": 17221,
+                  "size_readable": "16.8KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/DEBUG_OUTPUT_SOLUTION.md",
+                  "name": "DEBUG_OUTPUT_SOLUTION.md",
+                  "size_bytes": 4873,
+                  "size_readable": "4.8KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/FLUTTER_GUIDE.md",
+                  "name": "FLUTTER_GUIDE.md",
+                  "size_bytes": 38039,
+                  "size_readable": "37.1KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/LARAVEL_GUIDE.md",
+                  "name": "LARAVEL_GUIDE.md",
+                  "size_bytes": 18801,
+                  "size_readable": "18.4KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/MCPSERVER_GUIDE.md",
+                  "name": "MCPSERVER_GUIDE.md",
+                  "size_bytes": 6297,
+                  "size_readable": "6.1KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/NCORE_NUXT_INTEGRATION_GUIDE.md",
+                  "name": "NCORE_NUXT_INTEGRATION_GUIDE.md",
+                  "size_bytes": 5915,
+                  "size_readable": "5.8KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/NODE_NCORE_GUIDE.md",
+                  "name": "NODE_NCORE_GUIDE.md",
+                  "size_bytes": 21843,
+                  "size_readable": "21.3KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/NUXT_MULTI_APP_ARCHITECTURE.md",
+                  "name": "NUXT_MULTI_APP_ARCHITECTURE.md",
+                  "size_bytes": 19640,
+                  "size_readable": "19.2KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/PROJECT_NAME_EXPLANATION.md",
+                  "name": "PROJECT_NAME_EXPLANATION.md",
+                  "size_bytes": 451,
+                  "size_readable": "451.0B",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/PYTHON_PYCORE.md",
+                  "name": "PYTHON_PYCORE.md",
+                  "size_bytes": 18780,
+                  "size_readable": "18.3KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/development-guides/THEME_AND_STYLE_GUIDE.md",
+                  "name": "THEME_AND_STYLE_GUIDE.md",
+                  "size_bytes": 9539,
+                  "size_readable": "9.3KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:47.994655",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "doc",
+              "path": "/www/programing/core_node/doc",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "nginx_shell_with_laravel",
+                  "path": "/www/programing/core_node/doc/nginx_shell_with_laravel",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/CODE_DUPLICATION_ANALYSIS.md",
+                  "name": "CODE_DUPLICATION_ANALYSIS.md",
+                  "size_bytes": 7161,
+                  "size_readable": "7.0KB",
+                  "modified": "2025-11-30T16:07:33.753606",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/Flutter_degin设置文档.txt",
+                  "name": "Flutter_degin设置文档.txt",
+                  "size_bytes": 6764,
+                  "size_readable": "6.6KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/FLUTTER_UP.md",
+                  "name": "FLUTTER_UP.md",
+                  "size_bytes": 17331,
+                  "size_readable": "16.9KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/IMAGE_COMPARISON_SYSTEM.md",
+                  "name": "IMAGE_COMPARISON_SYSTEM.md",
+                  "size_bytes": 6799,
+                  "size_readable": "6.6KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/MCP设计构架.md",
+                  "name": "MCP设计构架.md",
+                  "size_bytes": 13321,
+                  "size_readable": "13.0KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/NUXT_UP_PLAN.md",
+                  "name": "NUXT_UP_PLAN.md",
+                  "size_bytes": 493,
+                  "size_readable": "493.0B",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/PYCORE_UP.md",
+                  "name": "PYCORE_UP.md",
+                  "size_bytes": 20085,
+                  "size_readable": "19.6KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/RPC_V2_REFACTORING_SUMMARY.md",
+                  "name": "RPC_V2_REFACTORING_SUMMARY.md",
+                  "size_bytes": 9882,
+                  "size_readable": "9.7KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/SINGLETON_BUSY_STATE_EXAMPLE.md",
+                  "name": "SINGLETON_BUSY_STATE_EXAMPLE.md",
+                  "size_bytes": 8232,
+                  "size_readable": "8.0KB",
+                  "modified": "2025-11-30T16:07:33.754304",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/doc/通用提示词.md",
+                  "name": "通用提示词.md",
+                  "size_bytes": 603,
+                  "size_readable": "603.0B",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.034656",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "docs",
+              "path": "/www/programing/core_node/docs",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/docs/ARCHITECTURE_ANALYSIS_2025-11-12.md",
+                  "name": "ARCHITECTURE_ANALYSIS_2025-11-12.md",
+                  "size_bytes": 32373,
+                  "size_readable": "31.6KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/CHROME_SYMLINK_FIX.md",
+                  "name": "CHROME_SYMLINK_FIX.md",
+                  "size_bytes": 5550,
+                  "size_readable": "5.4KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/DEBUG_LOG_WINDOW_MODIFICATIONS.md",
+                  "name": "DEBUG_LOG_WINDOW_MODIFICATIONS.md",
+                  "size_bytes": 5821,
+                  "size_readable": "5.7KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/DEPENDENCY_CHECK_COLORPRINT_FIX.md",
+                  "name": "DEPENDENCY_CHECK_COLORPRINT_FIX.md",
+                  "size_bytes": 10144,
+                  "size_readable": "9.9KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/error.txt",
+                  "name": "error.txt",
+                  "size_bytes": 55622,
+                  "size_readable": "54.3KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/EVENT_DRIVEN_EXIT_FIX_2025-11-12.md",
+                  "name": "EVENT_DRIVEN_EXIT_FIX_2025-11-12.md",
+                  "size_bytes": 12226,
+                  "size_readable": "11.9KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/PYMATRIX_DEVICE_MODEL_DISPLAY_FIX_2025-11-12.md",
+                  "name": "PYMATRIX_DEVICE_MODEL_DISPLAY_FIX_2025-11-12.md",
+                  "size_bytes": 9264,
+                  "size_readable": "9.0KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/PYMATRIX_FIX_SUMMARY_2025-11-11.md",
+                  "name": "PYMATRIX_FIX_SUMMARY_2025-11-11.md",
+                  "size_bytes": 13543,
+                  "size_readable": "13.2KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/PYMATRIX_HOMEPAGE_FIX_2025-11-12.md",
+                  "name": "PYMATRIX_HOMEPAGE_FIX_2025-11-12.md",
+                  "size_bytes": 10957,
+                  "size_readable": "10.7KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/PYMATRIX_UI_ELEMENTS_CHECKLIST.md",
+                  "name": "PYMATRIX_UI_ELEMENTS_CHECKLIST.md",
+                  "size_bytes": 8949,
+                  "size_readable": "8.7KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/STREAM_TO_VIDEO_STREAM_RENAME_2025-11-12.md",
+                  "name": "STREAM_TO_VIDEO_STREAM_RENAME_2025-11-12.md",
+                  "size_bytes": 6903,
+                  "size_readable": "6.7KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/task.txt",
+                  "name": "task.txt",
+                  "size_bytes": 585,
+                  "size_readable": "585.0B",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/THREAD_BUS_ARCHITECTURE_2025-11-12.md",
+                  "name": "THREAD_BUS_ARCHITECTURE_2025-11-12.md",
+                  "size_bytes": 14349,
+                  "size_readable": "14.0KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/THREAD_BUS_MANAGER_REFACTORING.md",
+                  "name": "THREAD_BUS_MANAGER_REFACTORING.md",
+                  "size_bytes": 10966,
+                  "size_readable": "10.7KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/docs/VOICE_SUBTITLE_API_SPEC.md",
+                  "name": "VOICE_SUBTITLE_API_SPEC.md",
+                  "size_bytes": 10774,
+                  "size_readable": "10.5KB",
+                  "modified": "2025-11-30T16:07:33.754588",
+                  "created": "2025-12-02T06:02:48.112657",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "document_exchange_area",
+              "path": "/www/programing/core_node/document_exchange_area",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/document_exchange_area/NUXT_APP_SCREENCAST_WITH_NCORE_APP_SCREENCAST_GUIDE.md",
+                  "name": "NUXT_APP_SCREENCAST_WITH_NCORE_APP_SCREENCAST_GUIDE.md",
+                  "size_bytes": 17423,
+                  "size_readable": "17.0KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:48.105656",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "ncore",
+              "path": "/www/programing/core_node/ncore",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "_prompts",
+                  "path": "/www/programing/core_node/ncore/_prompts",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "assets",
+                  "path": "/www/programing/core_node/ncore/assets",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "callmodule",
+                  "path": "/www/programing/core_node/ncore/callmodule",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "foundation",
+                  "path": "/www/programing/core_node/ncore/foundation",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "global_vars",
+                  "path": "/www/programing/core_node/ncore/global_vars",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "mcp_server",
+                  "path": "/www/programing/core_node/ncore/mcp_server",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "ncontroller",
+                  "path": "/www/programing/core_node/ncore/ncontroller",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "utils",
+                  "path": "/www/programing/core_node/ncore/utils",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/db.js",
+                  "name": "db.js",
+                  "size_bytes": 1880,
+                  "size_readable": "1.8KB",
+                  "modified": "2025-11-06T06:35:24.444848",
+                  "created": "2025-12-02T06:02:48.000655",
+                  "extension": ".js",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/ncore_backend_main.py",
+                  "name": "ncore_backend_main.py",
+                  "size_bytes": 8294,
+                  "size_readable": "8.1KB",
+                  "modified": "2025-11-30T16:07:33.756942",
+                  "created": "2025-12-02T06:02:48.002656",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/ncore_tree.md",
+                  "name": "ncore_tree.md",
+                  "size_bytes": 39236,
+                  "size_readable": "38.3KB",
+                  "modified": "2025-11-06T06:35:24.465994",
+                  "created": "2025-12-02T06:02:47.999655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/prompt.txt",
+                  "name": "prompt.txt",
+                  "size_bytes": 68,
+                  "size_readable": "68.0B",
+                  "modified": "2025-11-06T06:35:24.465994",
+                  "created": "2025-12-02T06:02:48.000655",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/RPC_CONSISTENCY_CHECK_REPORT.txt",
+                  "name": "RPC_CONSISTENCY_CHECK_REPORT.txt",
+                  "size_bytes": 12832,
+                  "size_readable": "12.5KB",
+                  "modified": "2025-11-06T06:35:24.444270",
+                  "created": "2025-12-02T06:02:48.000655",
+                  "extension": ".txt",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/RPC_FRAMEWORK_UNIFICATION_PLAN.md",
+                  "name": "RPC_FRAMEWORK_UNIFICATION_PLAN.md",
+                  "size_bytes": 20712,
+                  "size_readable": "20.2KB",
+                  "modified": "2025-11-06T06:35:24.444848",
+                  "created": "2025-12-02T06:02:48.000655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/ncore/RPC_UNIFICATION_PHASE1_COMPLETE.txt",
+                  "name": "RPC_UNIFICATION_PHASE1_COMPLETE.txt",
+                  "size_bytes": 9561,
+                  "size_readable": "9.3KB",
+                  "modified": "2025-11-06T06:35:24.444848",
+                  "created": "2025-12-02T06:02:48.000655",
+                  "extension": ".txt",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "non-dev-docs",
+              "path": "/www/programing/core_node/non-dev-docs",
+              "type": "directory",
+              "children": [
+                {
+                  "path": "/www/programing/core_node/non-dev-docs/NON-DEV-DEPLOYMENT-GUIDE.md",
+                  "name": "NON-DEV-DEPLOYMENT-GUIDE.md",
+                  "size_bytes": 4262,
+                  "size_readable": "4.2KB",
+                  "modified": "2025-11-06T06:35:24.479275",
+                  "created": "2025-12-02T06:02:48.105656",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "poly_apps",
+              "path": "/www/programing/core_node/poly_apps",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "admin-vue-tailwind",
+                  "path": "/www/programing/core_node/poly_apps/admin-vue-tailwind",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "flutter_bloom",
+                  "path": "/www/programing/core_node/poly_apps/flutter_bloom",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "it-tools",
+                  "path": "/www/programing/core_node/poly_apps/it-tools",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "it-tools-html",
+                  "path": "/www/programing/core_node/poly_apps/it-tools-html",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "laravel_main",
+                  "path": "/www/programing/core_node/poly_apps/laravel_main",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "laravel_main(Copy)",
+                  "path": "/www/programing/core_node/poly_apps/laravel_main(Copy)",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "NewQtScrcpy",
+                  "path": "/www/programing/core_node/poly_apps/NewQtScrcpy",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "nuxt_main",
+                  "path": "/www/programing/core_node/poly_apps/nuxt_main",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "nuxt_main_origin",
+                  "path": "/www/programing/core_node/poly_apps/nuxt_main_origin",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "nuxt_mainCopy",
+                  "path": "/www/programing/core_node/poly_apps/nuxt_mainCopy",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyMatrix",
+                  "path": "/www/programing/core_node/poly_apps/pyMatrix",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "qtscrcpy_tc",
+                  "path": "/www/programing/core_node/poly_apps/qtscrcpy_tc",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "SmartMatrix",
+                  "path": "/www/programing/core_node/poly_apps/SmartMatrix",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "testfkcode",
+                  "path": "/www/programing/core_node/poly_apps/testfkcode",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/poly_apps/CROSS_APP_DATA_CONSISTENCY.md",
+                  "name": "CROSS_APP_DATA_CONSISTENCY.md",
+                  "size_bytes": 13940,
+                  "size_readable": "13.6KB",
+                  "modified": "2025-11-06T06:35:24.479382",
+                  "created": "2025-12-02T06:02:48.103657",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/poly_apps/poly_apps_tree.md",
+                  "name": "poly_apps_tree.md",
+                  "size_bytes": 211575,
+                  "size_readable": "206.6KB",
+                  "modified": "2025-11-06T06:35:25.190224",
+                  "created": "2025-12-02T06:02:48.035656",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/poly_apps/README_ARCHITECTURE_OVERVIEW.md",
+                  "name": "README_ARCHITECTURE_OVERVIEW.md",
+                  "size_bytes": 9276,
+                  "size_readable": "9.1KB",
+                  "modified": "2025-11-06T06:35:24.547506",
+                  "created": "2025-12-02T06:02:48.051656",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "public",
+              "path": "/www/programing/core_node/public",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "core_node_init",
+                  "path": "/www/programing/core_node/public/core_node_init",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "DevOps",
+                  "path": "/www/programing/core_node/public/DevOps",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "QianYuWords",
+                  "path": "/www/programing/core_node/public/QianYuWords",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "uploads",
+                  "path": "/www/programing/core_node/public/uploads",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "VoiceStaticServer",
+                  "path": "/www/programing/core_node/public/VoiceStaticServer",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/public/robots.txt",
+                  "name": "robots.txt",
+                  "size_bytes": 121,
+                  "size_readable": "121.0B",
+                  "modified": "2025-11-06T06:35:25.506851",
+                  "created": "2025-12-02T06:02:48.109657",
+                  "extension": ".txt",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "pyapps",
+              "path": "/www/programing/core_node/pyapps",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "d3-check",
+                  "path": "/www/programing/core_node/pyapps/d3-check",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "flutter_dev",
+                  "path": "/www/programing/core_node/pyapps/flutter_dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "matrix",
+                  "path": "/www/programing/core_node/pyapps/matrix",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "mcp",
+                  "path": "/www/programing/core_node/pyapps/mcp",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "okx_price_monitor",
+                  "path": "/www/programing/core_node/pyapps/okx_price_monitor",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pybrowserauto",
+                  "path": "/www/programing/core_node/pyapps/pybrowserauto",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "scrcpy_web_test",
+                  "path": "/www/programing/core_node/pyapps/scrcpy_web_test",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "screen_monitor",
+                  "path": "/www/programing/core_node/pyapps/screen_monitor",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "speech_transcribe",
+                  "path": "/www/programing/core_node/pyapps/speech_transcribe",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "voice_data_init",
+                  "path": "/www/programing/core_node/pyapps/voice_data_init",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "pycore",
+              "path": "/www/programing/core_node/pycore",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "_prompts",
+                  "path": "/www/programing/core_node/pycore/_prompts",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "bak",
+                  "path": "/www/programing/core_node/pycore/bak",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "callmodule",
+                  "path": "/www/programing/core_node/pycore/callmodule",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "database",
+                  "path": "/www/programing/core_node/pycore/database",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyadb",
+                  "path": "/www/programing/core_node/pycore/pyadb",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyctl",
+                  "path": "/www/programing/core_node/pycore/pyctl",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pydevice",
+                  "path": "/www/programing/core_node/pycore/pydevice",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyfoundations",
+                  "path": "/www/programing/core_node/pycore/pyfoundations",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pygvar",
+                  "path": "/www/programing/core_node/pycore/pygvar",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyheartbeat",
+                  "path": "/www/programing/core_node/pycore/pyheartbeat",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pylauncher",
+                  "path": "/www/programing/core_node/pycore/pylauncher",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pythreadpool",
+                  "path": "/www/programing/core_node/pycore/pythreadpool",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyutils",
+                  "path": "/www/programing/core_node/pycore/pyutils",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "scripts",
+                  "path": "/www/programing/core_node/pycore/scripts",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/pycore/__init__.py",
+                  "name": "__init__.py",
+                  "size_bytes": 2390,
+                  "size_readable": "2.3KB",
+                  "modified": "2025-11-30T16:07:34.436431",
+                  "created": "2025-12-02T06:02:47.999655",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/pycore/__main__.py",
+                  "name": "__main__.py",
+                  "size_bytes": 3264,
+                  "size_readable": "3.2KB",
+                  "modified": "2025-11-30T16:07:34.436431",
+                  "created": "2025-12-02T06:02:47.995655",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/pycore/COMPLIANCE_ANALYSIS.md",
+                  "name": "COMPLIANCE_ANALYSIS.md",
+                  "size_bytes": 8923,
+                  "size_readable": "8.7KB",
+                  "modified": "2025-11-30T16:07:34.436431",
+                  "created": "2025-12-02T06:02:47.999655",
+                  "extension": ".md",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/pycore/README.md",
+                  "name": "README.md",
+                  "size_bytes": 3230,
+                  "size_readable": "3.2KB",
+                  "modified": "2025-11-30T16:07:34.436431",
+                  "created": "2025-12-02T06:02:47.998655",
+                  "extension": ".md",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "scripts",
+              "path": "/www/programing/core_node/scripts",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "aitools",
+                  "path": "/www/programing/core_node/scripts/aitools",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "azure",
+                  "path": "/www/programing/core_node/scripts/azure",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "backup",
+                  "path": "/www/programing/core_node/scripts/backup",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "build_scripts",
+                  "path": "/www/programing/core_node/scripts/build_scripts",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "client_sync",
+                  "path": "/www/programing/core_node/scripts/client_sync",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "dev",
+                  "path": "/www/programing/core_node/scripts/dev",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "easy-gpy-pv",
+                  "path": "/www/programing/core_node/scripts/easy-gpy-pv",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "fsync",
+                  "path": "/www/programing/core_node/scripts/fsync",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "gan_codex",
+                  "path": "/www/programing/core_node/scripts/gan_codex",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "git",
+                  "path": "/www/programing/core_node/scripts/git",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "linuxenvs",
+                  "path": "/www/programing/core_node/scripts/linuxenvs",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "migration",
+                  "path": "/www/programing/core_node/scripts/migration",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "network_tools",
+                  "path": "/www/programing/core_node/scripts/network_tools",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "node-upgrade",
+                  "path": "/www/programing/core_node/scripts/node-upgrade",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "project_cleanup",
+                  "path": "/www/programing/core_node/scripts/project_cleanup",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pytools",
+                  "path": "/www/programing/core_node/scripts/pytools",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "pyvoice",
+                  "path": "/www/programing/core_node/scripts/pyvoice",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "registry_templates",
+                  "path": "/www/programing/core_node/scripts/registry_templates",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "shells",
+                  "path": "/www/programing/core_node/scripts/shells",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "slim_c_disk",
+                  "path": "/www/programing/core_node/scripts/slim_c_disk",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "tampermonkey",
+                  "path": "/www/programing/core_node/scripts/tampermonkey",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "ubuntu-bootrepair",
+                  "path": "/www/programing/core_node/scripts/ubuntu-bootrepair",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "unified_manager",
+                  "path": "/www/programing/core_node/scripts/unified_manager",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "name": "winenvs",
+                  "path": "/www/programing/core_node/scripts/winenvs",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/chat_session_examples.py",
+                  "name": "chat_session_examples.py",
+                  "size_bytes": 6618,
+                  "size_readable": "6.5KB",
+                  "modified": "2025-11-30T16:07:34.460878",
+                  "created": "2025-12-02T06:02:48.395659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/check_flutter_apps.sh",
+                  "name": "check_flutter_apps.sh",
+                  "size_bytes": 874,
+                  "size_readable": "874.0B",
+                  "modified": "2025-11-06T06:35:48.632629",
+                  "created": "2025-12-02T06:02:48.524661",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/cleanup_mcp_backends.ps1",
+                  "name": "cleanup_mcp_backends.ps1",
+                  "size_bytes": 2077,
+                  "size_readable": "2.0KB",
+                  "modified": "2025-11-30T16:07:34.460878",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".ps1",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/debug_openrouter.py",
+                  "name": "debug_openrouter.py",
+                  "size_bytes": 4030,
+                  "size_readable": "3.9KB",
+                  "modified": "2025-11-30T16:07:34.461432",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/disguise.js",
+                  "name": "disguise.js",
+                  "size_bytes": 6641,
+                  "size_readable": "6.5KB",
+                  "modified": "2025-11-06T06:35:25.512784",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".js",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/disguised.template.js",
+                  "name": "disguised.template.js",
+                  "size_bytes": 6909,
+                  "size_readable": "6.7KB",
+                  "modified": "2025-11-06T06:35:25.512784",
+                  "created": "2025-12-02T06:02:48.395659",
+                  "extension": ".js",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/fill_dict_stage.py",
+                  "name": "fill_dict_stage.py",
+                  "size_bytes": 7319,
+                  "size_readable": "7.1KB",
+                  "modified": "2025-11-30T16:07:34.461786",
+                  "created": "2025-12-02T06:02:48.400659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/fill_dicts.py",
+                  "name": "fill_dicts.py",
+                  "size_bytes": 9680,
+                  "size_readable": "9.5KB",
+                  "modified": "2025-11-30T16:07:34.461786",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/final_ascii_cleanup.sh",
+                  "name": "final_ascii_cleanup.sh",
+                  "size_bytes": 2739,
+                  "size_readable": "2.7KB",
+                  "modified": "2025-11-06T06:35:47.600288",
+                  "created": "2025-12-02T06:02:48.413660",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/fix_chrome_symlink_issue.js",
+                  "name": "fix_chrome_symlink_issue.js",
+                  "size_bytes": 10237,
+                  "size_readable": "10.0KB",
+                  "modified": "2025-11-30T16:07:34.461786",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".js",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/fix_chrome_symlink_issue.sh",
+                  "name": "fix_chrome_symlink_issue.sh",
+                  "size_bytes": 7835,
+                  "size_readable": "7.7KB",
+                  "modified": "2025-11-06T06:35:47.572663",
+                  "created": "2025-12-02T06:02:48.410660",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/fix_non_ascii.sh",
+                  "name": "fix_non_ascii.sh",
+                  "size_bytes": 924,
+                  "size_readable": "924.0B",
+                  "modified": "2025-11-06T06:35:47.536464",
+                  "created": "2025-12-02T06:02:48.402659",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/flutter_scan_and_fix.ps1",
+                  "name": "flutter_scan_and_fix.ps1",
+                  "size_bytes": 4671,
+                  "size_readable": "4.6KB",
+                  "modified": "2025-11-06T06:35:25.513706",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".ps1",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/flutterbloomDev.ps1",
+                  "name": "flutterbloomDev.ps1",
+                  "size_bytes": 5243,
+                  "size_readable": "5.1KB",
+                  "modified": "2025-11-06T06:35:25.513706",
+                  "created": "2025-12-02T06:02:48.400659",
+                  "extension": ".ps1",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/gancodex_tick.py",
+                  "name": "gancodex_tick.py",
+                  "size_bytes": 1337,
+                  "size_readable": "1.3KB",
+                  "modified": "2025-11-30T16:07:34.463113",
+                  "created": "2025-12-02T06:02:48.400659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/generate_tts.py",
+                  "name": "generate_tts.py",
+                  "size_bytes": 9870,
+                  "size_readable": "9.6KB",
+                  "modified": "2025-11-30T16:07:34.463113",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/gitlinuxput.sh",
+                  "name": "gitlinuxput.sh",
+                  "size_bytes": 1585,
+                  "size_readable": "1.5KB",
+                  "modified": "2025-11-06T06:35:47.584521",
+                  "created": "2025-12-02T06:02:48.412659",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/gitpull.sh",
+                  "name": "gitpull.sh",
+                  "size_bytes": 1173,
+                  "size_readable": "1.1KB",
+                  "modified": "2025-11-06T06:35:47.563116",
+                  "created": "2025-12-02T06:02:48.404660",
+                  "extension": ".sh",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/gitput.bat",
+                  "name": "gitput.bat",
+                  "size_bytes": 958,
+                  "size_readable": "958.0B",
+                  "modified": "2025-11-06T06:35:25.514149",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".bat",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/interactive_chat.py",
+                  "name": "interactive_chat.py",
+                  "size_bytes": 2617,
+                  "size_readable": "2.6KB",
+                  "modified": "2025-11-30T16:07:34.463652",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/laravelDev.ps1",
+                  "name": "laravelDev.ps1",
+                  "size_bytes": 3649,
+                  "size_readable": "3.6KB",
+                  "modified": "2025-11-06T06:35:25.514149",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".ps1",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/mouse_tick.py",
+                  "name": "mouse_tick.py",
+                  "size_bytes": 1210,
+                  "size_readable": "1.2KB",
+                  "modified": "2025-11-30T16:07:34.464087",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/move_pageview_images.py",
+                  "name": "move_pageview_images.py",
+                  "size_bytes": 8375,
+                  "size_readable": "8.2KB",
+                  "modified": "2025-11-30T16:07:34.464087",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/nuxtDev.ps1",
+                  "name": "nuxtDev.ps1",
+                  "size_bytes": 739,
+                  "size_readable": "739.0B",
+                  "modified": "2025-11-06T06:35:25.515033",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".ps1",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/remove_try_catch.py",
+                  "name": "remove_try_catch.py",
+                  "size_bytes": 3448,
+                  "size_readable": "3.4KB",
+                  "modified": "2025-11-30T16:07:34.466114",
+                  "created": "2025-12-02T06:02:48.395659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/scan_network.bat",
+                  "name": "scan_network.bat",
+                  "size_bytes": 913,
+                  "size_readable": "913.0B",
+                  "modified": "2025-11-30T16:07:34.466114",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".bat",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/script_identifiers.json",
+                  "name": "script_identifiers.json",
+                  "size_bytes": 1714,
+                  "size_readable": "1.7KB",
+                  "modified": "2025-11-06T06:35:25.518559",
+                  "created": "2025-12-02T06:02:48.395659",
+                  "extension": ".json",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/serviceManager.py",
+                  "name": "serviceManager.py",
+                  "size_bytes": 10784,
+                  "size_readable": "10.5KB",
+                  "modified": "2025-11-06T06:35:25.518559",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".py",
+                  "type": "file"
+                },
+                {
+                  "path": "/www/programing/core_node/scripts/task.txt",
+                  "name": "task.txt",
+                  "size_bytes": 543,
+                  "size_readable": "543.0B",
+                  "modified": "2025-11-06T06:35:25.551013",
+                  "created": "2025-12-02T06:02:48.396659",
+                  "extension": ".txt",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "test",
+              "path": "/www/programing/core_node/test",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "对照表",
+                  "path": "/www/programing/core_node/test/对照表",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "tests",
+              "path": "/www/programing/core_node/tests",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "mcpserver",
+                  "path": "/www/programing/core_node/tests/mcpserver",
+                  "type": "directory",
+                  "children": [],
+                  "truncated": true,
+                  "reason": "max depth reached"
+                }
+              ]
+            },
+            {
+              "name": "~",
+              "path": "/www/programing/core_node/~",
+              "type": "directory",
+              "children": []
+            },
+            {
+              "path": "/www/programing/core_node/API_BRIDGE_ANALYSIS.md",
+              "name": "API_BRIDGE_ANALYSIS.md",
+              "size_bytes": 6777,
+              "size_readable": "6.6KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/babel-plugin-transform-require-replace.js",
+              "name": "babel-plugin-transform-require-replace.js",
+              "size_bytes": 1603,
+              "size_readable": "1.6KB",
+              "modified": "2025-11-06T06:35:24.198915",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/babel.config.copy.js",
+              "name": "babel.config.copy.js",
+              "size_bytes": 3496,
+              "size_readable": "3.4KB",
+              "modified": "2025-11-06T06:35:24.198915",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/babel.config.js",
+              "name": "babel.config.js",
+              "size_bytes": 2801,
+              "size_readable": "2.7KB",
+              "modified": "2025-11-06T06:35:24.198915",
+              "created": "2025-12-02T06:02:48.032656",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/BACKEND_API_FORMAT_REQUIREMENTS.md",
+              "name": "BACKEND_API_FORMAT_REQUIREMENTS.md",
+              "size_bytes": 9094,
+              "size_readable": "8.9KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/BACKEND_REPORT.md",
+              "name": "BACKEND_REPORT.md",
+              "size_bytes": 7789,
+              "size_readable": "7.6KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/CHANGES_SUMMARY.md",
+              "name": "CHANGES_SUMMARY.md",
+              "size_bytes": 2499,
+              "size_readable": "2.4KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/CHANGES_SUMMARY_V2.md",
+              "name": "CHANGES_SUMMARY_V2.md",
+              "size_bytes": 6150,
+              "size_readable": "6.0KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/CODEX_MCP_MANAGER_IMPLEMENTATION_REPORT.txt",
+              "name": "CODEX_MCP_MANAGER_IMPLEMENTATION_REPORT.txt",
+              "size_bytes": 20853,
+              "size_readable": "20.4KB",
+              "modified": "2025-11-06T06:35:24.095431",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/CommonConfigModel",
+              "name": "CommonConfigModel",
+              "size_bytes": 0,
+              "size_readable": "0.0B",
+              "modified": "2025-12-02T04:01:43.497329",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": "",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/COMPLETE_API_ALIGNMENT_REPORT.md",
+              "name": "COMPLETE_API_ALIGNMENT_REPORT.md",
+              "size_bytes": 12678,
+              "size_readable": "12.4KB",
+              "modified": "2025-12-01T15:05:11.482807",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/COMPLETE_TEST_GUIDE.py",
+              "name": "COMPLETE_TEST_GUIDE.py",
+              "size_bytes": 11927,
+              "size_readable": "11.6KB",
+              "modified": "2025-11-30T16:07:33.752304",
+              "created": "2025-12-02T06:02:47.994655",
+              "extension": ".py",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/corrupted_videos_report.json",
+              "name": "corrupted_videos_report.json",
+              "size_bytes": 497,
+              "size_readable": "497.0B",
+              "modified": "2025-11-06T06:35:24.442577",
+              "created": "2025-12-02T06:02:48.006655",
+              "extension": ".json",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/DATA_ALIGNMENT_ISSUE.md",
+              "name": "DATA_ALIGNMENT_ISSUE.md",
+              "size_bytes": 6095,
+              "size_readable": "6.0KB",
+              "modified": "2025-12-01T15:05:11.483807",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/dd.cmd",
+              "name": "dd.cmd",
+              "size_bytes": 2834,
+              "size_readable": "2.8KB",
+              "modified": "2025-11-06T06:35:24.442577",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".cmd",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/dd.cmd.error.txt",
+              "name": "dd.cmd.error.txt",
+              "size_bytes": 43589,
+              "size_readable": "42.6KB",
+              "modified": "2025-11-30T16:07:33.753606",
+              "created": "2025-12-02T06:02:48.006655",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/dd.sh",
+              "name": "dd.sh",
+              "size_bytes": 21530,
+              "size_readable": "21.0KB",
+              "modified": "2025-12-01T09:48:35.622460",
+              "created": "2025-12-02T06:02:48.527661",
+              "extension": ".sh",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/DEVELOPMENT_COMPLETE_SUMMARY.md",
+              "name": "DEVELOPMENT_COMPLETE_SUMMARY.md",
+              "size_bytes": 10908,
+              "size_readable": "10.7KB",
+              "modified": "2025-11-06T06:35:24.095431",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+              "name": "DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md",
+              "size_bytes": 4835,
+              "size_readable": "4.7KB",
+              "modified": "2025-11-30T16:07:33.752304",
+              "created": "2025-12-02T06:02:47.994655",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/Dprogramingcore_noderemote_api_test_categories.json",
+              "name": "Dprogramingcore_noderemote_api_test_categories.json",
+              "size_bytes": 69,
+              "size_readable": "69.0B",
+              "modified": "2025-12-01T15:05:11.483807",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".json",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/Dprogramingcore_noderemote_api_test_queue.json",
+              "name": "Dprogramingcore_noderemote_api_test_queue.json",
+              "size_bytes": 6703,
+              "size_readable": "6.5KB",
+              "modified": "2025-12-01T15:05:11.483807",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".json",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/Dprogramingcore_nodetest_all_endpoints.sh",
+              "name": "Dprogramingcore_nodetest_all_endpoints.sh",
+              "size_bytes": 1595,
+              "size_readable": "1.6KB",
+              "modified": "2025-12-01T15:05:11.483807",
+              "created": "2025-12-02T06:02:48.386659",
+              "extension": ".sh",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/EXPRESS_UTILS_TO_RPC_MIGRATION_REPORT.txt",
+              "name": "EXPRESS_UTILS_TO_RPC_MIGRATION_REPORT.txt",
+              "size_bytes": 13945,
+              "size_readable": "13.6KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/features_analysis.txt",
+              "name": "features_analysis.txt",
+              "size_bytes": 1111,
+              "size_readable": "1.1KB",
+              "modified": "2025-11-06T06:35:24.444270",
+              "created": "2025-12-02T06:02:48.010656",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/FINAL_ARCHITECTURE_SUMMARY.md",
+              "name": "FINAL_ARCHITECTURE_SUMMARY.md",
+              "size_bytes": 18090,
+              "size_readable": "17.7KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.032656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/frontend_only_features.txt",
+              "name": "frontend_only_features.txt",
+              "size_bytes": 700,
+              "size_readable": "700.0B",
+              "modified": "2025-11-06T06:35:24.444270",
+              "created": "2025-12-02T06:02:48.006655",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/GLOBAL_VARIABLE_FIX_SUMMARY.md",
+              "name": "GLOBAL_VARIABLE_FIX_SUMMARY.md",
+              "size_bytes": 5295,
+              "size_readable": "5.2KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/LICENSE",
+              "name": "LICENSE",
+              "size_bytes": 579,
+              "size_readable": "579.0B",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": "",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/LOCAL_REMOTE_ALIGNMENT_ANALYSIS.md",
+              "name": "LOCAL_REMOTE_ALIGNMENT_ANALYSIS.md",
+              "size_bytes": 10094,
+              "size_readable": "9.9KB",
+              "modified": "2025-12-01T15:05:11.483807",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/main.js",
+              "name": "main.js",
+              "size_bytes": 8177,
+              "size_readable": "8.0KB",
+              "modified": "2025-11-06T06:35:24.444270",
+              "created": "2025-12-02T06:02:48.105656",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/ncore_module_caller.js",
+              "name": "ncore_module_caller.js",
+              "size_bytes": 1930,
+              "size_readable": "1.9KB",
+              "modified": "2025-11-30T16:07:33.757224",
+              "created": "2025-12-02T06:02:48.032656",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/output.txt",
+              "name": "output.txt",
+              "size_bytes": 0,
+              "size_readable": "0.0B",
+              "modified": "2025-11-30T16:07:33.757224",
+              "created": "2025-12-02T06:02:48.105656",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/package.json",
+              "name": "package.json",
+              "size_bytes": 10901,
+              "size_readable": "10.6KB",
+              "modified": "2025-11-30T16:07:33.757224",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": ".json",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PATH_FIX_SUMMARY.md",
+              "name": "PATH_FIX_SUMMARY.md",
+              "size_bytes": 5164,
+              "size_readable": "5.0KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.105656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PHASE0_COMPLETION_SUMMARY.txt",
+              "name": "PHASE0_COMPLETION_SUMMARY.txt",
+              "size_bytes": 8430,
+              "size_readable": "8.2KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.032656",
+              "extension": ".txt",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/pnpm-lock.yaml",
+              "name": "pnpm-lock.yaml",
+              "size_bytes": 677344,
+              "size_readable": "661.5KB",
+              "modified": "2025-11-30T16:07:33.759098",
+              "created": "2025-12-02T06:02:48.010656",
+              "extension": ".yaml",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PNPM_MIGRATION_GUIDE.md",
+              "name": "PNPM_MIGRATION_GUIDE.md",
+              "size_bytes": 3301,
+              "size_readable": "3.2KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PNPM_SCRIPTS_MIGRATION_SUMMARY.md",
+              "name": "PNPM_SCRIPTS_MIGRATION_SUMMARY.md",
+              "size_bytes": 4234,
+              "size_readable": "4.1KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/pycore_module_caller.py",
+              "name": "pycore_module_caller.py",
+              "size_bytes": 3746,
+              "size_readable": "3.7KB",
+              "modified": "2025-12-01T15:05:11.488027",
+              "created": "2025-12-02T06:02:47.994655",
+              "extension": ".py",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/pymain.py",
+              "name": "pymain.py",
+              "size_bytes": 3362,
+              "size_readable": "3.3KB",
+              "modified": "2025-11-30T16:07:34.460878",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".py",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PYMATRIX_API_IMPLEMENTATION.md",
+              "name": "PYMATRIX_API_IMPLEMENTATION.md",
+              "size_bytes": 19170,
+              "size_readable": "18.7KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PYMATRIX_INTEGRATION_COMPLETE.md",
+              "name": "PYMATRIX_INTEGRATION_COMPLETE.md",
+              "size_bytes": 19147,
+              "size_readable": "18.7KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.032656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PYMATRIX_INTEGRATION_STATUS.md",
+              "name": "PYMATRIX_INTEGRATION_STATUS.md",
+              "size_bytes": 14355,
+              "size_readable": "14.0KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/PYMATRIX_INTEGRATION_VERIFIED.md",
+              "name": "PYMATRIX_INTEGRATION_VERIFIED.md",
+              "size_bytes": 5892,
+              "size_readable": "5.8KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:47.999655",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/QUICK_TEST_GUIDE.py",
+              "name": "QUICK_TEST_GUIDE.py",
+              "size_bytes": 1419,
+              "size_readable": "1.4KB",
+              "modified": "2025-11-30T16:07:33.752304",
+              "created": "2025-12-02T06:02:48.112657",
+              "extension": ".py",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/README.md",
+              "name": "README.md",
+              "size_bytes": 2390,
+              "size_readable": "2.3KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:48.034656",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/run_callmodule_service.py",
+              "name": "run_callmodule_service.py",
+              "size_bytes": 2645,
+              "size_readable": "2.6KB",
+              "modified": "2025-11-30T16:07:34.460878",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".py",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/SpeechConfigModel",
+              "name": "SpeechConfigModel",
+              "size_bytes": 0,
+              "size_readable": "0.0B",
+              "modified": "2025-12-02T04:01:43.961334",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": "",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/START_PYMATRIX.md",
+              "name": "START_PYMATRIX.md",
+              "size_bytes": 5132,
+              "size_readable": "5.0KB",
+              "modified": "2025-11-06T06:35:24.095812",
+              "created": "2025-12-02T06:02:47.994655",
+              "extension": ".md",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/temp.ts",
+              "name": "temp.ts",
+              "size_bytes": 30,
+              "size_readable": "30.0B",
+              "modified": "2025-11-30T16:07:34.474355",
+              "created": "2025-12-02T06:02:47.994655",
+              "extension": ".ts",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/webpack.config.js",
+              "name": "webpack.config.js",
+              "size_bytes": 2715,
+              "size_readable": "2.7KB",
+              "modified": "2025-11-06T06:35:25.552422",
+              "created": "2025-12-02T06:02:48.121657",
+              "extension": ".js",
+              "type": "file"
+            },
+            {
+              "path": "/www/programing/core_node/wget-log",
+              "name": "wget-log",
+              "size_bytes": 36199,
+              "size_readable": "35.4KB",
+              "modified": "2025-11-06T06:35:25.552422",
+              "created": "2025-12-02T06:02:48.104656",
+              "extension": "",
+              "type": "file"
+            }
+          ]
+        },
+        "tree_text": "core_node/\n├── __misc__/\n│   └── _pycore/\n├── _analysis/\n│   ├── consistency_analysis.md (6.4KB)\n│   ├── fix_summary.md (5.2KB)\n│   ├── process_conflict_analysis.md (5.1KB)\n│   ├── process_conflict_fix_summary.md (5.3KB)\n│   └── pymatrix_layout_progress.md (1.6KB)\n├── _delete/\n├── _prompt/\n│   ├── AI 工具系统设计.txt (23.0B)\n│   ├── ai_trans.txt (941.0B)\n│   ├── anlyze.txt (1.9KB)\n│   ├── aug_task.txt (3.3KB)\n│   ├── aug_task2.txt (5.8KB)\n│   ├── backup.txt (9.0KB)\n│   ├── bloom-flutter-bank.txt (7.1KB)\n│   ├── bloom-flutterbuildv2.txt (7.9KB)\n│   ├── bloom-flutterbuildv3.txt (11.2KB)\n│   ├── build_by_flutter.txt (4.4KB)\n│   ├── cerbot_by_laravel.txt (6.9KB)\n│   ├── flutter_bloombuild.txt (7.0KB)\n│   ├── FLUTTER端单词记忆.txt (81.0KB)\n│   ├── folder_codefolder.txt (4.9KB)\n│   ├── his.txt (516.0B)\n│   ├── log.txt (10.8KB)\n│   ├── log2.txt (10.8KB)\n│   ├── lxrouter.txt (25.9KB)\n│   ├── mcp.json (3.0KB)\n│   ├── mcpCodexLinuxTemplate.toml (3.0KB)\n│   ├── mcpCodexUbuntoDesktopTemplate.toml (2.7KB)\n│   ├── mcpCodexWindowsTemplate.toml (2.1KB)\n│   ├── mcpCodexWSLTemplate.toml (2.1KB)\n│   ├── mcpLinuxTemplate.json (1.1KB)\n│   ├── mcpUbuntoDesktopTemplate.json (1.1KB)\n│   ├── mcpWindowsTemplate.json (1.1KB)\n│   ├── mcpWSLTemplate.json (1.1KB)\n│   ├── MCP客户端.txt (1.2KB)\n│   ├── MCP开发任务-网络发现.txt (3.0KB)\n│   ├── nust_ittool设计.txt (2.4KB)\n│   ├── php-install (795.0B)\n│   ├── phpfeedback.txt (20.0KB)\n│   ├── PromptsAURO-EN.md (909.0B)\n│   ├── QY手机APP.txt (3.6KB)\n│   ├── task.txt (371.1KB)\n│   ├── task2.txt (6.4KB)\n│   ├── TODO1.md (1016.0B)\n│   ├── TODO2.md (76.9KB)\n│   ├── TODO3.MD (155.7KB)\n│   ├── TODO4.MD (103.6KB)\n│   ├── uni.prompt (12.2KB)\n│   ├── 任务.txt (17.5KB)\n│   └── 播放语音.txt (9.8KB)\n├── _prompts/\n│   ├── laravel-main-dev/\n│   ├── mcp-dev/\n│   ├── ncore-dev/\n│   ├── nuxt-dev/\n│   ├── pycore-dev/\n│   └── task-data/\n├── api_test_results/\n│   ├── local_categories.json (53.0B)\n│   ├── local_queue.json (190.8KB)\n│   ├── local_queue_category.json (10.8KB)\n│   ├── local_queue_latest.json (1.9KB)\n│   ├── local_queue_today.json (37.0B)\n│   ├── remote_categories.json (41.0B)\n│   ├── remote_queue.json (9.7KB)\n│   ├── remote_queue_category.json (57.0B)\n│   ├── remote_queue_latest.json (1.5KB)\n│   └── remote_queue_today.json (37.0B)\n├── apps/\n│   ├── ai_translator_app/\n│   ├── core_node_init/\n│   ├── DevOps/\n│   ├── DocumentOffline/\n│   ├── flutter_icon_manager/\n│   ├── GetDocFromUrlByPuppeteer/\n│   ├── okx_price_monitor/\n│   ├── ScreenCast/\n│   ├── VideoCompression/\n│   ├── VoiceClientAndCaddy/\n│   └── WebLocalAreaNetwork/\n├── cache/\n│   └── system/\n├── config/\n│   ├── base.config.json (1.6KB)\n│   ├── index.js (3.8KB)\n│   └── nodemon.json (284.0B)\n├── development-guides/\n│   ├── AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md (2.3KB)\n│   ├── COMMON_TIMER_DESIGN_SPECIFICATION.md (7.4KB)\n│   ├── DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md (20.8KB)\n│   ├── DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md (16.8KB)\n│   ├── DEBUG_OUTPUT_SOLUTION.md (4.8KB)\n│   ├── FLUTTER_GUIDE.md (37.1KB)\n│   ├── LARAVEL_GUIDE.md (18.4KB)\n│   ├── MCPSERVER_GUIDE.md (6.1KB)\n│   ├── NCORE_NUXT_INTEGRATION_GUIDE.md (5.8KB)\n│   ├── NODE_NCORE_GUIDE.md (21.3KB)\n│   ├── NUXT_MULTI_APP_ARCHITECTURE.md (19.2KB)\n│   ├── PROJECT_NAME_EXPLANATION.md (451.0B)\n│   ├── PYTHON_PYCORE.md (18.3KB)\n│   └── THEME_AND_STYLE_GUIDE.md (9.3KB)\n├── doc/\n│   ├── nginx_shell_with_laravel/\n│   ├── CODE_DUPLICATION_ANALYSIS.md (7.0KB)\n│   ├── Flutter_degin设置文档.txt (6.6KB)\n│   ├── FLUTTER_UP.md (16.9KB)\n│   ├── IMAGE_COMPARISON_SYSTEM.md (6.6KB)\n│   ├── MCP设计构架.md (13.0KB)\n│   ├── NUXT_UP_PLAN.md (493.0B)\n│   ├── PYCORE_UP.md (19.6KB)\n│   ├── RPC_V2_REFACTORING_SUMMARY.md (9.7KB)\n│   ├── SINGLETON_BUSY_STATE_EXAMPLE.md (8.0KB)\n│   └── 通用提示词.md (603.0B)\n├── docs/\n│   ├── ARCHITECTURE_ANALYSIS_2025-11-12.md (31.6KB)\n│   ├── CHROME_SYMLINK_FIX.md (5.4KB)\n│   ├── DEBUG_LOG_WINDOW_MODIFICATIONS.md (5.7KB)\n│   ├── DEPENDENCY_CHECK_COLORPRINT_FIX.md (9.9KB)\n│   ├── error.txt (54.3KB)\n│   ├── EVENT_DRIVEN_EXIT_FIX_2025-11-12.md (11.9KB)\n│   ├── PYMATRIX_DEVICE_MODEL_DISPLAY_FIX_2025-11-12.md (9.0KB)\n│   ├── PYMATRIX_FIX_SUMMARY_2025-11-11.md (13.2KB)\n│   ├── PYMATRIX_HOMEPAGE_FIX_2025-11-12.md (10.7KB)\n│   ├── PYMATRIX_UI_ELEMENTS_CHECKLIST.md (8.7KB)\n│   ├── STREAM_TO_VIDEO_STREAM_RENAME_2025-11-12.md (6.7KB)\n│   ├── task.txt (585.0B)\n│   ├── THREAD_BUS_ARCHITECTURE_2025-11-12.md (14.0KB)\n│   ├── THREAD_BUS_MANAGER_REFACTORING.md (10.7KB)\n│   └── VOICE_SUBTITLE_API_SPEC.md (10.5KB)\n├── document_exchange_area/\n│   └── NUXT_APP_SCREENCAST_WITH_NCORE_APP_SCREENCAST_GUIDE.md (17.0KB)\n├── ncore/\n│   ├── _prompts/\n│   ├── assets/\n│   ├── callmodule/\n│   ├── foundation/\n│   ├── global_vars/\n│   ├── mcp_server/\n│   ├── ncontroller/\n│   ├── utils/\n│   ├── db.js (1.8KB)\n│   ├── ncore_backend_main.py (8.1KB)\n│   ├── ncore_tree.md (38.3KB)\n│   ├── prompt.txt (68.0B)\n│   ├── RPC_CONSISTENCY_CHECK_REPORT.txt (12.5KB)\n│   ├── RPC_FRAMEWORK_UNIFICATION_PLAN.md (20.2KB)\n│   └── RPC_UNIFICATION_PHASE1_COMPLETE.txt (9.3KB)\n├── non-dev-docs/\n│   └── NON-DEV-DEPLOYMENT-GUIDE.md (4.2KB)\n├── poly_apps/\n│   ├── admin-vue-tailwind/\n│   ├── flutter_bloom/\n│   ├── it-tools/\n│   ├── it-tools-html/\n│   ├── laravel_main/\n│   ├── laravel_main(Copy)/\n│   ├── NewQtScrcpy/\n│   ├── nuxt_main/\n│   ├── nuxt_main_origin/\n│   ├── nuxt_mainCopy/\n│   ├── pyMatrix/\n│   ├── qtscrcpy_tc/\n│   ├── SmartMatrix/\n│   ├── testfkcode/\n│   ├── CROSS_APP_DATA_CONSISTENCY.md (13.6KB)\n│   ├── poly_apps_tree.md (206.6KB)\n│   └── README_ARCHITECTURE_OVERVIEW.md (9.1KB)\n├── public/\n│   ├── core_node_init/\n│   ├── DevOps/\n│   ├── QianYuWords/\n│   ├── uploads/\n│   ├── VoiceStaticServer/\n│   └── robots.txt (121.0B)\n├── pyapps/\n│   ├── d3-check/\n│   ├── flutter_dev/\n│   ├── matrix/\n│   ├── mcp/\n│   ├── okx_price_monitor/\n│   ├── pybrowserauto/\n│   ├── scrcpy_web_test/\n│   ├── screen_monitor/\n│   ├── speech_transcribe/\n│   └── voice_data_init/\n├── pycore/\n│   ├── _prompts/\n│   ├── bak/\n│   ├── callmodule/\n│   ├── database/\n│   ├── pyadb/\n│   ├── pyctl/\n│   ├── pydevice/\n│   ├── pyfoundations/\n│   ├── pygvar/\n│   ├── pyheartbeat/\n│   ├── pylauncher/\n│   ├── pythreadpool/\n│   ├── pyutils/\n│   ├── scripts/\n│   ├── __init__.py (2.3KB)\n│   ├── __main__.py (3.2KB)\n│   ├── COMPLIANCE_ANALYSIS.md (8.7KB)\n│   └── README.md (3.2KB)\n├── scripts/\n│   ├── aitools/\n│   ├── azure/\n│   ├── backup/\n│   ├── build_scripts/\n│   ├── client_sync/\n│   ├── dev/\n│   ├── easy-gpy-pv/\n│   ├── fsync/\n│   ├── gan_codex/\n│   ├── git/\n│   ├── linuxenvs/\n│   ├── migration/\n│   ├── network_tools/\n│   ├── node-upgrade/\n│   ├── project_cleanup/\n│   ├── pytools/\n│   ├── pyvoice/\n│   ├── registry_templates/\n│   ├── shells/\n│   ├── slim_c_disk/\n│   ├── tampermonkey/\n│   ├── ubuntu-bootrepair/\n│   ├── unified_manager/\n│   ├── winenvs/\n│   ├── chat_session_examples.py (6.5KB)\n│   ├── check_flutter_apps.sh (874.0B)\n│   ├── cleanup_mcp_backends.ps1 (2.0KB)\n│   ├── debug_openrouter.py (3.9KB)\n│   ├── disguise.js (6.5KB)\n│   ├── disguised.template.js (6.7KB)\n│   ├── fill_dict_stage.py (7.1KB)\n│   ├── fill_dicts.py (9.5KB)\n│   ├── final_ascii_cleanup.sh (2.7KB)\n│   ├── fix_chrome_symlink_issue.js (10.0KB)\n│   ├── fix_chrome_symlink_issue.sh (7.7KB)\n│   ├── fix_non_ascii.sh (924.0B)\n│   ├── flutter_scan_and_fix.ps1 (4.6KB)\n│   ├── flutterbloomDev.ps1 (5.1KB)\n│   ├── gancodex_tick.py (1.3KB)\n│   ├── generate_tts.py (9.6KB)\n│   ├── gitlinuxput.sh (1.5KB)\n│   ├── gitpull.sh (1.1KB)\n│   ├── gitput.bat (958.0B)\n│   ├── interactive_chat.py (2.6KB)\n│   ├── laravelDev.ps1 (3.6KB)\n│   ├── mouse_tick.py (1.2KB)\n│   ├── move_pageview_images.py (8.2KB)\n│   ├── nuxtDev.ps1 (739.0B)\n│   ├── remove_try_catch.py (3.4KB)\n│   ├── scan_network.bat (913.0B)\n│   ├── script_identifiers.json (1.7KB)\n│   ├── serviceManager.py (10.5KB)\n│   └── task.txt (543.0B)\n├── test/\n│   └── 对照表/\n├── tests/\n│   └── mcpserver/\n├── ~/\n├── API_BRIDGE_ANALYSIS.md (6.6KB)\n├── babel-plugin-transform-require-replace.js (1.6KB)\n├── babel.config.copy.js (3.4KB)\n├── babel.config.js (2.7KB)\n├── BACKEND_API_FORMAT_REQUIREMENTS.md (8.9KB)\n├── BACKEND_REPORT.md (7.6KB)\n├── CHANGES_SUMMARY.md (2.4KB)\n├── CHANGES_SUMMARY_V2.md (6.0KB)\n├── CODEX_MCP_MANAGER_IMPLEMENTATION_REPORT.txt (20.4KB)\n├── CommonConfigModel (0.0B)\n├── COMPLETE_API_ALIGNMENT_REPORT.md (12.4KB)\n├── COMPLETE_TEST_GUIDE.py (11.6KB)\n├── corrupted_videos_report.json (497.0B)\n├── DATA_ALIGNMENT_ISSUE.md (6.0KB)\n├── dd.cmd (2.8KB)\n├── dd.cmd.error.txt (42.6KB)\n├── dd.sh (21.0KB)\n├── DEVELOPMENT_COMPLETE_SUMMARY.md (10.7KB)\n├── DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md (4.7KB)\n├── Dprogramingcore_noderemote_api_test_categories.json (69.0B)\n├── Dprogramingcore_noderemote_api_test_queue.json (6.5KB)\n├── Dprogramingcore_nodetest_all_endpoints.sh (1.6KB)\n├── EXPRESS_UTILS_TO_RPC_MIGRATION_REPORT.txt (13.6KB)\n├── features_analysis.txt (1.1KB)\n├── FINAL_ARCHITECTURE_SUMMARY.md (17.7KB)\n├── frontend_only_features.txt (700.0B)\n├── GLOBAL_VARIABLE_FIX_SUMMARY.md (5.2KB)\n├── LICENSE (579.0B)\n├── LOCAL_REMOTE_ALIGNMENT_ANALYSIS.md (9.9KB)\n├── main.js (8.0KB)\n├── ncore_module_caller.js (1.9KB)\n├── output.txt (0.0B)\n├── package.json (10.6KB)\n├── PATH_FIX_SUMMARY.md (5.0KB)\n├── PHASE0_COMPLETION_SUMMARY.txt (8.2KB)\n├── pnpm-lock.yaml (661.5KB)\n├── PNPM_MIGRATION_GUIDE.md (3.2KB)\n├── PNPM_SCRIPTS_MIGRATION_SUMMARY.md (4.1KB)\n├── pycore_module_caller.py (3.7KB)\n├── pymain.py (3.3KB)\n├── PYMATRIX_API_IMPLEMENTATION.md (18.7KB)\n├── PYMATRIX_INTEGRATION_COMPLETE.md (18.7KB)\n├── PYMATRIX_INTEGRATION_STATUS.md (14.0KB)\n├── PYMATRIX_INTEGRATION_VERIFIED.md (5.8KB)\n├── QUICK_TEST_GUIDE.py (1.4KB)\n├── README.md (2.3KB)\n├── run_callmodule_service.py (2.6KB)\n├── SpeechConfigModel (0.0B)\n├── START_PYMATRIX.md (5.0KB)\n├── temp.ts (30.0B)\n├── webpack.config.js (2.7KB)\n└── wget-log (35.4KB)",
+        "tree_markdown": "# Directory Tree: core_node\n\n**Path:** `/www/programing/core_node`\n**Generated:** 2025-12-02 06:02:54\n\n```\ncore_node/\n├── __misc__/\n│   └── _pycore/\n├── _analysis/\n│   ├── consistency_analysis.md (6.4KB)\n│   ├── fix_summary.md (5.2KB)\n│   ├── process_conflict_analysis.md (5.1KB)\n│   ├── process_conflict_fix_summary.md (5.3KB)\n│   └── pymatrix_layout_progress.md (1.6KB)\n├── _delete/\n├── _prompt/\n│   ├── AI 工具系统设计.txt (23.0B)\n│   ├── ai_trans.txt (941.0B)\n│   ├── anlyze.txt (1.9KB)\n│   ├── aug_task.txt (3.3KB)\n│   ├── aug_task2.txt (5.8KB)\n│   ├── backup.txt (9.0KB)\n│   ├── bloom-flutter-bank.txt (7.1KB)\n│   ├── bloom-flutterbuildv2.txt (7.9KB)\n│   ├── bloom-flutterbuildv3.txt (11.2KB)\n│   ├── build_by_flutter.txt (4.4KB)\n│   ├── cerbot_by_laravel.txt (6.9KB)\n│   ├── flutter_bloombuild.txt (7.0KB)\n│   ├── FLUTTER端单词记忆.txt (81.0KB)\n│   ├── folder_codefolder.txt (4.9KB)\n│   ├── his.txt (516.0B)\n│   ├── log.txt (10.8KB)\n│   ├── log2.txt (10.8KB)\n│   ├── lxrouter.txt (25.9KB)\n│   ├── mcp.json (3.0KB)\n│   ├── mcpCodexLinuxTemplate.toml (3.0KB)\n│   ├── mcpCodexUbuntoDesktopTemplate.toml (2.7KB)\n│   ├── mcpCodexWindowsTemplate.toml (2.1KB)\n│   ├── mcpCodexWSLTemplate.toml (2.1KB)\n│   ├── mcpLinuxTemplate.json (1.1KB)\n│   ├── mcpUbuntoDesktopTemplate.json (1.1KB)\n│   ├── mcpWindowsTemplate.json (1.1KB)\n│   ├── mcpWSLTemplate.json (1.1KB)\n│   ├── MCP客户端.txt (1.2KB)\n│   ├── MCP开发任务-网络发现.txt (3.0KB)\n│   ├── nust_ittool设计.txt (2.4KB)\n│   ├── php-install (795.0B)\n│   ├── phpfeedback.txt (20.0KB)\n│   ├── PromptsAURO-EN.md (909.0B)\n│   ├── QY手机APP.txt (3.6KB)\n│   ├── task.txt (371.1KB)\n│   ├── task2.txt (6.4KB)\n│   ├── TODO1.md (1016.0B)\n│   ├── TODO2.md (76.9KB)\n│   ├── TODO3.MD (155.7KB)\n│   ├── TODO4.MD (103.6KB)\n│   ├── uni.prompt (12.2KB)\n│   ├── 任务.txt (17.5KB)\n│   └── 播放语音.txt (9.8KB)\n├── _prompts/\n│   ├── laravel-main-dev/\n│   ├── mcp-dev/\n│   ├── ncore-dev/\n│   ├── nuxt-dev/\n│   ├── pycore-dev/\n│   └── task-data/\n├── api_test_results/\n│   ├── local_categories.json (53.0B)\n│   ├── local_queue.json (190.8KB)\n│   ├── local_queue_category.json (10.8KB)\n│   ├── local_queue_latest.json (1.9KB)\n│   ├── local_queue_today.json (37.0B)\n│   ├── remote_categories.json (41.0B)\n│   ├── remote_queue.json (9.7KB)\n│   ├── remote_queue_category.json (57.0B)\n│   ├── remote_queue_latest.json (1.5KB)\n│   └── remote_queue_today.json (37.0B)\n├── apps/\n│   ├── ai_translator_app/\n│   ├── core_node_init/\n│   ├── DevOps/\n│   ├── DocumentOffline/\n│   ├── flutter_icon_manager/\n│   ├── GetDocFromUrlByPuppeteer/\n│   ├── okx_price_monitor/\n│   ├── ScreenCast/\n│   ├── VideoCompression/\n│   ├── VoiceClientAndCaddy/\n│   └── WebLocalAreaNetwork/\n├── cache/\n│   └── system/\n├── config/\n│   ├── base.config.json (1.6KB)\n│   ├── index.js (3.8KB)\n│   └── nodemon.json (284.0B)\n├── development-guides/\n│   ├── AUXILIARY_SCRIPTS_GUIDE_THIS_FILE_NO_AI_EDIT.md (2.3KB)\n│   ├── COMMON_TIMER_DESIGN_SPECIFICATION.md (7.4KB)\n│   ├── DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md (20.8KB)\n│   ├── DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md (16.8KB)\n│   ├── DEBUG_OUTPUT_SOLUTION.md (4.8KB)\n│   ├── FLUTTER_GUIDE.md (37.1KB)\n│   ├── LARAVEL_GUIDE.md (18.4KB)\n│   ├── MCPSERVER_GUIDE.md (6.1KB)\n│   ├── NCORE_NUXT_INTEGRATION_GUIDE.md (5.8KB)\n│   ├── NODE_NCORE_GUIDE.md (21.3KB)\n│   ├── NUXT_MULTI_APP_ARCHITECTURE.md (19.2KB)\n│   ├── PROJECT_NAME_EXPLANATION.md (451.0B)\n│   ├── PYTHON_PYCORE.md (18.3KB)\n│   └── THEME_AND_STYLE_GUIDE.md (9.3KB)\n├── doc/\n│   ├── nginx_shell_with_laravel/\n│   ├── CODE_DUPLICATION_ANALYSIS.md (7.0KB)\n│   ├── Flutter_degin设置文档.txt (6.6KB)\n│   ├── FLUTTER_UP.md (16.9KB)\n│   ├── IMAGE_COMPARISON_SYSTEM.md (6.6KB)\n│   ├── MCP设计构架.md (13.0KB)\n│   ├── NUXT_UP_PLAN.md (493.0B)\n│   ├── PYCORE_UP.md (19.6KB)\n│   ├── RPC_V2_REFACTORING_SUMMARY.md (9.7KB)\n│   ├── SINGLETON_BUSY_STATE_EXAMPLE.md (8.0KB)\n│   └── 通用提示词.md (603.0B)\n├── docs/\n│   ├── ARCHITECTURE_ANALYSIS_2025-11-12.md (31.6KB)\n│   ├── CHROME_SYMLINK_FIX.md (5.4KB)\n│   ├── DEBUG_LOG_WINDOW_MODIFICATIONS.md (5.7KB)\n│   ├── DEPENDENCY_CHECK_COLORPRINT_FIX.md (9.9KB)\n│   ├── error.txt (54.3KB)\n│   ├── EVENT_DRIVEN_EXIT_FIX_2025-11-12.md (11.9KB)\n│   ├── PYMATRIX_DEVICE_MODEL_DISPLAY_FIX_2025-11-12.md (9.0KB)\n│   ├── PYMATRIX_FIX_SUMMARY_2025-11-11.md (13.2KB)\n│   ├── PYMATRIX_HOMEPAGE_FIX_2025-11-12.md (10.7KB)\n│   ├── PYMATRIX_UI_ELEMENTS_CHECKLIST.md (8.7KB)\n│   ├── STREAM_TO_VIDEO_STREAM_RENAME_2025-11-12.md (6.7KB)\n│   ├── task.txt (585.0B)\n│   ├── THREAD_BUS_ARCHITECTURE_2025-11-12.md (14.0KB)\n│   ├── THREAD_BUS_MANAGER_REFACTORING.md (10.7KB)\n│   └── VOICE_SUBTITLE_API_SPEC.md (10.5KB)\n├── document_exchange_area/\n│   └── NUXT_APP_SCREENCAST_WITH_NCORE_APP_SCREENCAST_GUIDE.md (17.0KB)\n├── ncore/\n│   ├── _prompts/\n│   ├── assets/\n│   ├── callmodule/\n│   ├── foundation/\n│   ├── global_vars/\n│   ├── mcp_server/\n│   ├── ncontroller/\n│   ├── utils/\n│   ├── db.js (1.8KB)\n│   ├── ncore_backend_main.py (8.1KB)\n│   ├── ncore_tree.md (38.3KB)\n│   ├── prompt.txt (68.0B)\n│   ├── RPC_CONSISTENCY_CHECK_REPORT.txt (12.5KB)\n│   ├── RPC_FRAMEWORK_UNIFICATION_PLAN.md (20.2KB)\n│   └── RPC_UNIFICATION_PHASE1_COMPLETE.txt (9.3KB)\n├── non-dev-docs/\n│   └── NON-DEV-DEPLOYMENT-GUIDE.md (4.2KB)\n├── poly_apps/\n│   ├── admin-vue-tailwind/\n│   ├── flutter_bloom/\n│   ├── it-tools/\n│   ├── it-tools-html/\n│   ├── laravel_main/\n│   ├── laravel_main(Copy)/\n│   ├── NewQtScrcpy/\n│   ├── nuxt_main/\n│   ├── nuxt_main_origin/\n│   ├── nuxt_mainCopy/\n│   ├── pyMatrix/\n│   ├── qtscrcpy_tc/\n│   ├── SmartMatrix/\n│   ├── testfkcode/\n│   ├── CROSS_APP_DATA_CONSISTENCY.md (13.6KB)\n│   ├── poly_apps_tree.md (206.6KB)\n│   └── README_ARCHITECTURE_OVERVIEW.md (9.1KB)\n├── public/\n│   ├── core_node_init/\n│   ├── DevOps/\n│   ├── QianYuWords/\n│   ├── uploads/\n│   ├── VoiceStaticServer/\n│   └── robots.txt (121.0B)\n├── pyapps/\n│   ├── d3-check/\n│   ├── flutter_dev/\n│   ├── matrix/\n│   ├── mcp/\n│   ├── okx_price_monitor/\n│   ├── pybrowserauto/\n│   ├── scrcpy_web_test/\n│   ├── screen_monitor/\n│   ├── speech_transcribe/\n│   └── voice_data_init/\n├── pycore/\n│   ├── _prompts/\n│   ├── bak/\n│   ├── callmodule/\n│   ├── database/\n│   ├── pyadb/\n│   ├── pyctl/\n│   ├── pydevice/\n│   ├── pyfoundations/\n│   ├── pygvar/\n│   ├── pyheartbeat/\n│   ├── pylauncher/\n│   ├── pythreadpool/\n│   ├── pyutils/\n│   ├── scripts/\n│   ├── __init__.py (2.3KB)\n│   ├── __main__.py (3.2KB)\n│   ├── COMPLIANCE_ANALYSIS.md (8.7KB)\n│   └── README.md (3.2KB)\n├── scripts/\n│   ├── aitools/\n│   ├── azure/\n│   ├── backup/\n│   ├── build_scripts/\n│   ├── client_sync/\n│   ├── dev/\n│   ├── easy-gpy-pv/\n│   ├── fsync/\n│   ├── gan_codex/\n│   ├── git/\n│   ├── linuxenvs/\n│   ├── migration/\n│   ├── network_tools/\n│   ├── node-upgrade/\n│   ├── project_cleanup/\n│   ├── pytools/\n│   ├── pyvoice/\n│   ├── registry_templates/\n│   ├── shells/\n│   ├── slim_c_disk/\n│   ├── tampermonkey/\n│   ├── ubuntu-bootrepair/\n│   ├── unified_manager/\n│   ├── winenvs/\n│   ├── chat_session_examples.py (6.5KB)\n│   ├── check_flutter_apps.sh (874.0B)\n│   ├── cleanup_mcp_backends.ps1 (2.0KB)\n│   ├── debug_openrouter.py (3.9KB)\n│   ├── disguise.js (6.5KB)\n│   ├── disguised.template.js (6.7KB)\n│   ├── fill_dict_stage.py (7.1KB)\n│   ├── fill_dicts.py (9.5KB)\n│   ├── final_ascii_cleanup.sh (2.7KB)\n│   ├── fix_chrome_symlink_issue.js (10.0KB)\n│   ├── fix_chrome_symlink_issue.sh (7.7KB)\n│   ├── fix_non_ascii.sh (924.0B)\n│   ├── flutter_scan_and_fix.ps1 (4.6KB)\n│   ├── flutterbloomDev.ps1 (5.1KB)\n│   ├── gancodex_tick.py (1.3KB)\n│   ├── generate_tts.py (9.6KB)\n│   ├── gitlinuxput.sh (1.5KB)\n│   ├── gitpull.sh (1.1KB)\n│   ├── gitput.bat (958.0B)\n│   ├── interactive_chat.py (2.6KB)\n│   ├── laravelDev.ps1 (3.6KB)\n│   ├── mouse_tick.py (1.2KB)\n│   ├── move_pageview_images.py (8.2KB)\n│   ├── nuxtDev.ps1 (739.0B)\n│   ├── remove_try_catch.py (3.4KB)\n│   ├── scan_network.bat (913.0B)\n│   ├── script_identifiers.json (1.7KB)\n│   ├── serviceManager.py (10.5KB)\n│   └── task.txt (543.0B)\n├── test/\n│   └── 对照表/\n├── tests/\n│   └── mcpserver/\n├── ~/\n├── API_BRIDGE_ANALYSIS.md (6.6KB)\n├── babel-plugin-transform-require-replace.js (1.6KB)\n├── babel.config.copy.js (3.4KB)\n├── babel.config.js (2.7KB)\n├── BACKEND_API_FORMAT_REQUIREMENTS.md (8.9KB)\n├── BACKEND_REPORT.md (7.6KB)\n├── CHANGES_SUMMARY.md (2.4KB)\n├── CHANGES_SUMMARY_V2.md (6.0KB)\n├── CODEX_MCP_MANAGER_IMPLEMENTATION_REPORT.txt (20.4KB)\n├── CommonConfigModel (0.0B)\n├── COMPLETE_API_ALIGNMENT_REPORT.md (12.4KB)\n├── COMPLETE_TEST_GUIDE.py (11.6KB)\n├── corrupted_videos_report.json (497.0B)\n├── DATA_ALIGNMENT_ISSUE.md (6.0KB)\n├── dd.cmd (2.8KB)\n├── dd.cmd.error.txt (42.6KB)\n├── dd.sh (21.0KB)\n├── DEVELOPMENT_COMPLETE_SUMMARY.md (10.7KB)\n├── DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md (4.7KB)\n├── Dprogramingcore_noderemote_api_test_categories.json (69.0B)\n├── Dprogramingcore_noderemote_api_test_queue.json (6.5KB)\n├── Dprogramingcore_nodetest_all_endpoints.sh (1.6KB)\n├── EXPRESS_UTILS_TO_RPC_MIGRATION_REPORT.txt (13.6KB)\n├── features_analysis.txt (1.1KB)\n├── FINAL_ARCHITECTURE_SUMMARY.md (17.7KB)\n├── frontend_only_features.txt (700.0B)\n├── GLOBAL_VARIABLE_FIX_SUMMARY.md (5.2KB)\n├── LICENSE (579.0B)\n├── LOCAL_REMOTE_ALIGNMENT_ANALYSIS.md (9.9KB)\n├── main.js (8.0KB)\n├── ncore_module_caller.js (1.9KB)\n├── output.txt (0.0B)\n├── package.json (10.6KB)\n├── PATH_FIX_SUMMARY.md (5.0KB)\n├── PHASE0_COMPLETION_SUMMARY.txt (8.2KB)\n├── pnpm-lock.yaml (661.5KB)\n├── PNPM_MIGRATION_GUIDE.md (3.2KB)\n├── PNPM_SCRIPTS_MIGRATION_SUMMARY.md (4.1KB)\n├── pycore_module_caller.py (3.7KB)\n├── pymain.py (3.3KB)\n├── PYMATRIX_API_IMPLEMENTATION.md (18.7KB)\n├── PYMATRIX_INTEGRATION_COMPLETE.md (18.7KB)\n├── PYMATRIX_INTEGRATION_STATUS.md (14.0KB)\n├── PYMATRIX_INTEGRATION_VERIFIED.md (5.8KB)\n├── QUICK_TEST_GUIDE.py (1.4KB)\n├── README.md (2.3KB)\n├── run_callmodule_service.py (2.6KB)\n├── SpeechConfigModel (0.0B)\n├── START_PYMATRIX.md (5.0KB)\n├── temp.ts (30.0B)\n├── webpack.config.js (2.7KB)\n└── wget-log (35.4KB)\n```\n\n---\n*Generated by MCP Unified Server - Codebase Module*",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "target_path": "/www/programing/core_node",
+        "max_depth": 2
+      },
+      "timestamp": "2025-12-02T06:02:53.083942"
+    },
+    {
+      "tool_name": "codebase_find_files_by_pattern_tool",
+      "success": true,
+      "response_time": 0.9018471240997314,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "query": "*.py",
+        "search_path": "/www/programing/core_node",
+        "exact_match": false,
+        "case_sensitive": false,
+        "results_count": 0,
+        "truncated": false,
+        "max_results_limit": 10,
+        "results": [],
+        "timestamp": "2025-12-02T06:02:55.728454",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "filename_pattern": "*.py",
+        "search_path": "/www/programing/core_node",
+        "max_results": 10
+      },
+      "timestamp": "2025-12-02T06:02:53.987790"
+    },
+    {
+      "tool_name": "codebase_search_content_tool",
+      "success": true,
+      "response_time": 0.0039632320404052734,
+      "error_message": "Content search failed: first argument must be string or compiled pattern",
+      "response_data": {
+        "error": "Content search failed: first argument must be string or compiled pattern",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "root_path": "/www/programing/core_node",
+        "pattern": "def test",
+        "max_results": 10
+      },
+      "timestamp": "2025-12-02T06:02:53.993687"
+    },
+    {
+      "tool_name": "codebase_get_file_content_tool",
+      "success": true,
+      "response_time": 0.0039980411529541016,
+      "error_message": "File not found: /www/programing/core_node/test_mcp_tools.py",
+      "response_data": {
+        "error": "File not found: /www/programing/core_node/test_mcp_tools.py",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "file_path": "/www/programing/core_node/test_mcp_tools.py"
+      },
+      "timestamp": "2025-12-02T06:02:53.998687"
+    },
+    {
+      "tool_name": "codebase_analyze_statistics_tool",
+      "success": true,
+      "response_time": 3.085085868835449,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "path": "/www/programing/core_node",
+        "statistics": {
+          "total_files": 16873,
+          "total_size_bytes": 798888018,
+          "total_directories": 9589,
+          "file_types": {
+            ".py": {
+              "count": 1782,
+              "size_bytes": 16156610
+            },
+            ".json": {
+              "count": 506,
+              "size_bytes": 15452839
+            },
+            ".md": {
+              "count": 1204,
+              "size_bytes": 17052227
+            },
+            ".ts": {
+              "count": 726,
+              "size_bytes": 2887304
+            },
+            ".ico": {
+              "count": 16,
+              "size_bytes": 708769
+            },
+            ".png": {
+              "count": 1172,
+              "size_bytes": 185525353
+            },
+            ".ps1": {
+              "count": 236,
+              "size_bytes": 3187192
+            },
+            ".txt": {
+              "count": 378,
+              "size_bytes": 14748156
+            },
+            ".bat": {
+              "count": 81,
+              "size_bytes": 130879
+            },
+            ".sh": {
+              "count": 404,
+              "size_bytes": 3498073
+            },
+            ".js": {
+              "count": 1327,
+              "size_bytes": 84154061
+            },
+            ".html": {
+              "count": 223,
+              "size_bytes": 20419864
+            },
+            ".css": {
+              "count": 212,
+              "size_bytes": 2619430
+            },
+            ".deprecated": {
+              "count": 1,
+              "size_bytes": 12305
+            },
+            "no_extension": {
+              "count": 1123,
+              "size_bytes": 99732618
+            },
+            ".toml": {
+              "count": 8,
+              "size_bytes": 15183
+            },
+            ".vue": {
+              "count": 1820,
+              "size_bytes": 30480697
+            },
+            ".rs": {
+              "count": 58,
+              "size_bytes": 272439
+            },
+            ".mp3": {
+              "count": 7,
+              "size_bytes": 346732
+            },
+            ".mjs": {
+              "count": 8,
+              "size_bytes": 10642
+            },
+            ".yaml": {
+              "count": 17,
+              "size_bytes": 1190100
+            },
+            ".icns": {
+              "count": 5,
+              "size_bytes": 2449828
+            },
+            ".ini": {
+              "count": 22,
+              "size_bytes": 27238
+            },
+            ".cmd": {
+              "count": 3,
+              "size_bytes": 7226
+            },
+            ".reg": {
+              "count": 8,
+              "size_bytes": 4127
+            },
+            ".xml": {
+              "count": 23,
+              "size_bytes": 117404
+            },
+            ".psm1": {
+              "count": 1,
+              "size_bytes": 12423
+            },
+            ".cjs": {
+              "count": 1,
+              "size_bytes": 2355
+            },
+            ".bookworm": {
+              "count": 1,
+              "size_bytes": 2288
+            },
+            ".alpine": {
+              "count": 1,
+              "size_bytes": 906
+            },
+            ".puppteer": {
+              "count": 1,
+              "size_bytes": 2756
+            },
+            ".yml": {
+              "count": 15,
+              "size_bytes": 136062
+            },
+            ".nvmrc from binary": {
+              "count": 2,
+              "size_bytes": 1156
+            },
+            ".tab": {
+              "count": 3,
+              "size_bytes": 279636
+            },
+            ".2": {
+              "count": 2,
+              "size_bytes": 1265
+            },
+            ".sh should make the nvm command available": {
+              "count": 1,
+              "size_bytes": 41
+            },
+            ".js version": {
+              "count": 2,
+              "size_bytes": 1565
+            },
+            ".sh should not modify parameters of caller": {
+              "count": 1,
+              "size_bytes": 62
+            },
+            ".x should only list a matched version": {
+              "count": 1,
+              "size_bytes": 188
+            },
+            ".nvm'": {
+              "count": 1,
+              "size_bytes": 192
+            },
+            ".x versions": {
+              "count": 1,
+              "size_bytes": 861
+            },
+            ".sh with no default should return 0": {
+              "count": 1,
+              "size_bytes": 314
+            },
+            ".sh with --install should install the default": {
+              "count": 1,
+              "size_bytes": 1023
+            },
+            ".sh with --no-use should not use anything": {
+              "count": 1,
+              "size_bytes": 986
+            },
+            ".sh should use the default if available and no nvm node is loaded": {
+              "count": 1,
+              "size_bytes": 1154
+            },
+            ".sh should keep version if one is active": {
+              "count": 1,
+              "size_bytes": 592
+            },
+            ".nvmrc should install it": {
+              "count": 1,
+              "size_bytes": 850
+            },
+            ".sh global alias bug": {
+              "count": 1,
+              "size_bytes": 863
+            },
+            ".21-pre": {
+              "count": 1,
+              "size_bytes": 324
+            },
+            ".nvmrc from source": {
+              "count": 2,
+              "size_bytes": 1140
+            },
+            ".6": {
+              "count": 1,
+              "size_bytes": 733
+            },
+            ".nvmrc version": {
+              "count": 2,
+              "size_bytes": 1423
+            },
+            ".x is not installed": {
+              "count": 1,
+              "size_bytes": 590
+            },
+            ".x' should work": {
+              "count": 2,
+              "size_bytes": 680
+            },
+            ".0 iojs version": {
+              "count": 1,
+              "size_bytes": 560
+            },
+            ".baota": {
+              "count": 1,
+              "size_bytes": 304
+            },
+            ".ubuntu": {
+              "count": 1,
+              "size_bytes": 2285
+            },
+            ".debian": {
+              "count": 1,
+              "size_bytes": 1779
+            },
+            ".mts": {
+              "count": 1,
+              "size_bytes": 135
+            },
+            ".php": {
+              "count": 1030,
+              "size_bytes": 7224621
+            },
+            ".conf": {
+              "count": 5,
+              "size_bytes": 5680
+            },
+            ".mdc": {
+              "count": 2,
+              "size_bytes": 1539
+            },
+            ".db-shm": {
+              "count": 2,
+              "size_bytes": 65536
+            },
+            ".db-wal": {
+              "count": 2,
+              "size_bytes": 148384
+            },
+            ".prompt": {
+              "count": 3,
+              "size_bytes": 33021
+            },
+            ".svg": {
+              "count": 858,
+              "size_bytes": 3821026
+            },
+            ".jpeg": {
+              "count": 146,
+              "size_bytes": 6060910
+            },
+            ".jpg": {
+              "count": 281,
+              "size_bytes": 55688488
+            },
+            ".pro": {
+              "count": 21,
+              "size_bytes": 31640
+            },
+            ".h": {
+              "count": 684,
+              "size_bytes": 3845781
+            },
+            ".cpp": {
+              "count": 179,
+              "size_bytes": 1223770
+            },
+            ".qt5_backup": {
+              "count": 18,
+              "size_bytes": 23225
+            },
+            ".ui": {
+              "count": 31,
+              "size_bytes": 173476
+            },
+            ".qmlproject": {
+              "count": 1,
+              "size_bytes": 431
+            },
+            ".qml": {
+              "count": 2,
+              "size_bytes": 319
+            },
+            ".pri": {
+              "count": 42,
+              "size_bytes": 7214
+            },
+            ".mm": {
+              "count": 6,
+              "size_bytes": 29742
+            },
+            ".ttf": {
+              "count": 10,
+              "size_bytes": 1339996
+            },
+            ".pdf": {
+              "count": 5,
+              "size_bytes": 5358157
+            },
+            ".rc": {
+              "count": 7,
+              "size_bytes": 8775
+            },
+            ".plist": {
+              "count": 8,
+              "size_bytes": 7754
+            },
+            ".qm": {
+              "count": 11,
+              "size_bytes": 51541
+            },
+            ".qrc": {
+              "count": 4,
+              "size_bytes": 5277
+            },
+            ".java": {
+              "count": 239,
+              "size_bytes": 1111691
+            },
+            ".aidl": {
+              "count": 6,
+              "size_bytes": 6718
+            },
+            ".lib": {
+              "count": 34,
+              "size_bytes": 3594880
+            },
+            ".a": {
+              "count": 16,
+              "size_bytes": 50873168
+            },
+            ".docx": {
+              "count": 2,
+              "size_bytes": 1165518
+            },
+            ".cc": {
+              "count": 4,
+              "size_bytes": 5790
+            },
+            ".cmake": {
+              "count": 2,
+              "size_bytes": 1676
+            },
+            ".properties": {
+              "count": 9,
+              "size_bytes": 3483
+            },
+            ".gradle": {
+              "count": 11,
+              "size_bytes": 8919
+            },
+            ".strings": {
+              "count": 2,
+              "size_bytes": 1623
+            },
+            ".storyboard": {
+              "count": 2,
+              "size_bytes": 5092
+            },
+            ".xcscheme": {
+              "count": 2,
+              "size_bytes": 7290
+            },
+            ".pbxproj": {
+              "count": 2,
+              "size_bytes": 56416
+            },
+            ".xcsettings": {
+              "count": 2,
+              "size_bytes": 452
+            },
+            ".xcworkspacedata": {
+              "count": 3,
+              "size_bytes": 511
+            },
+            ".xcconfig": {
+              "count": 8,
+              "size_bytes": 1824
+            },
+            ".otf": {
+              "count": 1,
+              "size_bytes": 8297476
+            },
+            ".webp": {
+              "count": 20,
+              "size_bytes": 1104124
+            },
+            ".gif": {
+              "count": 4,
+              "size_bytes": 12750967
+            },
+            ".woff": {
+              "count": 2,
+              "size_bytes": 3720
+            },
+            ".eot": {
+              "count": 2,
+              "size_bytes": 5840
+            },
+            ".woff2": {
+              "count": 7,
+              "size_bytes": 391024
+            },
+            ".psd": {
+              "count": 1,
+              "size_bytes": 168279
+            },
+            ".entitlements": {
+              "count": 2,
+              "size_bytes": 588
+            },
+            ".xib": {
+              "count": 1,
+              "size_bytes": 23729
+            },
+            ".scss": {
+              "count": 3,
+              "size_bytes": 817
+            },
+            ".dart": {
+              "count": 1278,
+              "size_bytes": 10175898
+            },
+            ".backup3": {
+              "count": 1,
+              "size_bytes": 14563
+            },
+            ".manifest": {
+              "count": 4,
+              "size_bytes": 2537
+            },
+            ".example": {
+              "count": 2,
+              "size_bytes": 1092
+            },
+            ".htm": {
+              "count": 192,
+              "size_bytes": 9923410
+            },
+            ".nginx": {
+              "count": 9,
+              "size_bytes": 27897
+            },
+            ".webmanifest": {
+              "count": 2,
+              "size_bytes": 992
+            },
+            ".20251126085459": {
+              "count": 1,
+              "size_bytes": 17
+            },
+            ".sqlitemate": {
+              "count": 2,
+              "size_bytes": 51007488
+            },
+            ".obsolete": {
+              "count": 1,
+              "size_bytes": 27932
+            },
+            ".in": {
+              "count": 2,
+              "size_bytes": 2594
+            },
+            ".qzadfd": {
+              "count": 1,
+              "size_bytes": 409
+            },
+            ".todo": {
+              "count": 2,
+              "size_bytes": 5792
+            },
+            ".t": {
+              "count": 2,
+              "size_bytes": 439
+            },
+            ".tsx": {
+              "count": 1,
+              "size_bytes": 2820
+            },
+            ".tx": {
+              "count": 1,
+              "size_bytes": 3375
+            },
+            ".cs": {
+              "count": 8,
+              "size_bytes": 42702
+            },
+            ".csproj": {
+              "count": 2,
+              "size_bytes": 2488
+            },
+            ".targets": {
+              "count": 2,
+              "size_bytes": 292
+            },
+            ".props": {
+              "count": 2,
+              "size_bytes": 2568
+            },
+            ".user": {
+              "count": 1,
+              "size_bytes": 158
+            },
+            ".c": {
+              "count": 152,
+              "size_bytes": 1238214
+            },
+            ".1": {
+              "count": 2,
+              "size_bytes": 46784
+            },
+            ".build": {
+              "count": 6,
+              "size_bytes": 19272
+            },
+            ".mp4": {
+              "count": 12,
+              "size_bytes": 19541661
+            },
+            ".pt": {
+              "count": 3,
+              "size_bytes": 15080688
+            },
+            ".ahk": {
+              "count": 1,
+              "size_bytes": 137407
+            },
+            ".db-journal": {
+              "count": 5,
+              "size_bytes": 0
+            },
+            ".pma": {
+              "count": 6,
+              "size_bytes": 25165824
+            }
+          },
+          "language_distribution": {
+            "Python": {
+              "count": 1782,
+              "size_bytes": 16156610
+            },
+            "JSON": {
+              "count": 506,
+              "size_bytes": 15452839
+            },
+            "Markdown": {
+              "count": 1204,
+              "size_bytes": 17052227
+            },
+            "TypeScript": {
+              "count": 726,
+              "size_bytes": 2887304
+            },
+            "Batch": {
+              "count": 81,
+              "size_bytes": 130879
+            },
+            "Shell": {
+              "count": 404,
+              "size_bytes": 3498073
+            },
+            "JavaScript": {
+              "count": 1327,
+              "size_bytes": 84154061
+            },
+            "HTML": {
+              "count": 223,
+              "size_bytes": 20419864
+            },
+            "CSS": {
+              "count": 212,
+              "size_bytes": 2619430
+            },
+            "Vue": {
+              "count": 1820,
+              "size_bytes": 30480697
+            },
+            "Rust": {
+              "count": 58,
+              "size_bytes": 272439
+            },
+            "YAML": {
+              "count": 32,
+              "size_bytes": 1326162
+            },
+            "XML": {
+              "count": 23,
+              "size_bytes": 117404
+            },
+            "PHP": {
+              "count": 1030,
+              "size_bytes": 7224621
+            },
+            "C/C++ Header": {
+              "count": 684,
+              "size_bytes": 3845781
+            },
+            "C++": {
+              "count": 179,
+              "size_bytes": 1223770
+            },
+            "Java": {
+              "count": 239,
+              "size_bytes": 1111691
+            },
+            "SCSS": {
+              "count": 3,
+              "size_bytes": 817
+            },
+            "Dart": {
+              "count": 1278,
+              "size_bytes": 10175898
+            },
+            "React TSX": {
+              "count": 1,
+              "size_bytes": 2820
+            },
+            "C": {
+              "count": 152,
+              "size_bytes": 1238214
+            }
+          },
+          "total_size_mb": 761.88,
+          "total_size_gb": 0.744
+        },
+        "timestamp": "2025-12-02T06:02:58.824823",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "target_path": "/www/programing/core_node"
+      },
+      "timestamp": "2025-12-02T06:02:57.085777"
+    },
+    {
+      "tool_name": "codebase_describe_directory_tool",
+      "success": true,
+      "response_time": 0.008030414581298828,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "summary": {
+          "path": "/www/programing/core_node",
+          "name": "core_node",
+          "total_items": 101,
+          "directories": 36,
+          "files": 65,
+          "total_size_bytes": 1081749,
+          "total_size_mb": 1.03,
+          "file_type_distribution": {
+            ".py": 5,
+            "no_extension": 15,
+            ".md": 21,
+            ".ts": 1,
+            ".json": 4,
+            ".txt": 7,
+            ".yaml": 1,
+            ".js": 6,
+            ".develop": 1,
+            ".cmd": 1,
+            ".sh": 2,
+            ".yml": 1
+          }
+        },
+        "timestamp": "2025-12-02T06:02:58.836182",
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "directory_path": "/www/programing/core_node"
+      },
+      "timestamp": "2025-12-02T06:02:57.096883"
+    },
+    {
+      "tool_name": "codebase_scan_framework_apps_tool",
+      "success": true,
+      "response_time": 0.005986452102661133,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "scan_path": "/www/programing/core_node",
+        "detected_frameworks": {
+          "flutter": [],
+          "vue": [],
+          "react": [],
+          "laravel": [],
+          "django": [],
+          "fastapi": []
+        },
+        "total_applications": 0,
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {
+        "scan_path": "/www/programing/core_node"
+      },
+      "timestamp": "2025-12-02T06:02:57.103857"
+    },
+    {
+      "tool_name": "codebase_health_check_tool",
+      "success": true,
+      "response_time": 0.004057884216308594,
+      "error_message": null,
+      "response_data": {
+        "success": true,
+        "subsystem": "codebase",
+        "project_root": "/www/programing/core_node",
+        "global_access_enabled": false,
+        "utilities": {
+          "tree_generator": "active",
+          "file_searcher": "active",
+          "content_analyzer": "active"
+        },
+        "backend_id": "3774f3bc",
+        "_http_status": 200
+      },
+      "test_params": {},
+      "timestamp": "2025-12-02T06:02:57.110864"
+    }
+  ],
+  "summary_by_category": {
+    "文件处理": {
+      "total": 6,
+      "successful": 5,
+      "failed": 1,
+      "avg_response_time": "0.161s"
+    },
+    "数据库": {
+      "total": 7,
+      "successful": 3,
+      "failed": 4,
+      "avg_response_time": "0.004s"
+    },
+    "代码库": {
+      "total": 6,
+      "successful": 6,
+      "failed": 0,
+      "avg_response_time": "0.532s"
+    }
+  }
+}
