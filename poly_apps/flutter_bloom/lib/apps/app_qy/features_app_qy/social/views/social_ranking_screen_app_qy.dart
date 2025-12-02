@@ -442,7 +442,7 @@ class _SocialRankingScreenRefactoredAppQyState
             children: [
               Row(
                 children: [
-                  Icon(Icons.star, size: 16, color: Colors.amber),
+                  Icon(Icons.star, size: 16, color: ColorsAppQy.qyWarning),
                   SizedBox(width: ThemeDimensions.spacingXSmall),
                   Text(
                     user['points'].toString(),

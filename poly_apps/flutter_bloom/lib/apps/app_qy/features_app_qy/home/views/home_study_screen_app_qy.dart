@@ -236,7 +236,7 @@ class _HomeStudyScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostLight,
               width: 1.5,
             ),
             boxShadow: [
@@ -319,7 +319,7 @@ class _HomeStudyScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: ColorsAppQy.qyFrostLight,
               width: 1.5,
             ),
             boxShadow: [
