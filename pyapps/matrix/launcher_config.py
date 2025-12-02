@@ -80,6 +80,7 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
             'webview_url': f"http://localhost:{frontend_port}",
             'show_on_start': True,
             'frameless': False,
+            'icon_path': str(icon_path) if icon_path else None,
             'enable_tray': False,  # Use separate tray service instead
             'enable_webview': True,
             'enable_dev_tools': False,
