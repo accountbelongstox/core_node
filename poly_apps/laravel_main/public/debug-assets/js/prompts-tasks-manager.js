@@ -324,7 +324,7 @@ const PromptsTasksManager = {
             }
 
             // Ensure content is a string
-            const content = (typeof data.content !== 'undefined' && data.content !== null) ? String(data.content) : '';
+            const content = String(data.content || '');
             this.createFloatingWindow(path, name, content, data.modified);
         } catch (error) {
             console.error('Failed to open prompt:', error);
@@ -334,7 +334,7 @@ const PromptsTasksManager = {
 
     createFloatingWindow(path, name, content, modified) {
         // Ensure content is always a string
-        content = (typeof content !== 'undefined' && content !== null) ? String(content) : '';
+        content = String(content || '');
 
         const windowId = `prompt-window-${Date.now()}`;
         const windowElement = document.createElement('div');
