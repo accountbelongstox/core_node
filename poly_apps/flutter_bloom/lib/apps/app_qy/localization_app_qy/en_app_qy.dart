@@ -95,6 +95,8 @@ class EnAppQy {
     QyAppLocalizationKeys.qyPlayAudio: 'Play Audio',
     QyAppLocalizationKeys.qyWrongAnswer: 'Wrong Answer',
     QyAppLocalizationKeys.qyCorrectWord: 'Correct Word',
+    QyAppLocalizationKeys.qyAiExplain: 'AI Explain',
+    QyAppLocalizationKeys.qyAskQuestion: 'Ask a question...',
 
     // Authentication
     QyAppLocalizationKeys.qySignIn: 'Sign In',

@@ -474,7 +474,7 @@ class _SettingsScreenV2RefactoredAppQyState
     required VoidCallback onTap,
   }) {
     return Material(
-      color: Colors.transparent,
+      color: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
@@ -549,7 +549,7 @@ class _SettingsScreenV2RefactoredAppQyState
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -762,7 +762,7 @@ class _SettingsScreenV2RefactoredAppQyState
     return Padding(
       padding: const EdgeInsets.only(bottom: ThemeDimensions.spacing12),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
