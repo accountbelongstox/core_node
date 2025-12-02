@@ -117,14 +117,20 @@ class CodeSyncServer:
         '.tmp',
     }
 
-    def __init__(self, root_dir: str = r"D:\programing\core_node", scan_interval: int = 5):
+    def __init__(self, root_dir: str = None, scan_interval: int = 5):
         """
         Initialize code sync server
 
         Args:
-            root_dir: Root directory to sync
+            root_dir: Root directory to sync (auto-detects if None)
             scan_interval: Minimum interval between scans (seconds)
         """
+        # Auto-detect root directory from current file location
+        if root_dir is None:
+            # This file is at: pycore/pyutils/device_sync/code_sync_server.py
+            # core_node root is 4 levels up
+            root_dir = str(Path(__file__).resolve().parent.parent.parent.parent)
+
         self.root_dir = Path(root_dir)
         self.scan_interval = scan_interval
 
@@ -212,9 +218,10 @@ class CodeSyncServer:
         with self.file_cache_lock:
             current_cache = self.file_cache.copy()
 
+        # Use middle layer to build file info from cache (avoid re-hashing)
         for rel_path, (mtime, file_hash) in current_cache.items():
             file_path = self.root_dir / rel_path
-            file_info = self._get_file_info(file_path)
+            file_info = self._build_file_info_from_cache(file_path, rel_path, mtime, file_hash)
             if file_info:
                 files.append(file_info)
                 file_states[rel_path] = (mtime, file_hash)
@@ -267,12 +274,12 @@ class CodeSyncServer:
         with self.file_cache_lock:
             current_cache = self.file_cache.copy()
 
-        # Check for new or modified files
+        # Check for new or modified files (use middle layer to avoid re-hashing)
         for rel_path, (current_mtime, current_hash) in current_cache.items():
             if rel_path not in client_synced_states:
                 # New file for this client
                 file_path = self.root_dir / rel_path
-                file_info = self._get_file_info(file_path)
+                file_info = self._build_file_info_from_cache(file_path, rel_path, current_mtime, current_hash)
                 if file_info:
                     changed.append(file_info)
                     new_states[rel_path] = (current_mtime, current_hash)
@@ -282,7 +289,7 @@ class CodeSyncServer:
                 if current_hash != synced_hash or current_mtime > synced_mtime:
                     # File modified
                     file_path = self.root_dir / rel_path
-                    file_info = self._get_file_info(file_path)
+                    file_info = self._build_file_info_from_cache(file_path, rel_path, current_mtime, current_hash)
                     if file_info:
                         changed.append(file_info)
                         new_states[rel_path] = (current_mtime, current_hash)
@@ -378,9 +385,35 @@ class CodeSyncServer:
 
         return files
 
+    def _build_file_info_from_cache(self, file_path: Path, rel_path: str, mtime: float, file_hash: str) -> Optional[Dict]:
+        """
+        Build file info from cache data (middle layer - avoids re-hashing)
+
+        Args:
+            file_path: Absolute file path
+            rel_path: Relative file path
+            mtime: Modification time from cache
+            file_hash: Hash from cache
+
+        Returns:
+            File info dict or None
+        """
+        try:
+            stat = file_path.stat()
+
+            return {
+                'relative_path': rel_path,
+                'size': stat.st_size,
+                'mtime': mtime,  # Use cached mtime
+                'hash': file_hash  # Use cached hash (avoid re-calculation)
+            }
+        except Exception as e:
+            ColorPrint.red(f"[CodeSync Server] Error building file info: {e}")
+            return None
+
     def _get_file_info(self, file_path: Path) -> Optional[Dict]:
         """
-        Get file information
+        Get file information (calculates hash - use for scanning only)
 
         Args:
             file_path: Absolute file path

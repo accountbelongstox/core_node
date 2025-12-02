@@ -18,7 +18,55 @@
 . "$PSScriptRoot\CommonFunc.ps1"
 
 # =============================================================================
+# Common Package Manager Execution Function
+# =============================================================================
+<#
+.SYNOPSIS
+    Executes package manager commands in isolated process with real-time output
+
+.DESCRIPTION
+    Prevents environment pollution from npm/pnpm/yarn .cmd files by using Start-Process.
+    Provides real-time output capture and proper exit code handling.
+
+.PARAMETER ExecutablePath
+    Absolute path to the package manager executable (npm.cmd, pnpm.cmd, etc.)
+
+.PARAMETER Arguments
+    Arguments to pass to the package manager
+
+.PARAMETER WorkingDirectory
+    Optional working directory for the process
+
+.RETURNS
+    Exit code of the process (0 = success)
+#>
+function Invoke-PackageManagerCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Arguments,
+
+        [Parameter(Mandatory = $false)]
+        [string]$WorkingDirectory = $PWD
+    )
+
+    Write-DebugLog -Message "Executing: $ExecutablePath $Arguments" -Category "PKG-MGR" -Color "Cyan"
+
+    # Use & operator to run the command directly, output to host
+    try {
+        $argArray = $Arguments -split '\s+'
+        & $ExecutablePath @argArray | Out-Host
+    }
+    catch {
+        Write-DebugLog -Message "Execution error: $($_.Exception.Message)" -Category "PKG-MGR" -Color "Red"
+    }
+}
+
+# =============================================================================
 # NPM Package Manager Functions
+# =============================================================================
 # =============================================================================
 
 # =============================================================================
@@ -94,21 +142,22 @@ function Invoke-NpmCommand {
 
     Write-DebugLog -Message "Processing package: $PackageName" -Category "NPM" -Color "Cyan"
 
-    # CRITICAL: Repair Node environment before any npm operations
-    # This ensures:
-    # 1. We have valid absolute paths to node.exe and npm.cmd
-    # 2. PATH environment variables are properly configured
-    # 3. Works correctly even on first-time installation (environment vars not yet effective)
-    $envRepair = Repair-NodeEnvironment
+    # Use absolute paths from GlobalVars instead of Repair-NodeEnvironment
+    $npmExe = $Global:NPM_EXE_PATH
+    $nodeExe = $Global:NODE_EXE_PATH
 
-    if (-not $envRepair.NpmExe) {
-        Write-DebugLog -Message "CRITICAL: Node environment repair failed - cannot proceed with npm operations" -Category "NPM" -Color "Red"
+    # Validate npm and node paths exist
+    if (-not $npmExe -or -not (Test-Path $npmExe)) {
+        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "NPM" -Color "Red"
+        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "NPM" -Color "Yellow"
         return $null
     }
 
-    # Use absolute paths from repair (handles first-time installation)
-    $npmExe = $envRepair.NpmExe
-    $nodeExe = $envRepair.NodeExe
+    if (-not $nodeExe -or -not (Test-Path $nodeExe)) {
+        Write-DebugLog -Message "CRITICAL: node not found at: $nodeExe" -Category "NPM" -Color "Red"
+        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "NPM" -Color "Yellow"
+        return $null
+    }
 
     Write-DebugLog -Message "Using npm absolute path: $npmExe" -Category "NPM" -Color "Green"
     Write-DebugLog -Message "Using Node.js absolute path: $nodeExe" -Category "NPM" -Color "Green"
@@ -200,59 +249,49 @@ function Invoke-NpmCommand {
     if ($OnlyCheckFlag) {
         return $executable
     }
-    
+
     # Install package
     Write-DebugLog -Message "Installing package: $PackageName" -Category "NPM" -Color "Yellow"
     try {
-        $installArgs = @("install", "-g", $PackageName)
-        $Command = "$npmExe $installArgs"
-        Write-DebugLog -Message "Command: $Command" -Category "NPM" -Color "Magenta"
-        
-        # Capture npm output but don't return it
-        $npmOutput = & $npmExe $installArgs
-        Write-DebugLog -Message "npm installation output: $($npmOutput -join ' ')" -Category "NPM" -Color "Cyan"
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "Installation successful" -Category "NPM" -Color "Green"
-            
-            # Refresh search paths after installation
-            Write-DebugLog -Message "Refreshing search paths..." -Category "NPM" -Color "Magenta"
-            $searchPaths = @()
-            try {
-                # Add node root directory
-                $searchPaths += $npmPrefix
-                Write-DebugLog -Message "Added refresh node root path: $npmPrefix" -Category "NPM" -Color "Magenta"
-                
-                $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
-            }
-            catch {
-                Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "NPM" -Color "Red"
-                Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "NPM" -Color "Red"
-                throw
-            }
-            
-            # Find the installed executable - search in all npm paths at once
-            Write-DebugLog -Message "Searching for executable after installation..." -Category "NPM" -Color "Magenta"
-            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "NPM" -Color "Magenta"
-            Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "NPM" -Color "Magenta"
-            
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "NPM" -Color "Yellow"
-            
-            if ($executable) {
-                Write-DebugLog -Message "Found executable: $executable" -Category "NPM" -Color "Green"
-                return $executable
-            }
-            else {
-                Write-DebugLog -Message "Installation completed but executable not found" -Category "NPM" -Color "Yellow"
-                return $null
-            }
+        $installArgs = "install -g $PackageName"
+        Write-DebugLog -Message "Command: $npmExe $installArgs" -Category "NPM" -Color "Magenta"
+
+        # Run installation directly
+        Invoke-PackageManagerCommand -ExecutablePath $npmExe -Arguments $installArgs
+
+        # Refresh search paths after installation
+        Write-DebugLog -Message "Refreshing search paths..." -Category "NPM" -Color "Magenta"
+        $searchPaths = @()
+        try {
+            # Add node root directory
+            $searchPaths += $npmPrefix
+            Write-DebugLog -Message "Added refresh node root path: $npmPrefix" -Category "NPM" -Color "Magenta"
+
+            $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
+            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
+            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
+            $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
+        }
+        catch {
+            Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "NPM" -Color "Red"
+            Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "NPM" -Color "Red"
+            throw
+        }
+
+        # Find the installed executable - search in all npm paths at once
+        Write-DebugLog -Message "Searching for executable after installation..." -Category "NPM" -Color "Magenta"
+        Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "NPM" -Color "Magenta"
+        Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "NPM" -Color "Magenta"
+
+        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+        Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "NPM" -Color "Yellow"
+
+        if ($executable) {
+            Write-DebugLog -Message "Found executable: $executable" -Category "NPM" -Color "Green"
+            return $executable
         }
         else {
-            Write-DebugLog -Message "Installation failed with exit code: $LASTEXITCODE" -Category "NPM" -Color "Red"
+            Write-DebugLog -Message "Installation completed but executable not found" -Category "NPM" -Color "Yellow"
             return $null
         }
     }
@@ -330,32 +369,63 @@ function Invoke-PnpmCommand {
 
     Write-DebugLog -Message "Processing package via PNPM: $PackageName" -Category "PNPM" -Color "Cyan"
 
-    # CRITICAL: Repair Node environment before any pnpm operations
-    # This ensures pnpm is installed and PATH is configured
-    $envRepair = Repair-NodeEnvironment
+    # Use absolute paths from GlobalVars instead of Repair-NodeEnvironment
+    $pnpmExe = $Global:PNPM_EXE_PATH
+    $npmExe = $Global:NPM_EXE_PATH
 
-    if (-not $envRepair.NpmExe) {
-        Write-DebugLog -Message "CRITICAL: Node environment repair failed - cannot proceed" -Category "PNPM" -Color "Red"
+    # Validate npm and pnpm paths exist
+    if (-not $npmExe -or -not (Test-Path $npmExe)) {
+        Write-DebugLog -Message "CRITICAL: npm not found at: $npmExe" -Category "PNPM" -Color "Red"
+        Write-DebugLog -Message "Please run Step4_InstallNodeJS.ps1 first" -Category "PNPM" -Color "Yellow"
         return $null
     }
 
-    # Use pnpm from repair (will be installed if not present)
-    $pnpmExe = $envRepair.PnpmExe
-
+    # If pnpm doesn't exist, install it using npm
     if (-not $pnpmExe -or -not (Test-Path $pnpmExe)) {
-        Write-DebugLog -Message "pnpm not available after repair - fallback to npm" -Category "PNPM" -Color "Yellow"
-        return Invoke-NpmFallback -PackageName $PackageName -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -OnlyCheckFlag $OnlyCheckFlag -ForceInstall $ForceInstall
+        Write-DebugLog -Message "pnpm not found, installing via npm..." -Category "PNPM" -Color "Yellow"
+        Invoke-PackageManagerCommand -ExecutablePath $npmExe -Arguments "install -g pnpm"
+
+        Start-Sleep -Milliseconds 500
+
+        # Re-check pnpm path
+        if (Test-Path $Global:PNPM_EXE_PATH) {
+            $pnpmExe = $Global:PNPM_EXE_PATH
+            Write-DebugLog -Message "pnpm installed successfully at: $pnpmExe" -Category "PNPM" -Color "Green"
+
+            # Run pnpm setup
+            & $pnpmExe setup
+            Write-DebugLog -Message "pnpm setup completed" -Category "PNPM" -Color "Green"
+        } else {
+            Write-DebugLog -Message "CRITICAL: pnpm installation failed" -Category "PNPM" -Color "Red"
+            return $null
+        }
     }
 
     Write-DebugLog -Message "Using pnpm absolute path: $pnpmExe" -Category "PNPM" -Color "Green"
+    Write-DebugLog -Message "Using npm absolute path: $npmExe" -Category "PNPM" -Color "Green"
 
-    # Get pnpm global prefix (installation directory) using absolute path
+    # Get pnpm global directory using config
     try {
-        $pnpmPrefix = & $pnpmExe config get globalDir
-        Write-DebugLog -Message "pnpm global directory: $pnpmPrefix" -Category "PNPM" -Color "Cyan"
+        $pnpmGlobalDir = & $pnpmExe config get global-dir 2>&1 | Select-Object -First 1
+        $pnpmGlobalBinDir = & $pnpmExe config get global-bin-dir 2>&1 | Select-Object -First 1
+
+        # Validate results
+        if ([string]::IsNullOrEmpty($pnpmGlobalDir) -or $pnpmGlobalDir -eq "undefined") {
+            # Fallback to default location
+            $pnpmGlobalDir = Join-Path $Global:NODE_DIR "pnpm-global"
+            Write-DebugLog -Message "Using fallback pnpm global directory: $pnpmGlobalDir" -Category "PNPM" -Color "Yellow"
+        }
+
+        if ([string]::IsNullOrEmpty($pnpmGlobalBinDir) -or $pnpmGlobalBinDir -eq "undefined") {
+            $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
+            Write-DebugLog -Message "Using fallback pnpm global bin directory: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
+        }
+
+        Write-DebugLog -Message "pnpm global-dir: $pnpmGlobalDir" -Category "PNPM" -Color "Cyan"
+        Write-DebugLog -Message "pnpm global-bin-dir: $pnpmGlobalBinDir" -Category "PNPM" -Color "Cyan"
     }
     catch {
-        Write-DebugLog -Message "Failed to get pnpm global directory: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+        Write-DebugLog -Message "Failed to get pnpm directories: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
         return $null
     }
 
@@ -367,63 +437,39 @@ function Invoke-PnpmCommand {
     }
 
     # Define search paths for pnpm global packages
-    Write-DebugLog -Message "pnpmPrefix: '$pnpmPrefix'" -Category "PNPM" -Color "Magenta"
+    Write-DebugLog -Message "pnpmGlobalDir: '$pnpmGlobalDir'" -Category "PNPM" -Color "Magenta"
+    Write-DebugLog -Message "pnpmGlobalBinDir: '$pnpmGlobalBinDir'" -Category "PNPM" -Color "Magenta"
     Write-DebugLog -Message "packageDirName: '$packageDirName'" -Category "PNPM" -Color "Magenta"
-    Write-DebugLog -Message "packageDirName type: $($packageDirName.GetType().Name)" -Category "PNPM" -Color "Magenta"
 
     Write-DebugLog -Message "Creating search paths..." -Category "PNPM" -Color "Magenta"
     $searchPaths = @()
 
     try {
-        # Add pnpm global directory (where globally installed packages go)
-        $searchPaths += $pnpmPrefix
-        Write-DebugLog -Message "Added pnpm global path: $pnpmPrefix" -Category "PNPM" -Color "Magenta"
+        # Add pnpm global bin directory (primary location for executables)
+        $searchPaths += $pnpmGlobalBinDir
+        Write-DebugLog -Message "Added pnpm global bin path: $pnpmGlobalBinDir" -Category "PNPM" -Color "Magenta"
 
-        # Add pnpm .bin directory (where symlinks to executables are created)
-        $pnpmBinDir = Join-Path $pnpmPrefix ".bin"
-        $searchPaths += $pnpmBinDir
-        Write-DebugLog -Message "Added pnpm bin path: $pnpmBinDir" -Category "PNPM" -Color "Magenta"
+        # Add pnpm global directory
+        $searchPaths += $pnpmGlobalDir
+        Write-DebugLog -Message "Added pnpm global path: $pnpmGlobalDir" -Category "PNPM" -Color "Magenta"
 
-        # Add pnpm node_modules structure (similar to npm)
-        $searchPaths += Join-Path $pnpmPrefix "node_modules\.bin"
+        # Add node_modules subdirectories
+        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\.bin"
         Write-DebugLog -Message "Added pnpm node_modules\.bin path" -Category "PNPM" -Color "Magenta"
 
-        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\bin"
+        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\bin"
         Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\bin path" -Category "PNPM" -Color "Magenta"
 
-        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\dist"
+        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\dist"
         Write-DebugLog -Message "Added pnpm node_modules\$packageDirName\dist path" -Category "PNPM" -Color "Magenta"
 
-        $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName"
+        $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName"
         Write-DebugLog -Message "Added pnpm node_modules\$packageDirName path" -Category "PNPM" -Color "Magenta"
     }
     catch {
         Write-DebugLog -Message "Error in pnpm Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
         Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
         throw
-    }
-
-    # Add npm compatibility paths as fallback (for packages installed via npm)
-    $npmExe = $Global:NPM_EXE_PATH
-    if (Test-Path $npmExe) {
-        try {
-            $npmPrefix = & $npmExe config get prefix 2>$null
-            if ($npmPrefix) {
-                Write-DebugLog -Message "Adding npm compatibility paths..." -Category "PNPM" -Color "Magenta"
-
-                $searchPaths += $npmPrefix
-                Write-DebugLog -Message "Added npm compatibility root path: $npmPrefix" -Category "PNPM" -Color "Magenta"
-
-                $searchPaths += Join-Path $npmPrefix "node_modules\.bin"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\bin"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName\dist"
-                $searchPaths += Join-Path $npmPrefix "node_modules\$packageDirName"
-                Write-DebugLog -Message "Added npm compatibility paths" -Category "PNPM" -Color "Magenta"
-            }
-        }
-        catch {
-            Write-DebugLog -Message "Error getting npm compatibility paths: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
-        }
     }
 
     # Build search keywords
@@ -451,60 +497,49 @@ function Invoke-PnpmCommand {
     # Install package using pnpm
     Write-DebugLog -Message "Installing package via pnpm: $PackageName" -Category "PNPM" -Color "Yellow"
     try {
-        $installArgs = @("add", "--global", $PackageName)
-        $Command = "$pnpmExe $($installArgs -join ' ')"
-        Write-DebugLog -Message "Command: $Command" -Category "PNPM" -Color "Magenta"
+        $installArgs = "add --global $PackageName"
+        Write-DebugLog -Message "Command: $pnpmExe $installArgs" -Category "PNPM" -Color "Magenta"
 
-        # Capture pnpm output
-        $pnpmOutput = & $pnpmExe $installArgs 2>&1
-        Write-DebugLog -Message "pnpm installation output: $($pnpmOutput -join ' ')" -Category "PNPM" -Color "Cyan"
+        # Run installation directly
+        Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $installArgs
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "Installation successful" -Category "PNPM" -Color "Green"
+        # Refresh search paths after installation
+        Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PNPM" -Color "Magenta"
+        $searchPaths = @()
+        try {
+            # Re-add pnpm paths
+            $searchPaths += $pnpmGlobalBinDir
+            Write-DebugLog -Message "Added refresh pnpm global bin path: $pnpmGlobalBinDir" -Category "PNPM" -Color "Magenta"
 
-            # Refresh search paths after installation
-            Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PNPM" -Color "Magenta"
-            $searchPaths = @()
-            try {
-                # Re-add pnpm paths
-                $searchPaths += $pnpmPrefix
-                Write-DebugLog -Message "Added refresh pnpm global path: $pnpmPrefix" -Category "PNPM" -Color "Magenta"
+            $searchPaths += $pnpmGlobalDir
+            Write-DebugLog -Message "Added refresh pnpm global path: $pnpmGlobalDir" -Category "PNPM" -Color "Magenta"
 
-                $pnpmBinDir = Join-Path $pnpmPrefix ".bin"
-                $searchPaths += $pnpmBinDir
-                Write-DebugLog -Message "Added refresh pnpm bin path: $pnpmBinDir" -Category "PNPM" -Color "Magenta"
+            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\.bin"
+            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\bin"
+            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName\dist"
+            $searchPaths += Join-Path $pnpmGlobalDir "node_modules\$packageDirName"
+            Write-DebugLog -Message "Added all pnpm node_modules paths after refresh" -Category "PNPM" -Color "Magenta"
+        }
+        catch {
+            Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
+            Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
+            throw
+        }
 
-                $searchPaths += Join-Path $pnpmPrefix "node_modules\.bin"
-                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\bin"
-                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName\dist"
-                $searchPaths += Join-Path $pnpmPrefix "node_modules\$packageDirName"
-                Write-DebugLog -Message "Added all pnpm node_modules paths after refresh" -Category "PNPM" -Color "Magenta"
-            }
-            catch {
-                Write-DebugLog -Message "Error in refresh Join-Path: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
-                Write-DebugLog -Message "Error at line: $($_.InvocationInfo.ScriptLineNumber)" -Category "PNPM" -Color "Red"
-                throw
-            }
+        # Find the installed executable - search in all pnpm paths at once
+        Write-DebugLog -Message "Searching for executable after installation..." -Category "PNPM" -Color "Magenta"
+        Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PNPM" -Color "Magenta"
+        Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "PNPM" -Color "Magenta"
 
-            # Find the installed executable - search in all pnpm paths at once
-            Write-DebugLog -Message "Searching for executable after installation..." -Category "PNPM" -Color "Magenta"
-            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PNPM" -Color "Magenta"
-            Write-DebugLog -Message "Search paths: $($searchPaths -join ', ')" -Category "PNPM" -Color "Magenta"
+        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+        Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "PNPM" -Color "Yellow"
 
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
-            Write-DebugLog -Message "Find-ExecutableByKeyword returned: '$executable'" -Category "PNPM" -Color "Yellow"
-
-            if ($executable) {
-                Write-DebugLog -Message "Found executable: $executable" -Category "PNPM" -Color "Green"
-                return $executable
-            }
-            else {
-                Write-DebugLog -Message "Installation completed but executable not found" -Category "PNPM" -Color "Yellow"
-                return $null
-            }
+        if ($executable) {
+            Write-DebugLog -Message "Found executable: $executable" -Category "PNPM" -Color "Green"
+            return $executable
         }
         else {
-            Write-DebugLog -Message "Installation failed with exit code: $LASTEXITCODE" -Category "PNPM" -Color "Red"
+            Write-DebugLog -Message "Installation completed but executable not found" -Category "PNPM" -Color "Yellow"
             return $null
         }
     }
@@ -3641,7 +3676,8 @@ function Invoke-PowerShellCommand {
             ${env:APPDATA},
             "C:\Program Files",
             "C:\Program Files (x86)",
-            $env:USERPROFILE
+            $env:USERPROFILE,
+            "$env:USERPROFILE\bin"
         )
         $searchPaths += $systemPaths
 
@@ -3725,7 +3761,8 @@ function Invoke-PowerShellCommand {
                 ${env:APPDATA},
                 "C:\Program Files",
                 "C:\Program Files (x86)",
-                $env:USERPROFILE
+                $env:USERPROFILE,
+                "$env:USERPROFILE\bin"
             )
             $searchPaths += $systemPaths
             
