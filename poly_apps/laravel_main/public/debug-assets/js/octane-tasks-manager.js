@@ -196,5 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    observer.observe(octaneSection, { attributes: true });
+    if (octaneSection) {
+        observer.observe(octaneSection, { attributes: true });
+    }
 });
