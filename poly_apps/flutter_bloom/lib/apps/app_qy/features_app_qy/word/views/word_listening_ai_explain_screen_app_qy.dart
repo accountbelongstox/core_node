@@ -13,13 +13,11 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../../../common/theme/base/theme_colors.dart';
 import '../../../../../../common/theme/base/theme_dimensions.dart';
 import '../../../../../../common/theme/base/theme_text_styles.dart';
 import '../../../../../../common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../controllers/word_controller_app_qy.dart';
 
 class WordListeningAiExplainScreenRefactoredAppQy extends StatefulWidget {
   const WordListeningAiExplainScreenRefactoredAppQy({super.key});
@@ -81,7 +79,8 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
   void _addInitialMessage() {
     _conversation.add({
       'isUser': false,
-      'message': 'Hello! I\'m your AI language assistant. I can help you understand "${_currentWord['word']}" better. Ask me anything about this word!',
+      'message':
+          'Hello! I\'m your AI language assistant. I can help you understand "${_currentWord['word']}" better. Ask me anything about this word!',
       'timestamp': DateTime.now(),
     });
   }
@@ -121,18 +120,21 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
       return 'Here are some ways to use "${_currentWord['word']}" in sentences:\n\n'
           '${_currentWord['examples'].map((e) => '• $e').join('\n')}\n\n'
           'Notice how it emphasizes the exceptional nature of the subject!';
-    } else if (lowerQuestion.contains('similar') || lowerQuestion.contains('synonym')) {
+    } else if (lowerQuestion.contains('similar') ||
+        lowerQuestion.contains('synonym')) {
       return 'Words similar to "${_currentWord['word']}" include:\n\n'
           '${(_currentWord['synonyms'] as List).map((s) => '• $s').join('\n')}\n\n'
           'Each has slightly different connotations, but they all indicate something special or unusual.';
-    } else if (lowerQuestion.contains('pronunciation') || lowerQuestion.contains('pronounce')) {
+    } else if (lowerQuestion.contains('pronunciation') ||
+        lowerQuestion.contains('pronounce')) {
       return 'The pronunciation is: ${_currentWord['phonetic']}\n\n'
           'Break it down:\n'
           '• "ex-TRAOR-di-nar-y"\n'
           '• Stress on the second syllable\n'
           '• The "a" sounds like "aw" in "law"\n\n'
           'Try saying it slowly first, then speed up!';
-    } else if (lowerQuestion.contains('origin') || lowerQuestion.contains('etymology')) {
+    } else if (lowerQuestion.contains('origin') ||
+        lowerQuestion.contains('etymology')) {
       return 'Etymology of "${_currentWord['word']}":\n\n'
           '${_currentWord['etymology']}\n\n'
           'The prefix "extra-" means "outside" or "beyond", so extraordinary literally means "beyond ordinary"!';
@@ -142,7 +144,8 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
           '• It takes extraordinary effort to master a language.\n'
           '• She showed extraordinary courage in difficult times.\n\n'
           'Would you like more examples in specific contexts?';
-    } else if (lowerQuestion.contains('when') || lowerQuestion.contains('should')) {
+    } else if (lowerQuestion.contains('when') ||
+        lowerQuestion.contains('should')) {
       return 'Usage tips for "${_currentWord['word']}":\n\n'
           '${(_currentWord['usage_tips'] as List).map((t) => '• $t').join('\n')}\n\n'
           'Use it when you want to emphasize that something is truly exceptional!';
@@ -237,7 +240,7 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
             child: Icon(
               Icons.psychology,
               color: ThemeColors.surface,
-              size: 32,
+              size: ThemeDimensions.iconSizeXL,
             ),
           ),
           SizedBox(width: ThemeDimensions.spacingMedium),
@@ -282,8 +285,8 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
         children: [
           if (!isUser) ...[
             Container(
-              width: 36,
-              height: 36,
+              width: ThemeDimensions.iconSizeXL + ThemeDimensions.spacing4,
+              height: ThemeDimensions.iconSizeXL + ThemeDimensions.spacing4,
               decoration: BoxDecoration(
                 color: ThemeColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
@@ -291,7 +294,7 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
               child: Icon(
                 Icons.smart_toy,
                 color: ThemeColors.primary,
-                size: 20,
+                size: ThemeDimensions.iconSizeM,
               ),
             ),
             SizedBox(width: ThemeDimensions.spacingSmall),
@@ -300,9 +303,7 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
             child: Container(
               padding: EdgeInsets.all(ThemeDimensions.paddingMedium),
               decoration: BoxDecoration(
-                color: isUser
-                    ? ThemeColors.primary
-                    : ThemeColors.surface,
+                color: isUser ? ThemeColors.primary : ThemeColors.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(ThemeDimensions.radiusMedium),
                   topRight: Radius.circular(ThemeDimensions.radiusMedium),
@@ -313,16 +314,12 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
                       ? Radius.zero
                       : Radius.circular(ThemeDimensions.radiusMedium),
                 ),
-                border: isUser
-                    ? null
-                    : Border.all(color: ThemeColors.border),
+                border: isUser ? null : Border.all(color: ThemeColors.border),
               ),
               child: Text(
                 message['message'] as String,
                 style: ThemeTextStyles.body2.copyWith(
-                  color: isUser
-                      ? ThemeColors.surface
-                      : ThemeColors.textPrimary,
+                  color: isUser ? ThemeColors.surface : ThemeColors.textPrimary,
                 ),
               ),
             ),
@@ -330,8 +327,8 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
           if (isUser) ...[
             SizedBox(width: ThemeDimensions.spacingSmall),
             Container(
-              width: 36,
-              height: 36,
+              width: ThemeDimensions.iconSizeXL + ThemeDimensions.spacing4,
+              height: ThemeDimensions.iconSizeXL + ThemeDimensions.spacing4,
               decoration: BoxDecoration(
                 color: ThemeColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
@@ -339,7 +336,7 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
               child: Icon(
                 Icons.person,
                 color: ThemeColors.primary,
-                size: 20,
+                size: ThemeDimensions.iconSizeM,
               ),
             ),
           ],
@@ -378,9 +375,9 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildDot(0),
-                SizedBox(width: 4),
+                SizedBox(width: ThemeDimensions.spacing4),
                 _buildDot(1),
-                SizedBox(width: 4),
+                SizedBox(width: ThemeDimensions.spacing4),
                 _buildDot(2),
               ],
             ),
@@ -397,8 +394,8 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
       curve: Curves.easeInOut,
       builder: (context, value, child) {
         return Container(
-          width: 8,
-          height: 8,
+          width: ThemeDimensions.spacing8,
+          height: ThemeDimensions.spacing8,
           decoration: BoxDecoration(
             color: ThemeColors.primary.withOpacity(
               0.3 + (0.7 * ((value + index * 0.33) % 1.0)),
@@ -415,11 +412,12 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
 
   Widget _buildQuickQuestions() {
     return Container(
-      height: 50,
+      height: ThemeDimensions.spacing48 + ThemeDimensions.spacing2,
       padding: EdgeInsets.symmetric(vertical: ThemeDimensions.paddingSmall),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
+        padding:
+            EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingMedium),
         itemCount: _quickQuestions.length,
         itemBuilder: (context, index) {
           return Padding(
@@ -433,8 +431,10 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
                 ),
                 decoration: BoxDecoration(
                   color: ThemeColors.surface,
-                  borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-                  border: Border.all(color: ThemeColors.primary.withOpacity(0.3)),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.radiusLarge),
+                  border:
+                      Border.all(color: ThemeColors.primary.withOpacity(0.3)),
                 ),
                 child: Center(
                   child: Text(
@@ -480,16 +480,21 @@ class _WordListeningAiExplainScreenRefactoredAppQyState
                   filled: true,
                   fillColor: ThemeColors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusLarge),
                     borderSide: BorderSide(color: ThemeColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusLarge),
                     borderSide: BorderSide(color: ThemeColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
-                    borderSide: BorderSide(color: ThemeColors.primary, width: 2),
+                    borderRadius:
+                        BorderRadius.circular(ThemeDimensions.radiusLarge),
+                    borderSide: BorderSide(
+                        color: ThemeColors.primary,
+                        width: ThemeDimensions.spacing2),
                   ),
                   contentPadding: EdgeInsets.symmetric(
                     horizontal: ThemeDimensions.paddingMedium,

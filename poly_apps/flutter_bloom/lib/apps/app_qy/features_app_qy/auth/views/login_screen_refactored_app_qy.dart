@@ -549,7 +549,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
     final canSend = _countdown == 0 && !authService.isLoading;
 
     return Material(
-      color: Colors.transparent,
+      color: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: InkWell(
         onTap: canSend ? () => _handleSendCode(authService) : null,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
@@ -591,7 +591,7 @@ class _LoginScreenRefactoredAppQyState extends State<LoginScreenRefactoredAppQy>
 
   Widget _buildActionButton(AuthServiceAppQy authService) {
     return Material(
-      color: Colors.transparent,
+      color: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: InkWell(
         onTap: !authService.isLoading && _agreedToTerms
             ? () => _isRegisterMode
