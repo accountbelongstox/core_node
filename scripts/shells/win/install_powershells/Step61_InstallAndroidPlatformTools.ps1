@@ -250,9 +250,44 @@ function Step61_InstallAndroidPlatformTools {
         
         if ($success) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Platform-tools installation completed successfully!" -Type "Success"
-            
+
             # Test installation
             Test-AdbInstallation
+
+            # Add emulator directory to PATH
+            $sdkRoot = Split-Path $bestPath -Parent
+            $emulatorPath = Join-Path $sdkRoot "emulator"
+            if (Test-Path $emulatorPath) {
+                try {
+                    & $windowsPathFunctionPath "add" $emulatorPath
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Added emulator to PATH: $emulatorPath" -Type "Success"
+                } catch {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to add emulator path: $_" -Type "Error"
+                }
+            } else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] emulator directory not found in: $sdkRoot" -Type "Warning"
+            }
+
+            # Add cmdline-tools directory to PATH
+            $cmdlineToolsLatestBinPath = Join-Path $sdkRoot "cmdline-tools\latest\bin"
+            $cmdlineToolsBinPath = Join-Path $sdkRoot "cmdline-tools\bin"
+            if (Test-Path $cmdlineToolsLatestBinPath) {
+                try {
+                    & $windowsPathFunctionPath "add" $cmdlineToolsLatestBinPath
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Added cmdline-tools to PATH: $cmdlineToolsLatestBinPath" -Type "Success"
+                } catch {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to add cmdline-tools path: $_" -Type "Error"
+                }
+            } elseif (Test-Path $cmdlineToolsBinPath) {
+                try {
+                    & $windowsPathFunctionPath "add" $cmdlineToolsBinPath
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Added cmdline-tools to PATH: $cmdlineToolsBinPath" -Type "Success"
+                } catch {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to add cmdline-tools path: $_" -Type "Error"
+                }
+            } else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] cmdline-tools directory not found in: $sdkRoot" -Type "Warning"
+            }
         } else {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install platform-tools to PATH" -Type "Error"
             return $false
