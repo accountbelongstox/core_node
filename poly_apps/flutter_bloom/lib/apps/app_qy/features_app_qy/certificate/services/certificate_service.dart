@@ -1,15 +1,50 @@
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
+import '../../../../config_app_qy/storage_app_qy.dart';
 import '../models/certificate_model.dart';
 
 class CertificateService {
   static final CertificateService _instance = CertificateService._internal();
+  final StorageAppQy _storage = StorageAppQy.instance;
 
   factory CertificateService() => _instance;
 
   CertificateService._internal();
 
-  List<CertificateModel> getAllCertificates() {
+  /// Get all certificates from centralized storage
+  /// Falls back to default certificates if storage is empty
+  Future<List<CertificateModel>> getAllCertificates() async {
+    try {
+      await _storage.initAppStorage();
+      final storedCertificates =
+          await _storage.getApp<List<dynamic>>(StorageAppQy.keyCertificates);
+
+      if (storedCertificates != null && storedCertificates.isNotEmpty) {
+        try {
+          return storedCertificates
+              .map((json) =>
+                  CertificateModel.fromJson(json as Map<String, dynamic>))
+              .toList();
+        } catch (e) {
+          // If deserialization fails, use default certificates
+          final defaultCertificates = _getDefaultCertificates();
+          await _saveCertificatesToStorage(defaultCertificates);
+          return defaultCertificates;
+        }
+      }
+
+      // Initialize with default certificates if storage is empty
+      final defaultCertificates = _getDefaultCertificates();
+      await _saveCertificatesToStorage(defaultCertificates);
+      return defaultCertificates;
+    } catch (e) {
+      // Return default certificates on error
+      return _getDefaultCertificates();
+    }
+  }
+
+  /// Get default certificates (used for initialization)
+  List<CertificateModel> _getDefaultCertificates() {
     return [
       CertificateModel(
         id: 'cert_001',
@@ -84,25 +119,41 @@ class CertificateService {
     ];
   }
 
-  CertificateStats getCertificateStats() {
-    final certificates = getAllCertificates();
+  /// Save certificates to centralized storage
+  Future<void> _saveCertificatesToStorage(
+      List<CertificateModel> certificates) async {
+    try {
+      final certificatesJson =
+          certificates.map((cert) => cert.toJson()).toList();
+      await _storage.setApp<List<dynamic>>(
+          StorageAppQy.keyCertificates, certificatesJson);
+    } catch (e) {
+      // Silently fail - storage might not be initialized
+    }
+  }
+
+  Future<CertificateStats> getCertificateStats() async {
+    final certificates = await getAllCertificates();
     return CertificateStats.fromCertificates(certificates);
   }
 
-  CertificateModel? getCertificateById(String id) {
+  Future<CertificateModel?> getCertificateById(String id) async {
     try {
-      return getAllCertificates().firstWhere((cert) => cert.id == id);
+      final certificates = await getAllCertificates();
+      return certificates.firstWhere((cert) => cert.id == id);
     } catch (e) {
       return null;
     }
   }
 
-  List<CertificateModel> getEarnedCertificates() {
-    return getAllCertificates().where((cert) => !cert.locked).toList();
+  Future<List<CertificateModel>> getEarnedCertificates() async {
+    final certificates = await getAllCertificates();
+    return certificates.where((cert) => !cert.locked).toList();
   }
 
-  List<CertificateModel> getLockedCertificates() {
-    return getAllCertificates().where((cert) => cert.locked).toList();
+  Future<List<CertificateModel>> getLockedCertificates() async {
+    final certificates = await getAllCertificates();
+    return certificates.where((cert) => cert.locked).toList();
   }
 
   Future<void> unlockCertificate(String certificateId) async {

@@ -419,7 +419,7 @@ class _WordListeningDictation2ScreenState
                   width: _isPlaying ? 50 : 60,
                   height: _isPlaying ? 50 : 60,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     borderRadius: BorderRadius.circular(_isPlaying
                         ? ThemeDimensions.radiusM
                         : ThemeDimensions.radiusL),
@@ -463,7 +463,7 @@ class _WordListeningDictation2ScreenState
           SizedBox(height: ThemeDimensions.spacing12),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               borderRadius: ThemeDimensions.borderRadiusM,
               border: Border.all(
                 color: _userInput.isNotEmpty
@@ -584,7 +584,7 @@ class _WordListeningDictation2ScreenState
                       children: [
                         Icon(
                           Icons.lightbulb_outline,
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -595,7 +595,7 @@ class _WordListeningDictation2ScreenState
                               : QyAppLocalizationKeys.qyListeningShowHint
                                   .tr(context),
                           style: ThemeTextStyles.bodyLarge.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -631,7 +631,7 @@ class _WordListeningDictation2ScreenState
                       children: [
                         Icon(
                           Icons.check,
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -639,7 +639,7 @@ class _WordListeningDictation2ScreenState
                           QyAppLocalizationKeys.qyListeningCheckAnswer
                               .tr(context),
                           style: ThemeTextStyles.bodyLarge.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -846,7 +846,7 @@ class _WordListeningDictation2ScreenState
                 ),
                 child: const Icon(
                   Icons.check,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 40,
                 ),
               ),
@@ -885,7 +885,7 @@ class _WordListeningDictation2ScreenState
                         child: Text(
                           QyAppLocalizationKeys.qyListeningNext.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -924,7 +924,7 @@ class _WordListeningDictation2ScreenState
                 ),
                 child: const Icon(
                   Icons.close,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 40,
                 ),
               ),
@@ -971,7 +971,7 @@ class _WordListeningDictation2ScreenState
                         child: Text(
                           QyAppLocalizationKeys.qyListeningContinue.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -1049,7 +1049,7 @@ class _WordListeningDictation2ScreenState
                 ),
                 child: Icon(
                   accuracy >= 80 ? Icons.emoji_events : Icons.school,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 50,
                 ),
               ),
@@ -1151,7 +1151,7 @@ class _WordListeningDictation2ScreenState
                         child: Text(
                           QyAppLocalizationKeys.qyListeningDone.tr(context),
                           style: ThemeTextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,

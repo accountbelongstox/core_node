@@ -460,7 +460,7 @@ class StudyTabViewRefactored extends StatelessWidget {
 
   Widget _buildFeatureItem(BuildContext context, _FeatureItem feature) {
     return Material(
-      color: Colors.transparent,
+      color: ColorsAppQy.qyPageBackground.withOpacity(0),
       child: InkWell(
         onTap: feature.onTap,
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),

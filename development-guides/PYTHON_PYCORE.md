@@ -31,7 +31,7 @@
 - Singleton managers (i18n, bus_manager, etc.) should be initialized as **global variables** at module level
 - **i18n Pattern**: `from pycore.pyutils.native_ui.step0_i18n import i18n` (i18n is pre-initialized instance exported from step0_i18n module, base translations already loaded)
 - **Forbidden**: Storing as instance variable (`self.i18n`) - use global `i18n` directly
-- **Extension Pattern**: Use `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname")` in app's `start()` function to extend base translations with app-specific translations (auto-detects `{appname}_i18n` or `i18n` directory)
+- **Extension Pattern**: MUST call `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname")` in `launcher_config.py` builder function BEFORE using `i18n.get()` (auto-detects `{appname}_i18n` or `i18n` directory)
 
 **Try-Except Block Rules (AI Code Only)**
 - **AI-generated code must NOT use try-except blocks**
@@ -122,7 +122,7 @@ pyapps/{appname}/
 
 - **NEVER use hardcoded strings** - always use key constants from `I18nKeys` or app-specific `{AppName}I18nKeys`
 - **Singleton Pattern** - `i18n` is pre-initialized as global variable, no parameter passing
-- **App Extension** - Call `i18n.extend_translations()` in app's `start()` function
+- **App Extension** - MUST call `i18n.extend_translations(app_dir=Path(__file__).parent, app_name="appname")` in `launcher_config.py` builder function BEFORE using `i18n.get()`
 - **NO Default Values** - Do NOT use `i18n.get(key, default)` - use key constants directly
 
 ### 4.4 BusKeys Registration

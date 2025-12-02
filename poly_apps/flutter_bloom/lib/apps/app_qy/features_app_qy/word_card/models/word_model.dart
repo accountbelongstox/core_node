@@ -10,6 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+/// Word - Simplified model for word card feature
+/// Uses centralized vocabulary models when available
 class Word {
   final String word;
   final String phonetic;
@@ -24,6 +26,7 @@ class Word {
     required this.example,
     this.audioUrl,
   });
+
 
   factory Word.fromJson(Map<String, dynamic> json) {
     return Word(

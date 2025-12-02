@@ -49,6 +49,16 @@ class LocalizationKeysAppWuy {
   static const String wuyFriendsAddFriend = "wuy.friends.add_friend";
   static const String wuyFriendsOnline = "wuy.friends.online";
   static const String wuyFriendsOffline = "wuy.friends.offline";
+  static const String wuyTimeMinutesAgo = "wuy.time.minutes_ago";
+  static const String wuyTimeHoursAgo = "wuy.time.hours_ago";
+  static const String wuyTimeDaysAgo = "wuy.time.days_ago";
+  static const String wuyFriendMonitor = "wuy.friend.monitor";
+  static const String wuyFriendDetails = "wuy.friend.details";
+  static const String wuyFriendSearch = "wuy.friend.search";
+  static const String wuyFriendSearchPhone = "wuy.friend.search_phone";
+  static const String wuyFriendMonitoringStatus =
+      "wuy.friend.monitoring_status";
+  static const String wuyFriendLastMessage = "wuy.friend.last_message";
   static const String wuyMonitoringEnabled = "wuy.monitoring.enabled";
   static const String wuyMonitoringDisabled = "wuy.monitoring.disabled";
   static const String wuyMonitoringError = "wuy.monitoring.error";
@@ -107,6 +117,18 @@ class LocalizationKeysAppWuy {
   static const String wuyProfileSave = "wuy.profile.save";
   static const String wuyProfileSignOut = "wuy.profile.sign_out";
 
+  // Me/Profile page menu items (matching React version)
+  static const String wuyMeProfile = "wuy.me.profile";
+  static const String wuyMeTheme = "wuy.me.theme";
+  static const String wuyMeLang = "wuy.me.lang";
+  static const String wuyMeAbout = "wuy.me.about";
+  static const String wuyMeSettings = "wuy.me.settings";
+  static const String wuyMeLogout = "wuy.me.logout";
+  static const String wuyMeThemeLight = "wuy.me.theme.light";
+  static const String wuyMeThemeDark = "wuy.me.theme.dark";
+  static const String wuyMeLangEnglish = "wuy.me.lang.english";
+  static const String wuyMeLangChinese = "wuy.me.lang.chinese";
+
   // About related
   static const String wuyAboutTitle = "wuy.about.title";
   static const String wuyAboutFeatures = "wuy.about.features";
@@ -124,7 +146,8 @@ class LocalizationKeysAppWuy {
   static const String wuyHistoryMessage = "wuy.history.message";
   static const String wuyHistoryUpdate = "wuy.history.update";
   static const String wuyHistoryProtectFuture = "wuy.history.protect_future";
-  static const String wuyHistoryNoLocationHistory = "wuy.history.no_location_history";
+  static const String wuyHistoryNoLocationHistory =
+      "wuy.history.no_location_history";
   static const String wuyHistoryTrajectory = "wuy.history.trajectory";
 
   // Network related
@@ -138,6 +161,14 @@ class LocalizationKeysAppWuy {
   static const String wuyMapTitle = "wuy.map.title";
   static const String wuyMapLocation = "wuy.map.location";
   static const String wuyMapSearch = "wuy.map.search";
+  static const String wuyTabMap = "wuy.tab.map";
+  static const String wuyTabFriends = "wuy.tab.friends";
+  static const String wuyTabMe = "wuy.tab.me";
+  static const String wuyHomeSos = "wuy.home.sos";
+  static const String wuyHomeFence = "wuy.home.fence";
+  static const String wuyHomeDays = "wuy.home.days";
+  static const String wuyHomeBattery = "wuy.home.battery";
+  static const String wuyHomeDaysProtected = "wuy.home.days_protected";
 
   // Authentication related
   static const String wuyAuthLogin = "wuy.auth.login";
@@ -298,6 +329,16 @@ class LocalizationKeysAppWuy {
   static const String wuyFriendInfoSendMessage = "wuy.friend_info.send_message";
   static const String wuyFriendInfoCall = "wuy.friend_info.call";
   static const String wuyFriendInfoVideoCall = "wuy.friend_info.video_call";
+  static const String wuyStatsDevice = "wuy.stats.device";
+  static const String wuyStatsPlaces = "wuy.stats.places";
+  static const String wuyStatsSteps = "wuy.stats.steps";
+  static const String wuyStatsHeart = "wuy.stats.heart";
+  static const String wuyStatsTemp = "wuy.stats.temp";
+  static const String wuyStatsNetwork = "wuy.stats.network";
+  static const String wuyStatsUnlocks = "wuy.stats.unlocks";
+  static const String wuyStatsScreenTime = "wuy.stats.screen_time";
+  static const String wuyStatsUpdated = "wuy.stats.updated";
+  static const String wuyStatsTimes = "wuy.stats.times";
 
   // Add friend screen
   static const String wuyAddFriendTitle = "wuy.add_friend.title";
@@ -308,6 +349,16 @@ class LocalizationKeysAppWuy {
   static const String wuyAddFriendAdd = "wuy.add_friend.add";
   static const String wuyAddFriendAdded = "wuy.add_friend.added";
   static const String wuyAddFriendPending = "wuy.add_friend.pending";
+
+  // Send request screen
+  static const String wuySendRequestTitle = "wuy.send_request.title";
+  static const String wuySendRequestMessage = "wuy.send_request.message";
+  static const String wuySendRequestAlias = "wuy.send_request.alias";
+  static const String wuySendRequestRelation = "wuy.send_request.relation";
+  static const String wuySendRequestSend = "wuy.send_request.send";
+  static const String wuySendRequestRelationFamily = "wuy.send_request.relation.family";
+  static const String wuySendRequestRelationPartner = "wuy.send_request.relation.partner";
+  static const String wuySendRequestRelationFriend = "wuy.send_request.relation.friend";
 
   // Settings screen
   static const String wuySettingsTitle = "wuy.settings.title";
@@ -530,11 +581,14 @@ class LocalizationKeysAppWuy {
   static const String wuyNetworkLoginAccount = "wuy.network.login_account";
   static const String wuyNetworkLoginSuccess = "wuy.network.login_success";
   static const String wuyNetworkConnectWifi = "wuy.network.connect_wifi";
-  static const String wuyNetworkMobileConnection = "wuy.network.mobile_connection";
+  static const String wuyNetworkMobileConnection =
+      "wuy.network.mobile_connection";
   static const String wuyNetworkRequestTimeout = "wuy.network.request_timeout";
   static const String wuyNetworkConnectedWifi = "wuy.network.connected_wifi";
-  static const String wuyNetworkConnectedWifiWith = "wuy.network.connected_wifi_with";
-  static const String wuyNetworkConnectedMobile = "wuy.network.connected_mobile";
+  static const String wuyNetworkConnectedWifiWith =
+      "wuy.network.connected_wifi_with";
+  static const String wuyNetworkConnectedMobile =
+      "wuy.network.connected_mobile";
   static const String wuyNetworkChange = "wuy.network.change";
   static const String wuyNetworkNoRecords = "wuy.network.no_records";
 
@@ -543,14 +597,20 @@ class LocalizationKeysAppWuy {
   static const String wuyDashboardOverviewText = "wuy.dashboard.overview_text";
   static const String wuyDashboardQuickStats = "wuy.dashboard.quick_stats";
   static const String wuyDashboardTotalUsers = "wuy.dashboard.total_users";
-  static const String wuyDashboardActiveSessions = "wuy.dashboard.active_sessions";
+  static const String wuyDashboardActiveSessions =
+      "wuy.dashboard.active_sessions";
   static const String wuyDashboardMessages = "wuy.dashboard.messages";
   static const String wuyDashboardTasks = "wuy.dashboard.tasks";
-  static const String wuyDashboardNewUserRegistered = "wuy.dashboard.new_user_registered";
-  static const String wuyDashboardSystemUpdateCompleted = "wuy.dashboard.system_update_completed";
-  static const String wuyDashboardNewMessageReceived = "wuy.dashboard.new_message_received";
-  static const String wuyDashboardTaskCompleted = "wuy.dashboard.task_completed";
-  static const String wuyDashboardReportGenerated = "wuy.dashboard.report_generated";
+  static const String wuyDashboardNewUserRegistered =
+      "wuy.dashboard.new_user_registered";
+  static const String wuyDashboardSystemUpdateCompleted =
+      "wuy.dashboard.system_update_completed";
+  static const String wuyDashboardNewMessageReceived =
+      "wuy.dashboard.new_message_received";
+  static const String wuyDashboardTaskCompleted =
+      "wuy.dashboard.task_completed";
+  static const String wuyDashboardReportGenerated =
+      "wuy.dashboard.report_generated";
   static const String wuyDashboardMinutesAgo = "wuy.dashboard.minutes_ago";
   static const String wuyDashboardHourAgo = "wuy.dashboard.hour_ago";
   static const String wuyDashboardHoursAgo = "wuy.dashboard.hours_ago";
@@ -558,46 +618,73 @@ class LocalizationKeysAppWuy {
 
   // Settings screen extended keys
   static const String wuySettingsAppearance = "wuy.settings.appearance";
-  static const String wuySettingsLanguageSection = "wuy.settings.language_section";
+  static const String wuySettingsLanguageSection =
+      "wuy.settings.language_section";
   static const String wuySettingsSocial = "wuy.settings.social";
   static const String wuySettingsMessaging = "wuy.settings.messaging";
   static const String wuySettingsPerformance = "wuy.settings.performance";
   static const String wuySettingsResetTitle = "wuy.settings.reset_title";
   static const String wuySettingsResetConfirm = "wuy.settings.reset_confirm";
   static const String wuySettingsResetSuccess = "wuy.settings.reset_success";
-  static const String wuySettingsResetToDefaults = "wuy.settings.reset_to_defaults";
+  static const String wuySettingsResetToDefaults =
+      "wuy.settings.reset_to_defaults";
 
   // Settings items localization
-  static const String wuySettingsLocationSharing = "wuy.settings.location_sharing";
-  static const String wuySettingsLocationSharingDesc = "wuy.settings.location_sharing_desc";
-  static const String wuySettingsLocationHistory = "wuy.settings.location_history";
-  static const String wuySettingsLocationHistoryDesc = "wuy.settings.location_history_desc";
-  static const String wuySettingsShowOnlineStatus = "wuy.settings.show_online_status";
-  static const String wuySettingsShowOnlineStatusDesc = "wuy.settings.show_online_status_desc";
-  static const String wuySettingsFriendRequestNotif = "wuy.settings.friend_request_notif";
-  static const String wuySettingsFriendRequestNotifDesc = "wuy.settings.friend_request_notif_desc";
-  static const String wuySettingsDefaultMapView = "wuy.settings.default_map_view";
-  static const String wuySettingsDefaultMapViewDesc = "wuy.settings.default_map_view_desc";
-  static const String wuySettingsEnableAnimations = "wuy.settings.enable_animations";
-  static const String wuySettingsEnableAnimationsDesc = "wuy.settings.enable_animations_desc";
+  static const String wuySettingsLocationSharing =
+      "wuy.settings.location_sharing";
+  static const String wuySettingsLocationSharingDesc =
+      "wuy.settings.location_sharing_desc";
+  static const String wuySettingsLocationHistory =
+      "wuy.settings.location_history";
+  static const String wuySettingsLocationHistoryDesc =
+      "wuy.settings.location_history_desc";
+  static const String wuySettingsShowOnlineStatus =
+      "wuy.settings.show_online_status";
+  static const String wuySettingsShowOnlineStatusDesc =
+      "wuy.settings.show_online_status_desc";
+  static const String wuySettingsFriendRequestNotif =
+      "wuy.settings.friend_request_notif";
+  static const String wuySettingsFriendRequestNotifDesc =
+      "wuy.settings.friend_request_notif_desc";
+  static const String wuySettingsDefaultMapView =
+      "wuy.settings.default_map_view";
+  static const String wuySettingsDefaultMapViewDesc =
+      "wuy.settings.default_map_view_desc";
+  static const String wuySettingsEnableAnimations =
+      "wuy.settings.enable_animations";
+  static const String wuySettingsEnableAnimationsDesc =
+      "wuy.settings.enable_animations_desc";
   static const String wuySettingsDataSaverMode = "wuy.settings.data_saver_mode";
-  static const String wuySettingsDataSaverModeDesc = "wuy.settings.data_saver_mode_desc";
+  static const String wuySettingsDataSaverModeDesc =
+      "wuy.settings.data_saver_mode_desc";
   static const String wuySettingsCacheSize = "wuy.settings.cache_size";
   static const String wuySettingsCacheSizeDesc = "wuy.settings.cache_size_desc";
-  static const String wuySettingsRefreshInterval = "wuy.settings.refresh_interval";
-  static const String wuySettingsRefreshIntervalDesc = "wuy.settings.refresh_interval_desc";
-  static const String wuySettingsBiometricAuthName = "wuy.settings.biometric_auth_name";
-  static const String wuySettingsBiometricAuthDesc = "wuy.settings.biometric_auth_desc";
+  static const String wuySettingsRefreshInterval =
+      "wuy.settings.refresh_interval";
+  static const String wuySettingsRefreshIntervalDesc =
+      "wuy.settings.refresh_interval_desc";
+  static const String wuySettingsBiometricAuthName =
+      "wuy.settings.biometric_auth_name";
+  static const String wuySettingsBiometricAuthDesc =
+      "wuy.settings.biometric_auth_desc";
   static const String wuySettingsAutoLockTime = "wuy.settings.auto_lock_time";
-  static const String wuySettingsAutoLockTimeDesc = "wuy.settings.auto_lock_time_desc";
-  static const String wuySettingsRequireAuthStartup = "wuy.settings.require_auth_startup";
-  static const String wuySettingsRequireAuthStartupDesc = "wuy.settings.require_auth_startup_desc";
-  static const String wuySettingsMessagePreview = "wuy.settings.message_preview";
-  static const String wuySettingsMessagePreviewDesc = "wuy.settings.message_preview_desc";
-  static const String wuySettingsTypingIndicators = "wuy.settings.typing_indicators";
-  static const String wuySettingsTypingIndicatorsDesc = "wuy.settings.typing_indicators_desc";
+  static const String wuySettingsAutoLockTimeDesc =
+      "wuy.settings.auto_lock_time_desc";
+  static const String wuySettingsRequireAuthStartup =
+      "wuy.settings.require_auth_startup";
+  static const String wuySettingsRequireAuthStartupDesc =
+      "wuy.settings.require_auth_startup_desc";
+  static const String wuySettingsMessagePreview =
+      "wuy.settings.message_preview";
+  static const String wuySettingsMessagePreviewDesc =
+      "wuy.settings.message_preview_desc";
+  static const String wuySettingsTypingIndicators =
+      "wuy.settings.typing_indicators";
+  static const String wuySettingsTypingIndicatorsDesc =
+      "wuy.settings.typing_indicators_desc";
   static const String wuySettingsReadReceipts = "wuy.settings.read_receipts";
-  static const String wuySettingsReadReceiptsDesc = "wuy.settings.read_receipts_desc";
+  static const String wuySettingsReadReceiptsDesc =
+      "wuy.settings.read_receipts_desc";
 
   // Common buttons
   static const String wuyButtonCancel = "wuy.button.cancel";
@@ -627,21 +714,29 @@ class LocalizationKeysAppWuy {
 
   // Login screen specific
   static const String wuyLoginWelcome = "wuy.login.welcome";
-  static const String wuyLoginSignInToContinue = "wuy.login.sign_in_to_continue";
+  static const String wuyLoginSignInToContinue =
+      "wuy.login.sign_in_to_continue";
   static const String wuyLoginPleaseEnterEmail = "wuy.login.please_enter_email";
-  static const String wuyLoginPleaseEnterValidEmail = "wuy.login.please_enter_valid_email";
-  static const String wuyLoginPleaseEnterPassword = "wuy.login.please_enter_password";
-  static const String wuyLoginPasswordMinLength = "wuy.login.password_min_length";
+  static const String wuyLoginPleaseEnterValidEmail =
+      "wuy.login.please_enter_valid_email";
+  static const String wuyLoginPleaseEnterPassword =
+      "wuy.login.please_enter_password";
+  static const String wuyLoginPasswordMinLength =
+      "wuy.login.password_min_length";
   static const String wuyLoginErrorMessage = "wuy.login.error_message";
 
   // Personal info screen specific
-  static const String wuyPersonalInfoPleaseEnter = "wuy.personal_info.please_enter";
+  static const String wuyPersonalInfoPleaseEnter =
+      "wuy.personal_info.please_enter";
   static const String wuyPersonalInfoGallery = "wuy.personal_info.gallery";
   static const String wuyPersonalInfoCamera = "wuy.personal_info.camera";
-  static const String wuyPersonalInfoAvatarUpdated = "wuy.personal_info.avatar_updated";
+  static const String wuyPersonalInfoAvatarUpdated =
+      "wuy.personal_info.avatar_updated";
   static const String wuyPersonalInfoNoUser = "wuy.personal_info.no_user";
-  static const String wuyPersonalInfoUpdateSuccess = "wuy.personal_info.update_success";
-  static const String wuyPersonalInfoUpdateFailed = "wuy.personal_info.update_failed";
+  static const String wuyPersonalInfoUpdateSuccess =
+      "wuy.personal_info.update_success";
+  static const String wuyPersonalInfoUpdateFailed =
+      "wuy.personal_info.update_failed";
 
   // Phone login screen specific
   static const String wuyPhoneLoginSubtitle = "wuy.phone_login.subtitle";
@@ -649,11 +744,16 @@ class LocalizationKeysAppWuy {
   // Register screen specific
   static const String wuyRegisterSend = "wuy.register.send";
   static const String wuyRegisterPasswordHint = "wuy.register.password_hint";
-  static const String wuyRegisterPasswordValidation = "wuy.register.password_validation";
-  static const String wuyRegisterPasswordLengthValidation = "wuy.register.password_length_validation";
-  static const String wuyRegisterConfirmPasswordHint = "wuy.register.confirm_password_hint";
-  static const String wuyRegisterConfirmPasswordValidation = "wuy.register.confirm_password_validation";
-  static const String wuyRegisterPasswordMismatch = "wuy.register.password_mismatch";
+  static const String wuyRegisterPasswordValidation =
+      "wuy.register.password_validation";
+  static const String wuyRegisterPasswordLengthValidation =
+      "wuy.register.password_length_validation";
+  static const String wuyRegisterConfirmPasswordHint =
+      "wuy.register.confirm_password_hint";
+  static const String wuyRegisterConfirmPasswordValidation =
+      "wuy.register.confirm_password_validation";
+  static const String wuyRegisterPasswordMismatch =
+      "wuy.register.password_mismatch";
   static const String wuyRegisterNow = "wuy.register.now";
   static const String wuyRegisterHaveAccount = "wuy.register.have_account";
 
@@ -665,8 +765,10 @@ class LocalizationKeysAppWuy {
   // Friend info screen specific
   static const String wuyFriendInfoHealth = "wuy.friend_info.health";
   static const String wuyFriendInfoPhoneReport = "wuy.friend_info.phone_report";
-  static const String wuyFriendInfoPlacesVisited = "wuy.friend_info.places_visited";
-  static const String wuyFriendInfoAchievements = "wuy.friend_info.achievements";
+  static const String wuyFriendInfoPlacesVisited =
+      "wuy.friend_info.places_visited";
+  static const String wuyFriendInfoAchievements =
+      "wuy.friend_info.achievements";
   static const String wuyFriendInfoRunningKm = "wuy.friend_info.running_km";
   static const String wuyFriendInfoSteps = "wuy.friend_info.steps";
   static const String wuyFriendInfoCalories = "wuy.friend_info.calories";
@@ -674,8 +776,10 @@ class LocalizationKeysAppWuy {
 
   // Friends list screen specific
   static const String wuyFriendsListMyFriends = "wuy.friends_list.my_friends";
-  static const String wuyFriendsListSearchFriends = "wuy.friends_list.search_friends";
-  static const String wuyFriendsListNoFriendsYet = "wuy.friends_list.no_friends_yet";
+  static const String wuyFriendsListSearchFriends =
+      "wuy.friends_list.search_friends";
+  static const String wuyFriendsListNoFriendsYet =
+      "wuy.friends_list.no_friends_yet";
 
   // Chat screen specific
   static const String wuyChatNoMessages = "wuy.chat.no_messages";
@@ -689,7 +793,8 @@ class LocalizationKeysAppWuy {
   static const String wuySearchClearHistory = "wuy.search.clear_history";
   static const String wuySearchAllGender = "wuy.search.all_gender";
   static const String wuySearchShareIcon = "wuy.search.share_icon";
-  static const String wuySearchNotificationIcon = "wuy.search.notification_icon";
+  static const String wuySearchNotificationIcon =
+      "wuy.search.notification_icon";
 
   // Map screen specific
   static const String wuyMapNoLocation = "wuy.map.no_location";
