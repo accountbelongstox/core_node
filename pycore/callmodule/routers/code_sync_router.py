@@ -249,37 +249,32 @@ async def stop_sync():
 @router.post("/download")
 async def download_file(request: DownloadRequest):
     """Download file content from server"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
-        from pathlib import Path
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
+    manager = get_code_sync_manager()
 
-        if not manager.is_server_mode():
-            raise HTTPException(status_code=503, detail="Not in server mode")
+    if not manager.is_server_mode():
+        raise HTTPException(status_code=503, detail="Not in server mode")
 
-        server = manager.get_server()
-        if not server:
-            raise HTTPException(status_code=503, detail="Server not available")
+    server = manager.get_server()
+    if not server:
+        raise HTTPException(status_code=503, detail="Server not available")
 
-        # Get file path
-        file_path = server.root_dir / request.file_path
+    # Normalize file path - convert Windows backslashes to forward slashes
+    normalized_path = request.file_path.replace('\\', '/')
 
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+    # Get file path
+    file_path = server.root_dir / normalized_path
 
-        # Read file content
-        with open(file_path, 'rb') as f:
-            content = f.read()
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {normalized_path}")
 
-        # Return file content
-        return Response(content=content, media_type='application/octet-stream')
+    # Read file content
+    with open(file_path, 'rb') as f:
+        content = f.read()
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error downloading file: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Return file content
+    return Response(content=content, media_type='application/octet-stream')
 
 
 @router.post("/toggle-backup")

@@ -118,6 +118,7 @@
             <!-- NAMESPACE: Dynamic Content Sections Container -->
             <div id="content-sections-container">
                 <!-- Content will be loaded dynamically -->
+                <!-- Placeholder elements will be loaded here -->
             </div>
         </div>
     </div>
@@ -137,7 +138,15 @@
     <div id="global-search-results" class="ittools-search-results" style="pointer-events: auto;"></div>
 
     <!-- NAMESPACE: External JavaScript Imports -->
-        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
+    <!-- Pre-declare all required objects and variables before any scripts that use them -->
+    <script>
+        // Pre-declare ITTools object to prevent ReferenceError
+        window.ITTools = { Implementations: {} };
+        // Pre-declare videojs function (will be defined by video.js library)
+        window.videojs = function() {};
+    </script>
+    
+    <div style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 10000; min-width: 200px; border-radius: 4px; padding: 4px 0;">
         <div id="static-menu-navigate-to" onclick="StaticResourceBrowser.navigateToFolderFromMenu()"
             style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; display: none;"
             onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'">

@@ -1131,14 +1131,14 @@
             <Exec>droid.exe</Exec>
             <Name>Droid</Name>
             <DesktopCategory>AICLITools</DesktopCategory>
-            <Description>AI-powered development assistant from Factory.ai</Description>
+            <Description>Factory CLI (droid) - AI-powered development assistant</Description>
             <InstallType>powershell</InstallType>
             <ForceToInstallDir>false</ForceToInstallDir>
             <VerifySuffix></VerifySuffix>
             <AdditionalKeywords>
-                <Keyword>Droid</Keyword>
-                <Keyword>factory-ai</Keyword>
-                <Keyword>ai-assistant</Keyword>
+                <Keyword>droid</Keyword>
+                <Keyword>factory</Keyword>
+                <Keyword>factory-cli</Keyword>
             </AdditionalKeywords>
             <DesktopShortcuts>
                 <Shortcut>
@@ -1154,16 +1154,16 @@
         </Droid>
         
         <ClaudeCodeRouter>
-            <PackageId></PackageId>
+            <PackageId>@musistudio/claude-code-router</PackageId>
             <Exec>claude-code-router.exe</Exec>
             <Name>ClaudeCodeRouter</Name>
             <DesktopCategory>AICLITools</DesktopCategory>
             <Description>Claude Code Router for AI-powered code analysis and routing</Description>
-            <InstallType>powershell</InstallType>
+            <InstallType>npm</InstallType>
             <ForceToInstallDir>false</ForceToInstallDir>
             <VerifySuffix></VerifySuffix>
             <AdditionalKeywords>
-                <Keyword>ClaudeCodeRouter</Keyword>
+                <Keyword>claude-code-router</Keyword>
                 <Keyword>claude-router</Keyword>
                 <Keyword>code-analysis</Keyword>
             </AdditionalKeywords>
@@ -1177,9 +1177,8 @@
                     <Type>AddExec</Type>
                 </EnvVar>
             </EnvVars>
-            <PowerShellCommand>irm https://app.factory.ai/cli/windows | iex</PowerShellCommand>
         </ClaudeCodeRouter>
-        
+
         <AlibabaQoder>
             <PackageId>Alibaba.Qoder</PackageId>
             <Exec>Qoder.exe</Exec>
