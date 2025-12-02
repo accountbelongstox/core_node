@@ -6,8 +6,8 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
-import '../../../../../../common/localization/localization_manager.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
 import '../../../../../../common/widgets/glassmorphism_card.dart';
@@ -16,6 +16,10 @@ import '../../../../../../common/services/settings_service.dart';
 import '../../../../../../common/auth_v2/auth_v2.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
+import '../../../router_app_qy/routes_provider_app_qy.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
 
 class LoginScreenV2AppQy extends StatefulWidget {
   const LoginScreenV2AppQy({super.key});
@@ -122,8 +126,8 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.transparent,
-                Colors.black.withOpacity(0.15),
+                ColorsAppQy.qyPageBackground.withOpacity(0),
+                ColorsAppQy.qyShadowLight,
               ],
             ),
           ),
@@ -190,7 +194,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
         child: const Icon(
           Icons.auto_stories,
           size: 50,
-          color: Colors.white,
+          color: ColorsAppQy.qyTextOnPrimary,
         ),
       ),
     );
@@ -202,10 +206,10 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       style: const TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
         shadows: [
           Shadow(
-            color: Colors.black26,
+            color: ColorsAppQy.qyShadowLight,
             offset: Offset(0, 2),
             blurRadius: 4,
           ),
@@ -220,10 +224,10 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       'app.subtitle'.tr,
       style: TextStyle(
         fontSize: 16,
-        color: Colors.white.withOpacity(0.9),
+        color: ColorsAppQy.qyFrostWhite,
         shadows: const [
           Shadow(
-            color: Colors.black26,
+            color: ColorsAppQy.qyShadowLight,
             offset: Offset(0, 1),
             blurRadius: 2,
           ),
@@ -261,7 +265,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       text: 'auth.phoneLogin'.tr,
       width: double.infinity,
       height: 56,
-      icon: const Icon(Icons.phone, color: Colors.white),
+      icon: const Icon(Icons.phone, color: ColorsAppQy.qyTextOnPrimary),
       gradient: AppTheme.primaryGradient,
       onPressed: _agreedToTerms && !_isLoading ? _togglePhoneForm : null,
     );
@@ -272,9 +276,9 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       text: 'auth.wechatLogin'.tr,
       width: double.infinity,
       height: 56,
-      icon: const Icon(Icons.wechat, color: Colors.white),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF07C160), Color(0xFF05A352)],
+      icon: const Icon(Icons.wechat, color: ColorsAppQy.qyTextOnPrimary),
+      gradient: LinearGradient(
+        colors: [ColorsAppQy.qyWechatGreen, ColorsAppQy.qyWechatGreen.withOpacity(0.8)],
       ),
       onPressed: _agreedToTerms && !_isLoading
           ? () => _handleWeChatLogin(userProvider)
@@ -289,13 +293,13 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       },
       icon: Icon(
         _showMoreOptions ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-        color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
       ),
       label: Text(
         _showMoreOptions
             ? QyAppLocalizationKeys.qyAuthCollapseOptions.tr(context)
             : QyAppLocalizationKeys.qyAuthMoreOptions.tr(context),
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: ColorsAppQy.qyTextOnPrimary),
       ),
     );
   }
@@ -345,19 +349,19 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: ColorsAppQy.qyShadowLight,
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 28),
           ),
           const SizedBox(height: 8),
           Text(
             label,
             style: const TextStyle(
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               fontSize: 12,
             ),
           ),
@@ -376,8 +380,8 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.white.withOpacity(0.9),
-              Colors.white.withOpacity(0.7),
+              ColorsAppQy.qyFrostWhite,
+              ColorsAppQy.qyFrostMedium,
             ],
           ),
         ),
@@ -438,26 +442,26 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
           child: TextFormField(
             controller: _codeController,
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: ColorsAppQy.qyTextOnPrimary),
             decoration: InputDecoration(
               labelText: 'auth.verificationCode'.tr,
-              labelStyle: const TextStyle(color: Colors.white70),
+              labelStyle: TextStyle(color: ColorsAppQy.qyFrostMedium),
               hintText: 'auth.pleaseEnterCode'.tr,
-              hintStyle: const TextStyle(color: Colors.white38),
-              prefixIcon: const Icon(Icons.message, color: Colors.white70),
+              hintStyle: TextStyle(color: ColorsAppQy.qyFrostLight),
+              prefixIcon: Icon(Icons.message, color: ColorsAppQy.qyFrostMedium),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.1),
+              fillColor: ColorsAppQy.qyFrostLight,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                borderSide: BorderSide(color: ColorsAppQy.qyFrostLight),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.white, width: 2),
+                borderSide: BorderSide(color: ColorsAppQy.qyTextOnPrimary, width: 2),
               ),
             ),
             validator: (value) {
@@ -481,14 +485,14 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       decoration: BoxDecoration(
         gradient: _countdownSeconds > 0
             ? null
-            : const LinearGradient(
-                colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
+            : LinearGradient(
+                colors: [ColorsAppQy.qySuccess, ColorsAppQy.qySuccess.withOpacity(0.8)],
               ),
-        color: _countdownSeconds > 0 ? Colors.white.withOpacity(0.2) : null,
+        color: _countdownSeconds > 0 ? ColorsAppQy.qyFrostLight : null,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
-        color: Colors.transparent,
+        color: ColorsAppQy.qyPageBackground.withOpacity(0),
         child: InkWell(
           onTap: _countdownSeconds > 0 || _isLoading
               ? null
@@ -505,7 +509,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
                     ? 'auth.countdown'.trParams({'seconds': _countdownSeconds})
                     : 'auth.getCode'.tr,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -529,7 +533,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               height: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyTextOnPrimary),
               ),
             )
           : null,
@@ -565,7 +569,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
                 if (states.contains(WidgetState.selected)) {
                   return AppTheme.primaryGreen;
                 }
-                return Colors.white.withOpacity(0.3);
+                return ColorsAppQy.qyFrostMedium;
               }),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(4),
@@ -578,14 +582,14 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               TextSpan(
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Colors.white70,
+                  color: ColorsAppQy.qyFrostMedium,
                 ),
                 children: [
                   TextSpan(text: 'auth.agreementPrefix'.tr),
                   TextSpan(
                     text: 'auth.userAgreement'.tr,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       decoration: TextDecoration.underline,
                     ),
                   ),
@@ -593,7 +597,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
                   TextSpan(
                     text: 'auth.privacyPolicy'.tr,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       decoration: TextDecoration.underline,
                     ),
                   ),
@@ -626,14 +630,14 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          color: ColorsAppQy.qyFrostLight,
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withOpacity(0.3),
+            color: ColorsAppQy.qyFrostMedium,
             width: 1,
           ),
         ),
-        child: Icon(icon, color: Colors.white, size: 24),
+        child: Icon(icon, color: ColorsAppQy.qyTextOnPrimary, size: 24),
       ),
     );
   }
@@ -664,7 +668,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(result.errorMessage ?? 'auth.sendCodeFailed'.tr),
-                backgroundColor: Colors.red,
+                backgroundColor: ColorsAppQy.qyError,
               ),
             );
           }
@@ -708,7 +712,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('auth.loginFailed'.tr),
-              backgroundColor: Colors.red,
+              backgroundColor: ColorsAppQy.qyError,
             ),
           );
         }

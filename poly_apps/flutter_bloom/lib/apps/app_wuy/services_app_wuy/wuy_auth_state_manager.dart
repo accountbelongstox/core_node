@@ -213,7 +213,7 @@ class WuyAuthStateManager {
     if (_isAuthenticated && _currentUser != null) {
       debugPrint(
           'Auth state manager: User authenticated, returning home route');
-      return '/wuy/friends'; // Friends list as home page
+      return '/wuy/map'; // Map is the home page (matching React version)
     } else {
       debugPrint(
           'Auth state manager: User not authenticated, returning login entry route');

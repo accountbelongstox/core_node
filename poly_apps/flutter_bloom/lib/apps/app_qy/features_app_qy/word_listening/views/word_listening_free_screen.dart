@@ -33,7 +33,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
 
   String _selectedCategory = '';
   bool _isPlaying = false;
-  int _currentSpeed = 1; // 0: 慢速, 1: 正常, 2: 快速
+  int _currentSpeed = 1; // 0: slow, 1: normal, 2: fast
   int _listeningTime = 0;
   Timer? _timer;
 
@@ -232,7 +232,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                   colors: [color, color.withOpacity(0.7)],
                 )
               : null,
-          color: isSelected ? null : Colors.white,
+          color: isSelected ? null : ColorsAppQy.qyTextOnPrimary,
           borderRadius: ThemeDimensions.borderRadiusS,
           border: Border.all(
             color: isSelected ? color : ColorsAppQy.qyBorderLight,
@@ -243,14 +243,14 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.white : color,
+              color: isSelected ? ColorsAppQy.qyTextOnPrimary : color,
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: ThemeTextStyles.bodyMedium.copyWith(
-                color: isSelected ? Colors.white : color,
+                color: isSelected ? ColorsAppQy.qyTextOnPrimary : color,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -276,35 +276,35 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                 Expanded(
             child: _buildStatItem(
               QyAppLocalizationKeys.qyListeningTodayListening.tr(context),
-              '${(_listeningTime / 60).toInt()} 分钟',
+              '${(_listeningTime / 60).toInt()} ${QyAppLocalizationKeys.qyListeningMinutes.tr(context)}',
               Icons.access_time,
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               Container(
                 width: 1,
                 height: 40,
-                color: Colors.white.withOpacity(0.3),
+                color: ColorsAppQy.qyFrostMedium,
               ),
               Expanded(
                 child: _buildStatItem(
                   QyAppLocalizationKeys.qyListeningLearnedWords.tr(context),
                   '89',
                   Icons.headphones,
-                  Colors.white,
+                  ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               Container(
                 width: 1,
                 height: 40,
-                color: Colors.white.withOpacity(0.3),
+                color: ColorsAppQy.qyFrostMedium,
               ),
               Expanded(
                 child: _buildStatItem(
                   QyAppLocalizationKeys.qyListeningStreakDays.tr(context),
-                  '7 天',
+                  '7 ${QyAppLocalizationKeys.qyListeningDays.tr(context)}',
                   Icons.local_fire_department,
-                  Colors.white,
+                  ColorsAppQy.qyTextOnPrimary,
                 ),
               ),
               ],
@@ -459,8 +459,8 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.white.withOpacity(0.9),
-              Colors.white.withOpacity(0.7),
+              ColorsAppQy.qyFrostWhite,
+              ColorsAppQy.qyFrostMedium,
             ],
           ),
         ),
@@ -482,7 +482,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
             ),
             SizedBox(height: ThemeDimensions.spacing12),
             Text(
-              '你好，世界',
+              QyAppLocalizationKeys.qyListeningExampleText.tr(context),
               style: ThemeTextStyles.bodyLarge.copyWith(
                 color: ColorsAppQy.qyTextPrimary,
               ),
@@ -504,14 +504,14 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                         children: [
                           Icon(
                             _isPlaying ? Icons.stop : Icons.play_arrow,
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             size: 24,
                           ),
                           SizedBox(width: ThemeDimensions.spacing8),
                           Text(
                             _isPlaying ? QyAppLocalizationKeys.qyListeningStop.tr(context) : QyAppLocalizationKeys.qyListeningPlay.tr(context),
                             style: ThemeTextStyles.bodyLarge.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
                           ),
@@ -526,7 +526,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: ColorsAppQy.qyPrimary,
@@ -630,7 +630,7 @@ class _WordListeningFreeScreenState extends State<WordListeningFreeScreen>
               child: Text(
                 QyAppLocalizationKeys.qyClose.tr(context),
                 style: ThemeTextStyles.bodyLarge.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),

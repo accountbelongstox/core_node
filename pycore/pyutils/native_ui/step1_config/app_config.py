@@ -225,7 +225,7 @@ class NativeUIConfig:
         """
         Auto-detect icon and logo paths if not provided
 
-        Searches in: pyapps/{app_id}/icon.png
+        Searches in: pyapps/{app_id}/icon.ico
         """
         if self.project_root is None:
             # Auto-detect project root (4 levels up from this file)
@@ -235,9 +235,9 @@ class NativeUIConfig:
 
         # Auto-detect icon path
         if self.icon_path is None:
-            icon_png = app_dir / "icon.png"
-            if icon_png.exists():
-                self.icon_path = str(icon_png)
+            icon_ico = app_dir / "icon.ico"
+            if icon_ico.exists():
+                self.icon_path = str(icon_ico)
                 if self.debug:
                     from pycore import ColorPrint
                     ColorPrint.print_info(f"[Config] Auto-detected icon: {self.icon_path}")
@@ -246,13 +246,6 @@ class NativeUIConfig:
         if self.logo_path is None:
             if self.icon_path:
                 self.logo_path = self.icon_path
-            else:
-                logo_png = app_dir / "icon.png"
-                if logo_png.exists():
-                    self.logo_path = str(logo_png)
-                    if self.debug:
-                        from pycore import ColorPrint
-                        ColorPrint.print_info(f"[Config] Auto-detected logo: {self.logo_path}")
 
     def __post_init__(self):
         """Post-initialization: validate, auto-detect paths, and generate keys"""

@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
 class ThemeExtensionsAppQy {
@@ -27,7 +26,7 @@ class ThemeExtensionsAppQy {
     color: ColorsAppQy.qyGlassWhite,
     borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
     border: Border.all(
-      color: ThemeColors.white.withOpacity(0.3),
+      color: ColorsAppQy.qyFrostMedium,
       width: 1.5,
     ),
     boxShadow: [
@@ -65,7 +64,7 @@ class ThemeExtensionsAppQy {
       color: backgroundColor ?? ColorsAppQy.qyGlassWhite,
       borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
       border: Border.all(
-        color: ThemeColors.white.withOpacity(0.2),
+        color: ColorsAppQy.qyFrostLight,
         width: 1,
       ),
     );
@@ -112,7 +111,7 @@ class ThemeExtensionsAppQy {
       gradient: gradient,
       borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
       border: Border.all(
-        color: ThemeColors.white.withOpacity(0.2),
+        color: ColorsAppQy.qyFrostLight,
         width: 1,
       ),
     );
@@ -139,7 +138,7 @@ class ThemeExtensionsAppQy {
   );
 
   static BoxDecoration get qyInputDecoration => BoxDecoration(
-    color: ThemeColors.white.withOpacity(0.05),
+    color: ColorsAppQy.qyFrostLight,
     borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
     border: Border.all(
       color: ColorsAppQy.qyBorderLight.withOpacity(0.3),
@@ -159,7 +158,7 @@ class ThemeExtensionsAppQy {
       prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: ThemeColors.white.withOpacity(0.05),
+      fillColor: ColorsAppQy.qyFrostLight,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         borderSide: BorderSide(
@@ -184,14 +183,14 @@ class ThemeExtensionsAppQy {
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         borderSide: BorderSide(
-          color: ThemeColors.red.withOpacity(0.5),
+          color: ColorsAppQy.qyError.withOpacity(0.5),
           width: 1,
         ),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(ThemeDimensions.radiusMedium),
         borderSide: const BorderSide(
-          color: ThemeColors.red,
+          color: ColorsAppQy.qyError,
           width: 2,
         ),
       ),
@@ -269,7 +268,7 @@ class ThemeExtensionsAppQy {
         color: backgroundColor ?? ColorsAppQy.qyGlassWhite,
         borderRadius: borderRadius ?? BorderRadius.circular(ThemeDimensions.radiusLarge),
         border: Border.all(
-          color: ThemeColors.white.withOpacity(0.2),
+          color: ColorsAppQy.qyFrostLight,
           width: 1,
         ),
       ),

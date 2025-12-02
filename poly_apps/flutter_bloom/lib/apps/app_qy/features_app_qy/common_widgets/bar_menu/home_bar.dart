@@ -65,14 +65,14 @@ class _HomeBarState extends State<HomeBar> with SingleTickerProviderStateMixin {
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
           ),
           child: AppBar(
             forceMaterialTransparency: true,
-            backgroundColor: Colors.transparent,
+            backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
             elevation: 0,
             leading: Padding(
               padding: const EdgeInsets.all(ThemeDimensions.spacing8),
@@ -107,7 +107,7 @@ class _HomeBarState extends State<HomeBar> with SingleTickerProviderStateMixin {
                         QyAppLocalizationKeys.qySearchPlaceholder.tr(context),
                     borderColor: ColorsAppQy.qyBorderLight.withOpacity(0.3),
                     textColor: ColorsAppQy.qyTextPrimary,
-                    backgroundColor: Colors.transparent,
+                    backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
                     borderWidth: 0,
                     onTap: () {
                       showDialog(
@@ -137,7 +137,7 @@ class _HomeBarState extends State<HomeBar> with SingleTickerProviderStateMixin {
                                       .tr(context),
                                   borderColor: ColorsAppQy.qyBorderLight,
                                   textColor: ColorsAppQy.qyTextPrimary,
-                                  backgroundColor: Colors.transparent,
+                                  backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
                                   borderWidth: 1.0,
                                   onChanged: (value) {},
                                 ),

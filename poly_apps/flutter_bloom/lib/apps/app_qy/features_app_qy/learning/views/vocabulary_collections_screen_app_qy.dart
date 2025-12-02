@@ -460,7 +460,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
                                   ),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
-                                      colors: [Colors.orange.shade400, Colors.orange.shade600],
+                                      colors: [ColorsAppQy.qyWarning, ColorsAppQy.qyWarningDark],
                                     ),
                                     borderRadius: BorderRadius.circular(ThemeDimensions.radiusFull),
                                   ),
@@ -565,7 +565,7 @@ class _VocabularyCollectionsScreenAppQyState extends State<VocabularyCollections
       case 'business':
         return LinearGradient(colors: [ColorsAppQy.qySuccess, ColorsAppQy.qySecondaryDark]);
       case 'daily':
-        return LinearGradient(colors: [Colors.orange.shade400, Colors.orange.shade600]);
+        return LinearGradient(colors: [ColorsAppQy.qyWarning, ColorsAppQy.qyWarningDark]);
       case 'travel':
         return LinearGradient(colors: [Colors.purple.shade400, Colors.purple.shade600]);
       case 'technical':

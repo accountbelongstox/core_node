@@ -475,7 +475,7 @@ class _HomeStudyScreenRefactoredAppQyState
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withOpacity(0.2),
+            color: ColorsAppQy.qyFrostLight,
             width: 1,
           ),
         ),

@@ -57,10 +57,20 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyFriendsNoFriends: 'No Friends',
     LocalizationKeysAppWuy.wuyFriendsAddFriend: 'Add Friend',
     LocalizationKeysAppWuy.wuyFriendsOnline: 'Online',
+    LocalizationKeysAppWuy.wuyFriendMonitor: 'Monitor',
+    LocalizationKeysAppWuy.wuyFriendDetails: 'Details',
+    LocalizationKeysAppWuy.wuyFriendSearch: 'Search',
+    LocalizationKeysAppWuy.wuyFriendSearchPhone: 'Search Phone Number',
+    LocalizationKeysAppWuy.wuyFriendMonitoringStatus: 'Monitoring Status',
+    LocalizationKeysAppWuy.wuyFriendLastMessage: 'Last Message',
     LocalizationKeysAppWuy.wuyFriendsOffline: 'Offline',
+    LocalizationKeysAppWuy.wuyTimeMinutesAgo: 'm ago',
+    LocalizationKeysAppWuy.wuyTimeHoursAgo: 'h ago',
+    LocalizationKeysAppWuy.wuyTimeDaysAgo: 'd ago',
     LocalizationKeysAppWuy.wuyMonitoringEnabled: 'Monitoring enabled',
     LocalizationKeysAppWuy.wuyMonitoringDisabled: 'Monitoring disabled',
-    LocalizationKeysAppWuy.wuyMonitoringError: 'Failed to update monitoring status',
+    LocalizationKeysAppWuy.wuyMonitoringError:
+        'Failed to update monitoring status',
     LocalizationKeysAppWuy.wuyLastLocation: 'Last location',
 
     // Chat related
@@ -106,7 +116,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyHistoryAction: 'Action',
     LocalizationKeysAppWuy.wuyHistoryMessage: 'Message',
     LocalizationKeysAppWuy.wuyHistoryUpdate: 'Update',
-    LocalizationKeysAppWuy.wuyHistoryProtectFuture: 'Carefully Guarding Your Future',
+    LocalizationKeysAppWuy.wuyHistoryProtectFuture:
+        'Carefully Guarding Your Future',
     LocalizationKeysAppWuy.wuyHistoryNoLocationHistory: 'No location history',
     LocalizationKeysAppWuy.wuyHistoryTrajectory: 'Trajectory',
 
@@ -118,7 +129,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyNetworkPending: 'Pending',
     LocalizationKeysAppWuy.wuyNetworkConnectedWifi: 'Connected to WiFi',
     LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith: 'Connected WiFi',
-    LocalizationKeysAppWuy.wuyNetworkConnectedMobile: 'Connected to Mobile Network',
+    LocalizationKeysAppWuy.wuyNetworkConnectedMobile:
+        'Connected to Mobile Network',
     LocalizationKeysAppWuy.wuyNetworkChange: 'Network change',
     LocalizationKeysAppWuy.wuyNetworkNoRecords: 'No network records',
 
@@ -192,6 +204,14 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyMapViewDetails: 'View Details',
     LocalizationKeysAppWuy.wuyMapFriends: 'Friends',
     LocalizationKeysAppWuy.wuyMapMine: 'Mine',
+    LocalizationKeysAppWuy.wuyTabMap: 'Map',
+    LocalizationKeysAppWuy.wuyTabFriends: 'Family',
+    LocalizationKeysAppWuy.wuyTabMe: 'Me',
+    LocalizationKeysAppWuy.wuyHomeSos: 'SOS',
+    LocalizationKeysAppWuy.wuyHomeFence: 'Fence',
+    LocalizationKeysAppWuy.wuyHomeDays: 'Days Protected',
+    LocalizationKeysAppWuy.wuyHomeBattery: 'Battery',
+    LocalizationKeysAppWuy.wuyHomeDaysProtected: 'Days Protected',
     LocalizationKeysAppWuy.wuyMapCenterLocation: 'Centered on current location',
     LocalizationKeysAppWuy.wuyMapStyleTitle: 'Map Style',
     LocalizationKeysAppWuy.wuyMapStyleNormal: 'Normal',
@@ -214,6 +234,18 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyProfileEmail: 'Email',
     LocalizationKeysAppWuy.wuyProfilePhone: 'Phone',
     LocalizationKeysAppWuy.wuyProfileEditProfile: 'Edit Profile',
+
+    // Me/Profile page menu items
+    LocalizationKeysAppWuy.wuyMeProfile: 'Profile',
+    LocalizationKeysAppWuy.wuyMeTheme: 'Theme',
+    LocalizationKeysAppWuy.wuyMeLang: 'Language',
+    LocalizationKeysAppWuy.wuyMeAbout: 'About',
+    LocalizationKeysAppWuy.wuyMeSettings: 'Settings',
+    LocalizationKeysAppWuy.wuyMeLogout: 'Log Out',
+    LocalizationKeysAppWuy.wuyMeThemeLight: 'Light',
+    LocalizationKeysAppWuy.wuyMeThemeDark: 'Dark',
+    LocalizationKeysAppWuy.wuyMeLangEnglish: 'English',
+    LocalizationKeysAppWuy.wuyMeLangChinese: '中文',
     LocalizationKeysAppWuy.wuyProfileChangePassword: 'Change Password',
     LocalizationKeysAppWuy.wuyProfileNotificationSettings:
         'Notification Settings',
@@ -278,6 +310,16 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyFriendInfoSendMessage: 'Send Message',
     LocalizationKeysAppWuy.wuyFriendInfoCall: 'Call',
     LocalizationKeysAppWuy.wuyFriendInfoVideoCall: 'Video Call',
+    LocalizationKeysAppWuy.wuyStatsDevice: 'Device',
+    LocalizationKeysAppWuy.wuyStatsPlaces: 'Places',
+    LocalizationKeysAppWuy.wuyStatsSteps: 'Steps',
+    LocalizationKeysAppWuy.wuyStatsHeart: 'Heart',
+    LocalizationKeysAppWuy.wuyStatsTemp: 'Temp',
+    LocalizationKeysAppWuy.wuyStatsNetwork: 'Network',
+    LocalizationKeysAppWuy.wuyStatsUnlocks: 'Unlocks',
+    LocalizationKeysAppWuy.wuyStatsScreenTime: 'Screen Time',
+    LocalizationKeysAppWuy.wuyStatsUpdated: 'Updated',
+    LocalizationKeysAppWuy.wuyStatsTimes: 'times',
 
     // Add friend screen
     LocalizationKeysAppWuy.wuyAddFriendTitle: 'Add Friend',
@@ -289,6 +331,16 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAddFriendAdd: 'Add',
     LocalizationKeysAppWuy.wuyAddFriendAdded: 'Added',
     LocalizationKeysAppWuy.wuyAddFriendPending: 'Pending',
+
+    // Send request screen
+    LocalizationKeysAppWuy.wuySendRequestTitle: 'Verify Request',
+    LocalizationKeysAppWuy.wuySendRequestMessage: 'Message',
+    LocalizationKeysAppWuy.wuySendRequestAlias: 'Alias/Remark',
+    LocalizationKeysAppWuy.wuySendRequestRelation: 'Relation',
+    LocalizationKeysAppWuy.wuySendRequestSend: 'Send Request',
+    LocalizationKeysAppWuy.wuySendRequestRelationFamily: 'Family',
+    LocalizationKeysAppWuy.wuySendRequestRelationPartner: 'Partner',
+    LocalizationKeysAppWuy.wuySendRequestRelationFriend: 'Friend',
 
     // Settings screen
     LocalizationKeysAppWuy.wuySettingsTitle: 'Settings',
@@ -520,8 +572,7 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyDashboardActiveSessions: 'Active Sessions',
     LocalizationKeysAppWuy.wuyDashboardMessages: 'Messages',
     LocalizationKeysAppWuy.wuyDashboardTasks: 'Tasks',
-    LocalizationKeysAppWuy.wuyDashboardNewUserRegistered:
-        'New user registered',
+    LocalizationKeysAppWuy.wuyDashboardNewUserRegistered: 'New user registered',
     LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted:
         'System update completed',
     LocalizationKeysAppWuy.wuyDashboardNewMessageReceived:
@@ -576,36 +627,49 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyLoginWelcome: 'Welcome to Wuy App',
     LocalizationKeysAppWuy.wuyLoginSignInToContinue: 'Sign in to continue',
     LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail: 'Please enter your email',
-    LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail: 'Please enter a valid email',
-    LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword: 'Please enter your password',
-    LocalizationKeysAppWuy.wuyLoginPasswordMinLength: 'Password must be at least 6 characters',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail:
+        'Please enter a valid email',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword:
+        'Please enter your password',
+    LocalizationKeysAppWuy.wuyLoginPasswordMinLength:
+        'Password must be at least 6 characters',
     LocalizationKeysAppWuy.wuyLoginErrorMessage: 'Login failed: {error}',
 
     // Personal info screen specific
     LocalizationKeysAppWuy.wuyPersonalInfoPleaseEnter: 'Please enter {label}',
     LocalizationKeysAppWuy.wuyPersonalInfoGallery: 'Gallery',
     LocalizationKeysAppWuy.wuyPersonalInfoCamera: 'Camera',
-    LocalizationKeysAppWuy.wuyPersonalInfoAvatarUpdated: 'Avatar updated successfully',
+    LocalizationKeysAppWuy.wuyPersonalInfoAvatarUpdated:
+        'Avatar updated successfully',
     LocalizationKeysAppWuy.wuyPersonalInfoNoUser: 'No user logged in',
-    LocalizationKeysAppWuy.wuyPersonalInfoUpdateSuccess: 'Profile updated successfully',
-    LocalizationKeysAppWuy.wuyPersonalInfoUpdateFailed: 'Failed to update profile: {error}',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateSuccess:
+        'Profile updated successfully',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateFailed:
+        'Failed to update profile: {error}',
 
     // Phone login screen specific
-    LocalizationKeysAppWuy.wuyPhoneLoginSubtitle: 'Sign in with your phone number',
+    LocalizationKeysAppWuy.wuyPhoneLoginSubtitle:
+        'Sign in with your phone number',
 
     // Register screen specific
     LocalizationKeysAppWuy.wuyRegisterSend: 'Send',
     LocalizationKeysAppWuy.wuyRegisterPasswordHint: 'Enter your password',
-    LocalizationKeysAppWuy.wuyRegisterPasswordValidation: 'Please enter your password',
-    LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation: 'Password must be at least 6 characters',
-    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint: 'Confirm your password',
-    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation: 'Please confirm your password',
-    LocalizationKeysAppWuy.wuyRegisterPasswordMismatch: 'Passwords do not match',
+    LocalizationKeysAppWuy.wuyRegisterPasswordValidation:
+        'Please enter your password',
+    LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation:
+        'Password must be at least 6 characters',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint:
+        'Confirm your password',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation:
+        'Please confirm your password',
+    LocalizationKeysAppWuy.wuyRegisterPasswordMismatch:
+        'Passwords do not match',
     LocalizationKeysAppWuy.wuyRegisterNow: 'Register',
     LocalizationKeysAppWuy.wuyRegisterHaveAccount: 'Already have an account? ',
 
     // Profile screen specific
-    LocalizationKeysAppWuy.wuyProfileLogoutConfirm: 'Are you sure you want to logout?',
+    LocalizationKeysAppWuy.wuyProfileLogoutConfirm:
+        'Are you sure you want to logout?',
     LocalizationKeysAppWuy.wuyProfileLogoutCancel: 'Cancel',
     LocalizationKeysAppWuy.wuyProfileLogoutButton: 'Logout',
 
@@ -613,7 +677,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyFriendInfoHealth: 'Their Health',
     LocalizationKeysAppWuy.wuyFriendInfoPhoneReport: 'Their Phone Report Today',
     LocalizationKeysAppWuy.wuyFriendInfoPlacesVisited: 'Places Visited Today',
-    LocalizationKeysAppWuy.wuyFriendInfoAchievements: 'Their Achievements Today',
+    LocalizationKeysAppWuy.wuyFriendInfoAchievements:
+        'Their Achievements Today',
     LocalizationKeysAppWuy.wuyFriendInfoRunningKm: 'Running km',
     LocalizationKeysAppWuy.wuyFriendInfoSteps: 'Steps',
     LocalizationKeysAppWuy.wuyFriendInfoCalories: 'Calories',

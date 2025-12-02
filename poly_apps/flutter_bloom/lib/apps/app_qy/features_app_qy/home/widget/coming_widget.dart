@@ -16,6 +16,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/comingto
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import '../../../../resources_app_qy/colors_app_qy.dart';
 
 import 'package:percent_indicator/percent_indicator.dart';
 
@@ -77,7 +78,7 @@ class ComingEndWidget extends StatelessWidget {
                           comingEndModel?.donat ?? '',
                           style: ThemeTextStyles.textMedium.copyWith(
                               fontSize: ThemeDimensions.fontSizeDefault,
-                              color: ThemeColors.green),
+                              color: ColorsAppQy.qySuccess),
                         ),
                         Text("Found reside from ${comingEndModel?.donat}")
                       ],
