@@ -597,7 +597,9 @@ function Find-ExecutableByKeyword {
         ${env:LOCALAPPDATA},
         ${env:APPDATA},
         "C:\Program Files",
-        "C:\Program Files (x86)"
+        "C:\Program Files (x86)",
+        "$env:USERPROFILE",
+        "$env:USERPROFILE\bin"
     )
     if ($IncludeSystemPaths) {
         $searchPaths += $systemPaths
