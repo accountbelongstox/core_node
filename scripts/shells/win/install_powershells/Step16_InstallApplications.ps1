@@ -1062,7 +1062,11 @@ function Install-BasePackage {
         try {
             $cleanupResult = Invoke-DesktopCleanupForPackage -PackageName $PackageName -ExecutablePath $executable -ScanKeywords $scanKeywords -CategoryName $categoryName -CreateShortcut $createShortcut
 
-            if ($cleanupResult.Errors.Count -eq 0) {
+            # Check if cleanup was actually performed (returns null if disabled)
+            if ($null -eq $cleanupResult) {
+                Write-Host "$SCRIPT_INDEX Desktop cleanup is disabled for $PackageName" -ForegroundColor Gray
+            }
+            elseif ($cleanupResult.Errors.Count -eq 0) {
                 Write-Host "$SCRIPT_INDEX Desktop cleanup successful for $PackageName (Found: $($cleanupResult.ShortcutsFound), Created: $($cleanupResult.ShortcutsCreated))" -ForegroundColor Green
             }
             else {
@@ -1205,9 +1209,13 @@ Write-Host "$SCRIPT_INDEX Performing final desktop organization after all instal
 try {
     $finalOrganization = Invoke-DesktopIconOrganization -ShowSummary $true -ExtractIcons $false
 
-    if ($finalOrganization.Errors.Count -eq 0) {
+    # Check if organization was actually performed (returns null if disabled)
+    if ($null -eq $finalOrganization) {
+        Write-Host "$SCRIPT_INDEX Desktop organization is disabled, skipping" -ForegroundColor Gray
+    }
+    elseif ($finalOrganization.Errors.Count -eq 0) {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed successfully!" -ForegroundColor Green
-        Write-Host "$SCRIPT_INDEX Summary: Shortcuts found: $($finalOrganization.ShortcutsFound), Organized: $($finalOrganization.ShortcutsOrganized)" -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX Summary: Categories: $($finalOrganization.CategoriesProcessed), Moved: $($finalOrganization.ShortcutsMoved), Unmatched: $($finalOrganization.UnmatchedShortcuts)" -ForegroundColor Green
     }
     else {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed with warnings" -ForegroundColor Yellow

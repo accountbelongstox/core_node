@@ -107,6 +107,16 @@ class PhpFileWatcherTask extends OctaneTimerTaskAbstract
     }
 
     /**
+     * @inheritDoc
+     */
+    public function isEnabled(): bool
+    {
+        // Only enable in desktop environment (WSL or GUI Linux)
+        // Production servers should NOT auto-restart on file changes
+        return PathMapper::hasDesktopEnvironment() || PathMapper::isWSL();
+    }
+
+    /**
      * Calculate hash of all PHP files in the Laravel directory
      *
      * @param string $path Base path to scan
