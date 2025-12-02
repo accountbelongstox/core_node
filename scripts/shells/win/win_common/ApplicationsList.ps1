@@ -408,13 +408,13 @@ $Global:BasePackages = @{
                 Type    = @("Var")
                 Name    = "JAVA_HOME"
                 Keyword = @("java.exe")
-                SubPath = ""
+                SubPath = ".."
             }
             @{
                 Type    = @("Var")
                 Name    = "JDK_HOME"
                 Keyword = @("java.exe")
-                SubPath = ""
+                SubPath = ".."
             }
         )
         DesktopShortcuts  = $null
