@@ -56,7 +56,6 @@ const StaticResourceBrowser = {
         const container = document.getElementById('preview-container');
         container.addEventListener('mousemove', () => this.showVideoNav());
         container.addEventListener('touchstart', () => this.showVideoNav());
-        }
     },
     
     // Show floating video navigation
@@ -65,9 +64,9 @@ const StaticResourceBrowser = {
         const rightNav = document.getElementById('video-nav-right');
         const settingsBar = document.getElementById('video-settings-bar');
         
-        if (leftNav) leftNav.classList.add('visible');
-        if (rightNav) rightNav.classList.add('visible');
-        if (settingsBar && settingsBar.classList.contains('floating')) {
+        leftNav.classList.add('visible');
+        rightNav.classList.add('visible');
+        if (settingsBar.classList.contains('floating')) {
             settingsBar.classList.add('visible');
         }
         
@@ -81,9 +80,9 @@ const StaticResourceBrowser = {
         const rightNav = document.getElementById('video-nav-right');
         const settingsBar = document.getElementById('video-settings-bar');
         
-        if (leftNav) leftNav.classList.remove('visible');
-        if (rightNav) rightNav.classList.remove('visible');
-        if (settingsBar && settingsBar.classList.contains('floating')) {
+        leftNav.classList.remove('visible');
+        rightNav.classList.remove('visible');
+        if (settingsBar.classList.contains('floating')) {
             settingsBar.classList.remove('visible');
         }
     },
@@ -113,7 +112,6 @@ const StaticResourceBrowser = {
         const panel = document.getElementById('video-playlist-panel');
         this.isPlaylistExpanded = !this.isPlaylistExpanded;
         panel.classList.toggle('expanded', this.isPlaylistExpanded);
-        }
     },
     
     // Smart sort function for files
@@ -772,30 +770,15 @@ const StaticResourceBrowser = {
             
             skipInput.removeEventListener('change', this.saveVideoSettings);
             skipInput.addEventListener('change', () => this.saveVideoSettings());
-            {
-                autoPlayCheckbox.removeEventListener('change', this.saveVideoSettings);
-                autoPlayCheckbox.addEventListener('change', () => this.saveVideoSettings());
-            }
-        } else {
-            // Fallback to native video
-            container.innerHTML = `
-                <video controls style="max-width: 100%; max-height: 100%;">
-                    <source src="/static-resources/stream-file?path=${encodeURIComponent(path)}" type="${mimeType}">
-                    Your browser does not support the video tag.
-                </video>
-            `;
-        }
+            autoPlayCheckbox.removeEventListener('change', this.saveVideoSettings);
+            autoPlayCheckbox.addEventListener('change', () => this.saveVideoSettings());
         
         // Show video settings bar
-        if (settingsBar) {
-            settingsBar.style.display = 'flex';
-        }
+        settingsBar.style.display = 'flex';
         
         // Update playlist count badge
         const countBadge = document.getElementById('playlist-count-badge');
-        if (countBadge) {
-            countBadge.textContent = this.videoPlaylist.length;
-        }
+        countBadge.textContent = this.videoPlaylist.length;
         
         // Render playlist (collapsed by default)
         this.renderVideoPlaylist();
@@ -813,12 +796,10 @@ const StaticResourceBrowser = {
         
         if (isFullscreen) {
             // In fullscreen, make settings bar floating
-            if (settingsBar) {
-                settingsBar.classList.add('floating');
-            }
+            settingsBar.classList.add('floating');
         } else {
             // Exit fullscreen on mobile, keep floating
-            if (window.innerWidth > 768 && settingsBar) {
+            if (window.innerWidth > 768) {
                 settingsBar.classList.remove('floating');
             }
         }
@@ -878,9 +859,7 @@ const StaticResourceBrowser = {
         
         // Scroll active item into view
         const activeItem = playlistContainer.querySelector('.video-playlist-item.active');
-        if (activeItem) {
-            activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
+        activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     },
     
     // Play video at specific index
@@ -922,9 +901,7 @@ const StaticResourceBrowser = {
         
         // Update playlist count badge
         const countBadge = document.getElementById('playlist-count-badge');
-        if (countBadge) {
-            countBadge.textContent = `${this.currentVideoIndex + 1}/${this.videoPlaylist.length}`;
-        }
+        countBadge.textContent = `${this.currentVideoIndex + 1}/${this.videoPlaylist.length}`;
     },
 
     showContextMenu(event, path, type) {

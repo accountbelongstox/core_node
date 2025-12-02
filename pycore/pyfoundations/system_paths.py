@@ -311,6 +311,19 @@ def get_app_logs_dir() -> Path:
     return logs_dir
 
 
+def get_core_node_root() -> Path:
+    """
+    Get core_node root directory by locating from this file's position
+
+    This file is at: pycore/pyfoundations/system_paths.py
+    core_node root is 3 levels up
+
+    Returns:
+        Path: core_node root directory
+    """
+    return Path(__file__).resolve().parent.parent.parent
+
+
 # Constants - Auto-initialized paths
 SYSTEM_CACHE_DIR = get_system_cache_dir()
 UI_STATE_CACHE_DIR = get_ui_state_cache_dir()
@@ -318,6 +331,7 @@ APP_CACHE_DIR = get_app_cache_dir()
 APP_CONFIG_DIR = get_app_config_dir()
 APP_DATA_DIR = get_app_data_dir()
 APP_LOGS_DIR = get_app_logs_dir()
+CORE_NODE_ROOT = get_core_node_root()
 
 
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
@@ -372,6 +386,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         mappings = {
             'applications': base_d / 'applications',
             'programing': base_d / 'programing',
+            'core_node': get_core_node_root(),
             'www': base_d / 'www',
             'wwwroot': base_d / 'www' / 'wwwroot',
             'pycore_db': base_d / 'www' / 'wwwroot' / 'pycore_db',
@@ -418,6 +433,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         mappings = {
             'applications': www_base / 'applications',
             'programing': www_base / 'programing',
+            'core_node': get_core_node_root(),
             'www': www_base,
             'wwwroot': www_base / 'wwwroot',
             'pycore_db': www_base / 'wwwroot' / 'pycore_db',
@@ -448,6 +464,7 @@ __all__ = [
     'get_app_config_dir',
     'get_app_data_dir',
     'get_app_logs_dir',
+    'get_core_node_root',
     'map_web_path',
     'SYSTEM_CACHE_DIR',
     'UI_STATE_CACHE_DIR',
@@ -455,4 +472,5 @@ __all__ = [
     'APP_CONFIG_DIR',
     'APP_DATA_DIR',
     'APP_LOGS_DIR',
+    'CORE_NODE_ROOT',
 ]

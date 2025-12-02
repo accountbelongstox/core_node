@@ -120,7 +120,7 @@ const ITTools = {
         restoreLeftMenuState() {
             try {
                 const isCollapsed = localStorage.getItem('ittools_left_menu_collapsed');
-                if (isCollapsed === null || isCollapsed === '1') {
+                if (isCollapsed === '1') {
                     const leftMenu = document.getElementById('ittools-dynamic-menu');
                     const collapseBtn = document.getElementById('ittools-menu-collapse-btn');
                     if (leftMenu && !leftMenu.classList.contains('collapsed')) {
@@ -304,8 +304,7 @@ const ITTools = {
             const element = document.getElementById(elementId);
             element.textContent = message;
             element.className = 'ittools-result';
-                element.style.display = 'block';
-            }
+            element.style.display = 'block';
         },
         
         copyToClipboard(text) {
