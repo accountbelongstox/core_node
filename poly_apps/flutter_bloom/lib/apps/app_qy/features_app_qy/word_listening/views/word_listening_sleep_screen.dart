@@ -231,7 +231,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                       ),
                       child: Icon(
                         Icons.bedtime,
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         size: 60,
                       ),
                     ),
@@ -280,7 +280,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               left: 20,
               child: Icon(
                 Icons.nights_stay,
-                color: Colors.white.withOpacity(0.3),
+                color: ColorsAppQy.qyFrostMedium,
                 size: 40,
               ),
             ),
@@ -289,7 +289,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               right: 30,
               child: Icon(
                 Icons.cloud,
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 size: 35,
               ),
             ),
@@ -298,7 +298,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               left: 40,
               child: Icon(
                 Icons.star,
-                color: Colors.white.withOpacity(0.4),
+                color: ColorsAppQy.qyFrostMedium,
                 size: 25,
               ),
             ),
@@ -306,7 +306,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               child: AnimationUtils.pulse(
                 child: Icon(
                   Icons.bedtime,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 60,
                 ),
               ),
@@ -361,7 +361,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                       borderRadius: ThemeDimensions.borderRadiusM,
                       border: Border.all(
                         color: isSelected
-                            ? Colors.transparent
+                            ? ColorsAppQy.qyPageBackground.withOpacity(0)
                             : _isDarkMode
                                 ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.24)
                                 : ColorsAppQy.qyBorderLight,
@@ -372,7 +372,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                       category.nameKey.tr(context),
                       style: ThemeTextStyles.bodyMedium.copyWith(
                         color: isSelected
-                            ? Colors.white
+                            ? ColorsAppQy.qyTextOnPrimary
                             : _isDarkMode
                                 ? ColorsAppQy.qyTextOnPrimary.withOpacity(0.7)
                                 : ColorsAppQy.qyTextPrimary,
@@ -442,13 +442,13 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                     ? ColorsAppQy.qyPrimaryGradient
                     : ColorsAppQy.qySecondaryGradient)
                 : null,
-            color: isSelected ? null : Colors.white,
+            color: isSelected ? null : ColorsAppQy.qyTextOnPrimary,
             borderRadius: ThemeDimensions.borderRadiusM,
             border: Border.all(
               color: isSelected
-                  ? Colors.transparent
+                  ? ColorsAppQy.qyPageBackground.withOpacity(0)
                   : _isDarkMode
-                      ? Colors.white24
+                      ? ColorsAppQy.qyFrostLight
                       : ColorsAppQy.qyBorderLight,
               width: isSelected ? 0 : 1,
             ),
@@ -457,9 +457,9 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             QyAppLocalizationKeys.qyListeningSleepMinutes.tr(context).replaceAll('{minutes}', minutes.toString()),
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: isSelected
-                  ? Colors.white
+                  ? ColorsAppQy.qyTextOnPrimary
                   : _isDarkMode
-                      ? Colors.white70
+                      ? ColorsAppQy.qyFrostMedium
                                 : ColorsAppQy.qyTextPrimary,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -540,7 +540,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           children: [
             Icon(
               Icons.bedtime,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 28,
             ),
             const SizedBox(width: 12),
@@ -571,7 +571,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             ),
             child: Icon(
               Icons.skip_previous,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 28,
             ),
           ),
@@ -581,12 +581,12 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           child: Container(
             padding: EdgeInsets.all(ThemeDimensions.spacing20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: ColorsAppQy.qyFrostMedium,
               borderRadius: BorderRadius.circular(35),
             ),
             child: Icon(
               _isPlaying ? Icons.pause : Icons.play_arrow,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 36,
             ),
           ),
@@ -601,7 +601,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             ),
             child: Icon(
               Icons.skip_next,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 28,
             ),
           ),

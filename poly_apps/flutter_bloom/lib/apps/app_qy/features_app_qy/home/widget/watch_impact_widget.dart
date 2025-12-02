@@ -16,6 +16,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/views/play_video_scre
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:get/get.dart';
+import '../../../../resources_app_qy/colors_app_qy.dart';
 
 class WatchImpactWidget extends StatelessWidget {
   final WatchImpactModel? watchImpactModel;
@@ -43,7 +44,7 @@ class WatchImpactWidget extends StatelessWidget {
               left: 120,
               child: Icon(
                 Icons.play_circle_outline,
-                color: Colors.green,
+                color: ColorsAppQy.qySuccess,
                 size: 50,
               ),
             ),

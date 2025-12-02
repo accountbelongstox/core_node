@@ -647,7 +647,7 @@ class _WordListeningDictationPracticeScreenState
                   padding:
                       EdgeInsets.symmetric(vertical: ThemeDimensions.spacing16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     borderRadius: ThemeDimensions.borderRadiusM,
                     border: Border.all(
                       color: ColorsAppQy.qyPrimary,

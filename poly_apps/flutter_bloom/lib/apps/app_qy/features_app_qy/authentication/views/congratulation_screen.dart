@@ -16,6 +16,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/authentication/views/selec
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import 'package:get/get.dart';
 
 class CongratulationScreen extends StatelessWidget {
@@ -42,7 +43,7 @@ class CongratulationScreen extends StatelessWidget {
                     child: const Icon(
                       Icons.emoji_people,
                       size: ThemeDimensions.fortySize,
-                      color: ThemeColors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                     )),
               ),
             ),

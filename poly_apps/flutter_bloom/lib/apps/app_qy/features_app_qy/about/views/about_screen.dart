@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -15,40 +17,43 @@ class AboutScreen extends StatefulWidget {
 
 class _AboutScreenState extends State<AboutScreen> {
   final String _version = '5.9.602';
-  final String _icpNumber = '苏ICP备13045540号-20A';
 
-  final List<Map<String, dynamic>> _partners = [
-    {
-      'name': 'OXFORD\nUNIVERSITY PRESS',
-      'description': '牛津大学出版社',
-      'logo': Icons.school,
-      'color': AppTheme.primaryGreen,
-    },
-    {
-      'name': 'Collins',
-      'description': '哈珀•柯林斯出版集团',
-      'logo': Icons.menu_book,
-      'color': AppTheme.secondaryGreen,
-    },
-  ];
+  List<Map<String, dynamic>> _getPartners(BuildContext context) {
+    return [
+      {
+        'nameKey': QyAppLocalizationKeys.qyAboutPartnerOxford,
+        'descriptionKey': QyAppLocalizationKeys.qyAboutPartnerOxfordDesc,
+        'logo': Icons.school,
+        'color': AppTheme.primaryGreen,
+      },
+      {
+        'nameKey': QyAppLocalizationKeys.qyAboutPartnerCollins,
+        'descriptionKey': QyAppLocalizationKeys.qyAboutPartnerCollinsDesc,
+        'logo': Icons.menu_book,
+        'color': AppTheme.secondaryGreen,
+      },
+    ];
+  }
 
-  final List<Map<String, dynamic>> _openSourceProjects = [
-    {
-      'name': 'RxJava',
-      'url': 'https://github.com/Reactivex/RxJava',
-      'description': 'Reactive Extensions for Java',
-    },
-    {
-      'name': 'Retrofit',
-      'url': 'https://github.com/square/retrofit',
-      'description': 'Type-safe HTTP client for Android and Java',
-    },
-    {
-      'name': 'RxLifecycle',
-      'url': 'https://github.com/trello/RxLifecycle',
-      'description': 'Lifecycle handling for RxJava',
-    },
-  ];
+  List<Map<String, dynamic>> _getOpenSourceProjects(BuildContext context) {
+    return [
+      {
+        'nameKey': QyAppLocalizationKeys.qyAboutOpenSourceRxJava,
+        'url': 'https://github.com/Reactivex/RxJava',
+        'descriptionKey': QyAppLocalizationKeys.qyAboutOpenSourceRxJavaDesc,
+      },
+      {
+        'nameKey': QyAppLocalizationKeys.qyAboutOpenSourceRetrofit,
+        'url': 'https://github.com/square/retrofit',
+        'descriptionKey': QyAppLocalizationKeys.qyAboutOpenSourceRetrofitDesc,
+      },
+      {
+        'nameKey': QyAppLocalizationKeys.qyAboutOpenSourceRxLifecycle,
+        'url': 'https://github.com/trello/RxLifecycle',
+        'descriptionKey': QyAppLocalizationKeys.qyAboutOpenSourceRxLifecycleDesc,
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +65,7 @@ class _AboutScreenState extends State<AboutScreen> {
             end: Alignment.bottomCenter,
             colors: [
               AppTheme.primaryGreen.withOpacity(0.1),
-              Colors.white,
+              ColorsAppQy.qyTextOnPrimary,
             ],
           ),
         ),
@@ -72,13 +77,13 @@ class _AboutScreenState extends State<AboutScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _buildAppInfo(),
+                    _buildAppInfo(context),
                     const SizedBox(height: 32),
-                    _buildPartners(),
+                    _buildPartners(context),
                     const SizedBox(height: 32),
-                    _buildOpenSource(),
+                    _buildOpenSource(context),
                     const SizedBox(height: 32),
-                    _buildLegalInfo(),
+                    _buildLegalInfo(context),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -101,7 +106,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.about'.tr,
+              QyAppLocalizationKeys.qyAbout.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -114,15 +119,15 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildAppInfo() {
+  Widget _buildAppInfo(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -146,13 +151,13 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
             child: const Icon(
               Icons.translate,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 40,
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            '扇贝单词英语版',
+            QyAppLocalizationKeys.qyAboutAppName.tr(context),
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -161,10 +166,10 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '学英语背单词的好方法都在这里',
+            QyAppLocalizationKeys.qyAboutAppSlogan.tr(context),
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[600],
+              color: ColorsAppQy.qyTextTertiary,
             ),
           ),
           const SizedBox(height: 16),
@@ -175,7 +180,7 @@ class _AboutScreenState extends State<AboutScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '版本 $_version',
+              '${QyAppLocalizationKeys.qyAboutVersion.tr(context)} $_version',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.primaryGreen,
@@ -188,12 +193,13 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildPartners() {
+  Widget _buildPartners(BuildContext context) {
+    final partners = _getPartners(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '合作伙伴',
+          QyAppLocalizationKeys.qyAboutPartners.tr(context),
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -203,21 +209,21 @@ class _AboutScreenState extends State<AboutScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: ColorsAppQy.qyShadowLight,
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Column(
-            children: _partners.asMap().entries.map((entry) {
+            children: partners.asMap().entries.map((entry) {
               final index = entry.key;
               final partner = entry.value;
-              final isLast = index == _partners.length - 1;
+              final isLast = index == partners.length - 1;
 
               return Column(
                 children: [
@@ -244,7 +250,7 @@ class _AboutScreenState extends State<AboutScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                partner['name'] as String,
+                                (partner['nameKey'] as String).tr(context),
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -253,10 +259,10 @@ class _AboutScreenState extends State<AboutScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                partner['description'] as String,
+                                (partner['descriptionKey'] as String).tr(context),
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.grey[600],
+                                  color: ColorsAppQy.qyTextTertiary,
                                 ),
                               ),
                             ],
@@ -276,7 +282,8 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildOpenSource() {
+  Widget _buildOpenSource(BuildContext context) {
+    final projects = _getOpenSourceProjects(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -291,24 +298,24 @@ class _AboutScreenState extends State<AboutScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: ColorsAppQy.qyShadowLight,
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Column(
-            children: _openSourceProjects.asMap().entries.map((entry) {
+            children: _getOpenSourceProjects(context).asMap().entries.map((entry) {
               final index = entry.key;
               final project = entry.value;
-              final isLast = index == _openSourceProjects.length - 1;
+              final isLast = index == _getOpenSourceProjects(context).length - 1;
 
               return InkWell(
-                onTap: () => _launchURL(project['url'] as String),
+                onTap: () => _launchURL(context, project['url'] as String),
                 borderRadius: BorderRadius.circular(16),
                 child: Column(
                   children: [
@@ -335,7 +342,7 @@ class _AboutScreenState extends State<AboutScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  project['name'] as String,
+                                  (project['nameKey'] as String).tr(context),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -344,10 +351,10 @@ class _AboutScreenState extends State<AboutScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  project['description'] as String,
+                                  (project['descriptionKey'] as String).tr(context),
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey[600],
+                                    color: ColorsAppQy.qyTextTertiary,
                                   ),
                                 ),
                               ],
@@ -355,7 +362,7 @@ class _AboutScreenState extends State<AboutScreen> {
                           ),
                           Icon(
                             Icons.launch,
-                            color: Colors.grey[400],
+                            color: ColorsAppQy.qyTextSecondary,
                             size: 20,
                           ),
                         ],
@@ -373,15 +380,15 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildLegalInfo() {
+  Widget _buildLegalInfo(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ColorsAppQy.qyTextOnPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -393,12 +400,12 @@ class _AboutScreenState extends State<AboutScreen> {
             children: [
               Icon(
                 Icons.gavel,
-                color: Colors.grey[600],
+                color: ColorsAppQy.qyTextTertiary,
                 size: 20,
               ),
               const SizedBox(width: 12),
               Text(
-                '备案信息',
+                QyAppLocalizationKeys.qyAboutLegalInfo.tr(context),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -409,10 +416,10 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _icpNumber,
+            QyAppLocalizationKeys.qyAboutIcpNumber.tr(context),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
+              color: ColorsAppQy.qyTextTertiary,
             ),
           ),
           const SizedBox(height: 16),
@@ -420,16 +427,16 @@ class _AboutScreenState extends State<AboutScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               TextButton(
-                onPressed: () => _showUserAgreement(),
+                onPressed: () => _showUserAgreement(context),
                 child: Text(
-                  '用户协议',
+                  QyAppLocalizationKeys.qyAboutUserAgreement.tr(context),
                   style: TextStyle(color: AppTheme.primaryGreen),
                 ),
               ),
               TextButton(
-                onPressed: () => _showPrivacyPolicy(),
+                onPressed: () => _showPrivacyPolicy(context),
                 child: Text(
-                  '隐私政策',
+                  QyAppLocalizationKeys.qyAboutPrivacyPolicy.tr(context),
                   style: TextStyle(color: AppTheme.primaryGreen),
                 ),
               ),
@@ -440,56 +447,54 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Future<void> _launchURL(String url) async {
+  Future<void> _launchURL(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('无法打开链接: $url'),
-          backgroundColor: Colors.red,
+          content: Text(QyAppLocalizationKeys.qyAboutCannotOpenUrl.tr(context).replaceAll('{url}', url)),
+          backgroundColor: ColorsAppQy.qyError,
         ),
       );
     }
   }
 
-  void _showUserAgreement() {
+  void _showUserAgreement(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('用户协议'),
-        content: const SingleChildScrollView(
+        title: Text(QyAppLocalizationKeys.qyAboutUserAgreement.tr(context)),
+        content: SingleChildScrollView(
           child: Text(
-            '用户协议内容...\n\n'
-            '欢迎使用扇贝单词英语版。使用本应用即表示您同意我们的服务条款。',
+            QyAppLocalizationKeys.qyAboutUserAgreementContent.tr(context),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
     );
   }
 
-  void _showPrivacyPolicy() {
+  void _showPrivacyPolicy(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('隐私政策'),
-        content: const SingleChildScrollView(
+        title: Text(QyAppLocalizationKeys.qyAboutPrivacyPolicy.tr(context)),
+        content: SingleChildScrollView(
           child: Text(
-            '隐私政策内容...\n\n'
-            '我们重视您的隐私保护，详细说明了我们如何收集、使用和保护您的个人信息。',
+            QyAppLocalizationKeys.qyAboutPrivacyPolicyContent.tr(context),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),

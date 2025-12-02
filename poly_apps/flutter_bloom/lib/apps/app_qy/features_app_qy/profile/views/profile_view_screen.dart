@@ -17,7 +17,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/profile/domain/model/about
 import 'package:qyflutter/apps/app_qy/features_app_qy/fundraising/views/fundrasing.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class ProfileViewScreen extends StatefulWidget {
   const ProfileViewScreen({super.key});
@@ -163,16 +163,16 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     },
                     child: CustomCircular(
                       bottomColor: (selectedindex == 0)
-                          ? ThemeColors.green
+                          ? ColorsAppQy.qySuccess
                           : (selectedindex == 2)
-                              ? ThemeColors.green
+                              ? ColorsAppQy.qySuccess
                               : (selectedindex == 3)
-                                  ? ThemeColors.green
+                                  ? ColorsAppQy.qySuccess
                                   : (selectedindex == 4)
-                                      ? ThemeColors.green
-                                      : ThemeColors.white,
+                                      ? ColorsAppQy.qySuccess
+                                      : ColorsAppQy.qyTextOnPrimary,
                       outlineColor:
-                          (selectedindex == 0) ? ThemeColors.white : ThemeColors.green,
+                          (selectedindex == 0) ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qySuccess,
                       radius: ThemeDimensions.radiusBig,
                       widget: Padding(
                           padding: EdgeInsets.symmetric(
@@ -182,10 +182,10 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                             'Follower',
                             style: TextStyle(
                                 color: (selectedindex == 0)
-                                    ? ThemeColors.white
+                                    ? ColorsAppQy.qyTextOnPrimary
                                     : (selectedindex == 1)
-                                        ? ThemeColors.green
-                                        : ThemeColors.white),
+                                        ? ColorsAppQy.qySuccess
+                                        : ColorsAppQy.qyTextOnPrimary),
                           )),
                     ),
                   ),
@@ -195,9 +195,9 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     },
                     child: CustomCircular(
                       bottomColor:
-                          (selectedindex == 1) ? ThemeColors.green : ThemeColors.white,
+                          (selectedindex == 1) ? ColorsAppQy.qySuccess : ColorsAppQy.qyTextOnPrimary,
                       outlineColor:
-                          (selectedindex == 1) ? ThemeColors.white : ThemeColors.green,
+                          (selectedindex == 1) ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qySuccess,
                       radius: ThemeDimensions.radiusBig,
                       widget: Padding(
                           padding: EdgeInsets.symmetric(
@@ -207,8 +207,8 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                             'Messages',
                             style: TextStyle(
                               color: (selectedindex == 1)
-                                  ? ThemeColors.white
-                                  : ThemeColors.green,
+                                  ? ColorsAppQy.qyTextOnPrimary
+                                  : ColorsAppQy.qySuccess,
                             ),
                           )),
                     ),
@@ -227,12 +227,12 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     },
                     child: CustomCircular(
                       bottomColor: (selectedindex == 2)
-                          ? ThemeColors.green
+                          ? ColorsAppQy.qySuccess
                           : (selectedindex == 0)
-                              ? ThemeColors.green
-                              : ThemeColors.white,
+                              ? ColorsAppQy.qySuccess
+                              : ColorsAppQy.qyTextOnPrimary,
                       outlineColor:
-                          (selectedindex == 2) ? ThemeColors.white : ThemeColors.green,
+                          (selectedindex == 2) ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qySuccess,
                       radius: ThemeDimensions.radiusBig,
                       widget: Padding(
                           padding: EdgeInsets.symmetric(
@@ -242,10 +242,10 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                             'About',
                             style: TextStyle(
                               color: (selectedindex == 0)
-                                  ? ThemeColors.white
+                                  ? ColorsAppQy.qyTextOnPrimary
                                   : (selectedindex == 2)
-                                      ? ThemeColors.white
-                                      : ThemeColors.green,
+                                      ? ColorsAppQy.qyTextOnPrimary
+                                      : ColorsAppQy.qySuccess,
                             ),
                           )),
                     ),
@@ -256,9 +256,9 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     },
                     child: CustomCircular(
                         bottomColor:
-                            (selectedindex == 3) ? ThemeColors.green : ThemeColors.white,
+                            (selectedindex == 3) ? ColorsAppQy.qySuccess : ColorsAppQy.qyTextOnPrimary,
                         outlineColor:
-                            (selectedindex == 3) ? ThemeColors.white : ThemeColors.green,
+                            (selectedindex == 3) ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qySuccess,
                         radius: ThemeDimensions.radiusBig,
                         widget: Padding(
                             padding: EdgeInsets.symmetric(
@@ -268,8 +268,8 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                               'Fundraising',
                               style: TextStyle(
                                 color: (selectedindex == 3)
-                                    ? ThemeColors.white
-                                    : ThemeColors.green,
+                                    ? ColorsAppQy.qyTextOnPrimary
+                                    : ColorsAppQy.qySuccess,
                               ),
                             ))),
                   ),
@@ -279,9 +279,9 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     },
                     child: CustomCircular(
                       bottomColor:
-                          (selectedindex == 4) ? ThemeColors.green : ThemeColors.white,
+                          (selectedindex == 4) ? ColorsAppQy.qySuccess : ColorsAppQy.qyTextOnPrimary,
                       outlineColor:
-                          (selectedindex == 4) ? ThemeColors.white : ThemeColors.green,
+                          (selectedindex == 4) ? ColorsAppQy.qyTextOnPrimary : ColorsAppQy.qySuccess,
                       radius: ThemeDimensions.radiusBig,
                       widget: Padding(
                           padding: EdgeInsets.symmetric(
@@ -291,8 +291,8 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                             'Prayers',
                             style: TextStyle(
                               color: (selectedindex == 4)
-                                  ? ThemeColors.white
-                                  : ThemeColors.green,
+                                  ? ColorsAppQy.qyTextOnPrimary
+                                  : ColorsAppQy.qySuccess,
                             ),
                           )),
                     ),

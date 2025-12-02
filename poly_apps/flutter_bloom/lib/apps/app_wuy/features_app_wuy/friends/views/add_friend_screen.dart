@@ -384,7 +384,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
               content: Text(
                   LocalizationKeysAppWuy.wuyMessageFriendAdded.tr(context))),
         );
-        context.go(WuyAppRouter.routeHome);
+        context.go(WuyAppRouter.getFriendsRoute());
       }
     }
   }
