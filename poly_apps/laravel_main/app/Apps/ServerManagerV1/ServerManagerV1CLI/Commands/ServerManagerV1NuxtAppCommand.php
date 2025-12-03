@@ -114,21 +114,27 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         $port = $this->option('port') ?: ServerManagerV1NuxtServiceManager::findAvailablePort();
         $sslMode = $this->option('ssl') ?: 'auto';
 
-        // Detect user for running Nuxt service
-        // In WSL/Desktop: uses non-root user for proper file permissions
-        // In production servers: uses root by default
-        $user = SystemUtil::detectUser($this->debugMode);
-        $this->debugInfo("Detected user: $user");
-        $this->debugInfo("Is WSL/Desktop: " . (SystemUtil::isWslDesktopEnvironment() ? 'Yes' : 'No'));
+        // Run service as root to avoid permission issues
+        $user = 'root';
+        $this->debugInfo("Service will run as: $user");
 
         $mode = $this->debugMode ? 'Debug' : 'Production';
         $this->info("Adding Nuxt PolyApp: $appname ($mode Mode)");
         $this->info("Domain: $domain, Port: $port");
 
         if ($this->checkIfPolyAppExists($appname)) {
-            $this->warn("PolyApp $appname already exists. Fixing and resetting...");
-            $this->fixAndResetPolyApp($appname, $domain, $port, $sslMode);
-            return 0;
+            $this->warn("PolyApp $appname already exists. Removing old deployment...");
+            $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
+            ServerManagerV1NuxtServiceManager::removeService($serviceName);
+
+            $factoryPath = "$this->factoryBasePath/_app_$appname";
+            if (is_dir($factoryPath)) {
+                $this->comment("Removing old factory directory...");
+                Process::run("rm -rf $factoryPath");
+            }
+
+            $this->info("Rebuilding from scratch...");
+            // Continue with deployment below instead of recursing
         }
 
         // Define steps based on mode
@@ -195,9 +201,37 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         }
 
         $this->info("Successfully deployed Nuxt PolyApp: $appname ($mode Mode)");
-        $this->info("Access at: http" . ($sslMode !== 'false' ? 's' : '') . "://$domain");
+
+        // Display domain binding information
+        $this->newLine();
+        $isDefaultDomain = str_ends_with($domain, '.local');
+        if ($isDefaultDomain) {
+            $this->comment("Domain Binding: Using default domain");
+            $this->line("  └─ Default domain: http" . ($sslMode !== 'false' ? 's' : '') . "://$domain");
+            $this->line("  └─ Direct access: http://127.0.0.1:$port");
+            $this->newLine();
+            $this->warn("Tip: Add custom domain binding with: php artisan servermanager:nuxt domain $appname yourdomain.com");
+        } else {
+            $this->comment("Domain Binding: Custom domain configured");
+            $this->line("  └─ Domain: http" . ($sslMode !== 'false' ? 's' : '') . "://$domain");
+            $this->line("  └─ Port: $port");
+        }
+
+        // Display service script content
+        $this->newLine();
+        $serviceFile = "/etc/systemd/system/nuxt-$appname.service";
+        if (file_exists($serviceFile)) {
+            $this->comment("Systemd Service Configuration:");
+            $this->line("  └─ Service file: $serviceFile");
+            $this->newLine();
+            $serviceContent = file_get_contents($serviceFile);
+            $this->line("─────────────────────────────────────────────────────────────────────────────");
+            $this->line($serviceContent);
+            $this->line("─────────────────────────────────────────────────────────────────────────────");
+        }
 
         if ($this->debugMode) {
+            $this->newLine();
             $this->warn("⚠ Debug mode: Running directly from source. Changes will reload automatically.");
         }
 
@@ -306,7 +340,18 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
         $this->comment("Copying workspace to factory: $factoryPath");
 
-        $excludes = ['node_modules', '.nuxt', '.output', '.git', '.app-backups', 'dist', 'node-compile-cache'];
+        // Exclude node_modules and pnpm metadata - factory will do fresh install
+        $excludes = [
+            'node_modules',
+            'pnpm-lock.yaml',       // Will be regenerated in factory
+            '.pnpm-debug.log',
+            '.nuxt',
+            '.output',
+            '.git',
+            '.app-backups',
+            'dist',
+            'node-compile-cache'
+        ];
         $excludeArgs = implode(' ', array_map(fn($e) => "--exclude='$e'", $excludes));
 
         $rsyncCmd = "rsync -a $excludeArgs $this->nuxtMainPath/ $factoryPath/";
@@ -324,14 +369,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             return false;
         }
 
-        // Set ownership immediately after rsync to prevent permission issues
-        $user = SystemUtil::detectUser($this->debugMode);
-        $this->comment("Setting ownership to $user...");
-        $chownResult = Process::run("chown -R $user:$user $factoryPath");
-        if ($chownResult->failed()) {
-            $this->warn("Failed to set ownership after copy");
-        }
-
+        // Running as root - no ownership changes needed
         $this->comment("✓ Workspace copied to factory");
         return true;
     }
@@ -340,17 +378,12 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
 
-        // Detect user for proper ownership
-        $user = SystemUtil::detectUser($this->debugMode);
-
-        // Ensure parent directories exist with proper permissions
+        // Ensure parent directories exist
         if (!is_dir($this->factoryBasePath)) {
             if (!mkdir($this->factoryBasePath, 0755, true)) {
                 $this->error("Failed to create factory base directory");
                 return false;
             }
-            // Set ownership of parent directories
-            Process::run("chown -R $user:$user $this->factoryBasePath");
         }
 
         // Create factory directory if it doesn't exist
@@ -359,12 +392,8 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
                 $this->error("Failed to create factory directory");
                 return false;
             }
-            // Set ownership immediately after creation
-            Process::run("chown -R $user:$user $factoryPath");
             $this->comment("✓ Factory directory created");
         } else {
-            // Directory exists, ensure proper ownership
-            Process::run("chown -R $user:$user $factoryPath");
             $this->comment("✓ Factory directory exists");
         }
 
@@ -373,33 +402,46 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
     private function ensureFactoryPermissions(string $appname, string $user): bool
     {
-        $factoryPath = "$this->factoryBasePath/_app_$appname";
-
-        $this->comment("Ensuring proper permissions for factory directory...");
-
-        // Fix ownership of factory directory
-        $chownResult = Process::run("chown -R $user:$user $factoryPath");
-        if ($chownResult->failed()) {
-            $this->warn("Failed to set ownership, may cause permission issues");
-            $this->debugInfo("chown error: " . $chownResult->errorOutput());
-        }
-
-        $this->comment("✓ Permissions configured");
+        // Running as root - no permission configuration needed
+        $this->comment("✓ Permissions OK (running as root)");
         return true;
     }
 
     private function ensureFactoryDependencies(string $appname, string $user): bool
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
-        $nodeModulesPath = "$factoryPath/node_modules";
 
-        // Check if node_modules exists and is populated
-        if (is_dir($nodeModulesPath) && count(scandir($nodeModulesPath)) > 10) {
-            $this->comment("✓ Factory dependencies already installed");
-            return true;
+        // Verify source directory has node_modules
+        $sourceNodeModules = "$this->nuxtMainPath/node_modules";
+        if (!is_dir($sourceNodeModules)) {
+            $this->warn("Source directory missing node_modules: $sourceNodeModules");
+            $this->warn("Please run 'pnpm install' in source directory first");
+            return false;
+        }
+        $this->comment("✓ Source directory has node_modules");
+
+        // Factory directory needs node_modules to run pnpm nuxt dev
+        // Clean up any existing pnpm metadata from previous deployments
+        $this->comment("Cleaning factory directory for fresh pnpm install...");
+
+        $cleanupPaths = [
+            "$factoryPath/node_modules",           // Old dependencies
+            "$factoryPath/pnpm-lock.yaml",         // Old lockfile (may have wrong store paths)
+            "$factoryPath/.pnpm-debug.log",        // Debug logs
+        ];
+
+        foreach ($cleanupPaths as $path) {
+            if (file_exists($path)) {
+                $basename = basename($path);
+                $this->debugInfo("Removing old: $basename");
+                $result = Process::run("rm -rf " . escapeshellarg($path));
+                if ($result->failed()) {
+                    $this->warn("Failed to remove $basename, continuing anyway...");
+                }
+            }
         }
 
-        $this->comment("Installing dependencies in factory (as $user)...");
+        $this->comment("Installing dependencies in factory (fresh install)...");
 
         $packageManager = $this->detectPackageManager();
         $pmPath = match($packageManager) {
@@ -408,7 +450,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             default => 'npm'
         };
 
-        $installCmd = "cd $factoryPath && echo 'y' | sudo -u $user $pmPath install";
+        $installCmd = "cd $factoryPath && echo 'y' | $pmPath install";
 
         $this->debugInfo("Install command: $installCmd");
         $installResult = Process::timeout(600)->run($installCmd);
@@ -419,43 +461,13 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             return false;
         }
 
-        $this->comment("✓ Factory dependencies installed");
+        $this->comment("✓ Factory dependencies installed (for pnpm nuxt dev)");
 
-        // Now that dependencies are installed, switch the app entry
-        $switchScript = "$factoryPath/scripts/switch-app.js";
-        if (!file_exists($switchScript)) {
-            $this->error("Switch script not found: $switchScript");
-            return false;
-        }
-
-        $this->comment("Switching app entry to: $appname");
-        $switchResult = Process::path($factoryPath)
-            ->timeout(30)
-            ->run("node scripts/switch-app.js $appname");
-
-        if ($switchResult->failed()) {
-            $this->error("Failed to switch app entry");
-            $this->error($switchResult->errorOutput());
-            return false;
-        }
-
-        $this->comment("✓ App entry switched to: $appname");
-
-        // Pre-create node-compile-cache directory with correct permissions
-        // This prevents permission errors when Node.js tries to create it at runtime
+        // Pre-create node-compile-cache directory
         $cacheDir = "$factoryPath/node-compile-cache";
         if (!is_dir($cacheDir)) {
             $this->comment("Creating node-compile-cache directory...");
-            Process::run("mkdir -p $cacheDir && chown $user:$user $cacheDir");
-        }
-
-        // Fix permissions after all operations to ensure service can run properly
-        $this->comment("Ensuring final permissions...");
-        $chownResult = Process::run("chown -R $user:$user $factoryPath");
-        if ($chownResult->failed()) {
-            $this->warn("Failed to set final ownership");
-        } else {
-            $this->comment("✓ Final permissions set");
+            Process::run("mkdir -p $cacheDir");
         }
 
         return true;
@@ -661,14 +673,17 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             symlink($configFile, $symlinkPath);
         }
 
-        $testResult = Process::run('nginx -t');
-        if ($testResult->failed()) {
-            $this->error("Nginx configuration test failed");
-            $this->error($testResult->errorOutput());
-            return false;
-        }
+        $nginxBinary = PathMapper::getNginxBinaryPath();
+        $testResult = Process::run("$nginxBinary -t");
 
-        Process::run('systemctl reload nginx');
+        if ($testResult->failed()) {
+            $this->warn("Nginx configuration test failed");
+            $this->warn($testResult->errorOutput());
+            $this->warn("Skipping nginx reload - please test and reload manually");
+        } else {
+            Process::run('systemctl reload nginx');
+            $this->comment("✓ Nginx reloaded");
+        }
 
         $this->comment("✓ Nginx configured for domain: $domain");
         return true;
@@ -721,6 +736,7 @@ NGINX;
     {
         $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
 
+        // Service runs as root - no permission fixes needed
         if (!ServerManagerV1NuxtServiceManager::startService($serviceName)) {
             $this->error("Failed to start service");
             $this->comment("Logs:");
@@ -741,7 +757,7 @@ NGINX;
 
         $factoryPath = "$this->factoryBasePath/_app_$appname";
         if (is_dir($factoryPath)) {
-            $this->comment("Removing old factory directory");
+            $this->comment("Removing old factory directory...");
             Process::run("rm -rf $factoryPath");
         }
 

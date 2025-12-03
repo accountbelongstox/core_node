@@ -19,11 +19,11 @@ fix_core_node_permissions_full() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    
+
     echo "[INFO] Fixing Core Node full permissions..."
     echo "[INFO] Project root: $project_root"
     echo "[INFO] Real user: $real_user"
-    
+
     # Full directories for comprehensive operation
     local full_dirs=(
         "$project_root"
@@ -33,10 +33,10 @@ fix_core_node_permissions_full() {
         "$project_root/apps"
         "$project_root/pyapps"
     )
-    
+
     if [ "$(id -u)" -eq 0 ]; then
         echo "[INFO] Running as root - fixing full permissions"
-        
+
         # Fix all directories with proper permissions
         for dir in "${full_dirs[@]}"; do
             if [ -d "$dir" ]; then
@@ -49,7 +49,22 @@ fix_core_node_permissions_full() {
                 echo "[WARNING] Directory not found: $dir"
             fi
         done
-        
+
+        # Fix Laravel database directory
+        local laravel_db_dir="/www/wwwroot/laravel_db"
+        if [ -d "$laravel_db_dir" ]; then
+            echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
+            chown -R www-data:www-data "$laravel_db_dir" 2>/dev/null
+            chmod -R 775 "$laravel_db_dir" 2>/dev/null
+            # Fix SQLite database files
+            find "$laravel_db_dir" -name "*.sqlite" -exec chmod 664 {} \; 2>/dev/null
+            # Fix JSON status files
+            find "$laravel_db_dir" -name "*.json" -exec chmod 664 {} \; 2>/dev/null
+            echo "[SUCCESS] Laravel database directory permissions fixed"
+        else
+            echo "[INFO] Laravel database directory not found (may not be needed)"
+        fi
+
         echo "[SUCCESS] Full Core Node permissions fixed"
     else
         echo "[WARNING] Not running as root - cannot perform full permission fix"

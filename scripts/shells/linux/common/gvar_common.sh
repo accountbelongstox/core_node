@@ -919,7 +919,7 @@ CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 # - All mappings must produce identical results across Shell and Python
 map_web_path() {
     local path_key="$1"
-    local sub_path="$2"
+    local sub_path="${2:-}"
     local mapped_path=""
     local base_path=""
 
@@ -1189,7 +1189,7 @@ store_path() {
 set_global_var() {
     local key="$1"
     local val="$2"
-    local print="$3"
+    local print="${3:-}"
 
     # Check if parameters are provided
     if [[ -z "$key" ]] || [[ -z "$val" ]]; then
@@ -1204,7 +1204,7 @@ set_global_var() {
     # Write value to file
     echo "$val" | $USE_SUDO tee "$file_path" >/dev/null
     if [[ $? -eq 0 ]]; then
-        if [[ "$print" == "false" ]]; then
+        if [[ "$print" != "false" ]]; then
             echo "Successfully set global variable: $key -> $val"
         fi
         return 0
