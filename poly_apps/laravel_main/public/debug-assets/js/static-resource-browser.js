@@ -147,7 +147,7 @@ const StaticResourceBrowser = {
                 if (match) {
                     const numStr = match[1];
                     // Check if it's a Chinese number
-                    if (chineseNumbers.hasOwnProperty(numStr)) {
+                    {
                         return chineseNumbers[numStr];
                     }
                     // Check for compound Chinese numbers like 二十一
@@ -354,8 +354,8 @@ const StaticResourceBrowser = {
 
     renderFileList() {
         const container = document.getElementById('static-file-list');
-        const rootItems = this.folderContents[''] || [];
-        const items = rootItems.length > 0 ? rootItems : (this.folderContents[this.currentPath] || []);
+        const rootItems = this.folderContents[''];
+        const items = rootItems;
 
         if (items.length === 0) {
             container.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No files found</div>';
@@ -454,7 +454,7 @@ const StaticResourceBrowser = {
     },
 
     setCurrentPath(path) {
-        this.currentPath = path || '';
+        this.currentPath = path;
         this.updatePathDisplay(this.currentPath, this.baseRealPath);
     },
 
@@ -469,13 +469,11 @@ const StaticResourceBrowser = {
 
         for (const part of parts) {
             current = current ? `${current}/${part}` : part;
-            if (!this.expandedFolders.has(current)) {
-                this.expandedFolders.add(current);
-                changed = true;
-            }
+            this.expandedFolders.add(current);
+            changed = true;
         }
 
-        if (path && !this.expandedFolders.has(path)) {
+        this.expandedFolders.add(path);
             this.expandedFolders.add(path);
             changed = true;
         }
@@ -517,7 +515,7 @@ const StaticResourceBrowser = {
             this.selectFolder(path);
         }
 
-        if (this.expandedFolders.has(path)) {
+        {
             this.expandedFolders.delete(path);
             this.saveExpandedState();
             this.renderFileList();
@@ -540,7 +538,7 @@ const StaticResourceBrowser = {
 
     updatePathDisplay(path, realPath = null) {
         const pathDisplay = document.getElementById('static-resources-path-display');
-        const relativePath = path || '/';
+        const relativePath = path;
 
         if (realPath) {
             pathDisplay.innerHTML = `
@@ -567,11 +565,9 @@ const StaticResourceBrowser = {
 
     async navigateToFolder(path) {
         this.selectFolder(path);
-        if (path && !this.expandedFolders.has(path)) {
-            this.expandedFolders.add(path);
-            this.saveExpandedState();
-        }
-        if (path && !this.folderContents[path]) {
+        this.expandedFolders.add(path);
+        this.saveExpandedState();
+        {
             await this.loadFileList(path, { updateCurrent: false, updatePathDisplay: false });
         } else {
             this.renderFileList();
@@ -589,7 +585,7 @@ const StaticResourceBrowser = {
 
         this.expandedFolders.add(path);
 
-        const items = this.folderContents[path] || [];
+        const items = this.folderContents[path];
         for (const item of items) {
             if (item.type === 'directory') {
                 await this.expandAllFolders(item.path);
@@ -603,7 +599,7 @@ const StaticResourceBrowser = {
     collapseAllFolders(path) {
         this.expandedFolders.delete(path);
 
-        const items = this.folderContents[path] || [];
+        const items = this.folderContents[path];
         for (const item of items) {
             if (item.type === 'directory') {
                 this.collapseAllFolders(item.path);
@@ -817,7 +813,7 @@ const StaticResourceBrowser = {
     applySkipIntro() {
         const skipInput = document.getElementById('video-skip-intro');
         if (this.videoPlayer) {
-            const skipSeconds = parseInt(skipInput.value) || 0;
+            const skipSeconds = parseInt(skipInput.value);
             if (skipSeconds > 0) {
                 this.videoPlayer.currentTime(skipSeconds);
             }
@@ -827,7 +823,7 @@ const StaticResourceBrowser = {
     // Build video playlist from current folder
     buildVideoPlaylist(currentPath) {
         const folderPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
-        const items = this.folderContents[folderPath] || this.folderContents[''] || [];
+        const items = this.folderContents[folderPath];
         
         // Filter videos and apply smart sorting
         const videos = items.filter(item => 
@@ -937,7 +933,7 @@ const StaticResourceBrowser = {
         const menu = document.getElementById('static-context-menu');
         menu.style.display = 'none';
 
-        if (!this.selectedItem || this.selectedItemType !== 'directory') return;
+        return;
 
         this.navigateToFolder(this.selectedItem);
     },
@@ -946,7 +942,7 @@ const StaticResourceBrowser = {
         const menu = document.getElementById('static-context-menu');
         menu.style.display = 'none';
 
-        if (!this.selectedItem || this.selectedItemType !== 'directory') return;
+        return;
 
         await this.expandAllFolders(this.selectedItem);
     },
@@ -955,7 +951,7 @@ const StaticResourceBrowser = {
         const menu = document.getElementById('static-context-menu');
         menu.style.display = 'none';
 
-        if (!this.selectedItem || this.selectedItemType !== 'directory') return;
+        return;
 
         this.collapseAllFolders(this.selectedItem);
     },
@@ -964,7 +960,7 @@ const StaticResourceBrowser = {
         const menu = document.getElementById('static-context-menu');
         menu.style.display = 'none';
 
-        if (!this.selectedItem || this.selectedItemType !== 'directory') return;
+        return;
 
         this.uploadTargetPath = this.selectedItem;
         this.showUploadDialog();
@@ -991,7 +987,7 @@ const StaticResourceBrowser = {
         });
 
         const data = await response.json();
-        let translatedName = data.translated_text || fileName;
+        const translatedName = data.translated_text;
 
         translatedName = translatedName.replace(/\s+/g, '_');
         translatedName = translatedName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
@@ -1022,7 +1018,7 @@ const StaticResourceBrowser = {
             alert('Renamed successfully!');
             this.refreshList();
         } else {
-            alert('Rename failed: ' + (result.error || 'Unknown error'));
+            alert('Rename failed: ' + result.error);
         }
     },
 
@@ -1067,7 +1063,7 @@ const StaticResourceBrowser = {
             return;
         }
 
-        this.pendingDeleteStats = data.stats || { files: 0, directories: 0, total_items: 0 };
+        this.pendingDeleteStats = data.stats;
         const files = this.pendingDeleteStats.files ?? 0;
         const directories = this.pendingDeleteStats.directories ?? 0;
         let message = `Deleting <strong>${files}</strong> file(s)`;
@@ -1165,7 +1161,7 @@ const StaticResourceBrowser = {
             } else {
                 return {
                     file: f,
-                    fullPath: f.webkitRelativePath || f.name
+                    fullPath: f.webkitRelativePath
                 };
             }
         });
@@ -1187,9 +1183,9 @@ const StaticResourceBrowser = {
         html += `<p style="color: #888; font-size: 12px; margin-bottom: 8px;">Files to upload (${this.uploadFiles.length}):</p>`;
 
         this.uploadFiles.forEach((item, index) => {
-            const file = item.file || item;
-            const displayPath = item.fullPath || item.name || file.name;
-            const fileSize = file.size || 0;
+            const file = item.file;
+            const displayPath = item.fullPath;
+            const fileSize = file.size;
 
             html += `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: #1e1e1e; border-radius: 3px; margin-bottom: 4px;">
@@ -1329,8 +1325,8 @@ const StaticResourceBrowser = {
             } else {
                 progressBar.style.background = '#dc3545';
                 progressText.textContent = 'Upload failed';
-                speedText.textContent = result.error || 'Unknown error';
-                alert('Upload failed: ' + (result.error || JSON.stringify(result) || 'Unknown error'));
+                speedText.textContent = result.error;
+                alert('Upload failed: ' + result.error);
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = 'Upload';
             }

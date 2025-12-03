@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         88code Auto Reset Quota
 // @namespace    http://tampermonkey.net/
-// @version      6.0
+// @version      6.2
 // @description  Auto reset quota on 88code.org
 // @author       CoreNode
 // @match        *://www.88code.org/*
@@ -336,19 +336,11 @@
                 isClickingInProgress = false;
                 log('[DEBUG] Setting isClickingInProgress = false (success)');
             } else {
-                log('[DEBUG] Click not successful yet, quota not restored, will check again');
-                // 如果还没恢复，再等5秒检查一次
+                log('[DEBUG] Click not successful yet, quota not restored, refreshing page to check again');
+                // 如果还没恢复，刷新页面重新检查（页面刷新后init会检查quotaBeforeClick）
                 setTimeout(function() {
-                    if (isClickSuccessful()) {
-                        log('[DEBUG] Click successful after second check');
-                        recordSuccessfulClick();
-                    } else {
-                        log('[DEBUG] Click failed, quota not restored');
-                    }
-                    // 清除点击进行中标志
-                    isClickingInProgress = false;
-                    log('[DEBUG] Setting isClickingInProgress = false (after check)');
-                }, 5000);
+                    window.location.reload();
+                }, 2000);
             }
         }, 5000);
     }
@@ -519,11 +511,11 @@
             return { should: false, reason: timeCheck.reason };
         }
 
-        // 条件2: 点击前判断余额，如果余额 > 2 则不点击
+        // 条件2: 点击前判断余额，如果余额 > 2 则不点击(因为每天只能重置2次,要省着用)
         if (isQuotaGreaterThan2()) {
             const quota = parseQuotaStatus();
             log('[DEBUG] Quota > 2, returning should: false');
-            return { should: false, reason: `余额大于2，当前余额: ${quota.currentQuota}` };
+            return { should: false, reason: `余额大于2，当前余额: ${quota.currentQuota}，等待余额降至2以下` };
         }
 
         // 时间到了且余额 <= 2，可以点击
@@ -532,7 +524,6 @@
     }
 
     let near11PMInterval = null;
-    let quotaRefreshInterval = null;
     let isClickingInProgress = false; // 防止重复点击
 
     function checkAndReset() {
@@ -549,40 +540,40 @@
         log('[DEBUG] Calling updateUI()');
         updateUI();
 
+        // 获取当前页面的初始余额值（刷新后的最新值）
+        const quota = parseQuotaStatus();
+        log(`[DEBUG] Initial quota after page load: ${quota.currentQuota}`);
+
         log('[DEBUG] Calling shouldReset()');
         const reset = shouldReset();
         log(`[DEBUG] reset.should: ${reset.should}, reset.reason: ${reset.reason}`);
-        
+
         log('[DEBUG] Calling isNear11PM()');
         const near11PM = isNear11PM();
         log(`[DEBUG] isNear11PM(): ${near11PM}`);
 
+        // 清除11点定时器（如果不在11点附近）
         if (!near11PM && near11PMInterval) {
             log('[DEBUG] Not near 11PM and interval exists, clearing it');
             clearInterval(near11PMInterval);
             near11PMInterval = null;
         }
 
+        // 情况1: 应该重置（时间到了 && 剩余次数 > 0）
         if (reset.should) {
             log('[DEBUG] reset.should is true');
+
+            // 清除11点定时器
             if (near11PMInterval) {
                 log('[DEBUG] Clearing near11PMInterval');
                 clearInterval(near11PMInterval);
                 near11PMInterval = null;
             }
 
-            // 根据当前实际状态判断：检查额度
-            const quota = parseQuotaStatus();
-            log(`[DEBUG] Current quota: ${quota.currentQuota}`);
-            
-            // 如果临近11点，无论额度多少（只要 < 50），都直接点击
+            // 临近11点且余额 < 50，直接点击
             if (near11PM && quota.currentQuota < 50) {
                 log('[DEBUG] Near 11PM and quota < 50, clicking directly');
-                if (quotaRefreshInterval) {
-                    clearInterval(quotaRefreshInterval);
-                    quotaRefreshInterval = null;
-                }
-                // 检查一切就绪后点击
+                sessionStorage.removeItem('88code_quota_refresh_loop');
                 const readyCheck = isEverythingReady();
                 if (readyCheck.ready) {
                     clickResetButton();
@@ -590,43 +581,42 @@
                     log(`[DEBUG] Not ready for click: ${readyCheck.reason}`);
                     updateStatusMessage(`准备点击但未就绪: ${readyCheck.reason}`);
                 }
-            } else if (quota.currentQuota > 2) {
-                // 额度大于2，启动刷新循环，每分钟刷新一次
-                // 如果已经在刷新循环中，不重复启动
-                if (quotaRefreshInterval) {
-                    log('[DEBUG] Quota > 2, refresh loop already running');
-                    return;
-                }
-                
-                log('[DEBUG] Quota > 2, starting refresh loop');
-                updateStatusMessage(`额度大于2 (${quota.currentQuota})，每分钟刷新一次直到额度小于等于2...`);
-                
-                // 立即刷新一次
+            }
+            // 余额 > 2，进入"可刷新状态"，1分钟后刷新查看最新余额
+            else if (quota.currentQuota > 2) {
+                log('[DEBUG] Quota > 2, entering refresh loop state');
+                updateStatusMessage(`余额大于2 (${quota.currentQuota})，1分钟后刷新检查最新余额...`);
+
+                // 设置"可刷新状态"标志
+                sessionStorage.setItem('88code_quota_refresh_loop', 'true');
+
+                // 1分钟后刷新页面
                 setTimeout(function() {
-                    window.location.reload();
-                }, 1000);
-                
-                // 设置定时器，每分钟刷新一次
-                quotaRefreshInterval = setInterval(function() {
-                    log('[DEBUG] quotaRefreshInterval: refreshing page');
+                    log('[DEBUG] 1 minute passed, refreshing to check latest quota');
                     window.location.reload();
                 }, 60 * 1000);
-            } else {
-                // 额度 <= 2，刷新页面后点击
-                log('[DEBUG] Quota <= 2, refreshing page to click');
-                if (quotaRefreshInterval) {
-                    clearInterval(quotaRefreshInterval);
-                    quotaRefreshInterval = null;
-                }
-                updateStatusMessage('准备点击，正在刷新页面...');
-                // 设置标记，刷新后检查一切就绪再点击
-                sessionStorage.setItem('88code_ready_to_click', 'true');
-                setTimeout(function() {
-                    window.location.reload();
-                }, 1000);
             }
-        } else {
+            // 余额 <= 2，清除标志，点击重置
+            else {
+                log('[DEBUG] Quota <= 2, ready to click');
+                sessionStorage.removeItem('88code_quota_refresh_loop');
+                const readyCheck = isEverythingReady();
+                if (readyCheck.ready) {
+                    log('[DEBUG] Everything is ready, clicking reset button');
+                    clickResetButton();
+                } else {
+                    log(`[DEBUG] Not ready for click: ${readyCheck.reason}`);
+                    updateStatusMessage(`准备点击但未就绪: ${readyCheck.reason}`);
+                }
+            }
+        }
+        // 情况2: 不应该重置
+        else {
             log('[DEBUG] reset.should is false');
+            // 清除"可刷新状态"标志
+            sessionStorage.removeItem('88code_quota_refresh_loop');
+
+            // 临近11点，设置定时器检查
             if (near11PM && !near11PMInterval) {
                 log('[DEBUG] Near 11PM and no interval, creating interval');
                 near11PMInterval = setInterval(function() {
@@ -649,6 +639,7 @@
                     }
                 }, 2000);
             }
+
             if (!near11PM) {
                 log(`[DEBUG] Not near 11PM, updating status message: ${reset.reason}`);
                 updateStatusMessage(reset.reason);
@@ -727,6 +718,12 @@
         const totalClicksDisplay = uiElement.querySelector('#total-clicks-display');
         if (totalClicksDisplay) {
             totalClicksDisplay.textContent = getTotalClicks().toString();
+        }
+
+        // 显示刷新循环状态
+        const inRefreshLoop = sessionStorage.getItem('88code_quota_refresh_loop');
+        if (inRefreshLoop) {
+            updateStatusMessage(`刷新循环中: 余额 ${quota.currentQuota}，等待1分钟后刷新...`);
         }
 
         updateNextResetTime();
@@ -869,7 +866,7 @@
 
     function init() {
         log('[DEBUG] init() called');
-        log('Script initialized v6.0');
+        log('Script initialized v6.2');
 
         // 首先检查是否在目标页面，如果不在则立即跳转
         log(`[DEBUG] Checking pathname: ${window.location.pathname}, TARGET_PATH: ${CONFIG.TARGET_PATH}`);
@@ -944,19 +941,21 @@
         timeUpdateInterval = setInterval(function() {
             updateNextResetTime();
             updateTimeToReset();
-            checkAndReset();
+            // 如果在刷新循环状态中，不重复调用 checkAndReset
+            if (!sessionStorage.getItem('88code_quota_refresh_loop')) {
+                checkAndReset();
+            }
             uiUpdateCounter++;
             if (uiUpdateCounter >= 5) {
                 uiUpdateCounter = 0;
                 updateUI();
             }
         }, 1000);
-        
+
         // 清理间隔：页面卸载时清理所有间隔
         window.addEventListener('beforeunload', function() {
             if (timeUpdateInterval) clearInterval(timeUpdateInterval);
             if (near11PMInterval) clearInterval(near11PMInterval);
-            if (quotaRefreshInterval) clearInterval(quotaRefreshInterval);
         });
     }
 

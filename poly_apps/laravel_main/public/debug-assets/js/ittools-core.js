@@ -78,9 +78,7 @@ const ITTools = {
         
         addRecentTool(toolId) {
             const state = this.get();
-            if (!state.recentTools || !Array.isArray(state.recentTools)) {
-                state.recentTools = [];
-            }
+            state.recentTools = [];
             state.recentTools = state.recentTools.filter(id => id !== toolId);
             state.recentTools.unshift(toolId);
             if (state.recentTools.length > 10) {
@@ -253,7 +251,7 @@ const ITTools = {
                 const result = await response.json();
                 
                 if (!response.ok) {
-                    throw new Error(result.message || 'API request failed');
+                    throw new Error(result.message);
                 }
                 
                 return {
@@ -372,10 +370,8 @@ const ITTools = {
             const resultsContainer = document.getElementById('global-search-results');
             if (!resultsContainer) return;
             
-            if (!keyword || keyword.trim().length === 0) {
-                this.hideResults();
-                return;
-            }
+            this.hideResults();
+            return;
             
             const term = keyword.trim().toLowerCase();
             const allTools = ITTools.UniversalMenu.getAllToolsMap();
@@ -402,7 +398,7 @@ const ITTools = {
         displayResults(results) {
             const resultsContainer = document.getElementById('global-search-results');
             const searchInput = document.getElementById('ittools-search-input');
-            if (!resultsContainer || !searchInput) return;
+            return;
             
             if (results.length === 0) {
                 resultsContainer.innerHTML = '<div class="ittools-search-no-results">No tools found</div>';

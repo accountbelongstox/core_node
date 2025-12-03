@@ -1,0 +1,60 @@
+<div class="mcp-module-container">
+    <div class="mcp-module-header">
+        <h2>⚙️ MCP Settings</h2>
+    </div>
+
+    <div class="mcp-module-content" style="padding: 20px;">
+        <div class="mcp-settings-section">
+            <h3>📷 Screenshot Settings</h3>
+            <div class="mcp-settings-info" id="mcp-settings-screenshot-info">
+                Loading...
+            </div>
+        </div>
+
+        <div class="mcp-settings-section">
+            <h3>🔗 MCP API Endpoints</h3>
+            <div class="mcp-settings-endpoints">
+                <div class="mcp-endpoint-item">
+                    <label>Screenshots API:</label>
+                    <code>/api/mcp/v1/screenshots/</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Latest Screenshot:</label>
+                    <code>/api/mcp/v1/screenshots/latest</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Upload Screenshot:</label>
+                    <code>POST /api/mcp/v1/screenshots/upload</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Upload & Merge:</label>
+                    <code>POST /api/mcp/v1/screenshots/upload-merge</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Task Categories:</label>
+                    <code>/api/mcp/v1/task-dispatch/categories</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Prompt Mappings:</label>
+                    <code>/api/mcp/v1/task-dispatch/mappings</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="mcp-settings-section">
+            <h3>🤖 MCP Resource URIs</h3>
+            <div class="mcp-settings-info">
+                <p>Use these URIs with MCP-compatible AI clients:</p>
+                <div class="mcp-endpoint-item">
+                    <label>Latest Screenshot:</label>
+                    <code>mcp://screenshots/latest</code>
+                </div>
+                <div class="mcp-endpoint-item">
+                    <label>Screenshot by ID:</label>
+                    <code>mcp://screenshots/{id}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

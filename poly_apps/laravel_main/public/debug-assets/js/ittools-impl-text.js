@@ -7,48 +7,34 @@
 // ============================================
 // String Obfuscator
 // ============================================
-ITTools.Tools.Registry.register('string-obfuscator', {
-    name: 'String Obfuscator',
-    category: 'text',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">String Obfuscator</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Input String:</label>
-                        <textarea id="obfuscate-input" class="ittools-textarea" rows="6" placeholder="Hello World"></textarea>
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Obfuscation Method:</label>
-                        <select id="obfuscate-method" class="ittools-input">
-                            <option value="hex">Hex Encoding</option>
-                            <option value="unicode">Unicode Escape</option>
-                            <option value="binary">Binary</option>
-                            <option value="reverse">Reverse + Base64</option>
-                        </select>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.StringObfuscator.obfuscate()">
-                            🔒 Obfuscate
-                        </button>
-                    </div>
-                    <div id="obfuscate-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.StringObfuscator = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/string-obfuscator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'obfuscate') {
+                this.obfuscate();
+            }
+        });
+    },
+
     obfuscate() {
-        const input = document.getElementById('obfuscate-input').value;
-        const method = document.getElementById('obfuscate-method').value;
-        
-        if (!input) {
-            ITTools.UI.showResult('obfuscate-result', 'Please enter a string', false);
-            return;
-        }
+        const input = document.querySelector('[data-input="obfuscate-input"]').value;
+        const method = document.querySelector('[data-input="obfuscate-method"]').value;
+        const resultDiv = document.getElementById('obfuscate-result');
         
         let result = '';
         let methodName = '';
@@ -73,53 +59,84 @@ ITTools.Implementations.StringObfuscator = {
                 break;
         }
         
-        const html = `
-            <div style="margin-top: 15px;">
-                <strong>Method: ${methodName}</strong><br>
-                <textarea class="ittools-textarea" rows="8" readonly>${result}</textarea>
-                <button onclick="ITTools.UI.copyToClipboard(\`${result.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy</button>
-            </div>
-        `;
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
         
-        ITTools.UI.showResult('obfuscate-result', html, true);
+        const methodLabel = document.createElement('div');
+        methodLabel.className = 'text-result-method';
+        methodLabel.textContent = `Method: ${methodName}`;
+        
+        const textarea = document.createElement('textarea');
+        textarea.className = 'ittools-textarea';
+        textarea.rows = 8;
+        textarea.readOnly = true;
+        textarea.value = result;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm text-result-copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(result).then(() => {
+                copyBtn.textContent = '✓ Copied';
+                setTimeout(() => {
+                    copyBtn.textContent = '📋 Copy';
+                }, 2000);
+            });
+        });
+        
+        resultDiv.appendChild(methodLabel);
+        resultDiv.appendChild(textarea);
+        resultDiv.appendChild(copyBtn);
     }
 };
+
+ITTools.Tools.Registry.register('string-obfuscator', {
+    name: 'String Obfuscator',
+    category: 'text',
+    render: ITTools.Implementations.StringObfuscator.render.bind(ITTools.Implementations.StringObfuscator),
+    init: ITTools.Implementations.StringObfuscator.init.bind(ITTools.Implementations.StringObfuscator)
+});
 
 // ============================================
 // Numeronym Generator
 // ============================================
-ITTools.Tools.Registry.register('numeronym-generator', {
-    name: 'Numeronym Generator',
-    category: 'text',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Numeronym Generator (i18n → i12n)</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Input Text:</label>
-                        <textarea id="numeronym-input" class="ittools-textarea" rows="6" placeholder="internationalization&#10;localization&#10;accessibility"></textarea>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.NumeronymGenerator.generate()">
-                            🔢 Generate Numeronym
-                        </button>
-                    </div>
-                    <div id="numeronym-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.NumeronymGenerator = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/numeronym-generator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'generate-numeronym') {
+                this.generate();
+            }
+
+            if (action.dataset.action === 'copy-numeronym') {
+                const numeronym = action.dataset.numeronym;
+                navigator.clipboard.writeText(numeronym).then(() => {
+                    action.textContent = '✓';
+                    setTimeout(() => {
+                        action.textContent = '📋';
+                    }, 2000);
+                });
+            }
+        });
+    },
+
     generate() {
-        const input = document.getElementById('numeronym-input').value;
-        
-        if (!input) {
-            ITTools.UI.showResult('numeronym-result', 'Please enter text', false);
-            return;
-        }
+        const input = document.querySelector('[data-input="numeronym-input"]').value;
+        const resultDiv = document.getElementById('numeronym-result');
         
         const lines = input.split('\n').filter(line => line.trim());
         const results = lines.map(word => {
@@ -134,27 +151,63 @@ ITTools.Implementations.NumeronymGenerator = {
             return { word: trimmed, numeronym, count };
         });
         
-        const html = `
-            <div style="margin-top: 15px;">
-                <strong>${results.length} Numeronym(s) Generated:</strong>
-                <div style="margin-top: 15px;">
-                    ${results.map(({ word, numeronym, count }) => `
-                        <div style="background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <span style="color: #666;">${word}</span>
-                                <span style="margin: 0 10px;">→</span>
-                                <span style="font-weight: bold; color: #667eea;">${numeronym}</span>
-                                <span style="margin-left: 10px; font-size: 12px; color: #999;">(${count} chars)</span>
-                            </div>
-                            <button onclick="ITTools.UI.copyToClipboard('${numeronym}')" class="ittools-btn ittools-btn-sm">📋</button>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
         
-        ITTools.UI.showResult('numeronym-result', html, true);
+        const header = document.createElement('div');
+        header.className = 'text-result-method';
+        header.textContent = `${results.length} Numeronym(s) Generated:`;
+        resultDiv.appendChild(header);
+        
+        const container = document.createElement('div');
+        container.className = 'text-result-content';
+        
+        for (const { word, numeronym, count } of results) {
+            const item = document.createElement('div');
+            item.className = 'numeronym-item';
+            
+            const left = document.createElement('div');
+            const wordSpan = document.createElement('span');
+            wordSpan.className = 'numeronym-word';
+            wordSpan.textContent = word;
+            
+            const arrow = document.createElement('span');
+            arrow.className = 'numeronym-arrow';
+            arrow.textContent = '→';
+            
+            const resultSpan = document.createElement('span');
+            resultSpan.className = 'numeronym-result';
+            resultSpan.textContent = numeronym;
+            
+            const countSpan = document.createElement('span');
+            countSpan.className = 'numeronym-count';
+            countSpan.textContent = `(${count} chars)`;
+            
+            left.appendChild(wordSpan);
+            left.appendChild(arrow);
+            left.appendChild(resultSpan);
+            left.appendChild(countSpan);
+            
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'ittools-btn ittools-btn-sm numeronym-copy-btn';
+            copyBtn.textContent = '📋';
+            copyBtn.dataset.action = 'copy-numeronym';
+            copyBtn.dataset.numeronym = numeronym;
+            
+            item.appendChild(left);
+            item.appendChild(copyBtn);
+            container.appendChild(item);
+        }
+        
+        resultDiv.appendChild(container);
     }
 };
+
+ITTools.Tools.Registry.register('numeronym-generator', {
+    name: 'Numeronym Generator',
+    category: 'text',
+    render: ITTools.Implementations.NumeronymGenerator.render.bind(ITTools.Implementations.NumeronymGenerator),
+    init: ITTools.Implementations.NumeronymGenerator.init.bind(ITTools.Implementations.NumeronymGenerator)
+});
 
 console.log('ITTools Text Implementations loaded');

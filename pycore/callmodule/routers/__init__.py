@@ -10,6 +10,7 @@ from .translator_router import translator_router
 from .mcp_router import mcp_router
 from .singleton_router import singleton_router
 from .web_router import router as web_router
+from .code_sync_router import router as code_sync_router
 
 __all__ = [
     'health_router',
@@ -18,5 +19,6 @@ __all__ = [
     'translator_router',
     'mcp_router',
     'singleton_router',
-    'web_router'
+    'web_router',
+    'code_sync_router'
 ]
