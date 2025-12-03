@@ -1,72 +1,38 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { clsx } from 'clsx';
 
 interface HoloCardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
-  onPress?: () => void;
+  className?: string;
+  onClick?: () => void;
   isActive?: boolean;
 }
 
-export const HoloCard: React.FC<HoloCardProps> = ({ 
-  children, 
-  style, 
-  onPress, 
-  isActive = false 
-}) => {
-  const cardStyle = [
-    styles.card,
-    isActive && styles.cardActive,
-    style
-  ];
-
-  if (onPress) {
-    return (
-      <TouchableOpacity 
-        onPress={onPress}
-        activeOpacity={0.9}
-        style={cardStyle}
-      >
-        <View style={styles.content}>
-          {children}
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
+export const HoloCard: React.FC<HoloCardProps> = ({ children, className = '', onClick, isActive = false }) => {
   return (
-    <View style={cardStyle}>
-      <View style={styles.content}>
+    <div 
+      onClick={onClick}
+      className={`
+        relative overflow-hidden rounded-2xl
+        bg-white/40 backdrop-blur-xl
+        border border-white/60
+        shadow-[0_8px_32px_0_rgba(255,255,255,0.3)]
+        transition-all duration-300 ease-out
+        ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''}
+        ${isActive 
+          ? 'ring-2 ring-purple-300 scale-[1.02] bg-white/60 shadow-[0_8px_32px_0_rgba(168,85,247,0.2)]' 
+          : 'hover:bg-white/50 hover:shadow-[0_8px_32px_0_rgba(150,150,255,0.2)]'}
+        ${className}
+      `}
+    >
+      {/* Iridescent Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-purple-100/20 pointer-events-none" />
+      
+      {/* Glass Reflection Shine */}
+      <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-gradient-to-br from-transparent via-white/20 to-transparent rotate-45 pointer-events-none" />
+
+      <div className="relative z-10">
         {children}
-      </View>
-    </View>
+      </div>
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 32,
-    elevation: 8,
-  },
-  cardActive: {
-    borderWidth: 2,
-    borderColor: '#a78bfa',
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#a78bfa',
-    shadowOpacity: 0.2,
-    transform: [{ scale: 1.02 }],
-  },
-  content: {
-    position: 'relative',
-    zIndex: 10,
-  },
-});
