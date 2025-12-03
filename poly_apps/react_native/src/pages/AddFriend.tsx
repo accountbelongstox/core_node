@@ -34,7 +34,7 @@ const AddFriend: React.FC = () => {
         {/* Scan Card */}
         <GlassCard style={localStyles.scanCard}>
           <View style={localStyles.scanIconContainer}>
-            <Icon name="qr-code" size={32} color={colors.primary} />
+            <Icon name="grid" size={32} color={colors.primary} />
           </View>
           <View style={localStyles.scanTextContainer}>
             <Text style={[localStyles.scanTitle, { color: colors.textPrimary }]}>Scan QR Code</Text>
