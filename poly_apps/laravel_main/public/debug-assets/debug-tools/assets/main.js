@@ -15,11 +15,15 @@ let pendingTaskIds = loadPendingTasksFromStorage();
 let playerQueueVisible = false;
 let playerQueueFilterGroup = '';
 let pendingGroupEditIndex = null;
-const groupEditModalEl = document.getElementById('groupEditModal');
-groupEditModalEl.addEventListener('click', (event) => {
-    if (event.target === groupEditModalEl) {
-        closeGroupEditModal();
-    }
+let groupEditModalEl = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    groupEditModalEl = document.getElementById('groupEditModal');
+    groupEditModalEl.addEventListener('click', (event) => {
+        if (event.target === groupEditModalEl) {
+            closeGroupEditModal();
+        }
+    });
 });
 document.body.classList.remove('fullscreen-mode');
 document.body.classList.remove('tab-hidden');

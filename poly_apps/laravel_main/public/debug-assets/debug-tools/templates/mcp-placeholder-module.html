@@ -1,0 +1,88 @@
+<div class="mcp-module-container">
+    <div class="mcp-module-header">
+        <h2>🖼️ Placeholder Generator</h2>
+        <div class="mcp-module-actions">
+            <button id="mcp-ph-generate-btn" class="mcp-btn mcp-btn-primary">
+                ➕ Generate Placeholder
+            </button>
+            <button id="mcp-ph-cleanup-btn" class="mcp-btn mcp-btn-warning">
+                🧹 Cleanup Old
+            </button>
+            <button id="mcp-ph-refresh-btn" class="mcp-btn mcp-btn-secondary">
+                🔄 Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="mcp-module-content">
+        <div class="mcp-ph-stats-row" id="mcp-ph-stats">
+            <div class="mcp-stat-card">
+                <div class="mcp-stat-value">0</div>
+                <div class="mcp-stat-label">Total</div>
+            </div>
+            <div class="mcp-stat-card">
+                <div class="mcp-stat-value">0</div>
+                <div class="mcp-stat-label">Downloaded</div>
+            </div>
+            <div class="mcp-stat-card">
+                <div class="mcp-stat-value">0</div>
+                <div class="mcp-stat-label">Pending</div>
+            </div>
+            <div class="mcp-stat-card">
+                <div class="mcp-stat-value">0 MB</div>
+                <div class="mcp-stat-label">Total Size</div>
+            </div>
+        </div>
+
+        <div class="mcp-ph-generator-form">
+            <h3>Generate New Placeholder</h3>
+            <div class="mcp-form-group">
+                <label>Width (px):</label>
+                <input type="number" id="mcp-ph-width" value="800" min="1" max="4096" />
+            </div>
+            <div class="mcp-form-group">
+                <label>Height (px):</label>
+                <input type="number" id="mcp-ph-height" value="600" min="1" max="4096" />
+            </div>
+            <div class="mcp-form-group">
+                <label>Text (optional):</label>
+                <input type="text" id="mcp-ph-text" placeholder="Leave empty for dimensions" />
+            </div>
+            <div class="mcp-form-group">
+                <label>
+                    <input type="checkbox" id="mcp-ph-real-image" />
+                    Generate Real Image (fetch from online sources)
+                </label>
+            </div>
+            <button id="mcp-ph-submit-btn" class="mcp-btn mcp-btn-success">
+                🎨 Generate & Download
+            </button>
+        </div>
+
+        <div class="mcp-ph-table-container">
+            <h3>Generated Placeholders</h3>
+            <table class="mcp-table">
+                <thead>
+                    <tr>
+                        <th>UUID</th>
+                        <th>Size</th>
+                        <th>Text</th>
+                        <th>Type</th>
+                        <th>File Size</th>
+                        <th>Downloaded</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mcp-ph-table-body">
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: #999;">
+                            Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

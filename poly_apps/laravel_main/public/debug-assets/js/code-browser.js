@@ -255,7 +255,7 @@ const CodeBrowser = {
             'css': '🎨', 'json': '📋', 'md': '📝', 'txt': '📄',
             'yaml': '⚙️', 'yml': '⚙️', 'xml': '📰', 'sh': '💻', 'sql': '🗄️'
         };
-        return icons[extension] || '📄';
+        return icons[extension];
     },
 
     async loadFile(path) {
@@ -362,7 +362,7 @@ const CodeBrowser = {
         const menuCopyAbsPath = document.getElementById('menu-copy-abspath');
 
         const isInDelete = this.contextMenuTarget && this.contextMenuTarget.startsWith('_delete/');
-        const isSpecialFolder = this.contextMenuTarget === '_delete' || this.contextMenuTarget === '_prompts';
+        const isSpecialFolder = this.contextMenuTarget === '_delete';
         const canRename = !isSpecialFolder && this.contextMenuTarget && this.contextMenuTargetType;
 
         if (this.contextMenuTargetType === 'file') {
@@ -509,7 +509,7 @@ const CodeBrowser = {
             const data = await response.json();
 
             if (!data.success) {
-                alert(data.error || 'Failed to auto-rename file');
+                alert(data.error);
                 return;
             }
 
@@ -517,7 +517,7 @@ const CodeBrowser = {
                 console.log(`File auto-renamed: ${data.original_name} → ${data.translated_name}`);
                 alert(`Successfully renamed:\n${data.original_name}\n→\n${data.translated_name}`);
             } else {
-                alert(data.message || 'Filename already in English');
+                alert(data.message);
             }
 
             this.refreshTree();
