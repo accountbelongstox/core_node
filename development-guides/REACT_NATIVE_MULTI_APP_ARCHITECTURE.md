@@ -1,27 +1,25 @@
 # React Native Multi-App Namespace Architecture
 
-**Version:** 1.0 (Created: 2025-12-03)
-**Status:** 🚧 DRAFT
+**Version:** 2.1 (Updated: 2025-12-03)
+**Status:** ✅ COMPLETE
 
 ---
 
 ## 🤖 AI Development Guide
 
 ### Priority: Extend Common Libraries First
-When developing features, **always check and extend `common/` libraries first** before creating app-specific code.
+Always check and extend `common/` libraries first before creating app-specific code.
 
 **Common Libraries (Scan First):**
-- `src/common/stores/` - Global state management (app-config-store, base-store)
-- `src/common/components/` - Reusable UI components (buttons, forms, modals, etc.)
-- `src/common/hooks/` - Custom React hooks (useAppConfig, useTheme, useI18n)
-- `src/common/utils/` - Utility functions (storage, validation, formatting)
-- `src/common/services/` - Shared API services and network clients
-- `src/common/navigation/` - Navigation utilities and wrappers
-- `src/common/theme/` - Theme configurations and styling system
+- `src/common/components/` - Reusable UI components
+- `src/common/utils/` - Utility functions
+- `src/common/services/` - Shared API services
+- `src/common/hooks/` - Custom React hooks
+- `src/common/types/` - Common TypeScript types
 
 **Extension Rule:**
-- ✅ Extend common libraries when the functionality is **reusable across multiple apps**
-- ✅ Keep common code **generic and configurable**
+- ✅ Extend common libraries when functionality is reusable across multiple apps
+- ✅ Keep common code generic and configurable
 - ❌ Avoid adding app-specific business logic to common layer
 
 ### ⚠️ CRITICAL: Source Code vs Build Directory
@@ -41,144 +39,88 @@ When developing features, **always check and extend `common/` libraries first** 
 Root project structure for multi-app React Native workspace.
 
 **Project Root:**
-- `poly_apps/react_native/` - Main workspace
-- `apps/app_{namespace}/` - App-specific code
-- `src/common/` - Shared foundation
-- `assets/common/` - Shared assets (fonts, base images)
-- `assets/apps/app_{namespace}/` - App-specific assets (icons, splash screens)
-- `configs/{namespace}.config.ts` - App configurations
-- `scripts/` - Build and deployment automation
+```
+poly_apps/react_native/
+├─ configs/                    # (Deprecated) Legacy configs, not used anymore
+├─ src/
+│  ├─ common/                  # Shared foundation (all apps can use)
+│  │  ├─ components/          # Common components
+│  │  ├─ utils/               # Common utilities
+│  │  ├─ services/            # Common API services
+│  │  ├─ hooks/               # Common React Hooks
+│  │  ├─ store/               # Common state management
+│  │  ├─ types/               # Common TypeScript types
+│  │  ├─ constants/           # Common constants
+│  │  ├─ styles/              # Common styles/theme base
+│  │  └─ common_assets.ts      # Common resources (REQUIRED)
+│  │
+│  ├─ apps/                    # App-specific code (auto-scanned)
+│  │  ├─ demo/                # Demo app namespace
+│  │  │  ├─ demo_pages/       # Demo pages
+│  │  │  ├─ demo_components/  # Demo components
+│  │  │  ├─ demo_navigation/  # Demo navigation
+│  │  │  ├─ demo_theme/       # Demo theme
+│  │  │  ├─ demo_store/       # Demo state
+│  │  │  ├─ demo_services/    # Demo API services
+│  │  │  ├─ demo_hooks/       # Demo custom hooks
+│  │  │  ├─ demo_types/       # Demo type definitions
+│  │  │  ├─ demo_assets.ts    # Demo app resources (REQUIRED)
+│  │  │  └─ App.tsx           # Demo app entry
+│  └─ app-registry.ts         # App discovery and registration
+│
+├─ assets/
+│  └─ apps/
+│     ├─ app_demo/            # Demo app resources
+│     │  ├─ android/          # Android resources
+│     │  └─ ios/              # iOS resources
+│     └─ app_example/         # Example app resources
+│        ├─ android/
+│        └─ ios/
+│
+├─ index.js                   # Dynamic entry (loads app based on APP_ENTRY)
+├─ App.tsx                    # (Deprecated) Replaced by src/apps/{namespace}/App.tsx
+└─ scripts/                   # Build and deployment automation
+```
 
 **App-Specific Structure:**
-Each app follows the isolated directory pattern with namespace-prefixed folders.
-
-- `apps/app_{namespace}/components_app_{namespace}/` - App components
-- `apps/app_{namespace}/screens_app_{namespace}/` - App screens
-- `apps/app_{namespace}/navigation_app_{namespace}/` - App navigation
-- `apps/app_{namespace}/stores_app_{namespace}/` - App state stores
-- `apps/app_{namespace}/services_app_{namespace}/` - App API services
-- `apps/app_{namespace}/hooks_app_{namespace}/` - App custom hooks
-- `apps/app_{namespace}/i18n_app_{namespace}/locales/` - App translations (en, zh, ja, fa, etc.)
-- `apps/app_{namespace}/theme_app_{namespace}/` - App theme customization
-- `apps/app_{namespace}/config_app_{namespace}/` - App configuration
+Each app in `src/apps/{namespace}/` follows namespace-prefixed pattern: `{namespace}_pages/`, `{namespace}_components/`, `{namespace}_navigation/`, `{namespace}_theme/`, `{namespace}_store/`, `{namespace}_services/`, `{namespace}_hooks/`, `{namespace}_types/`, plus required `App.tsx`, `build_config.ini`, and `{namespace}_assets.ts`.
 
 ---
 
 ## 📐 Architecture Layers
 
-### 1. Namespace Registry
-**File:** `src/utils/namespace-registry.ts`
-**Purpose:** Type-safe namespace management with TypeScript literal types
+### Entry Point System
+**Files:** `index.js`, `src/common/utils/app-registry.ts`
+**Purpose:** Dynamic app discovery and loading based on `APP_ENTRY` environment variable.
 
-**Required Fields per Namespace:**
-- Unique string identifier (kebab-case recommended)
-- Platform support flags (iOS, Android, Web)
-- Display name and metadata
-
-### 2. Entry Point System
-**Files:** `index.js`, `src/app-registry.ts`
-**Purpose:** Dynamic app registration and initialization
-
-**Registration Flow:**
-Each app registers itself with React Native's AppRegistry. The active app is determined by environment variables or build configuration. Apps are lazy-loaded to optimize bundle size.
+**App Discovery:**
+- Automatically scans `src/apps/` directory
+- Each app must have `App.tsx` in `src/apps/{namespace}/App.tsx`
+- No configuration files needed - apps are auto-discovered
 
 **Environment Variables:**
-Configuration through environment variables controls which app to load.
+- `APP_ENTRY` - Active namespace identifier (default: 'demo')
 
-- `APP_ENTRY` - Active namespace identifier
-- `APP_DISPLAY_NAME` - App display name for native UI
-- `APP_VERSION` - Version string for app metadata
+### Import Path Rules
+**MANDATORY: Always use path aliases, NEVER use relative paths**
+- ✅ Use `@/common/*` for common code
+- ✅ Use `@/apps/{namespace}/*` for app-specific code
+- ❌ Never use `../../common/*` or relative paths
+- Each app MUST have its own store and navigation (no shared `src/common/store`)
 
-### 3. Configuration System
-**Location:** `configs/{namespace}.config.ts`
-**Purpose:** Centralized app-specific configuration
+**Configuration Files:**
+- `tsconfig.json` - Path aliases: `@/common/*`, `@/apps/*`
+- `babel.config.js` - `babel-plugin-module-resolver` with same aliases
+- `metro.config.js` - Metro bundler configuration
+- Required package: `babel-plugin-module-resolver` in `devDependencies`
 
-**Required Configuration Fields:**
-Each config file must define app identity, navigation settings, API endpoints, theme preferences, feature flags, and platform-specific settings.
+### Resource Management System
+**MANDATORY: All resources must be registered in `{namespace}_assets.ts` (app) or `common_assets.ts` (common), code must reference by key only, never hardcode paths.**
 
-**Config Structure:**
-Type-safe configuration object with namespace, display name, bundle identifier, API base URL, supported platforms, default theme, enabled features, and navigation structure.
-
-### 4. Platform Resource Management
-**Locations:**
-- `assets/apps/app_{namespace}/android/` - Android-specific resources
-- `assets/apps/app_{namespace}/ios/` - iOS-specific resources
-- `assets/apps/app_{namespace}/web/` - Web-specific resources
-- `assets/apps/app_{namespace}/common/` - Cross-platform assets
-
-**Resource Categories:**
-Icons, splash screens, fonts, images, platform manifests (AndroidManifest.xml, Info.plist, index.html).
-
-**Resource Replacement Strategy:**
-Build scripts automatically swap resources based on target app and platform. Original resources are preserved for restoration. Resources use namespace-based naming to prevent conflicts.
-
-### 5. Navigation System
-**Global:** `src/common/navigation/` - Base navigation utilities
-**App-Specific:** `apps/app_{namespace}/navigation_app_{namespace}/`
-
-**Navigation Stack:**
-Each app defines its own navigation structure. Common navigation wrappers provide consistent behavior. Deep linking supports namespace-based routing.
-
-**Routing Convention:**
-URL paths follow pattern `{namespace}://{screen}/{params}` for deep links. Screen names use format `{Namespace}_{ScreenName}` to prevent collisions.
-
-### 6. State Management
-**Global:** `src/common/stores/` - Shared state management
-**App-Specific:** `apps/app_{namespace}/stores_app_{namespace}/`
-
-**Store Architecture:**
-Uses Redux Toolkit or Zustand for state management. Common stores handle auth, theme, i18n, network status. App stores manage feature-specific state. State is namespaced to prevent conflicts.
-
-### 7. i18n Namespace System
-
-#### Global Layer
-**Location:** `src/common/i18n/locales/`
-**Content:** Common translations (buttons, errors, validation messages, etc.)
-**Languages:** Must support all defined languages consistently
-
-#### App-Specific Layer
-**Location:** `apps/app_{namespace}/i18n_app_{namespace}/locales/`
-**Naming:** `i18n_app_{namespace}`, e.g., `i18n_app_myapp`
-**Content:** App-specific translations only
-**Languages:** Must match global language set
-
-#### Merging Strategy
-Translation loading follows three-step process: load global translations, load app translations, merge with app overriding global.
-
-#### Required Languages
-Minimum supported language set includes English, Chinese (Simplified), Japanese, Persian (RTL support), Spanish, French, German, Russian, Portuguese, Italian, Polish, Turkish, Swedish, Hungarian, Danish, Greek.
-
----
-
-## 📦 Common vs App-Specific Architecture
-
-### Common Layer Standards
-
-**Components:** `src/common/components/`
-Reusable UI components with prop-driven configuration. No namespace-specific logic. Platform-agnostic where possible.
-
-**Hooks:** `src/common/hooks/`
-Pure React hooks with no app dependencies. Composable and testable. Type-safe with TypeScript.
-
-**Services:** `src/common/services/`
-Generic API clients and network utilities. No hardcoded endpoints. Supports multiple auth strategies.
-
-**Utils:** `src/common/utils/`
-Pure functions for common operations. Platform utilities for iOS/Android/Web detection. Storage wrappers (AsyncStorage, MMKV, etc.).
-
-### App-Specific Layer Standards
-
-**Screens:** `screens_app_{namespace}/`
-App-specific screen components. Can import common components. No cross-app imports.
-
-**Services:** `services_app_{namespace}/`
-App-specific API integrations. Must use namespace in HTTP headers. Can compose common service utilities.
-
-**Navigation:** `navigation_app_{namespace}/`
-App-specific routing and screen stacks. Uses common navigation wrappers. Defines deep link handlers.
-
-**Theme:** `theme_app_{namespace}/`
-App-specific color schemes and styling. Extends common theme system. Platform-specific overrides allowed.
+### Build Configuration
+**Location:** `src/apps/{namespace}/build_config.ini` (required for each app)
+**Sections:** `[app_info]`, `[package_settings]`, `[build_settings]`, `[resources]`, `[splash_config]`
+**Purpose:** Defines app-specific build settings, package information, and resource configuration.
 
 ---
 
@@ -187,181 +129,76 @@ App-specific color schemes and styling. Extends common theme system. Platform-sp
 ### ✅ DO
 1. Use consistent namespace across all layers
 2. Put common code in `src/common/`
-3. Validate namespace with TypeScript types
-4. Prefix app-specific directories with `app_{namespace}`
-5. Include namespace in API headers
-6. Support all global languages in app i18n
-7. Use resource replacement for platform assets
-8. Follow naming conventions strictly
+3. Prefix app-specific directories with `{namespace}_`
+4. Create `App.tsx` in `src/apps/{namespace}/` for app entry
+5. Include `build_config.ini` in each app directory
+6. Use TypeScript path aliases (`@/common/*`, `@/apps/*`)
+7. Support all global languages in app i18n (if used)
 
 ### ❌ DON'T
 1. Hardcode namespace strings in code
 2. Mix namespaces in single file
-3. Skip namespace validation
-4. Create routes without namespace prefixes
-5. Duplicate common code in app directories
-6. Reference other app's code directly
-7. Put app-specific translations in global i18n
-8. Skip languages in app i18n files
-9. Manually edit platform-generated files
+3. Create apps without `App.tsx` entry file
+4. Create directories without namespace prefix in app folders
+5. Reference other app's code directly
+6. Use old `configs/` directory (deprecated, use auto-discovery)
+7. Use relative paths for imports
+8. Hardcode resource paths in components - always use asset keys
+9. Create apps without `{namespace}_assets.ts` file
+10. Use `require()` with relative paths directly in components
 
 ---
 
 ## 🚀 Adding New App
 
-**Step 1: Create Directories**
-Create app directory structure following namespace convention.
+**Step 1:** Create directory `src/apps/{namespace}/`
 
-**Step 2: Register Namespace**
-Add to namespace registry with type-safe literal. Update app-registry for dynamic loading.
+**Step 2:** Create `App.tsx` entry file
 
-**Step 3: Create Configuration**
-Create config file with all required fields. Define API endpoints and feature flags.
+**Step 3:** Create `build_config.ini` configuration file
 
-**Step 4: Setup Navigation**
-Define screen stack and routing. Implement deep link handlers.
+**Step 4:** Create namespace-prefixed directories: `{namespace}_pages/`, `{namespace}_components/`, `{namespace}_navigation/`, `{namespace}_theme/`, `{namespace}_store/`, `{namespace}_services/`, `{namespace}_hooks/`, `{namespace}_types/`
 
-**Step 5: Create Resources**
-Add platform-specific icons and splash screens. Create resource manifests for build scripts.
+**Step 5:** Create `{namespace}_assets.ts` file to register all app-specific resources with keys
 
-**Step 6: Setup i18n**
-Create translation files for all supported languages. Define app-specific translation keys.
+**Step 6:** Add platform resources in `assets/apps/app_{namespace}/` and register them in `{namespace}_assets.ts`
 
-**Step 7: Implement Entry Screen**
-Create main app screen component. Register with app-registry.
+**Step 7:** Set `APP_ENTRY={namespace}` and run - app will be auto-discovered
 
-**Step 8: Configure Build**
-Update build scripts for resource replacement. Add platform-specific configurations.
-
----
-
-## 🔍 Key Files
-
-**Namespace Management:**
-- `src/utils/namespace-registry.ts` - Namespace type definitions
-- `src/app-registry.ts` - App registration and loading
-- `configs/{namespace}.config.ts` - App configuration
-
-**Build System:**
-- `scripts/start.ps1` - Main launcher script
-- `scripts/build.ps1` - Build automation
-- `scripts/resource-manager.ps1` - Asset replacement
-- `scripts/test-runner.ps1` - Test execution
-
-**i18n System:**
-- `src/common/i18n/locales/` - Global translations
-- `apps/app_{namespace}/i18n_app_{namespace}/locales/` - App translations
-- `src/common/hooks/useAppI18n.ts` - Translation hook
-
-**Platform Resources:**
-- `assets/apps/app_{namespace}/android/` - Android resources
-- `assets/apps/app_{namespace}/ios/` - iOS resources
-- `assets/apps/app_{namespace}/web/` - Web resources
+**No Configuration Files Needed!** Apps are automatically discovered by scanning `src/apps/`.
 
 ---
 
 ## ✅ Validation Checklist
 
-### For Each App
+**For Each App:**
+- App directory exists in `src/apps/{namespace}/`
+- `App.tsx` entry file exists and exports default component
+- `build_config.ini` file exists
+- `{namespace}_assets.ts` file exists and exports all app resources
+- All directories use `{namespace}_` prefix
+- No cross-app dependencies
+- No hardcoded resource paths - all resources use asset keys
+- Platform resources provided in `assets/apps/app_{namespace}/` and registered in asset file
 
-**Registration:**
-Namespace registered in type system. Config file created with all fields. App registered in app-registry.
-
-**Directory Structure:**
-All namespace-prefixed directories created. Follows common layer conventions. No cross-app dependencies.
-
-**i18n:**
-Translation files for all languages. Keys namespaced to prevent conflicts. Falls back to global translations.
-
-**Resources:**
-Platform icons provided for iOS and Android. Splash screens for all platforms. Resource manifests configured.
-
-**Navigation:**
-Screen stack defined. Deep links configured. Uses common navigation wrappers.
-
-**Build:**
-Can build for iOS, Android, Web independently. Resources replaced correctly. Environment variables set properly.
-
-### Global Standards
-
-**Common Layer:**
-No app-specific logic in common. All shared code properly abstracted. TypeScript types enforced.
-
-**i18n:**
-All languages supported globally. RTL languages tested. No missing translation keys.
-
-**Testing:**
-Unit tests for common utilities. Integration tests for app flows. Platform-specific tests where needed.
+**Global Standards:**
+- No app-specific logic in common layer
+- All shared code properly abstracted
+- TypeScript types enforced
 
 ---
 
-## 🎯 Platform-Specific Considerations
+## 🔧 Build System
 
-### iOS Resources
-**Icon Sets:** AppIcon.appiconset with all required sizes
-**Launch Screen:** LaunchScreen.storyboard or launch images
-**Info.plist:** Bundle identifier, display name, permissions
+**Factory Mirror System:** Creates isolated build environments per app. Mirrors source to dedicated build directories.
 
-### Android Resources
-**Icons:** mipmap folders for all densities (mdpi, hdpi, xhdpi, etc.)
-**Splash:** drawable resources or splash screen API
-**Manifest:** Package name, app name, permissions
+**Resource Replacement Pipeline:** Pre-build phase backs up original resources, copies app-specific resources, runs build, restores original resources.
 
-### Web Resources
-**Favicon:** Multiple sizes for different devices
-**Manifest:** PWA manifest.json configuration
-**Index:** Custom HTML template per app
-
----
-
-## 🔧 Build System Architecture
-
-### Factory Mirror System
-Similar to Nuxt architecture, creates isolated build environments per app. Mirrors source to dedicated build directories. Enables concurrent multi-app development.
-
-**Factory Locations:**
-- Windows: `D:/programing/_build_dir/rn_factory/_app_{namespace}/`
-- Linux: `{base}/_build_dir/rn_factory/linux/_app_{namespace}/`
-
-### Resource Replacement Pipeline
-Pre-build phase identifies target app and platform. Backs up original resources. Copies app-specific resources to platform directories. Runs platform-specific build commands. Restores original resources post-build.
-
-### Supported Build Modes
-**Debug Mode:** Fast refresh enabled. Development server running. Source maps included. No resource optimization.
-
-**Build Mode:** Production optimization. Minification and bundling. Resource compression. Platform-specific outputs.
-
-**Test Mode:** Jest test runner. Platform-specific test environments. Coverage reporting.
-
----
-
-## 📊 Current Apps
-
-**Discovery Commands:**
-Scan apps directory for namespaces. Read namespace registry for registered apps. Check configs directory for configurations.
-
-**Expected App Structure:**
-Each app must satisfy all validation criteria. Complete directory structure. All required configuration files. Platform resources for each target.
-
----
-
-## 🔄 Migration from Single-App Structure
-
-**Phase 1: Prepare Common Layer**
-Extract shared code to `src/common/`. Create common component library. Setup common hooks and utils.
-
-**Phase 2: Create First App Namespace**
-Choose primary app namespace. Move existing code to app-specific directories. Create app configuration.
-
-**Phase 3: Setup Build System**
-Implement resource replacement scripts. Configure factory mirror system. Test build pipeline.
-
-**Phase 4: Add Additional Apps**
-Follow "Adding New App" workflow. Reuse common layer components. Test namespace isolation.
+**Supported Build Modes:** Debug (fast refresh, development server), Build (production optimization), Test (Jest test runner).
 
 ---
 
 **Last Updated:** 2025-12-03
 **Maintained By:** Core Node Team
 
----
+

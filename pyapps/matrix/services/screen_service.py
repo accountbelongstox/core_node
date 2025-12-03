@@ -12,7 +12,7 @@ import asyncio
 from typing import Optional, Dict
 from pycore.pyutils.device import ADBManager
 from pycore.pyutils.device_manager import DeviceManager
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class ScreenService:

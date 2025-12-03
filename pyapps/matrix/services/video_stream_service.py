@@ -1,4 +1,4 @@
-"""Video streaming service using pycore VideoStreamHandler"""
+"""Video streaming service using direct H.264 frame reading from ScrcpyDevice"""
 
 import sys
 from pathlib import Path
@@ -9,23 +9,35 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import asyncio
+import struct
 from typing import Optional, Dict
 from fastapi import WebSocket
 
 from pycore import ColorPrint
 from pycore.pyutils.device_manager import DeviceManager
-from pycore.pyutils.video_stream import VideoStreamHandler
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class VideoStreamService:
     """
-    Video streaming service
+    Video streaming service - Direct H.264 frame streaming
 
     Responsibilities:
-    - Manage video streams from scrcpy-server
-    - Encode H.264 to fMP4
-    - Send video frames via WebSocket
+    - Read raw H.264 frames from scrcpy video socket
+    - Send frames directly to WebSocket with custom binary protocol
+    - No encoding/transcoding - raw H.264 NAL units from device
+
+    Protocol Format (from scrcpy_web_test/server.py):
+        [serial_len(1 byte)][serial(N bytes)][pts(8 bytes)][size(4 bytes)][H.264 data]
+
+        pts (8 bytes, big-endian uint64):
+            - Bit 63 (0x8000000000000000): is_config frame
+            - Bit 62 (0x4000000000000000): is_keyframe
+            - Bits 0-61: Presentation timestamp
+
+        size (4 bytes, big-endian uint32): Frame data length
+
+        H.264 data: Raw NAL units from scrcpy-server
     """
 
     _instance: Optional['VideoStreamService'] = None
@@ -33,10 +45,9 @@ class VideoStreamService:
     def __init__(self):
         self.adb_path = Config.get_adb_path()
         self.device_manager = DeviceManager.instance()
-        self.streams: Dict[str, asyncio.Task] = {}  # serial -> stream task
-        self.handlers: Dict[str, VideoStreamHandler] = {}  # serial -> stream handler
-        self.paused: Dict[str, bool] = {}  # serial -> is_paused
-        self.frame_timestamps: Dict[str, list] = {}  # serial -> list of (frame_time, send_time)
+        self.streams: Dict[str, asyncio.Task] = {}
+        self.paused: Dict[str, bool] = {}
+        self.frame_stats: Dict[str, Dict] = {}
 
     @classmethod
     def instance(cls) -> 'VideoStreamService':
@@ -47,23 +58,31 @@ class VideoStreamService:
 
     async def stream_to_websocket(self, serial: str, websocket: WebSocket):
         """
-        Stream video from device to WebSocket using VideoStreamHandler
+        Stream video from device to WebSocket using direct H.264 frames
+
+        This is the CORRECT implementation based on scrcpy_web_test/server.py.
+
+        Flow:
+            1. Get device from DeviceManager
+            2. Verify device is connected
+            3. Read video frames using device.read_video_frame()
+            4. Pack frames with custom protocol header
+            5. Send binary frames to WebSocket
+            6. Send JSON metadata periodically
 
         Args:
             serial: Device serial number
             websocket: WebSocket connection
-
-        Flow:
-            1. Get device from DeviceManager
-            2. Create VideoStreamHandler
-            3. Send fMP4 init segment
-            4. Stream fMP4 media segments
         """
-        handler = None
-        # ✅ REMOVED outer try-except for debugging - let errors surface
-
         # Mark as not paused
         self.paused[serial] = False
+
+        # Initialize frame stats
+        self.frame_stats[serial] = {
+            'frame_count': 0,
+            'bytes_sent': 0,
+            'start_time': asyncio.get_event_loop().time()
+        }
 
         # Get device from centralized DeviceManager
         device = self.device_manager.get_device(serial)
@@ -71,49 +90,24 @@ class VideoStreamService:
             error_msg = {
                 "type": "video.error",
                 "timestamp": 0,
-                "data": {"error": f"Device {serial} not connected"}
+                "data": {"error": f"Device {serial} not found"}
             }
             await websocket.send_json(error_msg)
-            print(f"[VideoStreamService] ERROR: Device {serial} not found in DeviceManager")
+            ColorPrint.red(f"[VideoStreamService] Device {serial} not found")
             return
 
-        # ✅ CRITICAL: Verify device is connected and ready for streaming
+        # Verify device is connected
         if not device.is_connected():
             error_msg = {
                 "type": "video.error",
                 "timestamp": 0,
-                "data": {"error": f"Device {serial} not connected. scrcpy-server may have failed to start."}
+                "data": {"error": f"Device {serial} not connected. Check scrcpy-server."}
             }
             await websocket.send_json(error_msg)
-            print(f"[VideoStreamService] ERROR: Device {serial} is not connected")
-            print(f"[VideoStreamService] Device info: {device}")
-            print(f"[VideoStreamService] Video socket: {device._video_socket}")
-            print(f"[VideoStreamService] Control socket: {device._control_socket}")
-            print(f"[VideoStreamService] Troubleshooting:")
-            print(f"  1. Check if scrcpy-server.jar is pushed to /data/local/tmp/")
-            print(f"  2. Check if device allows USB debugging")
-            print(f"  3. Try reconnecting the device")
+            ColorPrint.red(f"[VideoStreamService] Device {serial} not connected")
             return
 
-        print(f"\n{'='*60}")
-        print(f"[VideoStreamService] Starting video stream for {serial}")
-        print(f"[VideoStreamService] Device: {device}")
-        print(f"[VideoStreamService] Device connected: {device.is_connected()}")
-
-        # ✅ REMOVED try-except - let errors surface
-        video_socket = device.get_video_socket()
-        print(f"[VideoStreamService] Video socket: {video_socket}")
-        print(f"[VideoStreamService] Socket type: {type(video_socket)}")
-
-        # Create and start video stream handler
-        handler = VideoStreamHandler(device)
-        self.handlers[serial] = handler
-
-        # Start handler (parses H.264 config)
-        print(f"[VideoStreamService] Starting VideoStreamHandler...")
-        # ✅ REMOVED try-except - let errors surface
-        await handler.start()
-        print(f"[VideoStreamService] VideoStreamHandler started successfully")
+        ColorPrint.green(f"[VideoStreamService] Starting H.264 stream for {serial}")
 
         # Get device info
         device_info = device.get_device_info()
@@ -127,127 +121,150 @@ class VideoStreamService:
                 "codec": "h264",
                 "width": device_info.resolution.width,
                 "height": device_info.resolution.height,
-                "fps": 60,
+                "fps": device.params.max_fps,
                 "bitrate": device.params.bit_rate
             }
         }
         await websocket.send_json(init_message)
+        ColorPrint.blue(f"[VideoStreamService] Sent init message: {device_info.resolution.width}x{device_info.resolution.height}")
 
-        # Send fMP4 init segment
-        init_segment = handler.get_init_segment()
-        if init_segment:
-            await websocket.send_bytes(init_segment)
-            print(f"[VideoStreamService] Sent init segment ({len(init_segment)} bytes)")
+        # Streaming loop - read frames from device
+        loop = asyncio.get_event_loop()
+        stats = self.frame_stats[serial]
 
-        # Streaming loop
-        frame_count = 0
-        start_time = asyncio.get_event_loop().time()
-
-        # Initialize latency tracking
-        self.frame_timestamps[serial] = []
-
-        # Stream fMP4 chunks
-        async for fmp4_chunk in handler.stream_fmp4():
+        while True:
             # Check if paused
             if self.paused.get(serial, False):
                 await asyncio.sleep(0.1)
                 continue
 
-            # Record frame timestamp for latency calculation
-            frame_time = asyncio.get_event_loop().time()
+            # Read video frame (blocking call, run in executor)
+            # Returns dict: {'data': bytes, 'pts': int, 'size': int, 'is_config': bool, 'is_keyframe': bool}
+            frame = await loop.run_in_executor(None, device.read_video_frame)
 
-            # Send fMP4 media segment
-            send_start = asyncio.get_event_loop().time()
-            await websocket.send_bytes(fmp4_chunk)
-            send_end = asyncio.get_event_loop().time()
+            if not frame:
+                ColorPrint.yellow(f"[VideoStreamService] Video stream ended for {serial}")
+                break
 
-            # Track send latency (network + encoding time)
-            send_latency = (send_end - send_start) * 1000  # Convert to ms
-            self.frame_timestamps[serial].append((frame_time, send_latency))
+            # Extract frame data
+            frame_data = frame['data']
+            stats['frame_count'] += 1
+            stats['bytes_sent'] += len(frame_data)
 
-            # Keep only last 120 frames for latency calculation (~2 seconds at 60fps)
-            if len(self.frame_timestamps[serial]) > 120:
-                self.frame_timestamps[serial].pop(0)
+            # Pack frame with custom protocol
+            payload = self._pack_frame(serial, frame)
 
-            frame_count += 1
+            # Send binary frame to WebSocket
+            await websocket.send_bytes(payload)
 
-            # Send metadata every 60 frames (~1 second)
-            if frame_count % 60 == 0:
-                elapsed = asyncio.get_event_loop().time() - start_time
-
-                # Calculate average latency from recent frames
-                if self.frame_timestamps[serial]:
-                    recent_latencies = [lat for _, lat in self.frame_timestamps[serial][-60:]]
-                    avg_latency = sum(recent_latencies) / len(recent_latencies)
-                else:
-                    avg_latency = 0
+            # Send metadata every 60 frames (~1 second at 60fps)
+            if stats['frame_count'] % 60 == 0:
+                elapsed = loop.time() - stats['start_time']
+                fps = stats['frame_count'] / elapsed if elapsed > 0 else 0
 
                 metadata = {
                     "type": "video.metadata",
                     "timestamp": int(elapsed * 1000),
                     "data": {
-                        "fps": frame_count / elapsed if elapsed > 0 else 0,
-                        "droppedFrames": 0,
-                        "latency": round(avg_latency, 2)  # Actual measured latency in ms
+                        "fps": round(fps, 2),
+                        "frames": stats['frame_count'],
+                        "bytes": stats['bytes_sent'],
+                        "mbps": round(stats['bytes_sent'] * 8 / elapsed / 1_000_000, 2) if elapsed > 0 else 0
                     }
                 }
                 await websocket.send_json(metadata)
 
+            # Log progress every 300 frames (~5 seconds)
+            if stats['frame_count'] % 300 == 0:
+                mb_sent = stats['bytes_sent'] / (1024 * 1024)
+                ColorPrint.blue(f"[VideoStreamService] {serial}: {stats['frame_count']} frames, {mb_sent:.2f} MB sent")
+
+        # Stream ended
         ColorPrint.blue(f"[VideoStreamService] Stream ended for {serial}")
+        ColorPrint.blue(f"[Stats] Frames: {stats['frame_count']}, Data: {stats['bytes_sent'] / (1024 * 1024):.2f} MB")
 
         # Cleanup
-        if handler:
-            await handler.stop()
-        if serial in self.handlers:
-            del self.handlers[serial]
         if serial in self.paused:
             del self.paused[serial]
-        if serial in self.frame_timestamps:
-            del self.frame_timestamps[serial]
+        if serial in self.frame_stats:
+            del self.frame_stats[serial]
+
+    def _pack_frame(self, serial: str, frame: Dict) -> bytes:
+        """
+        Pack video frame with custom binary protocol
+
+        Format (from scrcpy_web_test/server.py:375-393):
+            [serial_len(1 byte)][serial(N bytes)][pts(8 bytes)][size(4 bytes)][H.264 data]
+
+        Args:
+            serial: Device serial number
+            frame: Frame dict with keys: data, pts, size, is_config, is_keyframe
+
+        Returns:
+            Packed binary frame ready to send via WebSocket
+        """
+        # Encode serial
+        serial_bytes = serial.encode('utf-8')
+        if len(serial_bytes) > 255:
+            serial_bytes = serial_bytes[:255]
+
+        # Pack PTS with flags
+        pts = frame['pts'] & 0x3FFFFFFFFFFFFFFF  # Mask to 62 bits
+        if frame.get('is_config'):
+            pts |= 0x8000000000000000  # Set bit 63
+        if frame.get('is_keyframe'):
+            pts |= 0x4000000000000000  # Set bit 62
+
+        # Pack header: serial_len(1) + pts(8) + size(4)
+        header = struct.pack(">QI", pts, frame['size'])
+        prefix = bytes([len(serial_bytes)]) + serial_bytes + header
+
+        # Combine: prefix + frame data
+        payload = prefix + frame['data']
+
+        return payload
 
     async def set_quality(self, serial: str, quality_config: dict):
         """
         Change video quality settings dynamically
 
+        Note: Quality changes require reconnecting the video stream.
+        This method updates device parameters for next connection.
+
         Args:
             serial: Device serial number
-            quality_config: Quality configuration dict containing:
-                - max_size: Maximum resolution (short edge, e.g., 720, 1080)
-                - bit_rate: Video bitrate in bps (e.g., 8000000 for 8 Mbps)
-                - max_fps: Maximum frame rate (e.g., 30, 60)
-
-        Note:
-            Quality changes require reconnecting the video stream to take effect.
-            This method updates the device parameters and will apply on next connection.
+            quality_config: Dict containing max_size, bit_rate, max_fps
         """
         device = self.device_manager.get_device(serial)
         if not device:
-            print(f"[VideoStreamService] Device {serial} not found for quality change")
+            ColorPrint.red(f"[VideoStreamService] Device {serial} not found for quality change")
             return
 
         # Update device parameters
         if 'max_size' in quality_config:
             device.params.max_size = quality_config['max_size']
-            print(f"[VideoStreamService] Updated max_size to {quality_config['max_size']}")
+            ColorPrint.blue(f"[VideoStreamService] Updated max_size to {quality_config['max_size']}")
 
         if 'bit_rate' in quality_config:
             device.params.bit_rate = quality_config['bit_rate']
-            print(f"[VideoStreamService] Updated bit_rate to {quality_config['bit_rate']}")
+            ColorPrint.blue(f"[VideoStreamService] Updated bit_rate to {quality_config['bit_rate']}")
 
         if 'max_fps' in quality_config:
             device.params.max_fps = quality_config['max_fps']
-            print(f"[VideoStreamService] Updated max_fps to {quality_config['max_fps']}")
+            ColorPrint.blue(f"[VideoStreamService] Updated max_fps to {quality_config['max_fps']}")
 
-        print(f"[VideoStreamService] Quality settings updated for {serial}")
-        print(f"[VideoStreamService] Note: Changes will apply on next video stream connection")
+        ColorPrint.green(f"[VideoStreamService] Quality settings updated for {serial}")
+        ColorPrint.yellow(f"[VideoStreamService] Note: Reconnect video stream to apply changes")
 
     async def pause(self, serial: str):
         """Pause video stream"""
         self.paused[serial] = True
+        ColorPrint.yellow(f"[VideoStreamService] Stream paused for {serial}")
 
     async def resume(self, serial: str):
         """Resume video stream"""
         self.paused[serial] = False
+        ColorPrint.green(f"[VideoStreamService] Stream resumed for {serial}")
 
     async def stop(self, serial: str):
         """Stop video stream"""
@@ -259,3 +276,4 @@ class VideoStreamService:
             except asyncio.CancelledError:
                 pass
             del self.streams[serial]
+        ColorPrint.blue(f"[VideoStreamService] Stream stopped for {serial}")

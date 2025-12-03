@@ -258,7 +258,7 @@
     "npm": ">=6.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@10.13.1",
+  "packageManager": "pnpm@10.24.0",
   "pnpm": {
     "peerDependencyRules": {
       "allowedVersions": {
