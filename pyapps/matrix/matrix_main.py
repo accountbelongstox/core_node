@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix Application - Unified Entry Point
+Matrix Application - Main Entry Point
 
-Uses pylauncher to manage all services:
-- heartbeat: System heartbeat
-- matrix_service: Custom service for frontend + backend lifecycle
-- rpc_v2: FastAPI backend API
-- ui: PySide6 webview
-- tray: System tray
+Single entry point for Matrix application.
+All services managed by pylauncher, using shared RPC v2.
+
+Architecture:
+- RPC v2: Unified FastAPI backend (serves Matrix API + frontend static files)
+- UI: PySide6 webview
+- Tray: System tray
+- Heartbeat: Global heartbeat system
 
 Usage:
     python pymain.py app=matrix
 """
 
 import sys
+import time
 from pathlib import Path
 
 # Add project root to path
@@ -23,11 +26,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher.launcher import ServiceLauncher
-from pycore.pythreadpool import SERVICE_STARTERS
-from pyapps.matrix.config import Config
-from pyapps.matrix.launcher_config import build_matrix_launcher_config
-from pyapps.matrix.matrix_service_starter import start_matrix_service
-from pyapps.matrix.event_handlers import register_matrix_event_handlers
+from pyapps.matrix.matrix_config import Config
+from pyapps.matrix.controller import (
+    build_matrix_launcher_config,
+    register_matrix_event_handlers,
+    compile_frontend_if_needed
+)
 
 
 def start():
@@ -36,36 +40,29 @@ def start():
     ColorPrint.blue(" MATRIX APPLICATION")
     ColorPrint.blue("=" * 70)
 
-    # Register custom matrix_service starter (dynamically, not in pycore)
-    SERVICE_STARTERS['matrix_service'] = start_matrix_service
-    ColorPrint.blue("[Matrix] Registered custom matrix_service starter")
+    # Step 1: Compile frontend if needed (production mode only)
+    if Config.FRONTEND_MODE == 'production':
+        compile_frontend_if_needed(
+            project_root=PROJECT_ROOT,
+            skip_build=Config.FRONTEND_SKIP_BUILD,
+            force_rebuild=Config.FRONTEND_FORCE_REBUILD
+        )
+    else:
+        ColorPrint.yellow("[Matrix] Dev mode: frontend compilation skipped")
+        ColorPrint.yellow("[Matrix] Make sure to run 'npm run dev' manually")
 
-    # Build launcher configuration
+    # Step 2: Build launcher configuration
     launcher_config = build_matrix_launcher_config(
         project_root=PROJECT_ROOT,
         frontend_port=Config.FRONTEND_PORT,
         backend_port=Config.WEB_PORT,
         backend_host=Config.WEB_HOST,
-        frontend_mode=Config.FRONTEND_MODE  # Pass frontend mode for webview_url
+        frontend_mode=Config.FRONTEND_MODE
     )
 
-    # Add matrix_service to services (before launcher starts)
-    # All parameters are HARDCODED in Config class
-    launcher_config.services['matrix_service'] = {
-        'project_root': PROJECT_ROOT,
-        'frontend_port': Config.FRONTEND_PORT,
-        'frontend_timeout': 120,
-        'frontend_mode': Config.FRONTEND_MODE,
-        'frontend_skip_build': Config.FRONTEND_SKIP_BUILD,
-        'frontend_force_rebuild': Config.FRONTEND_FORCE_REBUILD,
-        'backend_host': Config.WEB_HOST,
-        'backend_port': Config.WEB_PORT,
-        'backend_mode': Config.MODE,
-    }
+    ColorPrint.blue(f"[Matrix] Services: {', '.join(launcher_config.services.keys())}")
 
-    ColorPrint.blue(f"[Matrix] Final services: {', '.join(launcher_config.services.keys())}")
-
-    # Create and start launcher
+    # Step 3: Create and start launcher
     launcher = ServiceLauncher(launcher_config)
     success = launcher.start()
 
@@ -73,19 +70,18 @@ def start():
         ColorPrint.red("[Matrix] Failed to start services")
         return
 
-    # Register event handlers (after launcher starts)
+    # Step 4: Register event handlers
     register_matrix_event_handlers(
         frontend_port=Config.FRONTEND_PORT,
         backend_port=Config.WEB_PORT,
-        backend_host=Config.WEB_HOST
+        backend_host=Config.WEB_HOST,
+        frontend_mode=Config.FRONTEND_MODE
     )
 
     # Keep application running
     ColorPrint.green("[Matrix] Application running. Press Ctrl+C to stop.")
 
     try:
-        # Keep main thread alive (services run in background)
-        import time
         while not THREAD_BUS.is_shutdown_requested():
             time.sleep(1)
     except KeyboardInterrupt:

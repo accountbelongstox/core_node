@@ -17,7 +17,7 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pycore.pyutils.device import ADBManager
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class FileService:

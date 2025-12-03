@@ -1,0 +1,8 @@
+{
+  "name": "星灿传媒科技",
+  "description": "云矩阵 // V3.0",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
