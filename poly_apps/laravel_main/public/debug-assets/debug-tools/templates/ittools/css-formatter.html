@@ -1,0 +1,31 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">CSS Formatter & Beautifier</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">CSS Input:</label>
+            <textarea 
+                id="css-input" 
+                class="ittools-textarea" 
+                rows="10" 
+                placeholder="body{margin:0;padding:0}"
+                data-input="css-input"
+            ></textarea>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="format-css"
+            >
+                ✨ Format CSS
+            </button>
+            <button 
+                class="ittools-btn ittools-btn-secondary" 
+                data-action="minify-css"
+            >
+                🗜️ Minify CSS
+            </button>
+        </div>
+        <div id="css-format-result" class="ittools-result formatter-result hidden"></div>
+    </div>
+</div>
+

@@ -1,0 +1,25 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">SQL Formatter & Beautifier</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">SQL Input:</label>
+            <textarea 
+                id="sql-input" 
+                class="ittools-textarea" 
+                rows="10" 
+                placeholder="SELECT * FROM users WHERE id=1"
+                data-input="sql-input"
+            ></textarea>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="format-sql"
+            >
+                ✨ Format SQL
+            </button>
+        </div>
+        <div id="sql-result" class="ittools-result formatter-result hidden"></div>
+    </div>
+</div>
+

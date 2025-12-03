@@ -1,0 +1,23 @@
+/* Formatter Tools Common Styles */
+.formatter-result {
+    margin-top: 15px;
+}
+
+.formatter-result-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.formatter-result-textarea {
+    margin-top: 10px;
+}
+
+.formatter-result-copy-btn {
+    margin-top: 10px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
