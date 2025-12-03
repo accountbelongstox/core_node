@@ -62,24 +62,7 @@ const PromptsTasksManager = {
     createSubtitleElement() {
         this.subtitleElement = document.createElement('div');
         this.subtitleElement.id = 'prompts-subtitle';
-        this.subtitleElement.style.cssText = `
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            max-width: 80%;
-            text-align: center;
-            z-index: 100000;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-            line-height: 1.6;
-        `;
+        this.subtitleElement.className = 'prompts-subtitle';
         document.body.appendChild(this.subtitleElement);
     },
 
@@ -101,7 +84,7 @@ const PromptsTasksManager = {
         this.currentCategory = categoryId;
 
         try {
-            const response = await APIClient.get(`/api/mcp/v1/task-dispatch/categories/${categoryId}/files`);
+            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.MCP_TASK_CATEGORIES_FILES}/${categoryId}/files`);
             const data = await response.json();
 
             if (data.success) {
@@ -132,62 +115,60 @@ const PromptsTasksManager = {
 
         this.promptFiles.forEach(file => {
             const fileDiv = document.createElement('div');
-            fileDiv.style.cssText = `
-                padding: 8px 10px;
-                margin-bottom: 2px;
-                cursor: pointer;
-                border-radius: 3px;
-                fontSize: 12px;
-                transition: background 0.2s;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            `;
-
-            fileDiv.addEventListener('mouseenter', () => {
-                fileDiv.style.background = '#2a2d2e';
-            });
-
-            fileDiv.addEventListener('mouseleave', () => {
-                fileDiv.style.background = 'transparent';
-            });
-
-            fileDiv.addEventListener('click', () => {
-                this.openPromptWindow(file.path, file.name);
-            });
-
-            // Right-click context menu
-            fileDiv.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                this.showFileContextMenu(e, file);
-            });
+            fileDiv.className = 'prompt-file-item';
+            fileDiv.dataset.path = file.path;
+            fileDiv.dataset.name = file.name;
 
             const fileName = file.name.replace('.md', '');
             const displayName = this.getTranslatedName(file.name) || fileName;
             const fileSize = this.formatFileSize(file.size);
 
             fileDiv.innerHTML = `
-                <div style="flex: 1; min-width: 0;">
-                    <div style="color: #d4d4d4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayName}</div>
-                    <div style="color: #888; font-size: 10px; margin-top: 2px;">${fileSize} • ${file.modified}</div>
+                <div class="prompt-file-name-container">
+                    <div class="prompt-file-name">${displayName}</div>
+                    <div class="prompt-file-meta">${fileSize} • ${file.modified}</div>
                 </div>
-                <div style="display: flex; gap: 4px; margin-left: 8px;">
-                    <button onclick="event.stopPropagation(); PromptsTasksManager.addToQueue('${file.path}')"
-                            style="background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;"
-                            title="Add to Queue">
+                <div class="prompt-file-actions">
+                    <button class="prompt-file-btn-queue" data-action="add-to-queue" data-path="${file.path}" title="Add to Queue">
                         ➜ Queue
                     </button>
-                    <button onclick="event.stopPropagation(); PromptsTasksManager.deletePromptFile('${file.path}')"
-                            style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;"
-                            title="Delete File">
+                    <button class="prompt-file-btn-delete" data-action="delete-file" data-path="${file.path}" title="Delete File">
                         🗑
                     </button>
                 </div>
             `;
 
+            fileDiv.addEventListener('click', (e) => {
+                if (!e.target.closest('[data-action]')) {
+                    this.openPromptWindow(file.path, file.name);
+                }
+            });
+
+            fileDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showFileContextMenu(e, file);
+            });
+
+            container.addEventListener('click', (e) => {
+                const action = e.target.closest('[data-action]');
+                if (!action) return;
+
+                e.stopPropagation();
+                const actionType = action.dataset.action;
+                const path = action.dataset.path;
+
+                switch (actionType) {
+                    case 'add-to-queue':
+                        this.addToQueue(path);
+                        break;
+                    case 'delete-file':
+                        this.deletePromptFile(path);
+                        break;
+                }
+            });
+
             container.appendChild(fileDiv);
 
-            // Queue for name translation if needed
             if (this.containsChinese(file.name) && !this.getTranslatedName(file.name)) {
                 this.queueNameTranslation(file.name);
             }
@@ -195,43 +176,25 @@ const PromptsTasksManager = {
     },
 
     showFileContextMenu(e, file) {
-        // Remove existing menu
         const existingMenu = document.getElementById('file-item-context-menu');
         if (existingMenu) existingMenu.remove();
 
         const menu = document.createElement('div');
         menu.id = 'file-item-context-menu';
-        menu.style.cssText = `
-            position: fixed;
-            left: ${e.clientX}px;
-            top: ${e.clientY}px;
-            background: #252526;
-            border: 1px solid #454545;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-            z-index: 100000;
-            min-width: 180px;
-            padding: 4px 0;
-        `;
+        menu.className = 'prompt-context-menu';
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
 
         const menuItems = [
             { label: '📝 Edit', action: () => this.openPromptWindow(file.path, file.name) },
             { label: '➜ Add to Queue', action: () => this.addToQueue(file.path) },
-            { label: '🗑 Delete', action: () => this.deletePromptFile(file.path), color: '#f48771' }
+            { label: '🗑 Delete', action: () => this.deletePromptFile(file.path), isDanger: true }
         ];
 
         menuItems.forEach(item => {
             const menuItem = document.createElement('div');
             menuItem.textContent = item.label;
-            menuItem.style.cssText = `
-                padding: 8px 16px;
-                cursor: pointer;
-                color: ${item.color || '#cccccc'};
-                font-size: 13px;
-                transition: background 0.2s;
-            `;
-            menuItem.onmouseover = () => menuItem.style.background = '#094771';
-            menuItem.onmouseout = () => menuItem.style.background = 'transparent';
+            menuItem.className = item.isDanger ? 'prompt-context-menu-item prompt-context-menu-item-danger' : 'prompt-context-menu-item';
             menuItem.onclick = () => {
                 menu.remove();
                 item.action();
@@ -241,7 +204,6 @@ const PromptsTasksManager = {
 
         document.body.appendChild(menu);
 
-        // Close menu on click outside
         const closeMenu = (e) => {
             if (!menu.contains(e.target)) {
                 menu.remove();
@@ -262,7 +224,7 @@ const PromptsTasksManager = {
         }
 
         try {
-            const response = await APIClient.post('/code-browser/delete-file', {
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_DELETE_FILE, {
                 path: filePath
             });
 
@@ -296,12 +258,7 @@ const PromptsTasksManager = {
 
     renderEmptyState(message) {
         const container = document.getElementById('prompts-tasks-list');
-
-        container.innerHTML = `
-            <div style="padding: 20px; text-align: center; color: #888;">
-                ${message}
-            </div>
-        `;
+        container.innerHTML = `<div class="prompts-empty-state">${message}</div>`;
     },
 
     // ============================================
@@ -315,7 +272,7 @@ const PromptsTasksManager = {
         }
 
         try {
-            const response = await APIClient.get(`/code-browser/read-file?path=${encodeURIComponent(path)}`);
+            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(path)}`);
             const data = await response.json();
 
             if (data.error) {
@@ -721,7 +678,7 @@ const PromptsTasksManager = {
         this.updateWindowStatus(path, 'Saving...');
 
         try {
-            const response = await APIClient.post('/code-browser/save-file', {
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
                 path: path,
                 content: content
             });
@@ -846,7 +803,7 @@ const PromptsTasksManager = {
                 this.updateWindowStatus(path, `Translating line ${i + 1}/${lines.length}...`);
 
                 try {
-                    const response = await APIClient.post('/code-browser/prompts/translate-line', {
+                    const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_LINE, {
                         line: line
                     });
 
@@ -881,7 +838,7 @@ const PromptsTasksManager = {
                 console.log(`[PromptsTasksManager] Translation complete. ${translatedCount}/${totalChineseLines} Chinese lines translated. Saving file...`);
                 this.updateWindowStatus(path, 'Saving translated content...');
 
-                const saveResponse = await APIClient.post('/code-browser/save-file', {
+                const saveResponse = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
                     path: path,
                     content: newContent,
                     skip_backup: true,
@@ -1013,7 +970,7 @@ const PromptsTasksManager = {
 
     async translateText(text) {
         try {
-            const response = await APIClient.post('/code-browser/prompts/translate-name', {
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_NAME, {
                 name: text
             });
 
@@ -1056,7 +1013,7 @@ const PromptsTasksManager = {
 
     async requestTTS(text) {
         try {
-            const response = await APIClient.post('/tts/generate', {
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.TTS_GENERATE, {
                 text: text,
                 language: 'en',
                 type: 'sentence'
@@ -1360,12 +1317,12 @@ const PromptsTasksManager = {
     showSubtitle(text) {
         if (!this.subtitleElement) return;
         this.subtitleElement.textContent = text;
-        this.subtitleElement.style.display = 'block';
+        this.subtitleElement.classList.add('visible');
     },
 
     hideSubtitle() {
         if (!this.subtitleElement) return;
-        this.subtitleElement.style.display = 'none';
+        this.subtitleElement.classList.remove('visible');
     },
 
     // ============================================
@@ -1457,7 +1414,7 @@ const PromptsTasksManager = {
         try {
             const fullPath = filePath.replace(/^_prompts[\\/]/, '');
 
-            const readResponse = await APIClient.get(`/code-browser/read-file?path=${encodeURIComponent(fullPath)}`);
+            const readResponse = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(fullPath)}`);
             const fileData = await readResponse.json();
 
             if (fileData.error) {
@@ -1468,7 +1425,7 @@ const PromptsTasksManager = {
             // Ensure content is a string
             const content = (fileData.content != null) ? String(fileData.content) : '';
 
-            const addResponse = await APIClient.post('/api/mcp/v1/task-dispatch/queue/add-file', {
+            const addResponse = await apiClientInstance.post(ApiClient.PointUrlKey.MCP_TASK_QUEUE_ADD, {
                 category_id: this.currentCategory,
                 file_path: filePath,
                 content: content
@@ -1500,7 +1457,7 @@ const PromptsTasksManager = {
 
     async createNewTask(path) {
         try {
-            const response = await APIClient.post('/code-browser/prompts/create', {
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_CREATE, {
                 name: path.split('/').pop()
             });
 

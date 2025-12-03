@@ -88,8 +88,7 @@ function installDependencies() {
     console.log('');
 
     // Run pnpm install synchronously with real-time output
-    // Use --yes flag to automatically answer yes to all prompts
-    execSync('pnpm install --yes', {
+    execSync('pnpm install', {
       stdio: 'inherit', // Show output in real-time (stdout, stderr, stdin)
       encoding: 'utf-8',
       env: process.env

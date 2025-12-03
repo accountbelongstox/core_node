@@ -1,9 +1,14 @@
-<!-- AI WARNING: Edit components under apps/app_pymatrix/components_app_pymatrix/pymatrix_index/ instead -->
-<!-- This is the entry point for pymatrix app - it only imports the main app component -->
+<!-- AI WARNING: Edit apps/app_ittools/components_app_ittools/ittools_index/ItToolsApp.vue for logic changes -->
 <template>
-  <PyMatrixApp />
+  <ItToolsApp />
 </template>
 
 <script setup lang="ts">
-import PyMatrixApp from '@/apps/app_pymatrix/components_app_pymatrix/pymatrix_index/PyMatrixApp.vue';
+// Centralized import from apps/app_ittools/ per NUXT_MULTI_APP_ARCHITECTURE.md
+import ItToolsApp from '@/apps/app_ittools/components_app_ittools/ittools_index/ItToolsApp.vue';
+
+definePageMeta({
+  layout: 'default',
+  middleware: []
+});
 </script>
