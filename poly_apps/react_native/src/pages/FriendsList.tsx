@@ -1,129 +1,136 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { MobileLayout, Header, GlassCard, Input } from '../components/Shared';
+import { Avatar } from '../components/Avatar';
 import { useStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { Feather as Icon } from '@react-native-vector-icons/feather';
+import { getTheme } from '../styles/theme';
 
 const FriendsList: React.FC = () => {
   const { friends, toggleMonitor, t, theme } = useStore();
   const [showFilter, setShowFilter] = useState(false);
   const [searchText, setSearchText] = useState('');
   const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
+  const colors = getTheme(theme);
 
   return (
-    <MobileLayout showNav={false}>
+    <MobileLayout showNav={true}>
       <Header 
         title={`${t('tab.friends')} (${friends.length})`} 
         action={
-          <View style={styles.headerActions}>
+          <View style={localStyles.headerActions}>
             <TouchableOpacity onPress={() => setShowFilter(!showFilter)}>
-              <Icon name="filter" size={20} color="#3b82f6" />
+              <Icon name="filter" size={20} color={colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('AddFriend')}>
-              <Icon name="plus" size={24} color="#3b82f6" />
+              <Icon name="plus" size={24} color={colors.primary} />
             </TouchableOpacity>
           </View>
         } 
       />
       
-      {/* Filter Dropdown */}
-      {showFilter && (
-        <View style={styles.filterContainer}>
-          <GlassCard style={styles.filterCard}>
-            <Text style={styles.filterTitle}>FILTER BY STATUS</Text>
-            <View style={styles.filterButtons}>
-              {['All', 'Online', 'Monitored', 'Alerts'].map(f => (
-                <TouchableOpacity 
-                  key={f} 
-                  style={[
-                    styles.filterButton,
-                    f === 'All' && styles.filterButtonActive
-                  ]}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    f === 'All' && styles.filterButtonTextActive
-                  ]}>
-                    {f}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </GlassCard>
-        </View>
-      )}
+      {/* Filter Dropdown - With Animation */}
+      <View style={[localStyles.filterContainer, { maxHeight: showFilter ? 200 : 0, paddingBottom: showFilter ? 16 : 0 }]}>
+        <GlassCard style={localStyles.filterCard}>
+          <Text style={[localStyles.filterTitle, { color: colors.textSecondary }]}>FILTER BY STATUS</Text>
+          <View style={localStyles.filterButtons}>
+            {['All', 'Online', 'Monitored', 'Alerts'].map(f => (
+              <TouchableOpacity 
+                key={f} 
+                style={[
+                  localStyles.filterButton,
+                  f === 'All' && localStyles.filterButtonActive,
+                  { backgroundColor: f === 'All' ? colors.primary : colors.bg }
+                ]}
+              >
+                <Text style={[
+                  localStyles.filterButtonText,
+                  { color: f === 'All' ? 'white' : colors.textSecondary }
+                ]}>
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </GlassCard>
+      </View>
 
-      <View style={styles.content}>
+      <View style={localStyles.content}>
         {/* Search */}
-        <View style={styles.searchContainer}>
-          <Icon name="search" size={18} color="#94a3b8" style={styles.searchIcon} />
+        <View style={localStyles.searchContainer}>
+          <Icon name="search" size={18} color={colors.textSecondary} style={localStyles.searchIcon} />
           <Input 
             placeholder={t('friend.search')} 
             value={searchText}
             onChangeText={setSearchText}
-            style={styles.searchInput}
+            style={localStyles.searchInput}
           />
         </View>
 
         {/* List */}
-        <View style={styles.list}>
+        <View style={localStyles.list}>
           {friends.map(friend => (
-            <GlassCard key={friend.id} style={styles.friendCard}>
-              <View style={styles.friendRow}>
+            <GlassCard key={friend.id} style={localStyles.friendCard}>
+              <View style={localStyles.friendRow}>
                 <TouchableOpacity onPress={() => navigation.navigate('FriendDetail', { id: friend.id })}>
-                  <Image source={{ uri: friend.avatar }} style={styles.friendAvatar} />
+                  <Avatar 
+                    uri={friend.avatar} 
+                    gender={friend.gender} 
+                    size={56}
+                    style={{ borderWidth: 2, borderColor: colors.bg }}
+                  />
                 </TouchableOpacity>
                 
-                <View style={styles.friendContent}>
-                  <View style={styles.friendHeader}>
+                <View style={localStyles.friendContent}>
+                  <View style={localStyles.friendHeader}>
                     <TouchableOpacity onPress={() => navigation.navigate('FriendDetail', { id: friend.id })}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.friendName}>{friend.name}</Text>
-                        <View style={styles.relationBadge}>
-                          <Text style={styles.relationText}>{friend.relation}</Text>
+                      <View style={localStyles.nameRow}>
+                        <Text style={[localStyles.friendName, { color: colors.textPrimary }]}>{friend.name}</Text>
+                        <View style={localStyles.relationBadge}>
+                          <Text style={localStyles.relationText}>{friend.relation}</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
-                    <View style={styles.monitorContainer}>
-                      <Text style={styles.monitorLabel}>{t('friend.monitor')}</Text>
+                    <View style={localStyles.monitorContainer}>
+                      <Text style={[localStyles.monitorLabel, { color: colors.textSecondary }]}>{t('friend.monitor')}</Text>
                       <TouchableOpacity 
                         onPress={() => toggleMonitor(friend.id)}
                         style={[
-                          styles.monitorToggle,
-                          friend.isMonitored ? styles.monitorToggleActive : styles.monitorToggleInactive
+                          localStyles.monitorToggle,
+                          friend.isMonitored ? localStyles.monitorToggleActive : localStyles.monitorToggleInactive,
+                          { backgroundColor: friend.isMonitored ? colors.primary : '#cbd5e1' }
                         ]}
                       >
                         <View style={[
-                          styles.toggleThumb,
-                          friend.isMonitored && styles.toggleThumbActive
+                          localStyles.toggleThumb,
+                          friend.isMonitored && localStyles.toggleThumbActive
                         ]} />
                       </TouchableOpacity>
                     </View>
                   </View>
                   
-                  <View style={styles.lastActiveRow}>
-                    <Icon name="clock" size={10} color="#64748b" />
-                    <Text style={styles.lastActiveText}>{friend.lastActive}</Text>
+                  <View style={localStyles.lastActiveRow}>
+                    <Icon name="clock" size={10} color={colors.textSecondary} />
+                    <Text style={[localStyles.lastActiveText, { color: colors.textSecondary }]}>{friend.lastActive}</Text>
                   </View>
 
                   <TouchableOpacity 
-                    style={styles.chatPreview}
+                    style={[localStyles.chatPreview, { borderTopColor: colors.glassBorder }]}
                     onPress={() => navigation.navigate('Chat', { id: friend.id })}
                   >
-                    <View style={styles.chatPreviewLeft}>
-                      <Icon name="message-square" size={12} color="#94a3b8" />
-                      <Text style={styles.chatPreviewText} numberOfLines={1}>
+                    <View style={localStyles.chatPreviewLeft}>
+                      <Icon name="message-square" size={12} color={colors.textSecondary} />
+                      <Text style={[localStyles.chatPreviewText, { color: colors.textSecondary }]} numberOfLines={1}>
                         {friend.chat?.lastMessage || 'No recent messages'}
                       </Text>
                     </View>
                     {friend.chat?.unreadCount ? (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{friend.chat.unreadCount}</Text>
+                      <View style={[localStyles.unreadBadge, { backgroundColor: colors.danger }]}>
+                        <Text style={localStyles.unreadText}>{friend.chat.unreadCount}</Text>
                       </View>
                     ) : (
-                      <Icon name="chevron-right" size={14} color="#cbd5e1" />
+                      <Icon name="chevron-right" size={14} color={colors.textSecondary} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -136,14 +143,14 @@ const FriendsList: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const localStyles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: 12,
   },
   filterContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    overflow: 'hidden',
   },
   filterCard: {
     padding: 12,
@@ -213,12 +220,14 @@ const styles = StyleSheet.create({
   },
   friendContent: {
     flex: 1,
+    flexDirection: 'column',
     gap: 4,
   },
   friendHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   nameRow: {
     flexDirection: 'row',
