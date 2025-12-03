@@ -1,11 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FortuneResponse } from '../types';
 
-// In React Native, use a config file or environment variable
-// For now, using a placeholder - you should set this via environment variables
-const API_KEY = process.env.GEMINI_API_KEY || '';
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateFortune = async (
   sign: string,

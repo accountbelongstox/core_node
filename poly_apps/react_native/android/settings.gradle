@@ -1,6 +1,18 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+pluginManagement {
+    def grPluginPath = file("../node_modules/.pnpm/@react-native+gradle-plugin@0.82.1/node_modules/@react-native/gradle-plugin")
+    if (grPluginPath.exists()) {
+        includeBuild(grPluginPath)
+    } else {
+        includeBuild("../node_modules/@react-native/gradle-plugin")
+    }
+}
 plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'react_init'
 include ':app'
-includeBuild('../node_modules/@react-native/gradle-plugin')
+def grPluginPath2 = file("../node_modules/.pnpm/@react-native+gradle-plugin@0.82.1/node_modules/@react-native/gradle-plugin")
+if (grPluginPath2.exists()) {
+    includeBuild(grPluginPath2)
+} else {
+    includeBuild('../node_modules/@react-native/gradle-plugin')
+}
