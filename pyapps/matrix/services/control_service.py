@@ -12,7 +12,7 @@ from typing import Optional, Dict
 from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
 from pycore.pyutils.device_manager import DeviceManager
 from pycore.pyutils.device import ADBManager
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class ControlService:

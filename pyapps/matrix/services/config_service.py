@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Optional
 
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class ConfigService:
