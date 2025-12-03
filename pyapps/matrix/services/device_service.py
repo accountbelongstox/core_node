@@ -21,7 +21,7 @@ from pycore.pyutils.device_manager import DeviceManager
 from pycore.pyutils.device import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
 
 

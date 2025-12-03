@@ -1,6 +1,0 @@
-│ › 给servermanager 添加本地命令行版，在现在的api上扩展一个本地命令行，根据命令，可以使用域名+部署本地laravel，你需要参考 或普通反代，web静态，可以部署本地poly app或ncore                  │
-│   app，如果是部署poly app则先执行app/scrips/deploy.sh脚本，然后进行域名布置，比如laravel是使用php fmp配置ngin                                                                             │
-│   x文件（注意不存在创建，存在更新的原则），ncore                                                                                                                                          │
-│   app则时使用反代，其他比如web静态则是根据域名和wwwdir（可选，不存在则默认在/wwww/wwwroot/域名），所有布置都要自动部署证书，同时给出一个证书的机制，比如在laralvel                        │
-│   的配置文件中预置好证书验证类型，比如dnspod供laravel的证书申请、更新使用。先在 /www/wwwroot                                                                                              │
-│   /core_node/poly_apps/laravel_main/development-guides/project.md 更新开发细节。 
