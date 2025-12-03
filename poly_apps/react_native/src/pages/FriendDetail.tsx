@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { useRoute } from '@react-navigation/native';
 import { useStore } from '../store';
 import { MobileLayout, Header, GlassCard } from '../components/Shared';
@@ -164,6 +165,16 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    overflow: 'hidden',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  mapFooterContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    zIndex: 1,
   },
   mapFooterLeft: {
     flexDirection: 'row',
