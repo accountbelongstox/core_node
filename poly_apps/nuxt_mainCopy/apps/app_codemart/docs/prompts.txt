@@ -1,2 +1,0 @@
-也就是目前公共数据,注意，你不能单独的修复或创建一个文件，同时要确保沿用现在多语言（且每个子app都要有独立的多语言json配置比如 sub app.zh/en）,而是整体分析然后做处调整甚至可以重构，确保数据模型,api等的数据一至性,自洽性.不要重复定义,以及清除冗余代码. 同时根据现在文件结构资料 D:\programing\core_node\poly_apps\nuxt_main\nuxt_main_tree.md
-  查看所有构架 你需要优先引用首先你要使用公共库 并扩展成app的专属类库,但不要在公共库中引入外部文件. 规范参考   D:\programing\core_node\development-guides\NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md 

@@ -45,14 +45,19 @@ def start():
         project_root=PROJECT_ROOT,
         frontend_port=Config.FRONTEND_PORT,
         backend_port=Config.WEB_PORT,
-        backend_host=Config.WEB_HOST
+        backend_host=Config.WEB_HOST,
+        frontend_mode=Config.FRONTEND_MODE  # Pass frontend mode for webview_url
     )
 
     # Add matrix_service to services (before launcher starts)
+    # All parameters are HARDCODED in Config class
     launcher_config.services['matrix_service'] = {
         'project_root': PROJECT_ROOT,
         'frontend_port': Config.FRONTEND_PORT,
         'frontend_timeout': 120,
+        'frontend_mode': Config.FRONTEND_MODE,
+        'frontend_skip_build': Config.FRONTEND_SKIP_BUILD,
+        'frontend_force_rebuild': Config.FRONTEND_FORCE_REBUILD,
         'backend_host': Config.WEB_HOST,
         'backend_port': Config.WEB_PORT,
         'backend_mode': Config.MODE,
