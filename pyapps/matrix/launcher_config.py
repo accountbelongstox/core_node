@@ -15,7 +15,13 @@ from pycore.pyutils.native_ui import get_i18n_manager
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 
-def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend_port: int, backend_host: str = '0.0.0.0'):
+def build_matrix_launcher_config(
+    project_root: Path,
+    frontend_port: int,
+    backend_port: int,
+    backend_host: str = '0.0.0.0',
+    frontend_mode: str = 'production'
+):
     """
     Build LauncherConfig for Matrix application
 
@@ -24,11 +30,22 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
         frontend_port: Frontend port (Nuxt)
         backend_port: Backend port (FastAPI)
         backend_host: Backend host
+        frontend_mode: Frontend mode ('dev' | 'production')
 
     Returns:
         LauncherConfig instance
     """
     ColorPrint.blue("[Matrix ConfigBuilder] Building launcher configuration...")
+
+    # Determine webview URL based on frontend mode
+    if frontend_mode == 'production':
+        # Production mode: unified port (backend serves frontend)
+        webview_url = f"http://localhost:{backend_port}"
+        ColorPrint.blue(f"[Matrix ConfigBuilder] Frontend mode: production (unified port: {backend_port})")
+    else:
+        # Dev mode: separate ports
+        webview_url = f"http://localhost:{frontend_port}"
+        ColorPrint.blue(f"[Matrix ConfigBuilder] Frontend mode: dev (frontend port: {frontend_port})")
 
     # Get i18n manager and extend with matrix translations
     i18n = get_i18n_manager()
@@ -89,7 +106,7 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
             'app_id': 'matrix',
             'app_user_model_id': 'com.xingcan.matrix.1.0',  # Custom AppUserModelID for Windows taskbar
             'window_size': (1400, 900),
-            'webview_url': f"http://localhost:{frontend_port}",
+            'webview_url': webview_url,  # Dynamically set based on frontend_mode
             'show_on_start': True,
             'frameless': True,
             'icon_path': str(icon_path),
