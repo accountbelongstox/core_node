@@ -1,0 +1,47 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">WiFi QR Code Generator</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">SSID (Network Name):</label>
+            <input 
+                type="text" 
+                id="wifi-ssid" 
+                class="ittools-input" 
+                placeholder="MyWiFiNetwork"
+                data-input="wifi-ssid"
+            >
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">Password:</label>
+            <input 
+                type="text" 
+                id="wifi-password" 
+                class="ittools-input" 
+                placeholder="password123"
+                data-input="wifi-password"
+            >
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">Security Type:</label>
+            <select 
+                id="wifi-security" 
+                class="ittools-input"
+                data-input="wifi-security"
+            >
+                <option value="WPA">WPA/WPA2</option>
+                <option value="WEP">WEP</option>
+                <option value="">None (Open)</option>
+            </select>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="generate-wifi-qr"
+            >
+                📶 Generate WiFi QR Code
+            </button>
+        </div>
+        <div id="wifi-qr-result" class="generator-result hidden"></div>
+    </div>
+</div>
+
