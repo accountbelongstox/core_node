@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MobileLayout, Header, GlassCard, Button } from '../components/Shared';
 import { useStore } from '../store';
-import Icon from 'react-native-vector-icons/Feather';
+import { Moon, Globe, Shield, CheckCircle, XCircle, MapPin, Camera, FolderOpen, Loader2 } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme, language, setLanguage, t } = useStore();
@@ -22,312 +21,132 @@ const Settings: React.FC = () => {
     setTimeout(() => setPermissions(p => ({ ...p, location: true })), 1000);
     setTimeout(() => setPermissions(p => ({ ...p, camera: true })), 2000);
     setTimeout(() => {
-      setPermissions(p => ({ ...p, storage: true }));
-      setIsChecking(false);
+        setPermissions(p => ({ ...p, storage: true }));
+        setIsChecking(false);
     }, 3000);
+
+    // In a real app, you would trigger:
+    // navigator.geolocation.getCurrentPosition(...)
+    // navigator.mediaDevices.getUserMedia(...)
   };
 
-  const OptionRow: React.FC<{ 
-    iconName: string, 
-    label: string, 
-    value?: string, 
-    onPress?: () => void, 
-    toggle?: boolean 
-  }> = ({ iconName, label, value, onPress, toggle }) => (
-    <TouchableOpacity 
-      onPress={onPress}
-      style={styles.optionRow}
-      activeOpacity={0.7}
+  const OptionRow: React.FC<{ icon: any, label: string, value?: string, onClick?: () => void, toggle?: boolean }> = ({ icon: Icon, label, value, onClick, toggle }) => (
+    <div 
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer' }}
     >
-      <View style={styles.optionRowLeft}>
-        <View style={styles.optionIconBox}>
-          <Icon name={iconName} size={18} color="#3b82f6" />
-        </View>
-        <Text style={styles.optionLabel}>{label}</Text>
-      </View>
-      <View style={styles.optionRowRight}>
-        {value && <Text style={styles.optionValue}>{value}</Text>}
-        {toggle && (
-          <View style={[
-            styles.toggle,
-            value === 'Dark' && styles.toggleActive
-          ]}>
-            <View style={[
-              styles.toggleThumb,
-              value === 'Dark' && styles.toggleThumbActive
-            ]} />
-          </View>
-        )}
-        {!toggle && onPress && <Icon name="chevron-right" size={16} color="#cbd5e1" />}
-      </View>
-    </TouchableOpacity>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+         <div style={{ padding: 8, borderRadius: 8, background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary-color)' }}>
+            <Icon size={18} />
+         </div>
+         <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{label}</span>
+      </div>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+         {value && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{value}</span>}
+         {toggle && (
+            <div style={{ 
+                width: 44, height: 24, borderRadius: 99, padding: 2, 
+                background: value === 'Dark' ? 'var(--primary-color)' : '#cbd5e1',
+                transition: 'background 0.3s'
+            }}>
+                <div style={{ 
+                    width: 20, height: 20, borderRadius: '50%', background: 'white',
+                    transform: value === 'Dark' ? 'translateX(20px)' : 'translateX(0)',
+                    transition: 'transform 0.3s'
+                }} />
+            </div>
+         )}
+      </div>
+    </div>
   );
 
   return (
     <MobileLayout showNav={false}>
       <Header title={t('me.settings')} backTo="/me" />
       
-      <View style={styles.content}>
+      <div className="px-5 pt-4">
+        
         {/* Authorization Card */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('settings.permissions')}</Text>
-          <GlassCard style={styles.authCard}>
-            <View style={styles.authCardHeader}>
-              <View style={styles.authIconContainer}>
-                <Icon name="shield" size={24} color="white" />
-              </View>
-              <View>
-                <Text style={styles.authTitle}>{t('settings.one_tap')}</Text>
-                <Text style={styles.authSubtitle}>{t('settings.auth_desc')}</Text>
-              </View>
-            </View>
-            <Button onPress={startAuthorization} style={styles.authButton}>
-              {t('settings.one_tap')}
-            </Button>
-          </GlassCard>
-        </View>
+        <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 12, marginLeft: 4 }}>{t('settings.permissions')}</h3>
+            <GlassCard style={{ display: 'flex', flexDirection: 'column', gap: 16, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(168, 85, 247, 0.1))', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ padding: 10, background: 'var(--primary-gradient)', borderRadius: '50%', color: 'white' }}>
+                        <Shield size={24} />
+                    </div>
+                    <div>
+                        <h3 style={{ fontWeight: 700, fontSize: '1rem' }}>{t('settings.one_tap')}</h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t('settings.auth_desc')}</p>
+                    </div>
+                </div>
+                <Button onClick={startAuthorization} style={{ borderRadius: 24, height: 44 }}>
+                   {t('settings.one_tap')}
+                </Button>
+            </GlassCard>
+        </div>
 
         {/* General Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General</Text>
-          <GlassCard style={styles.settingsCard}>
-            <OptionRow 
-              iconName="moon" 
-              label={t('me.theme')} 
-              value={theme === 'dark' ? 'Dark' : 'Light'} 
-              toggle
-              onPress={toggleTheme}
-            />
-            <OptionRow 
-              iconName="globe" 
-              label={t('me.lang')} 
-              value={language === 'en' ? 'English' : '中文'} 
-              onPress={() => setLanguage(language === 'en' ? 'zh' : 'en')}
-            />
-          </GlassCard>
-        </View>
-      </View>
+        <div>
+             <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 12, marginLeft: 4 }}>General</h3>
+             <GlassCard style={{ padding: '0 16px' }}>
+                <OptionRow 
+                    icon={Moon} 
+                    label={t('me.theme')} 
+                    value={theme === 'dark' ? 'Dark' : 'Light'} 
+                    toggle
+                    onClick={toggleTheme}
+                />
+                <OptionRow 
+                    icon={Globe} 
+                    label={t('me.lang')} 
+                    value={language === 'en' ? 'English' : '中文'} 
+                    onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}
+                />
+             </GlassCard>
+        </div>
+
+      </div>
 
       {/* Permission Modal */}
-      <Modal
-        visible={showAuthModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !isChecking && setShowAuthModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('settings.permissions')}</Text>
-              <Text style={styles.modalSubtitle}>
-                Please keep these permissions enabled for the app to function correctly.
-              </Text>
-            </View>
-            
-            <View style={styles.permissionsList}>
-              {[
-                { key: 'location', label: t('perm.location'), iconName: 'map-pin' },
-                { key: 'camera', label: t('perm.camera'), iconName: 'camera' },
-                { key: 'storage', label: t('perm.storage'), iconName: 'folder' },
-              ].map((item, idx) => (
-                <View key={item.key} style={styles.permissionItem}>
-                  <View style={styles.permissionItemLeft}>
-                    <Icon name={item.iconName} size={20} color="#64748b" />
-                    <Text style={styles.permissionLabel}>{item.label}</Text>
-                  </View>
-                  {permissions[item.key as keyof typeof permissions] ? (
-                    <Icon name="check-circle" size={20} color="#22c55e" />
-                  ) : (
-                    isChecking && idx === 0 ? (
-                      <ActivityIndicator size="small" color="#3b82f6" />
-                    ) : (
-                      <View style={styles.permissionPending} />
-                    )
-                  )}
-                </View>
-              ))}
-            </View>
+      {showAuthModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}>
+            <div className="anim-fade-up" style={{ width: '85%', maxWidth: 360, background: 'var(--bg-color)', borderRadius: 24, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+                <div className="text-center mb-4">
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8 }}>{t('settings.permissions')}</h3>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Please keep these permissions enabled for the app to function correctly.</p>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+                    {[
+                        { key: 'location', label: t('perm.location'), icon: MapPin },
+                        { key: 'camera', label: t('perm.camera'), icon: Camera },
+                        { key: 'storage', label: t('perm.storage'), icon: FolderOpen },
+                    ].map((item, idx) => (
+                        <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'rgba(0,0,0,0.03)', borderRadius: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <item.icon size={20} color="#64748b" />
+                                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.label}</span>
+                            </div>
+                            {/* @ts-ignore */}
+                            {permissions[item.key] ? (
+                                <CheckCircle size={20} color="#22c55e" />
+                            ) : (
+                                isChecking && idx === 0 ? <Loader2 size={20} className="animate-spin" color="#3b82f6" /> : 
+                                <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #cbd5e1' }} />
+                            )}
+                        </div>
+                    ))}
+                </div>
 
-            <Button 
-              onPress={() => !isChecking && setShowAuthModal(false)} 
-              disabled={isChecking}
-            >
-              {isChecking ? t('perm.checking') : 'Done'}
-            </Button>
-          </View>
-        </View>
-      </Modal>
+                <Button onClick={() => !isChecking && setShowAuthModal(false)} disabled={isChecking}>
+                    {isChecking ? t('perm.checking') : 'Done'}
+                </Button>
+            </div>
+        </div>
+      )}
     </MobileLayout>
   );
 };
-
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-    marginBottom: 12,
-    marginLeft: 4,
-  },
-  authCard: {
-    gap: 16,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  authCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  authIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3b82f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  authTitle: {
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  authSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  authButton: {
-    borderRadius: 24,
-    height: 44,
-  },
-  settingsCard: {
-    paddingHorizontal: 16,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  optionRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionIconBox: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  optionLabel: {
-    fontWeight: '500',
-    fontSize: 14,
-    color: '#1e293b',
-  },
-  optionRowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  optionValue: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    padding: 2,
-    backgroundColor: '#cbd5e1',
-  },
-  toggleActive: {
-    backgroundColor: '#3b82f6',
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'white',
-  },
-  toggleThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '85%',
-    maxWidth: 360,
-    backgroundColor: '#f0f4f8',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.2,
-    shadowRadius: 50,
-    elevation: 20,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-    color: '#1e293b',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  permissionsList: {
-    gap: 16,
-    marginBottom: 24,
-  },
-  permissionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.03)',
-    borderRadius: 12,
-  },
-  permissionItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  permissionLabel: {
-    fontWeight: '600',
-    fontSize: 14,
-    color: '#1e293b',
-  },
-  permissionPending: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#cbd5e1',
-  },
-});
 
 export default Settings;
