@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
+use App\Apps\AwyV0\Utils\AwyV0Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
@@ -326,6 +327,7 @@ class InitializeApps extends Command
         $manager = new AppInitializationManager();
         $manager->register(new AppQyV1Initializer());
         $manager->register(new McpV1Initializer());
+        $manager->register(new AwyV0Initializer());
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {
