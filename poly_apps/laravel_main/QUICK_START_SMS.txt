@@ -86,7 +86,13 @@ Service:        app/Services/VerificationCodeService.php
 ================================================================================
 
 Problem: "Permission denied"
-→ Run: ./fix-permissions.sh
+→ Solution:
+  1. Run dd.sh
+  2. Navigate to: Linux Management > Permissions Repair Menu
+  3. Select option 2: Full Core Node Repair
+  4. Then manually fix Laravel database:
+     sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
+     sudo chmod -R 775 /www/wwwroot/laravel_db/
 
 Problem: "Rate limit exceeded"
 → Wait 60 seconds or adjust SMS_RATE_LIMIT_SECONDS in .env
