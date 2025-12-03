@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { useRoute } from '@react-navigation/native';
 import { MobileLayout, Header, Input } from '../components/Shared';
 import { useStore } from '../store';
@@ -31,12 +32,13 @@ const Chat: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <MobileLayout showNav={false} style={[localStyles.chatLayout, { backgroundColor: colors.bg }]}>
+      <View style={[localStyles.chatContainer, { backgroundColor: colors.bg }]}>
         <Header title={friend.name} backTo="/friends" />
         
         <ScrollView 
           style={localStyles.chatMessages}
           contentContainerStyle={localStyles.chatMessagesContent}
+          keyboardShouldPersistTaps="handled"
         >
           <Text style={[localStyles.dateLabel, { color: colors.textSecondary }]}>Today 10:45 AM</Text>
           
@@ -44,8 +46,17 @@ const Chat: React.FC = () => {
             <Text style={[localStyles.messageText, { color: colors.textPrimary }]}>Hey, are you still at the gym?</Text>
           </View>
           
-          <View style={[localStyles.messageBubble, localStyles.messageMine, { backgroundColor: colors.primary }]}>
-            <Text style={[localStyles.messageText, localStyles.messageTextMine]}>Just leaving now!</Text>
+          <View style={[localStyles.messageBubble, localStyles.messageMine, { overflow: 'hidden' }]}>
+            <LinearGradient
+              colors={colors.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                StyleSheet.absoluteFill,
+                { borderRadius: 16, borderBottomRightRadius: 4 }
+              ]}
+            />
+            <Text style={[localStyles.messageText, localStyles.messageTextMine, { zIndex: 1 }]}>Just leaving now!</Text>
           </View>
           
           <View style={[localStyles.messageBubble, localStyles.messageTheirs]}>
@@ -66,7 +77,7 @@ const Chat: React.FC = () => {
             <Icon name="send" size={20} color="white" />
           </TouchableOpacity>
         </View>
-      </MobileLayout>
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -75,7 +86,9 @@ const localStyles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  chatLayout: {
+  chatContainer: {
+    flex: 1,
+    flexDirection: 'column',
     backgroundColor: '#f8fafc',
   },
   errorContainer: {

@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { MobileLayout, GlassCard } from '../components/Shared';
+import { Avatar } from '../components/Avatar';
 import { useStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { Feather as Icon } from '@react-native-vector-icons/feather';
@@ -34,12 +36,24 @@ const Profile: React.FC = () => {
 
   return (
     <MobileLayout>
-      {/* Banner */}
-      <View style={[localStyles.profileBanner, { backgroundColor: colors.primary }]} />
+      {/* Banner - Gradient Background */}
+      <LinearGradient
+        colors={['#a5f3fc', colors.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={localStyles.profileBanner}
+      />
       
       {/* Overlapping Header */}
       <View style={localStyles.profileHeaderOverlay}>
-        <Image source={{ uri: user.avatar }} style={[localStyles.avatarOverlap, { borderColor: colors.bg }]} />
+        <View style={[localStyles.avatarWrapper, { borderColor: colors.bg }]}>
+          <Avatar 
+            uri={user.avatar} 
+            gender={user.gender} 
+            size={110}
+            borderRadius={55}
+          />
+        </View>
         <Text style={[localStyles.userName, { color: colors.textPrimary }]}>{user.name}</Text>
         <Text style={[localStyles.userPhone, { color: colors.textSecondary }]}>{user.phone}</Text>
       </View>
@@ -52,7 +66,7 @@ const Profile: React.FC = () => {
             onPress={() => navigation.navigate('EditProfile')}
           >
             <GlassCard style={localStyles.actionCardInner}>
-              <Icon name="qr-code" size={20} color={colors.primary} />
+              <Icon name="grid" size={20} color={colors.primary} />
               <Text style={[localStyles.actionCardText, { color: colors.textPrimary }]}>My Code</Text>
             </GlassCard>
           </TouchableOpacity>
@@ -113,18 +127,20 @@ const localStyles = StyleSheet.create({
   profileBanner: {
     height: 160,
     width: '100%',
+    overflow: 'hidden',
   },
   profileHeaderOverlay: {
     marginTop: -60,
     alignItems: 'center',
     marginBottom: 24,
   },
-  avatarOverlap: {
+  avatarWrapper: {
     width: 110,
     height: 110,
     borderRadius: 55,
     borderWidth: 4,
     backgroundColor: 'white',
+    overflow: 'hidden',
   },
   userName: {
     fontSize: 24,
