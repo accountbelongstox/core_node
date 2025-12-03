@@ -26,8 +26,11 @@ class MatrixServiceConfig:
     project_root: Optional[Path] = None
 
     # Frontend configuration
-    frontend_port: int = 3007
+    frontend_port: int = 38007
     frontend_timeout: int = 120
+    frontend_mode: str = "production"  # dev | production
+    frontend_skip_build: bool = False  # Skip build in production mode
+    frontend_force_rebuild: bool = False  # Force rebuild
 
     # Backend configuration
     backend_host: str = "0.0.0.0"
@@ -62,7 +65,10 @@ class MatrixService:
         # Controllers
         self.frontend = FrontendController(
             project_root=config.project_root,
-            frontend_port=config.frontend_port
+            frontend_port=config.frontend_port,
+            mode=config.frontend_mode,
+            skip_build=config.frontend_skip_build,
+            force_rebuild=config.frontend_force_rebuild
         )
 
         self.backend = BackendController(
@@ -72,31 +78,30 @@ class MatrixService:
         )
 
         ColorPrint.green("[MatrixService] Service initialized")
+        ColorPrint.blue(f"[MatrixService] Frontend mode: {config.frontend_mode}")
+        if config.frontend_mode == "production" and config.frontend_skip_build:
+            ColorPrint.blue("[MatrixService] Frontend skip build: enabled")
 
     def start(self):
         """
         Start Matrix service
 
         Starts frontend and backend in sequence:
-        1. Start frontend (Nuxt dev server)
+        1. Start frontend (compile/start, based on mode)
         2. Wait for frontend to be ready
         3. Start backend (FastAPI server)
+        4. If production mode, mount static files to backend
         """
         if self.running:
             ColorPrint.yellow("[MatrixService] Already running")
             return
 
-        ColorPrint.blue("=" * 70)
+        ColorPrint.blue("=" * 79)
         ColorPrint.blue(" MATRIX APPLICATION - STARTING")
-        ColorPrint.blue("=" * 70)
+        ColorPrint.blue("=" * 79)
         ColorPrint.white("")
 
         # Phase 1: Start Frontend
-        ColorPrint.blue("=" * 70)
-        ColorPrint.blue(" PHASE 1: STARTING FRONTEND")
-        ColorPrint.blue("=" * 70)
-        ColorPrint.white("")
-
         if not self.frontend.start_and_wait(timeout=self.config.frontend_timeout):
             ColorPrint.red("[MatrixService] Frontend startup failed")
             return
@@ -104,9 +109,9 @@ class MatrixService:
         ColorPrint.white("")
 
         # Phase 2: Start Backend
-        ColorPrint.blue("=" * 70)
+        ColorPrint.blue("=" * 79)
         ColorPrint.blue(" PHASE 2: STARTING BACKEND")
-        ColorPrint.blue("=" * 70)
+        ColorPrint.blue("=" * 79)
         ColorPrint.white("")
 
         self.backend.start()
@@ -116,17 +121,40 @@ class MatrixService:
 
         ColorPrint.white("")
 
+        # Phase 3: Mount static files (production mode only)
+        if self.config.frontend_mode == "production":
+            ColorPrint.blue("=" * 79)
+            ColorPrint.blue(" PHASE 3: MOUNTING STATIC FILES")
+            ColorPrint.blue("=" * 79)
+            ColorPrint.white("")
+
+            static_dir = self.frontend.get_static_dir()
+            if static_dir:
+                self.backend.mount_static(static_dir)
+            else:
+                ColorPrint.yellow("[MatrixService] No static directory to mount")
+
+            ColorPrint.white("")
+
         # Application Ready
-        ColorPrint.green("=" * 70)
+        ColorPrint.green("=" * 79)
         ColorPrint.green(" MATRIX APPLICATION READY")
-        ColorPrint.green("=" * 70)
+        ColorPrint.green("=" * 79)
         ColorPrint.green("")
         ColorPrint.green("Services running:")
-        ColorPrint.green(f"  [FRONTEND] Nuxt Dev Server    -> {self.frontend.get_url()}")
-        ColorPrint.green(f"  [BACKEND]  FastAPI Server     -> {self.backend.get_api_url()}")
-        ColorPrint.green(f"  [DOCS]     API Documentation  -> {self.backend.get_docs_url()}")
+
+        if self.config.frontend_mode == "production":
+            ColorPrint.green(f"  [UNIFIED]  Frontend + Backend -> {self.backend.get_api_url()}")
+            ColorPrint.green(f"  [DOCS]     API Documentation  -> {self.backend.get_docs_url()}")
+            ColorPrint.green(f"  [MODE]     Production (Unified Port)")
+        else:
+            ColorPrint.green(f"  [FRONTEND] Nuxt Dev Server    -> {self.frontend.get_url()}")
+            ColorPrint.green(f"  [BACKEND]  FastAPI Server     -> {self.backend.get_api_url()}")
+            ColorPrint.green(f"  [DOCS]     API Documentation  -> {self.backend.get_docs_url()}")
+            ColorPrint.green(f"  [MODE]     Development (Separate Ports)")
+
         ColorPrint.green("")
-        ColorPrint.green("=" * 70)
+        ColorPrint.green("=" * 79)
         ColorPrint.white("")
 
         self.running = True
@@ -152,8 +180,16 @@ class MatrixService:
         return self.running
 
     def get_frontend_url(self) -> str:
-        """Get frontend URL for webview"""
-        return self.frontend.get_url()
+        """
+        Get frontend URL for webview
+
+        In production mode, returns backend URL (unified port)
+        In dev mode, returns frontend URL (separate port)
+        """
+        if self.config.frontend_mode == "production":
+            return self.backend.get_api_url()
+        else:
+            return self.frontend.get_url()
 
     def get_status(self) -> dict:
         """Get service status"""
