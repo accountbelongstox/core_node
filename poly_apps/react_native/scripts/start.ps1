@@ -1,7 +1,8 @@
 # ============================================
-# React Native Project Unified Start Script
+# React Native Multi-App Unified Start Script
 # ============================================
 # This script provides automatic installation, compilation, and debugging
+# Supports both single-app and multi-app configurations
 # Interactive menu-driven interface
 # No parameters required - everything is hardcoded
 
@@ -19,6 +20,10 @@ $SelectedCommand = $null
 $SelectedPlatform = $null
 $SelectedConfiguration = $null
 $SelectedDevice = $null
+$MultiAppMode = $false
+$SelectedAppNamespace = $null
+$SelectedAppConfig = $null
+$RNScriptsPath = $null
 
 # Initialize paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -27,6 +32,67 @@ $NodeModulesPath = Join-Path -Path $ProjectRoot -ChildPath "node_modules"
 $PackageJsonPath = Join-Path -Path $ProjectRoot -ChildPath "package.json"
 $AndroidPath = Join-Path -Path $ProjectRoot -ChildPath "android"
 $IosPath = Join-Path -Path $ProjectRoot -ChildPath "ios"
+$RNScriptsPath = Join-Path -Path $ScriptDir -ChildPath "build_scripts\react_native_scripts"
+
+# ============================================
+# MULTI-APP HELPER SCRIPTS LOADING
+# ============================================
+
+$AppScannerPath = Join-Path -Path $RNScriptsPath -ChildPath "AppScanner.ps1"
+$PrerequisitesPath = Join-Path -Path $RNScriptsPath -ChildPath "Prerequisites.ps1"
+$ResourceManagerPath = Join-Path -Path $RNScriptsPath -ChildPath "ResourceManager.ps1"
+$PlatformBuilderPath = Join-Path -Path $RNScriptsPath -ChildPath "PlatformBuilder.ps1"
+$ErrorHandlerPath = Join-Path -Path $RNScriptsPath -ChildPath "ErrorHandler.ps1"
+$InteractiveMenuPath = Join-Path -Path $RNScriptsPath -ChildPath "InteractiveMenu.ps1"
+
+$MultiAppScriptsAvailable = $false
+
+if ((Test-Path $AppScannerPath) -and (Test-Path $ResourceManagerPath)) {
+    . $AppScannerPath
+    . $PrerequisitesPath
+    . $ResourceManagerPath
+    . $PlatformBuilderPath
+    . $ErrorHandlerPath
+    . $InteractiveMenuPath
+    $MultiAppScriptsAvailable = $true
+    Write-Host "[INIT] Multi-app scripts loaded successfully" -ForegroundColor Green
+}
+
+# ============================================
+# MULTI-APP DETECTION
+# ============================================
+
+function Test-MultiAppConfiguration {
+    $ConfigsPath = Join-Path -Path $ProjectRoot -ChildPath "configs"
+
+    if (-not (Test-Path $ConfigsPath)) {
+        return $false
+    }
+
+    $ConfigFiles = Get-ChildItem -Path $ConfigsPath -Filter "*.config.ts" -File -ErrorAction SilentlyContinue
+
+    if ($ConfigFiles -and $ConfigFiles.Count -gt 0) {
+        return $true
+    }
+
+    return $false
+}
+
+# Check if multi-app mode is available
+if ($MultiAppScriptsAvailable -and (Test-MultiAppConfiguration)) {
+    $MultiAppMode = $true
+    Write-Host "[INIT] Multi-app mode detected" -ForegroundColor Cyan
+
+    Initialize-AppConfigs -AppDirectory $ProjectRoot
+    $AppConfigs = Get-AppConfigs
+
+    if ($AppConfigs.Count -gt 0) {
+        Write-Host "[INIT] Found $($AppConfigs.Count) app configuration(s)" -ForegroundColor Green
+    }
+} else {
+    $MultiAppMode = $false
+    Write-Host "[INIT] Single-app mode (legacy)" -ForegroundColor Yellow
+}
 
 # ============================================
 # CACHE CLEANING FUNCTIONS
@@ -159,10 +225,26 @@ function Clear-AllCaches {
 function Show-MainMenu {
     Clear-Host
     Write-Host "============================================" -ForegroundColor Cyan
-    Write-Host "React Native Project Manager" -ForegroundColor Cyan
+    if ($MultiAppMode) {
+        Write-Host "React Native Multi-App Manager" -ForegroundColor Cyan
+    } else {
+        Write-Host "React Native Project Manager" -ForegroundColor Cyan
+    }
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Project: react_init" -ForegroundColor White
+
+    if ($MultiAppMode) {
+        Write-Host "Mode: MULTI-APP" -ForegroundColor Green
+        if ($SelectedAppNamespace) {
+            Write-Host "Selected App: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Cyan
+        } else {
+            Write-Host "Selected App: None" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "Mode: SINGLE-APP (Legacy)" -ForegroundColor Yellow
+        Write-Host "Project: react_native" -ForegroundColor White
+    }
+
     Write-Host "Location: $ProjectRoot" -ForegroundColor Gray
 
     # Show installation status
@@ -177,6 +259,12 @@ function Show-MainMenu {
     Write-Host ""
     Write-Host "Main Menu:" -ForegroundColor Yellow
     Write-Host ""
+
+    if ($MultiAppMode) {
+        Write-Host "  [S] Select App" -ForegroundColor Cyan
+        Write-Host ""
+    }
+
     Write-Host "  [1] Reinstall Dependencies" -ForegroundColor White
     Write-Host "  [2] Build Application" -ForegroundColor White
     Write-Host "  [3] Debug Application" -ForegroundColor White
@@ -187,6 +275,40 @@ function Show-MainMenu {
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host ""
+}
+
+function Show-AppSelectionMenu {
+    if (-not $MultiAppMode) {
+        return $null
+    }
+
+    if (-not $MultiAppScriptsAvailable) {
+        return $null
+    }
+
+    $menuItems = @()
+    foreach ($appKey in $AppConfigs.Keys | Sort-Object) {
+        $config = $AppConfigs[$appKey]
+        $menuItems += $config
+    }
+
+    if ($menuItems.Count -eq 0) {
+        return $null
+    }
+
+    $menuResult = Show-InteractiveMenu -MenuItems $menuItems -InitialIndex 0 -AppDirectory $ProjectRoot
+
+    if ($menuResult) {
+        return @{
+            Index = $menuResult.SelectedIndex
+            Namespace = $menuResult.SelectedApp.Name
+            Config = $menuResult.SelectedApp
+            Mode = $menuResult.Mode
+            Platform = $menuResult.Platform
+        }
+    }
+
+    return $null
 }
 
 function Show-BuildMenu {
@@ -298,6 +420,16 @@ function Check-Environment {
     npx react-native --version
     Write-Host ""
 
+    if ($MultiAppMode) {
+        Write-Host "[MULTI-APP] Configuration:" -ForegroundColor Yellow
+        Write-Host "  Available apps: $($AppConfigs.Count)" -ForegroundColor White
+        foreach ($appKey in $AppConfigs.Keys | Sort-Object) {
+            $config = $AppConfigs[$appKey]
+            Write-Host "    - ${appKey}: $($config.DisplayName)" -ForegroundColor Gray
+        }
+        Write-Host ""
+    }
+
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host "Environment check completed" -ForegroundColor Cyan
     Write-Host ""
@@ -359,7 +491,7 @@ function Invoke-Installation {
 }
 
 # ============================================
-# BUILD FUNCTIONS
+# BUILD FUNCTIONS (Multi-App Aware)
 # ============================================
 
 function Build-Android {
@@ -375,6 +507,14 @@ function Build-Android {
     }
 
     Invoke-AndroidPrebuild
+
+    # Multi-app resource management
+    if ($MultiAppMode -and $SelectedAppNamespace -and $MultiAppScriptsAvailable) {
+        Write-Host "[Multi-App] Preparing resources for: $SelectedAppNamespace" -ForegroundColor Cyan
+        $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform "android"
+        Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform "android"
+        Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+    }
 
     Set-Location $AndroidPath
 
@@ -401,6 +541,11 @@ function Build-Android {
     Write-Host "[Android] Build process completed" -ForegroundColor Green
     Write-Host ""
 
+    # Restore resources
+    if ($MultiAppMode -and $BackupPath -and $MultiAppScriptsAvailable) {
+        Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+    }
+
     Set-Location $ProjectRoot
 }
 
@@ -422,6 +567,14 @@ function Build-iOS {
         return
     }
 
+    # Multi-app resource management
+    if ($MultiAppMode -and $SelectedAppNamespace -and $MultiAppScriptsAvailable) {
+        Write-Host "[Multi-App] Preparing resources for: $SelectedAppNamespace" -ForegroundColor Cyan
+        $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform "ios"
+        Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform "ios"
+        Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+    }
+
     Set-Location $IosPath
 
     Write-Host "[iOS] Installing CocoaPods dependencies..." -ForegroundColor Yellow
@@ -432,8 +585,8 @@ function Build-iOS {
     Write-Host "[iOS] Building $ConfigCapitalized configuration..." -ForegroundColor Yellow
     Write-Host ""
 
-    xcodebuild -workspace "react_init.xcworkspace" `
-               -scheme "react_init" `
+    xcodebuild -workspace "react_native.xcworkspace" `
+               -scheme "react_native" `
                -configuration $ConfigCapitalized `
                -sdk iphoneos `
                -derivedDataPath "./build"
@@ -442,12 +595,17 @@ function Build-iOS {
     Write-Host "[iOS] Build process completed" -ForegroundColor Green
     Write-Host ""
 
+    # Restore resources
+    if ($MultiAppMode -and $BackupPath -and $MultiAppScriptsAvailable) {
+        Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+    }
+
     Set-Location $ProjectRoot
 }
 
 
 # ============================================
-# DEBUG FUNCTIONS
+# DEBUG FUNCTIONS (preserved from original)
 # ============================================
 
 function Check-AndroidDevice {
@@ -653,9 +811,15 @@ function Start-MetroServer {
 
     Set-Location $ProjectRoot
 
+    $AppInfo = if ($MultiAppMode -and $SelectedAppNamespace) {
+        "App: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)"
+    } else {
+        "react_native"
+    }
+
     # Start Metro in a new window using Start-Process
     $MetroProcess = Start-Process -FilePath "powershell" `
-                                   -ArgumentList "-NoExit", "-Command", "cd '$ProjectRoot'; Write-Host 'Metro Bundler for react_init' -ForegroundColor Cyan; Write-Host '========================================' -ForegroundColor Cyan; Write-Host ''; npx react-native start --port $MetroPort" `
+                                   -ArgumentList "-NoExit", "-Command", "cd '$ProjectRoot'; Write-Host 'Metro Bundler for $AppInfo' -ForegroundColor Cyan; Write-Host '========================================' -ForegroundColor Cyan; Write-Host ''; npx react-native start --port $MetroPort" `
                                    -PassThru `
                                    -WindowStyle Normal
 
@@ -675,6 +839,17 @@ function Debug-Android {
 
     Invoke-AndroidPrebuild
 
+    # Multi-app resource management
+    if ($MultiAppMode -and $SelectedAppNamespace -and $MultiAppScriptsAvailable) {
+        Write-Host "[Multi-App] Preparing resources for: $SelectedAppNamespace" -ForegroundColor Cyan
+        $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform "android"
+        Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform "android"
+        Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+
+        $env:APP_ENTRY = $SelectedAppNamespace
+        $env:APP_DISPLAY_NAME = $SelectedAppConfig.DisplayName
+    }
+
     # Check if ADB is available
     Write-Host "[Android] Checking ADB..." -ForegroundColor Yellow
     adb version
@@ -689,6 +864,11 @@ function Debug-Android {
         Write-Host "[Android] ERROR: No Android device available" -ForegroundColor Red
         Write-Host "[Android] Cannot proceed with debugging" -ForegroundColor Red
         Write-Host ""
+
+        # Restore resources
+        if ($MultiAppMode -and $BackupPath -and $MultiAppScriptsAvailable) {
+            Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+        }
         return
     }
 
@@ -717,6 +897,11 @@ function Debug-Android {
     Write-Host "[Android] Build and launch process completed" -ForegroundColor Green
     Write-Host "[Android] Check the Metro bundler window for live updates" -ForegroundColor Cyan
     Write-Host ""
+
+    # Restore resources
+    if ($MultiAppMode -and $BackupPath -and $MultiAppScriptsAvailable) {
+        Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+    }
 }
 
 function Debug-iOS {
@@ -729,6 +914,17 @@ function Debug-iOS {
         Write-Host "ERROR: iOS debugging can only be performed on macOS" -ForegroundColor Red
         Write-Host ""
         return
+    }
+
+    # Multi-app resource management
+    if ($MultiAppMode -and $SelectedAppNamespace -and $MultiAppScriptsAvailable) {
+        Write-Host "[Multi-App] Preparing resources for: $SelectedAppNamespace" -ForegroundColor Cyan
+        $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform "ios"
+        Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform "ios"
+        Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+
+        $env:APP_ENTRY = $SelectedAppNamespace
+        $env:APP_DISPLAY_NAME = $SelectedAppConfig.DisplayName
     }
 
     # Check if Xcode is available
@@ -756,6 +952,11 @@ function Debug-iOS {
     Write-Host "[iOS] Build and launch process completed" -ForegroundColor Green
     Write-Host "[iOS] Check the Metro bundler window for live updates" -ForegroundColor Cyan
     Write-Host ""
+
+    # Restore resources
+    if ($MultiAppMode -and $BackupPath -and $MultiAppScriptsAvailable) {
+        Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+    }
 }
 
 function Invoke-AndroidPrebuild {
@@ -797,7 +998,11 @@ function Invoke-AndroidPrebuild {
 # ============================================
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "React Native Project Manager" -ForegroundColor Cyan
+if ($MultiAppMode) {
+    Write-Host "React Native Multi-App Manager" -ForegroundColor Cyan
+} else {
+    Write-Host "React Native Project Manager" -ForegroundColor Cyan
+}
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Initializing..." -ForegroundColor Yellow
@@ -825,11 +1030,133 @@ if (-Not (Test-Path $NodeModulesPath)) {
 
 $Running = $true
 
-while ($Running) {
-    Show-MainMenu
-    $Choice = Read-Host "Enter your choice"
+# If multi-app mode, use interactive menu directly
+if ($MultiAppMode -and $MultiAppScriptsAvailable -and $AppConfigs.Count -gt 0) {
+    while ($Running) {
+        $menuItems = @()
+        foreach ($appKey in $AppConfigs.Keys | Sort-Object) {
+            $config = $AppConfigs[$appKey]
+            $menuItems += $config
+        }
 
-    switch ($Choice) {
+        $menuResult = Show-InteractiveMenu -MenuItems $menuItems -InitialIndex 0 -AppDirectory $ProjectRoot
+
+        if ($menuResult) {
+            $SelectedAppNamespace = $menuResult.SelectedApp.Name
+            $SelectedAppConfig = $menuResult.SelectedApp
+            $SelectedMode = $menuResult.Mode
+            $SelectedPlatform = $menuResult.Platform
+
+            # Execute based on mode
+            if ($SelectedMode -eq "test") {
+                Invoke-CommandWithErrorHandling -Command {
+                    Start-TestRunner -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace
+                } -CommandDescription "Run tests for $($SelectedAppConfig.DisplayName)" -PauseOnError $true
+            } elseif ($SelectedMode -eq "debug") {
+                $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform $SelectedPlatform
+                Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform $SelectedPlatform
+                Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+
+                $env:APP_ENTRY = $SelectedAppNamespace
+                $env:APP_DISPLAY_NAME = $SelectedAppConfig.DisplayName
+
+                if ($SelectedPlatform -eq "android") {
+                    Debug-Android -DeviceName ""
+                } elseif ($SelectedPlatform -eq "ios") {
+                    Debug-iOS -DeviceName ""
+                }
+
+                if ($BackupPath) {
+                    Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+                }
+            } elseif ($SelectedMode -eq "build") {
+                $BackupPath = Backup-PlatformResources -AppDirectory $ProjectRoot -Platform $SelectedPlatform
+                Copy-AppResources -AppDirectory $ProjectRoot -Namespace $SelectedAppNamespace -Platform $SelectedPlatform
+                Update-AppJson -AppDirectory $ProjectRoot -AppName $SelectedAppNamespace -DisplayName $SelectedAppConfig.DisplayName
+
+                if ($SelectedPlatform -eq "android") {
+                    Build-Android -Config "release"
+                } elseif ($SelectedPlatform -eq "ios") {
+                    Build-iOS -Config "release"
+                }
+
+                if ($BackupPath) {
+                    Restore-PlatformResources -AppDirectory $ProjectRoot -BackupPath $BackupPath
+                }
+            }
+        } else {
+            $Running = $false
+        }
+    }
+} else {
+    # Legacy single-app mode or no apps configured
+    while ($Running) {
+        Show-MainMenu
+        $Choice = Read-Host "Enter your choice"
+
+        switch ($Choice) {
+            "S" {
+            # App selection (multi-app mode only)
+            if ($MultiAppMode) {
+                $SelectedItem = Show-AppSelectionMenu
+                if ($SelectedItem) {
+                    $SelectedAppNamespace = $SelectedItem.Namespace
+                    $SelectedAppConfig = $SelectedItem.Config
+
+                    $modeLabel = switch ($SelectedItem.Mode) {
+                        "debug" { "Debug" }
+                        "build" { "Build" }
+                        "test" { "Test" }
+                        default { $SelectedItem.Mode }
+                    }
+                    $platformLabel = switch ($SelectedItem.Platform) {
+                        "android" { "Android" }
+                        "ios" { "iOS" }
+                        default { $SelectedItem.Platform }
+                    }
+
+                    Write-Host ""
+                    Write-Host "Selected: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Green
+                    Write-Host "Mode: $modeLabel | Platform: $platformLabel" -ForegroundColor Cyan
+                    Start-Sleep -Seconds 1
+                }
+            } else {
+                Write-Host ""
+                Write-Host "App selection only available in multi-app mode" -ForegroundColor Yellow
+                Start-Sleep -Seconds 1
+            }
+        }
+        "s" {
+            # Same as "S"
+            if ($MultiAppMode) {
+                $SelectedItem = Show-AppSelectionMenu
+                if ($SelectedItem) {
+                    $SelectedAppNamespace = $SelectedItem.Namespace
+                    $SelectedAppConfig = $SelectedItem.Config
+
+                    $modeLabel = switch ($SelectedItem.Mode) {
+                        "debug" { "Debug" }
+                        "build" { "Build" }
+                        "test" { "Test" }
+                        default { $SelectedItem.Mode }
+                    }
+                    $platformLabel = switch ($SelectedItem.Platform) {
+                        "android" { "Android" }
+                        "ios" { "iOS" }
+                        default { $SelectedItem.Platform }
+                    }
+
+                    Write-Host ""
+                    Write-Host "Selected: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Green
+                    Write-Host "Mode: $modeLabel | Platform: $platformLabel" -ForegroundColor Cyan
+                    Start-Sleep -Seconds 1
+                }
+            } else {
+                Write-Host ""
+                Write-Host "App selection only available in multi-app mode" -ForegroundColor Yellow
+                Start-Sleep -Seconds 1
+            }
+        }
         "1" {
             # Reinstall
             Clear-Host
@@ -850,12 +1177,23 @@ while ($Running) {
         }
         "2" {
             # Build
+            # Check if app is selected in multi-app mode
+            if ($MultiAppMode -and -not $SelectedAppNamespace) {
+                Write-Host ""
+                Write-Host "Please select an app first (press 'S')" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+                continue
+            }
+
             $BuildConfig = Show-BuildMenu
             if ($BuildConfig) {
                 Clear-Host
                 Write-Host "============================================" -ForegroundColor Cyan
                 Write-Host "Building Application" -ForegroundColor Cyan
                 Write-Host "============================================" -ForegroundColor Cyan
+                if ($MultiAppMode -and $SelectedAppNamespace) {
+                    Write-Host "App: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Cyan
+                }
                 Write-Host "Platform: $($BuildConfig.Platform)" -ForegroundColor White
                 Write-Host "Configuration: $($BuildConfig.Configuration)" -ForegroundColor White
                 Write-Host ""
@@ -875,12 +1213,23 @@ while ($Running) {
         }
         "3" {
             # Debug
+            # Check if app is selected in multi-app mode
+            if ($MultiAppMode -and -not $SelectedAppNamespace) {
+                Write-Host ""
+                Write-Host "Please select an app first (press 'S')" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+                continue
+            }
+
             $DebugConfig = Show-DebugMenu
             if ($DebugConfig) {
                 Clear-Host
                 Write-Host "============================================" -ForegroundColor Cyan
                 Write-Host "Debug Application" -ForegroundColor Cyan
                 Write-Host "============================================" -ForegroundColor Cyan
+                if ($MultiAppMode -and $SelectedAppNamespace) {
+                    Write-Host "App: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Cyan
+                }
                 Write-Host "Platform: $($DebugConfig.Platform)" -ForegroundColor White
                 if ($DebugConfig.Device) {
                     Write-Host "Device: $($DebugConfig.Device)" -ForegroundColor White
@@ -902,10 +1251,21 @@ while ($Running) {
         }
         "4" {
             # Quick Start
+            # Check if app is selected in multi-app mode
+            if ($MultiAppMode -and -not $SelectedAppNamespace) {
+                Write-Host ""
+                Write-Host "Please select an app first (press 'S')" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+                continue
+            }
+
             Clear-Host
             Write-Host "============================================" -ForegroundColor Cyan
             Write-Host "Quick Start (Debug Android)" -ForegroundColor Cyan
             Write-Host "============================================" -ForegroundColor Cyan
+            if ($MultiAppMode -and $SelectedAppNamespace) {
+                Write-Host "App: $($SelectedAppConfig.DisplayName) ($SelectedAppNamespace)" -ForegroundColor Cyan
+            }
             Write-Host ""
 
             Debug-Android -DeviceName ""
@@ -941,6 +1301,7 @@ while ($Running) {
             Start-Sleep -Seconds 1
         }
     }
+}
 }
 
 Write-Host ""
