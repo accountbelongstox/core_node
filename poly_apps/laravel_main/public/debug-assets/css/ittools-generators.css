@@ -1,0 +1,37 @@
+/* Generator Tools Common Styles */
+.generator-result {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.generator-result-error {
+    color: #dc3545;
+}
+
+.generator-result-loading {
+    color: #666;
+}
+
+.generator-result-image {
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    background: white;
+}
+
+.generator-result-info {
+    margin-top: 10px;
+    color: #666;
+}
+
+.generator-result-info-small {
+    color: #666;
+    font-size: 12px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
