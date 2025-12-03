@@ -1006,6 +1006,43 @@ class PathMapper
     }
 
     /**
+     * Get nginx binary path
+     *
+     * Priority:
+     * 1. /usr/sbin/nginx (standard Debian/Ubuntu location)
+     * 2. /usr/bin/nginx (alternative location)
+     * 3. /usr/local/bin/nginx (custom installation)
+     * 4. which nginx command
+     * 5. Fallback to 'nginx' (let system PATH resolve)
+     *
+     * @return string Path to nginx binary
+     */
+    public static function getNginxBinaryPath(): string
+    {
+        $possiblePaths = [
+            '/usr/sbin/nginx',
+            '/usr/bin/nginx',
+            '/usr/local/bin/nginx',
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which nginx');
+        if ($result->successful()) {
+            $nginxPath = trim($result->output());
+            if (!empty($nginxPath) && file_exists($nginxPath)) {
+                return $nginxPath;
+            }
+        }
+
+        return 'nginx';
+    }
+
+    /**
      * Get pnpm binary path
      *
      * Priority:
