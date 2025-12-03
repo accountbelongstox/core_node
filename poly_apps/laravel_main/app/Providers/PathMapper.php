@@ -1006,22 +1006,87 @@ class PathMapper
     }
 
     /**
+     * Get nginx binary path
+     *
+     * Priority:
+     * 1. /usr/sbin/nginx (standard Debian/Ubuntu location)
+     * 2. /usr/bin/nginx (alternative location)
+     * 3. /usr/local/bin/nginx (custom installation)
+     * 4. which nginx command
+     * 5. Fallback to 'nginx' (let system PATH resolve)
+     *
+     * @return string Path to nginx binary
+     */
+    public static function getNginxBinaryPath(): string
+    {
+        $possiblePaths = [
+            '/usr/sbin/nginx',
+            '/usr/bin/nginx',
+            '/usr/local/bin/nginx',
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        $result = \Illuminate\Support\Facades\Process::run('which nginx');
+        if ($result->successful()) {
+            $nginxPath = trim($result->output());
+            if (!empty($nginxPath) && file_exists($nginxPath)) {
+                return $nginxPath;
+            }
+        }
+
+        return 'nginx';
+    }
+
+    /**
      * Get pnpm binary path
      *
      * Priority:
-     * 1. /usr/local/bin/pnpm (most common installation)
-     * 2. which pnpm command
-     * 3. Fallback to 'pnpm' (let system PATH resolve)
+     * 1. Check all installed Node.js versions for pnpm
+     * 2. /usr/local/bin/pnpm (symlink)
+     * 3. which pnpm command
+     * 4. Fallback to 'pnpm' (let system PATH resolve)
      *
      * @return string Path to pnpm binary
      */
     public static function getPnpmBinaryPath(): string
     {
-        $commonPath = '/usr/local/bin/pnpm';
-        if (file_exists($commonPath) && is_executable($commonPath)) {
-            return $commonPath;
+        $compileDir = self::mapWebPath('compile_dir');
+        $nodeDir = "$compileDir/node";
+
+        // Check all installed Node.js versions for pnpm
+        if (is_dir($nodeDir)) {
+            $versions = ['node-v22.21.0', 'node-v24.11.1', 'node-v22.*', 'node-v24.*'];
+            foreach ($versions as $versionPattern) {
+                // If it's a glob pattern
+                if (str_contains($versionPattern, '*')) {
+                    $matches = glob("$nodeDir/$versionPattern", GLOB_ONLYDIR);
+                    foreach ($matches as $versionDir) {
+                        $pnpmPath = "$versionDir/bin/pnpm";
+                        if (file_exists($pnpmPath) && is_executable($pnpmPath)) {
+                            return $pnpmPath;
+                        }
+                    }
+                } else {
+                    $pnpmPath = "$nodeDir/$versionPattern/bin/pnpm";
+                    if (file_exists($pnpmPath) && is_executable($pnpmPath)) {
+                        return $pnpmPath;
+                    }
+                }
+            }
         }
 
+        // Check symlink
+        $symlinkPath = '/usr/local/bin/pnpm';
+        if (file_exists($symlinkPath) && is_executable($symlinkPath)) {
+            return $symlinkPath;
+        }
+
+        // Try which command
         $result = \Illuminate\Support\Facades\Process::run('which pnpm');
         if ($result->successful()) {
             $pnpmPath = trim($result->output());
@@ -1030,6 +1095,7 @@ class PathMapper
             }
         }
 
+        // Fallback
         return 'pnpm';
     }
 
