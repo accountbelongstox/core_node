@@ -16,7 +16,8 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_qy/localization_keys_app_qy.dart';
-import '../../../localization_app_qy/localization_manager.dart' as qy_localization;
+import '../../../resources_app_qy/colors_app_qy.dart';
+import 'package:intl/intl.dart';
 
 // AI MODIFICATION NOTE: This widget was enhanced by QR_Profile_AI_Assistant
 // - Added proper theme system imports
@@ -87,11 +88,11 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
   Widget _buildTopBar() {
     return Container(
       padding: EdgeInsets.all(ThemeDimensions.spacing16),
-      color: ThemeColors.blue,
+      color: ColorsAppQy.qyPrimary,
       child: Row(
         children: [
           IconButton(
-            icon: Icon(Icons.menu, color: ThemeColors.white),
+            icon: Icon(Icons.menu, color: ColorsAppQy.qyTextOnPrimary),
             onPressed: () => setState(() => _isMenuOpen = !_isMenuOpen),
           ),
           Expanded(
@@ -100,7 +101,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacing16),
                 decoration: BoxDecoration(
-                  color: ThemeColors.white.withOpacity(0.2),
+                  color: ColorsAppQy.qyFrostLight,
                   borderRadius: BorderRadius.circular(ThemeDimensions.radiusXL),
                 ),
                 child: TextField(
@@ -108,7 +109,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                   decoration: InputDecoration(
                     hintText: 'qy_placeholder_search'.tr(context),
                     hintStyle: ThemeTextStyles.bodyMedium.copyWith(
-                      color: ThemeColors.white.withOpacity(0.7),
+                      color: ColorsAppQy.qyFrostMedium,
                     ),
                     border: InputBorder.none,
                   ),
@@ -121,12 +122,12 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
             backgroundColor: ThemeColors.systemGroupedBackground,
             child: Icon(
               Icons.person,
-              color: ThemeColors.blue,
+              color: ColorsAppQy.qyPrimary,
               size: ThemeDimensions.iconSizeM,
             ),
           ),
           IconButton(
-            icon: Icon(Icons.settings, color: ThemeColors.white),
+            icon: Icon(Icons.settings, color: ColorsAppQy.qyTextOnPrimary),
             onPressed: () {},
           ),
         ],
@@ -163,7 +164,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(item['icon'], color: ThemeColors.blue),
+                    Icon(item['icon'], color: ColorsAppQy.qyPrimary),
                     SizedBox(height: ThemeDimensions.spacing4),
                     Text(
                       item['label'],
@@ -184,7 +185,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
       child: GestureDetector(
         onTap: () => setState(() => _isSearchModalOpen = false),
         child: Container(
-          color: ThemeColors.black.withOpacity(0.5),
+          color: ColorsAppQy.qyShadowLight,
           child: Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.9,
@@ -205,8 +206,8 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                             'qy_global_search'.tr(context),
                             style: ThemeTextStyles.bodyMedium.copyWith(
                               color: _selectedSearchOption == 'global'
-                                  ? ThemeColors.blue
-                                  : ThemeColors.tertiaryLabel,
+                                  ? ColorsAppQy.qyPrimary
+                                  : ColorsAppQy.qyTextTertiary,
                               fontWeight: _selectedSearchOption == 'global'
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -222,8 +223,8 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                             'qy_ai_search'.tr(context),
                             style: ThemeTextStyles.bodyMedium.copyWith(
                               color: _selectedSearchOption == 'ai'
-                                  ? ThemeColors.blue
-                                  : ThemeColors.tertiaryLabel,
+                                  ? ColorsAppQy.qyPrimary
+                                  : ColorsAppQy.qyTextTertiary,
                               fontWeight: _selectedSearchOption == 'ai'
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -263,7 +264,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
             'qy_learning_progress'.tr(context),
             style: ThemeTextStyles.titleMedium.copyWith(
               fontWeight: FontWeight.bold,
-              color: ThemeColors.blue,
+              color: ColorsAppQy.qyPrimary,
             ),
           ),
           SizedBox(height: ThemeDimensions.spacing16),
@@ -281,11 +282,11 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                     width: 80,
                     margin: const EdgeInsets.only(right: 10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
+                      color: ColorsAppQy.qyTextOnPrimary,
+                      borderRadius: BorderRadius.circular(ThemeDimensions.radiusM),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: ColorsAppQy.qyBorderLight,
                           spreadRadius: 1,
                           blurRadius: 5,
                         ),
@@ -296,7 +297,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                       children: [
                         Text(
                           '${QyAppLocalizationKeys.qyWeek.tr(context)}${_getWeekdayName(date.weekday % 7, context)}',
-                          style: const TextStyle(color: Colors.grey),
+                          style: TextStyle(color: ColorsAppQy.qyTextSecondary),
                         ),
                         Text(
                           '${date.month}/${date.day}',
@@ -309,7 +310,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                               width: 50,
                               height: 50,
                               decoration: BoxDecoration(
-                                color: Colors.grey[200],
+                                color: ColorsAppQy.qyBorderLight,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -326,7 +327,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                                 child: FractionallySizedBox(
                                   heightFactor: progress / 100,
                                   child: Container(
-                                    color: Colors.white,
+                                    color: ColorsAppQy.qyTextOnPrimary,
                                   ),
                                 ),
                               ),
@@ -355,14 +356,14 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
   Widget _buildStatsModal() {
     return Positioned.fill(
       child: Container(
-        color: Colors.black54,
+        color: ColorsAppQy.qyShadowLight,
         child: Center(
           child: Container(
             width: MediaQuery.of(context).size.width * 0.9,
             height: 300,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
+              color: ColorsAppQy.qyTextOnPrimary,
+              borderRadius: BorderRadius.circular(ThemeDimensions.radiusL),
             ),
             child: Column(
               children: [
@@ -371,12 +372,11 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        '2023年11月15日',
-                        style: TextStyle(
-                          fontSize: 18,
+                      Text(
+                        DateFormat('yyyy年MM月dd日', 'zh_CN').format(DateTime.now()),
+                        style: ThemeTextStyles.title2.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF4A6BAF),
+                          color: ColorsAppQy.qyPrimary,
                         ),
                       ),
                       IconButton(
@@ -402,7 +402,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                       Container(
                         height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.grey[200],
+                          color: ColorsAppQy.qyBorderLight,
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: FractionallySizedBox(
@@ -410,7 +410,7 @@ class _HomeLoginWidgetState extends State<HomeLoginWidget> {
                           widthFactor: 0.6,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4A6BAF),
+                              color: ColorsAppQy.qyPrimary,
                               borderRadius: BorderRadius.circular(5),
                             ),
                           ),

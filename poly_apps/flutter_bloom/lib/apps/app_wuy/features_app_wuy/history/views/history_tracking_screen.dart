@@ -92,7 +92,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
-          onPressed: () => context.go(WuyAppRouter.routeHome),
+          onPressed: () => context.pop(),
         ),
       ),
       body: Column(

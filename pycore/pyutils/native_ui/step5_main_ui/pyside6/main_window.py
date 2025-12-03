@@ -124,7 +124,12 @@ class PySide6MainWindow(QMainWindow):
 
         # Set window icon if provided
         if self._icon_path and Path(self._icon_path).exists():
-            self.setWindowIcon(QIcon(self._icon_path))
+            icon = QIcon(self._icon_path)
+            if not icon.isNull():
+                self.setWindowIcon(icon)
+            else:
+                from pycore import ColorPrint
+                ColorPrint.red(f"[MainWindow] Failed to load window icon from: {self._icon_path}")
 
         # Load cached window state if available
         loaded_state = None

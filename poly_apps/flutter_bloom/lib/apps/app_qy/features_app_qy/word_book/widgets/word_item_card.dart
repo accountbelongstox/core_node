@@ -26,9 +26,9 @@ class WordItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimationUtils.scaleOnTap(
-      onTap: onTap,
+      onTap: onTap ?? () {},
       child: AnimationUtils.fadeInWithSlide(
-        child: GlassCard(
+        GlassCard(
           onTap: onTap,
           borderRadius: ThemeDimensions.borderRadiusXL,
           padding: EdgeInsets.all(ThemeDimensions.spacing20),
@@ -38,7 +38,7 @@ class WordItemCard extends StatelessWidget {
               borderRadius: ThemeDimensions.borderRadiusXL,
               border: Border.all(
                 color: _getTypeColor(word.type).withOpacity(0.2),
-                width: 1,
+                width: 1.0,
               ),
             ),
             child: Column(

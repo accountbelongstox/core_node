@@ -1,5 +1,10 @@
  继续修复打开的错误文件，查看打开的区域， 发现你没有设置中心化model,在代码中还有数组的硬编码，以及代码中还有zh、请使用多语言系统 。同时注意主题中心化，使用全息白、毛玻璃、模糊背景、动态浅变效果，同时使用便当合布局，并同时调用common区的components组件扩展，以及主题中心化、主题定义在一个目录，数据中心化（不要多处重复定义数据），设置、状态中心化，使用规范中的多语言效果和定义多语言KEY，使用全局的sotrage效果。当代码中有不遵守以上规范时你都要修正， 参考 文件构架  poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt  
 
+全面升级,确保样式，位置，字体，大小，显示效果完全一样，给子app扩展，但注意有些地方继承lib/common.
+
+代码中还有多数语言、路由硬编码，以及代码中还有zh、请使用多语言系统 、中收路由系统。同时注意主题中心化，并同时调用common区的components组件扩展，以及主题中心化、主题定义在一个目录，数据中心化（不要多处重复定义数据），设置、状态中心化，使用规范中的多语言效果和定义多语言KEY，使用全局的sotrage效果。当代码中有不遵守以上规范时你都要修正， 参考 文件构架  poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt  
+继续全面按react-version的比例，和显示效果，1:1的精致扩展。下一步。
+
 poly_apps\flutter_bloom\lib 对整个构架进行扫描 ，现在对全局的statu与provider联动，解决现在设置语音/dark/light模多没有立即刷新UI的问题。http://127.0.0.1:10005/#/qy/home
 
 这个规范更新到  development-guides\LARAVEL_GUIDE.md ，只能用2行以内说明，如果有冲突，更改冲突部份。

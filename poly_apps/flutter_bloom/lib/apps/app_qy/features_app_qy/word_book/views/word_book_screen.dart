@@ -240,7 +240,7 @@ class _WordBookScreenState extends State<WordBookScreen>
   void _showFilterDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       builder: (context) => GlassCard(
         borderRadius: ThemeDimensions.borderRadiusXL,
         padding: EdgeInsets.all(ThemeDimensions.spacing20),

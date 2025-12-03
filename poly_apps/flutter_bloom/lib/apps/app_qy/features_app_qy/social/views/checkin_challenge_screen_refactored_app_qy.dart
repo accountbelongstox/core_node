@@ -306,7 +306,7 @@ class _CheckinChallengeScreenRefactoredAppQyState
               Icons.local_fire_department,
               QyAppLocalizationKeys.qyConsecutiveDays.tr(context),
               consecutiveDays.toString(),
-              Colors.orange,
+              ColorsAppQy.qyWarning,
             ),
           ),
           Container(
@@ -487,13 +487,13 @@ class _CheckinChallengeScreenRefactoredAppQyState
                   vertical: ThemeDimensions.paddingXSmall,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
+                  color: ColorsAppQy.qyWarning.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
                 ),
                 child: Text(
                   '+${challenge.rewardPoints}',
                   style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.amber.shade700,
+                    color: ColorsAppQy.qyWarningDark,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

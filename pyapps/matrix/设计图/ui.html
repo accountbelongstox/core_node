@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星灿传媒(云矩阵) - 智能中控</title>
+<link rel="stylesheet" href="css/animation.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/phone-item.css">
+</head>
+<body>
+
+  <!-- 动态背景 -->
+  <div class="bg-layer">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- 顶部导航栏 -->
+  <header class="top-bar glass-panel">
+    <div class="brand-area">
+      <div class="logo-icon">✨</div>
+      <h1 class="brand-name">星灿传媒(云矩阵)</h1>
+      <button class="toggle-btn" onclick="toggleSidebar('left')" title="折叠/展开左侧">◫</button>
+    </div>
+
+    <nav class="top-menu">
+      <a href="#" class="menu-item active">监控大屏</a>
+      <a href="#" class="menu-item">设置</a>
+      <a href="#" class="menu-item">脚本功能</a>
+      <a href="#" class="menu-item">任务队列</a>
+    </nav>
+
+    <div class="top-actions">
+      <div class="status-indicator">
+        <span class="dot"></span> 系统在线
+      </div>
+      <button class="toggle-btn" onclick="toggleSidebar('right')" title="折叠/展开右侧">◫</button>
+    </div>
+  </header>
+
+  <!-- 主布局容器 -->
+  <div class="main-layout">
+    
+    <!-- 左侧：设备/分组列表 -->
+    <aside id="left-panel" class="sidebar glass-panel expanded">
+      <div class="sidebar-content">
+        <div class="panel-header">设备分组</div>
+        <div class="group-tree">
+          <div class="tree-item active">直播矩阵 A组 (12)</div>
+          <div class="tree-item">短视频发布 B组 (8)</div>
+          <div class="tree-item">养号测试 C组 (5)</div>
+        </div>
+        <div class="panel-header" style="margin-top:20px;">筛选</div>
+        <input type="text" class="holo-input" placeholder="搜索设备 ID...">
+      </div>
+    </aside>
+
+    <!-- 中间：监控舞台 -->
+    <main class="stage-area">
+      <!-- 手机列表容器 -->
+      <div class="phone-matrix">
+        
+        <!-- 手机单元 1 -->
+        <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content" style="background-image: linear-gradient(45deg, #111, #222);">
+              <div class="screen-overlay">
+                <span class="live-tag">LIVE 00:12:43</span>
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+            <div class="device-label">XM-001 <span class="ping">32ms</span></div>
+          </div>
+          <!-- 侧边独立工具栏 -->
+          <div class="phone-side-tools">
+            <button class="mini-tool-btn" title="解锁">🔓</button>
+            <button class="mini-tool-btn" title="截图">📷</button>
+            <button class="mini-tool-btn" title="重启">🔄</button>
+            <button class="mini-tool-btn danger" title="停止脚本">⏹</button>
+          </div>
+        </div>
+
+        <!-- 手机单元 2 -->
+        <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content" style="background-image: linear-gradient(45deg, #000, #1a1a2e);">
+              <div class="screen-overlay">
+                 <div class="app-icon">🎵</div>
+                 <div style="font-size:10px; margin-top:5px;">TikTok运行中</div>
+              </div>
+            </div>
+            <div class="device-label">XM-002 <span class="ping">45ms</span></div>
+          </div>
+          <div class="phone-side-tools">
+            <button class="mini-tool-btn" title="解锁">🔓</button>
+            <button class="mini-tool-btn" title="截图">📷</button>
+            <button class="mini-tool-btn" title="重启">🔄</button>
+            <button class="mini-tool-btn danger" title="停止脚本">⏹</button>
+          </div>
+        </div>
+
+        <!-- 手机单元 3 -->
+        <div class="phone-wrapper">
+          <div class="phone-body">
+            <div class="screen-content" style="background-image: linear-gradient(45deg, #111, #222);">
+              <div class="screen-overlay">
+                <span class="error-text">连接断开</span>
+              </div>
+            </div>
+            <div class="device-label offline">XM-003 <span class="ping">---</span></div>
+          </div>
+          <div class="phone-side-tools">
+            <button class="mini-tool-btn" title="连接">🔗</button>
+            <button class="mini-tool-btn" title="详情">ℹ️</button>
+          </div>
+        </div>
+
+         <!-- 更多手机单元可以复制 -->
+         <div class="phone-wrapper"><div class="phone-body"><div class="screen-content"></div><div class="device-label">XM-004</div></div><div class="phone-side-tools"><button class="mini-tool-btn">🔓</button></div></div>
+         <div class="phone-wrapper"><div class="phone-body"><div class="screen-content"></div><div class="device-label">XM-005</div></div><div class="phone-side-tools"><button class="mini-tool-btn">🔓</button></div></div>
+      </div>
+    </main>
+
+    <!-- 右侧：全局控制台 -->
+    <aside id="right-panel" class="sidebar glass-panel expanded">
+      <div class="sidebar-content">
+        <div class="panel-header">全局控制</div>
+        
+        <div class="control-group">
+          <label>一键操作</label>
+          <div class="grid-2">
+            <button class="holo-btn">全部解锁</button>
+            <button class="holo-btn">全部息屏</button>
+            <button class="holo-btn">启动脚本</button>
+            <button class="holo-btn danger">急停</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>同步输入</label>
+          <textarea class="holo-input" rows="3" placeholder="在此输入，同步发送至所有选中手机..."></textarea>
+          <button class="holo-btn primary" style="width:100%; margin-top:5px;">发送文本</button>
+        </div>
+
+        <div class="control-group">
+          <label>屏幕亮度</label>
+          <input type="range" class="holo-range">
+        </div>
+
+        <div class="console-log">
+          <div>[10:42:01] XM-001 脚本启动成功</div>
+          <div>[10:42:05] XM-002 正在点赞...</div>
+          <div style="color:#ff4757">[10:42:10] XM-003 网络超时</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    function toggleSidebar(side) {
+      const panel = document.getElementById(side + '-panel');
+      panel.classList.toggle('expanded');
+      panel.classList.toggle('collapsed');
+    }
+  </script>
+</body>
+</html>

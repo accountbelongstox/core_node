@@ -20,14 +20,14 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   final CertificateService _certificateService = CertificateService();
-  late List<CertificateModel> _certificates;
-  late CertificateStats _stats;
+  List<CertificateModel> _certificates = [];
+  CertificateStats? _stats;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _certificates = _certificateService.getAllCertificates();
-    _stats = _certificateService.getCertificateStats();
+    _loadCertificates();
 
     _controller = AnimationController(
       duration: ComponentStyles.normalDuration,
@@ -37,6 +37,24 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
       CurvedAnimation(parent: _controller, curve: ComponentStyles.primaryCurve),
     );
     _controller.forward();
+  }
+
+  Future<void> _loadCertificates() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      _certificates = await _certificateService.getAllCertificates();
+      _stats = await _certificateService.getCertificateStats();
+    } catch (e) {
+      _certificates = [];
+      _stats = null;
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -61,24 +79,30 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
           ),
         ),
         child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              children: [
-                _buildAppBar(),
-                _buildStatsHeader(),
-                Expanded(
-                  child: _buildCertificatesGrid(),
+          child: _isLoading
+              ? Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryGreen,
+                  ),
+                )
+              : FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    children: [
+                      _buildAppBar(context),
+                      _buildStatsHeader(context),
+                      Expanded(
+                        child: _buildCertificatesGrid(context),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -95,14 +119,14 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
             child: Column(
               children: [
                 Text(
-                  QyAppLocalizationKeys.qyCertificateCenter.tr,
+                  QyAppLocalizationKeys.qyCertificateCenter.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  QyAppLocalizationKeys.qyCertificateCenterSubtitle.tr,
+                  QyAppLocalizationKeys.qyCertificateCenterSubtitle.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -111,7 +135,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
             ),
           ),
           BouncingButton(
-            onPressed: _showShareOptions,
+            onPressed: () => _showShareOptions(context),
             child: Icon(
               Icons.share,
               color: AppTheme.primaryGreen,
@@ -123,7 +147,11 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  Widget _buildStatsHeader() {
+  Widget _buildStatsHeader(BuildContext context) {
+    if (_stats == null) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
@@ -135,8 +163,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
         children: [
           Expanded(
             child: _buildStatItem(
-              QyAppLocalizationKeys.qyCertificateEarned.tr,
-              '${_stats.earnedCount}',
+              QyAppLocalizationKeys.qyCertificateEarned.tr(context),
+              '${_stats!.earnedCount}',
               Icons.workspace_premium,
               Colors.white,
             ),
@@ -148,8 +176,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              QyAppLocalizationKeys.qyCertificateInProgress.tr,
-              '${_stats.inProgressCount}',
+              QyAppLocalizationKeys.qyCertificateInProgress.tr(context),
+              '${_stats!.inProgressCount}',
               Icons.pending,
               Colors.white,
             ),
@@ -161,8 +189,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              QyAppLocalizationKeys.qyCertificateTotalPoints.tr,
-              '${_stats.totalPoints}',
+              QyAppLocalizationKeys.qyCertificateTotalPoints.tr(context),
+              '${_stats!.totalPoints}',
               Icons.trending_up,
               Colors.white,
             ),
@@ -195,7 +223,18 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  Widget _buildCertificatesGrid() {
+  Widget _buildCertificatesGrid(BuildContext context) {
+    if (_certificates.isEmpty) {
+      return Center(
+        child: Text(
+          QyAppLocalizationKeys.qyNoCertificates.tr(context),
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      );
+    }
+
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -209,17 +248,17 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
         final certificate = _certificates[index];
         return AnimationUtils.staggeredAnimation(
           index: index,
-          child: _buildCertificateCard(certificate, index),
+          child: _buildCertificateCard(context, certificate, index),
         );
       },
     );
   }
 
-  Widget _buildCertificateCard(CertificateModel certificate, int index) {
+  Widget _buildCertificateCard(BuildContext context, CertificateModel certificate, int index) {
     final isLocked = certificate.locked;
 
     return BouncingButton(
-      onPressed: isLocked ? _showLockedMessage : () => _viewCertificate(certificate),
+      onPressed: isLocked ? () => _showLockedMessage(context) : () => _viewCertificate(context, certificate),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -301,7 +340,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                           children: [
                             Expanded(
                               child: Text(
-                                certificate.titleKey.tr,
+                                certificate.titleKey.tr(context),
                                 style: AppTextStyles.bodyLarge.copyWith(
                                   color: isLocked
                                       ? Colors.grey.shade600
@@ -320,7 +359,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  _getBadgeText(certificate.badge!),
+                                  _getBadgeText(context, certificate.badge!),
                                   style: AppTextStyles.bodySmall.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -332,7 +371,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _getLevelText(certificate.level),
+                          _getLevelText(context, certificate.level),
                           style: AppTextStyles.bodySmall.copyWith(
                             color: isLocked
                                 ? Colors.grey.shade500
@@ -347,7 +386,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                certificate.descriptionKey.tr,
+                certificate.descriptionKey.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: isLocked
                       ? Colors.grey.shade500
@@ -367,7 +406,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${QyAppLocalizationKeys.qyCertificateEarnedDate.tr}: ${_formatDate(certificate.earnedDate!)}',
+                      '${QyAppLocalizationKeys.qyCertificateEarnedDate.tr(context)}: ${_formatDate(certificate.earnedDate!)}',
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -385,7 +424,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      QyAppLocalizationKeys.qyCertificateLocked.tr,
+                      QyAppLocalizationKeys.qyCertificateLocked.tr(context),
                       style: AppTextStyles.bodySmall.copyWith(
                         color: Colors.grey.shade500,
                       ),
@@ -400,33 +439,33 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  String _getLevelText(CertificateLevel level) {
+  String _getLevelText(BuildContext context, CertificateLevel level) {
     switch (level) {
       case CertificateLevel.beginner:
-        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr(context);
       case CertificateLevel.intermediate:
-        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr(context);
       case CertificateLevel.advanced:
-        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr(context);
       case CertificateLevel.expert:
-        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr(context);
     }
   }
 
-  String _getBadgeText(CertificateBadge badge) {
+  String _getBadgeText(BuildContext context, CertificateBadge badge) {
     switch (badge) {
       case CertificateBadge.newbie:
-        return QyAppLocalizationKeys.qyCertificateBadgeNewbie.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgeNewbie.tr(context);
       case CertificateBadge.diligent:
-        return QyAppLocalizationKeys.qyCertificateBadgeDiligent.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgeDiligent.tr(context);
       case CertificateBadge.persistent:
-        return QyAppLocalizationKeys.qyCertificateBadgePersistent.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgePersistent.tr(context);
       case CertificateBadge.perfectAttendance:
-        return QyAppLocalizationKeys.qyCertificateBadgePerfectAttendance.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgePerfectAttendance.tr(context);
       case CertificateBadge.expert:
-        return QyAppLocalizationKeys.qyCertificateBadgeExpert.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgeExpert.tr(context);
       case CertificateBadge.excellent:
-        return QyAppLocalizationKeys.qyCertificateBadgeExcellent.tr;
+        return QyAppLocalizationKeys.qyCertificateBadgeExcellent.tr(context);
     }
   }
 
@@ -434,7 +473,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  void _viewCertificate(CertificateModel certificate) {
+  void _viewCertificate(BuildContext context, CertificateModel certificate) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => CertificateDetailScreen(certificate: certificate),
@@ -442,16 +481,16 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  void _showLockedMessage() {
+  void _showLockedMessage(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qyCertificateKeepWorking.tr),
+        content: Text(QyAppLocalizationKeys.qyCertificateKeepWorking.tr(context)),
         backgroundColor: AppTheme.warning,
       ),
     );
   }
 
-  void _showShareOptions() {
+  void _showShareOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -473,22 +512,26 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
             ),
             const SizedBox(height: 20),
             _buildShareOption(
-              QyAppLocalizationKeys.qyCertificateShareToWechat.tr,
+              context,
+              QyAppLocalizationKeys.qyCertificateShareToWechat.tr(context),
               Icons.chat,
               () {},
             ),
             _buildShareOption(
-              QyAppLocalizationKeys.qyCertificateShareToMoments.tr,
+              context,
+              QyAppLocalizationKeys.qyCertificateShareToMoments.tr(context),
               Icons.public,
               () {},
             ),
             _buildShareOption(
-              QyAppLocalizationKeys.qyCertificateSaveImage.tr,
+              context,
+              QyAppLocalizationKeys.qyCertificateSaveImage.tr(context),
               Icons.save_alt,
               () {},
             ),
             _buildShareOption(
-              QyAppLocalizationKeys.qyCertificateCopyLink.tr,
+              context,
+              QyAppLocalizationKeys.qyCertificateCopyLink.tr(context),
               Icons.link,
               () {},
             ),
@@ -548,7 +591,7 @@ class CertificateDetailScreen extends StatelessWidget {
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
         title: Text(
-          certificate.titleKey.tr,
+          certificate.titleKey.tr(context),
           style: AppTextStyles.headline5.copyWith(
             color: Colors.white,
           ),
@@ -614,7 +657,7 @@ class CertificateDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        certificate.titleKey.tr,
+                        certificate.titleKey.tr(context),
                         style: AppTextStyles.headline3.copyWith(
                           color: certificate.color,
                           fontWeight: FontWeight.bold,
@@ -623,7 +666,7 @@ class CertificateDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _getLevelText(certificate.level),
+                        _getLevelText(context, certificate.level),
                         style: AppTextStyles.headline5.copyWith(
                           color: AppTheme.textSecondary,
                         ),
@@ -631,14 +674,14 @@ class CertificateDetailScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       if (certificate.earnedDate != null)
                         Text(
-                          '${QyAppLocalizationKeys.qyCertificateIssueDate.tr}${_formatDate(certificate.earnedDate!)}',
+                          '${QyAppLocalizationKeys.qyCertificateIssueDate.tr(context)}${_formatDate(certificate.earnedDate!)}',
                           style: AppTextStyles.bodyLarge.copyWith(
                             color: AppTheme.textSecondary,
                           ),
                         ),
                       const SizedBox(height: 32),
                       Text(
-                        '${QyAppLocalizationKeys.qyCertificateNumber.tr}${DateTime.now().millisecondsSinceEpoch}',
+                        '${QyAppLocalizationKeys.qyCertificateNumber.tr(context)}${DateTime.now().millisecondsSinceEpoch}',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppTheme.textHint,
                         ),
@@ -657,7 +700,7 @@ class CertificateDetailScreen extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    QyAppLocalizationKeys.qyCertificateDescription.tr,
+                    certificate.descriptionKey.tr(context),
                     style: AppTextStyles.bodyMedium.copyWith(
                       color: certificate.color,
                       height: 1.6,
@@ -673,16 +716,16 @@ class CertificateDetailScreen extends StatelessWidget {
     );
   }
 
-  String _getLevelText(CertificateLevel level) {
+  String _getLevelText(BuildContext context, CertificateLevel level) {
     switch (level) {
       case CertificateLevel.beginner:
-        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr(context);
       case CertificateLevel.intermediate:
-        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr(context);
       case CertificateLevel.advanced:
-        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr(context);
       case CertificateLevel.expert:
-        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr;
+        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr(context);
     }
   }
 
@@ -693,7 +736,7 @@ class CertificateDetailScreen extends StatelessWidget {
   void _downloadCertificate(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qyCertificateDownloadInProgress.tr),
+        content: Text(QyAppLocalizationKeys.qyCertificateDownloadInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -702,7 +745,7 @@ class CertificateDetailScreen extends StatelessWidget {
   void _shareCertificate(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(QyAppLocalizationKeys.qyCertificateShareInProgress.tr),
+        content: Text(QyAppLocalizationKeys.qyCertificateShareInProgress.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
