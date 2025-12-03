@@ -11,6 +11,8 @@ from .control_service import ControlService
 from .group_service import GroupService
 from .file_service import FileService
 from .logging_service import LoggingService
+from .screen_service import ScreenService
+from .recording_service import RecordingService
 
 __all__ = [
     'ConfigService',
@@ -20,4 +22,6 @@ __all__ = [
     'GroupService',
     'FileService',
     'LoggingService',
+    'ScreenService',
+    'RecordingService',
 ]
