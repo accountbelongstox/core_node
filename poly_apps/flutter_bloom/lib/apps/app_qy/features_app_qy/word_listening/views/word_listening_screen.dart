@@ -408,7 +408,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
   void _showPlaylistDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
@@ -506,7 +506,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
       builder: (context) => GlassCard(
         child: Container(
           padding: EdgeInsets.all(ThemeDimensions.spacing20),

@@ -16,6 +16,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/urgent_fund_ri
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 
 class BookMarkScreenView extends StatelessWidget {
   BookMarkScreenView({super.key});
@@ -34,7 +35,7 @@ class BookMarkScreenView extends StatelessWidget {
           actions: const [
             Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Icon(Icons.more_vert, color: ThemeColors.green))
+                child: Icon(Icons.more_vert, color: ColorsAppQy.qySuccess))
           ]),
       body: Column(
         children: [
@@ -52,8 +53,8 @@ class BookMarkScreenView extends StatelessWidget {
                               radius: 50,
                               backgroundColor:
                                   Theme.of(context).colorScheme.surfaceTint,
-                              child: const Icon(Icons.bookmark,
-                                  color: ThemeColors.white)),
+                              child: Icon(Icons.bookmark,
+                                  color: ColorsAppQy.qyTextOnPrimary)),
                           const SizedBox(
                             height: ThemeDimensions.sizeFifteen,
                           ),

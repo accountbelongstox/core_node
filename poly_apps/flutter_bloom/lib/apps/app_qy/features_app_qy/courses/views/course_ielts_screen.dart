@@ -771,7 +771,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
             Container(
               height: 6,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: ColorsAppQy.qyFrostMedium,
                 borderRadius: BorderRadius.circular(3),
               ),
               child: FractionallySizedBox(
@@ -1012,7 +1012,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           Container(
             height: 200,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: ColorsAppQy.qyFrostMedium,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(

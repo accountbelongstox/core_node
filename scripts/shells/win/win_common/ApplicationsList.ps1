@@ -408,13 +408,13 @@ $Global:BasePackages = @{
                 Type    = @("Var")
                 Name    = "JAVA_HOME"
                 Keyword = @("java.exe")
-                SubPath = ""
+                SubPath = ".."
             }
             @{
                 Type    = @("Var")
                 Name    = "JDK_HOME"
                 Keyword = @("java.exe")
-                SubPath = ""
+                SubPath = ".."
             }
         )
         DesktopShortcuts  = $null
@@ -1070,11 +1070,11 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Exec               = "droid.exe"
         Name               = "Droid"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description        = "AI-powered development assistant from Factory.ai"
+        Description        = "Factory CLI (droid) - AI-powered development assistant"
         InstallType        = "powershell"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("Droid", "factory-ai", "ai-assistant")
+        AdditionalKeywords = @("droid", "factory", "factory-cli")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1088,15 +1088,15 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
     }
     ClaudeCodeRouter = @{
-        PackageId           = ""
+        PackageId           = "@musistudio/claude-code-router"
         Exec               = "claude-code-router.exe"
         Name               = "ClaudeCodeRouter"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description        = "Claude Code Router for AI-powered code analysis and routing"
-        InstallType        = "powershell"
+        InstallType        = "npm"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
-        AdditionalKeywords = @("ClaudeCodeRouter", "claude-router", "code-analysis")
+        AdditionalKeywords = @("claude-code-router", "claude-router", "code-analysis")
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true
@@ -1107,7 +1107,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Type = @("AddExec")
             }
         )
-        PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
     }
     AlibabaQoder   = @{
         PackageId           = "Alibaba.Qoder"

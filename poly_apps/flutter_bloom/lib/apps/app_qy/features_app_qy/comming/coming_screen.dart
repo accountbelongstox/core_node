@@ -17,6 +17,7 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/urgent_fund_ri
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/resources_app_qy/colors_app_qy.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
 class ComingEndScree extends StatelessWidget {
@@ -35,7 +36,7 @@ class ComingEndScree extends StatelessWidget {
           ActionWidget(
               actionIcon: Icon(
             Icons.more_vert,
-            color: ThemeColors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
           ))
         ],
       ),
@@ -77,7 +78,7 @@ class ComingEndScree extends StatelessWidget {
                                   BorderRadius.circular(ThemeDimensions.defaultSize),
                               border: Border.all(
                                   width: 1.5,
-                                  color: Colors.grey.withOpacity(0.3))),
+                                  color: ColorsAppQy.qyBorderLight)),
                           child: Column(
                             children: [
                               Padding(
@@ -90,7 +91,7 @@ class ComingEndScree extends StatelessWidget {
                                         height: ThemeDimensions.sizeOneTwenty,
                                         width: ThemeDimensions.sizeOneTwenty,
                                         decoration: const BoxDecoration(
-                                            color: Colors.grey,
+                                            color: ColorsAppQy.qyTextTertiary,
                                             borderRadius: BorderRadius.only(
                                                 topLeft: Radius.circular(
                                                     ThemeDimensions.radiusLarge),
@@ -130,7 +131,7 @@ class ComingEndScree extends StatelessWidget {
                                               Text(
                                                 "\$ ${comingModelList[index].found},",
                                                 style: ThemeTextStyles.textMedium.copyWith(
-                                                    color: Colors.green),
+                                                    color: ColorsAppQy.qySuccess),
                                               ),
                                               const Text(
                                                 " fund reusing from the ",
@@ -162,7 +163,7 @@ class ComingEndScree extends StatelessWidget {
                                                   Text(
                                                     "${comingModelList[index].donat},",
                                                     style: ThemeTextStyles.textMedium.copyWith(
-                                                        color: Colors.green),
+                                                        color: ColorsAppQy.qySuccess),
                                                   ),
                                                   const Text(
                                                     " Donations",
@@ -175,7 +176,7 @@ class ComingEndScree extends StatelessWidget {
                                                   Text(
                                                     "& ${comingModelList[index].days},",
                                                     style: ThemeTextStyles.textMedium.copyWith(
-                                                        color: Colors.green),
+                                                        color: ColorsAppQy.qySuccess),
                                                   ),
                                                   const Text(
                                                     " Days Left",

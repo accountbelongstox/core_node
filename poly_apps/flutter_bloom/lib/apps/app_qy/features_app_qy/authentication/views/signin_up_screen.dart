@@ -27,6 +27,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/assets/common_assets_icons.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/auth_controller_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/model_app_qy/user_model.dart';
 import 'dart:convert';
@@ -146,7 +147,7 @@ class _SegmentedButtonState extends State<SegmentedButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: isSelected ? backgroundColor : ThemeColors.transparent,
+            color: isSelected ? backgroundColor : ColorsAppQy.qyPageBackground.withOpacity(0),
             borderRadius: BorderRadius.horizontal(
               left: Radius.circular(isLeft ? 24 : 0),
               right: Radius.circular(!isLeft ? 24 : 0),
@@ -396,7 +397,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
     return Scaffold(
       backgroundColor: Theme.of(context).cardColor,
       appBar: AppBar(
-        backgroundColor: ThemeColors.transparent,
+        backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
         elevation: 0,
         leading: IconButton(
           icon: Icon(
@@ -427,7 +428,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                             : ThemeDimensions.radiusBig * 2,
                         backgroundColor: _isSignIn
                             ? Theme.of(context).colorScheme.surfaceTint
-                            : ThemeColors.transparent,
+                            : ColorsAppQy.qyPageBackground.withOpacity(0),
                         child: _isSignIn
                             ? _buildSafeImage(CommonAssetsIcons.splashLogo)
                             : _buildSafeImage(CommonAssetsIcons.logoReal),

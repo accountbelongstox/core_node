@@ -165,9 +165,27 @@ function Step60_InstallAndroidStudio {
         if (Test-Path $platformToolsPath) {
             [void](& $windowsPathFunctionPath "add" $platformToolsPath)
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Added platform-tools to PATH: $platformToolsPath" -Type "Success"
-            
+
         } else {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] platform-tools not found in: $foundSdkPath" -Type "Warning"
+        }
+        $emulatorPath = Join-Path $foundSdkPath "emulator"
+        if (Test-Path $emulatorPath) {
+            [void](& $windowsPathFunctionPath "add" $emulatorPath)
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Added emulator to PATH: $emulatorPath" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] emulator directory not found in: $foundSdkPath" -Type "Warning"
+        }
+        $cmdlineToolsLatestBinPath = Join-Path $foundSdkPath "cmdline-tools\latest\bin"
+        $cmdlineToolsBinPath = Join-Path $foundSdkPath "cmdline-tools\bin"
+        if (Test-Path $cmdlineToolsLatestBinPath) {
+            [void](& $windowsPathFunctionPath "add" $cmdlineToolsLatestBinPath)
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Added cmdline-tools to PATH: $cmdlineToolsLatestBinPath" -Type "Success"
+        } elseif (Test-Path $cmdlineToolsBinPath) {
+            [void](& $windowsPathFunctionPath "add" $cmdlineToolsBinPath)
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Added cmdline-tools to PATH: $cmdlineToolsBinPath" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] cmdline-tools directory not found in: $foundSdkPath" -Type "Warning"
         }
         Add-AdbToPathIfExists
     } else {
