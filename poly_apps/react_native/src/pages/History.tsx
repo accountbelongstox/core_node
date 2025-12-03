@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { MobileLayout, Header } from '../components/Shared';
 import { useStore } from '../store';
 import { Feather as Icon } from '@react-native-vector-icons/feather';
@@ -21,9 +22,14 @@ const History: React.FC = () => {
     <MobileLayout showNav={false}>
       <Header title="History Track" backTo="/friends" />
       
-      {/* Friend Banner Header */}
+      {/* Friend Banner Header - Gradient Background */}
       <View style={localStyles.bannerContainer}>
-        <View style={[localStyles.banner, { backgroundColor: colors.primary }]} />
+        <LinearGradient
+          colors={[colors.primary, '#8b5cf6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[localStyles.banner, { opacity: 0.9 }]}
+        />
         <View style={localStyles.avatarContainer}>
           <Image source={{ uri: activeFriend.avatar }} style={localStyles.bannerAvatar} />
         </View>
@@ -98,6 +104,7 @@ const localStyles = StyleSheet.create({
   },
   banner: {
     height: 120,
+    overflow: 'hidden',
   },
   avatarContainer: {
     position: 'absolute',
