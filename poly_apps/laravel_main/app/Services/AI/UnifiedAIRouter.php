@@ -212,17 +212,26 @@ class UnifiedAIRouter
      */
     public function getProvidersStatus(): array
     {
+        $openRouterInfo = $this->openRouter->getProviderInfo();
+        $deepSeekInfo = $this->deepSeek->getProviderInfo();
+
         return [
             'openrouter' => [
                 'available' => $this->openRouter->hasApiKey(),
                 'type' => 'text',
                 'priority' => 1,
+                'key_count' => $openRouterInfo['key_count'],
+                'rate_limit_multiplier' => $openRouterInfo['rate_limit_multiplier'],
+                'effective_limits' => $openRouterInfo['effective_rate_limits'],
                 'usage' => $this->openRouter->getUsageStats(),
             ],
             'deepseek' => [
                 'available' => $this->deepSeek->hasApiKey(),
                 'type' => 'text',
                 'priority' => 2,
+                'key_count' => $deepSeekInfo['key_count'],
+                'rate_limit_multiplier' => $deepSeekInfo['rate_limit_multiplier'],
+                'effective_limits' => $deepSeekInfo['effective_rate_limits'],
                 'usage' => $this->deepSeek->getUsageStats(),
             ],
             'gemini' => [
@@ -230,6 +239,7 @@ class UnifiedAIRouter
                 'type' => 'multimodal',
                 'priority' => 1,
                 'capabilities' => ['text', 'image_gen', 'image_analyze', 'document'],
+                'usage' => $this->gemini->getUsageStats(),
             ],
         ];
     }

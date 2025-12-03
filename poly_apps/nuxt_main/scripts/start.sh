@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Define required variables for gvar_common.sh before sourcing
+SHELLS_DIR=""
+SHELLS_SCRIPTS_DIR=""
+CORE_SCRIPTS_DIR=""
+
 SCRIPT_DIR=""
 APP_DIR=""
 ORIGINAL_WORKING_DIR=""
