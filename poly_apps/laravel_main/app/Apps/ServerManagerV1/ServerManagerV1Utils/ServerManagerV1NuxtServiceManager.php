@@ -250,6 +250,11 @@ class ServerManagerV1NuxtServiceManager
     private static function generateServiceFileContent(string $appname, string $factoryPath, int $port, string $user): string
     {
         $nodePath = PathMapper::getNodeBinaryPath();
+        $nodeBinDir = dirname($nodePath);
+
+        // Build PATH with node directory
+        $pathDirs = array_unique([$nodeBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
+        $pathEnv = implode(':', $pathDirs);
 
         return <<<SERVICE
 [Unit]
@@ -260,6 +265,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$factoryPath
+Environment="PATH=$pathEnv"
 Environment="NODE_ENV=production"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
@@ -282,10 +288,18 @@ SERVICE;
     private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
     {
         $nodePath = PathMapper::getNodeBinaryPath();
+        $pnpmPath = PathMapper::getPnpmBinaryPath();
+        $nodeBinDir = dirname($nodePath);
+        $pnpmBinDir = dirname($pnpmPath);
+
         $coreNodeDir = PathMapper::getCoreNodeDir();
         $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
         $switchScript = "$nuxtMainPath/scripts/switch-app.js";
         $factoryPath = self::getFactoryPath($appname);
+
+        // Build PATH with node and pnpm directories
+        $pathDirs = array_unique([$nodeBinDir, $pnpmBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
+        $pathEnv = implode(':', $pathDirs);
 
         return <<<SERVICE
 [Unit]
@@ -296,6 +310,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$factoryPath
+Environment="PATH=$pathEnv"
 Environment="NODE_ENV=development"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
