@@ -123,9 +123,18 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         $this->info("Domain: $domain, Port: $port");
 
         if ($this->checkIfPolyAppExists($appname)) {
-            $this->warn("PolyApp $appname already exists. Fixing and resetting...");
-            $this->fixAndResetPolyApp($appname, $domain, $port, $sslMode);
-            return 0;
+            $this->warn("PolyApp $appname already exists. Removing old deployment...");
+            $serviceName = ServerManagerV1NuxtServiceManager::getNuxtServiceName($appname);
+            ServerManagerV1NuxtServiceManager::removeService($serviceName);
+
+            $factoryPath = "$this->factoryBasePath/_app_$appname";
+            if (is_dir($factoryPath)) {
+                $this->comment("Removing old factory directory...");
+                Process::run("rm -rf $factoryPath");
+            }
+
+            $this->info("Rebuilding from scratch...");
+            // Continue with deployment below instead of recursing
         }
 
         // Define steps based on mode
@@ -331,7 +340,18 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
 
         $this->comment("Copying workspace to factory: $factoryPath");
 
-        $excludes = ['node_modules', '.nuxt', '.output', '.git', '.app-backups', 'dist', 'node-compile-cache'];
+        // Exclude node_modules and pnpm metadata - factory will do fresh install
+        $excludes = [
+            'node_modules',
+            'pnpm-lock.yaml',       // Will be regenerated in factory
+            '.pnpm-debug.log',
+            '.nuxt',
+            '.output',
+            '.git',
+            '.app-backups',
+            'dist',
+            'node-compile-cache'
+        ];
         $excludeArgs = implode(' ', array_map(fn($e) => "--exclude='$e'", $excludes));
 
         $rsyncCmd = "rsync -a $excludeArgs $this->nuxtMainPath/ $factoryPath/";
@@ -390,15 +410,38 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
     private function ensureFactoryDependencies(string $appname, string $user): bool
     {
         $factoryPath = "$this->factoryBasePath/_app_$appname";
-        $nodeModulesPath = "$factoryPath/node_modules";
 
-        // Check if node_modules exists and is populated
-        if (is_dir($nodeModulesPath) && count(scandir($nodeModulesPath)) > 10) {
-            $this->comment("✓ Factory dependencies already installed");
-            return true;
+        // Verify source directory has node_modules
+        $sourceNodeModules = "$this->nuxtMainPath/node_modules";
+        if (!is_dir($sourceNodeModules)) {
+            $this->warn("Source directory missing node_modules: $sourceNodeModules");
+            $this->warn("Please run 'pnpm install' in source directory first");
+            return false;
+        }
+        $this->comment("✓ Source directory has node_modules");
+
+        // Factory directory needs node_modules to run pnpm nuxt dev
+        // Clean up any existing pnpm metadata from previous deployments
+        $this->comment("Cleaning factory directory for fresh pnpm install...");
+
+        $cleanupPaths = [
+            "$factoryPath/node_modules",           // Old dependencies
+            "$factoryPath/pnpm-lock.yaml",         // Old lockfile (may have wrong store paths)
+            "$factoryPath/.pnpm-debug.log",        // Debug logs
+        ];
+
+        foreach ($cleanupPaths as $path) {
+            if (file_exists($path)) {
+                $basename = basename($path);
+                $this->debugInfo("Removing old: $basename");
+                $result = Process::run("rm -rf " . escapeshellarg($path));
+                if ($result->failed()) {
+                    $this->warn("Failed to remove $basename, continuing anyway...");
+                }
+            }
         }
 
-        $this->comment("Installing dependencies in factory (as $user)...");
+        $this->comment("Installing dependencies in factory (fresh install)...");
 
         $packageManager = $this->detectPackageManager();
         $pmPath = match($packageManager) {
@@ -418,27 +461,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             return false;
         }
 
-        $this->comment("✓ Factory dependencies installed");
-
-        // Now that dependencies are installed, switch the app entry
-        $switchScript = "$factoryPath/scripts/switch-app.js";
-        if (!file_exists($switchScript)) {
-            $this->error("Switch script not found: $switchScript");
-            return false;
-        }
-
-        $this->comment("Switching app entry to: $appname");
-        $switchResult = Process::path($factoryPath)
-            ->timeout(30)
-            ->run("node scripts/switch-app.js $appname");
-
-        if ($switchResult->failed()) {
-            $this->error("Failed to switch app entry");
-            $this->error($switchResult->errorOutput());
-            return false;
-        }
-
-        $this->comment("✓ App entry switched to: $appname");
+        $this->comment("✓ Factory dependencies installed (for pnpm nuxt dev)");
 
         // Pre-create node-compile-cache directory
         $cacheDir = "$factoryPath/node-compile-cache";
