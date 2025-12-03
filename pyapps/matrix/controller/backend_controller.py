@@ -42,6 +42,8 @@ class BackendController:
         # State
         self.running = False
         self.server_thread: Optional[threading.Thread] = None
+        self.app = None  # Will be set when server starts
+        self.static_mounted = False
 
     def _check_adb(self) -> bool:
         """Check ADB availability"""
@@ -61,6 +63,9 @@ class BackendController:
         """Start FastAPI server (blocking)"""
         import uvicorn
         from pyapps.matrix.main import app
+
+        # Save app reference for later static mounting
+        self.app = app
 
         ColorPrint.green(f"[BackendController] Starting FastAPI server...")
         ColorPrint.green(f"  Host: {self.host}:{self.port}")
@@ -136,3 +141,59 @@ class BackendController:
     def get_docs_url(self) -> str:
         """Get API documentation URL"""
         return f"http://{self.host}:{self.port}/docs"
+
+    def mount_static(self, static_dir: Path) -> bool:
+        """
+        Mount static files to FastAPI
+
+        This allows the backend to serve frontend static files
+        in production mode (unified port deployment)
+
+        Args:
+            static_dir: Directory containing static files
+
+        Returns:
+            True if mounted successfully
+        """
+        if self.static_mounted:
+            ColorPrint.yellow("[BackendController] Static files already mounted")
+            return True
+
+        if not static_dir.exists():
+            ColorPrint.red(f"[BackendController] Static directory not found: {static_dir}")
+            return False
+
+        try:
+            from fastapi.staticfiles import StaticFiles
+
+            # Get app reference
+            if self.app is None:
+                from pyapps.matrix.main import app
+                self.app = app
+
+            # Mount static files at root path with HTML fallback
+            # This allows SPA routing to work correctly
+            self.app.mount(
+                "/",
+                StaticFiles(directory=str(static_dir), html=True),
+                name="frontend"
+            )
+
+            self.static_mounted = True
+
+            ColorPrint.green("=" * 79)
+            ColorPrint.green(" STATIC FILES MOUNTED")
+            ColorPrint.green("=" * 79)
+            ColorPrint.green(f"  Directory: {static_dir}")
+            ColorPrint.green(f"  URL: http://{self.host}:{self.port}/")
+            ColorPrint.green(f"  Mode: Unified Port (Backend + Frontend)")
+            ColorPrint.green("=" * 79)
+            ColorPrint.white("")
+
+            return True
+
+        except Exception as e:
+            ColorPrint.red(f"[BackendController] Failed to mount static files: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

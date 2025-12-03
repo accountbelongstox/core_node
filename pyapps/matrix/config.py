@@ -72,10 +72,19 @@ class Config:
     WEB_HOST = "0.0.0.0"
     WEB_PORT = 8000
 
-    # Frontend configuration
+    # Frontend configuration (HARDCODED - modify here to change settings)
     FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "nuxt_main"
     FRONTEND_PORT = 38007  # Matrix frontend port (from app-config.json) - 38007 to avoid common port conflicts
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
+
+    # Frontend mode: 'dev' (separate ports) or 'production' (unified port with backend)
+    FRONTEND_MODE = "production"  # Change to "dev" for development
+
+    # Skip build: True to skip compilation (use existing .output), False to compile
+    FRONTEND_SKIP_BUILD = True  # Change to False to force rebuild
+
+    # Force rebuild: True to force rebuild even if .output exists, False for normal behavior
+    FRONTEND_FORCE_REBUILD = False  # Change to True to force rebuild
 
     # Static files directory (production mode)
     STATIC_DIR = APP_ROOT / "static"
