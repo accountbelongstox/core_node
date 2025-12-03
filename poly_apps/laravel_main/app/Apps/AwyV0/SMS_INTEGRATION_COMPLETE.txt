@@ -298,36 +298,24 @@ REQUIRED PERMISSIONS FIX
 
 ⚠️ IMPORTANT: The following permissions must be fixed to complete initialization
 
-1. Fix Core Node Permissions
------------------------------
-Run dd.sh and navigate to:
+1. Fix All Permissions (One Step)
+----------------------------------
+Run dd.sh with sudo and navigate to:
+  sudo dd.sh
   Linux Management > Permissions Repair Menu
 
 Select option 2: "Full Core Node Repair - All project directories"
 
-This will fix permissions for:
+This will automatically fix permissions for:
 - Core Node root directory
 - Scripts directory
 - Python directories (pycore, pyapps)
 - Node.js directories (ncore, apps)
+- Laravel database directory (/www/wwwroot/laravel_db/) ✅
+- SQLite database files
+- JSON status files
 
-2. Fix Laravel Database Permissions (Manual)
----------------------------------------------
-Note: dd.sh permissions menu does not currently include Laravel database
-directory. You need to manually fix these permissions:
-
-sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
-sudo chmod -R 775 /www/wwwroot/laravel_db/
-sudo chmod 664 /www/wwwroot/laravel_db/*.sqlite
-
-3. Create Status Files
------------------------
-sudo touch /www/wwwroot/laravel_db/awy_v0_init_status.json
-sudo touch /www/wwwroot/laravel_db/mcp_v1_init_status.json
-sudo chown www-data:www-data /www/wwwroot/laravel_db/*_init_status.json
-sudo chmod 664 /www/wwwroot/laravel_db/*_init_status.json
-
-4. Run Initialization
+2. Run Initialization
 ----------------------
 After fixing permissions:
 php artisan sys:init
