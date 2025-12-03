@@ -63,3 +63,16 @@ export interface FortuneResponse {
   mood: string;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  nameEn: string;
+  price: string;
+  priceNum: number;
+  dist: string;
+  rating: number;
+  image?: string;
+  description?: string;
+  category?: string;
+}
+
