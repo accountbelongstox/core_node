@@ -1,8 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Platform } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
 import { useStore } from '../store';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather as Icon } from '@react-native-vector-icons/feather';
+import { getTheme } from '../styles/theme';
+import { createStyles } from '../styles';
+
+// Export Avatar component for convenience
+export { Avatar } from './Avatar';
 
 // 1. Layout Container
 export const MobileLayout: React.FC<{ 
@@ -15,16 +22,17 @@ export const MobileLayout: React.FC<{
   style
 }) => {
   const { theme } = useStore();
-  const isDark = theme === 'dark';
+  const colors = getTheme(theme);
+  const styles = createStyles(colors);
 
   return (
-    <View style={[localStyles.mobileLayout, { backgroundColor: isDark ? '#0f172a' : '#f0f4f8' }, style]}>
+    <View style={[styles.mobileLayout, { backgroundColor: colors.bg }, style]}>
       {/* Background Gradient Orbs */}
-      <View style={[localStyles.orb, localStyles.orb1]} />
-      <View style={[localStyles.orb, localStyles.orb2]} />
+      <View style={[styles.orb, styles.orb1]} />
+      <View style={[styles.orb, styles.orb2]} />
       
       <ScrollView 
-        style={localStyles.contentScroll}
+        style={styles.contentScroll}
         contentContainerStyle={{ paddingBottom: showNav ? 120 : 20 }}
         showsVerticalScrollIndicator={false}
       >
@@ -36,42 +44,67 @@ export const MobileLayout: React.FC<{
   );
 };
 
-// 2. Glass Cards
+// 2. Glass Cards - Complete Glassmorphism Effect
 export const GlassCard: React.FC<{ 
   children: React.ReactNode, 
   style?: any,
   onPress?: () => void 
 }> = ({ children, style, onPress }) => {
   const { theme } = useStore();
+  const colors = getTheme(theme);
+  const styles = createStyles(colors);
   const isDark = theme === 'dark';
   
   const cardStyle = [
-    localStyles.glassCard,
+    styles.glassCard,
     {
-      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.4)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)',
+      backgroundColor: colors.glassBg,
+      borderColor: colors.glassBorder,
     },
     style
   ];
 
+  // Glassmorphism effect using BlurView
+  // Fix: Add overflow hidden and proper borderRadius to prevent black borders
+  const GlassContent = (
+    <View style={[cardStyle, { overflow: 'hidden' }]}>
+      {Platform.OS === 'ios' ? (
+        <BlurView
+          blurType={isDark ? 'dark' : 'light'}
+          blurAmount={16}
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: colors.cardRadius }
+          ]}
+        />
+      ) : null}
+      {/* Semi-transparent background layer for Android and fallback */}
+      <View style={[
+        StyleSheet.absoluteFill,
+        { 
+          backgroundColor: colors.glassBg,
+          borderRadius: colors.cardRadius 
+        }
+      ]} />
+      {/* Content layer */}
+      <View style={{ zIndex: 1 }}>
+        {children}
+      </View>
+    </View>
+  );
+
   if (onPress) {
     return (
       <TouchableOpacity onPress={onPress} activeOpacity={0.9}>
-        <View style={cardStyle}>
-          {children}
-        </View>
+        {GlassContent}
       </TouchableOpacity>
     );
   }
 
-  return (
-    <View style={cardStyle}>
-      {children}
-    </View>
-  );
+  return GlassContent;
 };
 
-// 3. Primary Button
+// 3. Primary Button - With Gradient Support
 export const Button: React.FC<{
   onPress?: () => void;
   variant?: 'primary' | 'danger' | 'ghost';
@@ -85,13 +118,75 @@ export const Button: React.FC<{
   children,
   disabled = false
 }) => {
-  const buttonStyle = [
-    localStyles.btn,
-    variant === 'primary' && localStyles.btnPrimary,
-    variant === 'danger' && localStyles.btnDanger,
-    variant === 'ghost' && localStyles.btnGhost,
-    disabled && localStyles.btnDisabled,
+  const { theme } = useStore();
+  const colors = getTheme(theme);
+  const styles = createStyles(colors);
+  
+  const baseStyle = [
+    styles.btn,
+    disabled && styles.btnDisabled,
     style
+  ];
+
+  const buttonContent = (
+    <Text style={styles.btnText}>{children}</Text>
+  );
+
+  // Gradient buttons - Fix: Add overflow hidden to prevent black borders
+  if (variant === 'primary' && !disabled) {
+    return (
+      <TouchableOpacity 
+        onPress={onPress} 
+        activeOpacity={0.8}
+        disabled={disabled}
+        style={[baseStyle, { overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={colors.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: colors.btnRadius }
+          ]}
+        />
+        <View style={[styles.btn, { backgroundColor: 'transparent' }]}>
+          {buttonContent}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  if (variant === 'danger' && !disabled) {
+    return (
+      <TouchableOpacity 
+        onPress={onPress} 
+        activeOpacity={0.8}
+        disabled={disabled}
+        style={[baseStyle, { overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={colors.dangerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: colors.btnRadius }
+          ]}
+        />
+        <View style={[styles.btn, { backgroundColor: 'transparent' }]}>
+          {buttonContent}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // Ghost or disabled button
+  const buttonStyle = [
+    baseStyle,
+    variant === 'primary' && styles.btnPrimary,
+    variant === 'danger' && styles.btnDanger,
+    variant === 'ghost' && styles.btnGhost,
   ];
 
   return (
@@ -101,7 +196,7 @@ export const Button: React.FC<{
       activeOpacity={0.8}
       disabled={disabled}
     >
-      <Text style={localStyles.btnText}>{children}</Text>
+      {buttonContent}
     </TouchableOpacity>
   );
 };
@@ -183,40 +278,89 @@ export const BottomNav: React.FC = () => {
     return false;
   };
 
+  const colors = getTheme(theme);
+  const styles = createStyles(colors);
+
+  const handleNavPress = (routeName: string) => {
+    // Use requestAnimationFrame to ensure navigation happens after any pending renders
+    requestAnimationFrame(() => {
+      navigation.navigate(routeName);
+    });
+  };
+
+  const handleCenterPress = () => {
+    // Use requestAnimationFrame to ensure navigation happens after any pending renders
+    requestAnimationFrame(() => {
+      navigation.navigate('AddFriend');
+    });
+  };
+
   const NavItem = ({ routeName, iconName, label }: { routeName: string, iconName: string, label: string }) => {
     const active = isActive(routeName);
-    const color = active ? '#14b8a6' : (isDark ? '#94a3b8' : '#64748b');
+    const color = active ? colors.navActive : colors.navText;
 
     return (
       <TouchableOpacity 
-        onPress={() => navigation.navigate(routeName)}
-        style={localStyles.navItem}
+        onPress={() => handleNavPress(routeName)}
+        style={styles.navItem}
         activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase touch area
       >
-        <Icon name={iconName} size={24} color={color} />
-        <Text style={[localStyles.navLabel, { color }]}>{label}</Text>
+        <Icon name={iconName as any} size={24} color={color} />
+        <Text style={[styles.navLabel, { color }]}>{label}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={localStyles.floatingNavContainer}>
-      <View style={[
-        localStyles.floatingNav,
-        {
-          backgroundColor: isDark ? '#1e293b' : '#ffffff',
-        }
-      ]}>
-        <NavItem routeName="MapHome" iconName="home" label={t('tab.home')} />
-        <NavItem routeName="AIAssistant" iconName="zap" label={t('tab.ai')} />
+    <View 
+      style={styles.floatingNavContainer}
+      pointerEvents="box-none" // Allow touches to pass through container to children
+    >
+      <View 
+        style={[
+          styles.floatingNav,
+          {
+            backgroundColor: colors.navBg,
+          }
+        ]}
+        pointerEvents="box-none" // Allow touches to pass through to children
+      >
+        <NavItem routeName="MapHome" iconName="map" label={t('tab.map')} />
+        <NavItem routeName="FriendsList" iconName="users" label={t('tab.friends')} />
         
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('AddFriend')}
-          style={localStyles.navCenterBtn}
-          activeOpacity={0.8}
+        {/* Center Button - Spacer for layout, then absolute positioned button */}
+        <View style={{ width: 56 }} pointerEvents="none" />
+        <View style={{ 
+          position: 'absolute', 
+          left: 0,
+          right: 0,
+          top: -18,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 101,
+        }}
+        pointerEvents="box-none"
         >
-          <Icon name="plus" size={28} color="white" />
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleCenterPress}
+            activeOpacity={0.8}
+            style={{ 
+              overflow: 'hidden', 
+              borderRadius: 28,
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase touch area
+          >
+            <LinearGradient
+              colors={colors.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.navCenterBtn, { backgroundColor: 'transparent' }]}
+            >
+              <Icon name="plus" size={28} color="white" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
         
         <NavItem routeName="Shop" iconName="shopping-bag" label={t('tab.shop')} />
         <NavItem routeName="Profile" iconName="user" label={t('tab.me')} />
@@ -225,7 +369,7 @@ export const BottomNav: React.FC = () => {
   );
 };
 
-// 6. Header
+// 6. Header - With transparent background and styled back button
 export const Header: React.FC<{ 
   title: string, 
   backTo?: string, 
@@ -233,27 +377,39 @@ export const Header: React.FC<{
 }> = ({ title, backTo, action }) => {
   const navigation = useNavigation<any>();
   const { theme } = useStore();
+  const colors = getTheme(theme);
   const isDark = theme === 'dark';
 
   return (
     <View style={[
       localStyles.appHeader,
-      { backgroundColor: isDark ? '#0f172a' : '#f0f4f8' }
+      { backgroundColor: 'transparent' } // Transparent background
     ]}>
       <View style={{ width: 40 }}>
         {backTo && (
           <TouchableOpacity 
             onPress={() => navigation.goBack()}
-            style={localStyles.backBtn}
+            style={[
+              localStyles.backBtn,
+              {
+                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.4)',
+                borderRadius: 20,
+              }
+            ]}
             activeOpacity={0.7}
           >
-            <Icon name="chevron-left" size={24} color={isDark ? '#f8fafc' : '#1e293b'} />
+            <Icon name="arrow-left" size={20} color={isDark ? '#f8fafc' : '#1e293b'} />
           </TouchableOpacity>
         )}
       </View>
       <Text style={[
         localStyles.headerTitle,
-        { color: isDark ? '#f8fafc' : '#1e293b' }
+        { 
+          color: isDark ? '#f8fafc' : '#1e293b',
+          textShadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.8)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        }
       ]}>
         {title}
       </Text>
@@ -395,12 +551,13 @@ const localStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
-  },
+    backBtn: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: -8,
+      // Background and border will be added dynamically for glassmorphism effect
+    },
 });
 

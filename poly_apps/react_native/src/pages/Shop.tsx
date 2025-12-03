@@ -5,14 +5,7 @@ import { useStore } from '../store';
 import { Feather as Icon } from '@react-native-vector-icons/feather';
 
 const Shop: React.FC = () => {
-  const { t } = useStore();
-
-  const products = [
-    { id: 1, name: 'Kids Smart Watch', price: '$49.99', dist: '1.2km', rating: 4.8 },
-    { id: 2, name: 'Safety Alarm Keychain', price: '$12.50', dist: '0.5km', rating: 4.5 },
-    { id: 3, name: 'Portable GPS Tracker', price: '$29.99', dist: '2.0km', rating: 4.9 },
-    { id: 4, name: 'Senior Care Band', price: '$89.00', dist: '3.5km', rating: 4.7 },
-  ];
+  const { products, t, language } = useStore();
 
   return (
     <MobileLayout>
@@ -29,7 +22,9 @@ const Shop: React.FC = () => {
                 <Icon name="shopping-bag" size={48} color="#94a3b8" />
               </View>
               <View style={styles.productContent}>
-                <Text style={styles.productName}>{p.name}</Text>
+                <Text style={styles.productName}>
+                  {language === 'zh' ? p.name : p.nameEn}
+                </Text>
                 
                 <View style={styles.productMeta}>
                   <View style={styles.metaItem}>
@@ -46,7 +41,7 @@ const Shop: React.FC = () => {
                 <View style={styles.productFooter}>
                   <Text style={styles.productPrice}>{p.price}</Text>
                   <TouchableOpacity style={styles.buyButton}>
-                    <Text style={styles.buyButtonText}>Buy</Text>
+                    <Text style={styles.buyButtonText}>{t('shop.buy')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
