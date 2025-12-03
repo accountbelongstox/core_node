@@ -30,9 +30,10 @@ const MainTabs = () => {
         headerShown: false,
         tabBarStyle: { display: 'none' }, // Hide default tab bar, we use custom BottomNav
       }}
+      initialRouteName="FriendsList" // Start at FriendsList (好友页) after login
     >
       <Tab.Screen name="MapHome" component={MapHome} />
-      <Tab.Screen name="AIAssistant" component={AIAssistant} />
+      <Tab.Screen name="FriendsList" component={FriendsList} />
       <Tab.Screen name="Shop" component={Shop} />
       <Tab.Screen name="Profile" component={Profile} />
     </Tab.Navigator>
@@ -54,7 +55,10 @@ const AppRoutes = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator 
+        screenOptions={{ headerShown: false }}
+        initialRouteName="MainTabs"
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="FriendsList" component={FriendsList} />
         <Stack.Screen name="FriendDetail" component={FriendDetail} />
