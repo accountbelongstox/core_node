@@ -10,14 +10,14 @@ instead of standalone scripts. The dd.sh tool provides a comprehensive menu
 system for managing all aspects of the Core Node project.
 
 ================================================================================
-🎯 QUICK FIX (2-Step Process)
+🎯 QUICK FIX (1-Step Process)
 ================================================================================
 
-Step 1: Use dd.sh Permissions Repair Menu
-------------------------------------------
+Use dd.sh Permissions Repair Menu
+----------------------------------
 Run dd.sh from the Core Node root directory:
 
-    dd.sh
+    sudo dd.sh
 
 Navigate the menu:
 1. Select: "Linux Management"
@@ -29,8 +29,10 @@ Navigate the menu:
    - Recommended for script execution issues
 
    Option 2: Full Core Node Repair ⭐ RECOMMENDED
-   - All project directories (scripts, pycore, ncore, apps)
-   - Comprehensive fix for most permission issues
+   - All project directories (scripts, pycore, ncore, apps, pyapps)
+   - Laravel database directory (/www/wwwroot/laravel_db/)
+   - Comprehensive fix for ALL permission issues
+   - ✅ Includes Laravel database permissions
 
    Option 3: Python Permissions
    - pycore & pyapps directories only
@@ -56,21 +58,8 @@ Navigate the menu:
    - Runs all of the above
    - Nuclear option for serious issues
 
-Step 2: Fix Laravel Database Permissions (Manual)
---------------------------------------------------
-⚠️ IMPORTANT: dd.sh permissions menu does not include Laravel database
-directory. You must manually fix these permissions:
-
-    sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
-    sudo chmod -R 775 /www/wwwroot/laravel_db/
-    sudo chmod 664 /www/wwwroot/laravel_db/*.sqlite
-
-Create status files:
-
-    sudo touch /www/wwwroot/laravel_db/awy_v0_init_status.json
-    sudo touch /www/wwwroot/laravel_db/mcp_v1_init_status.json
-    sudo chown www-data:www-data /www/wwwroot/laravel_db/*_init_status.json
-    sudo chmod 664 /www/wwwroot/laravel_db/*_init_status.json
+⚠️ IMPORTANT: You must run dd.sh with sudo for permissions repair:
+    sudo dd.sh
 
 ================================================================================
 📚 dd.sh MENU STRUCTURE
@@ -117,12 +106,15 @@ Fixes:
 ✓ Scripts directory (chmod 777)
 ✓ Python directories: pycore, pyapps (chmod 777)
 ✓ Node.js directories: ncore, apps (chmod 777)
+✓ Laravel database directory: /www/wwwroot/laravel_db/ (www-data:www-data, chmod 775)
+✓ SQLite database files (chmod 664)
+✓ JSON status files (chmod 664)
 ✓ All .sh files made executable (chmod 755)
 ✓ Ownership set to real user
 
 Time: ~30 seconds
-Scope: Comprehensive
-Use when: Major permission issues
+Scope: Comprehensive (includes Laravel)
+Use when: Any permission issues
 
 Option 3: Python Permissions
 -----------------------------
@@ -200,12 +192,12 @@ Use when: Multiple issues or unknown cause
 
 1. Requires Root Access
    - Most repair options require sudo/root access
-   - Run dd.sh with sudo if needed: sudo dd.sh
+   - ALWAYS run dd.sh with sudo: sudo dd.sh
 
-2. Laravel Database NOT Included
-   - dd.sh does not fix /www/wwwroot/laravel_db/ permissions
-   - You MUST manually fix Laravel database permissions
-   - See "Step 2" in Quick Fix section above
+2. Laravel Database NOW Included ✅
+   - Option 2 (Full Core Node Repair) now includes /www/wwwroot/laravel_db/
+   - Automatically fixes all Laravel database permissions
+   - No manual steps required
 
 3. Safe to Run Multiple Times
    - All repair operations are idempotent
@@ -244,18 +236,18 @@ Solution:
 Scenario 4: Laravel "Permission denied" errors
 -----------------------------------------------
 Solution:
-1. Run: dd.sh
+1. Run: sudo dd.sh
 2. Navigate to: Permissions Repair Menu
 3. Select: Option 2 (Full Core Node Repair)
-4. THEN manually fix Laravel database (see Step 2 above)
+4. Done! Laravel database permissions are automatically fixed
 
 Scenario 5: Multiple unknown issues
 ------------------------------------
 Solution:
-1. Run: dd.sh
+1. Run: sudo dd.sh
 2. Navigate to: Permissions Repair Menu
 3. Select: Option 8 (Complete System Repair)
-4. THEN manually fix Laravel database (see Step 2 above)
+4. Done! All permissions are automatically fixed
 
 ================================================================================
 🔍 VERIFICATION
@@ -321,15 +313,10 @@ Disadvantages of Standalone Scripts:
 ================================================================================
 
 Before running Laravel artisan commands:
-☐ Run dd.sh > Linux Management > Permissions Repair Menu
-☐ Select Option 2: Full Core Node Repair
-☐ Manually fix Laravel database permissions:
-  sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
-  sudo chmod -R 775 /www/wwwroot/laravel_db/
-  sudo chmod 664 /www/wwwroot/laravel_db/*.sqlite
-☐ Create status files:
-  sudo touch /www/wwwroot/laravel_db/*_init_status.json
-  sudo chown www-data:www-data /www/wwwroot/laravel_db/*_init_status.json
+☐ Run: sudo dd.sh
+☐ Navigate to: Linux Management > Permissions Repair Menu
+☐ Select: Option 2 (Full Core Node Repair)
+☐ Wait for completion (all permissions fixed automatically)
 ☐ Run: php artisan sys:init
 ☐ Verify all ✅ in output
 

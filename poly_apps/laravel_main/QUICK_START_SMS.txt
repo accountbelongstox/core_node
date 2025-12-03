@@ -7,15 +7,11 @@ QUICK START: SMS Verification Code Service
 
 Step 1: Fix Permissions
 -----------------------
-# Use dd.sh permissions repair menu
-dd.sh
+# Use dd.sh permissions repair menu (includes Laravel database)
+sudo dd.sh
 # Navigate to: Linux Management > Permissions Repair Menu
 # Select option 2: Full Core Node Repair
-
-# Then manually fix Laravel database permissions:
-sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
-sudo chmod -R 775 /www/wwwroot/laravel_db/
-sudo chmod 664 /www/wwwroot/laravel_db/*.sqlite
+# All permissions are automatically fixed (including Laravel database)
 
 Step 2: Initialize System
 --------------------------
@@ -87,12 +83,10 @@ Service:        app/Services/VerificationCodeService.php
 
 Problem: "Permission denied"
 → Solution:
-  1. Run dd.sh
+  1. Run: sudo dd.sh
   2. Navigate to: Linux Management > Permissions Repair Menu
   3. Select option 2: Full Core Node Repair
-  4. Then manually fix Laravel database:
-     sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
-     sudo chmod -R 775 /www/wwwroot/laravel_db/
+  4. Done! All permissions fixed automatically
 
 Problem: "Rate limit exceeded"
 → Wait 60 seconds or adjust SMS_RATE_LIMIT_SECONDS in .env
