@@ -309,7 +309,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$factoryPath
+WorkingDirectory=$nuxtMainPath
 Environment="PATH=$pathEnv"
 Environment="NODE_ENV=development"
 Environment="PORT=$port"
@@ -453,10 +453,13 @@ SERVICE;
 
         $servicePath = self::getSystemdDir() . "/$serviceName.service";
         if (file_exists($servicePath)) {
-            if (!unlink($servicePath)) {
+            // Use Process::run to delete with proper permissions
+            $result = Process::run("rm -f $servicePath");
+            if ($result->failed()) {
                 Log::error('Failed to remove Nuxt service file', [
                     'service_name' => $serviceName,
-                    'path' => $servicePath
+                    'path' => $servicePath,
+                    'error' => $result->errorOutput()
                 ]);
                 return false;
             }
