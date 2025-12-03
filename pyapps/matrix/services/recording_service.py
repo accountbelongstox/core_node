@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from pycore.pyutils.device import ADBManager
 from pycore.pyutils.device_manager import DeviceManager
-from pyapps.matrix.config import Config
+from pyapps.matrix.matrix_config import Config
 
 
 class RecordingService:
