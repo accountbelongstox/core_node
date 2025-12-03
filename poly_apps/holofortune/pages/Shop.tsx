@@ -1,143 +1,49 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { MobileLayout, Header, GlassCard, Button } from '../components/Shared';
+import { MobileLayout, Header, GlassCard } from '../components/Shared';
 import { useStore } from '../store';
-import Icon from 'react-native-vector-icons/Feather';
+import { MapPin, Star, ShoppingBag } from 'lucide-react';
 
 const Shop: React.FC = () => {
   const { t } = useStore();
 
   const products = [
-    { id: 1, name: 'Kids Smart Watch', price: '$49.99', dist: '1.2km', rating: 4.8 },
-    { id: 2, name: 'Safety Alarm Keychain', price: '$12.50', dist: '0.5km', rating: 4.5 },
-    { id: 3, name: 'Portable GPS Tracker', price: '$29.99', dist: '2.0km', rating: 4.9 },
-    { id: 4, name: 'Senior Care Band', price: '$89.00', dist: '3.5km', rating: 4.7 },
+    { id: 1, name: 'Kids Smart Watch', price: '$49.99', dist: '1.2km', img: 'https://api.dicebear.com/7.x/icons/svg?seed=watch', rating: 4.8 },
+    { id: 2, name: 'Safety Alarm Keychain', price: '$12.50', dist: '0.5km', img: 'https://api.dicebear.com/7.x/icons/svg?seed=alarm', rating: 4.5 },
+    { id: 3, name: 'Portable GPS Tracker', price: '$29.99', dist: '2.0km', img: 'https://api.dicebear.com/7.x/icons/svg?seed=gps', rating: 4.9 },
+    { id: 4, name: 'Senior Care Band', price: '$89.00', dist: '3.5km', img: 'https://api.dicebear.com/7.x/icons/svg?seed=band', rating: 4.7 },
   ];
 
   return (
     <MobileLayout>
       <Header title={t('shop.title')} />
       
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.grid}>
-          {products.map(p => (
-            <GlassCard key={p.id} style={styles.productCard}>
-              <View style={styles.productImage}>
-                <Icon name="shopping-bag" size={48} color="#94a3b8" />
-              </View>
-              <View style={styles.productContent}>
-                <Text style={styles.productName}>{p.name}</Text>
+      <div className="px-5 pb-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {products.map(p => (
+          <GlassCard key={p.id} style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: 120, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingBag size={48} color="#94a3b8" />
+            </div>
+            <div style={{ padding: 12, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
                 
-                <View style={styles.productMeta}>
-                  <View style={styles.metaItem}>
-                    <Icon name="map-pin" size={12} color="#64748b" />
-                    <Text style={styles.metaText}>{p.dist}</Text>
-                  </View>
-                  <View style={styles.metaDivider} />
-                  <View style={styles.metaItem}>
-                    <Icon name="star" size={12} color="#fbbf24" />
-                    <Text style={styles.metaText}>{p.rating}</Text>
-                  </View>
-                </View>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', color: '#64748b', marginBottom: 8 }}>
+                    <MapPin size={12} /> {p.dist}
+                    <div style={{ width: 1, height: 10, background: '#cbd5e1', margin: '0 4px' }} />
+                    <Star size={12} fill="#fbbf24" color="#fbbf24" /> {p.rating}
+                </div>
 
-                <View style={styles.productFooter}>
-                  <Text style={styles.productPrice}>{p.price}</Text>
-                  <TouchableOpacity style={styles.buyButton}>
-                    <Text style={styles.buyButtonText}>Buy</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </GlassCard>
-          ))}
-        </View>
-      </ScrollView>
+                <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontWeight: 700, color: '#3b82f6' }}>{p.price}</div>
+                    <button style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600 }}>
+                        Buy
+                    </button>
+                </div>
+            </div>
+          </GlassCard>
+        ))}
+      </div>
     </MobileLayout>
   );
 };
-
-const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginTop: 16,
-  },
-  productCard: {
-    width: '47%',
-    padding: 0,
-    overflow: 'hidden',
-  },
-  productImage: {
-    height: 120,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productContent: {
-    padding: 12,
-    flex: 1,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  productMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 8,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  metaDivider: {
-    width: 1,
-    height: 10,
-    backgroundColor: '#cbd5e1',
-    marginHorizontal: 4,
-  },
-  productFooter: {
-    marginTop: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  productPrice: {
-    fontWeight: '700',
-    color: '#3b82f6',
-    fontSize: 14,
-  },
-  buyButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-  },
-  buyButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
 
 export default Shop;
