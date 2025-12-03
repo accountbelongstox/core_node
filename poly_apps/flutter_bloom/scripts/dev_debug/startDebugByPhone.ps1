@@ -2,8 +2,8 @@ $ErrorActionPreference = "Continue"
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Flutter Bloom Android Debug Launcher" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "[INFO] App: app_wuy" -ForegroundColor Yellow
-Write-Host "[INFO] Entry File: lib/apps/app_wuy/main_app_wuy.dart" -ForegroundColor Yellow
+Write-Host "[INFO] App: app_vipclub" -ForegroundColor Yellow
+Write-Host "[INFO] Entry File: lib/apps/app_vipclub/main_app_vipclub.dart" -ForegroundColor Yellow
 Write-Host "[INFO] Platform: Android" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Cyan
 Set-Location "D:\programing\core_node\poly_apps\flutter_bloom"
@@ -35,13 +35,13 @@ if ($adbDevices.Count -gt 0) {
 }
 
 Write-Host "[INFO] Starting Flutter for Android..." -ForegroundColor Green
-Write-Host "[INFO] Executing: flutter run --debug -t "lib/apps/app_wuy/main_app_wuy.dart"" -ForegroundColor Cyan
+Write-Host "[INFO] Executing: flutter run --debug -t "lib/apps/app_vipclub/main_app_vipclub.dart"" -ForegroundColor Cyan
 Write-Host "[DEBUG] Hot reload: press 'r'" -ForegroundColor Yellow
 Write-Host "[DEBUG] Hot restart: press 'R'" -ForegroundColor Yellow
 Write-Host "[DEBUG] Quit: press 'q'" -ForegroundColor Yellow
 
 try {
-    flutter run --debug -t "lib/apps/app_wuy/main_app_wuy.dart"
+    flutter run --debug -t "lib/apps/app_vipclub/main_app_vipclub.dart"
     Write-Host "[INFO] Flutter command completed successfully" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] Flutter command failed: $_" -ForegroundColor Red
