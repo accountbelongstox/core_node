@@ -1,248 +1,111 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import React, { useState, useEffect, useRef } from 'react';
 import { MobileLayout, GlassCard } from '../components/Shared';
+import L from 'leaflet';
 import { useStore } from '../store';
-import Icon from 'react-native-vector-icons/Feather';
-
-const { width, height } = Dimensions.get('window');
+import { Bell, ShieldAlert, Heart, Activity } from 'lucide-react';
 
 const MapHome: React.FC = () => {
-  const { friends, t, theme } = useStore();
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const { friends, t } = useStore();
   const activeFriend = friends[0]; // Select first friend for demo
-  const isDark = theme === 'dark';
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    
+    // If map already exists, just update view
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([activeFriend.location.lat, activeFriend.location.lng], 15);
+      return;
+    }
+
+    // Fix Leaflet Icons
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+
+    // Initialize Map
+    const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false
+    }).setView([activeFriend.location.lat, activeFriend.location.lng], 15);
+
+    // Add Tile Layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // Add Marker
+    const marker = L.marker([activeFriend.location.lat, activeFriend.location.lng])
+      .addTo(map)
+      .bindPopup(activeFriend.name)
+      .openPopup();
+
+    mapInstanceRef.current = map;
+
+    // Cleanup
+    return () => {
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+        }
+    };
+  }, [activeFriend.location.lat, activeFriend.location.lng, activeFriend.name]);
 
   return (
-    <View style={styles.container}>
+    <MobileLayout style={{ overflow: 'hidden', height: '100vh', paddingBottom: 0 }}>
       {/* Full Screen Map Container */}
-      <MapView
-        style={styles.map}
-        initialRegion={{
-          latitude: activeFriend.location.lat,
-          longitude: activeFriend.location.lng,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-        mapType={isDark ? 'standard' : 'standard'}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-      >
-        <Marker
-          coordinate={{
-            latitude: activeFriend.location.lat,
-            longitude: activeFriend.location.lng,
-          }}
-          title={activeFriend.name}
-        />
-      </MapView>
+      <div ref={mapContainerRef} className="map-full-container" />
 
       {/* Floating Header Controls */}
-      <View style={styles.mapControls}>
-        <TouchableOpacity style={[styles.controlBtn, styles.alertBtn]}>
-          <Icon name="shield-alert" size={20} color="#ef4444" />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.controlBtn, styles.normalBtn]}>
-          <Icon name="bell" size={20} color="#3b82f6" />
-        </TouchableOpacity>
-      </View>
+      <div className="map-controls">
+        <button className="control-btn alert">
+           <ShieldAlert size={20} />
+        </button>
+        <button className="control-btn normal">
+           <Bell size={20} />
+        </button>
+      </div>
 
       {/* Bottom Card */}
-      <View style={styles.mapCardContainer}>
-        <GlassCard style={styles.mapCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.avatarContainer}>
-              <Image 
-                source={{ uri: activeFriend.avatar }} 
-                style={styles.avatar}
-              />
-              <View style={styles.statusDot} />
-            </View>
-            <View style={styles.cardContent}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{activeFriend.name}</Text>
-                <View style={styles.relationBadge}>
-                  <Text style={styles.relationText}>{activeFriend.relation}</Text>
-                </View>
-              </View>
-              <View style={styles.daysRow}>
-                <Icon name="heart" size={12} color="#ec4899" />
-                <Text style={styles.daysText}>
-                  {t('home.days')}: {activeFriend.daysConnected}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.batteryContainer}>
-              <Text style={styles.batteryLabel}>Battery</Text>
-              <Text style={styles.batteryValue}>85%</Text>
-            </View>
-          </View>
+      <div className="map-card-container">
+        <GlassCard style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="flex-row items-center gap-4 p-4">
+            <div style={{ position: 'relative' }}>
+              <img src={activeFriend.avatar} alt={activeFriend.name} style={{ width: 56, height: 56, borderRadius: '50%', border: '2px solid white' }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, background: '#22c55e', borderRadius: '50%', border: '1px solid white' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="flex-row items-center gap-2">
+                <h3 style={{ fontWeight: 700, fontSize: '1.125rem' }}>{activeFriend.name}</h3>
+                <span style={{ fontSize: '0.75rem', background: '#dbeafe', color: '#2563eb', padding: '2px 8px', borderRadius: 99, fontWeight: 500 }}>{activeFriend.relation}</span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Heart size={12} fill="#ec4899" color="#ec4899" />
+                {t('home.days')}: {activeFriend.daysConnected}
+              </p>
+            </div>
+            <div className="text-center">
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Battery</div>
+              <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#16a34a' }}>85%</div>
+            </div>
+          </div>
           
-          <View style={styles.cardActions}>
-            <TouchableOpacity style={[styles.actionButton, styles.sosButton]}>
-              <Icon name="shield-alert" size={16} color="#ef4444" />
-              <Text style={[styles.actionText, styles.sosText]}>{t('home.sos')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.fenceButton]}>
-              <Icon name="activity" size={16} color="#3b82f6" />
-              <Text style={[styles.actionText, styles.fenceText]}>{t('home.fence')}</Text>
-            </TouchableOpacity>
-          </View>
+          <div style={{ background: 'rgba(255,255,255,0.3)', padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, borderTop: '1px solid rgba(255,255,255,0.4)' }}>
+            <button className="flex-center gap-2" style={{ color: 'var(--danger-color)', fontWeight: 700, fontSize: '0.875rem', borderRight: '1px solid rgba(255,255,255,0.4)' }}>
+              <ShieldAlert size={16} /> {t('home.sos')}
+            </button>
+             <button className="flex-center gap-2" style={{ color: 'var(--primary-color)', fontWeight: 700, fontSize: '0.875rem' }}>
+              <Activity size={16} /> {t('home.fence')}
+            </button>
+          </div>
         </GlassCard>
-      </View>
-    </View>
+      </div>
+    </MobileLayout>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  mapControls: {
-    position: 'absolute',
-    top: 48,
-    right: 20,
-    zIndex: 20,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  controlBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  alertBtn: {
-    // Animation handled by pulse if needed
-  },
-  normalBtn: {
-    // Normal state
-  },
-  mapCardContainer: {
-    position: 'absolute',
-    bottom: 110,
-    left: 16,
-    right: 16,
-    zIndex: 20,
-  },
-  mapCard: {
-    padding: 0,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    padding: 16,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  statusDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    backgroundColor: '#22c55e',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  cardContent: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  name: {
-    fontWeight: '700',
-    fontSize: 18,
-    color: '#1e293b',
-  },
-  relationBadge: {
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 99,
-  },
-  relationText: {
-    fontSize: 12,
-    color: '#2563eb',
-    fontWeight: '500',
-  },
-  daysRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  daysText: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  batteryContainer: {
-    alignItems: 'center',
-  },
-  batteryLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  batteryValue: {
-    fontFamily: 'monospace',
-    fontWeight: '700',
-    color: '#16a34a',
-  },
-  cardActions: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    padding: 12,
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.4)',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  sosButton: {
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.4)',
-  },
-  fenceButton: {
-    // No border
-  },
-  actionText: {
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  sosText: {
-    color: '#ef4444',
-  },
-  fenceText: {
-    color: '#3b82f6',
-  },
-});
 
 export default MapHome;
