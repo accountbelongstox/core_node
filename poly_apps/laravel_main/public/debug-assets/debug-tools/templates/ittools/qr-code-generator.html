@@ -1,0 +1,37 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">QR Code Generator</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Text/URL:</label>
+            <textarea 
+                id="qr-text-input" 
+                class="ittools-textarea" 
+                rows="4" 
+                placeholder="Enter text or URL"
+                data-input="qr-text-input"
+            ></textarea>
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">Size:</label>
+            <select 
+                id="qr-size" 
+                class="ittools-input"
+                data-input="qr-size"
+            >
+                <option value="200">Small (200x200)</option>
+                <option value="300" selected>Medium (300x300)</option>
+                <option value="500">Large (500x500)</option>
+            </select>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="generate-qr"
+            >
+                📱 Generate QR Code
+            </button>
+        </div>
+        <div id="qr-code-result" class="generator-result hidden"></div>
+    </div>
+</div>
+

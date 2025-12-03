@@ -7,101 +7,92 @@
 // ============================================
 // Base Converter (Client-side)
 // ============================================
+ITTools.Implementations.BaseConverter = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/base-converter.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'convert-base') {
+                this.convert();
+            }
+        });
+    },
+
+    convert() {
+        const input = document.querySelector('[data-input="base-input"]').value;
+        const fromBase = parseInt(document.querySelector('[data-input="base-from"]').value);
+        const toBase = parseInt(document.querySelector('[data-input="base-to"]').value);
+        const resultDiv = document.getElementById('base-result');
+        
+        const result = ITTools.ClientTools.Math.convertBase(input, fromBase, toBase);
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = `Result: ${result}`;
+    }
+};
+
 ITTools.Tools.Registry.register('base-converter', {
     name: 'Base Converter',
     category: 'converter',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Integer Base Converter</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Input Number:</label>
-                        <input type="text" id="base-input" class="ittools-input" placeholder="Enter number">
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">From Base (2-36):</label>
-                        <input type="number" id="base-from" class="ittools-input" value="10" min="2" max="36">
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">To Base (2-36):</label>
-                        <input type="number" id="base-to" class="ittools-input" value="16" min="2" max="36">
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.BaseConverter.convert()">
-                            🔄 Convert
-                        </button>
-                    </div>
-                    <div id="base-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
+    render: ITTools.Implementations.BaseConverter.render.bind(ITTools.Implementations.BaseConverter),
+    init: ITTools.Implementations.BaseConverter.init.bind(ITTools.Implementations.BaseConverter)
 });
-
-ITTools.Implementations.BaseConverter = {
-    convert() {
-        const input = document.getElementById('base-input').value;
-        const fromBase = parseInt(document.getElementById('base-from').value);
-        const toBase = parseInt(document.getElementById('base-to').value);
-        
-        if (!input) {
-            ITTools.UI.showResult('base-result', 'Please enter a number', false);
-            return;
-        }
-        
-        try {
-            const result = ITTools.ClientTools.Math.convertBase(input, fromBase, toBase);
-            ITTools.UI.showResult('base-result', `Result: ${result}`, true);
-        } catch (error) {
-            ITTools.UI.showResult('base-result', 'Error: ' + error.message, false);
-        }
-    }
-};
 
 // ============================================
 // Roman Numeral Converter (Client-side)
 // ============================================
-ITTools.Tools.Registry.register('roman-converter', {
-    name: 'Roman Numeral Converter',
-    category: 'converter',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Roman Numeral Converter</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Input:</label>
-                        <input type="text" id="roman-input" class="ittools-input" placeholder="42 or XLII">
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.RomanConverter.convert()">
-                            🔄 Convert
-                        </button>
-                    </div>
-                    <div id="roman-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.RomanConverter = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/roman-converter.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'convert-roman') {
+                this.convert();
+            }
+        });
+    },
+
     convert() {
-        const input = document.getElementById('roman-input').value.trim();
+        const input = document.querySelector('[data-input="roman-input"]').value.trim();
+        const resultDiv = document.getElementById('roman-result');
         
-        if (!input) {
-            ITTools.UI.showResult('roman-result', 'Please enter a number or roman numeral', false);
-            return;
-        }
-        
+        let result;
         if (/^\d+$/.test(input)) {
-            const result = this.toRoman(parseInt(input));
-            ITTools.UI.showResult('roman-result', `Roman: ${result}`, true);
+            result = `Roman: ${this.toRoman(parseInt(input))}`;
         } else {
-            const result = this.fromRoman(input.toUpperCase());
-            ITTools.UI.showResult('roman-result', `Number: ${result}`, true);
+            result = `Number: ${this.fromRoman(input.toUpperCase())}`;
         }
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = result;
     },
     
     toRoman(num) {
@@ -132,177 +123,180 @@ ITTools.Implementations.RomanConverter = {
     }
 };
 
+ITTools.Tools.Registry.register('roman-converter', {
+    name: 'Roman Numeral Converter',
+    category: 'converter',
+    render: ITTools.Implementations.RomanConverter.render.bind(ITTools.Implementations.RomanConverter),
+    init: ITTools.Implementations.RomanConverter.init.bind(ITTools.Implementations.RomanConverter)
+});
+
 // ============================================
 // JSON ⇄ YAML Converter
 // ============================================
-ITTools.Tools.Registry.register('json-yaml-converter', {
-    name: 'JSON ⇄ YAML',
-    category: 'converter',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">JSON ⇄ YAML Converter</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-tabs">
-                        <button class="ittools-tab active" onclick="ITTools.Implementations.JSONYAMLConverter.switchTab('json-to-yaml')">JSON → YAML</button>
-                        <button class="ittools-tab" onclick="ITTools.Implementations.JSONYAMLConverter.switchTab('yaml-to-json')">YAML → JSON</button>
-                    </div>
-                    
-                    <div id="json-to-yaml-tab" class="converter-tab-content">
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">JSON Input:</label>
-                            <textarea id="json-to-yaml-input" class="ittools-textarea" rows="10" placeholder='{"key": "value"}'></textarea>
-                        </div>
-                        <div class="ittools-btn-group">
-                            <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.JSONYAMLConverter.jsonToYaml()">
-                                → Convert to YAML
-                            </button>
-                        </div>
-                        <div id="json-to-yaml-result" class="ittools-result" style="display: none;"></div>
-                    </div>
-                    
-                    <div id="yaml-to-json-tab" class="converter-tab-content" style="display: none;">
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">YAML Input:</label>
-                            <textarea id="yaml-to-json-input" class="ittools-textarea" rows="10" placeholder="key: value"></textarea>
-                        </div>
-                        <div class="ittools-btn-group">
-                            <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.JSONYAMLConverter.yamlToJson()">
-                                → Convert to JSON
-                            </button>
-                        </div>
-                        <div id="yaml-to-json-result" class="ittools-result" style="display: none;"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.JSONYAMLConverter = {
-    switchTab(tab) {
-        document.querySelectorAll('.converter-tab-content').forEach(el => el.style.display = 'none');
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/json-yaml-converter.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            const actionName = action.dataset.action;
+            if (actionName === 'switch-tab') {
+                this.switchTab(action.dataset.tab, action);
+            } else if (actionName === 'json-to-yaml') {
+                this.jsonToYaml();
+            } else if (actionName === 'yaml-to-json') {
+                this.yamlToJson();
+            } else if (actionName === 'copy-json-yaml') {
+                this.copyToClipboard(action.dataset.content);
+            }
+        });
+    },
+
+    switchTab(tab, button) {
+        document.querySelectorAll('.converter-tab-content').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.ittools-tab').forEach(el => el.classList.remove('active'));
         
         if (tab === 'json-to-yaml') {
-            document.getElementById('json-to-yaml-tab').style.display = 'block';
-            event.target.classList.add('active');
+            document.getElementById('json-to-yaml-tab').classList.remove('hidden');
         } else {
-            document.getElementById('yaml-to-json-tab').style.display = 'block';
-            event.target.classList.add('active');
+            document.getElementById('yaml-to-json-tab').classList.remove('hidden');
         }
+        button.classList.add('active');
     },
     
     async jsonToYaml() {
-        const input = document.getElementById('json-to-yaml-input').value;
+        const input = document.querySelector('[data-input="json-to-yaml-input"]').value;
+        const resultDiv = document.getElementById('json-to-yaml-result');
         
-        if (!input) {
-            ITTools.UI.showResult('json-to-yaml-result', 'Please enter JSON', false);
-            return;
-        }
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Converting...';
         
-        ITTools.UI.showLoading('json-to-yaml-result', 'Converting...');
+        const result = await apiClientInstance.json('/api/ittools/v1/converter/json-to-yaml', 'POST', { 
+            json: input 
+        });
         
-        try {
-            const response = await fetch('/api/ittools/v1/converter/json-to-yaml', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ json: input })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                ITTools.UI.showResult('json-to-yaml-result', 
-                    `<strong>YAML Output:</strong><br>
-                    <textarea class="ittools-textarea" rows="10" readonly>${result.data.yaml}</textarea>
-                    <button onclick="ITTools.UI.copyToClipboard(\`${result.data.yaml.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy</button>`, 
-                    true);
-            } else {
-                ITTools.UI.showResult('json-to-yaml-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('json-to-yaml-result', 'Error: ' + error.message, false);
-        }
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'converter-result-header';
+        header.textContent = 'YAML Output:';
+        
+        const textarea = document.createElement('textarea');
+        textarea.className = 'ittools-textarea converter-result-textarea';
+        textarea.rows = 10;
+        textarea.readOnly = true;
+        textarea.value = result.data.yaml;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm converter-result-copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.dataset.action = 'copy-json-yaml';
+        copyBtn.dataset.content = result.data.yaml;
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard(result.data.yaml);
+        });
+        
+        resultDiv.appendChild(header);
+        resultDiv.appendChild(textarea);
+        resultDiv.appendChild(copyBtn);
     },
     
     async yamlToJson() {
-        const input = document.getElementById('yaml-to-json-input').value;
+        const input = document.querySelector('[data-input="yaml-to-json-input"]').value;
+        const resultDiv = document.getElementById('yaml-to-json-result');
         
-        if (!input) {
-            ITTools.UI.showResult('yaml-to-json-result', 'Please enter YAML', false);
-            return;
-        }
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Converting...';
         
-        ITTools.UI.showLoading('yaml-to-json-result', 'Converting...');
+        const result = await apiClientInstance.json('/api/ittools/v1/converter/yaml-to-json', 'POST', { 
+            yaml: input 
+        });
         
-        try {
-            const response = await fetch('/api/ittools/v1/converter/yaml-to-json', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ yaml: input })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                const formatted = JSON.stringify(result.data.json, null, 2);
-                ITTools.UI.showResult('yaml-to-json-result', 
-                    `<strong>JSON Output:</strong><br>
-                    <textarea class="ittools-textarea" rows="10" readonly>${formatted}</textarea>
-                    <button onclick="ITTools.UI.copyToClipboard(\`${formatted.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy</button>`, 
-                    true);
-            } else {
-                ITTools.UI.showResult('yaml-to-json-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('yaml-to-json-result', 'Error: ' + error.message, false);
-        }
+        const formatted = JSON.stringify(result.data.json, null, 2);
+        
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'converter-result-header';
+        header.textContent = 'JSON Output:';
+        
+        const textarea = document.createElement('textarea');
+        textarea.className = 'ittools-textarea converter-result-textarea';
+        textarea.rows = 10;
+        textarea.readOnly = true;
+        textarea.value = formatted;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm converter-result-copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.dataset.action = 'copy-json-yaml';
+        copyBtn.dataset.content = formatted;
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard(formatted);
+        });
+        
+        resultDiv.appendChild(header);
+        resultDiv.appendChild(textarea);
+        resultDiv.appendChild(copyBtn);
+    },
+
+    async copyToClipboard(text) {
+        await navigator.clipboard.writeText(text);
     }
 };
+
+ITTools.Tools.Registry.register('json-yaml-converter', {
+    name: 'JSON ⇄ YAML',
+    category: 'converter',
+    render: ITTools.Implementations.JSONYAMLConverter.render.bind(ITTools.Implementations.JSONYAMLConverter),
+    init: ITTools.Implementations.JSONYAMLConverter.init.bind(ITTools.Implementations.JSONYAMLConverter)
+});
 
 // ============================================
 // Temperature Converter (Client-side)
 // ============================================
-ITTools.Tools.Registry.register('temperature-converter', {
-    name: 'Temperature Converter',
-    category: 'converter',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Temperature Converter</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Temperature Value:</label>
-                        <input type="number" id="temp-value" class="ittools-input" placeholder="Enter temperature" step="0.1">
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">From:</label>
-                        <select id="temp-from" class="ittools-input">
-                            <option value="celsius">Celsius (°C)</option>
-                            <option value="fahrenheit">Fahrenheit (°F)</option>
-                            <option value="kelvin">Kelvin (K)</option>
-                        </select>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.TemperatureConverter.convert()">
-                            🌡️ Convert
-                        </button>
-                    </div>
-                    <div id="temp-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.TemperatureConverter = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/temperature-converter.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'convert-temperature') {
+                this.convert();
+            }
+        });
+    },
+
     convert() {
-        const value = parseFloat(document.getElementById('temp-value').value);
-        const from = document.getElementById('temp-from').value;
-        
-        if (isNaN(value)) {
-            ITTools.UI.showResult('temp-result', 'Please enter a valid temperature', false);
-            return;
-        }
+        const value = parseFloat(document.querySelector('[data-input="temp-value"]').value);
+        const from = document.querySelector('[data-input="temp-from"]').value;
+        const resultDiv = document.getElementById('temp-result');
         
         let celsius, fahrenheit, kelvin;
         
@@ -320,90 +314,136 @@ ITTools.Implementations.TemperatureConverter = {
             kelvin = value;
         }
         
-        const html = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px;">
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Celsius</div>
-                    <div style="font-size: 24px; font-weight: bold; color: #007bff;">${celsius.toFixed(2)}°C</div>
-                </div>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Fahrenheit</div>
-                    <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${fahrenheit.toFixed(2)}°F</div>
-                </div>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Kelvin</div>
-                    <div style="font-size: 24px; font-weight: bold; color: #28a745;">${kelvin.toFixed(2)}K</div>
-                </div>
-            </div>
-        `;
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
         
-        ITTools.UI.showResult('temp-result', html, true);
+        const grid = document.createElement('div');
+        grid.className = 'temp-result-grid';
+        
+        const celsiusItem = this.createTempItem('Celsius', celsius.toFixed(2) + '°C', 'temp-result-celsius');
+        const fahrenheitItem = this.createTempItem('Fahrenheit', fahrenheit.toFixed(2) + '°F', 'temp-result-fahrenheit');
+        const kelvinItem = this.createTempItem('Kelvin', kelvin.toFixed(2) + 'K', 'temp-result-kelvin');
+        
+        grid.appendChild(celsiusItem);
+        grid.appendChild(fahrenheitItem);
+        grid.appendChild(kelvinItem);
+        
+        resultDiv.appendChild(grid);
+    },
+
+    createTempItem(label, value, colorClass) {
+        const item = document.createElement('div');
+        item.className = 'temp-result-item';
+        
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'temp-result-label';
+        labelDiv.textContent = label;
+        
+        const valueDiv = document.createElement('div');
+        valueDiv.className = `temp-result-value ${colorClass}`;
+        valueDiv.textContent = value;
+        
+        item.appendChild(labelDiv);
+        item.appendChild(valueDiv);
+        
+        return item;
     }
 };
+
+ITTools.Tools.Registry.register('temperature-converter', {
+    name: 'Temperature Converter',
+    category: 'converter',
+    render: ITTools.Implementations.TemperatureConverter.render.bind(ITTools.Implementations.TemperatureConverter),
+    init: ITTools.Implementations.TemperatureConverter.init.bind(ITTools.Implementations.TemperatureConverter)
+});
 
 // ============================================
 // Markdown to HTML
 // ============================================
+ITTools.Implementations.MarkdownToHTML = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/markdown-to-html.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'convert-markdown') {
+                this.convert();
+            } else if (action.dataset.action === 'copy-markdown') {
+                this.copyToClipboard(action.dataset.content);
+            }
+        });
+    },
+
+    async convert() {
+        const input = document.querySelector('[data-input="markdown-input"]').value;
+        const resultDiv = document.getElementById('markdown-result');
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Converting...';
+        
+        const result = await apiClientInstance.json('/api/ittools/v1/web/markdown/to-html', 'POST', { 
+            markdown: input 
+        });
+        
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'converter-result-header';
+        header.textContent = 'HTML Output:';
+        
+        const textarea = document.createElement('textarea');
+        textarea.className = 'ittools-textarea converter-result-textarea';
+        textarea.rows = 10;
+        textarea.readOnly = true;
+        textarea.value = result.data.html;
+        
+        const previewHeader = document.createElement('h4');
+        previewHeader.className = 'markdown-preview-header';
+        previewHeader.textContent = 'Preview:';
+        
+        const preview = document.createElement('div');
+        preview.className = 'markdown-preview';
+        preview.innerHTML = result.data.html;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm converter-result-copy-btn';
+        copyBtn.textContent = '📋 Copy HTML';
+        copyBtn.dataset.action = 'copy-markdown';
+        copyBtn.dataset.content = result.data.html;
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard(result.data.html);
+        });
+        
+        resultDiv.appendChild(header);
+        resultDiv.appendChild(textarea);
+        resultDiv.appendChild(previewHeader);
+        resultDiv.appendChild(preview);
+        resultDiv.appendChild(copyBtn);
+    },
+
+    async copyToClipboard(text) {
+        await navigator.clipboard.writeText(text);
+    }
+};
+
 ITTools.Tools.Registry.register('markdown-to-html', {
     name: 'Markdown → HTML',
     category: 'converter',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Markdown to HTML Converter</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Markdown Input:</label>
-                        <textarea id="markdown-input" class="ittools-textarea" rows="10" placeholder="# Hello World"></textarea>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.MarkdownToHTML.convert()">
-                            → Convert to HTML
-                        </button>
-                    </div>
-                    <div id="markdown-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
+    render: ITTools.Implementations.MarkdownToHTML.render.bind(ITTools.Implementations.MarkdownToHTML),
+    init: ITTools.Implementations.MarkdownToHTML.init.bind(ITTools.Implementations.MarkdownToHTML)
 });
-
-ITTools.Implementations.MarkdownToHTML = {
-    async convert() {
-        const input = document.getElementById('markdown-input').value;
-        
-        if (!input) {
-            ITTools.UI.showResult('markdown-result', 'Please enter Markdown', false);
-            return;
-        }
-        
-        ITTools.UI.showLoading('markdown-result', 'Converting...');
-        
-        try {
-            const response = await fetch('/api/ittools/v1/web/markdown/to-html', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ markdown: input })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                ITTools.UI.showResult('markdown-result', 
-                    `<strong>HTML Output:</strong><br>
-                    <textarea class="ittools-textarea" rows="10" readonly>${result.data.html}</textarea>
-                    <h4 style="margin-top: 20px; color: #667eea;">Preview:</h4>
-                    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: white; margin-top: 10px;">
-                        ${result.data.html}
-                    </div>
-                    <button onclick="ITTools.UI.copyToClipboard(\`${result.data.html.replace(/`/g, '\\`')}\`)" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy HTML</button>`, 
-                    true);
-            } else {
-                ITTools.UI.showResult('markdown-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('markdown-result', 'Error: ' + error.message, false);
-        }
-    }
-};
 
 console.log('ITTools Converter Implementations loaded');

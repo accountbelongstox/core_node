@@ -1,0 +1,25 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">Markdown to HTML Converter</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Markdown Input:</label>
+            <textarea 
+                id="markdown-input" 
+                class="ittools-textarea" 
+                rows="10" 
+                placeholder="# Hello World"
+                data-input="markdown-input"
+            ></textarea>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="convert-markdown"
+            >
+                → Convert to HTML
+            </button>
+        </div>
+        <div id="markdown-result" class="ittools-result converter-result hidden"></div>
+    </div>
+</div>
+
