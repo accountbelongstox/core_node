@@ -43,6 +43,7 @@ class PySide6UIConfig:
     # ========== Application Configuration ==========
     app_name: str = "Native UI App"
     app_id: Optional[str] = None  # Unique app identifier for settings
+    app_user_model_id: Optional[str] = None  # Windows AppUserModelID for taskbar icon (if None, auto-generated)
     icon_path: Optional[str] = None
     logo_path: Optional[str] = None
     logo_size: int = 24
@@ -63,7 +64,7 @@ class PySide6UIConfig:
     title_font: Tuple[str, int] = ("Microsoft YaHei UI", 10)
 
     # Button configuration
-    show_menu_button: bool = False
+    menu_icon_path: Optional[str] = None  # Path to menu icon (if provided, menu button will be shown)
     show_minimize_button: bool = True
     show_maximize_button: bool = True
     show_close_button: bool = True
@@ -154,6 +155,7 @@ class StartupWindowConfig:
     app_name: str = "Application"
     width: int = 500
     height: int = 400
+    icon_path: Optional[str] = None  # Path to window icon (.ico for Windows, .png for Linux)
     show_startup: bool = True  # Whether to show startup window
     auto_close: bool = True  # Auto-close when PySide6 starts (False = keep as debug window)
     daemon: bool = True  # Run as daemon thread (auto-terminates with main)

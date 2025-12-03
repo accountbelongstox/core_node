@@ -36,6 +36,7 @@ class ColorsAppQy {
   
   static const Color qySuccess = Color(0xFF22C55E);
   static const Color qyWarning = Color(0xFFF59E0B);
+  static const Color qyWarningDark = Color(0xFFD97706);
   static const Color qyError = Color(0xFFEF4444);
   static const Color qyInfo = Color(0xFF3B82F6);
   

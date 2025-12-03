@@ -214,6 +214,7 @@ class PySide6Framework(QObject):
                 app_name=self.startup_config.app_name,
                 width=self.startup_config.width,
                 height=self.startup_config.height,
+                icon_path=self.startup_config.icon_path,
                 on_complete=self.startup_config.on_complete,
                 daemon=self.startup_config.daemon
             )
@@ -280,10 +281,29 @@ class PySide6Framework(QObject):
         self.qt_app.setApplicationName(self.config.app_name)
         ColorPrint.blue(f"[PySide6Framework] Set app name: {self.config.app_name}")
 
+        # Set Windows AppUserModelID for taskbar icon (Windows only)
+        if sys.platform == 'win32':
+            try:
+                import ctypes
+                # Use custom AppUserModelID if provided, otherwise auto-generate
+                if self.config.app_user_model_id:
+                    myappid = self.config.app_user_model_id
+                else:
+                    app_id = self.config.app_id or self.config.app_name.lower().replace(' ', '_')
+                    myappid = f'pycore.{app_id}.1.0'
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                ColorPrint.green(f"[PySide6Framework] Set Windows AppUserModelID: {myappid}")
+            except Exception as e:
+                ColorPrint.yellow(f"[PySide6Framework] Failed to set AppUserModelID: {e}")
+
         if self.config.icon_path and Path(self.config.icon_path).exists():
-            self.qt_app.setWindowIcon(QIcon(self.config.icon_path))
-            ColorPrint.green(f"[PySide6Framework] Set app icon: {self.config.icon_path}")
-            ColorPrint.green(f"[PySide6Framework] Window icon will be set from: {self.config.icon_path}")
+            icon = QIcon(self.config.icon_path)
+            if icon.isNull():
+                ColorPrint.red(f"[PySide6Framework] Failed to load icon from: {self.config.icon_path}")
+            else:
+                self.qt_app.setWindowIcon(icon)
+                ColorPrint.green(f"[PySide6Framework] Set app icon: {self.config.icon_path}")
+                ColorPrint.green(f"[PySide6Framework] Icon loaded successfully, available sizes: {icon.availableSizes()}")
         else:
             ColorPrint.yellow(f"[PySide6Framework] No icon path provided or file not found: {self.config.icon_path}")
 
@@ -357,8 +377,8 @@ class PySide6Framework(QObject):
 
             self.title_bar = PySide6TitleBar(
                 app_name=self.config.app_name,
-                show_menu=self.config.show_menu_button,
                 logo_path=self.config.logo_path,
+                menu_icon_path=self.config.menu_icon_path,
                 custom_styles=custom_styles
             )
             self.main_window.set_title_bar(self.title_bar)

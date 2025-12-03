@@ -102,6 +102,7 @@ class PySide6TitleBar(QWidget):
         app_name: str = "Application",
         show_menu: bool = True,
         logo_path: Optional[str] = None,
+        menu_icon_path: Optional[str] = None,
         styles: Optional[TitleBarStyles] = None,
         custom_styles: Optional[Dict[str, Any]] = None,
         parent: Optional[QWidget] = None
@@ -111,8 +112,9 @@ class PySide6TitleBar(QWidget):
 
         Args:
             app_name: Application name to display
-            show_menu: Show menu button
+            show_menu: Show menu button (deprecated, use menu_icon_path instead)
             logo_path: Path to logo image
+            menu_icon_path: Path to menu icon (if provided, menu button will be shown)
             styles: Base style configuration (use default if None)
             custom_styles: Custom style overrides (dict format)
             parent: Parent widget
@@ -143,6 +145,7 @@ class PySide6TitleBar(QWidget):
         self.app_name = app_name
         self.show_menu = show_menu
         self.logo_path = logo_path
+        self.menu_icon_path = menu_icon_path
 
         # Merge styles: base style + custom overrides
         base_style = styles or get_default_style()
@@ -189,14 +192,34 @@ class PySide6TitleBar(QWidget):
                 layout.addWidget(logo_label)
                 layout.addSpacing(self.styles.logo_spacing_right)
 
-        # Menu button (optional)
-        if self.show_menu:
-            self.menu_btn = TitleBarButton(
-                self.styles.menu_icon,
-                "Menu",
-                button_type="normal",
-                styles=self.styles
-            )
+        # Menu button (optional, only if menu_icon_path is provided)
+        if self.menu_icon_path and Path(self.menu_icon_path).exists():
+            self.menu_btn = QPushButton()
+            self.menu_btn.setFixedSize(self.styles.button_width, self.styles.button_height)
+            self.menu_btn.setToolTip("Menu")
+            self.menu_btn.setFlat(True)
+            self.menu_btn.setCursor(Qt.PointingHandCursor)
+
+            # Load and set icon
+            icon = QIcon(self.menu_icon_path)
+            self.menu_btn.setIcon(icon)
+            self.menu_btn.setIconSize(QSize(16, 16))
+
+            # Apply stylesheet
+            self.menu_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 4px;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba(255, 255, 255, 0.1);
+                }}
+                QPushButton:pressed {{
+                    background-color: rgba(255, 255, 255, 0.2);
+                }}
+            """)
+
             self.menu_btn.clicked.connect(self.menu_clicked.emit)
             layout.addWidget(self.menu_btn)
             layout.addSpacing(4)

@@ -236,8 +236,18 @@ function Install-PackageManagers {
     }
 
     if (Test-Path $PnpmExePath) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
+        Write-ColorMessage -Message "$SCRIPT_INDEX Configuring pnpm..." -Type "Info"
+
+        # Set pnpm global directories
+        $pnpmGlobalDir = Join-Path $NodeJSInstallDir "pnpm-global"
+        $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
+
+        & $PnpmExePath config set global-dir $pnpmGlobalDir
+        & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
         & $PnpmExePath setup
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
     }
 

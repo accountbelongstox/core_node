@@ -2,6 +2,8 @@ library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';
+import '../../../../../../resources_app_qy/colors_app_qy.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
 
 class WordSearchBar extends StatelessWidget {
   final TextEditingController controller;
@@ -19,11 +21,11 @@ class WordSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: ColorsAppQy.qyTextOnPrimary,
+        borderRadius: BorderRadius.circular(ThemeDimensions.radiusL),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: ColorsAppQy.qyShadowLight,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -45,11 +47,11 @@ class WordSearchBar extends StatelessWidget {
                 )
               : null,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(ThemeDimensions.radiusL),
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: ColorsAppQy.qyTextOnPrimary,
         ),
       ),
     );

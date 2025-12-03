@@ -240,11 +240,14 @@ def start_ui(config: Dict[str, Any]) -> Any:
     # Get configuration with defaults
     app_name = config.get('app_name', 'Pycore Application')
     app_id = config.get('app_id', 'pycore_ui')
+    app_user_model_id = config.get('app_user_model_id')  # Optional custom AppUserModelID
     window_size = config.get('window_size', (1000, 180))
     webview_url = config.get('webview_url', 'http://localhost:59000')
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
     icon_path = config.get('icon_path')
+    logo_path = config.get('logo_path')
+    menu_icon_path = config.get('menu_icon_path')
     enable_tray = config.get('enable_tray', False)
     enable_webview = config.get('enable_webview', True)
     enable_dev_tools = config.get('enable_dev_tools', False)
@@ -257,11 +260,14 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ColorPrint.blue("[ui] Configuration parsed:")
     ColorPrint.blue(f"[ui]   - app_name: {app_name}")
     ColorPrint.blue(f"[ui]   - app_id: {app_id}")
+    ColorPrint.blue(f"[ui]   - app_user_model_id: {app_user_model_id}")
     ColorPrint.blue(f"[ui]   - window_size: {window_size}")
     ColorPrint.blue(f"[ui]   - webview_url: {webview_url}")
     ColorPrint.blue(f"[ui]   - show_on_start: {show_on_start}")
     ColorPrint.blue(f"[ui]   - frameless: {frameless}")
     ColorPrint.blue(f"[ui]   - icon_path: {icon_path}")
+    ColorPrint.blue(f"[ui]   - logo_path: {logo_path}")
+    ColorPrint.blue(f"[ui]   - menu_icon_path: {menu_icon_path}")
     ColorPrint.blue(f"[ui]   - enable_tray: {enable_tray}")
     ColorPrint.blue(f"[ui]   - enable_webview: {enable_webview}")
     ColorPrint.blue(f"[ui]   - enable_dev_tools: {enable_dev_tools}")
@@ -274,10 +280,13 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ui_config = PySide6UIConfig(
         app_name=app_name,
         app_id=app_id,
+        app_user_model_id=app_user_model_id,
         window_size=window_size,
         show_on_start=show_on_start,
         frameless=frameless,
         icon_path=icon_path,
+        logo_path=logo_path,
+        menu_icon_path=menu_icon_path,
         enable_tray=enable_tray,
         enable_webview=enable_webview,
         webview_url=webview_url,
@@ -290,6 +299,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ColorPrint.blue("[ui] Creating StartupWindowConfig...")
     startup_config = StartupWindowConfig(
         app_name=app_name,
+        icon_path=icon_path,
         show_startup=show_startup,
         auto_close=auto_close_startup,
         daemon=True
