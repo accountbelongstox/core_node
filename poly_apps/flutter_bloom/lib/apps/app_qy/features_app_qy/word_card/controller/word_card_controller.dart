@@ -13,7 +13,9 @@
 import 'package:get/get.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/word_card/models/word_model.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 // AI MODIFICATION NOTE: This controller was enhanced by QR_Profile_AI_Assistant
 // - Fixed import paths to follow project structure
@@ -58,43 +60,14 @@ class WordCardController extends GetxController {
     // First try to load from storage
     await loadWordsFromStorage();
 
-    // If no data in storage, use default test data
+    // If no data in storage, load from centralized data source
+    // Note: In production, this should load from word service or API
     if (_words.isEmpty) {
-      _words.value = [
-        Word(
-          word: 'apple',
-          phonetic: '/ˈæpl/',
-          translation: 'n. apple',
-          example: 'An apple a day keeps the doctor away.',
-        ),
-        Word(
-          word: 'book',
-          phonetic: '/bʊk/',
-          translation: 'n. book',
-          example: 'I love reading books in my spare time.',
-        ),
-        Word(
-          word: 'computer',
-          phonetic: '/kəmˈpjuːtər/',
-          translation: 'n. computer',
-          example: 'I use my computer for work every day.',
-        ),
-        Word(
-          word: 'beautiful',
-          phonetic: '/ˈbjuːtɪfl/',
-          translation: 'adj. beautiful',
-          example: 'The sunset is beautiful tonight.',
-        ),
-        Word(
-          word: 'important',
-          phonetic: '/ɪmˈpɔːrtnt/',
-          translation: 'adj. important',
-          example: 'Education is very important for everyone.',
-        ),
-      ];
-
-      // Save default data to storage
-      await saveWordsToStorage();
+      // Use centralized storage key for word list
+      final defaultWordsJson = await _storage.getApp<List<Map<String, dynamic>>>(StorageAppQy.keyWordList);
+      if (defaultWordsJson != null && defaultWordsJson.isNotEmpty) {
+        _words.value = defaultWordsJson.map((json) => Word.fromJson(json)).toList();
+      }
     }
 
     update();
@@ -120,17 +93,21 @@ class WordCardController extends GetxController {
       _currentIndex.value++;
       update();
     } else {
-      Get.snackbar(
-        'Notice',
-        'This is the last word',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      final context = Get.context;
+      if (context != null) {
+        Get.snackbar(
+          QyAppLocalizationKeys.qyNotice.tr(context),
+          QyAppLocalizationKeys.qyLastWordMessage.tr(context),
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
     }
   }
 
   Future<void> _saveWordStatus(String word, bool isKnown) async {
     try {
-      await _storage.setApp<bool>('word_${word}_known', isKnown);
+      // Use centralized storage key for word progress
+      await _storage.setApp<bool>('${StorageAppQy.keyWordProgress}_${word}_known', isKnown);
 
       // Also save learning progress statistics
       await _updateLearningProgress(word, isKnown);
@@ -139,11 +116,11 @@ class WordCardController extends GetxController {
     }
   }
 
-  /// Update learning progress statistics
+  /// Update learning progress statistics using centralized storage
   Future<void> _updateLearningProgress(String word, bool isKnown) async {
     try {
-      // Get current learning statistics
-      final stats = await _storage.getApp<Map<String, dynamic>>('learning_stats') ??
+      // Get current learning statistics using centralized storage key
+      final stats = await _storage.getApp<Map<String, dynamic>>(StorageAppQy.keyLearningStats) ??
           <String, dynamic>{
             'total_words': 0,
             'known_words': 0,
@@ -152,7 +129,7 @@ class WordCardController extends GetxController {
           };
 
       // Check if this is a new word
-      final wasKnownBefore = await _storage.getApp<bool>('word_${word}_known');
+      final wasKnownBefore = await _storage.getApp<bool>('${StorageAppQy.keyWordProgress}_${word}_known');
       if (wasKnownBefore == null) {
         stats['total_words'] = (stats['total_words'] ?? 0) + 1;
       }
@@ -176,15 +153,15 @@ class WordCardController extends GetxController {
 
       stats['last_study_date'] = DateTime.now().toIso8601String();
 
-      await _storage.setApp<Map<String, dynamic>>('learning_stats', stats);
+      await _storage.setApp<Map<String, dynamic>>(StorageAppQy.keyLearningStats, stats);
     } catch (e) {
       print('Error updating learning progress: $e');
     }
   }
 
-  /// Get learning statistics
+  /// Get learning statistics using centralized storage
   Future<Map<String, dynamic>> getLearningStats() async {
-    return await _storage.getApp<Map<String, dynamic>>('learning_stats') ??
+    return await _storage.getApp<Map<String, dynamic>>(StorageAppQy.keyLearningStats) ??
         <String, dynamic>{
           'total_words': 0,
           'known_words': 0,
@@ -193,51 +170,54 @@ class WordCardController extends GetxController {
         };
   }
 
-  /// Get word learning status
+  /// Get word learning status using centralized storage
   Future<bool?> getWordStatus(String word) async {
-    return await _storage.getApp<bool>('word_${word}_known');
+    return await _storage.getApp<bool>('${StorageAppQy.keyWordProgress}_${word}_known');
   }
 
   /// Reset learning progress
   Future<void> resetLearningProgress() async {
     try {
-      // Clear all word statuses
+      // Clear all word statuses using centralized storage key
       for (final word in _words) {
-        await _storage.removeApp('word_${word.word}_known');
+        await _storage.removeApp('${StorageAppQy.keyWordProgress}_${word.word}_known');
       }
 
-      // Reset statistics
-      await _storage.setApp<Map<String, dynamic>>('learning_stats', {
+      // Reset statistics using centralized storage key
+      await _storage.setApp<Map<String, dynamic>>(StorageAppQy.keyLearningStats, {
         'total_words': 0,
         'known_words': 0,
         'unknown_words': 0,
         'last_study_date': DateTime.now().toIso8601String(),
       });
 
-      Get.snackbar(
-        'Notice',
-        'Learning progress has been reset',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      final context = Get.context;
+      if (context != null) {
+        Get.snackbar(
+          QyAppLocalizationKeys.qyNotice.tr(context),
+          QyAppLocalizationKeys.qyLearningProgressResetMessage.tr(context),
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
     } catch (e) {
       print('Error resetting learning progress: $e');
     }
   }
 
-  /// Save word list to storage
+  /// Save word list to storage using centralized storage key
   Future<void> saveWordsToStorage() async {
     try {
       final wordsJson = _words.map((word) => word.toJson()).toList();
-      await _storage.setApp<List<Map<String, dynamic>>>('word_list', wordsJson);
+      await _storage.setApp<List<Map<String, dynamic>>>(StorageAppQy.keyWordList, wordsJson);
     } catch (e) {
       print('Error saving words to storage: $e');
     }
   }
 
-  /// Load word list from storage
+  /// Load word list from storage using centralized storage key
   Future<void> loadWordsFromStorage() async {
     try {
-      final wordsJson = await _storage.getApp<List<Map<String, dynamic>>>('word_list');
+      final wordsJson = await _storage.getApp<List<Map<String, dynamic>>>(StorageAppQy.keyWordList);
       if (wordsJson != null && wordsJson.isNotEmpty) {
         _words.value = wordsJson.map((json) => Word.fromJson(json)).toList();
         update();

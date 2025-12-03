@@ -176,7 +176,7 @@ class _WordListeningDictation3ScreenState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -184,7 +184,7 @@ class _WordListeningDictation3ScreenState
           child: CustomAppBar(
             title: QyAppLocalizationKeys.qyListeningDictationExpertTitle
                 .tr(context),
-            backgroundColor: Colors.transparent,
+            backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
             titleColor: ColorsAppQy.qyTextPrimary,
             iconColor: ColorsAppQy.qyTextPrimary,
             elevation: 0,
@@ -237,7 +237,7 @@ class _WordListeningDictation3ScreenState
                   if (_streakCount >= 3)
                     Icon(
                       Icons.local_fire_department,
-                      color: Colors.orange,
+                      color: ColorsAppQy.qyWarning,
                       size: 20,
                     ),
                   SizedBox(width: ThemeDimensions.spacing8),
@@ -256,7 +256,7 @@ class _WordListeningDictation3ScreenState
           Container(
             height: 8,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: ColorsAppQy.qyFrostMedium,
               borderRadius: ThemeDimensions.borderRadiusS,
             ),
             child: FractionallySizedBox(
@@ -334,7 +334,7 @@ class _WordListeningDictation3ScreenState
           decoration: BoxDecoration(
             color: isHighlight
                 ? ColorsAppQy.qyPrimary.withOpacity(0.1)
-                : Colors.white.withOpacity(0.3),
+                : ColorsAppQy.qyFrostMedium,
             borderRadius: ThemeDimensions.borderRadiusL,
           ),
           child: Center(
@@ -517,7 +517,7 @@ class _WordListeningDictation3ScreenState
                         width: _isPlaying ? 50 : 60,
                         height: _isPlaying ? 50 : 60,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           borderRadius: ThemeDimensions.borderRadiusXL,
                         ),
                         child: Icon(
@@ -592,19 +592,19 @@ class _WordListeningDictation3ScreenState
           SizedBox(height: ThemeDimensions.spacing12),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               borderRadius: ThemeDimensions.borderRadiusM,
               border: Border.all(
                 color: _userInput.isNotEmpty
                     ? ColorsAppQy.qyPrimary
-                    : Colors.white.withOpacity(0.3),
+                    : ColorsAppQy.qyFrostMedium,
                 width: _userInput.isNotEmpty ? 3 : 2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: _userInput.isNotEmpty
                       ? ColorsAppQy.qyPrimary.withOpacity(0.2)
-                      : Colors.black.withOpacity(0.1),
+                      : ColorsAppQy.qyShadowLight,
                   blurRadius: _userInput.isNotEmpty ? 15 : 10,
                   offset: const Offset(0, 2),
                 ),
@@ -774,14 +774,14 @@ class _WordListeningDictation3ScreenState
           children: [
             Icon(
               icon,
-              color: Colors.white,
+              color: ColorsAppQy.qyTextOnPrimary,
               size: 16,
             ),
             SizedBox(width: ThemeDimensions.spacing4),
             Text(
               label,
               style: ThemeTextStyles.caption.copyWith(
-                color: Colors.white,
+                color: ColorsAppQy.qyTextOnPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -807,7 +807,7 @@ class _WordListeningDictation3ScreenState
                   backgroundColor: _userInput.isNotEmpty
                       ? ColorsAppQy.qyPrimary
                       : ColorsAppQy.qyTextTertiary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: ColorsAppQy.qyTextOnPrimary,
                   isFullWidth: true,
                   icon: Icons.check_circle,
                 ),
@@ -818,7 +818,7 @@ class _WordListeningDictation3ScreenState
                   onPressed: _skipWord,
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(
-                      color: Colors.white.withOpacity(0.3),
+                      color: ColorsAppQy.qyFrostMedium,
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -979,7 +979,7 @@ class _WordListeningDictation3ScreenState
                 ),
                 child: const Icon(
                   Icons.emoji_events,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 50,
                 ),
               ),
@@ -1047,7 +1047,7 @@ class _WordListeningDictation3ScreenState
                         _nextWord();
                       },
                       backgroundColor: ColorsAppQy.qyPrimary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: ColorsAppQy.qyTextOnPrimary,
                       isFullWidth: true,
                     ),
                   ),
@@ -1089,7 +1089,7 @@ class _WordListeningDictation3ScreenState
                 ),
                 child: const Icon(
                   Icons.close,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 40,
                 ),
               ),
@@ -1153,7 +1153,7 @@ class _WordListeningDictation3ScreenState
                         _nextWord();
                       },
                       backgroundColor: ColorsAppQy.qyPrimary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: ColorsAppQy.qyTextOnPrimary,
                       isFullWidth: true,
                     ),
                   ),
@@ -1169,7 +1169,7 @@ class _WordListeningDictation3ScreenState
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(
-                          color: Colors.white.withOpacity(0.3),
+                          color: ColorsAppQy.qyFrostMedium,
                         ),
                         padding: EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -1222,7 +1222,7 @@ class _WordListeningDictation3ScreenState
                 ),
                 child: Icon(
                   isExpert ? Icons.military_tech : Icons.school,
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   size: 60,
                 ),
               ),
@@ -1345,7 +1345,7 @@ class _WordListeningDictation3ScreenState
                         Navigator.of(context).pop();
                       },
                       backgroundColor: ColorsAppQy.qyPrimary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: ColorsAppQy.qyTextOnPrimary,
                       isFullWidth: true,
                     ),
                   ),

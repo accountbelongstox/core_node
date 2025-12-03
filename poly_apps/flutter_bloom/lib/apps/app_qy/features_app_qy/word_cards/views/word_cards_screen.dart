@@ -14,11 +14,13 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 // Placeholder for bw_parsetool
 class bw {
   static String parseText(String text) => text;
-  
+
   static BingWordParseTool createParser() => BingWordParseTool();
 }
 
@@ -41,7 +43,9 @@ class WordCardsScreen extends StatefulWidget {
 
 class _WordCardsScreenState extends State<WordCardsScreen> {
   final _parser = bw.createParser();
+  final StorageAppQy _storage = StorageAppQy.instance;
   List<dynamic> _wordData = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -49,41 +53,29 @@ class _WordCardsScreenState extends State<WordCardsScreen> {
     _loadInitialData();
   }
 
-  void _loadInitialData() {
-    // Add some test data
-    _wordData = [
-      {
-        'content': 'apple',
-        'usPhonetic': '/ˈæpl/',
-        'ukPhonetic': '/ˈæpl/',
-        'translation': {
-          'wordTranslation': ['n. apple'],
-          'advancedTranslate': ['A round fruit that is red or yellow'],
-          'advancedTranslateType': 'Detailed explanation',
-          'pluralForm': 'apples',
-        },
-        'voiceFiles': {
-          'us': 'us_voice_url',
-          'uk': 'uk_voice_url',
-        },
-      },
-      {
-        'content': 'book',
-        'usPhonetic': '/bʊk/',
-        'ukPhonetic': '/bʊk/',
-        'translation': {
-          'wordTranslation': ['n. book', 'v. to book'],
-          'advancedTranslate': ['A written or printed work consisting of pages bound together'],
-          'advancedTranslateType': 'Detailed explanation',
-          'pluralForm': 'books',
-        },
-        'voiceFiles': {
-          'us': 'us_voice_url',
-          'uk': 'uk_voice_url',
-        },
-      },
-    ];
-    setState(() {});
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _storage.initAppStorage();
+      // Load from centralized storage instead of hardcoded data
+      final storedData =
+          await _storage.getApp<List<dynamic>>(StorageAppQy.keyWordList);
+      if (storedData != null && storedData.isNotEmpty) {
+        _wordData = storedData;
+      } else {
+        // If no data in storage, initialize empty
+        _wordData = [];
+      }
+    } catch (e) {
+      _wordData = [];
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -91,13 +83,44 @@ class _WordCardsScreenState extends State<WordCardsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'qy_word_learning'.tr(context),
+          QyAppLocalizationKeys.qyWordLearning.tr(context),
           style: ThemeTextStyles.titleLarge,
         ),
         centerTitle: true,
         backgroundColor: ThemeColors.systemBackground,
         foregroundColor: ThemeColors.label,
       ),
+      body: _isLoading
+          ? Center(
+              child: CircularProgressIndicator(
+                color: ThemeColors.primary,
+              ),
+            )
+          : _wordData.isEmpty
+              ? Center(
+                  child: Text(
+                    QyAppLocalizationKeys.qyWordBookNoWords.tr(context),
+                    style: ThemeTextStyles.body.copyWith(
+                      color: ThemeColors.textSecondary,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _wordData.length,
+                  itemBuilder: (context, index) {
+                    final word = _wordData[index];
+                    return ListTile(
+                      title: Text(
+                        word['content'] ?? '',
+                        style: ThemeTextStyles.title3,
+                      ),
+                      subtitle: Text(
+                        word['translation']?['wordTranslation']?.first ?? '',
+                        style: ThemeTextStyles.body,
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

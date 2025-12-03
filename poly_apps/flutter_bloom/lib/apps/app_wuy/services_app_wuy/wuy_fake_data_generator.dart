@@ -81,7 +81,8 @@ class WuyFakeDataGenerator {
     final phoneSuffix =
         phone.length >= 4 ? phone.substring(phone.length - 4) : '0000';
     final nameIndex = phone.hashCode.abs() % _fakeNames.length;
-    final fakeIdNumber = '4201${phone.hashCode.abs() % 100000000}'.padLeft(18, '0');
+    final fakeIdNumber =
+        '4201${phone.hashCode.abs() % 100000000}'.padLeft(18, '0');
 
     return UserModelAppWuy(
       id: phone.hashCode,
@@ -142,6 +143,16 @@ class WuyFakeDataGenerator {
           'longitude': 116.4074,
           'address': 'Beijing, China'
         },
+        healthData: {
+          'steps': 8432,
+          'heartRate': 78,
+          'temp': 36.5,
+        },
+        phoneReport: {
+          'network': '5G',
+          'unlocks': 42,
+          'usageTime': '4h 15m',
+        },
       ),
       FriendModelAppWuy(
         id: '2',
@@ -163,6 +174,16 @@ class WuyFakeDataGenerator {
           'latitude': 31.2304,
           'longitude': 121.4737,
           'address': 'Shanghai, China'
+        },
+        healthData: {
+          'steps': 1200,
+          'heartRate': 82,
+          'temp': 36.6,
+        },
+        phoneReport: {
+          'network': 'WiFi',
+          'unlocks': 10,
+          'usageTime': '1h 00m',
         },
       ),
       FriendModelAppWuy(

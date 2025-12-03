@@ -289,22 +289,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
         ),
       ),
       bottomNavigationBar: WuyBottomNavigation(
-        currentIndex: 2,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go(WuyAppRouter.routeSearch);
-              break;
-            case 1:
-              context.go(WuyAppRouter.routeHome);
-              break;
-            case 2:
-              break;
-            case 3:
-              context.go(WuyAppRouter.routeProfile);
-              break;
-          }
-        },
+        currentRoute: GoRouterState.of(context).uri.toString(),
       ),
     );
   }

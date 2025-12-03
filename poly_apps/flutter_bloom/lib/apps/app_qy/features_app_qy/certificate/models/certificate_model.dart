@@ -74,13 +74,17 @@ class CertificateModel {
       'descriptionKey': descriptionKey,
       'earnedDate': earnedDate?.toIso8601String(),
       'level': level.index,
+      'colorValue': color.value,
+      'iconCodePoint': icon.codePoint,
+      'iconFontFamily': icon.fontFamily,
+      'iconFontPackage': icon.fontPackage,
       'badge': badge?.index,
       'locked': locked,
       'points': points,
     };
   }
 
-  factory CertificateModel.fromJson(Map<String, dynamic> json, Color color, IconData icon) {
+  factory CertificateModel.fromJson(Map<String, dynamic> json) {
     return CertificateModel(
       id: json['id'] as String,
       titleKey: json['titleKey'] as String,
@@ -89,8 +93,16 @@ class CertificateModel {
           ? DateTime.parse(json['earnedDate'] as String)
           : null,
       level: CertificateLevel.values[json['level'] as int],
-      color: color,
-      icon: icon,
+      color: json['colorValue'] != null
+          ? Color(json['colorValue'] as int)
+          : const Color(0xFF000000),
+      icon: json['iconCodePoint'] != null
+          ? IconData(
+              json['iconCodePoint'] as int,
+              fontFamily: json['iconFontFamily'] as String?,
+              fontPackage: json['iconFontPackage'] as String?,
+            )
+          : Icons.school,
       badge: json['badge'] != null
           ? CertificateBadge.values[json['badge'] as int]
           : null,

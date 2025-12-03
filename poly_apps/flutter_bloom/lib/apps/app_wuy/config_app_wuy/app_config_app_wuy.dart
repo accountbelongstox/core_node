@@ -171,6 +171,8 @@ class AppConfigAppWuy {
   static const String storageKeyAppSettings = 'wuy_app_settings';
   static const String storageKeyCacheData = 'wuy_cache_data';
   static const String storageKeyUserSession = 'wuy_user_session';
+  static const String storageKeyFriendsList = 'wuy_friends_list';
+  static const String storageKeyActiveFriend = 'wuy_active_friend';
   
   /// Maximum cache size in MB
   static const int maxCacheSizeMB = 100;

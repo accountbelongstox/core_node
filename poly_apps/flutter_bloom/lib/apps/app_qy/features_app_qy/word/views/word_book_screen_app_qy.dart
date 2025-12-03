@@ -101,7 +101,7 @@ class _WordBookScreenRefactoredAppQyState
                   children: [
                     CustomAppBar(
                       title: QyAppLocalizationKeys.qyWordBook.tr(context),
-                      backgroundColor: Colors.transparent,
+                      backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
                       titleColor: ColorsAppQy.qyTextPrimary,
                       iconColor: ColorsAppQy.qyTextPrimary,
                       elevation: 0,
@@ -152,7 +152,7 @@ class _WordBookScreenRefactoredAppQyState
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -174,7 +174,7 @@ class _WordBookScreenRefactoredAppQyState
                     ),
                     prefixIcon: Icon(Icons.search, color: ColorsAppQy.qyTextSecondary),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.3),
+                    fillColor: ColorsAppQy.qyFrostMedium,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(ThemeDimensions.radiusLarge),
                       borderSide: BorderSide.none,
@@ -270,7 +270,7 @@ class _WordBookScreenRefactoredAppQyState
               text,
               style: ThemeTextStyles.button.copyWith(
                 color: isSelected
-                    ? Colors.white
+                    ? ColorsAppQy.qyTextOnPrimary
                     : ColorsAppQy.qyTextPrimary,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
@@ -365,7 +365,7 @@ class _WordBookScreenRefactoredAppQyState
             child: LinearProgressIndicator(
               value: wordBook.progress / 100,
               minHeight: 6,
-              backgroundColor: Colors.white.withOpacity(0.3),
+              backgroundColor: ColorsAppQy.qyFrostMedium,
               valueColor: AlwaysStoppedAnimation<Color>(ColorsAppQy.qyPrimary),
             ),
           ),
