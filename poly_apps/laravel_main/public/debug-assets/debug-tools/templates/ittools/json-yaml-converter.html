@@ -1,0 +1,54 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">JSON ⇄ YAML Converter</div>
+    <div class="ittools-card-body">
+        <div class="ittools-tabs">
+            <button class="ittools-tab active" data-action="switch-tab" data-tab="json-to-yaml">JSON → YAML</button>
+            <button class="ittools-tab" data-action="switch-tab" data-tab="yaml-to-json">YAML → JSON</button>
+        </div>
+        
+        <div id="json-to-yaml-tab" class="converter-tab-content">
+            <div class="ittools-form-group">
+                <label class="ittools-label">JSON Input:</label>
+                <textarea 
+                    id="json-to-yaml-input" 
+                    class="ittools-textarea" 
+                    rows="10" 
+                    placeholder='{"key": "value"}'
+                    data-input="json-to-yaml-input"
+                ></textarea>
+            </div>
+            <div class="ittools-btn-group">
+                <button 
+                    class="ittools-btn ittools-btn-primary" 
+                    data-action="json-to-yaml"
+                >
+                    → Convert to YAML
+                </button>
+            </div>
+            <div id="json-to-yaml-result" class="ittools-result converter-result hidden"></div>
+        </div>
+        
+        <div id="yaml-to-json-tab" class="converter-tab-content hidden">
+            <div class="ittools-form-group">
+                <label class="ittools-label">YAML Input:</label>
+                <textarea 
+                    id="yaml-to-json-input" 
+                    class="ittools-textarea" 
+                    rows="10" 
+                    placeholder="key: value"
+                    data-input="yaml-to-json-input"
+                ></textarea>
+            </div>
+            <div class="ittools-btn-group">
+                <button 
+                    class="ittools-btn ittools-btn-primary" 
+                    data-action="yaml-to-json"
+                >
+                    → Convert to JSON
+                </button>
+            </div>
+            <div id="yaml-to-json-result" class="ittools-result converter-result hidden"></div>
+        </div>
+    </div>
+</div>
+
