@@ -22,6 +22,7 @@ use App\Http\Common\CommonAuthService;
 use App\Http\Common\CommonUserGen;
 use App\Apps\AwyV0\AwyV0Gvar\AwyV0Gvar;
 use App\Services\UnifiedAuthService;
+use App\Services\VerificationCodeService;
 
 class AwyV0AuthCtl extends Controller
 {
@@ -390,6 +391,50 @@ class AwyV0AuthCtl extends Controller
     }
 
     /**
+     * Send verification code
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'phone' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed',
+                'data' => $validator->errors()
+            ], 400);
+        }
+
+        $phone = $request->input('phone');
+
+        $verificationService = new VerificationCodeService('awyv0', 'awy_v0_verification_codes');
+        $result = $verificationService->sendCode($phone);
+
+        if ($result['success']) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Verification code sent successfully',
+                'data' => [
+                    'phone' => $result['phone'],
+                    'expiresIn' => $result['expires_in']
+                ]
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error_code'] ?? 'SEND_CODE_FAILED',
+                'message' => $result['error'] ?? 'Failed to send verification code',
+                'data' => null
+            ], 400);
+        }
+    }
+
+    /**
      * Phone number login
      *
      * @param Request $request
@@ -425,12 +470,14 @@ class AwyV0AuthCtl extends Controller
             ], 404);
         }
 
-        // Verify SMS code (simplified implementation)
-        if ($verificationCode !== '123456') { // Default code for testing
+        $verificationService = new VerificationCodeService('awyv0', 'awy_v0_verification_codes');
+        $verifyResult = $verificationService->verifyCode($phone, $verificationCode);
+
+        if (!$verifyResult['success']) {
             return response()->json([
                 'success' => false,
-                'error' => 'INVALID_VERIFICATION_CODE',
-                'message' => 'Invalid verification code',
+                'error' => $verifyResult['error_code'] ?? 'INVALID_CODE',
+                'message' => $verifyResult['error'] ?? 'Invalid verification code',
                 'data' => null
             ], 400);
         }
