@@ -127,7 +127,8 @@ checkAndInstallDependencies();
 // ============================================================
 // Phase 2: Load third-party packages (after ensuring they exist)
 // ============================================================
-const chokidar = require('chokidar');
+// Load chokidar lazily (only when watching is needed)
+let chokidar = null;
 const fsExtra = require('fs-extra');
 const PAGES_DIR = path.join(SOURCE_ROOT, 'pages');
 const BACKUP_DIR = path.join(SOURCE_ROOT, '.app-backups');
@@ -737,6 +738,17 @@ function detectEntryAppFromPath(changedPath, runtimes) {
 function startWatcher(srcDir, runtimes) {
   if (watcherInstance) return watcherInstance;
   
+  // Lazy load chokidar only when watching is needed
+  if (!chokidar) {
+    try {
+      chokidar = require('chokidar');
+    } catch (err) {
+      console.error('[Watcher] Failed to load chokidar:', err.message);
+      console.error('[Watcher] File watching will not be available');
+      return null;
+    }
+  }
+  
   watcherInstance = chokidar.watch(srcDir, {
     ignored: name => shouldPathBeIgnored(srcDir, name),
     ignoreInitial: true,
@@ -776,8 +788,8 @@ function startWatcher(srcDir, runtimes) {
         
         for (const runtime of runtimes) {
           console.log(`[Watcher] Syncing app ${runtime.app}`);
+          // Mirror source to factory (pages directory is already switched in source)
           await mirrorDirectory(srcDir, runtime.targetDir, true);
-          await runSwitchInTarget(runtime.targetDir, runtime.app);
         }
         
         const entryApps = Array.from(pendingEntryApps);
@@ -920,8 +932,13 @@ async function runFactoryMode(options) {
   
   for (const runtime of runtimes) {
     console.log(`[Prep] Preparing runtime for ${runtime.app}`);
+
+    // Switch pages directory in source first
+    console.log(`[Prep] Switching pages directory for ${runtime.app} in source`);
+    switchPagesDirectory(runtime.app);
+
+    // Then mirror to factory (includes switched pages directory)
     await mirrorDirectory(SOURCE_ROOT, runtime.targetDir);
-    await runSwitchInTarget(runtime.targetDir, runtime.app);
     console.log(`[Switch] Pages directory synced for ${runtime.app}`);
   }
   
