@@ -1,0 +1,128 @@
+<div class="mcp-module-container">
+    <div class="mcp-module-header">
+        <h2>📷 Screenshot Management</h2>
+        <div class="mcp-module-actions">
+            <button id="mcp-ss-upload-btn" class="mcp-btn mcp-btn-primary">
+                📤 Upload Screenshot
+            </button>
+            <button id="mcp-ss-batch-upload-btn" class="mcp-btn mcp-btn-success">
+                📸 Batch Upload & Merge
+            </button>
+            <button id="mcp-ss-refresh-btn" class="mcp-btn mcp-btn-secondary">
+                🔄 Refresh
+            </button>
+            <button id="mcp-ss-clear-all-btn" class="mcp-btn mcp-btn-danger">
+                🗑 Clear All
+            </button>
+        </div>
+    </div>
+
+    <div class="mcp-module-content">
+        <div class="mcp-ss-split-view">
+            <div class="mcp-ss-list-panel">
+                <div class="mcp-ss-stats" id="mcp-ss-stats">
+                    <span>Total: 0</span> | <span>Size: 0 MB</span>
+                </div>
+                <div class="mcp-ss-list" id="mcp-ss-list">
+                </div>
+            </div>
+
+            <div class="mcp-ss-detail-panel" id="mcp-ss-detail-panel">
+                <div class="mcp-ss-detail-empty">
+                    <p>📷 Select a screenshot to view details</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mcp-ss-upload-modal" class="mcp-modal" style="display: none;">
+        <div class="mcp-modal-content">
+            <div class="mcp-modal-header">
+                <h3>Upload Screenshot</h3>
+                <button class="mcp-modal-close" id="mcp-ss-upload-modal-close">&times;</button>
+            </div>
+            <div class="mcp-modal-body">
+                <div class="mcp-form-group">
+                    <label>Upload Mode</label>
+                    <div id="mcp-ss-upload-mode" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="mcp-ss-mode" value="single" checked>
+                            <span>Single screenshot</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="mcp-ss-mode" value="multi">
+                            <span>Merge multiple screenshots</span>
+                        </label>
+                    </div>
+                    <small id="mcp-ss-mode-hint" style="display:block;margin-top:6px;color:#888;">Upload a single image without merging.</small>
+                </div>
+                <div class="mcp-form-group">
+                    <label>Image Files *</label>
+                    <input type="file" id="mcp-ss-file-input" accept="image/*" required>
+                    <small id="mcp-ss-upload-help" style="display:block; margin-top:6px; color:#888;">Select one image to upload.</small>
+                    <div id="mcp-ss-file-preview" style="margin-top: 10px;"></div>
+                    <div id="mcp-ss-upload-items" style="margin-top: 12px; display: none;"></div>
+                </div>
+                <div class="mcp-form-group">
+                    <label>ID (Optional, auto-generated if empty)</label>
+                    <input type="text" id="mcp-ss-id-input" placeholder="e.g., ss_20231127_001">
+                </div>
+                <div class="mcp-form-group">
+                    <label>Description</label>
+                    <textarea id="mcp-ss-description-input" rows="3" placeholder="Describe this screenshot..."></textarea>
+                </div>
+                <div class="mcp-form-group">
+                    <label>Keywords (comma separated)</label>
+                    <input type="text" id="mcp-ss-keywords-input" placeholder="e.g., ui, error, dashboard">
+                </div>
+            </div>
+            <div class="mcp-modal-footer">
+                <button id="mcp-ss-upload-submit-btn" class="mcp-btn mcp-btn-primary">Upload</button>
+                <button id="mcp-ss-upload-cancel-btn" class="mcp-btn mcp-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mcp-ss-batch-modal" class="mcp-modal" style="display: none;">
+        <div class="mcp-modal-content mcp-modal-lg">
+            <div class="mcp-modal-header">
+                <h3>📸 Batch Upload & Merge Screenshots</h3>
+                <button class="mcp-modal-close" id="mcp-ss-batch-modal-close">&times;</button>
+            </div>
+            <div class="mcp-modal-body">
+                <div class="mcp-form-group">
+                    <label>Select Multiple Images *</label>
+                    <input type="file" id="mcp-ss-batch-file-input" accept="image/*" multiple required>
+                    <small style="color: #888;">Select multiple images. Each image can have its own description as title.</small>
+                </div>
+
+                <div class="mcp-form-group">
+                    <label>Common Keyword</label>
+                    <input type="text" id="mcp-ss-batch-keyword-input" placeholder="e.g., feature_demo, bug_report">
+                </div>
+
+                <div class="mcp-form-group">
+                    <label>ID (Optional)</label>
+                    <input type="text" id="mcp-ss-batch-id-input" placeholder="Auto-generated if empty">
+                </div>
+
+                <div id="mcp-ss-batch-preview-container" style="display: none;">
+                    <label>Image Descriptions (shown as titles above each image)</label>
+                    <div id="mcp-ss-batch-items" class="mcp-batch-items"></div>
+                </div>
+
+                <div class="mcp-form-group" style="margin-top: 15px;">
+                    <label>
+                        <input type="checkbox" id="mcp-ss-batch-merge-checkbox" checked>
+                        Merge all images into one (with descriptions as section titles)
+                    </label>
+                </div>
+            </div>
+            <div class="mcp-modal-footer">
+                <button id="mcp-ss-batch-submit-btn" class="mcp-btn mcp-btn-primary">Upload & Merge</button>
+                <button id="mcp-ss-batch-cancel-btn" class="mcp-btn mcp-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+

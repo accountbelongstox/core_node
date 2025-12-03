@@ -1,0 +1,31 @@
+<div class="api-item" id="api-item-{index}">
+    <div class="api-number">#{number}</div>
+    <div class="api-header" data-index="{index}" data-app-name="{appName}" data-endpoint="{endpoint}">
+        <div>
+            <span class="api-method method-{method}">{method}</span>
+            <strong class="api-endpoint">{endpoint}</strong>
+            {description}
+        </div>
+        <span id="toggle-{index}">&#9660;</span>
+    </div>
+    <div id="details-{index}" class="api-details hidden">
+        <div class="feature-docs-container"></div>
+        {headersInfo}
+        <div class="form-group">
+            <label class="form-label">API Endpoint URL:</label>
+            <input type="text" id="url-{index}" class="form-control" value="{fullUrl}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Request Parameters (JSON):</label>
+            <textarea id="params-{index}" class="form-control" placeholder="Enter JSON parameters" rows="6">{presetJson}</textarea>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" data-action="test-api" data-index="{index}" data-method="{method}" data-app-name="{appName}" data-endpoint="{endpoint}">Send Request</button>
+            <button class="btn btn-secondary" data-action="save-params" data-index="{index}" data-app-name="{appName}" data-endpoint="{endpoint}" data-method="{method}">Save Params</button>
+            <button class="btn btn-secondary" data-action="load-params" data-index="{index}" data-app-name="{appName}" data-endpoint="{endpoint}">Load Params</button>
+            <button class="btn btn-success" data-action="copy-headers" data-index="{index}" data-app-name="{appName}">Copy Headers</button>
+        </div>
+        <div id="response-{index}" class="response-area"></div>
+    </div>
+</div>
+

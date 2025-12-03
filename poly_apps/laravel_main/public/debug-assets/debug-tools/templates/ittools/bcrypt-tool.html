@@ -1,0 +1,76 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">Bcrypt Hash & Verify</div>
+    <div class="ittools-card-body">
+        <div class="ittools-tabs">
+            <button class="ittools-tab active" data-action="switch-tab" data-tab="hash">Hash</button>
+            <button class="ittools-tab" data-action="switch-tab" data-tab="verify">Verify</button>
+        </div>
+        
+        <div id="bcrypt-hash-tab" class="bcrypt-tab-content">
+            <div class="ittools-form-group">
+                <label class="ittools-label">Password:</label>
+                <input 
+                    type="text" 
+                    id="bcrypt-password" 
+                    class="ittools-input" 
+                    placeholder="Enter password to hash"
+                    data-input="bcrypt-password"
+                >
+            </div>
+            <div class="ittools-form-group">
+                <label class="ittools-label">Rounds (4-31):</label>
+                <input 
+                    type="number" 
+                    id="bcrypt-rounds" 
+                    class="ittools-input" 
+                    value="10" 
+                    min="4" 
+                    max="31"
+                    data-input="bcrypt-rounds"
+                >
+            </div>
+            <div class="ittools-btn-group">
+                <button 
+                    class="ittools-btn ittools-btn-primary" 
+                    data-action="bcrypt-hash"
+                >
+                    🔐 Generate Hash
+                </button>
+            </div>
+            <div id="bcrypt-hash-result" class="ittools-result crypto-result hidden"></div>
+        </div>
+        
+        <div id="bcrypt-verify-tab" class="bcrypt-tab-content hidden">
+            <div class="ittools-form-group">
+                <label class="ittools-label">Password:</label>
+                <input 
+                    type="text" 
+                    id="bcrypt-verify-password" 
+                    class="ittools-input" 
+                    placeholder="Enter password"
+                    data-input="bcrypt-verify-password"
+                >
+            </div>
+            <div class="ittools-form-group">
+                <label class="ittools-label">Hash:</label>
+                <input 
+                    type="text" 
+                    id="bcrypt-verify-hash" 
+                    class="ittools-input" 
+                    placeholder="Enter bcrypt hash"
+                    data-input="bcrypt-verify-hash"
+                >
+            </div>
+            <div class="ittools-btn-group">
+                <button 
+                    class="ittools-btn ittools-btn-primary" 
+                    data-action="bcrypt-verify"
+                >
+                    ✓ Verify Password
+                </button>
+            </div>
+            <div id="bcrypt-verify-result" class="ittools-result crypto-result hidden"></div>
+        </div>
+    </div>
+</div>
+

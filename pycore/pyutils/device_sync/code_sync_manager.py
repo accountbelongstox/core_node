@@ -6,16 +6,22 @@ Coordinates between code sync server and client modes.
 Only one mode can be active at a time.
 """
 
+import json
 import threading
+from pathlib import Path
 from typing import Optional, Literal
 
 from pycore import ColorPrint
+from pycore.pyfoundations.system_paths import get_app_config_dir
 
 from .code_sync_server import CodeSyncServer, get_code_sync_server
 from .code_sync_client import CodeSyncClient, get_code_sync_client
 
 
 CodeSyncMode = Literal["disabled", "server", "client"]
+
+# Config file for persisting mode
+CONFIG_FILE = get_app_config_dir() / "code_sync_mode.json"
 
 
 class CodeSyncManager:
@@ -28,10 +34,22 @@ class CodeSyncManager:
 
     def __init__(self):
         """Initialize code sync manager"""
-        self.mode: CodeSyncMode = "disabled"
         self.mode_lock = threading.Lock()
 
-        ColorPrint.green("[CodeSync Manager] Initialized")
+        # Load saved mode from config file
+        self.mode: CodeSyncMode = self._load_mode()
+
+        # Auto-start if mode is not disabled
+        if self.mode == "server":
+            server = get_code_sync_server()
+            server.start()
+            ColorPrint.green("[CodeSync Manager] Auto-started in SERVER mode")
+        elif self.mode == "client":
+            client = get_code_sync_client()
+            client.start()
+            ColorPrint.green("[CodeSync Manager] Auto-started in CLIENT mode")
+        else:
+            ColorPrint.green("[CodeSync Manager] Initialized in DISABLED mode")
 
     def get_mode(self) -> CodeSyncMode:
         """Get current mode"""
@@ -56,6 +74,7 @@ class CodeSyncManager:
             server.start()
 
             self.mode = "server"
+            self._save_mode()
             ColorPrint.green("[CodeSync Manager] Switched to SERVER mode")
 
     def set_client_mode(self):
@@ -69,6 +88,7 @@ class CodeSyncManager:
             client.start()
 
             self.mode = "client"
+            self._save_mode()
             ColorPrint.green("[CodeSync Manager] Switched to CLIENT mode")
 
     def toggle_mode(self):
@@ -92,7 +112,38 @@ class CodeSyncManager:
         with self.mode_lock:
             self._stop_all()
             self.mode = "disabled"
+            self._save_mode()
             ColorPrint.yellow("[CodeSync Manager] Stopped")
+
+    def _load_mode(self) -> CodeSyncMode:
+        """
+        Load saved mode from config file
+
+        Returns:
+            CodeSyncMode: Saved mode or "disabled" if not found
+        """
+        if not CONFIG_FILE.exists():
+            return "disabled"
+
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+            mode = config.get('mode', 'disabled')
+
+            if mode not in ['disabled', 'server', 'client']:
+                ColorPrint.yellow(f"[CodeSync Manager] Invalid mode in config: {mode}, using disabled")
+                return "disabled"
+
+            ColorPrint.blue(f"[CodeSync Manager] Loaded mode from config: {mode}")
+            return mode
+
+    def _save_mode(self):
+        """Save current mode to config file"""
+        config = {'mode': self.mode}
+
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+
+        ColorPrint.blue(f"[CodeSync Manager] Saved mode to config: {self.mode}")
 
     def _stop_all(self):
         """Stop both server and client (internal)"""

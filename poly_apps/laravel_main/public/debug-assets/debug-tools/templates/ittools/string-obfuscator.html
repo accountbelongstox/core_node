@@ -1,0 +1,38 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">String Obfuscator</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Input String:</label>
+            <textarea 
+                id="obfuscate-input" 
+                class="ittools-textarea" 
+                rows="6" 
+                placeholder="Hello World"
+                data-input="obfuscate-input"
+            ></textarea>
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">Obfuscation Method:</label>
+            <select 
+                id="obfuscate-method" 
+                class="ittools-input"
+                data-input="obfuscate-method"
+            >
+                <option value="hex">Hex Encoding</option>
+                <option value="unicode">Unicode Escape</option>
+                <option value="binary">Binary</option>
+                <option value="reverse">Reverse + Base64</option>
+            </select>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="obfuscate"
+            >
+                🔒 Obfuscate
+            </button>
+        </div>
+        <div id="obfuscate-result" class="ittools-result text-result hidden"></div>
+    </div>
+</div>
+

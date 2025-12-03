@@ -1,0 +1,52 @@
+<div class="mcp-module-container">
+    <div class="mcp-module-header">
+        <h2>📋 Task Dispatch Management</h2>
+        <div class="mcp-module-actions">
+            <button id="mcp-td-refresh-btn" class="mcp-btn mcp-btn-secondary">🔄 Refresh</button>
+            <button id="mcp-td-create-category-btn" class="mcp-btn mcp-btn-primary">➕ New Category</button>
+        </div>
+    </div>
+
+    <div class="mcp-module-content">
+        <div class="mcp-td-split-view">
+            <div class="mcp-td-categories-panel">
+                <div class="mcp-td-panel-header">Categories</div>
+                <div class="mcp-td-categories" id="mcp-td-categories"></div>
+            </div>
+
+            <div class="mcp-td-tasks-panel" id="mcp-td-tasks-panel">
+                <div class="mcp-td-detail-empty">
+                    <p>📋 Select a category to view tasks</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mcp-td-create-modal" class="mcp-modal" style="display: none;">
+        <div class="mcp-modal-content">
+            <div class="mcp-modal-header">
+                <h3>Create Category</h3>
+                <button class="mcp-modal-close" id="mcp-td-modal-close">&times;</button>
+            </div>
+            <div class="mcp-modal-body">
+                <div class="mcp-form-group">
+                    <label>Category ID *</label>
+                    <input type="text" id="mcp-td-category-id" placeholder="e.g., my-tasks">
+                </div>
+                <div class="mcp-form-group">
+                    <label>Name *</label>
+                    <input type="text" id="mcp-td-category-name" placeholder="e.g., My Tasks">
+                </div>
+                <div class="mcp-form-group">
+                    <label>Path *</label>
+                    <input type="text" id="mcp-td-category-path" placeholder="e.g., /path/to/tasks">
+                </div>
+            </div>
+            <div class="mcp-modal-footer">
+                <button id="mcp-td-create-submit" class="mcp-btn mcp-btn-primary">Create</button>
+                <button id="mcp-td-create-cancel" class="mcp-btn mcp-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+

@@ -1,0 +1,99 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">📋 Online Clipboard</div>
+    <div class="ittools-card-body">
+        <!-- Namespace Section -->
+        <div class="clipboard-namespace-section">
+            <div class="clipboard-namespace-controls">
+                <label class="ittools-label">Namespace ID:</label>
+                <input
+                    type="text"
+                    id="clipboard-namespace-input"
+                    class="ittools-input clipboard-namespace-input"
+                    placeholder="Enter or paste namespace ID"
+                    data-input="namespace"
+                    maxlength="20"
+                >
+                <button
+                    class="ittools-btn ittools-btn-primary"
+                    data-action="load-namespace"
+                >
+                    Load / Enter
+                </button>
+                <button
+                    class="ittools-btn ittools-btn-secondary"
+                    data-action="generate-namespace"
+                >
+                    Generate New
+                </button>
+                <span id="clipboard-status" class="clipboard-status"></span>
+            </div>
+            <div class="clipboard-current-ns hidden" id="clipboard-current-ns"></div>
+        </div>
+
+        <!-- Content Section (hidden by default) -->
+        <div class="clipboard-content-section hidden" id="clipboard-content-section">
+            <!-- Text Input -->
+            <div class="ittools-form-group">
+                <label class="ittools-label">Text Content (auto-saves on change):</label>
+                <textarea
+                    id="clipboard-textarea"
+                    class="ittools-textarea clipboard-textarea"
+                    placeholder="Paste or type any content here..."
+                    rows="10"
+                    data-input="text-content"
+                ></textarea>
+            </div>
+
+            <!-- File Upload -->
+            <div class="ittools-form-group">
+                <label class="ittools-label">Upload Files:</label>
+                <div class="clipboard-dropzone" id="clipboard-dropzone" data-action="file-drop">
+                    <p>📁 Drop files here or click to upload</p>
+                    <p class="clipboard-dropzone-hint">Any file type allowed</p>
+                    <input
+                        type="file"
+                        id="clipboard-file-input"
+                        multiple
+                        class="hidden"
+                        data-input="files"
+                    >
+                </div>
+            </div>
+
+            <!-- Files List (hidden by default) -->
+            <div class="ittools-form-group hidden" id="clipboard-files-section">
+                <label class="ittools-label">Uploaded Files:</label>
+                <div id="clipboard-files-list" class="clipboard-files-list"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="ittools-btn-group">
+                <button
+                    class="ittools-btn ittools-btn-success"
+                    data-action="new-clipboard"
+                >
+                    📝 New Clipboard
+                </button>
+                <button
+                    class="ittools-btn ittools-btn-secondary"
+                    data-action="copy-text"
+                >
+                    📋 Copy All Text
+                </button>
+                <button
+                    class="ittools-btn ittools-btn-secondary"
+                    data-action="clear-text"
+                >
+                    🗑️ Clear Text
+                </button>
+            </div>
+
+            <!-- History Section (hidden by default) -->
+            <div class="ittools-form-group hidden" id="clipboard-history-section">
+                <label class="ittools-label">History (Last 10):</label>
+                <div id="clipboard-history-list" class="clipboard-history-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+

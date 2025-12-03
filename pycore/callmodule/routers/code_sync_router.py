@@ -74,176 +74,135 @@ async def register_client(request: RegisterRequest, http_request: Request):
 
     Returns whether client needs initial sync
     """
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
+    manager = get_code_sync_manager()
 
-        if not manager.is_server_mode():
-            raise HTTPException(status_code=503, detail="Not in server mode")
+    if not manager.is_server_mode():
+        raise HTTPException(status_code=503, detail="Not in server mode")
 
-        server = manager.get_server()
-        if not server:
-            raise HTTPException(status_code=503, detail="Server not available")
+    server = manager.get_server()
+    if not server:
+        raise HTTPException(status_code=503, detail="Server not available")
 
-        # Extract client IP from request
-        client_ip = http_request.client.host if http_request.client else "unknown"
+    # Extract client IP from request
+    client_ip = http_request.client.host if http_request.client else "unknown"
 
-        needs_initial_sync = server.register_client(request.client_id, client_ip)
+    needs_initial_sync = server.register_client(request.client_id, client_ip)
 
-        return RegisterResponse(
-            success=True,
-            needs_initial_sync=needs_initial_sync,
-            message=f"Client registered: {request.client_id}"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error registering client: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return RegisterResponse(
+        success=True,
+        needs_initial_sync=needs_initial_sync,
+        message=f"Client registered: {request.client_id}"
+    )
 
 
 @router.post("/initial-sync", response_model=InitialSyncResponse)
 async def initial_sync(request: InitialSyncRequest):
     """Get all files for initial sync"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
+    manager = get_code_sync_manager()
 
-        if not manager.is_server_mode():
-            raise HTTPException(status_code=503, detail="Not in server mode")
+    if not manager.is_server_mode():
+        raise HTTPException(status_code=503, detail="Not in server mode")
 
-        server = manager.get_server()
-        if not server:
-            raise HTTPException(status_code=503, detail="Server not available")
+    server = manager.get_server()
+    if not server:
+        raise HTTPException(status_code=503, detail="Server not available")
 
-        files = server.get_initial_sync_files(request.client_id)
+    files = server.get_initial_sync_files(request.client_id)
 
-        return InitialSyncResponse(
-            success=True,
-            files=files
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error in initial sync: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return InitialSyncResponse(
+        success=True,
+        files=files
+    )
 
 
 @router.post("/changes", response_model=ChangesResponse)
 async def get_changes(request: ChangesRequest):
     """Get changed files for incremental sync"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
+    manager = get_code_sync_manager()
 
-        if not manager.is_server_mode():
-            raise HTTPException(status_code=503, detail="Not in server mode")
+    if not manager.is_server_mode():
+        raise HTTPException(status_code=503, detail="Not in server mode")
 
-        server = manager.get_server()
-        if not server:
-            raise HTTPException(status_code=503, detail="Server not available")
+    server = manager.get_server()
+    if not server:
+        raise HTTPException(status_code=503, detail="Server not available")
 
-        # Update client statistics if provided
-        if request.received_count > 0 or request.skipped_count > 0:
-            server.update_client_stats(
-                request.client_id,
-                received_count=request.received_count,
-                skipped_count=request.skipped_count
-            )
-
-        files = server.get_changed_files(request.client_id)
-
-        return ChangesResponse(
-            success=True,
-            files=files
+    # Update client statistics if provided
+    if request.received_count > 0 or request.skipped_count > 0:
+        server.update_client_stats(
+            request.client_id,
+            received_count=request.received_count,
+            skipped_count=request.skipped_count
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error getting changes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    files = server.get_changed_files(request.client_id)
+
+    return ChangesResponse(
+        success=True,
+        files=files
+    )
 
 
 @router.get("/status", response_model=StatusResponse)
 async def get_status():
     """Get code sync status"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
-        mode = manager.get_mode()
+    manager = get_code_sync_manager()
+    mode = manager.get_mode()
 
-        response = StatusResponse(mode=mode)
+    response = StatusResponse(mode=mode)
 
-        if mode == "server":
-            server = manager.get_server()
-            if server:
-                response.server = server.get_status()
+    if mode == "server":
+        server = manager.get_server()
+        if server:
+            response.server = server.get_status()
 
-        elif mode == "client":
-            client = manager.get_client()
-            if client:
-                response.client = client.get_status()
+    elif mode == "client":
+        client = manager.get_client()
+        if client:
+            response.client = client.get_status()
 
-        return response
-
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error getting status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return response
 
 
 @router.post("/set-server")
 async def set_server_mode():
     """Switch to server mode"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
-        manager.set_server_mode()
+    manager = get_code_sync_manager()
+    manager.set_server_mode()
 
-        return {"success": True, "message": "Switched to server mode"}
-
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error setting server mode: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "message": "Switched to server mode"}
 
 
 @router.post("/set-client")
 async def set_client_mode():
     """Switch to client mode"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
-        manager.set_client_mode()
+    manager = get_code_sync_manager()
+    manager.set_client_mode()
 
-        return {"success": True, "message": "Switched to client mode"}
-
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error setting client mode: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "message": "Switched to client mode"}
 
 
 @router.post("/stop")
 async def stop_sync():
     """Stop code sync (both server and client)"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
-        manager.stop()
+    manager = get_code_sync_manager()
+    manager.stop()
 
-        return {"success": True, "message": "Code sync stopped"}
-
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error stopping: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "message": "Code sync stopped"}
 
 
 @router.post("/download")
@@ -280,28 +239,21 @@ async def download_file(request: DownloadRequest):
 @router.post("/toggle-backup")
 async def toggle_backup(request: Dict):
     """Toggle backup setting for client"""
-    try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-        manager = get_code_sync_manager()
+    manager = get_code_sync_manager()
 
-        if not manager.is_client_mode():
-            raise HTTPException(status_code=503, detail="Not in client mode")
+    if not manager.is_client_mode():
+        raise HTTPException(status_code=503, detail="Not in client mode")
 
-        client = manager.get_client()
-        if not client:
-            raise HTTPException(status_code=503, detail="Client not available")
+    client = manager.get_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Client not available")
 
-        # Toggle backup setting
-        enabled = request.get('enabled', True)
-        client.enable_backup = enabled
+    # Toggle backup setting
+    enabled = request.get('enabled', True)
+    client.enable_backup = enabled
 
-        ColorPrint.blue(f"[CodeSync] Backup {('enabled' if enabled else 'disabled')}")
+    ColorPrint.blue(f"[CodeSync] Backup {('enabled' if enabled else 'disabled')}")
 
-        return {"success": True, "enabled": enabled}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        ColorPrint.red(f"[CodeSync Router] Error toggling backup: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "enabled": enabled}

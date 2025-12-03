@@ -326,7 +326,7 @@ ITTools.Implementations.MACLookup = {
         const oui = mac.substring(0, 6);
         const formatted = oui.match(/.{2}/g).join(':');
         
-        let vendor = this.vendors[formatted] || null;
+        let vendor = this.vendors[formatted];
         
         if (!vendor) {
             for (const [prefix, name] of Object.entries(this.vendors)) {
