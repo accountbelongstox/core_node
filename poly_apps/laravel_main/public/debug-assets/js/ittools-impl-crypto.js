@@ -7,255 +7,280 @@
 // ============================================
 // Bcrypt Tool
 // ============================================
-ITTools.Tools.Registry.register('bcrypt-tool', {
-    name: 'Bcrypt Hash & Verify',
-    category: 'crypto',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">Bcrypt Hash & Verify</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-tabs">
-                        <button class="ittools-tab active" onclick="ITTools.Implementations.BcryptTool.switchTab('hash')">Hash</button>
-                        <button class="ittools-tab" onclick="ITTools.Implementations.BcryptTool.switchTab('verify')">Verify</button>
-                    </div>
-                    
-                    <div id="bcrypt-hash-tab" class="bcrypt-tab-content">
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Password:</label>
-                            <input type="text" id="bcrypt-password" class="ittools-input" placeholder="Enter password to hash">
-                        </div>
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Rounds (4-31):</label>
-                            <input type="number" id="bcrypt-rounds" class="ittools-input" value="10" min="4" max="31">
-                        </div>
-                        <div class="ittools-btn-group">
-                            <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.BcryptTool.hash()">
-                                🔐 Generate Hash
-                            </button>
-                        </div>
-                        <div id="bcrypt-hash-result" class="ittools-result" style="display: none;"></div>
-                    </div>
-                    
-                    <div id="bcrypt-verify-tab" class="bcrypt-tab-content" style="display: none;">
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Password:</label>
-                            <input type="text" id="bcrypt-verify-password" class="ittools-input" placeholder="Enter password">
-                        </div>
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Hash:</label>
-                            <input type="text" id="bcrypt-verify-hash" class="ittools-input" placeholder="Enter bcrypt hash">
-                        </div>
-                        <div class="ittools-btn-group">
-                            <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.BcryptTool.verify()">
-                                ✓ Verify Password
-                            </button>
-                        </div>
-                        <div id="bcrypt-verify-result" class="ittools-result" style="display: none;"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.BcryptTool = {
-    switchTab(tab) {
-        document.querySelectorAll('.bcrypt-tab-content').forEach(el => el.style.display = 'none');
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/bcrypt-tool.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            const actionName = action.dataset.action;
+            if (actionName === 'switch-tab') {
+                this.switchTab(action.dataset.tab, action);
+            } else if (actionName === 'bcrypt-hash') {
+                this.hash();
+            } else if (actionName === 'bcrypt-verify') {
+                this.verify();
+            } else if (actionName === 'copy-hash') {
+                this.copyToClipboard(action.dataset.hash);
+            }
+        });
+    },
+
+    switchTab(tab, button) {
+        document.querySelectorAll('.bcrypt-tab-content').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.ittools-tab').forEach(el => el.classList.remove('active'));
         
         if (tab === 'hash') {
-            document.getElementById('bcrypt-hash-tab').style.display = 'block';
-            event.target.classList.add('active');
+            document.getElementById('bcrypt-hash-tab').classList.remove('hidden');
         } else {
-            document.getElementById('bcrypt-verify-tab').style.display = 'block';
-            event.target.classList.add('active');
+            document.getElementById('bcrypt-verify-tab').classList.remove('hidden');
         }
+        button.classList.add('active');
     },
     
     async hash() {
-        const password = document.getElementById('bcrypt-password').value;
-        const rounds = document.getElementById('bcrypt-rounds').value;
+        const password = document.querySelector('[data-input="bcrypt-password"]').value;
+        const rounds = document.querySelector('[data-input="bcrypt-rounds"]').value;
+        const resultDiv = document.getElementById('bcrypt-hash-result');
         
-        if (!password) {
-            ITTools.UI.showResult('bcrypt-hash-result', 'Please enter a password', false);
-            return;
-        }
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Generating hash...';
         
-        ITTools.UI.showLoading('bcrypt-hash-result', 'Generating hash...');
+        const result = await apiClientInstance.json('/api/ittools/v1/crypto/bcrypt/hash', 'POST', { 
+            password, 
+            rounds: parseInt(rounds) 
+        });
         
-        try {
-            const response = await fetch('/api/ittools/v1/crypto/bcrypt/hash', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password, rounds: parseInt(rounds) })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                ITTools.UI.showResult('bcrypt-hash-result', 
-                    `<strong>Bcrypt Hash:</strong><br><code style="word-break: break-all;">${result.data.hash}</code>
-                    <button onclick="ITTools.UI.copyToClipboard('${result.data.hash}')" class="ittools-btn ittools-btn-sm" style="margin-top: 10px;">📋 Copy</button>`, 
-                    true);
-            } else {
-                ITTools.UI.showResult('bcrypt-hash-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('bcrypt-hash-result', 'Error: ' + error.message, false);
-        }
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'crypto-result-header';
+        header.textContent = 'Bcrypt Hash:';
+        
+        const code = document.createElement('code');
+        code.className = 'crypto-result-code';
+        code.textContent = result.data.hash;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm crypto-result-copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.dataset.action = 'copy-hash';
+        copyBtn.dataset.hash = result.data.hash;
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard(result.data.hash);
+        });
+        
+        resultDiv.appendChild(header);
+        resultDiv.appendChild(code);
+        resultDiv.appendChild(copyBtn);
     },
     
     async verify() {
-        const password = document.getElementById('bcrypt-verify-password').value;
-        const hash = document.getElementById('bcrypt-verify-hash').value;
+        const password = document.querySelector('[data-input="bcrypt-verify-password"]').value;
+        const hash = document.querySelector('[data-input="bcrypt-verify-hash"]').value;
+        const resultDiv = document.getElementById('bcrypt-verify-result');
         
-        if (!password || !hash) {
-            ITTools.UI.showResult('bcrypt-verify-result', 'Please enter both password and hash', false);
-            return;
-        }
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Verifying...';
         
-        ITTools.UI.showLoading('bcrypt-verify-result', 'Verifying...');
+        const result = await apiClientInstance.json('/api/ittools/v1/crypto/bcrypt/verify', 'POST', { 
+            password, 
+            hash 
+        });
         
-        try {
-            const response = await fetch('/api/ittools/v1/crypto/bcrypt/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password, hash })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                const valid = result.data.valid;
-                ITTools.UI.showResult('bcrypt-verify-result', 
-                    valid ? '✅ Password matches hash!' : '❌ Password does NOT match hash', 
-                    valid);
-            } else {
-                ITTools.UI.showResult('bcrypt-verify-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('bcrypt-verify-result', 'Error: ' + error.message, false);
-        }
+        resultDiv.innerHTML = '';
+        resultDiv.textContent = result.data.valid ? '✅ Password matches hash!' : '❌ Password does NOT match hash';
+        resultDiv.className = result.data.valid ? 'ittools-result crypto-result' : 'ittools-result crypto-result error';
+    },
+
+    async copyToClipboard(text) {
+        await navigator.clipboard.writeText(text);
     }
 };
+
+ITTools.Tools.Registry.register('bcrypt-tool', {
+    name: 'Bcrypt Hash & Verify',
+    category: 'crypto',
+    render: ITTools.Implementations.BcryptTool.render.bind(ITTools.Implementations.BcryptTool),
+    init: ITTools.Implementations.BcryptTool.init.bind(ITTools.Implementations.BcryptTool)
+});
 
 // ============================================
 // ULID Generator
 // ============================================
+ITTools.Implementations.ULIDGenerator = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/ulid-generator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'generate-ulid') {
+                this.generate();
+            } else if (action.dataset.action === 'copy-ulid') {
+                this.copyToClipboard(action.dataset.ulid);
+            }
+        });
+    },
+
+    async generate() {
+        const count = document.querySelector('[data-input="ulid-count"]').value;
+        const resultDiv = document.getElementById('ulid-result');
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Generating ULIDs...';
+        
+        const result = await apiClientInstance.json('/api/ittools/v1/crypto/ulid/generate', 'POST', { 
+            count: parseInt(count) 
+        });
+        
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'crypto-result-header';
+        header.textContent = `${result.data.ulids.length} ULID(s) Generated:`;
+        resultDiv.appendChild(header);
+        
+        for (const ulid of result.data.ulids) {
+            const item = document.createElement('div');
+            item.className = 'ulid-item';
+            
+            const code = document.createElement('code');
+            code.className = 'ulid-code';
+            code.textContent = ulid;
+            
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'ittools-btn ittools-btn-sm ulid-copy-btn';
+            copyBtn.textContent = '📋';
+            copyBtn.dataset.action = 'copy-ulid';
+            copyBtn.dataset.ulid = ulid;
+            copyBtn.addEventListener('click', () => {
+                this.copyToClipboard(ulid);
+            });
+            
+            item.appendChild(code);
+            item.appendChild(copyBtn);
+            resultDiv.appendChild(item);
+        }
+    },
+
+    async copyToClipboard(text) {
+        await navigator.clipboard.writeText(text);
+    }
+};
+
 ITTools.Tools.Registry.register('ulid-generator', {
     name: 'ULID Generator',
     category: 'crypto',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">ULID Generator</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Number of ULIDs:</label>
-                        <input type="number" id="ulid-count" class="ittools-input" value="5" min="1" max="100">
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.ULIDGenerator.generate()">
-                            🆔 Generate ULIDs
-                        </button>
-                    </div>
-                    <div id="ulid-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
+    render: ITTools.Implementations.ULIDGenerator.render.bind(ITTools.Implementations.ULIDGenerator),
+    init: ITTools.Implementations.ULIDGenerator.init.bind(ITTools.Implementations.ULIDGenerator)
 });
-
-ITTools.Implementations.ULIDGenerator = {
-    async generate() {
-        const count = document.getElementById('ulid-count').value;
-        
-        ITTools.UI.showLoading('ulid-result', 'Generating ULIDs...');
-        
-        try {
-            const response = await fetch('/api/ittools/v1/crypto/ulid/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ count: parseInt(count) })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                const ulids = result.data.ulids;
-                const html = `<strong>${ulids.length} ULID(s) Generated:</strong><br>` +
-                    ulids.map(ulid => `<code>${ulid}</code> <button onclick="ITTools.UI.copyToClipboard('${ulid}')" class="ittools-btn ittools-btn-sm">📋</button>`).join('<br>');
-                ITTools.UI.showResult('ulid-result', html, true);
-            } else {
-                ITTools.UI.showResult('ulid-result', 'Error: ' + result.message, false);
-            }
-        } catch (error) {
-            ITTools.UI.showResult('ulid-result', 'Error: ' + error.message, false);
-        }
-    }
-};
 
 // ============================================
 // BIP39 Generator
 // ============================================
-ITTools.Tools.Registry.register('bip39-generator', {
-    name: 'BIP39 Passphrase',
-    category: 'crypto',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">BIP39 Mnemonic Generator</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Word Count:</label>
-                        <select id="bip39-words" class="ittools-input">
-                            <option value="12">12 words</option>
-                            <option value="15">15 words</option>
-                            <option value="18">18 words</option>
-                            <option value="21">21 words</option>
-                            <option value="24">24 words</option>
-                        </select>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.BIP39Generator.generate()">
-                            🔑 Generate Mnemonic
-                        </button>
-                    </div>
-                    <div id="bip39-result" class="ittools-result" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-    }
-});
-
 ITTools.Implementations.BIP39Generator = {
-    async generate() {
-        const wordCount = document.getElementById('bip39-words').value;
-        
-        ITTools.UI.showLoading('bip39-result', 'Generating mnemonic...');
-        
-        try {
-            const response = await fetch('/api/ittools/v1/crypto/bip39/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ words: parseInt(wordCount) })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                const mnemonic = result.data.mnemonic;
-                ITTools.UI.showResult('bip39-result', 
-                    `<strong>BIP39 Mnemonic (${wordCount} words):</strong><br>
-                    <code style="display: block; padding: 15px; background: #f8f9fa; border-radius: 5px; margin: 10px 0;">${mnemonic}</code>
-                    <button onclick="ITTools.UI.copyToClipboard('${mnemonic}')" class="ittools-btn ittools-btn-sm">📋 Copy</button>
-                    <p style="color: #dc3545; font-size: 12px; margin-top: 10px;">⚠️ Store this safely! Never share your mnemonic phrase.</p>`, 
-                    true);
-            } else {
-                ITTools.UI.showResult('bip39-result', 'Error: ' + result.message, false);
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/bip39-generator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'generate-bip39') {
+                this.generate();
+            } else if (action.dataset.action === 'copy-bip39') {
+                this.copyToClipboard(action.dataset.mnemonic);
             }
-        } catch (error) {
-            ITTools.UI.showResult('bip39-result', 'Error: ' + error.message, false);
-        }
+        });
+    },
+
+    async generate() {
+        const wordCount = document.querySelector('[data-input="bip39-words"]').value;
+        const resultDiv = document.getElementById('bip39-result');
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        resultDiv.textContent = 'Generating mnemonic...';
+        
+        const result = await apiClientInstance.json('/api/ittools/v1/crypto/bip39/generate', 'POST', { 
+            words: parseInt(wordCount) 
+        });
+        
+        resultDiv.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'crypto-result-header';
+        header.textContent = `BIP39 Mnemonic (${wordCount} words):`;
+        resultDiv.appendChild(header);
+        
+        const code = document.createElement('code');
+        code.className = 'crypto-result-code';
+        code.textContent = result.data.mnemonic;
+        resultDiv.appendChild(code);
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ittools-btn ittools-btn-sm crypto-result-copy-btn';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.dataset.action = 'copy-bip39';
+        copyBtn.dataset.mnemonic = result.data.mnemonic;
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard(result.data.mnemonic);
+        });
+        resultDiv.appendChild(copyBtn);
+        
+        const warning = document.createElement('p');
+        warning.className = 'crypto-result-warning';
+        warning.textContent = '⚠️ Store this safely! Never share your mnemonic phrase.';
+        resultDiv.appendChild(warning);
+    },
+
+    async copyToClipboard(text) {
+        await navigator.clipboard.writeText(text);
     }
 };
 
-// Continue in next file...
+ITTools.Tools.Registry.register('bip39-generator', {
+    name: 'BIP39 Passphrase',
+    category: 'crypto',
+    render: ITTools.Implementations.BIP39Generator.render.bind(ITTools.Implementations.BIP39Generator),
+    init: ITTools.Implementations.BIP39Generator.init.bind(ITTools.Implementations.BIP39Generator)
+});
+
 console.log('ITTools Crypto Implementations loaded');

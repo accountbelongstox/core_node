@@ -1,0 +1,75 @@
+<div class="mcp-ss-detail-content">
+    <div class="mcp-ss-detail-header">
+        <h3>{id}</h3>
+        <div class="mcp-ss-detail-actions">
+            <a href="{fileUrl}" download="{original_name}" class="mcp-btn mcp-btn-success mcp-btn-sm">
+                ⬇️ Download
+            </a>
+            <button class="mcp-btn mcp-btn-danger mcp-btn-sm" onclick="McpScreenshotModule.deleteScreenshot('{id}')">
+                🗑 Delete
+            </button>
+        </div>
+    </div>
+
+    <div class="mcp-ss-detail-image">
+        <img src="{fileUrl}" alt="{original_name}" onclick="window.open('{fileUrl}', '_blank')" style="cursor: zoom-in;" />
+    </div>
+
+    <div class="mcp-ss-detail-info">
+        <div class="mcp-info-row">
+            <label>Original Name:</label>
+            <span>{original_name}</span>
+        </div>
+        <div class="mcp-info-row">
+            <label>Description:</label>
+            <span>{description}</span>
+        </div>
+        <div class="mcp-info-row">
+            <label>Keywords:</label>
+            <span>{keywords}</span>
+        </div>
+        {mergedInfo}
+        <div class="mcp-info-row">
+            <label>Size:</label>
+            <span>{size}</span>
+        </div>
+        <div class="mcp-info-row">
+            <label>Type:</label>
+            <span>{mime_type}</span>
+        </div>
+        <div class="mcp-info-row">
+            <label>Created:</label>
+            <span>{created_at}</span>
+        </div>
+    </div>
+
+    <div class="mcp-ss-url-section">
+        <h4>🤖 AI Download URLs</h4>
+        <p class="mcp-hint">Use these URLs for AI/MCP to fetch and analyze this image</p>
+        
+        <div class="mcp-url-group">
+            <label>Direct File URL:</label>
+            <div class="mcp-url-box">
+                <input type="text" readonly value="{fullUrl}" id="mcp-url-direct" />
+                <button class="mcp-btn mcp-btn-sm" onclick="McpScreenshotModule.copyToClipboard('mcp-url-direct')">📋</button>
+            </div>
+        </div>
+
+        <div class="mcp-url-group">
+            <label>API Endpoint (JSON metadata):</label>
+            <div class="mcp-url-box">
+                <input type="text" readonly value="{apiUrl}" id="mcp-url-api" />
+                <button class="mcp-btn mcp-btn-sm" onclick="McpScreenshotModule.copyToClipboard('mcp-url-api')">📋</button>
+            </div>
+        </div>
+
+        <div class="mcp-url-group">
+            <label>MCP Resource URI:</label>
+            <div class="mcp-url-box">
+                <input type="text" readonly value="mcp://screenshots/{id}" id="mcp-url-mcp" />
+                <button class="mcp-btn mcp-btn-sm" onclick="McpScreenshotModule.copyToClipboard('mcp-url-mcp')">📋</button>
+            </div>
+        </div>
+    </div>
+</div>
+

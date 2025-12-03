@@ -1,0 +1,58 @@
+/* Text Tools Common Styles */
+.text-result {
+    margin-top: 15px;
+}
+
+.text-result-method {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.text-result-content {
+    margin-top: 10px;
+}
+
+.text-result-copy-btn {
+    margin-top: 10px;
+}
+
+/* Numeronym Generator Styles */
+.numeronym-item {
+    background: #f8f9fa;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.numeronym-word {
+    color: #666;
+}
+
+.numeronym-arrow {
+    margin: 0 10px;
+}
+
+.numeronym-result {
+    font-weight: bold;
+    color: #667eea;
+}
+
+.numeronym-count {
+    margin-left: 10px;
+    font-size: 12px;
+    color: #999;
+}
+
+.numeronym-copy-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+

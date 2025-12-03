@@ -1,0 +1,29 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">BIP39 Mnemonic Generator</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Word Count:</label>
+            <select 
+                id="bip39-words" 
+                class="ittools-input"
+                data-input="bip39-words"
+            >
+                <option value="12">12 words</option>
+                <option value="15">15 words</option>
+                <option value="18">18 words</option>
+                <option value="21">21 words</option>
+                <option value="24">24 words</option>
+            </select>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="generate-bip39"
+            >
+                🔑 Generate Mnemonic
+            </button>
+        </div>
+        <div id="bip39-result" class="ittools-result crypto-result hidden"></div>
+    </div>
+</div>
+
