@@ -245,10 +245,16 @@ class ServerManagerV1NuxtServiceManager
 
     /**
      * Generate systemd service file content for production mode (factory build)
+     * Note: Running as root to avoid permission issues with factory directory
      */
     private static function generateServiceFileContent(string $appname, string $factoryPath, int $port, string $user): string
     {
         $nodePath = PathMapper::getNodeBinaryPath();
+        $nodeBinDir = dirname($nodePath);
+
+        // Build PATH with node directory
+        $pathDirs = array_unique([$nodeBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
+        $pathEnv = implode(':', $pathDirs);
 
         return <<<SERVICE
 [Unit]
@@ -257,8 +263,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=$user
+User=root
 WorkingDirectory=$factoryPath
+Environment="PATH=$pathEnv"
 Environment="NODE_ENV=production"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
@@ -276,14 +283,23 @@ SERVICE;
 
     /**
      * Generate systemd service file content for debug mode (factory with file watcher)
+     * Note: Running as root to avoid permission issues with factory directory sync
      */
     private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
     {
         $nodePath = PathMapper::getNodeBinaryPath();
+        $pnpmPath = PathMapper::getPnpmBinaryPath();
+        $nodeBinDir = dirname($nodePath);
+        $pnpmBinDir = dirname($pnpmPath);
+
         $coreNodeDir = PathMapper::getCoreNodeDir();
         $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
         $switchScript = "$nuxtMainPath/scripts/switch-app.js";
         $factoryPath = self::getFactoryPath($appname);
+
+        // Build PATH with node and pnpm directories
+        $pathDirs = array_unique([$nodeBinDir, $pnpmBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
+        $pathEnv = implode(':', $pathDirs);
 
         return <<<SERVICE
 [Unit]
@@ -292,8 +308,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=$user
-WorkingDirectory=$factoryPath
+User=root
+WorkingDirectory=$nuxtMainPath
+Environment="PATH=$pathEnv"
 Environment="NODE_ENV=development"
 Environment="PORT=$port"
 Environment="NITRO_PORT=$port"
@@ -436,10 +453,13 @@ SERVICE;
 
         $servicePath = self::getSystemdDir() . "/$serviceName.service";
         if (file_exists($servicePath)) {
-            if (!unlink($servicePath)) {
+            // Use Process::run to delete with proper permissions
+            $result = Process::run("rm -f $servicePath");
+            if ($result->failed()) {
                 Log::error('Failed to remove Nuxt service file', [
                     'service_name' => $serviceName,
-                    'path' => $servicePath
+                    'path' => $servicePath,
+                    'error' => $result->errorOutput()
                 ]);
                 return false;
             }

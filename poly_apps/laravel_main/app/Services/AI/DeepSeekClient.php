@@ -2,50 +2,38 @@
 
 namespace App\Services\AI;
 
-use App\Helpers\GlobalSecretReader;
-use App\Services\AI\UnifiedRateLimiter;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * DeepSeek AI Client
  *
- * Rate limits: None (paid service)
+ * Supports multiple API keys with automatic rotation and rate limiting.
+ * Keys are auto-discovered: DEEPSEEK_API_KEY, DEEPSEEK_API_KEY_1, DEEPSEEK_API_KEY_2, ...
+ *
+ * Rate limits (per key): 1000 requests/minute, 100000 requests/day (paid service, virtually unlimited)
+ * Effective limits scale with number of keys
+ *
  * Supports: Text generation only
  * Priority: Fallback text provider
  */
-class DeepSeekClient
+class DeepSeekClient extends MultiKeyAIClientBase
 {
     private const BASE_URL = 'https://api.deepseek.com';
 
-    private const RATE_LIMITS = [
+    private const BASE_RATE_LIMITS = [
         'rpm' => 1000,
         'rpd' => 100000,
     ];
 
-    private ?string $apiKey = null;
-    private UnifiedRateLimiter $rateLimiter;
-    private string $keyIdentifier;
-
     public function __construct(?string $apiKey = null)
     {
-        $this->rateLimiter = new UnifiedRateLimiter();
-
-        $this->apiKey = $apiKey ?? GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY');
-
-        if (!$this->apiKey) {
-            Log::warning('[DeepSeekClient] No API key configured');
-        }
-
-        $this->keyIdentifier = $this->apiKey ? substr(md5($this->apiKey), 0, 10) : 'none';
-    }
-
-    /**
-     * Check if client has API key configured
-     */
-    public function hasApiKey(): bool
-    {
-        return !empty($this->apiKey);
+        parent::__construct(
+            'DEEPSEEK_API_KEY',
+            self::BASE_RATE_LIMITS,
+            'deepseek',
+            $apiKey
+        );
     }
 
     /**
@@ -65,24 +53,20 @@ class DeepSeekClient
             ];
         }
 
-        $rateLimitResult = $this->rateLimiter->acquire(
-            'deepseek',
-            $this->keyIdentifier,
-            self::RATE_LIMITS,
-            1,
-            0,
-            $keyword
-        );
+        // Acquire an available API key
+        $keyResult = $this->acquireApiKey(1, 0, $keyword);
 
-        if (!$rateLimitResult['allowed']) {
+        if (!$keyResult['success']) {
             return [
                 'success' => false,
                 'error' => 'Rate limit exceeded',
                 'rate_limited' => true,
-                'retry_after' => $rateLimitResult['retry_after'] ?? 60,
-                'reason' => $rateLimitResult['reason'] ?? 'unknown',
+                'retry_after' => $keyResult['retry_after'] ?? 60,
+                'reason' => $keyResult['reason'] ?? 'unknown',
             ];
         }
+
+        $apiKey = $keyResult['key'];
 
         $messages = [];
 
@@ -114,7 +98,7 @@ class DeepSeekClient
 
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type' => 'application/json',
             ])
                 ->timeout($options['timeout'] ?? 60)
@@ -129,6 +113,8 @@ class DeepSeekClient
                     'model' => $data['model'] ?? $model,
                     'usage' => $data['usage'] ?? null,
                     'raw' => $data,
+                    'provider' => 'deepseek',
+                    'key_identifier' => $keyResult['identifier'],
                 ];
             } else {
                 $errorBody = $response->json();
@@ -137,21 +123,25 @@ class DeepSeekClient
                 Log::error('[DeepSeekClient] Request failed', [
                     'status' => $response->status(),
                     'error' => $error,
+                    'key_identifier' => $keyResult['identifier'],
                 ]);
 
                 return [
                     'success' => false,
                     'error' => $error,
+                    'provider' => 'deepseek',
                 ];
             }
         } catch (\Throwable $e) {
             Log::error('[DeepSeekClient] Exception: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
+                'key_identifier' => $keyResult['identifier'],
             ]);
 
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
+                'provider' => 'deepseek',
             ];
         }
     }
@@ -175,13 +165,5 @@ class DeepSeekClient
                 'type' => 'text',
             ],
         ];
-    }
-
-    /**
-     * Get current usage statistics
-     */
-    public function getUsageStats(): array
-    {
-        return $this->rateLimiter->getUsage('deepseek', $this->keyIdentifier);
     }
 }

@@ -2,50 +2,38 @@
 
 namespace App\Services\AI;
 
-use App\Helpers\GlobalSecretReader;
-use App\Services\AI\UnifiedRateLimiter;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * OpenRouter AI Client
  *
- * Rate limits: 20 requests/minute, 1000 requests/day
+ * Supports multiple API keys with automatic rotation and rate limiting.
+ * Keys are auto-discovered: OPENROUTER_API_KEY, OPENROUTER_API_KEY_1, OPENROUTER_API_KEY_2, ...
+ *
+ * Rate limits (per key): 20 requests/minute, 1000 requests/day
+ * Effective limits scale with number of keys (2 keys = 40 req/min, 2000 req/day)
+ *
  * Supports: Text generation only
  * Priority: Primary text provider
  */
-class OpenRouterClient
+class OpenRouterClient extends MultiKeyAIClientBase
 {
     private const BASE_URL = 'https://openrouter.ai/api/v1';
 
-    private const RATE_LIMITS = [
+    private const BASE_RATE_LIMITS = [
         'rpm' => 20,
         'rpd' => 1000,
     ];
 
-    private ?string $apiKey = null;
-    private UnifiedRateLimiter $rateLimiter;
-    private string $keyIdentifier;
-
     public function __construct(?string $apiKey = null)
     {
-        $this->rateLimiter = new UnifiedRateLimiter();
-
-        $this->apiKey = $apiKey ?? GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY');
-
-        if (!$this->apiKey) {
-            Log::warning('[OpenRouterClient] No API key configured');
-        }
-
-        $this->keyIdentifier = $this->apiKey ? substr(md5($this->apiKey), 0, 10) : 'none';
-    }
-
-    /**
-     * Check if client has API key configured
-     */
-    public function hasApiKey(): bool
-    {
-        return !empty($this->apiKey);
+        parent::__construct(
+            'OPENROUTER_API_KEY',
+            self::BASE_RATE_LIMITS,
+            'openrouter',
+            $apiKey
+        );
     }
 
     /**
@@ -65,24 +53,20 @@ class OpenRouterClient
             ];
         }
 
-        $rateLimitResult = $this->rateLimiter->acquire(
-            'openrouter',
-            $this->keyIdentifier,
-            self::RATE_LIMITS,
-            1,
-            0,
-            $keyword
-        );
+        // Acquire an available API key
+        $keyResult = $this->acquireApiKey(1, 0, $keyword);
 
-        if (!$rateLimitResult['allowed']) {
+        if (!$keyResult['success']) {
             return [
                 'success' => false,
                 'error' => 'Rate limit exceeded',
                 'rate_limited' => true,
-                'retry_after' => $rateLimitResult['retry_after'] ?? 60,
-                'reason' => $rateLimitResult['reason'] ?? 'unknown',
+                'retry_after' => $keyResult['retry_after'] ?? 60,
+                'reason' => $keyResult['reason'] ?? 'unknown',
             ];
         }
+
+        $apiKey = $keyResult['key'];
 
         $messages = [];
 
@@ -113,7 +97,7 @@ class OpenRouterClient
 
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type' => 'application/json',
                 'HTTP-Referer' => config('app.url'),
                 'X-Title' => config('app.name'),
@@ -130,6 +114,8 @@ class OpenRouterClient
                     'model' => $data['model'] ?? $model,
                     'usage' => $data['usage'] ?? null,
                     'raw' => $data,
+                    'provider' => 'openrouter',
+                    'key_identifier' => $keyResult['identifier'],
                 ];
             } else {
                 $errorBody = $response->json();
@@ -138,21 +124,25 @@ class OpenRouterClient
                 Log::error('[OpenRouterClient] Request failed', [
                     'status' => $response->status(),
                     'error' => $error,
+                    'key_identifier' => $keyResult['identifier'],
                 ]);
 
                 return [
                     'success' => false,
                     'error' => $error,
+                    'provider' => 'openrouter',
                 ];
             }
         } catch (\Throwable $e) {
             Log::error('[OpenRouterClient] Exception: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
+                'key_identifier' => $keyResult['identifier'],
             ]);
 
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
+                'provider' => 'openrouter',
             ];
         }
     }
@@ -182,13 +172,5 @@ class OpenRouterClient
                 'type' => 'text',
             ],
         ];
-    }
-
-    /**
-     * Get current usage statistics
-     */
-    public function getUsageStats(): array
-    {
-        return $this->rateLimiter->getUsage('openrouter', $this->keyIdentifier);
     }
 }
