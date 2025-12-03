@@ -1,135 +1,63 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { MobileLayout, Header, GlassCard, Input, Button } from '../components/Shared';
 import { useStore } from '../store';
-import Icon from 'react-native-vector-icons/Feather';
 
 const EditProfile: React.FC = () => {
   const { user, updateUser, t } = useStore();
   const [formData, setFormData] = useState(user || {});
 
-  const handleChange = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSave = () => {
     updateUser(formData);
-    // Navigation will be handled by back button
+    window.history.back();
   };
-
-  const fields = [
-    { label: 'Name', name: 'name', type: 'text' },
-    { label: 'Signature', name: 'signature', type: 'text' },
-    { label: 'Phone', name: 'phone', type: 'tel', disabled: true },
-    { label: 'Email', name: 'email', type: 'email' },
-    { label: 'Address', name: 'address', type: 'text' },
-    { label: 'ID Card (Real Name)', name: 'idCard', type: 'text', secure: true },
-  ];
 
   return (
     <MobileLayout showNav={false}>
       <Header title="My Profile" backTo="/me" />
       
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarWrapper}>
-            <Image 
-              source={{ uri: user?.avatar }} 
-              style={styles.avatar}
-            />
-            <TouchableOpacity style={styles.cameraButton}>
-              <Icon name="camera" size={12} color="white" />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <div className="px-5 pt-4 pb-4" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="flex-center">
+           <div style={{ position: 'relative' }}>
+             <img src={user?.avatar} style={{ width: 96, height: 96, borderRadius: '50%', border: '4px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} alt="Avatar" />
+             <div style={{ position: 'absolute', bottom: 0, right: 0, padding: 6, background: '#3b82f6', borderRadius: '50%', border: '2px solid white', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+             </div>
+           </div>
+        </div>
 
-        <GlassCard style={styles.formCard}>
-          {fields.map((field) => (
-            <View key={field.name} style={styles.field}>
-              <Text style={styles.label}>{field.label}</Text>
-              <Input 
-                value={(formData as any)[field.name] || ''}
-                onChangeText={(text) => handleChange(field.name, text)}
-                editable={!field.disabled}
-                secureTextEntry={field.secure}
-                keyboardType={field.type === 'email' ? 'email-address' : field.type === 'tel' ? 'phone-pad' : 'default'}
-                style={field.disabled ? styles.inputDisabled : {}}
-              />
-            </View>
+        <GlassCard style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {[
+            { label: 'Name', name: 'name', type: 'text' },
+            { label: 'Signature', name: 'signature', type: 'text' },
+            { label: 'Phone', name: 'phone', type: 'tel', disabled: true },
+            { label: 'Email', name: 'email', type: 'email' },
+            { label: 'Address', name: 'address', type: 'text' },
+            { label: 'ID Card (Real Name)', name: 'idCard', type: 'text', secure: true },
+          ].map((field) => (
+             <div key={field.name}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginLeft: 4, marginBottom: 4, display: 'block' }}>{field.label}</label>
+                <Input 
+                  name={field.name} 
+                  value={(formData as any)[field.name]} 
+                  onChange={handleChange}
+                  disabled={field.disabled}
+                  type={field.type}
+                  style={field.disabled ? { opacity: 0.6, background: '#f1f5f9' } : {}}
+                />
+             </div>
           ))}
           
-          <View style={styles.buttonContainer}>
-            <Button onPress={handleSave}>{t('common.save')}</Button>
-          </View>
+          <div style={{ paddingTop: 16 }}>
+            <Button onClick={handleSave}>{t('common.save')}</Button>
+          </div>
         </GlassCard>
-      </ScrollView>
+      </div>
     </MobileLayout>
   );
 };
-
-const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-    gap: 24,
-  },
-  avatarContainer: {
-    alignItems: 'center',
-  },
-  avatarWrapper: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 4,
-    borderColor: 'white',
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    padding: 6,
-    backgroundColor: '#3b82f6',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  formCard: {
-    gap: 16,
-  },
-  field: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-    marginLeft: 4,
-    marginBottom: 4,
-  },
-  inputDisabled: {
-    opacity: 0.6,
-    backgroundColor: '#f1f5f9',
-  },
-  buttonContainer: {
-    paddingTop: 16,
-  },
-});
 
 export default EditProfile;

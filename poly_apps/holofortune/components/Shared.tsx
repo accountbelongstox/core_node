@@ -1,380 +1,123 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Image, ScrollView, Platform } from 'react-native';
 import { useStore } from '../store';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Feather';
+import { Link, useLocation } from 'react-router-dom';
+import { MapPin, Users, User as UserIcon, ChevronLeft, Home, Sparkles, Plus, ShoppingBag } from 'lucide-react';
 import { clsx } from 'clsx';
 
 // 1. Layout Container
-export const MobileLayout: React.FC<{ 
-  children: React.ReactNode, 
-  showNav?: boolean, 
-  style?: any 
-}> = ({ 
+export const MobileLayout: React.FC<{ children: React.ReactNode, showNav?: boolean, className?: string, style?: React.CSSProperties }> = ({ 
   children, 
   showNav = true,
+  className,
   style
 }) => {
-  const { theme } = useStore();
-  const isDark = theme === 'dark';
-
   return (
-    <View style={[styles.mobileLayout, { backgroundColor: isDark ? '#0f172a' : '#f0f4f8' }, style]}>
-      {/* Background Gradient Orbs */}
-      <View style={[styles.orb, styles.orb1]} />
-      <View style={[styles.orb, styles.orb2]} />
+    <div className={clsx("mobile-layout", className)} style={style}>
+      {/* Background Gradient Orbs via CSS */}
+      <div className="orb orb-1" />
+      <div className="orb orb-2" />
       
-      <ScrollView 
-        style={styles.contentScroll}
-        contentContainerStyle={{ paddingBottom: showNav ? 120 : 20 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <div className="content-scroll">
         {children}
-      </ScrollView>
+      </div>
 
       {showNav && <BottomNav />}
-    </View>
+    </div>
   );
 };
 
 // 2. Glass Cards
-export const GlassCard: React.FC<{ 
-  children: React.ReactNode, 
-  style?: any,
-  onPress?: () => void 
-}> = ({ children, style, onPress }) => {
-  const { theme } = useStore();
-  const isDark = theme === 'dark';
-  
-  const cardStyle = [
-    styles.glassCard,
-    {
-      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.4)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)',
-    },
-    style
-  ];
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.9}>
-        <View style={cardStyle}>
-          {children}
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
+export const GlassCard: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void, style?: React.CSSProperties }> = ({ children, className, onClick, style }) => {
   return (
-    <View style={cardStyle}>
+    <div 
+      onClick={onClick}
+      className={clsx("glass-card", className)}
+      style={style}
+    >
       {children}
-    </View>
+    </div>
   );
 };
 
 // 3. Primary Button
-export const Button: React.FC<{
-  onPress?: () => void;
-  variant?: 'primary' | 'danger' | 'ghost';
-  style?: any;
-  children: React.ReactNode;
-  disabled?: boolean;
-}> = ({ 
-  onPress,
+export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'ghost' }> = ({ 
+  className, 
   variant = 'primary', 
-  style,
-  children,
-  disabled = false
+  ...props 
 }) => {
-  const buttonStyle = [
-    styles.btn,
-    variant === 'primary' && styles.btnPrimary,
-    variant === 'danger' && styles.btnDanger,
-    variant === 'ghost' && styles.btnGhost,
-    disabled && styles.btnDisabled,
-    style
-  ];
-
   return (
-    <TouchableOpacity 
-      onPress={onPress} 
-      style={buttonStyle}
-      activeOpacity={0.8}
-      disabled={disabled}
-    >
-      <Text style={styles.btnText}>{children}</Text>
-    </TouchableOpacity>
+    <button 
+      className={clsx(
+        "btn",
+        variant === 'primary' && "btn-primary",
+        variant === 'danger' && "btn-danger",
+        variant === 'ghost' && "btn-ghost",
+        className
+      )}
+      {...props}
+    />
   );
 };
 
 // 4. Input Field
-export const Input: React.FC<{
-  value?: string;
-  onChangeText?: (text: string) => void;
-  placeholder?: string;
-  style?: any;
-  secureTextEntry?: boolean;
-  keyboardType?: any;
-}> = ({ 
-  value,
-  onChangeText,
-  placeholder,
-  style,
-  secureTextEntry,
-  keyboardType
-}) => {
-  const { theme } = useStore();
-  const isDark = theme === 'dark';
-
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className, ...props }) => {
   return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={isDark ? '#94a3b8' : '#64748b'}
-      secureTextEntry={secureTextEntry}
-      keyboardType={keyboardType}
-      style={[
-        styles.inputField,
-        {
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.5)',
-          color: isDark ? '#f8fafc' : '#1e293b',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)',
-        },
-        style
-      ]}
+    <input 
+      className={clsx("input-field", className)}
+      {...props}
     />
   );
 };
 
 // 5. Floating Navigation Bar
 export const BottomNav: React.FC = () => {
-  const navigation = useNavigation<any>();
-  const route = useRoute();
-  const { t, theme } = useStore();
-  const isDark = theme === 'dark';
+  const location = useLocation();
+  const { t } = useStore();
+  const isActive = (path: string) => location.pathname === path;
 
-  const isActive = (routeName: string) => {
-    return route.name === routeName;
-  };
-
-  const NavItem = ({ routeName, iconName, label }: { routeName: string, iconName: string, label: string }) => {
-    const active = isActive(routeName);
-    const color = active ? '#14b8a6' : (isDark ? '#94a3b8' : '#64748b');
-
-    return (
-      <TouchableOpacity 
-        onPress={() => navigation.navigate(routeName)}
-        style={styles.navItem}
-        activeOpacity={0.7}
-      >
-        <Icon name={iconName} size={24} color={color} />
-        <Text style={[styles.navLabel, { color }]}>{label}</Text>
-      </TouchableOpacity>
-    );
-  };
+  // Regular Nav Item
+  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+    <Link to={to} className={clsx("nav-item", isActive(to) && "active")}>
+      <Icon size={24} strokeWidth={isActive(to) ? 2.5 : 2} />
+      <span className="nav-label">{label}</span>
+    </Link>
+  );
 
   return (
-    <View style={styles.floatingNavContainer}>
-      <View style={[
-        styles.floatingNav,
-        {
-          backgroundColor: isDark ? '#1e293b' : '#ffffff',
-        }
-      ]}>
-        <NavItem routeName="MapHome" iconName="home" label={t('tab.home')} />
-        <NavItem routeName="AIAssistant" iconName="zap" label={t('tab.ai')} />
-        
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('AddFriend')}
-          style={styles.navCenterBtn}
-          activeOpacity={0.8}
-        >
-          <Icon name="plus" size={28} color="white" />
-        </TouchableOpacity>
-        
-        <NavItem routeName="Shop" iconName="shopping-bag" label={t('tab.shop')} />
-        <NavItem routeName="Profile" iconName="user" label={t('tab.me')} />
-      </View>
-    </View>
+    <div className="floating-nav-container">
+      <div className="floating-nav">
+        {/* Left Side */}
+        <NavItem to="/map" icon={Home} label={t('tab.home')} />
+        <NavItem to="/friends" icon={Users} label={t('tab.friends')} />
+
+        {/* Center Action Button */}
+        <Link to="/friends/add" className="nav-center-btn">
+          <Plus size={28} strokeWidth={2.5} />
+        </Link>
+
+        {/* Right Side */}
+        <NavItem to="/shop" icon={ShoppingBag} label={t('tab.shop')} />
+        <NavItem to="/me" icon={UserIcon} label={t('tab.me')} />
+      </div>
+    </div>
   );
 };
 
 // 6. Header
-export const Header: React.FC<{ 
-  title: string, 
-  backTo?: string, 
-  action?: React.ReactNode 
-}> = ({ title, backTo, action }) => {
-  const navigation = useNavigation<any>();
-  const { theme } = useStore();
-  const isDark = theme === 'dark';
-
+export const Header: React.FC<{ title: string, backTo?: string, action?: React.ReactNode }> = ({ title, backTo, action }) => {
   return (
-    <View style={[
-      styles.appHeader,
-      { backgroundColor: isDark ? '#0f172a' : '#f0f4f8' }
-    ]}>
-      <View style={{ width: 40 }}>
+    <div className="app-header">
+      <div style={{ width: 40 }}>
         {backTo && (
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-            activeOpacity={0.7}
-          >
-            <Icon name="chevron-left" size={24} color={isDark ? '#f8fafc' : '#1e293b'} />
-          </TouchableOpacity>
+          <Link to={backTo} className="back-btn">
+            <ChevronLeft size={24} />
+          </Link>
         )}
-      </View>
-      <Text style={[
-        styles.headerTitle,
-        { color: isDark ? '#f8fafc' : '#1e293b' }
-      ]}>
-        {title}
-      </Text>
-      <View style={{ width: 40, alignItems: 'flex-end' }}>
+      </div>
+      <h1 className="header-title">{title}</h1>
+      <div style={{ width: 40, display: 'flex', justifyContent: 'flex-end' }}>
         {action}
-      </View>
-    </View>
+      </div>
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  mobileLayout: {
-    flex: 1,
-    position: 'relative',
-  },
-  orb: {
-    position: 'absolute',
-    borderRadius: 999,
-    opacity: 0.6,
-  },
-  orb1: {
-    top: '-20%',
-    left: '-20%',
-    width: '80%',
-    height: '50%',
-    backgroundColor: 'rgba(59, 130, 246, 0.25)',
-  },
-  orb2: {
-    bottom: '-10%',
-    right: '-10%',
-    width: '80%',
-    height: '50%',
-    backgroundColor: 'rgba(168, 85, 247, 0.25)',
-  },
-  contentScroll: {
-    flex: 1,
-  },
-  glassCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  btn: {
-    width: '100%',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPrimary: {
-    backgroundColor: '#3b82f6',
-  },
-  btnDanger: {
-    backgroundColor: '#ef4444',
-  },
-  btnGhost: {
-    backgroundColor: 'transparent',
-  },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  btnText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  inputField: {
-    width: '100%',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    fontSize: 16,
-  },
-  floatingNavContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  floatingNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 28,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    width: '90%',
-    maxWidth: 440,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 48,
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    marginTop: 4,
-  },
-  navCenterBtn: {
-    width: 56,
-    height: 56,
-    backgroundColor: '#14b8a6',
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -24,
-    borderWidth: 4,
-    borderColor: '#f0f4f8',
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  appHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    paddingHorizontal: 20,
-    zIndex: 20,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
-  },
-});
