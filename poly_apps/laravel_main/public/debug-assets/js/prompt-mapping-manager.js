@@ -34,6 +34,12 @@ const PromptMappingManager = {
         const data = await response.json();
         if (data.success) {
             this.mappings = data.data.mappings;
+            Object.keys(this.mappings).forEach(categoryId => {
+                const mapping = this.mappings[categoryId];
+                mapping.prefix = mapping.prefix || '';
+                mapping.suffix = mapping.suffix || '';
+                mapping.replace_map = mapping.replace_map || {};
+            });
         } else {
             console.error('Failed to load mappings:', data.error);
             this.mappings = {};
@@ -265,7 +271,7 @@ const PromptMappingManager = {
             });
 
             const mapping = this.mappings[categoryId];
-            const hasMapping = mapping.prefix || mapping.suffix || Object.keys(mapping.replace_map || {}).length > 0;
+            const hasMapping = mapping.prefix || mapping.suffix || Object.keys(mapping.replace_map).length > 0;
 
             categoryDiv.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -302,10 +308,10 @@ const PromptMappingManager = {
 
         const mapping = this.mappings[categoryId];
 
-        document.getElementById('mapping-prefix').value = mapping.prefix || '';
-        document.getElementById('mapping-suffix').value = mapping.suffix || '';
+        document.getElementById('mapping-prefix').value = mapping.prefix;
+        document.getElementById('mapping-suffix').value = mapping.suffix;
 
-        this.renderReplaceMap(mapping.replace_map || {});
+        this.renderReplaceMap(mapping.replace_map);
     },
 
     renderReplaceMap(replaceMap) {

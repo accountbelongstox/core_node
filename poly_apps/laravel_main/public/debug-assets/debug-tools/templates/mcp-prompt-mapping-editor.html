@@ -1,0 +1,35 @@
+<div class="mcp-pm-editor">
+    <div class="mcp-pm-editor-header">
+        <h3 id="mcp-pm-editor-title">Edit: {categoryId}</h3>
+        <div class="mcp-pm-editor-actions">
+            <button class="mcp-btn mcp-btn-primary mcp-btn-sm" id="mcp-pm-save-btn">💾 Save</button>
+            <button class="mcp-btn mcp-btn-secondary mcp-btn-sm" id="mcp-pm-reset-btn">↩️ Reset</button>
+            <button class="mcp-btn mcp-btn-danger mcp-btn-sm" id="mcp-pm-delete-btn">🗑 Delete</button>
+        </div>
+    </div>
+
+    <div class="mcp-form-group">
+        <label>Prefix (added before content)</label>
+        <textarea id="mcp-pm-prefix" rows="3" placeholder="Text to add before task content..."></textarea>
+    </div>
+
+    <div class="mcp-form-group">
+        <label>Suffix (added after content)</label>
+        <textarea id="mcp-pm-suffix" rows="3" placeholder="Text to add after task content..."></textarea>
+    </div>
+
+    <div class="mcp-form-group">
+        <label>Replace Map (JSON: {"search": "replace"})</label>
+        <textarea id="mcp-pm-replace-map" rows="6" placeholder='{"API": "MCP API", "service": "MCP service"}'></textarea>
+    </div>
+
+    <div class="mcp-pm-preview">
+        <h4>Preview</h4>
+        <div class="mcp-pm-preview-content">
+            <div class="mcp-pm-preview-prefix" id="mcp-pm-preview-prefix"></div>
+            <div class="mcp-pm-preview-body">[Task Content Here]</div>
+            <div class="mcp-pm-preview-suffix" id="mcp-pm-preview-suffix"></div>
+        </div>
+    </div>
+</div>
+

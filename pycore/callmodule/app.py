@@ -8,7 +8,7 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
-from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router, web_router
+from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router, web_router, code_sync_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_router)  # MCP backend integrated routes
     app.include_router(singleton_router)  # Singleton control routes
     app.include_router(web_router)  # Web UI routes
+    app.include_router(code_sync_router)  # Code sync routes
 
     @app.on_event("startup")
     async def startup_event():

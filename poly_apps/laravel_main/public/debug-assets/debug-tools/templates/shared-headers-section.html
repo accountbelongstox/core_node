@@ -1,0 +1,21 @@
+<div class="card shared-headers-card">
+    <div class="card-header shared-headers-header">
+        <h3 class="shared-headers-title">{appName} - Shared Headers</h3>
+        <p class="shared-headers-description">Edit these values to use across all {appName} APIs. Changes are automatically cached.</p>
+    </div>
+    <div class="card-body">
+        <div class="form-group">
+            <div id="shared-headers-{appName}" class="shared-headers-grid">
+                {headersList}
+            </div>
+        </div>
+        <div class="shared-headers-actions">
+            <div class="btn-group">
+                <button class="btn btn-success" data-action="save-headers-server" data-app-name="{appName}">Save All Headers</button>
+                <button class="btn btn-secondary" data-action="reset-headers-server" data-app-name="{appName}">Reset to Defaults</button>
+                <button class="btn btn-primary" data-action="copy-headers-json" data-app-name="{appName}">Copy Headers JSON</button>
+            </div>
+        </div>
+    </div>
+</div>
+

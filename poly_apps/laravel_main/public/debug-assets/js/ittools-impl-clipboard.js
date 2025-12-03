@@ -1,522 +1,555 @@
 // ============================================
-// NAMESPACE: ITTools.ClipboardTool
+// NAMESPACE: ITTools.Implementations.Clipboard
 // FILE: ittools-impl-clipboard.js
-// PURPOSE: Online Clipboard with namespace support
+// PURPOSE: Online Clipboard tool implementation
 // ============================================
 
-(function() {
-    const STORAGE_KEY = 'ittools_clipboard_namespace';
-    let currentNamespace = null;
-    let saveTimeout = null;
-    let isLoading = false;
-    let isInitialized = false;
-    let pollingInterval = null;
-    let lastUpdatedAt = null;
-    const POLLING_INTERVAL_MS = 3000;
+ITTools.Implementations.Clipboard = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/clipboard.html',
+    STORAGE_KEY: 'ittools_clipboard_namespace',
+    currentNamespace: null,
+    saveTimeout: null,
+    isLoading: false,
+    isInitialized: false,
+    pollingInterval: null,
+    lastUpdatedAt: null,
+    POLLING_INTERVAL_MS: 3000,
 
-    function getStoredNamespace() {
-        return localStorage.getItem(STORAGE_KEY);
-    }
+    // ============================================
+    // METHOD: render
+    // PURPOSE: Load and return HTML template
+    // ============================================
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
 
-    function setStoredNamespace(ns) {
-        localStorage.setItem(STORAGE_KEY, ns.toLowerCase());
-    }
+    // ============================================
+    // METHOD: init
+    // PURPOSE: Initialize event listeners
+    // ============================================
+    init() {
+        this.attachEventListeners();
+        this.initializeNamespace();
+    },
 
-    async function fetchNamespace(ns = null) {
+    // ============================================
+    // METHOD: attachEventListeners
+    // PURPOSE: Set up event delegation for all actions
+    // ============================================
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            const actionName = action.dataset.action;
+
+            switch (actionName) {
+                case 'load-namespace':
+                    this.loadNamespace();
+                    break;
+                case 'generate-namespace':
+                    this.generateNamespace();
+                    break;
+                case 'new-clipboard':
+                    this.createNewClipboard();
+                    break;
+                case 'copy-text':
+                    this.copyText();
+                    break;
+                case 'clear-text':
+                    this.clearText();
+                    break;
+                case 'file-drop':
+                    document.getElementById('clipboard-file-input').click();
+                    break;
+                case 'delete-file':
+                    this.deleteFile(action.dataset.stored);
+                    break;
+                case 'restore-history':
+                    this.restoreHistory(parseInt(action.dataset.index, 10));
+                    break;
+            }
+        });
+
+        const nsInput = document.querySelector('[data-input="namespace"]');
+        nsInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+        });
+        nsInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.loadNamespace();
+            }
+        });
+
+        const fileInput = document.getElementById('clipboard-file-input');
+        fileInput.addEventListener('change', (e) => {
+            this.handleFileUpload(e.target.files);
+            e.target.value = '';
+        });
+
+        const dropzone = document.getElementById('clipboard-dropzone');
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            this.handleFileUpload(e.dataTransfer.files);
+        });
+
+        const textArea = document.querySelector('[data-input="text-content"]');
+        textArea.addEventListener('input', () => {
+            this.autoSaveContent();
+        });
+
+        window.addEventListener('beforeunload', () => {
+            this.stopPolling();
+        });
+    },
+
+    // ============================================
+    // METHOD: getStoredNamespace
+    // PURPOSE: Get namespace from localStorage
+    // ============================================
+    getStoredNamespace() {
+        return localStorage.getItem(this.STORAGE_KEY);
+    },
+
+    // ============================================
+    // METHOD: setStoredNamespace
+    // PURPOSE: Save namespace to localStorage
+    // ============================================
+    setStoredNamespace(ns) {
+        localStorage.setItem(this.STORAGE_KEY, ns.toLowerCase());
+    },
+
+    // ============================================
+    // METHOD: fetchNamespace
+    // PURPOSE: Fetch or generate namespace
+    // ============================================
+    async fetchNamespace(ns = null) {
         const url = ns ? `/clipboard/namespace?namespace=${encodeURIComponent(ns.toLowerCase())}` : '/clipboard/namespace';
-        const response = await APIClient.get(url, { includeAuth: false });
-        return response.json();
-    }
+        return await apiClientInstance.json(url, 'GET', null, { includeAuth: false });
+    },
 
-    async function fetchData(ns) {
-        const response = await APIClient.get(`/clipboard/data?namespace=${ns}`, { includeAuth: false });
-        return response.json();
-    }
+    // ============================================
+    // METHOD: fetchData
+    // PURPOSE: Fetch clipboard data
+    // ============================================
+    async fetchData(ns) {
+        return await apiClientInstance.json(`/clipboard/data?namespace=${ns}`, 'GET', null, { includeAuth: false });
+    },
 
-    async function saveText(ns, text) {
-        const response = await APIClient.post('/clipboard/text', { namespace: ns, text: text }, { includeAuth: false });
-        return response.json();
-    }
+    // ============================================
+    // METHOD: saveText
+    // PURPOSE: Save text content
+    // ============================================
+    async saveText(ns, text) {
+        return await apiClientInstance.json('/clipboard/text', 'POST', { namespace: ns, text: text }, { includeAuth: false });
+    },
 
-    async function uploadFiles(ns, files) {
+    // ============================================
+    // METHOD: uploadFiles
+    // PURPOSE: Upload files
+    // ============================================
+    async uploadFiles(ns, files) {
         const formData = new FormData();
         formData.append('namespace', ns);
         for (let i = 0; i < files.length; i++) {
             formData.append('files[]', files[i]);
         }
-        const response = await APIClient.post('/clipboard/upload', formData, { includeAuth: false });
-        return response.json();
-    }
+        return await apiClientInstance.post('/clipboard/upload', formData, { includeAuth: false }).then(r => r.json());
+    },
 
-    async function deleteFile(ns, storedName) {
-        const response = await APIClient.post('/clipboard/delete-file', { namespace: ns, stored_name: storedName }, { includeAuth: false });
-        return response.json();
-    }
+    // ============================================
+    // METHOD: deleteFile
+    // PURPOSE: Delete a file
+    // ============================================
+    async deleteFile(storedName) {
+        if (!confirm('Delete this file?')) return;
+        const result = await apiClientInstance.json('/clipboard/delete-file', 'POST', { namespace: this.currentNamespace, stored_name: storedName }, { includeAuth: false });
+        if (result.success) {
+            await this.loadClipboardData();
+            this.showStatus('File deleted');
+        }
+    },
 
-    async function createNew(ns) {
-        const response = await APIClient.post('/clipboard/new', { namespace: ns }, { includeAuth: false });
-        return response.json();
-    }
+    // ============================================
+    // METHOD: createNew
+    // PURPOSE: Create new clipboard entry
+    // ============================================
+    async createNew(ns) {
+        return await apiClientInstance.json('/clipboard/new', 'POST', { namespace: ns }, { includeAuth: false });
+    },
 
-    async function restoreHistory(ns, index) {
-        const response = await APIClient.post('/clipboard/restore', { namespace: ns, history_index: index }, { includeAuth: false });
-        return response.json();
-    }
+    // ============================================
+    // METHOD: restoreHistory
+    // PURPOSE: Restore from history
+    // ============================================
+    async restoreHistory(index) {
+        if (!confirm('Restore this history? Current content will be saved.')) return;
+        const result = await apiClientInstance.json('/clipboard/restore', 'POST', { namespace: this.currentNamespace, history_index: index }, { includeAuth: false });
+        if (result.success) {
+            await this.loadClipboardData();
+            this.showStatus('History restored');
+        }
+    },
 
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
+    // ============================================
+    // METHOD: formatFileSize
+    // PURPOSE: Format file size in human-readable format
+    // ============================================
+    formatFileSize(bytes) {
         const k = 1024;
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
+    },
 
-    function renderUI() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">📋 Online Clipboard</div>
-                <div class="ittools-card-body">
-                    <div class="clipboard-namespace-section" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <label style="font-weight: 600;">Namespace:</label>
-                            <input type="text" id="clipboard-namespace-input" class="ittools-input" 
-                                   style="width: 180px; text-align: center; font-size: 18px; font-weight: bold; text-transform: lowercase;" 
-                                   placeholder="e.g. abc123" maxlength="20">
-                            <button class="ittools-btn ittools-btn-primary" id="clipboard-load-ns-btn">Load / Enter</button>
-                            <button class="ittools-btn ittools-btn-secondary" id="clipboard-new-ns-btn">Generate New</button>
-                            <span id="clipboard-status" style="margin-left: auto; font-size: 12px; color: #666;"></span>
-                        </div>
-                    </div>
+    // ============================================
+    // METHOD: loadNamespace
+    // PURPOSE: Load existing clipboard namespace
+    // ============================================
+    async loadNamespace() {
+        const input = document.querySelector('[data-input="namespace"]');
+        const namespaceId = input.value.trim();
+        
+        const result = await this.fetchNamespace(namespaceId);
+        if (result.success) {
+            this.stopPolling();
+            this.currentNamespace = result.namespace;
+            this.setStoredNamespace(this.currentNamespace);
+            input.value = this.currentNamespace;
+            this.showContentSection();
+            this.lastUpdatedAt = null;
+            await this.loadClipboardData();
+            this.startPolling();
+            this.showStatus('Namespace loaded');
+        } else {
+            this.showStatus(result.message || 'Failed to load namespace', true);
+        }
+    },
 
-                    <div class="clipboard-content-section" id="clipboard-content-section" style="display: none;">
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Text Content (auto-saves on change):</label>
-                            <textarea id="clipboard-textarea" class="ittools-textarea" 
-                                      style="min-height: 200px; font-family: monospace;" 
-                                      placeholder="Paste or type any content here..."></textarea>
-                        </div>
+    // ============================================
+    // METHOD: generateNamespace
+    // PURPOSE: Generate new random namespace
+    // ============================================
+    async generateNamespace() {
+        const result = await this.fetchNamespace();
+        if (result.success) {
+            this.stopPolling();
+            this.currentNamespace = result.namespace;
+            this.setStoredNamespace(this.currentNamespace);
+            const input = document.querySelector('[data-input="namespace"]');
+            input.value = this.currentNamespace;
+            this.showContentSection();
+            const textarea = document.querySelector('[data-input="text-content"]');
+            textarea.value = '';
+            this.updateFilesList([]);
+            this.updateHistoryList([]);
+            this.lastUpdatedAt = null;
+            this.startPolling();
+            this.showStatus('New namespace created: ' + this.currentNamespace);
+        }
+    },
 
-                        <div class="ittools-form-group">
-                            <label class="ittools-label">Upload Files:</label>
-                            <div id="clipboard-dropzone" style="border: 2px dashed #ccc; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.3s;">
-                                <p style="margin: 0; color: #666;">📁 Drop files here or click to upload</p>
-                                <p style="margin: 5px 0 0; font-size: 12px; color: #999;">Any file type allowed</p>
-                                <input type="file" id="clipboard-file-input" multiple style="display: none;">
-                            </div>
-                        </div>
+    // ============================================
+    // METHOD: createNewClipboard
+    // PURPOSE: Save current clipboard content
+    // ============================================
+    async createNewClipboard() {
+        if (!confirm('Create new clipboard? Current content will be saved to history.')) return;
+        
+        const result = await this.createNew(this.currentNamespace);
+        if (result.success) {
+            const textarea = document.querySelector('[data-input="text-content"]');
+            textarea.value = '';
+            this.updateFilesList([]);
+            this.updateHistoryList(result.data.history);
+            this.showStatus('New clipboard created');
+        }
+    },
 
-                        <div class="ittools-form-group" id="clipboard-files-section" style="display: none;">
-                            <label class="ittools-label">Uploaded Files:</label>
-                            <div id="clipboard-files-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                        </div>
+    // ============================================
+    // METHOD: copyText
+    // PURPOSE: Copy text content to system clipboard
+    // ============================================
+    async copyText() {
+        const textArea = document.querySelector('[data-input="text-content"]');
+        await navigator.clipboard.writeText(textArea.value);
+        this.showStatus('Copied to clipboard');
+    },
 
-                        <div class="ittools-btn-group" style="margin-top: 20px;">
-                            <button class="ittools-btn ittools-btn-success" id="clipboard-new-btn">📝 New Clipboard</button>
-                            <button class="ittools-btn ittools-btn-secondary" id="clipboard-copy-btn">📋 Copy All Text</button>
-                            <button class="ittools-btn ittools-btn-secondary" id="clipboard-clear-btn">🗑️ Clear Text</button>
-                        </div>
+    // ============================================
+    // METHOD: clearText
+    // PURPOSE: Clear text content
+    // ============================================
+    async clearText() {
+        if (!confirm('Clear all text?')) return;
+        const textArea = document.querySelector('[data-input="text-content"]');
+        textArea.value = '';
+        await this.saveText(this.currentNamespace, '');
+        this.showStatus('Text cleared');
+    },
 
-                        <div class="ittools-form-group" id="clipboard-history-section" style="margin-top: 20px; display: none;">
-                            <label class="ittools-label">History (Last 10):</label>
-                            <div id="clipboard-history-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+    // ============================================
+    // METHOD: handleFileUpload
+    // PURPOSE: Handle file uploads
+    // ============================================
+    async handleFileUpload(files) {
+        this.showStatus('Uploading...');
+        const result = await this.uploadFiles(this.currentNamespace, files);
+        if (result.success) {
+            await this.loadClipboardData();
+            this.showStatus(result.message);
+        } else {
+            this.showStatus(result.message || 'Upload failed', true);
+        }
+    },
 
-    function renderFileItem(file) {
-        return `
-            <div class="clipboard-file-item" data-stored="${file.stored_name}" style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${file.original_name}">
-                    📄 ${file.original_name}
-                </span>
-                <span style="font-size: 12px; color: #666;">${formatFileSize(file.size)}</span>
-                <a href="/clipboard/download?namespace=${currentNamespace}&stored_name=${encodeURIComponent(file.stored_name)}&original_name=${encodeURIComponent(file.original_name)}" 
-                   class="ittools-btn ittools-btn-primary" style="padding: 5px 10px; font-size: 12px;" download>
-                    ⬇️ Download
-                </a>
-                <button class="ittools-btn ittools-btn-secondary clipboard-delete-file" data-stored="${file.stored_name}" style="padding: 5px 10px; font-size: 12px;">
-                    🗑️
-                </button>
-            </div>
-        `;
-    }
-
-    function renderHistoryItem(entry, index) {
-        const textPreview = entry.text ? entry.text.substring(0, 50) + (entry.text.length > 50 ? '...' : '') : '(empty)';
-        const fileCount = entry.files ? entry.files.length : 0;
-        return `
-            <div class="clipboard-history-item" style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #fff; border: 1px solid #e9ecef; border-radius: 6px;">
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;">
-                    ${textPreview} ${fileCount > 0 ? `(${fileCount} files)` : ''}
-                </span>
-                <span style="font-size: 11px; color: #999;">${new Date(entry.created_at).toLocaleString()}</span>
-                <button class="ittools-btn ittools-btn-primary clipboard-restore-history" data-index="${index}" style="padding: 5px 10px; font-size: 12px;">
-                    ↩️ Restore
-                </button>
-            </div>
-        `;
-    }
-
-    function updateFilesList(files) {
+    // ============================================
+    // METHOD: updateFilesList
+    // PURPOSE: Update files list display
+    // ============================================
+    updateFilesList(files) {
         const section = document.getElementById('clipboard-files-section');
         const list = document.getElementById('clipboard-files-list');
-        if (!section || !list) return;
 
-        if (files && files.length > 0) {
-            section.style.display = 'block';
-            list.innerHTML = files.map(f => renderFileItem(f)).join('');
-        } else {
-            section.style.display = 'none';
-            list.innerHTML = '';
+        list.innerHTML = '';
+
+        for (const file of files) {
+            const item = document.createElement('div');
+            item.className = 'clipboard-file-item';
+            item.dataset.stored = file.stored_name;
+
+            const name = document.createElement('span');
+            name.className = 'clipboard-file-name';
+            name.textContent = '📄 ' + file.original_name;
+            name.title = file.original_name;
+
+            const size = document.createElement('span');
+            size.className = 'clipboard-file-size';
+            size.textContent = this.formatFileSize(file.size);
+
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'ittools-btn ittools-btn-primary ittools-btn-sm';
+            downloadBtn.textContent = '⬇️ Download';
+            downloadBtn.href = `/clipboard/download?namespace=${this.currentNamespace}&stored_name=${encodeURIComponent(file.stored_name)}&original_name=${encodeURIComponent(file.original_name)}`;
+            downloadBtn.download = file.original_name;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'ittools-btn ittools-btn-secondary ittools-btn-sm';
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.dataset.action = 'delete-file';
+            deleteBtn.dataset.stored = file.stored_name;
+
+            item.appendChild(name);
+            item.appendChild(size);
+            item.appendChild(downloadBtn);
+            item.appendChild(deleteBtn);
+            list.appendChild(item);
         }
-    }
 
-    function updateHistoryList(history) {
+        if (files.length > 0) {
+            section.classList.remove('hidden');
+        } else {
+            section.classList.add('hidden');
+        }
+    },
+
+    // ============================================
+    // METHOD: updateHistoryList
+    // PURPOSE: Update history list display
+    // ============================================
+    updateHistoryList(history) {
         const section = document.getElementById('clipboard-history-section');
         const list = document.getElementById('clipboard-history-list');
-        if (!section || !list) return;
 
-        if (history && history.length > 0) {
-            section.style.display = 'block';
-            list.innerHTML = history.map((h, i) => renderHistoryItem(h, i)).join('');
+        list.innerHTML = '';
+
+        for (let i = 0; i < history.length; i++) {
+            const entry = history[i];
+            const textPreview = entry.text.substring(0, 50) + (entry.text.length > 50 ? '...' : '');
+            const fileCount = entry.files.length;
+
+            const item = document.createElement('div');
+            item.className = 'clipboard-history-item';
+            item.dataset.action = 'restore-history';
+            item.dataset.index = i;
+
+            const preview = document.createElement('span');
+            preview.className = 'clipboard-history-preview';
+            preview.textContent = textPreview + (fileCount > 0 ? ` (${fileCount} files)` : '');
+
+            const time = document.createElement('span');
+            time.className = 'clipboard-history-time';
+            time.textContent = new Date(entry.created_at).toLocaleString();
+
+            const restoreBtn = document.createElement('button');
+            restoreBtn.className = 'ittools-btn ittools-btn-primary ittools-btn-sm';
+            restoreBtn.textContent = '↩️ Restore';
+            restoreBtn.dataset.action = 'restore-history';
+            restoreBtn.dataset.index = i;
+
+            item.appendChild(preview);
+            item.appendChild(time);
+            item.appendChild(restoreBtn);
+            list.appendChild(item);
+        }
+
+        if (history.length > 0) {
+            section.classList.remove('hidden');
         } else {
-            section.style.display = 'none';
-            list.innerHTML = '';
+            section.classList.add('hidden');
         }
-    }
+    },
 
-    function showStatus(message, isError = false) {
+    // ============================================
+    // METHOD: loadClipboardData
+    // PURPOSE: Load clipboard data from server
+    // ============================================
+    async loadClipboardData(silent = false) {
+        if (this.isLoading) return;
+        this.isLoading = true;
+
+        const result = await this.fetchData(this.currentNamespace);
+        const newUpdatedAt = result.data.current.updated_at;
+        const hasChanges = !this.lastUpdatedAt || newUpdatedAt !== this.lastUpdatedAt;
+        
+        if (hasChanges) {
+            const textarea = document.querySelector('[data-input="text-content"]');
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && activeEl.id === 'clipboard-textarea';
+            
+            if (result.data.current && !isTyping) {
+                textarea.value = result.data.current.text;
+            }
+            this.updateFilesList(result.data.current.files);
+            this.updateHistoryList(result.data.history);
+            
+            this.lastUpdatedAt = newUpdatedAt;
+            
+            if (!silent && hasChanges) {
+                this.showStatus('Updated from server', false);
+            }
+        }
+
+        this.isLoading = false;
+    },
+    
+    // ============================================
+    // METHOD: startPolling
+    // PURPOSE: Start polling for updates
+    // ============================================
+    startPolling() {
+        this.stopPolling();
+        this.pollingInterval = setInterval(() => {
+            this.loadClipboardData(true);
+        }, this.POLLING_INTERVAL_MS);
+    },
+    
+    // ============================================
+    // METHOD: stopPolling
+    // PURPOSE: Stop polling for updates
+    // ============================================
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    },
+
+    // ============================================
+    // METHOD: showContentSection
+    // PURPOSE: Show clipboard content section
+    // ============================================
+    showContentSection() {
+        const section = document.getElementById('clipboard-content-section');
+        section.classList.remove('hidden');
+    },
+
+    // ============================================
+    // METHOD: autoSaveContent
+    // PURPOSE: Auto-save content (debounced)
+    // ============================================
+    autoSaveContent() {
+        clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => {
+            this.saveContent();
+        }, 500);
+    },
+
+    // ============================================
+    // METHOD: saveContent
+    // PURPOSE: Save content to server
+    // ============================================
+    async saveContent() {
+        const textArea = document.querySelector('[data-input="text-content"]');
+        const result = await this.saveText(this.currentNamespace, textArea.value);
+        if (result.success) {
+            this.showStatus('Saved');
+        }
+    },
+
+    // ============================================
+    // METHOD: showStatus
+    // PURPOSE: Show status message
+    // ============================================
+    showStatus(message, isError = false) {
         const status = document.getElementById('clipboard-status');
-        if (status) {
-            status.textContent = message;
-            status.style.color = isError ? '#dc3545' : '#28a745';
-            setTimeout(() => { status.textContent = ''; }, 3000);
-        }
-    }
+        status.textContent = message;
+        status.className = isError ? 'clipboard-status error' : 'clipboard-status success';
+        setTimeout(() => { 
+            status.textContent = '';
+            status.className = 'clipboard-status';
+        }, 3000);
+    },
 
-    async function loadClipboardData(silent = false) {
-        if (!currentNamespace || isLoading) return;
-        isLoading = true;
-
-        try {
-            const result = await fetchData(currentNamespace);
-            if (result.success) {
-                const newUpdatedAt = result.data.current?.updated_at;
-                const hasChanges = !lastUpdatedAt || newUpdatedAt !== lastUpdatedAt;
-                
-                if (hasChanges) {
-                    const textarea = document.getElementById('clipboard-textarea');
-                    const activeEl = document.activeElement;
-                    const isTyping = activeEl && activeEl.id === 'clipboard-textarea';
-                    
-                    if (textarea && result.data.current && !isTyping) {
-                        textarea.value = result.data.current.text || '';
-                    }
-                    updateFilesList(result.data.current?.files || []);
-                    updateHistoryList(result.data.history || []);
-                    
-                    lastUpdatedAt = newUpdatedAt;
-                    
-                    if (!silent && hasChanges) {
-                        showStatus('Updated from server', false);
-                    }
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load clipboard data:', e);
-        } finally {
-            isLoading = false;
-        }
-    }
-    
-    function startPolling() {
-        stopPolling();
-        if (currentNamespace) {
-            pollingInterval = setInterval(() => {
-                loadClipboardData(true);
-            }, POLLING_INTERVAL_MS);
-        }
-    }
-    
-    function stopPolling() {
-        if (pollingInterval) {
-            clearInterval(pollingInterval);
-            pollingInterval = null;
-        }
-    }
-
-    function attachEvents() {
-        const nsInput = document.getElementById('clipboard-namespace-input');
-        const loadBtn = document.getElementById('clipboard-load-ns-btn');
-        const newNsBtn = document.getElementById('clipboard-new-ns-btn');
-        const textarea = document.getElementById('clipboard-textarea');
-        const dropzone = document.getElementById('clipboard-dropzone');
-        const fileInput = document.getElementById('clipboard-file-input');
-        const newBtn = document.getElementById('clipboard-new-btn');
-        const copyBtn = document.getElementById('clipboard-copy-btn');
-        const clearBtn = document.getElementById('clipboard-clear-btn');
+    // ============================================
+    // METHOD: initializeNamespace
+    // PURPOSE: Initialize namespace on load
+    // ============================================
+    async initializeNamespace() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
+        
+        const storedNs = this.getStoredNamespace();
+        const nsInput = document.querySelector('[data-input="namespace"]');
         const contentSection = document.getElementById('clipboard-content-section');
-
-        if (nsInput) {
-            nsInput.addEventListener('input', (e) => {
-                e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-            });
-            nsInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') loadBtn?.click();
-            });
-        }
-
-        if (loadBtn) {
-            loadBtn.addEventListener('click', async () => {
-                const ns = nsInput?.value?.trim();
-                if (!ns) {
-                    showStatus('Please enter a namespace ID', true);
-                    return;
-                }
-                try {
-                    const result = await fetchNamespace(ns);
-                    if (result.success) {
-                        stopPolling();
-                        currentNamespace = result.namespace;
-                        setStoredNamespace(currentNamespace);
-                        nsInput.value = currentNamespace;
-                        contentSection.style.display = 'block';
-                        lastUpdatedAt = null;
-                        await loadClipboardData();
-                        startPolling();
-                        showStatus('Namespace loaded');
-                    } else {
-                        showStatus(result.message || 'Failed to load namespace', true);
-                    }
-                } catch (e) {
-                    showStatus('Error loading namespace', true);
-                }
-            });
-        }
-
-        if (newNsBtn) {
-            newNsBtn.addEventListener('click', async () => {
-                try {
-                    const result = await fetchNamespace();
-                    if (result.success) {
-                        stopPolling();
-                        currentNamespace = result.namespace;
-                        setStoredNamespace(currentNamespace);
-                        nsInput.value = currentNamespace;
-                        contentSection.style.display = 'block';
-                        textarea.value = '';
-                        updateFilesList([]);
-                        updateHistoryList([]);
-                        lastUpdatedAt = null;
-                        startPolling();
-                        showStatus('New namespace created: ' + currentNamespace);
-                    }
-                } catch (e) {
-                    showStatus('Error creating namespace', true);
-                }
-            });
-        }
-
-        if (textarea) {
-            textarea.addEventListener('input', () => {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(async () => {
-                    if (!currentNamespace) return;
-                    try {
-                        const result = await saveText(currentNamespace, textarea.value);
-                        if (result.success) {
-                            showStatus('Saved');
-                        }
-                    } catch (e) {
-                        showStatus('Failed to save', true);
-                    }
-                }, 500);
-            });
-        }
-
-        if (dropzone && fileInput) {
-            dropzone.addEventListener('click', () => fileInput.click());
-            
-            dropzone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropzone.style.borderColor = '#667eea';
-                dropzone.style.background = 'rgba(103, 126, 234, 0.05)';
-            });
-            
-            dropzone.addEventListener('dragleave', () => {
-                dropzone.style.borderColor = '#ccc';
-                dropzone.style.background = 'transparent';
-            });
-            
-            dropzone.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                dropzone.style.borderColor = '#ccc';
-                dropzone.style.background = 'transparent';
-                
-                if (!currentNamespace) {
-                    showStatus('Please select a namespace first', true);
-                    return;
-                }
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    await handleFileUpload(files);
-                }
-            });
-            
-            fileInput.addEventListener('change', async (e) => {
-                if (!currentNamespace) {
-                    showStatus('Please select a namespace first', true);
-                    return;
-                }
-                if (e.target.files.length > 0) {
-                    await handleFileUpload(e.target.files);
-                    e.target.value = '';
-                }
-            });
-        }
-
-        if (newBtn) {
-            newBtn.addEventListener('click', async () => {
-                if (!currentNamespace) return;
-                if (!confirm('Create new clipboard? Current content will be saved to history.')) return;
-                
-                try {
-                    const result = await createNew(currentNamespace);
-                    if (result.success) {
-                        textarea.value = '';
-                        updateFilesList([]);
-                        updateHistoryList(result.data?.history || []);
-                        showStatus('New clipboard created');
-                    }
-                } catch (e) {
-                    showStatus('Failed to create new clipboard', true);
-                }
-            });
-        }
-
-        if (copyBtn) {
-            copyBtn.addEventListener('click', () => {
-                if (textarea) {
-                    navigator.clipboard.writeText(textarea.value).then(() => {
-                        showStatus('Copied to clipboard');
-                    }).catch(() => {
-                        showStatus('Failed to copy', true);
-                    });
-                }
-            });
-        }
-
-        if (clearBtn) {
-            clearBtn.addEventListener('click', async () => {
-                if (!confirm('Clear all text?')) return;
-                if (textarea) {
-                    textarea.value = '';
-                    if (currentNamespace) {
-                        await saveText(currentNamespace, '');
-                        showStatus('Text cleared');
-                    }
-                }
-            });
-        }
-
-        document.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('clipboard-delete-file')) {
-                const storedName = e.target.dataset.stored;
-                if (!storedName || !currentNamespace) return;
-                if (!confirm('Delete this file?')) return;
-                
-                try {
-                    const result = await deleteFile(currentNamespace, storedName);
-                    if (result.success) {
-                        await loadClipboardData();
-                        showStatus('File deleted');
-                    }
-                } catch (e) {
-                    showStatus('Failed to delete file', true);
-                }
-            }
-            
-            if (e.target.classList.contains('clipboard-restore-history')) {
-                const index = parseInt(e.target.dataset.index, 10);
-                if (isNaN(index) || !currentNamespace) return;
-                if (!confirm('Restore this history? Current content will be saved.')) return;
-                
-                try {
-                    const result = await restoreHistory(currentNamespace, index);
-                    if (result.success) {
-                        await loadClipboardData();
-                        showStatus('History restored');
-                    }
-                } catch (e) {
-                    showStatus('Failed to restore history', true);
-                }
-            }
-        });
-
-        async function initializeNamespace() {
-            if (isInitialized) return;
-            isInitialized = true;
-            
-            const storedNs = getStoredNamespace();
-            if (storedNs) {
-                nsInput.value = storedNs;
-                currentNamespace = storedNs;
-                contentSection.style.display = 'block';
-                await loadClipboardData();
-                startPolling();
-                showStatus('Restored namespace: ' + storedNs);
-            } else {
-                try {
-                    const result = await fetchNamespace();
-                    if (result.success) {
-                        currentNamespace = result.namespace;
-                        setStoredNamespace(currentNamespace);
-                        nsInput.value = currentNamespace;
-                        contentSection.style.display = 'block';
-                        await loadClipboardData();
-                        startPolling();
-                        showStatus('New namespace created: ' + currentNamespace);
-                    }
-                } catch (e) {
-                    showStatus('Error initializing clipboard', true);
-                }
-            }
-        }
         
-        initializeNamespace();
-        
-        window.addEventListener('beforeunload', () => {
-            stopPolling();
-        });
-    }
-
-    async function handleFileUpload(files) {
-        if (!currentNamespace) return;
-        
-        showStatus('Uploading...');
-        try {
-            const result = await uploadFiles(currentNamespace, files);
-            if (result.success) {
-                await loadClipboardData();
-                showStatus(result.message);
-            } else {
-                showStatus(result.message || 'Upload failed', true);
-            }
-        } catch (e) {
-            showStatus('Upload error', true);
+        if (storedNs) {
+            nsInput.value = storedNs;
+            this.currentNamespace = storedNs;
+            contentSection.classList.remove('hidden');
+            await this.loadClipboardData();
+            this.startPolling();
+            this.showStatus('Restored namespace: ' + storedNs);
+        } else {
+            const result = await this.fetchNamespace();
+            this.currentNamespace = result.namespace;
+            this.setStoredNamespace(this.currentNamespace);
+            nsInput.value = this.currentNamespace;
+            contentSection.classList.remove('hidden');
+            await this.loadClipboardData();
+            this.startPolling();
+            this.showStatus('New namespace created: ' + this.currentNamespace);
         }
     }
+};
 
-    ITTools.Tools.Registry.register('online-clipboard', {
-        name: 'Online Clipboard',
-        category: 'clipboard',
-        render: renderUI,
-        init: attachEvents
-    });
-
-    console.log('ITTools Clipboard Tool loaded');
-})();
+// ============================================
+// REGISTRATION: Register tool in ITTools system
+// ============================================
+ITTools.Tools.Registry.register('online-clipboard', {
+    name: 'Online Clipboard',
+    category: 'clipboard',
+    render: ITTools.Implementations.Clipboard.render.bind(ITTools.Implementations.Clipboard),
+    init: ITTools.Implementations.Clipboard.init.bind(ITTools.Implementations.Clipboard)
+});

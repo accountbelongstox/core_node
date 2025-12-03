@@ -171,7 +171,7 @@ ITTools.Implementations.JsonYaml = {
             const match = line.match(/^(\s*)([^:]+):\s*(.*)$/);
             if (match) {
                 const [, , key, value] = match;
-                result[key.trim()] = value.trim() || null;
+                result[key.trim()] = value.trim();
             }
         });
         return result;

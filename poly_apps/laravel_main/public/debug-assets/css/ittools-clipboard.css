@@ -1,0 +1,167 @@
+/* Clipboard Namespace Section */
+.clipboard-namespace-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.clipboard-namespace-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.clipboard-namespace-input {
+    width: 180px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: lowercase;
+}
+
+.clipboard-status {
+    margin-left: auto;
+    font-size: 12px;
+    color: #666;
+}
+
+.clipboard-status.error {
+    color: #dc3545;
+}
+
+.clipboard-status.success {
+    color: #28a745;
+}
+
+.clipboard-current-ns {
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* Content Section */
+.clipboard-content-section {
+    margin-top: 20px;
+}
+
+.clipboard-textarea {
+    min-height: 200px;
+    font-family: monospace;
+}
+
+/* Dropzone */
+.clipboard-dropzone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.clipboard-dropzone:hover {
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.05);
+}
+
+.clipboard-dropzone.dragover {
+    border-color: #667eea;
+    background: rgba(103, 126, 234, 0.05);
+}
+
+.clipboard-dropzone p {
+    margin: 0;
+    color: #666;
+}
+
+.clipboard-dropzone-hint {
+    margin: 5px 0 0;
+    font-size: 12px;
+    color: #999;
+}
+
+/* Files List */
+.clipboard-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.clipboard-file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.clipboard-file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.clipboard-file-size {
+    font-size: 12px;
+    color: #666;
+}
+
+.clipboard-file-item .ittools-btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+/* History List */
+.clipboard-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.clipboard-history-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.clipboard-history-item:hover {
+    background: #f8f9fa;
+}
+
+.clipboard-history-preview {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.clipboard-history-time {
+    font-size: 11px;
+    color: #999;
+}
+
+.clipboard-history-item .ittools-btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+

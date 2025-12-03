@@ -394,8 +394,7 @@ ITTools.Implementations.UnitConverter = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    const el = document.getElementById('unit-category');
-    if (el) ITTools.Implementations.UnitConverter.updateUnits();
+    ITTools.Implementations.UnitConverter.updateUnits();
 });
 
 console.log('ITTools Batch 10 loaded (password-generator-advanced, password-strength, word-counter-seo, word-counter-blog, percentage-calc, unit-converter)');
