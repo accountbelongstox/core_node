@@ -1,0 +1,31 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">HTML Formatter & Beautifier</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">HTML Input:</label>
+            <textarea 
+                id="html-input" 
+                class="ittools-textarea" 
+                rows="10" 
+                placeholder="<html><head></head><body></body></html>"
+                data-input="html-input"
+            ></textarea>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="format-html"
+            >
+                ✨ Format HTML
+            </button>
+            <button 
+                class="ittools-btn ittools-btn-secondary" 
+                data-action="minify-html"
+            >
+                🗜️ Minify HTML
+            </button>
+        </div>
+        <div id="html-format-result" class="ittools-result formatter-result hidden"></div>
+    </div>
+</div>
+
