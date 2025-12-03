@@ -19,6 +19,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 ORIGINAL_WORKING_DIR="$(pwd)"
 
+# Source global variable functions for menu caching
+GVAR_COMMON_SCRIPT="$SCRIPT_DIR/../../../scripts/shells/linux/common/gvar_common.sh"
+if [ -f "$GVAR_COMMON_SCRIPT" ]; then
+    source "$GVAR_COMMON_SCRIPT"
+fi
+
 APP_NAME="${1:-}"
 MODE="${2:-debug}"
 
@@ -296,6 +302,23 @@ show_interactive_menu() {
     local modes=("debug" "build" "sync")
     local mode_index=0
 
+    # Load cached menu selections
+    if command -v get_global_var &> /dev/null; then
+        local cached_app=$(get_global_var "NUXT_MENU_SELECTED_APP" "0")
+        local cached_mode=$(get_global_var "NUXT_MENU_SELECTED_MODE" "0")
+
+        # Validate and use cached app selection
+        if [[ "$cached_app" =~ ^[0-9]+$ ]] && [ "$cached_app" -ge 0 ] && [ "$cached_app" -lt ${#apps[@]} ]; then
+            selected=$cached_app
+        fi
+
+        # Validate and use cached mode selection
+        if [[ "$cached_mode" =~ ^[0-9]+$ ]] && [ "$cached_mode" -ge 0 ] && [ "$cached_mode" -lt ${#modes[@]} ]; then
+            mode_index=$cached_mode
+            mode="${modes[$mode_index]}"
+        fi
+    fi
+
     while true; do
         clear
         echo ""
@@ -377,6 +400,12 @@ show_interactive_menu() {
             esac
         elif [[ $key == "" ]]; then
             # Enter key pressed
+            # Save selections to cache
+            if command -v set_global_var &> /dev/null; then
+                set_global_var "NUXT_MENU_SELECTED_APP" "$selected"
+                set_global_var "NUXT_MENU_SELECTED_MODE" "$mode_index"
+            fi
+
             if [ "$mode" = "sync" ]; then
                 # Execute sync to Laravel (will prompt for debug/build mode)
                 sync_to_laravel_nginx "${apps[$selected]}" "${APP_PORTS[${apps[$selected]}]}"
