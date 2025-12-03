@@ -1,9 +1,0 @@
-{
-  "name": "HoloFortune AI",
-  "description": "A mystical, holographic-styled AI fortune teller and spiritual guide using Gemini.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone",
-    "geolocation"
-  ]
-}
