@@ -245,6 +245,7 @@ class ServerManagerV1NuxtServiceManager
 
     /**
      * Generate systemd service file content for production mode (factory build)
+     * Note: Running as root to avoid permission issues with factory directory
      */
     private static function generateServiceFileContent(string $appname, string $factoryPath, int $port, string $user): string
     {
@@ -257,7 +258,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=$user
+User=root
 WorkingDirectory=$factoryPath
 Environment="NODE_ENV=production"
 Environment="PORT=$port"
@@ -276,6 +277,7 @@ SERVICE;
 
     /**
      * Generate systemd service file content for debug mode (factory with file watcher)
+     * Note: Running as root to avoid permission issues with factory directory sync
      */
     private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
     {
@@ -292,7 +294,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=$user
+User=root
 WorkingDirectory=$factoryPath
 Environment="NODE_ENV=development"
 Environment="PORT=$port"

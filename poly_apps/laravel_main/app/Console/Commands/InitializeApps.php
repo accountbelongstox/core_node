@@ -311,13 +311,41 @@ class InitializeApps extends Command
 
             $this->line("  {$icon} {$provider}: " . ($status['available'] ? 'Available' : 'Not configured') . " ({$type}){$priority}");
 
+            // Show key count and rate limits
+            if ($status['available'] && isset($status['key_count'])) {
+                $keyCount = $status['key_count'];
+                $multiplier = $status['rate_limit_multiplier'] ?? 1;
+                $this->line("     Keys: {$keyCount} (Rate limit multiplier: {$multiplier}x)");
+
+                if (isset($status['effective_limits'])) {
+                    $limits = $status['effective_limits'];
+                    $limitStr = [];
+                    if (isset($limits['rpm'])) $limitStr[] = "{$limits['rpm']} req/min";
+                    if (isset($limits['rpd'])) $limitStr[] = "{$limits['rpd']} req/day";
+                    if (!empty($limitStr)) {
+                        $this->line("     Limits: " . implode(', ', $limitStr));
+                    }
+                }
+            }
+
+            // Show usage stats
             if ($status['available'] && isset($status['usage'])) {
                 $usage = $status['usage'];
-                if (isset($usage['minute']['requests'])) {
-                    $this->line("     Minute: {$usage['minute']['requests']} requests");
-                }
-                if (isset($usage['day']['requests'])) {
-                    $this->line("     Day: {$usage['day']['requests']} requests");
+
+                // For multi-key providers, show aggregate stats
+                if (isset($usage['aggregate'])) {
+                    $agg = $usage['aggregate'];
+                    if (isset($agg['minute']['requests'])) {
+                        $this->line("     Usage (all keys): {$agg['minute']['requests']} req/min, {$agg['day']['requests']} req/day");
+                    }
+                } else {
+                    // Legacy single-key display
+                    if (isset($usage['minute']['requests'])) {
+                        $this->line("     Minute: {$usage['minute']['requests']} requests");
+                    }
+                    if (isset($usage['day']['requests'])) {
+                        $this->line("     Day: {$usage['day']['requests']} requests");
+                    }
                 }
             }
         }
