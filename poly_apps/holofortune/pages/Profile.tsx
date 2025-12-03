@@ -1,219 +1,97 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { MobileLayout, GlassCard, Button } from '../components/Shared';
+import { MobileLayout, GlassCard } from '../components/Shared';
 import { useStore } from '../store';
-import { useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Feather';
+import { User, Settings, Info, ChevronRight, LogOut, Moon, Globe, QrCode } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Profile: React.FC = () => {
   const { user, logout, theme, toggleTheme, language, setLanguage, t } = useStore();
-  const navigation = useNavigation<any>();
-  const isDark = theme === 'dark';
 
   if (!user) return null;
 
-  const MenuItem = ({ iconName, label, onPress, value }: any) => (
-    <TouchableOpacity 
-      onPress={onPress}
-      style={styles.menuItem}
-      activeOpacity={0.7}
+  const MenuItem = ({ icon: Icon, label, to, onClick, value }: any) => (
+    <div 
+      onClick={onClick || (() => {})} 
+      className="menu-item"
     >
-      <View style={styles.menuItemLeft}>
-        <View style={styles.iconBox}>
-          <Icon name={iconName} size={18} color="#3b82f6" />
-        </View>
-        <Text style={styles.menuItemLabel}>{label}</Text>
-      </View>
-      <View style={styles.menuItemRight}>
-        {value && <Text style={styles.menuItemValue}>{value}</Text>}
-        {(onPress) && <Icon name="chevron-right" size={16} color="#cbd5e1" />}
-      </View>
-    </TouchableOpacity>
+      <div className="flex-row items-center gap-3">
+        <div className="icon-box">
+          <Icon size={18} />
+        </div>
+        <span style={{ fontWeight: 500, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{label}</span>
+      </div>
+      <div className="flex-row items-center gap-2">
+        {value && <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{value}</span>}
+        {(to || onClick) && <ChevronRight size={16} color="#cbd5e1" />}
+      </div>
+    </div>
   );
 
   return (
-    <MobileLayout>
-      {/* Banner */}
-      <View style={styles.profileBanner} />
-      
-      {/* Overlapping Header */}
-      <View style={styles.profileHeaderOverlay}>
-        <Image source={{ uri: user.avatar }} style={styles.avatarOverlap} />
-        <Text style={styles.userName}>{user.name}</Text>
-        <Text style={styles.userPhone}>{user.phone}</Text>
-      </View>
+    <MobileLayout className="bg-gray-50">
+        {/* Banner */}
+        <div className="profile-banner"></div>
+        
+        {/* Overlapping Header */}
+        <div className="profile-header-overlay">
+            <img src={user.avatar} className="avatar-overlap" alt="Avatar" />
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: 12 }}>{user.name}</h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{user.phone}</p>
+        </div>
 
-      <View style={styles.content}>
+      <div className="px-5 py-4" style={{ marginTop: -20 }}>
+        
         {/* Actions Row */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <GlassCard style={styles.actionCardInner}>
-              <Icon name="qr-code" size={20} color="#3b82f6" />
-              <Text style={styles.actionCardText}>My Code</Text>
-            </GlassCard>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <GlassCard style={styles.actionCardInner}>
-              <Icon name="settings" size={20} color="#3b82f6" />
-              <Text style={styles.actionCardText}>{t('me.settings')}</Text>
-            </GlassCard>
-          </TouchableOpacity>
-        </View>
+        <div className="flex-row gap-3 mb-4">
+             <Link to="/me/edit" style={{ flex: 1, textDecoration: 'none' }}>
+                <GlassCard className="flex-center flex-col" style={{ padding: 12, gap: 4 }}>
+                    <QrCode size={20} color="var(--primary-color)" />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>My Code</span>
+                </GlassCard>
+             </Link>
+             <Link to="/settings" style={{ flex: 1, textDecoration: 'none' }}>
+                <GlassCard className="flex-center flex-col" style={{ padding: 12, gap: 4 }}>
+                    <Settings size={20} color="var(--primary-color)" />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{t('me.settings')}</span>
+                </GlassCard>
+             </Link>
+        </div>
 
         {/* Settings Group */}
-        <GlassCard style={styles.settingsCard}>
+        <GlassCard style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
+          <Link to="/me/edit" style={{ display: 'block', textDecoration: 'none' }}>
+            <MenuItem icon={User} label={t('me.profile')} to="/me/edit" />
+          </Link>
           <MenuItem 
-            iconName="user" 
-            label={t('me.profile')} 
-            onPress={() => navigation.navigate('EditProfile')}
-          />
-          <MenuItem 
-            iconName="moon" 
+            icon={Moon} 
             label={t('me.theme')} 
-            onPress={toggleTheme}
+            onClick={toggleTheme} 
             value={theme === 'dark' ? 'Dark' : 'Light'} 
           />
           <MenuItem 
-            iconName="globe" 
+            icon={Globe} 
             label={t('me.lang')} 
-            onPress={() => setLanguage(language === 'en' ? 'zh' : 'en')}
+            onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')} 
             value={language === 'en' ? 'English' : '中文'} 
           />
         </GlassCard>
 
-        <GlassCard style={styles.settingsCard}>
-          <MenuItem 
-            iconName="info" 
-            label={t('me.about')} 
-            onPress={() => navigation.navigate('About')}
-          />
+        <GlassCard style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
+          <Link to="/about" style={{ display: 'block', textDecoration: 'none' }}>
+            <MenuItem icon={Info} label={t('me.about')} to="/about" />
+          </Link>
         </GlassCard>
 
-        <TouchableOpacity 
-          onPress={logout}
-          style={styles.logoutButton}
-          activeOpacity={0.8}
+        <button 
+          onClick={logout}
+          style={{ width: '100%', padding: 16, borderRadius: 12, background: '#fef2f2', color: '#ef4444', fontWeight: 700, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
-          <Icon name="log-out" size={18} color="#ef4444" />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
-      </View>
+          <LogOut size={18} /> Log Out
+        </button>
+
+      </div>
     </MobileLayout>
   );
 };
-
-const styles = StyleSheet.create({
-  profileBanner: {
-    height: 160,
-    width: '100%',
-    backgroundColor: '#3b82f6',
-  },
-  profileHeaderOverlay: {
-    marginTop: -60,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatarOverlap: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 4,
-    borderColor: '#f0f4f8',
-    backgroundColor: 'white',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginTop: 12,
-    color: '#1e293b',
-  },
-  userPhone: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-    marginTop: -20,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  actionCard: {
-    flex: 1,
-  },
-  actionCardInner: {
-    padding: 12,
-    alignItems: 'center',
-    gap: 4,
-  },
-  actionCardText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  settingsCard: {
-    padding: 0,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconBox: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  menuItemLabel: {
-    fontWeight: '500',
-    fontSize: 14,
-    color: '#1e293b',
-  },
-  menuItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  menuItemValue: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  logoutButton: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#fef2f2',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
-  logoutText: {
-    color: '#ef4444',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-});
 
 export default Profile;

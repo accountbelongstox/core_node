@@ -29,6 +29,130 @@ $AndroidPath = Join-Path -Path $ProjectRoot -ChildPath "android"
 $IosPath = Join-Path -Path $ProjectRoot -ChildPath "ios"
 
 # ============================================
+# CACHE CLEANING FUNCTIONS
+# ============================================
+
+function Clear-AllCaches {
+    param(
+        [bool]$Interactive = $true
+    )
+
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "Cache Cleaning" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($Interactive) {
+        Write-Host "This will clean:" -ForegroundColor Yellow
+        Write-Host "  - node_modules" -ForegroundColor White
+        Write-Host "  - Metro bundler cache" -ForegroundColor White
+        Write-Host "  - Watchman cache" -ForegroundColor White
+        Write-Host "  - React Native temp files" -ForegroundColor White
+        Write-Host "  - Android build cache" -ForegroundColor White
+        Write-Host "  - Android Gradle cache" -ForegroundColor White
+        Write-Host ""
+        $Confirmation = Read-Host "Are you sure you want to clean all caches? (y/N)"
+
+        if ($Confirmation -ne "y" -and $Confirmation -ne "Y") {
+            Write-Host "Cache cleaning cancelled" -ForegroundColor Yellow
+            Write-Host ""
+            return
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Starting cache cleaning process..." -ForegroundColor Yellow
+    Write-Host ""
+
+    # 1. Clean node_modules
+    Write-Host "[1/6] Cleaning node_modules..." -ForegroundColor Yellow
+    if (Test-Path $NodeModulesPath) {
+        Remove-Item -Path $NodeModulesPath -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] node_modules removed" -ForegroundColor Green
+    } else {
+        Write-Host "  [OK] node_modules already clean" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    # 2. Clean Metro cache
+    Write-Host "[2/6] Cleaning Metro bundler cache..." -ForegroundColor Yellow
+    Set-Location $ProjectRoot
+    try {
+        npx react-native start --reset-cache --dry-run 2>&1 | Out-Null
+        Write-Host "  [OK] Metro cache cleared" -ForegroundColor Green
+    } catch {
+        Write-Host "  [SKIP] Metro cache clear skipped (not critical)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    # 3. Clean Watchman (if available)
+    Write-Host "[3/6] Cleaning Watchman cache..." -ForegroundColor Yellow
+    try {
+        watchman watch-del-all 2>&1 | Out-Null
+        Write-Host "  [OK] Watchman cache cleared" -ForegroundColor Green
+    } catch {
+        Write-Host "  [SKIP] Watchman not available (optional)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    # 4. Clean React Native temp files
+    Write-Host "[4/6] Cleaning React Native temp files..." -ForegroundColor Yellow
+    $TempPath = Join-Path -Path $env:TEMP -ChildPath "react-*"
+    Get-ChildItem -Path $env:TEMP -Filter "react-*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $env:TEMP -Filter "metro-*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  [OK] Temp files cleared" -ForegroundColor Green
+    Write-Host ""
+
+    # 5. Clean Android build
+    Write-Host "[5/6] Cleaning Android build cache..." -ForegroundColor Yellow
+    if (Test-Path $AndroidPath) {
+        Set-Location $AndroidPath
+
+        # Clean Gradle build
+        if ($IsWindows -or $env:OS -match "Windows") {
+            .\gradlew.bat clean 2>&1 | Out-Null
+        } else {
+            ./gradlew clean 2>&1 | Out-Null
+        }
+
+        # Remove build directories
+        $AppBuildPath = Join-Path -Path $AndroidPath -ChildPath "app\build"
+        if (Test-Path $AppBuildPath) {
+            Remove-Item -Path $AppBuildPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        $BuildPath = Join-Path -Path $AndroidPath -ChildPath "build"
+        if (Test-Path $BuildPath) {
+            Remove-Item -Path $BuildPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        Write-Host "  [OK] Android build cache cleared" -ForegroundColor Green
+    } else {
+        Write-Host "  [SKIP] Android directory not found (skipped)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    # 6. Clean Gradle cache (global)
+    Write-Host "[6/6] Cleaning Gradle global cache..." -ForegroundColor Yellow
+    $GradleCachePath = Join-Path -Path $env:USERPROFILE -ChildPath ".gradle\caches"
+    if (Test-Path $GradleCachePath) {
+        Remove-Item -Path $GradleCachePath -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Gradle cache cleared" -ForegroundColor Green
+    } else {
+        Write-Host "  [SKIP] Gradle cache not found (skipped)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    Set-Location $ProjectRoot
+
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "Cache cleaning completed!" -ForegroundColor Green
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+# ============================================
 # MENU FUNCTIONS
 # ============================================
 
@@ -58,6 +182,7 @@ function Show-MainMenu {
     Write-Host "  [3] Debug Application" -ForegroundColor White
     Write-Host "  [4] Quick Start (Debug Android)" -ForegroundColor White
     Write-Host "  [5] Check Environment" -ForegroundColor White
+    Write-Host "  [6] Clean All Caches" -ForegroundColor Magenta
     Write-Host "  [0] Exit" -ForegroundColor White
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Cyan
@@ -184,8 +309,18 @@ function Check-Environment {
 # ============================================
 
 function Invoke-Installation {
+    param(
+        [bool]$CleanCache = $false
+    )
+
     Write-Host "[INSTALL] Starting installation process..." -ForegroundColor Cyan
     Write-Host ""
+
+    # Clean cache if requested
+    if ($CleanCache) {
+        Write-Host "Clean cache option enabled" -ForegroundColor Yellow
+        Clear-AllCaches -Interactive $false
+    }
 
     # Check if Node.js is installed
     Write-Host "[1/5] Checking Node.js..." -ForegroundColor Yellow
@@ -238,6 +373,8 @@ function Build-Android {
         Write-Host ""
         return
     }
+
+    Invoke-AndroidPrebuild
 
     Set-Location $AndroidPath
 
@@ -368,7 +505,7 @@ function Get-AvailableEmulators {
         return $null
     }
     catch {
-        Write-Host "[Android] ERROR checking emulators: $_" -ForegroundColor Red
+        Write-Host "[Android] ERROR checking emulators: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ""
         return $null
     }
@@ -415,7 +552,7 @@ function Start-AndroidEmulator {
         Write-Host ""
     }
     catch {
-        Write-Host "[Android] ERROR starting emulator: $_" -ForegroundColor Red
+        Write-Host "[Android] ERROR starting emulator: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ""
         return $false
     }
@@ -433,7 +570,7 @@ function Start-AndroidEmulator {
         try {
             $DeviceList = adb devices 2>&1 | Select-Object -Skip 1 | Where-Object { $_ -match '\t' }
             if ($DeviceList) {
-                Write-Host "[Android] Emulator detected, checking boot status... (${WaitedTime}s)" -ForegroundColor Gray
+                Write-Host "[Android] Emulator detected, checking boot status... ($($WaitedTime)s)" -ForegroundColor Gray
 
                 # Check if device is fully booted
                 $BootComplete = adb shell getprop sys.boot_completed 2>&1
@@ -446,16 +583,16 @@ function Start-AndroidEmulator {
                     break
                 }
             } else {
-                Write-Host "[Android] Waiting for emulator to appear... (${WaitedTime}s)" -ForegroundColor Gray
+                Write-Host "[Android] Waiting for emulator to appear... ($($WaitedTime)s)" -ForegroundColor Gray
             }
         }
         catch {
-            Write-Host "[Android] Error checking emulator status: $_" -ForegroundColor Yellow
+            Write-Host "[Android] Error checking emulator status: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 
     if (-not $DeviceOnline) {
-        Write-Host "[Android] WARNING: Emulator may not be fully ready after ${MaxWaitTime}s" -ForegroundColor Yellow
+        Write-Host "[Android] WARNING: Emulator may not be fully ready after $($MaxWaitTime)s" -ForegroundColor Yellow
         Write-Host "[Android] Continuing anyway..." -ForegroundColor Yellow
         Write-Host ""
     }
@@ -535,6 +672,8 @@ function Debug-Android {
 
     Write-Host "[Android] Checking Android environment..." -ForegroundColor Yellow
     Write-Host ""
+
+    Invoke-AndroidPrebuild
 
     # Check if ADB is available
     Write-Host "[Android] Checking ADB..." -ForegroundColor Yellow
@@ -619,6 +758,39 @@ function Debug-iOS {
     Write-Host ""
 }
 
+function Invoke-AndroidPrebuild {
+    $BuildScriptsPath = Join-Path -Path $ScriptDir -ChildPath "build_scripts"
+    $PrebuildScriptPath = Join-Path -Path $BuildScriptsPath -ChildPath "android_prebuild.py"
+
+    if (-Not (Test-Path $PrebuildScriptPath)) {
+        Write-Host "[SKIP] Android prebuild script not found" -ForegroundColor Gray
+        Write-Host "       Expected at: $PrebuildScriptPath" -ForegroundColor Gray
+        Write-Host ""
+        return
+    }
+
+    Write-Host "[Android] Running prebuild processor..." -ForegroundColor Yellow
+
+    try {
+        $PythonCheck = python --version 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[SKIP] Python not installed - prebuild skipped" -ForegroundColor Gray
+            Write-Host "       Install Python from https://www.python.org/" -ForegroundColor Gray
+            Write-Host ""
+            return
+        }
+    } catch {
+        Write-Host "[SKIP] Python not available - prebuild skipped" -ForegroundColor Gray
+        Write-Host ""
+        return
+    }
+
+    Write-Host ""
+    Set-Location $ProjectRoot
+    python $PrebuildScriptPath $ProjectRoot
+    Write-Host ""
+}
+
 
 # ============================================
 # AUTO-INSTALL CHECK
@@ -665,8 +837,12 @@ while ($Running) {
             Write-Host "Reinstalling Dependencies" -ForegroundColor Cyan
             Write-Host "============================================" -ForegroundColor Cyan
             Write-Host ""
+            Write-Host "Clean cache before reinstalling? (y/N): " -NoNewline -ForegroundColor Yellow
+            $CleanCache = Read-Host
 
-            Invoke-Installation
+            $ShouldClean = ($CleanCache -eq "y" -or $CleanCache -eq "Y")
+
+            Invoke-Installation -CleanCache $ShouldClean
 
             Write-Host "Reinstallation process completed" -ForegroundColor Cyan
             Write-Host ""
@@ -744,6 +920,12 @@ while ($Running) {
             # Check Environment
             Clear-Host
             Check-Environment
+        }
+        "6" {
+            # Clean All Caches
+            Clear-Host
+            Clear-AllCaches -Interactive $true
+            Read-Host "Press Enter to continue"
         }
         "0" {
             # Exit
