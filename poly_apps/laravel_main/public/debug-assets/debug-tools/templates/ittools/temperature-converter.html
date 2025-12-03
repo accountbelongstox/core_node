@@ -1,0 +1,38 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">Temperature Converter</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Temperature Value:</label>
+            <input 
+                type="number" 
+                id="temp-value" 
+                class="ittools-input" 
+                placeholder="Enter temperature" 
+                step="0.1"
+                data-input="temp-value"
+            >
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">From:</label>
+            <select 
+                id="temp-from" 
+                class="ittools-input"
+                data-input="temp-from"
+            >
+                <option value="celsius">Celsius (°C)</option>
+                <option value="fahrenheit">Fahrenheit (°F)</option>
+                <option value="kelvin">Kelvin (K)</option>
+            </select>
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="convert-temperature"
+            >
+                🌡️ Convert
+            </button>
+        </div>
+        <div id="temp-result" class="ittools-result converter-result hidden"></div>
+    </div>
+</div>
+

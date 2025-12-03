@@ -8,137 +8,144 @@
 // ============================================
 // QR Code Generator
 // ============================================
+ITTools.Implementations.QRCodeGenerator = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/qr-code-generator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'generate-qr') {
+                this.generate();
+            }
+        });
+    },
+
+    async generate() {
+        const text = document.querySelector('[data-input="qr-text-input"]').value.trim();
+        const size = document.querySelector('[data-input="qr-size"]').value;
+        const resultDiv = document.getElementById('qr-code-result');
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        
+        const loading = document.createElement('p');
+        loading.className = 'generator-result-loading';
+        loading.textContent = 'Generating QR Code...';
+        resultDiv.appendChild(loading);
+        
+        const result = await apiClientInstance.json('/api/ittools/v1/web/qr-code/generate', 'POST', { 
+            text, 
+            size: parseInt(size) 
+        }, { includeAuth: false });
+        
+        resultDiv.innerHTML = '';
+        
+        const img = document.createElement('img');
+        img.src = result.data.qr_code;
+        img.alt = 'QR Code';
+        img.className = 'generator-result-image';
+        
+        const info = document.createElement('p');
+        info.className = 'generator-result-info';
+        info.textContent = `Size: ${result.data.size}x${result.data.size}`;
+        
+        resultDiv.appendChild(img);
+        resultDiv.appendChild(info);
+    }
+};
+
 ITTools.Tools.Registry.register('qr-code-generator', {
     name: 'QR Code Generator',
     category: 'generator',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">QR Code Generator</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Text/URL:</label>
-                        <textarea id="qr-text-input" class="ittools-textarea" rows="4" placeholder="Enter text or URL"></textarea>
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Size:</label>
-                        <select id="qr-size" class="ittools-input">
-                            <option value="200">Small (200x200)</option>
-                            <option value="300" selected>Medium (300x300)</option>
-                            <option value="500">Large (500x500)</option>
-                        </select>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.QRCodeGenerator.generate()">
-                            📱 Generate QR Code
-                        </button>
-                    </div>
-                    <div id="qr-code-result" style="margin-top: 20px; text-align: center;"></div>
-                </div>
-            </div>
-        `;
-    }
+    render: ITTools.Implementations.QRCodeGenerator.render.bind(ITTools.Implementations.QRCodeGenerator),
+    init: ITTools.Implementations.QRCodeGenerator.init.bind(ITTools.Implementations.QRCodeGenerator)
 });
-
-ITTools.Implementations.QRCodeGenerator = {
-    async generate() {
-        const text = document.getElementById('qr-text-input').value.trim();
-        const size = document.getElementById('qr-size').value;
-        
-        if (!text) {
-            document.getElementById('qr-code-result').innerHTML = '<p style="color: #dc3545;">Please enter text</p>';
-            return;
-        }
-        
-        document.getElementById('qr-code-result').innerHTML = '<p>Generating QR Code...</p>';
-        
-        try {
-            const response = await APIClient.post('/api/ittools/v1/web/qr-code/generate', { text, size: parseInt(size) }, { includeAuth: false });
-            const result = await response.json();
-            
-            if (result.success) {
-                document.getElementById('qr-code-result').innerHTML = `
-                    <img src="${result.data.qr_code}" alt="QR Code" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: white;">
-                    <p style="margin-top: 10px; color: #666;">Size: ${result.data.size}x${result.data.size}</p>
-                `;
-            } else {
-                document.getElementById('qr-code-result').innerHTML = `<p style="color: #dc3545;">Error: ${result.message}</p>`;
-            }
-        } catch (error) {
-            document.getElementById('qr-code-result').innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
-        }
-    }
-};
 
 // ============================================
 // WiFi QR Code Generator
 // ============================================
+ITTools.Implementations.WiFiQRGenerator = {
+    templateUrl: '/debug-assets/debug-tools/templates/ittools/wifi-qr-generator.html',
+
+    async render() {
+        const response = await fetch(this.templateUrl);
+        return await response.text();
+    },
+
+    init() {
+        this.attachEventListeners();
+    },
+
+    attachEventListeners() {
+        const container = document.getElementById('ittools-main-content');
+        container.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-action]');
+            if (!action) return;
+
+            if (action.dataset.action === 'generate-wifi-qr') {
+                this.generate();
+            }
+        });
+    },
+
+    async generate() {
+        const ssid = document.querySelector('[data-input="wifi-ssid"]').value.trim();
+        const password = document.querySelector('[data-input="wifi-password"]').value;
+        const security = document.querySelector('[data-input="wifi-security"]').value;
+        const resultDiv = document.getElementById('wifi-qr-result');
+        
+        resultDiv.innerHTML = '';
+        resultDiv.classList.remove('hidden');
+        
+        const loading = document.createElement('p');
+        loading.className = 'generator-result-loading';
+        loading.textContent = 'Generating WiFi QR Code...';
+        resultDiv.appendChild(loading);
+        
+        const result = await apiClientInstance.json('/api/ittools/v1/web/wifi-qr-code/generate', 'POST', { 
+            ssid, 
+            password, 
+            security 
+        }, { includeAuth: false });
+        
+        resultDiv.innerHTML = '';
+        
+        const img = document.createElement('img');
+        img.src = result.data.qr_code;
+        img.alt = 'WiFi QR Code';
+        img.className = 'generator-result-image';
+        
+        const info1 = document.createElement('p');
+        info1.className = 'generator-result-info';
+        info1.textContent = `Scan to connect to: ${result.data.ssid}`;
+        
+        const info2 = document.createElement('p');
+        info2.className = 'generator-result-info-small';
+        info2.textContent = `Security: ${result.data.security || 'Open'}`;
+        
+        resultDiv.appendChild(img);
+        resultDiv.appendChild(info1);
+        resultDiv.appendChild(info2);
+    }
+};
+
 ITTools.Tools.Registry.register('wifi-qr-generator', {
     name: 'WiFi QR Code',
     category: 'generator',
-    render() {
-        return `
-            <div class="ittools-card">
-                <div class="ittools-card-header">WiFi QR Code Generator</div>
-                <div class="ittools-card-body">
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">SSID (Network Name):</label>
-                        <input type="text" id="wifi-ssid" class="ittools-input" placeholder="MyWiFiNetwork">
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Password:</label>
-                        <input type="text" id="wifi-password" class="ittools-input" placeholder="password123">
-                    </div>
-                    <div class="ittools-form-group">
-                        <label class="ittools-label">Security Type:</label>
-                        <select id="wifi-security" class="ittools-input">
-                            <option value="WPA">WPA/WPA2</option>
-                            <option value="WEP">WEP</option>
-                            <option value="">None (Open)</option>
-                        </select>
-                    </div>
-                    <div class="ittools-btn-group">
-                        <button class="ittools-btn ittools-btn-primary" onclick="ITTools.Implementations.WiFiQRGenerator.generate()">
-                            📶 Generate WiFi QR Code
-                        </button>
-                    </div>
-                    <div id="wifi-qr-result" style="margin-top: 20px; text-align: center;"></div>
-                </div>
-            </div>
-        `;
-    }
+    render: ITTools.Implementations.WiFiQRGenerator.render.bind(ITTools.Implementations.WiFiQRGenerator),
+    init: ITTools.Implementations.WiFiQRGenerator.init.bind(ITTools.Implementations.WiFiQRGenerator)
 });
-
-ITTools.Implementations.WiFiQRGenerator = {
-    async generate() {
-        const ssid = document.getElementById('wifi-ssid').value.trim();
-        const password = document.getElementById('wifi-password').value;
-        const security = document.getElementById('wifi-security').value;
-        
-        if (!ssid) {
-            document.getElementById('wifi-qr-result').innerHTML = '<p style="color: #dc3545;">Please enter SSID</p>';
-            return;
-        }
-        
-        document.getElementById('wifi-qr-result').innerHTML = '<p>Generating WiFi QR Code...</p>';
-        
-        try {
-            const response = await APIClient.post('/api/ittools/v1/web/wifi-qr-code/generate', { ssid, password, security }, { includeAuth: false });
-            const result = await response.json();
-            
-            if (result.success) {
-                document.getElementById('wifi-qr-result').innerHTML = `
-                    <img src="${result.data.qr_code}" alt="WiFi QR Code" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: white;">
-                    <p style="margin-top: 10px; color: #666;">Scan to connect to: ${result.data.ssid}</p>
-                    <p style="color: #666; font-size: 12px;">Security: ${result.data.security || 'Open'}</p>
-                `;
-            } else {
-                document.getElementById('wifi-qr-result').innerHTML = `<p style="color: #dc3545;">Error: ${result.message}</p>`;
-            }
-        } catch (error) {
-            document.getElementById('wifi-qr-result').innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
-        }
-    }
-};
 
 console.log('ITTools Generator Implementations loaded');

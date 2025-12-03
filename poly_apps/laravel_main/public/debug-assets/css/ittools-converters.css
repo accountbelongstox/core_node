@@ -1,0 +1,78 @@
+/* Converter Tools Common Styles */
+.converter-result {
+    margin-top: 15px;
+}
+
+.converter-result-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.converter-result-textarea {
+    margin-top: 10px;
+}
+
+.converter-result-copy-btn {
+    margin-top: 10px;
+}
+
+.converter-tab-content {
+    margin-top: 15px;
+}
+
+/* Temperature Converter Styles */
+.temp-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.temp-result-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.temp-result-label {
+    font-size: 12px;
+    color: #666;
+}
+
+.temp-result-value {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.temp-result-celsius {
+    color: #007bff;
+}
+
+.temp-result-fahrenheit {
+    color: #dc3545;
+}
+
+.temp-result-kelvin {
+    color: #28a745;
+}
+
+/* Markdown Converter Styles */
+.markdown-preview {
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 5px;
+    background: white;
+    margin-top: 10px;
+}
+
+.markdown-preview-header {
+    margin-top: 20px;
+    color: #667eea;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
