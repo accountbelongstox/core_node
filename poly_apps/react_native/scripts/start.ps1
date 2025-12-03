@@ -1302,6 +1302,7 @@ if ($MultiAppMode -and $MultiAppScriptsAvailable -and $AppConfigs.Count -gt 0) {
         }
     }
 }
+}
 
 Write-Host ""
 Write-Host "Thank you for using React Native Project Manager!" -ForegroundColor Cyan
