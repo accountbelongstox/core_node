@@ -2,6 +2,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../../../resources_app_qy/colors_app_qy.dart';
+import '../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../../../../common/localization/localization_manager.dart';
 
 class AgreementCheckbox extends StatefulWidget {
   final bool value;
@@ -29,44 +34,43 @@ class _AgreementCheckboxState extends State<AgreementCheckbox> {
             value: widget.value,
             onChanged: (value) => widget.onChanged?.call(value ?? false),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            activeColor: const Color(0xFF4CAF50),
+            activeColor: ColorsAppQy.qySuccess,
           ),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: ThemeDimensions.spacing4),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
+              style: ThemeTextStyles.caption.copyWith(
+                color: ColorsAppQy.qyTextSecondary,
                 height: 1.4,
               ),
               children: [
-                const TextSpan(text: '我已阅读并同意'),
+                TextSpan(text: QyAppLocalizationKeys.qyAgreementPrefix.tr(context)),
                 WidgetSpan(
                   child: GestureDetector(
                     onTap: () {
                       // TODO: Show terms of service
                     },
-                    child: const Text(
-                      '《用户协议》',
-                      style: TextStyle(
-                        color: Color(0xFF4CAF50),
+                    child: Text(
+                      QyAppLocalizationKeys.qyUserAgreement.tr(context),
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: ColorsAppQy.qySuccess,
                         decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
                 ),
-                const TextSpan(text: '和'),
+                TextSpan(text: ' ${QyAppLocalizationKeys.qyAnd.tr(context)} '),
                 WidgetSpan(
                   child: GestureDetector(
                     onTap: () {
                       // TODO: Show privacy policy
                     },
-                    child: const Text(
-                      '《隐私政策》',
-                      style: TextStyle(
-                        color: Color(0xFF4CAF50),
+                    child: Text(
+                      QyAppLocalizationKeys.qyPrivacyPolicy.tr(context),
+                      style: ThemeTextStyles.caption.copyWith(
+                        color: ColorsAppQy.qySuccess,
                         decoration: TextDecoration.underline,
                       ),
                     ),

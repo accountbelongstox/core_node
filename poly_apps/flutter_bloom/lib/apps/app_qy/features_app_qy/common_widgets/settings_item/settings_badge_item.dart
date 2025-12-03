@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import '../../../../resources_app_qy/colors_app_qy.dart';
 
 class SettingsBadgeItem extends StatelessWidget {
   final IconData icon;
@@ -68,7 +69,7 @@ class SettingsBadgeItem extends StatelessWidget {
               child: Text(
                 badge,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                     ),
               ),
             ),

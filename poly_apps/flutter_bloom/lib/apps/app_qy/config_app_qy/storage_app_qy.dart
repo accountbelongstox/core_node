@@ -46,13 +46,23 @@ class StorageAppQy extends AppStorageBaseImpl {
   static const String keyLearningStats = 'learning_stats';
   static const String keyWordProgress = 'word_progress';
   static const String keyStudySessions = 'study_sessions';
-  
+
   // Vocabulary learning keys (AppQyV1 integration)
   static const String keySelectedLanguages = 'selected_languages';
   static const String keyCurrentLangCode = 'current_lang_code';
   static const String keyVocabularyCollections = 'vocabulary_collections';
   static const String keyCachedWordCards = 'cached_word_cards';
   static const String keyTtsCache = 'tts_cache';
+
+  // Certificate keys
+  static const String keyCertificates = 'certificates';
+  static const String keyCertificateProgress = 'certificate_progress';
+  
+  // Check-in keys
+  static const String keyCheckinRewards = 'checkin_rewards';
+  static const String keyCheckinStreak = 'checkin_streak';
+  static const String keyCheckinFlowers = 'checkin_flowers';
+  static const String keyCheckinVouchers = 'checkin_vouchers';
 
   /// Check if item is bookmarked
   Future<bool> isBookmarked(String item) async {
@@ -440,7 +450,9 @@ class StorageAppQy extends AppStorageBaseImpl {
   /// Get last open time
   Future<DateTime?> getLastOpenTime() async {
     final timestamp = await getApp<int>('last_open_time');
-    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+    return timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : null;
   }
 
   /// Set last open time
@@ -466,7 +478,9 @@ class StorageAppQy extends AppStorageBaseImpl {
   /// Get last login time
   Future<DateTime?> getLastLoginTime() async {
     final timestamp = await getApp<int>('last_login_time');
-    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+    return timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : null;
   }
 
   /// Get app version
@@ -493,55 +507,55 @@ class StorageAppQy extends AppStorageBaseImpl {
     final settings = await getAppSettings();
     return settings['offline_mode'] as bool? ?? false;
   }
-  
+
   // === AppQyV1 Vocabulary Storage Methods ===
-  
+
   /// Get selected learning languages
   Future<List<String>> getSelectedLanguages() async {
     final languages = await getApp<List<dynamic>>(keySelectedLanguages);
     return languages?.cast<String>() ?? ['en'];
   }
-  
+
   /// Set selected learning languages
   Future<void> setSelectedLanguages(List<String> languages) async {
     await setApp<List<String>>(keySelectedLanguages, languages);
   }
-  
+
   /// Get current learning language code
   Future<String> getCurrentLangCode() async {
     return await getApp<String>(keyCurrentLangCode) ?? 'en';
   }
-  
+
   /// Set current learning language code
   Future<void> setCurrentLangCode(String langCode) async {
     await setApp<String>(keyCurrentLangCode, langCode);
   }
-  
+
   /// Cache vocabulary collections
   Future<void> cacheVocabularyCollections(
-    String langCode, 
+    String langCode,
     List<Map<String, dynamic>> collections,
   ) async {
     final key = '${keyVocabularyCollections}_$langCode';
     await setApp<List<Map<String, dynamic>>>(key, collections);
     setCache(key, collections, expiry: const Duration(hours: 24));
   }
-  
+
   /// Get cached vocabulary collections
   Future<List<Map<String, dynamic>>> getCachedVocabularyCollections(
     String langCode,
   ) async {
     final key = '${keyVocabularyCollections}_$langCode';
-    
+
     final cached = getCache<List<dynamic>>(key);
     if (cached != null) {
       return cached.cast<Map<String, dynamic>>();
     }
-    
+
     final stored = await getApp<List<dynamic>>(key);
     return stored?.cast<Map<String, dynamic>>() ?? [];
   }
-  
+
   /// Cache word cards for offline use
   Future<void> cacheWordCards(
     String langCode,
@@ -550,16 +564,17 @@ class StorageAppQy extends AppStorageBaseImpl {
     final key = '${keyCachedWordCards}_$langCode';
     await setApp<List<Map<String, dynamic>>>(key, wordCards);
   }
-  
+
   /// Get cached word cards
   Future<List<Map<String, dynamic>>> getCachedWordCards(String langCode) async {
     final key = '${keyCachedWordCards}_$langCode';
     final cards = await getApp<List<dynamic>>(key);
     return cards?.cast<Map<String, dynamic>>() ?? [];
   }
-  
+
   /// Cache TTS audio path
-  Future<void> cacheTtsPath(String text, String langCode, String audioPath) async {
+  Future<void> cacheTtsPath(
+      String text, String langCode, String audioPath) async {
     final cacheData = await getApp<Map<String, dynamic>>(keyTtsCache) ?? {};
     final cacheKey = '${langCode}_$text';
     cacheData[cacheKey] = {
@@ -568,12 +583,12 @@ class StorageAppQy extends AppStorageBaseImpl {
     };
     await setApp<Map<String, dynamic>>(keyTtsCache, cacheData);
   }
-  
+
   /// Get cached TTS audio path
   Future<String?> getCachedTtsPath(String text, String langCode) async {
     final cacheData = await getApp<Map<String, dynamic>>(keyTtsCache);
     if (cacheData == null) return null;
-    
+
     final cacheKey = '${langCode}_$text';
     final entry = cacheData[cacheKey];
     if (entry is Map<String, dynamic>) {
@@ -581,12 +596,12 @@ class StorageAppQy extends AppStorageBaseImpl {
     }
     return null;
   }
-  
+
   /// Clear TTS cache
   Future<void> clearTtsCache() async {
     await removeApp(keyTtsCache);
   }
-  
+
   /// Save vocabulary learning progress for sync
   Future<void> saveVocabularyProgress(
     int wordId,
@@ -603,12 +618,12 @@ class StorageAppQy extends AppStorageBaseImpl {
       'updated_at': DateTime.now().toIso8601String(),
     });
   }
-  
+
   /// Get pending sync progress items
   Future<List<Map<String, dynamic>>> getPendingSyncProgress() async {
     final allKeys = await getAllAppKeys();
     final pendingItems = <Map<String, dynamic>>[];
-    
+
     for (final key in allKeys) {
       if (key.startsWith(keyWordProgress)) {
         final progress = await getApp<Map<String, dynamic>>(key);
@@ -617,10 +632,10 @@ class StorageAppQy extends AppStorageBaseImpl {
         }
       }
     }
-    
+
     return pendingItems;
   }
-  
+
   /// Mark progress as synced
   Future<void> markProgressSynced(int wordId) async {
     final progressKey = '${keyWordProgress}_$wordId';
@@ -630,7 +645,7 @@ class StorageAppQy extends AppStorageBaseImpl {
       await setApp<Map<String, dynamic>>(progressKey, progress);
     }
   }
-  
+
   /// Get all app keys (helper method)
   Future<List<String>> getAllAppKeys() async {
     return [];

@@ -1,0 +1,78 @@
+/* 背景层设置 */
+.bg-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: -1;
+    overflow: hidden;
+    background: #f0f2f5;
+  }
+  
+  /* 动态光斑 */
+  .blob {
+    position: absolute;
+    filter: blur(80px);
+    opacity: 0.5;
+    border-radius: 50%;
+    animation: float 15s infinite ease-in-out;
+  }
+  
+  .blob-1 {
+    background: #00d2ff;
+    width: 50vw;
+    height: 50vw;
+    top: -20%;
+    left: -20%;
+    animation-delay: 0s;
+  }
+  
+  .blob-2 {
+    background: #9d00ff;
+    width: 40vw;
+    height: 40vw;
+    bottom: -10%;
+    right: -10%;
+    animation-delay: -5s;
+  }
+  
+  @keyframes float {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, 50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.95); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+  
+  /* 网格纹理叠加 */
+  .grid-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-image: 
+      linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  
+  /* 左侧边栏进入动画 */
+  @keyframes slideInLeft {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  /* 手机卡片加载动画 */
+  .phone-wrapper {
+    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    opacity: 0; /* 初始隐藏，由动画显现 */
+    transform: scale(0.9);
+  }
+  
+  /* 错峰加载 */
+  .phone-wrapper:nth-child(1) { animation-delay: 0.1s; }
+  .phone-wrapper:nth-child(2) { animation-delay: 0.2s; }
+  .phone-wrapper:nth-child(3) { animation-delay: 0.3s; }
+  .phone-wrapper:nth-child(4) { animation-delay: 0.4s; }
+  .phone-wrapper:nth-child(5) { animation-delay: 0.5s; }
+  
+  @keyframes popIn {
+    to { opacity: 1; transform: scale(1); }
+  }

@@ -272,4 +272,34 @@ class StorageAppWuy {
       'lastModified': DateTime.now().toIso8601String(),
     };
   }
+
+  /// Get friends list from storage
+  List<Map<String, dynamic>>? getFriendsList() {
+    final cache = getCacheData();
+    final friendsData = cache?[AppConfigAppWuy.storageKeyFriendsList];
+    if (friendsData is List) {
+      return friendsData.cast<Map<String, dynamic>>();
+    }
+    return null;
+  }
+
+  /// Save friends list to storage
+  void setFriendsList(List<Map<String, dynamic>> friends) {
+    setCachedItem(AppConfigAppWuy.storageKeyFriendsList, friends);
+  }
+
+  /// Get active friend from storage
+  Map<String, dynamic>? getActiveFriend() {
+    return getCachedItem<Map<String, dynamic>>(AppConfigAppWuy.storageKeyActiveFriend);
+  }
+
+  /// Set active friend to storage
+  void setActiveFriend(Map<String, dynamic> friend) {
+    setCachedItem(AppConfigAppWuy.storageKeyActiveFriend, friend);
+  }
+
+  /// Clear active friend from storage
+  void clearActiveFriend() {
+    setCachedItem(AppConfigAppWuy.storageKeyActiveFriend, null);
+  }
 }

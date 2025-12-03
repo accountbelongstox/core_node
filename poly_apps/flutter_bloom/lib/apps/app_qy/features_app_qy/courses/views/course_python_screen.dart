@@ -179,11 +179,11 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _continueCoding,
         backgroundColor: ColorsAppQy.qySecondary,
-        icon: const Icon(Icons.code, color: Colors.white),
+        icon: const Icon(Icons.code, color: ColorsAppQy.qyTextOnPrimary),
         label: Text(
           QyAppLocalizationKeys.qyCourseContinueCoding.tr(context),
           style: ThemeTextStyles.body1.copyWith(
-            color: Colors.white,
+            color: ColorsAppQy.qyTextOnPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -215,7 +215,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -223,7 +223,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
           child: CustomAppBar(
             title: _course?.title ??
                 QyAppLocalizationKeys.qyCoursePython.tr(context),
-            backgroundColor: Colors.transparent,
+            backgroundColor: ColorsAppQy.qyPageBackground.withOpacity(0),
             titleColor: ColorsAppQy.qyTextPrimary,
             iconColor: ColorsAppQy.qyTextPrimary,
             elevation: 0,
@@ -242,7 +242,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 child: Text(
                   _course?.category ?? 'Python',
                   style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -263,7 +263,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
             gradient: ColorsAppQy.qyFrostedGlassGradient,
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.2),
+                color: ColorsAppQy.qyFrostLight,
                 width: 1,
               ),
             ),
@@ -333,20 +333,20 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Text(
                 QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
                 style: ThemeTextStyles.h4.copyWith(
-                  color: Colors.white,
+                  color: ColorsAppQy.qyTextOnPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: ColorsAppQy.qyFrostLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${(_userProgress * 100).toInt()}%',
                   style: ThemeTextStyles.caption.copyWith(
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -363,7 +363,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   Container(
                     height: 8,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: ColorsAppQy.qyFrostMedium,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: FractionallySizedBox(
@@ -371,7 +371,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       widthFactor: _progressAnimation.value,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: ColorsAppQy.qyTextOnPrimary,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -388,13 +388,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                                 '{completed}', _completedLessons.toString())
                             .replaceAll('{total}', _course!.lessons.toString()),
                         style: ThemeTextStyles.body1.copyWith(
-                          color: Colors.white.withOpacity(0.9),
+                          color: ColorsAppQy.qyFrostWhite,
                         ),
                       ),
                       Row(
                         children: [
                           Icon(Icons.local_fire_department,
-                              color: Colors.white.withOpacity(0.9), size: 16),
+                              color: ColorsAppQy.qyFrostWhite, size: 16),
                           const SizedBox(width: 4),
                           Text(
                             QyAppLocalizationKeys.qyCourseConsecutiveDays
@@ -402,7 +402,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                                 .replaceAll(
                                     '{days}', _currentStreak.toString()),
                             style: ThemeTextStyles.body1.copyWith(
-                              color: Colors.white.withOpacity(0.9),
+                              color: ColorsAppQy.qyFrostWhite,
                             ),
                           ),
                         ],
@@ -419,13 +419,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                             .replaceAll(
                                 '{count}', _projectCompleted.toString()),
                         style: ThemeTextStyles.body1.copyWith(
-                          color: Colors.white.withOpacity(0.9),
+                          color: ColorsAppQy.qyFrostWhite,
                         ),
                       ),
                       Row(
                         children: [
                           Icon(Icons.code,
-                              color: Colors.white.withOpacity(0.9), size: 16),
+                              color: ColorsAppQy.qyFrostWhite, size: 16),
                           const SizedBox(width: 4),
                           Text(
                             QyAppLocalizationKeys.qyCourseLinesOfCode
@@ -433,7 +433,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                                 .replaceAll('{lines}',
                                     _getTotalLinesOfCode().toString()),
                             style: ThemeTextStyles.body1.copyWith(
-                              color: Colors.white.withOpacity(0.9),
+                              color: ColorsAppQy.qyFrostWhite,
                             ),
                           ),
                         ],
@@ -583,7 +583,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       ),
                       child: const Icon(
                         Icons.check,
-                        color: Colors.white,
+                        color: ColorsAppQy.qyTextOnPrimary,
                         size: 16,
                       ),
                     ),
@@ -634,7 +634,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 child: const Center(
                   child: Icon(
                     Icons.person,
-                    color: Colors.white,
+                    color: ColorsAppQy.qyTextOnPrimary,
                     size: 30,
                   ),
                 ),
@@ -694,7 +694,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: ColorsAppQy.qyFrostMedium,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: ColorsAppQy.qyBorderLight,
@@ -713,7 +713,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                         child: Text(
                           '${index + 1}',
                           style: ThemeTextStyles.caption.copyWith(
-                            color: Colors.white,
+                            color: ColorsAppQy.qyTextOnPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -783,17 +783,17 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isLocked ? Colors.grey.withOpacity(0.1) : Colors.white,
+          color: isLocked ? ColorsAppQy.qyBorderLight : ColorsAppQy.qyTextOnPrimary,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color:
-                isLocked ? Colors.grey.withOpacity(0.3) : ColorsAppQy.qyBorderLight,
+                isLocked ? ColorsAppQy.qyBorderMedium : ColorsAppQy.qyBorderLight,
           ),
           boxShadow: isLocked
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: ColorsAppQy.qyShadowLight,
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -809,13 +809,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   height: 48,
                   decoration: BoxDecoration(
                     color: isLocked
-                        ? Colors.grey.withOpacity(0.2)
+                        ? ColorsAppQy.qyBorderLight
                         : color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Icon(
                     icon,
-                    color: isLocked ? Colors.grey : color,
+                    color: isLocked ? ColorsAppQy.qyTextTertiary : color,
                     size: 24,
                   ),
                 ),
@@ -827,7 +827,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       Text(
                         title,
                         style: ThemeTextStyles.h4.copyWith(
-                          color: isLocked ? Colors.grey : ColorsAppQy.qyTextPrimary,
+                          color: isLocked ? ColorsAppQy.qyTextTertiary : ColorsAppQy.qyTextPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -835,7 +835,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                         subtitle,
                         style: ThemeTextStyles.body1.copyWith(
                           color:
-                              isLocked ? Colors.grey : ColorsAppQy.qyTextSecondary,
+                              isLocked ? ColorsAppQy.qyTextTertiary : ColorsAppQy.qyTextSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -843,7 +843,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                         children: [
                           Icon(Icons.schedule,
                               color: isLocked
-                                  ? Colors.grey
+                                  ? ColorsAppQy.qyTextTertiary
                                   : ColorsAppQy.qyTextSecondary,
                               size: 14),
                           const SizedBox(width: 4),
@@ -851,13 +851,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                             module.durationKey.tr(context),
                             style: ThemeTextStyles.caption.copyWith(
                               color: isLocked
-                                  ? Colors.grey
+                                  ? ColorsAppQy.qyTextTertiary
                                   : ColorsAppQy.qyTextSecondary,
                             ),
                           ),
                           const SizedBox(width: 12),
                           if (isLocked)
-                            Icon(Icons.lock, color: Colors.grey, size: 14)
+                            Icon(Icons.lock, color: ColorsAppQy.qyTextTertiary, size: 14)
                           else
                             Text(
                               QyAppLocalizationKeys.qyCourseCompletedLessons
@@ -898,7 +898,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
               Container(
                 height: 6,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: ColorsAppQy.qyFrostMedium,
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: FractionallySizedBox(
@@ -959,7 +959,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
 
     Color statusColor = isCompleted
         ? ColorsAppQy.qySuccess
-        : (isInProgress ? ColorsAppQy.qyWarning : Colors.grey);
+        : (isInProgress ? ColorsAppQy.qyWarning : ColorsAppQy.qyTextTertiary);
     String statusText = isCompleted
         ? QyAppLocalizationKeys.qyPythonStatusCompleted.tr(context)
         : (isInProgress
@@ -971,17 +971,17 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isLocked ? Colors.grey.withOpacity(0.1) : Colors.white,
+          color: isLocked ? ColorsAppQy.qyBorderLight : ColorsAppQy.qyTextOnPrimary,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color:
-                isLocked ? Colors.grey.withOpacity(0.3) : ColorsAppQy.qyBorderLight,
+                isLocked ? ColorsAppQy.qyBorderMedium : ColorsAppQy.qyBorderLight,
           ),
           boxShadow: isLocked
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: ColorsAppQy.qyShadowLight,
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -997,13 +997,13 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                   height: 48,
                   decoration: BoxDecoration(
                     color: isLocked
-                        ? Colors.grey.withOpacity(0.2)
+                        ? ColorsAppQy.qyBorderLight
                         : project.color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Icon(
                     project.icon,
-                    color: isLocked ? Colors.grey : project.color,
+                    color: isLocked ? ColorsAppQy.qyTextTertiary : project.color,
                     size: 24,
                   ),
                 ),
@@ -1015,7 +1015,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                       Text(
                         project.titleKey.tr(context),
                         style: ThemeTextStyles.h4.copyWith(
-                          color: isLocked ? Colors.grey : ColorsAppQy.qyTextPrimary,
+                          color: isLocked ? ColorsAppQy.qyTextTertiary : ColorsAppQy.qyTextPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1024,7 +1024,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                           project.subtitleKey!.tr(context),
                           style: ThemeTextStyles.body1.copyWith(
                             color:
-                                isLocked ? Colors.grey : ColorsAppQy.qyTextSecondary,
+                                isLocked ? ColorsAppQy.qyTextTertiary : ColorsAppQy.qyTextSecondary,
                           ),
                         ),
                     ],
@@ -1075,7 +1075,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.3),
+                                color: ColorsAppQy.qyFrostMedium,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -1221,14 +1221,14 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
           Container(
             height: 200,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: ColorsAppQy.qyFrostMedium,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
               child: Text(
                 QyAppLocalizationKeys.qyPythonCodingActivityChart.tr(context),
                 style: const TextStyle(
-                  color: Colors.grey,
+                  color: ColorsAppQy.qyTextTertiary,
                   fontSize: 16,
                 ),
                 textAlign: TextAlign.center,
@@ -1286,7 +1286,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                     Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
+                        color: ColorsAppQy.qyFrostMedium,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: FractionallySizedBox(

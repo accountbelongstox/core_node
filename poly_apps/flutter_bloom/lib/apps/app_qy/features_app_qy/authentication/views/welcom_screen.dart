@@ -17,7 +17,7 @@ import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart'
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/assets/common_assets_icons.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 import 'package:get/get.dart';
 
 class WelcomeScreenView extends StatelessWidget {
@@ -44,7 +44,7 @@ class WelcomeScreenView extends StatelessWidget {
                     child: const Icon(
                       Icons.emoji_people,
                       size: ThemeDimensions.fortySize,
-                      color: Colors.white,
+                      color: ColorsAppQy.qyTextOnPrimary,
                     )),
               ),
               const SizedBox(
@@ -63,7 +63,7 @@ class WelcomeScreenView extends StatelessWidget {
                   child: Text("Let's you in",
                       style: ThemeTextStyles.textBold.copyWith(
                         fontSize: 24,
-                        color: ThemeColors.black,
+                        color: ColorsAppQy.qyTextPrimary,
                       ))),
               OuteLineBorder(
                 height: ThemeDimensions.largeExtraSize,
@@ -138,7 +138,8 @@ class WelcomeScreenView extends StatelessWidget {
               CustomButton(
                 radius: ThemeDimensions.radiusBig,
                 onPressed: () {
-                  Get.offAllNamed(QyAppRoutesProvider.routeSignup);
+                  // TODO: Define routeSignup or use routeLogin
+                  Get.offAllNamed(QyAppRoutesProvider.routeLogin);
                 },
                 buttonText: "Sign in with password",
                 backgroundColor: Theme.of(context).colorScheme.surfaceTint,

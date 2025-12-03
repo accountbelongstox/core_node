@@ -18,6 +18,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/assets/common_assets_icons.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import '../../../resources_app_qy/colors_app_qy.dart';
 
 class ResetPasswordView extends StatefulWidget {
   const ResetPasswordView({super.key});
@@ -89,9 +90,9 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                 Checkbox(
                     value: checked,
                     activeColor: Theme.of(context).colorScheme.surfaceTint,
-                    focusColor: ThemeColors.grey200,
+                    focusColor: ColorsAppQy.qyBorderLight,
                     tristate: true,
-                    checkColor: ThemeColors.white,
+                    checkColor: ColorsAppQy.qyTextOnPrimary,
                     onChanged: (newBool) {
                       setState(() {
                         checked = newBool;
@@ -101,7 +102,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                   height: ThemeDimensions.mediumSize,
                 ),
                 Text('Remember me',
-                    style: ThemeTextStyles.textMedium.copyWith(color: ThemeColors.black))
+                    style: ThemeTextStyles.textMedium.copyWith(color: ColorsAppQy.qyTextPrimary))
               ],
             ),
             const SizedBox(

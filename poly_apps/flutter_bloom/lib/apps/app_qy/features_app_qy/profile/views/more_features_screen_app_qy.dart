@@ -37,33 +37,32 @@ class _MoreFeaturesScreenRefactoredAppQyState
   @override
   void initState() {
     super.initState();
-    _initFeatures();
   }
 
-  void _initFeatures() {
+  void _initFeatures(BuildContext context) {
     _consolidateFeatures.addAll([
       {
         'icon': Icons.quiz,
-        'title': 'Word Test',
-        'subtitle': 'Test your vocabulary knowledge',
+        'titleKey': QyAppLocalizationKeys.qyWordTest,
+        'subtitleKey': QyAppLocalizationKeys.qyWordTestDesc,
         'color': Colors.blue,
       },
       {
         'icon': Icons.headset,
-        'title': 'Word Listening',
-        'subtitle': 'Practice listening comprehension',
+        'titleKey': QyAppLocalizationKeys.qyWordListening,
+        'subtitleKey': QyAppLocalizationKeys.qyWordListeningDesc,
         'color': Colors.green,
       },
       {
         'icon': Icons.record_voice_over,
-        'title': 'Phrase Practice',
-        'subtitle': 'Learn common phrases',
+        'titleKey': QyAppLocalizationKeys.qyPhrasePractice,
+        'subtitleKey': QyAppLocalizationKeys.qyPhrasePracticeDesc,
         'color': Colors.orange,
       },
       {
         'icon': Icons.speed,
-        'title': 'Speed Review',
-        'subtitle': 'Quick vocabulary review',
+        'titleKey': QyAppLocalizationKeys.qySpeedReview,
+        'subtitleKey': QyAppLocalizationKeys.qySpeedReviewDesc,
         'color': Colors.purple,
       },
     ]);
@@ -71,26 +70,26 @@ class _MoreFeaturesScreenRefactoredAppQyState
     _extensionFeatures.addAll([
       {
         'icon': Icons.article,
-        'title': 'Reading',
-        'subtitle': 'Read articles and stories',
+        'titleKey': QyAppLocalizationKeys.qyReading,
+        'subtitleKey': QyAppLocalizationKeys.qyReadingDesc,
         'color': Colors.indigo,
       },
       {
         'icon': Icons.mic,
-        'title': 'Speaking',
-        'subtitle': 'Practice pronunciation',
+        'titleKey': QyAppLocalizationKeys.qySpeaking,
+        'subtitleKey': QyAppLocalizationKeys.qySpeakingDesc,
         'color': Colors.red,
       },
       {
         'icon': Icons.video_library,
-        'title': 'Video Courses',
-        'subtitle': 'Watch educational videos',
+        'titleKey': QyAppLocalizationKeys.qyVideoCourses,
+        'subtitleKey': QyAppLocalizationKeys.qyVideoCoursesDesc,
         'color': Colors.pink,
       },
       {
         'icon': Icons.translate,
-        'title': 'Translation',
-        'subtitle': 'Translate words and sentences',
+        'titleKey': QyAppLocalizationKeys.qyTranslation,
+        'subtitleKey': QyAppLocalizationKeys.qyTranslationDesc,
         'color': Colors.teal,
       },
     ]);
@@ -98,26 +97,26 @@ class _MoreFeaturesScreenRefactoredAppQyState
     _toolFeatures.addAll([
       {
         'icon': Icons.book,
-        'title': 'Dictionary',
-        'subtitle': 'Look up word definitions',
+        'titleKey': QyAppLocalizationKeys.qyDictionary,
+        'subtitleKey': QyAppLocalizationKeys.qyDictionaryDesc,
         'color': Colors.brown,
       },
       {
         'icon': Icons.bookmark,
-        'title': 'Favorites',
-        'subtitle': 'Manage your saved words',
+        'titleKey': QyAppLocalizationKeys.qyFavorites,
+        'subtitleKey': QyAppLocalizationKeys.qyFavoritesDesc,
         'color': Colors.amber,
       },
       {
         'icon': Icons.history,
-        'title': 'Learning History',
-        'subtitle': 'View your progress',
+        'titleKey': QyAppLocalizationKeys.qyLearningHistory,
+        'subtitleKey': QyAppLocalizationKeys.qyLearningHistoryDesc,
         'color': Colors.cyan,
       },
       {
         'icon': Icons.analytics,
-        'title': 'Statistics',
-        'subtitle': 'Analyze your performance',
+        'titleKey': QyAppLocalizationKeys.qyStatistics,
+        'subtitleKey': QyAppLocalizationKeys.qyStatisticsDesc,
         'color': Colors.deepPurple,
       },
     ]);
@@ -125,6 +124,8 @@ class _MoreFeaturesScreenRefactoredAppQyState
 
   @override
   Widget build(BuildContext context) {
+    _initFeatures(context);
+    
     return Scaffold(
       backgroundColor: ThemeColors.background,
       appBar: AppBar(
@@ -150,21 +151,21 @@ class _MoreFeaturesScreenRefactoredAppQyState
             QyAppLocalizationKeys.qyHomeConsolidateDescription.tr(context),
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildFeatureGrid(_consolidateFeatures),
+          _buildFeatureGrid(context, _consolidateFeatures),
           SizedBox(height: ThemeDimensions.spacingLarge),
           _buildSectionHeader(
             QyAppLocalizationKeys.qyHomeExtension.tr(context),
             QyAppLocalizationKeys.qyHomeExtensionDescription.tr(context),
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildFeatureGrid(_extensionFeatures),
+          _buildFeatureGrid(context, _extensionFeatures),
           SizedBox(height: ThemeDimensions.spacingLarge),
           _buildSectionHeader(
             QyAppLocalizationKeys.qyMoreFeaturesTools.tr(context),
             QyAppLocalizationKeys.qyMoreFeaturesToolsDescription.tr(context),
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildFeatureGrid(_toolFeatures),
+          _buildFeatureGrid(context, _toolFeatures),
               ],
             ),
           ),
@@ -196,7 +197,7 @@ class _MoreFeaturesScreenRefactoredAppQyState
     );
   }
 
-  Widget _buildFeatureGrid(List<Map<String, dynamic>> features) {
+  Widget _buildFeatureGrid(BuildContext context, List<Map<String, dynamic>> features) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -210,9 +211,10 @@ class _MoreFeaturesScreenRefactoredAppQyState
       itemBuilder: (context, index) {
         final feature = features[index];
         return _buildFeatureCard(
+          context: context,
           icon: feature['icon'] as IconData,
-          title: feature['title'] as String,
-          subtitle: feature['subtitle'] as String,
+          titleKey: feature['titleKey'] as String,
+          subtitleKey: feature['subtitleKey'] as String,
           color: feature['color'] as Color,
         );
       },
@@ -220,11 +222,13 @@ class _MoreFeaturesScreenRefactoredAppQyState
   }
 
   Widget _buildFeatureCard({
+    required BuildContext context,
     required IconData icon,
-    required String title,
-    required String subtitle,
+    required String titleKey,
+    required String subtitleKey,
     required Color color,
   }) {
+    final title = titleKey.tr(context);
     return InkWell(
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -262,7 +266,7 @@ class _MoreFeaturesScreenRefactoredAppQyState
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
             Text(
-              title,
+              titleKey.tr(context),
               style: ThemeTextStyles.body1.copyWith(
                 color: ThemeColors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -273,7 +277,7 @@ class _MoreFeaturesScreenRefactoredAppQyState
             ),
             SizedBox(height: ThemeDimensions.spacingXSmall),
             Text(
-              subtitle,
+              subtitleKey.tr(context),
               style: ThemeTextStyles.caption.copyWith(
                 color: ThemeColors.textSecondary,
               ),

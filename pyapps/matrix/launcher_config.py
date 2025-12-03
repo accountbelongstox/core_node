@@ -30,8 +30,10 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
     """
     ColorPrint.blue("[Matrix ConfigBuilder] Building launcher configuration...")
 
-    # Get i18n manager
+    # Get i18n manager and extend with matrix translations
     i18n = get_i18n_manager()
+    current_dir = Path(__file__).parent
+    i18n.extend_translations(app_dir=str(current_dir), app_name="matrix")
 
     # Import Matrix API routers
     from pyapps.matrix.api import (
@@ -45,10 +47,19 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
         ws_router
     )
 
-    # Icon path
-    icon_path = project_root / "pyapps" / "matrix" / "icon.png"
-    if not icon_path.exists():
-        icon_path = None
+    # Icon path (for window icon)
+    icon_path = current_dir / "icon.ico"
+
+    # Logo path (for title bar)
+    logo_path = current_dir / "logo.png"
+
+    # Menu icon path (optional, if provided, menu button will be shown in title bar)
+    menu_icon_path = current_dir / "menu_icon.png"
+    if not menu_icon_path.exists():
+        menu_icon_path = None
+
+    # Get translated app name
+    app_name = i18n.get("matrix.app_name")
 
     # Base services
     services = {
@@ -74,13 +85,16 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
 
         # UI service (PySide6 webview)
         'ui': {
-            'app_name': i18n.get("matrix.app_name") if hasattr(i18n, 'get') else 'Matrix',
+            'app_name': app_name,
             'app_id': 'matrix',
+            'app_user_model_id': 'com.xingcan.matrix.1.0',  # Custom AppUserModelID for Windows taskbar
             'window_size': (1400, 900),
             'webview_url': f"http://localhost:{frontend_port}",
             'show_on_start': True,
-            'frameless': False,
-            'icon_path': str(icon_path) if icon_path else None,
+            'frameless': True,
+            'icon_path': str(icon_path),
+            'logo_path': str(logo_path),
+            'menu_icon_path': str(menu_icon_path) if menu_icon_path else None,
             'enable_tray': False,  # Use separate tray service instead
             'enable_webview': True,
             'enable_dev_tools': False,
@@ -91,8 +105,8 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
 
         # Tray service
         'tray': {
-            'app_name': i18n.get("matrix.app_name") if hasattr(i18n, 'get') else 'Matrix',
-            'icon_path': str(icon_path) if icon_path else None,
+            'app_name': app_name,
+            'icon_path': str(icon_path),
             'menu_items': _build_tray_menu(frontend_port, backend_port, backend_host),
             'trigger_shutdown_on_exit': True
         }
@@ -101,7 +115,7 @@ def build_matrix_launcher_config(project_root: Path, frontend_port: int, backend
     # Create launcher configuration
     config = LauncherConfig(
         app_id="matrix",
-        app_name=i18n.get("matrix.app_name") if hasattr(i18n, 'get') else 'Matrix',
+        app_name=app_name,
         singleton=True,
         shutdown_existing=False,
         force_launch=False,
@@ -132,17 +146,17 @@ def _build_tray_menu(frontend_port: int, backend_port: int, backend_host: str):
 
     return [
         TrayMenuItem(
-            text=i18n.get("matrix.tray.open_frontend") if hasattr(i18n, 'get') else 'Open Frontend',
+            text=i18n.get("matrix.tray.open_frontend"),
             action_signal="tray_action_open_frontend",
             default=True
         ),
         TrayMenuItem(
-            text=i18n.get("matrix.tray.open_api_docs") if hasattr(i18n, 'get') else 'Open API Docs',
+            text=i18n.get("matrix.tray.open_api_docs"),
             action_signal="tray_action_open_api_docs"
         ),
         TrayMenuItem.SEPARATOR,
         TrayMenuItem(
-            text="Exit",
+            text=i18n.get("matrix.tray.exit"),
             action_signal="tray_action_exit"
         ),
     ]

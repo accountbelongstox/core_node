@@ -94,7 +94,7 @@ class _WordSearchBarState extends State<WordSearchBar> {
               borderSide: BorderSide.none,
             ),
             filled: true,
-            fillColor: Colors.transparent,
+            fillColor: ColorsAppQy.qyPageBackground.withOpacity(0),
             contentPadding: EdgeInsets.symmetric(
               horizontal: ThemeDimensions.spacing16,
               vertical: ThemeDimensions.spacing12,
