@@ -7,7 +7,15 @@ QUICK START: SMS Verification Code Service
 
 Step 1: Fix Permissions
 -----------------------
-./fix-permissions.sh
+# Use dd.sh permissions repair menu
+dd.sh
+# Navigate to: Linux Management > Permissions Repair Menu
+# Select option 2: Full Core Node Repair
+
+# Then manually fix Laravel database permissions:
+sudo chown -R www-data:www-data /www/wwwroot/laravel_db/
+sudo chmod -R 775 /www/wwwroot/laravel_db/
+sudo chmod 664 /www/wwwroot/laravel_db/*.sqlite
 
 Step 2: Initialize System
 --------------------------
