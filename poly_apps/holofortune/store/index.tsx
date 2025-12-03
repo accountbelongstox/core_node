@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, Friend, ThemeMode, Language } from '../types';
 import { translations } from '../translations';
 
@@ -73,63 +72,36 @@ interface AppState {
 const StoreContext = createContext<AppState | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUserState] = useState<User | null>(null);
+  // Initialize state from local storage or defaults
+  const [user, setUserState] = useState<User | null>(() => {
+    const saved = localStorage.getItem('app_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
   const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
-  const [theme, setTheme] = useState<ThemeMode>('light');
-  const [language, setLanguageState] = useState<Language>('zh');
-  const [isInitialized, setIsInitialized] = useState(false);
+  
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('app_theme') as ThemeMode) || 'light';
+  });
 
-  // Load initial state from AsyncStorage
-  useEffect(() => {
-    const loadInitialState = async () => {
-      try {
-        const [savedUser, savedTheme, savedLang] = await Promise.all([
-          AsyncStorage.getItem('app_user'),
-          AsyncStorage.getItem('app_theme'),
-          AsyncStorage.getItem('app_lang'),
-        ]);
-
-        if (savedUser) {
-          setUserState(JSON.parse(savedUser));
-        }
-        if (savedTheme) {
-          setTheme(savedTheme as ThemeMode);
-        }
-        if (savedLang) {
-          setLanguageState(savedLang as Language);
-        }
-      } catch (error) {
-        console.error('Error loading initial state:', error);
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-
-    loadInitialState();
-  }, []);
+  const [language, setLanguageState] = useState<Language>(() => {
+    return (localStorage.getItem('app_lang') as Language) || 'zh'; // Default to ZH based on prompt
+  });
 
   // Persistence Effects
   useEffect(() => {
-    if (isInitialized) {
-      if (user) {
-        AsyncStorage.setItem('app_user', JSON.stringify(user));
-      } else {
-        AsyncStorage.removeItem('app_user');
-      }
-    }
-  }, [user, isInitialized]);
+    if (user) localStorage.setItem('app_user', JSON.stringify(user));
+    else localStorage.removeItem('app_user');
+  }, [user]);
 
   useEffect(() => {
-    if (isInitialized) {
-      AsyncStorage.setItem('app_theme', theme);
-    }
-  }, [theme, isInitialized]);
+    localStorage.setItem('app_theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   useEffect(() => {
-    if (isInitialized) {
-      AsyncStorage.setItem('app_lang', language);
-    }
-  }, [language, isInitialized]);
+    localStorage.setItem('app_lang', language);
+  }, [language]);
 
   // Actions
   const login = (phone: string) => {
