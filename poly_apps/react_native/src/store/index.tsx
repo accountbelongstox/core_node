@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, Friend, ThemeMode, Language } from '../types';
+import { User, Friend, Product, ThemeMode, Language } from '../types';
 import { translations } from '../config/translations';
+import { getDefaultAvatarUrl } from '../utils/avatar';
 
 // Mock Data
 const MOCK_USER: User = {
   id: 'u1',
   name: 'Alex Chen',
   phone: '13800138000',
-  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
+  avatar: getDefaultAvatarUrl('male', 'Alex'),
   signature: 'Stay safe, stay connected.',
   gender: 'male',
   address: 'Beijing, China',
@@ -21,7 +22,8 @@ const MOCK_FRIENDS: Friend[] = [
     id: 'f1',
     name: 'Sarah',
     phone: '13900000000',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
+    avatar: getDefaultAvatarUrl('female', 'Sarah'),
+    gender: 'female',
     relation: 'Partner',
     daysConnected: 1314,
     lastActive: 'Just now',
@@ -39,7 +41,8 @@ const MOCK_FRIENDS: Friend[] = [
     id: 'f2',
     name: 'Mom',
     phone: '13700000000',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mom',
+    avatar: getDefaultAvatarUrl('female', 'Mom'),
+    gender: 'female',
     relation: 'Parent',
     daysConnected: 520,
     lastActive: '10 min ago',
@@ -55,9 +58,50 @@ const MOCK_FRIENDS: Friend[] = [
   }
 ];
 
+// Mock Products Data - Centralized
+const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 'p1',
+    name: '安无忧手表版',
+    nameEn: 'SafeGuardian Watch Edition',
+    price: '¥299',
+    priceNum: 299,
+    dist: '1.2km',
+    rating: 4.8,
+    image: 'https://api.dicebear.com/7.x/icons/svg?seed=watch',
+    description: '智能安全手表，实时定位，一键求救',
+    category: 'watch'
+  },
+  {
+    id: 'p2',
+    name: '周边挂件',
+    nameEn: 'Safety Accessories',
+    price: '¥89',
+    priceNum: 89,
+    dist: '0.8km',
+    rating: 4.6,
+    image: 'https://api.dicebear.com/7.x/icons/svg?seed=accessory',
+    description: '便携式安全挂件，小巧精致，随时守护',
+    category: 'accessory'
+  },
+  {
+    id: 'p3',
+    name: '心率健康监控',
+    nameEn: 'Heart Rate Health Monitor',
+    price: '¥199',
+    priceNum: 199,
+    dist: '2.5km',
+    rating: 4.9,
+    image: 'https://api.dicebear.com/7.x/icons/svg?seed=heart',
+    description: '24小时心率监测，健康数据实时同步',
+    category: 'health'
+  }
+];
+
 interface AppState {
   user: User | null;
   friends: Friend[];
+  products: Product[];
   theme: ThemeMode;
   language: Language;
   isAuthenticated: boolean;
@@ -83,6 +127,7 @@ const STORAGE_KEYS = {
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUserState] = useState<User | null>(null);
   const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
+  const [products] = useState<Product[]>(MOCK_PRODUCTS); // Products are read-only mock data
   const [theme, setTheme] = useState<ThemeMode>('light');
   const [language, setLanguageState] = useState<Language>('zh');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -179,9 +224,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Actions
   const login = useCallback((phone: string) => {
-    // Simulating API call
-    const newUser = { ...MOCK_USER, phone };
+    // Accept any phone number for testing - update user model
+    const newUser = { 
+      ...MOCK_USER, 
+      phone,
+      name: phone ? `User ${phone.slice(-4)}` : MOCK_USER.name, // Use last 4 digits as name if provided
+    };
     setUserState(newUser);
+    // User state change will trigger navigation automatically via isAuthenticated
   }, []);
 
   const logout = useCallback(() => {
@@ -214,6 +264,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <StoreContext.Provider value={{
       user,
       friends,
+      products,
       theme,
       language,
       isAuthenticated: !!user,

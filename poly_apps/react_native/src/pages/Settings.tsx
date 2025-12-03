@@ -78,14 +78,18 @@ const Settings: React.FC = () => {
               <View style={[localStyles.authIconContainer, { backgroundColor: colors.primary }]}>
                 <Icon name="shield" size={24} color="white" />
               </View>
-              <View>
+              <View style={localStyles.authTextContainer}>
                 <Text style={[localStyles.authTitle, { color: colors.textPrimary }]}>{t('settings.one_tap')}</Text>
                 <Text style={[localStyles.authSubtitle, { color: colors.textSecondary }]}>{t('settings.auth_desc')}</Text>
               </View>
             </View>
-            <Button onPress={startAuthorization} style={localStyles.authButton}>
-              {t('settings.one_tap')}
-            </Button>
+            <TouchableOpacity 
+              onPress={startAuthorization}
+              style={[localStyles.authButton, { backgroundColor: colors.primary }]}
+              activeOpacity={0.8}
+            >
+              <Text style={localStyles.authButtonText}>{t('settings.one_tap')}</Text>
+            </TouchableOpacity>
           </GlassCard>
         </View>
 
@@ -150,12 +154,22 @@ const Settings: React.FC = () => {
               ))}
             </View>
 
-            <Button 
+            <TouchableOpacity 
               onPress={() => !isChecking && setShowAuthModal(false)} 
               disabled={isChecking}
+              style={[
+                localStyles.modalButton,
+                { 
+                  backgroundColor: colors.primary,
+                  opacity: isChecking ? 0.5 : 1,
+                }
+              ]}
+              activeOpacity={0.8}
             >
-              {isChecking ? t('perm.checking') : 'Done'}
-            </Button>
+              <Text style={localStyles.modalButtonText}>
+                {isChecking ? t('perm.checking') : 'Done'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -185,27 +199,43 @@ const localStyles = StyleSheet.create({
   },
   authCardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
+    marginBottom: 16,
   },
   authIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  authTextContainer: {
+    flex: 1,
+    flexShrink: 1,
   },
   authTitle: {
     fontWeight: '700',
     fontSize: 16,
+    marginBottom: 4,
   },
   authSubtitle: {
     fontSize: 12,
-    marginTop: 2,
+    lineHeight: 16,
   },
   authButton: {
-    borderRadius: 24,
-    height: 44,
+    borderRadius: 12,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  authButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   settingsCard: {
     paddingHorizontal: 16,
@@ -309,6 +339,22 @@ const localStyles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
+  },
+  modalButton: {
+    borderRadius: 12,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignSelf: 'center',
+    minWidth: 100,
+    maxWidth: 200,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
