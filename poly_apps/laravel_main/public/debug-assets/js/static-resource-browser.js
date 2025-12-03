@@ -191,7 +191,7 @@ const StaticResourceBrowser = {
     async loadExpandedFolders() {
         for (const path of this.expandedFolders) {
             if (!this.folderContents[path]) {
-                const response = await fetch(`/static-resources/file-tree?path=${encodeURIComponent(path)}`);
+                const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
                 const data = await response.json();
 
                 if (!data.error) {
@@ -326,7 +326,7 @@ const StaticResourceBrowser = {
             updatePathDisplay = updateCurrent
         } = options;
 
-        const response = await fetch(`/static-resources/file-tree?path=${encodeURIComponent(path)}`);
+        const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
         const data = await response.json();
 
         if (data.error) {
@@ -524,7 +524,7 @@ const StaticResourceBrowser = {
             this.saveExpandedState();
 
             if (!this.folderContents[path]) {
-                const response = await fetch(`/static-resources/file-tree?path=${encodeURIComponent(path)}`);
+                const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
                 const data = await response.json();
 
                 if (!data.error) {
@@ -576,7 +576,7 @@ const StaticResourceBrowser = {
 
     async expandAllFolders(path) {
         if (!this.folderContents[path]) {
-            const response = await fetch(`/static-resources/file-tree?path=${encodeURIComponent(path)}`);
+            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
             const data = await response.json();
             if (!data.error) {
                 this.folderContents[path] = data.items;
@@ -629,7 +629,7 @@ const StaticResourceBrowser = {
         settingsBar.style.display = 'none';
         playlistPanel.style.display = 'none';
 
-        const response = await fetch(`/static-resources/read-file?path=${encodeURIComponent(path)}`);
+        const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_READ_FILE}?path=${encodeURIComponent(path)}`);
         const data = await response.json();
 
         if (data.error) {
@@ -974,16 +974,9 @@ const StaticResourceBrowser = {
 
         const fileName = this.selectedItem.split('/').pop();
 
-        const response = await fetch('/translation/simple/google', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                text: fileName,
-                target_lang: 'en'
-            })
+        const response = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
+            text: fileName,
+            target_lang: 'en'
         });
 
         const data = await response.json();
@@ -1000,16 +993,9 @@ const StaticResourceBrowser = {
         const confirmed = confirm(`Rename to: ${translatedName}?`);
         if (!confirmed) return;
 
-        const renameResponse = await fetch('/static-resources/rename', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                old_path: this.selectedItem,
-                new_name: translatedName
-            })
+        const renameResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_RENAME, {
+            old_path: this.selectedItem,
+            new_name: translatedName
         });
 
         const result = await renameResponse.json();
@@ -1044,15 +1030,8 @@ const StaticResourceBrowser = {
         dialog.style.display = 'flex';
         confirmInput.focus();
 
-        const response = await fetch('/static-resources/delete-preview', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                path: this.pendingDeletePath
-            })
+        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE_PREVIEW, {
+            path: this.pendingDeletePath
         });
 
         const data = await response.json();
@@ -1114,15 +1093,8 @@ const StaticResourceBrowser = {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Deleting...';
 
-        const response = await fetch('/static-resources/delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                path: this.pendingDeletePath
-            })
+        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE, {
+            path: this.pendingDeletePath
         });
 
         const result = await response.json();
@@ -1401,17 +1373,13 @@ const StaticResourceBrowser = {
         let finalName = dirName;
 
         if (translateName) {
-            const response = await fetch('/translation/simple/google', {
-                method: 'POST',
+            const response = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
+                text: dirName,
+                target_language: 'en'
+            }, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'X-Translation-Passcode': '12345678'
-                },
-                body: JSON.stringify({
-                    text: dirName,
-                    target_language: 'en'
-                })
+                }
             });
 
             if (!response.ok) {
@@ -1439,16 +1407,9 @@ const StaticResourceBrowser = {
             }
         }
 
-        const response = await fetch('/static-resources/create-directory', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                parent_path: this.currentPath,
-                dir_name: finalName
-            })
+        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CREATE_DIRECTORY, {
+            parent_path: this.currentPath,
+            dir_name: finalName
         });
 
         const result = await response.json();
@@ -1480,20 +1441,12 @@ const StaticResourceBrowser = {
         if (needReinit) {
             this.clearUploadState(fileId);
 
-            const initResponse = await fetch('/static-resources/chunked-upload/init', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    file_name: relativePath,
-                    file_size: file.size,
-                    chunk_size: this.CHUNK_SIZE,
-                    target_path: this.uploadTargetPath,
-                    file_hash: fileId
-                })
+            const initResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_INIT, {
+                file_name: relativePath,
+                file_size: file.size,
+                chunk_size: this.CHUNK_SIZE,
+                target_path: this.uploadTargetPath,
+                file_hash: fileId
             });
 
             if (!initResponse.ok) {
@@ -1546,14 +1499,7 @@ const StaticResourceBrowser = {
                     formData.append('chunk_index', chunkIndex);
                     formData.append('chunk', chunk);
 
-                    const chunkResponse = await fetch('/static-resources/chunked-upload/chunk', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                            'Accept': 'application/json'
-                        },
-                        body: formData
-                    });
+                    const chunkResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_CHUNK, formData);
 
                     if (chunkResponse.status === 404) {
                         const errorData = await chunkResponse.json();
@@ -1596,15 +1542,7 @@ const StaticResourceBrowser = {
             }
         }
 
-        const mergeResponse = await fetch('/static-resources/chunked-upload/merge', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ upload_id: uploadId })
-        });
+        const mergeResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_MERGE, { upload_id: uploadId });
 
         if (mergeResponse.status === 404) {
             const errorData = await mergeResponse.json();
