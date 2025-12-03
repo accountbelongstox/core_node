@@ -136,8 +136,17 @@ const APP_MAIN_PAGES_DIR = path.join(SOURCE_ROOT, 'app_main_pages');
 const ARCHITECTURE_GUIDE_PATH = 'development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md';
 const INDICATOR_FILE = 'INDEX.md';
 const WATCH_DEBOUNCE_MS = 2000;
-const COPY_IGNORE = ['.nuxt', '.output', '.git', '.app-backups'];
-const WATCH_IGNORE = [...COPY_IGNORE, 'node_modules'];
+const COPY_IGNORE = [
+  '.nuxt',
+  '.output',
+  '.git',
+  '.app-backups',
+  'node_modules',        // Factory has its own node_modules from pnpm install
+  'pnpm-lock.yaml',      // Factory generates its own lockfile
+  '.pnpmrc',             // Factory uses default pnpm config
+  '.pnpm-debug.log'
+];
+const WATCH_IGNORE = [...COPY_IGNORE];
 
 let watcherInstance = null;
 const pnpmProcesses = new Map();
@@ -812,22 +821,27 @@ function startWatcher(srcDir, runtimes) {
   return watcherInstance;
 }
 
-function startPnpmProcesses(runtimes, mode) {
+async function startPnpmProcesses(runtimes, mode) {
   const exitPromises = [];
-  
+
   for (const runtime of runtimes) {
     if (pnpmProcesses.has(runtime.app)) continue;
-    
-    const envVars = { 
-      ...process.env, 
+
+    // Get port from systemd service file (not from environment variable)
+    const port = await getPortForApp(runtime.app);
+
+    const envVars = {
+      ...process.env,
       APP_ENTRY: runtime.app,
       NUXT_HOST: '0.0.0.0',
-      NUXT_PORT: process.env.NUXT_PORT || '3000'
+      NUXT_PORT: port.toString(),
+      PORT: port.toString(),
+      NITRO_PORT: port.toString()
     };
     const isWindows = process.platform === 'win32';
-    
+
     let command, args, spawnOptions;
-    
+
     if (mode === 'build') {
       if (isWindows) {
         command = process.env.ComSpec || 'cmd.exe';
@@ -850,7 +864,7 @@ function startPnpmProcesses(runtimes, mode) {
     } else {
       if (isWindows) {
         command = process.env.ComSpec || 'cmd.exe';
-        args = ['/d', '/s', '/c', 'pnpm nuxt dev'];
+        args = ['/d', '/s', '/c', `pnpm nuxt dev --port ${port} --host 0.0.0.0`];
         spawnOptions = {
           cwd: runtime.targetDir,
           stdio: 'inherit',
@@ -859,7 +873,7 @@ function startPnpmProcesses(runtimes, mode) {
         };
       } else {
         command = 'pnpm';
-        args = ['nuxt', 'dev'];
+        args = ['nuxt', 'dev', '--port', port.toString(), '--host', '0.0.0.0'];
         spawnOptions = {
           cwd: runtime.targetDir,
           stdio: 'inherit',
@@ -917,29 +931,194 @@ function setupCleanup() {
   process.on('SIGTERM', cleanup);
 }
 
+async function cleanFactoryConfigFiles(targetDir) {
+  // Clean up pnpm config files that might have been synced in old deployments
+  const configFiles = [
+    '.pnpmrc',           // Old pnpm config from source (now excluded by rsync)
+    'pnpm-lock.yaml',    // Old lockfile from source (now excluded by rsync)
+    '.pnpm-debug.log'    // Old debug logs
+  ];
+
+  for (const configFile of configFiles) {
+    const configPath = path.join(targetDir, configFile);
+    try {
+      const exists = await fsExtra.pathExists(configPath);
+      if (exists) {
+        console.log(`[Cleanup] Removing old config: ${configFile}`);
+        await fsExtra.remove(configPath);
+
+        // Verify deletion succeeded
+        const stillExists = await fsExtra.pathExists(configPath);
+        if (stillExists) {
+          console.error(`[Cleanup] ERROR: Failed to remove ${configFile} - file still exists after deletion attempt`);
+          // Force delete with system command
+          const { exec } = require('child_process');
+          await new Promise((resolve, reject) => {
+            exec(`rm -f "${configPath}"`, (err) => {
+              if (err) {
+                console.error(`[Cleanup] Force delete also failed for ${configFile}:`, err.message);
+                reject(err);
+              } else {
+                console.log(`[Cleanup] ✓ Force deleted: ${configFile}`);
+                resolve();
+              }
+            });
+          });
+        } else {
+          console.log(`[Cleanup] ✓ Removed: ${configFile}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[Cleanup] ERROR removing ${configFile}:`, err.message);
+      throw err; // Don't silently ignore errors
+    }
+  }
+}
+
+async function getPortForApp(appName) {
+  // Read port from systemd service file (same as PHP findPortForApp)
+  const serviceName = `nuxt-${appName}`;
+  const servicePath = `/etc/systemd/system/${serviceName}.service`;
+
+  try {
+    const serviceContent = await fsp.readFile(servicePath, 'utf-8');
+    const portMatch = serviceContent.match(/Environment="PORT=(\d+)"/);
+    if (portMatch) {
+      const port = parseInt(portMatch[1], 10);
+      console.log(`[Port] Found port ${port} for ${appName} from service file`);
+      return port;
+    }
+  } catch (err) {
+    console.warn(`[Port] Could not read service file ${servicePath}:`, err.message);
+  }
+
+  // Fallback: start from 10000 (NUXT_PORT_START)
+  const defaultPort = 10000;
+  console.warn(`[Port] Using default port ${defaultPort} for ${appName}`);
+  return defaultPort;
+}
+
+async function prepareFactoryDirectory(targetDir, appName) {
+  // Prepare factory directory (create if needed)
+  console.log(`[Factory] Preparing directory for ${appName}`);
+
+  const factoryRoot = path.dirname(targetDir);
+
+  // Ensure factory root exists
+  if (!await fsExtra.pathExists(factoryRoot)) {
+    console.log(`[Factory] Creating factory root: ${factoryRoot}`);
+    await fsExtra.ensureDir(factoryRoot);
+  }
+
+  // Ensure app factory directory exists
+  if (!await fsExtra.pathExists(targetDir)) {
+    console.log(`[Factory] Creating app directory: ${targetDir}`);
+    await fsExtra.ensureDir(targetDir);
+  }
+
+  console.log(`[Factory] ✓ Directory prepared`);
+}
+
+async function initialSyncToFactory(targetDir, appName) {
+  // Initial rsync from source to factory
+  // This is the FIRST sync, before any file watching
+  console.log(`[Deploy] Initial sync for ${appName}`);
+
+  const excludes = [
+    'node_modules',      // Will be installed in factory
+    'pnpm-lock.yaml',    // Will be regenerated in factory
+    '.pnpmrc',           // Factory uses default pnpm config
+    '.pnpm-debug.log',
+    '.nuxt',
+    '.output',
+    '.git',
+    '.app-backups',
+    'dist',
+    'node-compile-cache'
+  ];
+
+  // Use mirrorDirectory which already implements the sync logic
+  await mirrorDirectory(SOURCE_ROOT, targetDir);
+  console.log(`[Deploy] ✓ Initial sync complete`);
+}
+
+async function installFactoryDependencies(targetDir, appName) {
+  // Install dependencies in factory directory using pnpm
+  // ALWAYS do a fresh install to ensure dependencies are complete
+  console.log(`[Deploy] Installing dependencies for ${appName}`);
+
+  const nodeModulesPath = path.join(targetDir, 'node_modules');
+  const packageJsonPath = path.join(targetDir, 'package.json');
+
+  // Verify package.json exists
+  if (!await fsExtra.pathExists(packageJsonPath)) {
+    throw new Error(`package.json not found in ${targetDir} - sync may have failed`);
+  }
+
+  // Remove old node_modules for fresh install
+  if (await fsExtra.pathExists(nodeModulesPath)) {
+    console.log(`[Deploy] Removing old node_modules for fresh install`);
+    await fsExtra.remove(nodeModulesPath);
+  }
+
+  // Run pnpm install
+  console.log(`[Deploy] Running pnpm install...`);
+  return new Promise((resolve, reject) => {
+    const installProc = spawn('pnpm', ['install'], {
+      cwd: targetDir,
+      stdio: 'inherit',
+      shell: true
+    });
+
+    installProc.on('exit', (code) => {
+      if (code === 0) {
+        console.log(`[Deploy] ✓ Dependencies installed successfully`);
+        resolve();
+      } else {
+        reject(new Error(`pnpm install failed with code ${code}`));
+      }
+    });
+
+    installProc.on('error', (err) => {
+      reject(new Error(`Failed to spawn pnpm install: ${err.message}`));
+    });
+  });
+}
+
 async function runFactoryMode(options) {
   const runtimes = options.apps.map(app => ({
     app,
     targetDir: getTargetDir(options.factoryRoot, options.platform, app)
   }));
-  
-  console.log('=== Nuxt Factory Sync ===');
+
+  console.log('=== Nuxt PolyApp Deployment ===');
   console.log('Source Root:', SOURCE_ROOT);
   console.log('Factory Root:', options.factoryRoot);
   console.log('Platform:', options.platform);
   console.log('Target Apps:', options.apps.join(', '));
   console.log('Mode:', options.mode);
-  
-  for (const runtime of runtimes) {
-    console.log(`[Prep] Preparing runtime for ${runtime.app}`);
 
-    // Switch pages directory in source first
-    console.log(`[Prep] Switching pages directory for ${runtime.app} in source`);
+  for (const runtime of runtimes) {
+    console.log(`\n[${runtime.app}] Starting deployment pipeline`);
+
+    // Step 1: Prepare factory directory
+    await prepareFactoryDirectory(runtime.targetDir, runtime.app);
+
+    // Step 2: Switch pages directory in source
+    console.log(`[${runtime.app}] Switching pages directory in source`);
     switchPagesDirectory(runtime.app);
 
-    // Then mirror to factory (includes switched pages directory)
-    await mirrorDirectory(SOURCE_ROOT, runtime.targetDir);
-    console.log(`[Switch] Pages directory synced for ${runtime.app}`);
+    // Step 3: Clean up old pnpm config files
+    console.log(`[${runtime.app}] Cleaning old pnpm config files`);
+    await cleanFactoryConfigFiles(runtime.targetDir);
+
+    // Step 4: Initial sync to factory
+    await initialSyncToFactory(runtime.targetDir, runtime.app);
+
+    // Step 5: Install dependencies in factory
+    await installFactoryDependencies(runtime.targetDir, runtime.app);
+
+    console.log(`[${runtime.app}] ✓ Deployment complete, ready to start dev server`);
   }
   
   if (runtimes.length === 1) {
@@ -956,9 +1135,9 @@ async function runFactoryMode(options) {
     startWatcher(SOURCE_ROOT, runtimes);
     console.log(`[Watch] File watcher initialized (2s debounce) for ${runtimes.length} app(s)`);
   }
-  
+
   console.log(`[PNPM] Starting ${options.mode} pipelines for ${options.apps.join(', ')}`);
-  const exitPromises = startPnpmProcesses(runtimes, options.mode);
+  const exitPromises = await startPnpmProcesses(runtimes, options.mode);
   setupCleanup();
   
   if (options.mode === 'build') {
