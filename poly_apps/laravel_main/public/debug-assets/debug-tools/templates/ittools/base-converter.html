@@ -1,0 +1,49 @@
+<div class="ittools-card">
+    <div class="ittools-card-header">Integer Base Converter</div>
+    <div class="ittools-card-body">
+        <div class="ittools-form-group">
+            <label class="ittools-label">Input Number:</label>
+            <input 
+                type="text" 
+                id="base-input" 
+                class="ittools-input" 
+                placeholder="Enter number"
+                data-input="base-input"
+            >
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">From Base (2-36):</label>
+            <input 
+                type="number" 
+                id="base-from" 
+                class="ittools-input" 
+                value="10" 
+                min="2" 
+                max="36"
+                data-input="base-from"
+            >
+        </div>
+        <div class="ittools-form-group">
+            <label class="ittools-label">To Base (2-36):</label>
+            <input 
+                type="number" 
+                id="base-to" 
+                class="ittools-input" 
+                value="16" 
+                min="2" 
+                max="36"
+                data-input="base-to"
+            >
+        </div>
+        <div class="ittools-btn-group">
+            <button 
+                class="ittools-btn ittools-btn-primary" 
+                data-action="convert-base"
+            >
+                🔄 Convert
+            </button>
+        </div>
+        <div id="base-result" class="ittools-result converter-result hidden"></div>
+    </div>
+</div>
+
