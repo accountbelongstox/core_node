@@ -1,0 +1,40 @@
+[nuxt 3:48:01 AM]  ERROR  The file 
+/www/_build_dir/nuxt_factory/linux/_app_ittools/pages/types/index.ts is
+ not a valid page as it has no content.
+ 现在，专注开发 poly_apps/nuxt_main/apps/app_ittools 参考规范 
+development-guides/NUXT_MULTI_APP_ARCHITECTURE.md ，以及后端API，从poly
+_apps/laravel_main/public/debug-assets/debug_interface_template.html 
+中，现在将ittools降级为 apps/app_ittools 中的一个子菜单，将 app_ittools
+ 按规范重命为 laravel web面析，之后你只需要从poly
+  _apps/laravel_main/public/debug-assets/debug_interface_template.html
+ 提取到构架和API，注意不是1：1实现，而是根据构架按nuxt的规范写出同样的
+功能，全部复用代码，元素，禁止堆代码，每一个功能都要扫描前面的代码中是
+否有可复用的功能或可扩展的功能，你随时调用 python 
+/www/programing/core_node/scripts/pytools/nuxt_app_printer.py 
+ 打印代码tree，查看和复用代码，每写一个步骤都要全般考虑。 
+
+
+poly_apps/nuxt_main/apps/app_ittools/ARCHITECTURE_PLAN.md 
+根据继续，不要只查看文档，扫描实际代码，最大化的利用nuxt的特性减少代码
+。目前已经有的旧
+代码要进行扩展、修改和复用。 
+代码全英文，代码中多语言系统（禁止出现非多语言系统的硬编码），使用统
+  一的model中心，api中心，api只能使用 
+  key的形式调用端点，不允许使用多个重复定义的字符串url和api。使用统一的
+  态管理，写状态之前一定要核实是否使用了统一的状态管理和storage. 
+提取到的端点你要实际访问  
+http://192.168.50.3:9000/ 
+得到返回数据，以便你写nuxt的数据不分不分。对于使用真实返回json构建过的代码，在代码中注上：真实数据验证（时间）
+  ，代码全英文。规则，。。。。。。。。。。。。。。。。。。。。。。。。。。。。。
+  ```
+   现在，专注开发 poly_apps/nuxt_main/apps/app_ittools 参考规范 
+development-guides/NUXT_MULTI_APP_ARCHITECTURE.md ，以及后端API，从poly
+_apps/laravel_main/public/debug-assets/debug_interface_template.html 
+中，现在将ittools降级为 apps/app_ittools 中的一个子菜单，将 app_ittools
+ 按规范重命为 laravel web面析，之后你只需要从poly
+  _apps/laravel_main/public/debug-assets/debug_interface_template.html
+ 提取到构架和API，注意不是1：1实现，而是根据构架按nuxt的规范写出同样的
+功能，全部复用代码，元素，禁止堆代码，每一个功能都要扫描前面的代码中是
+否有可复用的功能或可扩展的功能，你随时调用 python 
+/www/programing/core_node/scripts/pytools/nuxt_app_printer.py 
+ 打印代码tree，查看和复用代码，每写一个步骤都要全般考虑。```
