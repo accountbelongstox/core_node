@@ -59,20 +59,25 @@ return new class extends Migration
             }
         });
 
-        if (!Schema::hasIndex('users', 'users_status')) {
+        try {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('status', 'users_status');
             });
+        } catch (\Exception $e) {
         }
-        if (!Schema::hasIndex('users', 'users_online')) {
+
+        try {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('is_online', 'users_online');
             });
+        } catch (\Exception $e) {
         }
-        if (!Schema::hasIndex('users', 'users_last_seen')) {
+
+        try {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('last_seen_at', 'users_last_seen');
             });
+        } catch (\Exception $e) {
         }
     }
 
@@ -81,39 +86,66 @@ return new class extends Migration
      */
     public function down(): void
     {
+        try {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropIndex('users_status');
+            });
+        } catch (\Exception $e) {
+        }
+
+        try {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropIndex('users_online');
+            });
+        } catch (\Exception $e) {
+        }
+
+        try {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropIndex('users_last_seen');
+            });
+        } catch (\Exception $e) {
+        }
+
         Schema::table('users', function (Blueprint $table) {
+            $columnsToRemove = [];
+
             if (Schema::hasColumn('users', 'bio')) {
-                $table->dropColumn('bio');
+                $columnsToRemove[] = 'bio';
             }
             if (Schema::hasColumn('users', 'location')) {
-                $table->dropColumn('location');
+                $columnsToRemove[] = 'location';
             }
             if (Schema::hasColumn('users', 'avatar')) {
-                $table->dropColumn('avatar');
+                $columnsToRemove[] = 'avatar';
             }
             if (Schema::hasColumn('users', 'last_login_at')) {
-                $table->dropColumn('last_login_at');
+                $columnsToRemove[] = 'last_login_at';
             }
             if (Schema::hasColumn('users', 'phone_verified_at')) {
-                $table->dropColumn('phone_verified_at');
+                $columnsToRemove[] = 'phone_verified_at';
             }
             if (Schema::hasColumn('users', 'email_verified_at')) {
-                $table->dropColumn('email_verified_at');
+                $columnsToRemove[] = 'email_verified_at';
             }
             if (Schema::hasColumn('users', 'password_reset_token')) {
-                $table->dropColumn('password_reset_token');
+                $columnsToRemove[] = 'password_reset_token';
             }
             if (Schema::hasColumn('users', 'password_reset_expires_at')) {
-                $table->dropColumn('password_reset_expires_at');
+                $columnsToRemove[] = 'password_reset_expires_at';
             }
             if (Schema::hasColumn('users', 'status')) {
-                $table->dropColumn('status');
+                $columnsToRemove[] = 'status';
             }
             if (Schema::hasColumn('users', 'is_online')) {
-                $table->dropColumn('is_online');
+                $columnsToRemove[] = 'is_online';
             }
             if (Schema::hasColumn('users', 'last_seen_at')) {
-                $table->dropColumn('last_seen_at');
+                $columnsToRemove[] = 'last_seen_at';
+            }
+
+            if (!empty($columnsToRemove)) {
+                $table->dropColumn($columnsToRemove);
             }
         });
     }

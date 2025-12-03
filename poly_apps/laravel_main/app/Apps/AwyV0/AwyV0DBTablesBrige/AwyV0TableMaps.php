@@ -72,7 +72,120 @@ class AwyV0TableMaps
             'receiver_id' => 'receiver_id',
             'message' => 'message',
             'message_type' => 'message_type',
+            'read' => 'read',
             'status' => 'status',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_VERIFICATION_CODES = [
+        'tablename' => 'awy_v0_verification_codes',
+        'fields' => [
+            'id' => 'id',
+            'phone' => 'phone',
+            'code' => 'code',
+            'expires_at' => 'expires_at',
+            'used' => 'used',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_FRIEND_REQUESTS = [
+        'tablename' => 'awy_v0_friend_requests',
+        'fields' => [
+            'id' => 'id',
+            'from_user_id' => 'from_user_id',
+            'to_user_id' => 'to_user_id',
+            'message' => 'message',
+            'alias' => 'alias',
+            'relation' => 'relation',
+            'status' => 'status',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_LOCATIONS = [
+        'tablename' => 'awy_v0_locations',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'lat' => 'lat',
+            'lng' => 'lng',
+            'address' => 'address',
+            'accuracy' => 'accuracy',
+            'speed' => 'speed',
+            'heading' => 'heading',
+            'location_timestamp' => 'location_timestamp',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_LOCATION_HISTORY = [
+        'tablename' => 'awy_v0_location_history',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'location_name' => 'location_name',
+            'address' => 'address',
+            'lat' => 'lat',
+            'lng' => 'lng',
+            'duration_minutes' => 'duration_minutes',
+            'visited_at' => 'visited_at',
+            'left_at' => 'left_at',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_HEALTH_DATA = [
+        'tablename' => 'awy_v0_health_data',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'steps' => 'steps',
+            'heart_rate' => 'heart_rate',
+            'temperature' => 'temperature',
+            'data_date' => 'data_date',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_PRODUCTS = [
+        'tablename' => 'awy_v0_products',
+        'fields' => [
+            'id' => 'id',
+            'name' => 'name',
+            'name_en' => 'name_en',
+            'price' => 'price',
+            'currency' => 'currency',
+            'rating' => 'rating',
+            'reviews_count' => 'reviews_count',
+            'image' => 'image',
+            'images' => 'images',
+            'description' => 'description',
+            'description_en' => 'description_en',
+            'category' => 'category',
+            'specifications' => 'specifications',
+            'in_stock' => 'in_stock',
+            'stock_count' => 'stock_count',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const AWY_V0_AI_CHAT_HISTORY = [
+        'tablename' => 'awy_v0_ai_chat_history',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'role' => 'role',
+            'content' => 'content',
+            'context' => 'context',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at'
         ]
@@ -132,7 +245,14 @@ class AwyV0TableMaps
             'AWY_V0_USERS',
             'AWY_V0_FRIENDS',
             'AWY_V0_DEVICES',
-            'AWY_V0_CHATS'
+            'AWY_V0_CHATS',
+            'AWY_V0_VERIFICATION_CODES',
+            'AWY_V0_FRIEND_REQUESTS',
+            'AWY_V0_LOCATIONS',
+            'AWY_V0_LOCATION_HISTORY',
+            'AWY_V0_HEALTH_DATA',
+            'AWY_V0_PRODUCTS',
+            'AWY_V0_AI_CHAT_HISTORY'
         ];
     }
 
