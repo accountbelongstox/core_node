@@ -1,6 +1,13 @@
 <!-- AI WARNING (NOT CODE): Edit pages/index.ittools.vue per NUXT multi-app guide -->
 <template>
-  <div class="flex flex-col min-h-screen bg-gray-50">
+  <!-- Holographic Background -->
+  <div class="holo-background">
+    <div class="holo-orb holo-orb-1"></div>
+    <div class="holo-orb holo-orb-2"></div>
+    <div class="holo-orb holo-orb-3"></div>
+  </div>
+
+  <div class="flex flex-col min-h-screen relative z-10">
     <ItToolsTopBar
       :tabs="mainTabs"
       :active-tab="activeMainTab"
@@ -97,7 +104,7 @@
         </template>
       </ItToolsSidebar>
 
-      <main class="flex-1 overflow-y-auto bg-gray-50">
+      <main class="flex-1 overflow-y-auto">
         <div class="p-6">
           <div v-if="activeMainTab === 'ittools'" class="space-y-6">
             <ItToolsQuickStats :stats="quickStats" />
@@ -122,7 +129,7 @@
               :category-label="getCategoryLabel(activeTool.category)"
             />
 
-            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <div class="glass-strong rounded-2xl">
               <ToolExecutionPanel
                 v-if="activeTool"
                 :tool="activeTool"
@@ -130,7 +137,7 @@
                 @executed="handleToolExecuted"
               />
               <div v-else class="p-12 flex flex-col items-center justify-center text-gray-500 space-y-3">
-                <i class="fas fa-tools text-3xl"></i>
+                <i class="fas fa-tools text-3xl opacity-50"></i>
                 <div class="text-center">
                   <p class="text-base font-semibold text-gray-700">Select a tool</p>
                   <p class="text-sm text-gray-500">Choose a utility from the left to start working.</p>
@@ -154,7 +161,7 @@
       </main>
     </div>
 
-    <footer class="bg-white border-t border-gray-200">
+    <footer class="glass border-t border-white/20">
       <div class="px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex justify-between items-center text-sm text-gray-500">
           <div>
@@ -213,6 +220,7 @@ import ItToolsActiveCard from '@/app_ittools_pages/components/ittools_index_comp
 import ItToolsLogPanel from '@/app_ittools_pages/components/ittools_index_components/LogPanel.vue';
 import ItToolsQuickStats from '@/app_ittools_pages/components/ittools_index_components/ItToolsQuickStats.vue';
 import ApiDebugPanel from '@/app_ittools_pages/components/debug/ApiDebugPanel.vue';
+import { theme } from '@/app_ittools_pages/theme/ittools.theme';
 
 const mainTabs = [
   { id: 'ittools', name: 'IT Tools', icon: 'fas fa-tools', badge: '88+' },
@@ -323,6 +331,9 @@ const searchResults = computed(() => {
 });
 
 onMounted(() => {
+  // Initialize Theme
+  theme.applyCSSVariables();
+
   itToolsStore.loadPreferences();
   itToolsStore.filterTools();
   searchQuery.value = itToolsStore.searchQuery;
@@ -601,4 +612,5 @@ const formatLogTime = (timestamp: number) => {
 }
 </style>
 
+<style src="@/app_ittools_pages/styles/holographic.css"></style>
 <style src="@/app_ittools_pages/styles/sidebar.css"></style>
