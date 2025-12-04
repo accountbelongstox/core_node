@@ -17,6 +17,7 @@
   --alert: #ff2a6d;
   --success: #05ffa1;
   --warning: #ffaa00;
+  --warning-dim: rgba(255, 170, 0, 0.15);
 
   --text-main: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.55);

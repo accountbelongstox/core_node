@@ -25,7 +25,7 @@
   - 使用 QYUVOpenGLWidget 渲染并叠加绿色 FPS 指示器，可随时开关（poly_apps/qtscrcpy_tc/SmartMatrix/
     device/ui/videoform.cpp:36, poly_apps/qtscrcpy_tc/SmartMatrix/device/ui/videoform.cpp:151）。
 
-  输入与控制
+  输入与控制 
 
   - 设备信号涵盖全套系统按键、文本、剪贴板、文件推送、截图与触摸可视化开关，供工具栏和群控复用
     （poly_apps/qtscrcpy_tc/SmartMatrix/device/device.h:70）。
