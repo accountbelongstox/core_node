@@ -113,7 +113,7 @@ if ($EmulatorScanRequired -eq "true") {
             $avdList | ForEach-Object { Write-Host "  - $_" -ForegroundColor Gray }
 
             # Write first AVD back to file variables
-            $firstAvd = $avdList[0]
+            $firstAvd = @($avdList)[0]  # Ensure full name even if PowerShell returns a single string
             Set-FileVar -Key "EMULATOR_AVD" -Value $firstAvd
             Set-FileVar -Key "EMULATOR_AVAILABLE" -Value "true"
 
