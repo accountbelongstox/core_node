@@ -1,0 +1,66 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito"
+  },
+  "app": {
+    "name": "QY Aprendizaje de Palabras",
+    "welcome": "Bienvenido a QY Aprendizaje de Palabras"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "learn": "Aprender",
+    "review": "Repasar",
+    "statistics": "Estadísticas",
+    "settings": "Configuración"
+  },
+  "wordGroup": {
+    "title": "Grupos de Palabras",
+    "create": "Crear Grupo de Palabras",
+    "edit": "Editar Grupo de Palabras",
+    "delete": "Eliminar Grupo de Palabras",
+    "empty": "No hay grupos de palabras"
+  },
+  "learning": {
+    "title": "Aprendizaje",
+    "start": "Comenzar Aprendizaje",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "stop": "Detener",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "instantReview": "Repaso Instantáneo"
+  },
+  "review": {
+    "title": "Repaso",
+    "today": "Repaso de Hoy",
+    "overdue": "Repaso Atrasado",
+    "start": "Comenzar Repaso"
+  },
+  "statistics": {
+    "title": "Estadísticas",
+    "totalWords": "Total de Palabras Aprendidas",
+    "todayWords": "Palabras de Hoy",
+    "streakDays": "Días Consecutivos",
+    "masteryRate": "Tasa de Dominio"
+  },
+  "settings": {
+    "title": "Configuración",
+    "language": "Idioma",
+    "theme": "Tema",
+    "pronunciation": "Pronunciación",
+    "learning": "Configuración de Aprendizaje",
+    "notification": "Notificación",
+    "about": "Acerca de"
+  }
+}
+
