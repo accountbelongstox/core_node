@@ -2,7 +2,7 @@
 // Color scheme for IT Tools application
 
 export const itToolsThemeColors = {
-  // Primary Colors
+  // Primary Colors - Optimized for Holographic Blue
   primary: {
     50: '#f0f7ff',
     100: '#e0efff',
@@ -16,7 +16,7 @@ export const itToolsThemeColors = {
     900: '#1e3a8a'
   },
 
-  // Secondary Colors
+  // Secondary Colors - Optimized for Holographic Purple
   secondary: {
     50: '#f5f3ff',
     100: '#ede9fe',
@@ -33,39 +33,46 @@ export const itToolsThemeColors = {
   // Accent Colors by Category
   categories: {
     crypto: {
-      light: '#fca5a5',
+      light: '#fee2e2',
       main: '#ef4444',
-      dark: '#991b1b'
+      dark: '#991b1b',
+      glass: 'rgba(239, 68, 68, 0.15)'
     },
     converter: {
-      light: '#93c5fd',
+      light: '#dbeafe',
       main: '#3b82f6',
-      dark: '#1e3a8a'
+      dark: '#1e3a8a',
+      glass: 'rgba(59, 130, 246, 0.15)'
     },
     web: {
-      light: '#86efac',
+      light: '#dcfce7',
       main: '#22c55e',
-      dark: '#15803d'
+      dark: '#15803d',
+      glass: 'rgba(34, 197, 94, 0.15)'
     },
     text: {
-      light: '#fbbf24',
+      light: '#fef3c7',
       main: '#f59e0b',
-      dark: '#92400e'
+      dark: '#92400e',
+      glass: 'rgba(245, 158, 11, 0.15)'
     },
     math: {
-      light: '#f472b6',
+      light: '#fce7f3',
       main: '#ec4899',
-      dark: '#831843'
+      dark: '#831843',
+      glass: 'rgba(236, 72, 153, 0.15)'
     },
     network: {
-      light: '#94e6fb',
-      main: '#0284c7',
-      dark: '#0c4a6e'
+      light: '#e0f2fe',
+      main: '#0ea5e9',
+      dark: '#075985',
+      glass: 'rgba(14, 165, 233, 0.15)'
     },
     media: {
-      light: '#e9d5ff',
+      light: '#f3e8ff',
       main: '#d946ef',
-      dark: '#581c87'
+      dark: '#581c87',
+      glass: 'rgba(217, 70, 239, 0.15)'
     }
   },
 
@@ -77,18 +84,18 @@ export const itToolsThemeColors = {
     info: '#3b82f6'
   },
 
-  // Neutral Colors
+  // Neutral Colors - Cool grays for glass feel
   neutral: {
-    50: '#f9fafb',
-    100: '#f3f4f6',
-    200: '#e5e7eb',
-    300: '#d1d5db',
-    400: '#9ca3af',
-    500: '#6b7280',
-    600: '#4b5563',
-    700: '#374151',
-    800: '#1f2937',
-    900: '#111827'
+    50: '#f8fafc',
+    100: '#f1f5f9',
+    200: '#e2e8f0',
+    300: '#cbd5e1',
+    400: '#94a3b8',
+    500: '#64748b',
+    600: '#475569',
+    700: '#334155',
+    800: '#1e293b',
+    900: '#0f172a'
   }
 };
 
