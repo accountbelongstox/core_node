@@ -4,7 +4,7 @@
  * Following Nuxt multi-app namespace architecture
  */
 
-import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import { getHttpBaseUrl } from '@/app_pymatrix_pages/utils/api-urls';
 
 export interface BatchOperationResult {
   success: boolean;

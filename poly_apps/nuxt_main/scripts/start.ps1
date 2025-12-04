@@ -58,10 +58,10 @@ $factoryMirrorNoticeLines = @(
     "[NOTICE] Nuxt factory sync mirrors the source workspace to D:/programing/.build_dir/nuxt_factory.",
     "         When sharing build errors (especially with AI), convert mirrored paths back to",
     "         the original source under D:/programing/core_node/poly_apps/nuxt_main.",
-    "         Example: D:/programing/.build_dir/nuxt_factory/_app_pymatrix/apps/app_pymatrix",
-    "                  /stores_app_pymatrix/scriptStore.ts ->",
-    "                  D:/programing/core_node/poly_apps/nuxt_main/apps/app_pymatrix",
-    "                  /stores_app_pymatrix/scriptStore.ts"
+    "         Example: D:/programing/.build_dir/nuxt_factory/_app_pymatrix/app_pymatrix_pages",
+    "                  /stores/scriptStore.ts ->",
+    "                  D:/programing/core_node/poly_apps/nuxt_main/app_pymatrix_pages",
+    "                  /stores/scriptStore.ts"
 )
 
 if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {

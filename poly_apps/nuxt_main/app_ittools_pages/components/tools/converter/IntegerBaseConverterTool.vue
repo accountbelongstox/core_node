@@ -107,8 +107,8 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import type { Tool } from '../../../types';
-import { ItToolsMainAPI } from '../../../services/ittools-main-api';
+import type { Tool } from '../../../types_app_ittools';
+import { ItToolsMainAPI } from '../../../services_app_ittools/ittools-main-api';
 
 const props = defineProps<{
   tool: Tool;

@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const storesDir = path.join(__dirname, 'apps/app_pymatrix/stores_app_pymatrix');
+const storesDir = path.join(__dirname, 'app_pymatrix_pages/stores');
 const stores = fs.readdirSync(storesDir).filter(f => f.endsWith('.ts'));
 
 console.log(`\n📋 Checking ${stores.length} store files for syntax issues...\n`);

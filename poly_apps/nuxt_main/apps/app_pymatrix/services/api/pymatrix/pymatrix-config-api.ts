@@ -3,7 +3,7 @@
  * Provides configuration management for global and device-specific settings
  */
 
-import { buildApiUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import { buildApiUrl } from '@/app_pymatrix_pages/utils/api-urls';
 import type { DeviceConfig, PyMatrixConfigResponse } from '@/types/pymatrix';
 
 interface ConfigAPIResponse<T = any> {

@@ -3,7 +3,7 @@
  * Handles video recording and screenshot capture operations
  */
 
-import { getHttpBaseUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import { getHttpBaseUrl } from '@/app_pymatrix_pages/utils/api-urls';
 
 export interface RecordingStartRequest {
   format?: 'mp4' | 'mkv';
