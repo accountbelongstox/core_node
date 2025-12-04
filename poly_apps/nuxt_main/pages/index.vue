@@ -1,14 +1,14 @@
-<!-- AI WARNING: Edit apps/app_ittools/components_app_ittools/ittools_index/ItToolsApp.vue for logic changes -->
+<!-- AI WARNING: Edit app_ittools_pages/components/ittools_index/LaravelWebPanel.vue for logic changes -->
 <template>
-  <ItToolsApp />
+  <LaravelWebPanel />
 </template>
 
 <script setup lang="ts">
-// Centralized import from apps/app_ittools/ per NUXT_MULTI_APP_ARCHITECTURE.md
-import ItToolsApp from '@/apps/app_ittools/components_app_ittools/ittools_index/ItToolsApp.vue';
+// Centralized import per NUXT_MULTI_APP_ARCHITECTURE.md
+import LaravelWebPanel from '~/app_ittools_pages/components/ittools_index/LaravelWebPanel.vue';
 
 definePageMeta({
-  layout: 'default',
+  layout: 'blank',
   middleware: []
 });
 </script>

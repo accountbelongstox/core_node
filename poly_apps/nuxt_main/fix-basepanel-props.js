@@ -9,15 +9,15 @@ const fs = require('fs');
 const path = require('path');
 
 const filesToFix = [
-  'apps/app_pymatrix/components_app_pymatrix/SystemHealthMonitor.vue',
-  'apps/app_pymatrix/components_app_pymatrix/ConnectionHistoryPanel.vue',
-  'apps/app_pymatrix/components_app_pymatrix/TextInputPanel.vue',
-  'apps/app_pymatrix/components_app_pymatrix/PyMatrixScriptManager.vue',
-  'apps/app_pymatrix/components_app_pymatrix/GroupTreeView.vue',
-  'apps/app_pymatrix/components_app_pymatrix/DeviceTagManager.vue',
-  'apps/app_pymatrix/components_app_pymatrix/FilePushPanel.vue',
-  'apps/app_pymatrix/components_app_pymatrix/ApkInstallPanel.vue',
-  'apps/app_pymatrix/components_app_pymatrix/AudioStreamingPanel.vue'
+  'app_pymatrix_pages/components/SystemHealthMonitor.vue',
+  'app_pymatrix_pages/components/ConnectionHistoryPanel.vue',
+  'app_pymatrix_pages/components/TextInputPanel.vue',
+  'app_pymatrix_pages/components/PyMatrixScriptManager.vue',
+  'app_pymatrix_pages/components/GroupTreeView.vue',
+  'app_pymatrix_pages/components/DeviceTagManager.vue',
+  'app_pymatrix_pages/components/FilePushPanel.vue',
+  'app_pymatrix_pages/components/ApkInstallPanel.vue',
+  'app_pymatrix_pages/components/AudioStreamingPanel.vue'
 ];
 
 let totalFixed = 0;

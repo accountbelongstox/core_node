@@ -1,0 +1,679 @@
+<!-- ### NUXT MULTI-APP PROMPT START ### -->
+<!--
+⚠️ IMPORTANT: This Nuxt workspace uses a multi-app namespace architecture.
+- Each namespace lives under apps/app_{name} with its own layouts, routes, and configs.
+- Shared utilities live in common/, components/, services/, stores/, and theme/.
+- Read development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md before editing.
+- Keep AI responses aligned with namespace isolation rules and routing prefixes.
+- Always prefer reusing/expanding common/ libraries & components before touching app-specific code.
+- When common/ must be extended, keep the design generic enough for every namespace.
+-->
+<!-- ### NUXT MULTI-APP PROMPT END ### -->
+
+================================================================================
+Nuxt App Directory Snapshot
+================================================================================
+Generated: 2025-12-04 06:19:59
+App: ittools
+Mode: code_assets
+Nuxt Root: /www/programing/core_node/poly_apps/nuxt_main
+Architecture Guide: development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
+================================================================================
+
+ittools [code_assets]
+├── apps/app_ittools/
+│   ├── ARCHITECTURE_PLAN.md
+│   ├── BACKEND_CONNECTION_STATUS.md
+│   ├── COMPLETE_IMPLEMENTATION_GUIDE.md
+│   ├── IMPLEMENTATION_SUMMARY.md
+│   ├── MODULE_IMPLEMENTATION_SUMMARY.md
+│   ├── README.md
+│   ├── REAL_BACKEND_INTEGRATION_SUMMARY.md
+│   ├── _prompts
+│   │   ├── AI_COLLABORATION_BRIDGE.json
+│   │   ├── backend.txt
+│   │   └── frontend.txt
+│   ├── app-config.json
+│   ├── app_ittools_tree.md
+│   ├── app_ittools_tree_code_assets.txt
+│   ├── build_prompts.prompt
+│   ├── components_app_ittools
+│   │   ├── BrowserAutomationPanel.vue
+│   │   ├── ClickElementModal.vue
+│   │   ├── ExecuteJSModal.vue
+│   │   ├── KillPortModal.vue
+│   │   ├── NginxManagementPanel.vue
+│   │   ├── OpenPageModal.vue
+│   │   ├── PowerShellModal.vue
+│   │   ├── PythonPackageModal.vue
+│   │   ├── PythonScriptModal.vue
+│   │   ├── SettingsModal.vue
+│   │   ├── SettingsPanel.vue
+│   │   ├── ShortcutModal.vue
+│   │   ├── ToolExecutionPanel.vue
+│   │   ├── ToolModal.vue
+│   │   ├── WindowsOperationsPanel.vue
+│   │   ├── ittools_index
+│   │   │   ├── ItToolsApp.vue
+│   │   │   └── LaravelWebPanel.vue
+│   │   ├── ittools_index_components
+│   │   │   ├── AppContentArea.vue
+│   │   │   ├── AppSidebar.vue
+│   │   │   ├── AppTopBar.vue
+│   │   │   ├── CategoryTreePanel.vue
+│   │   │   ├── ItToolsActiveCard.vue
+│   │   │   ├── ItToolsQuickStats.vue
+│   │   │   ├── ItToolsSearchPanel.vue
+│   │   │   ├── ItToolsSidebar.vue
+│   │   │   ├── ItToolsTopBar.vue
+│   │   │   ├── LogPanel.vue
+│   │   │   ├── NavigationHeader.vue
+│   │   │   ├── ParticleBackground.vue
+│   │   │   ├── QuickNavDropdown.vue
+│   │   │   ├── RightSidePanel.vue
+│   │   │   ├── SidebarMenu.vue
+│   │   │   └── ToolWorkspace.vue
+│   │   ├── modules
+│   │   │   ├── api_testing
+│   │   │   │   ├── ApiInfoViewer.vue
+│   │   │   │   └── ApiTestingDashboard.vue
+│   │   │   ├── code_browser
+│   │   │   │   └── CodeBrowserPanel.vue
+│   │   │   ├── dev_tools
+│   │   │   │   └── DevToolsPanel.vue
+│   │   │   ├── mcp_manager
+│   │   │   │   └── McpManagerPanel.vue
+│   │   │   ├── octane_tasks
+│   │   │   │   └── OctaneTasksPanel.vue
+│   │   │   ├── static_resources
+│   │   │   │   └── StaticResourcesPanel.vue
+│   │   │   ├── system_info
+│   │   │   │   └── SystemInfoPanel.vue
+│   │   │   └── vocabulary
+│   │   │       └── VocabularyPanel.vue
+│   │   └── tools
+│   │       ├── DefaultToolForm.vue
+│   │       ├── UniversalToolForm.vue
+│   │       ├── calculator
+│   │       │   ├── AgeCalculatorTool.vue
+│   │       │   ├── BMICalculatorTool.vue
+│   │       │   ├── CurrencyConverterTool.vue
+│   │       │   ├── GSTCalculatorTool.vue
+│   │       │   ├── LoanEMICalculatorTool.vue
+│   │       │   ├── NumberToWordsTool.vue
+│   │       │   └── UnitConverterTool.vue
+│   │       ├── color
+│   │       │   ├── ColorBlindnessTool.vue
+│   │       │   ├── ContrastCheckerTool.vue
+│   │       │   ├── GradientGeneratorTool.vue
+│   │       │   └── PaletteGeneratorTool.vue
+│   │       ├── converter
+│   │       │   ├── Base64ConverterTool.vue
+│   │       │   ├── Base64FileConverterTool.vue
+│   │       │   ├── CaseConverterTool.vue
+│   │       │   ├── ColorConverterTool.vue
+│   │       │   ├── DateTimeConverterTool.vue
+│   │       │   ├── HtmlEntitiesTool.vue
+│   │       │   ├── IntegerBaseConverterTool.vue
+│   │       │   ├── JsonToTomlTool.vue
+│   │       │   ├── JsonToXmlTool.vue
+│   │       │   ├── JsonToYamlTool.vue
+│   │       │   ├── ListConverterTool.vue
+│   │       │   ├── MarkdownToHtmlTool.vue
+│   │       │   ├── RomanNumeralConverterTool.vue
+│   │       │   ├── SlugifyTool.vue
+│   │       │   ├── TemperatureConverterTool.vue
+│   │       │   ├── TextEncodingTool.vue
+│   │       │   ├── TomlToJsonTool.vue
+│   │       │   ├── TomlToYamlTool.vue
+│   │       │   ├── UrlConverterTool.vue
+│   │       │   ├── XmlToJsonTool.vue
+│   │       │   ├── YamlToJsonTool.vue
+│   │       │   └── YamlToTomlTool.vue
+│   │       ├── crypto
+│   │       │   ├── BasicAuthTool.vue
+│   │       │   ├── BcryptTool.vue
+│   │       │   ├── Bip39GeneratorTool.vue
+│   │       │   ├── EncryptionTool.vue
+│   │       │   ├── HashTextTool.vue
+│   │       │   ├── HmacGeneratorTool.vue
+│   │       │   ├── OtpTool.vue
+│   │       │   ├── PasswordStrengthTool.vue
+│   │       │   ├── RsaKeyPairGeneratorTool.vue
+│   │       │   ├── TokenGeneratorTool.vue
+│   │       │   ├── ULIDGeneratorTool.vue
+│   │       │   └── UUIDGeneratorTool.vue
+│   │       ├── datatools
+│   │       │   ├── NumeronymTool.vue
+│   │       │   └── SafelinkDecoderTool.vue
+│   │       ├── development
+│   │       │   ├── ChmodCalculatorTool.vue
+│   │       │   ├── DeviceInfoTool.vue
+│   │       │   ├── DockerConverterTool.vue
+│   │       │   ├── GitMemoTool.vue
+│   │       │   ├── IbanValidatorTool.vue
+│   │       │   ├── KeycodeInfoTool.vue
+│   │       │   ├── RandomPortTool.vue
+│   │       │   └── RegexCheatsheetTool.vue
+│   │       ├── formatter
+│   │       │   ├── CssFormatterTool.vue
+│   │       │   └── HtmlFormatterTool.vue
+│   │       ├── image
+│   │       │   ├── ImageColorExtractorTool.vue
+│   │       │   ├── ImageCompressorTool.vue
+│   │       │   ├── ImageConverterTool.vue
+│   │       │   ├── ImageCropTool.vue
+│   │       │   ├── ImageResizerTool.vue
+│   │       │   ├── ImageRotateTool.vue
+│   │       │   └── SvgPlaceholderTool.vue
+│   │       ├── math
+│   │       │   ├── BenchmarkBuilderTool.vue
+│   │       │   ├── ChronometerTool.vue
+│   │       │   ├── EtaCalculatorTool.vue
+│   │       │   ├── MathEvaluatorTool.vue
+│   │       │   └── PercentageCalculatorTool.vue
+│   │       ├── network
+│   │       │   ├── Ipv4AddressConverterTool.vue
+│   │       │   ├── Ipv4RangeExpanderTool.vue
+│   │       │   ├── Ipv4SubnetCalculatorTool.vue
+│   │       │   ├── Ipv6UlaGeneratorTool.vue
+│   │       │   ├── MacAddressGeneratorTool.vue
+│   │       │   └── MacAddressLookupTool.vue
+│   │       ├── pdf
+│   │       │   ├── ImageToPdfTool.vue
+│   │       │   ├── PdfCompressTool.vue
+│   │       │   ├── PdfMergeTool.vue
+│   │       │   ├── PdfPasswordTool.vue
+│   │       │   ├── PdfRotateTool.vue
+│   │       │   ├── PdfSplitTool.vue
+│   │       │   ├── PdfToImageTool.vue
+│   │       │   ├── PdfUnlockTool.vue
+│   │       │   └── PdfWatermarkTool.vue
+│   │       ├── text
+│   │       │   ├── AsciiArtTool.vue
+│   │       │   ├── CrontabParserTool.vue
+│   │       │   ├── DuplicateRemoverTool.vue
+│   │       │   ├── EmailNormalizerTool.vue
+│   │       │   ├── EmojiPickerTool.vue
+│   │       │   ├── KeywordDensityTool.vue
+│   │       │   ├── LoremIpsumGeneratorTool.vue
+│   │       │   ├── PhoneParserTool.vue
+│   │       │   ├── RegexTesterTool.vue
+│   │       │   ├── StringObfuscatorTool.vue
+│   │       │   ├── TextDiffTool.vue
+│   │       │   ├── TextReverserTool.vue
+│   │       │   ├── TextSorterTool.vue
+│   │       │   ├── TextStatisticsTool.vue
+│   │       │   └── WordCounterSeoTool.vue
+│   │       ├── tool-registry.ts
+│   │       ├── utility
+│   │       │   ├── BarcodeGeneratorTool.vue
+│   │       │   ├── PasswordGeneratorTool.vue
+│   │       │   ├── QrScannerTool.vue
+│   │       │   └── TimezoneConverterTool.vue
+│   │       └── web
+│   │           ├── HtmlWysiwygEditorTool.vue
+│   │           ├── HttpStatusCodesTool.vue
+│   │           ├── JsonDiffTool.vue
+│   │           ├── JsonMinifyTool.vue
+│   │           ├── JsonPrettifyTool.vue
+│   │           ├── JsonToCsvTool.vue
+│   │           ├── JwtParserTool.vue
+│   │           ├── MetaTagGeneratorTool.vue
+│   │           ├── MimeTypesTool.vue
+│   │           ├── QrCodeGeneratorTool.vue
+│   │           ├── QueryStringParserTool.vue
+│   │           ├── SqlPrettifyTool.vue
+│   │           ├── UrlParserTool.vue
+│   │           ├── UserAgentParserTool.vue
+│   │           ├── WifiQrCodeGeneratorTool.vue
+│   │           ├── XmlFormatterTool.vue
+│   │           └── YamlViewerTool.vue
+│   ├── composables_app_ittools
+│   │   ├── useApi.ts
+│   │   ├── useApiClient.ts
+│   │   ├── useAppNavigation.ts
+│   │   ├── useAppState.ts
+│   │   ├── useAuth.ts
+│   │   ├── useBackendStatus.ts
+│   │   ├── useI18n.ts
+│   │   ├── useItTools.ts
+│   │   ├── useNginxApi.ts
+│   │   ├── useStorage.ts
+│   │   └── useSystemInfo.ts
+│   ├── config_app_ittools
+│   │   ├── api-config.ts
+│   │   ├── api-endpoints.ts
+│   │   ├── api-routes.ts
+│   │   ├── completed-tools.ts
+│   │   ├── index.ts
+│   │   └── tool-params.ts
+│   ├── constants_app_ittools
+│   │   ├── complete-tools.ts
+│   │   ├── tools.ts
+│   │   └── ui-config.ts
+│   ├── i18n_app_ittools
+│   │   ├── index.ts
+│   │   └── locales
+│   │       ├── da.json
+│   │       ├── de.json
+│   │       ├── el.json
+│   │       ├── en.json
+│   │       ├── en.ts
+│   │       ├── es.json
+│   │       ├── fa.json
+│   │       ├── fr.json
+│   │       ├── hu.json
+│   │       ├── it.json
+│   │       ├── ja.json
+│   │       ├── pl.json
+│   │       ├── pt.json
+│   │       ├── ru.json
+│   │       ├── sv.json
+│   │       ├── tr.json
+│   │       ├── zh-CN.ts
+│   │       └── zh.json
+│   ├── index.ts
+│   ├── layouts_app_ittools
+│   │   └── blank.vue
+│   ├── pages_app_ittools
+│   │   └── index.vue
+│   ├── services_app_ittools
+│   │   ├── api-client.ts
+│   │   ├── http-client.ts
+│   │   ├── ittools-api.ts
+│   │   ├── ittools-main-api.ts
+│   │   └── logger.ts
+│   ├── stores_app_ittools
+│   │   └── ittools-store.ts
+│   ├── styles_app_ittools
+│   │   ├── OLD_sidebar.css
+│   │   ├── holographic.css
+│   │   └── sidebar.css
+│   ├── test-tools.js
+│   ├── theme_app_ittools
+│   │   └── colors.ts
+│   └── types_app_ittools
+│       ├── api-types.ts
+│       ├── index.ts
+│       └── navigation.ts
+├── common/
+│   ├── GLOBAL_CONFIG_GUIDE.md
+│   ├── components
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   ├── AppShellFooter.vue
+│   │   │   ├── AppShellHeader.vue
+│   │   │   ├── AppShellSidebar.vue
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       ├── BaseButton.vue
+│   │       ├── BaseContextMenu.vue
+│   │       ├── BaseModal.vue
+│   │       ├── BasePanel.vue
+│   │       ├── BaseSlider.vue
+│   │       ├── BaseToast.vue
+│   │       ├── BaseToggle.vue
+│   │       ├── DataTable.vue
+│   │       ├── DeviceTagBadge.vue
+│   │       ├── GlobalConfigPanel.vue
+│   │       ├── ThemeCustomizerPanel.vue
+│   │       └── ToastContainer.vue
+│   ├── composables
+│   │   ├── useApiEndpoints.ts
+│   │   ├── useAppTheme.ts
+│   │   ├── useGlobalConfig.ts
+│   │   └── useI18nConfig.ts
+│   ├── config
+│   │   └── api-endpoints.ts
+│   ├── constants
+│   │   └── base-constants.ts
+│   ├── layouts
+│   │   ├── auth.vue
+│   │   └── default.vue
+│   ├── middleware
+│   │   └── .gitkeep
+│   ├── pages
+│   │   ├── boxed-lockscreen.vue
+│   │   ├── boxed-password-reset.vue
+│   │   ├── boxed-signin.vue
+│   │   ├── boxed-signup.vue
+│   │   ├── cover-lockscreen.vue
+│   │   ├── cover-login.vue
+│   │   ├── cover-password-reset.vue
+│   │   ├── cover-register.vue
+│   │   └── users
+│   │       ├── profile.vue
+│   │       └── user-account-settings.vue
+│   ├── plugins
+│   │   ├── api-endpoints.client.ts
+│   │   ├── app-config.client.ts
+│   │   └── theme.client.ts
+│   ├── services
+│   │   └── .gitkeep
+│   ├── stores
+│   │   ├── app-config-store.ts
+│   │   └── base-store.ts
+│   ├── styles
+│   │   └── theme-base.css
+│   ├── theme
+│   │   └── base-theme.config.ts
+│   ├── types
+│   │   └── .gitkeep
+│   └── utils
+│       ├── .gitkeep
+│       ├── api-endpoints-helper.ts
+│       ├── http-client.ts
+│       └── localStorage.ts
+├── components/
+│   ├── ThemeCustomizer.vue
+│   ├── codemart
+│   │   ├── CodemartSidebar.vue
+│   │   └── home
+│   │       ├── CodemartFooter.vue
+│   │       ├── CodemartHeader.vue
+│   │       ├── CustomerServiceButton.vue
+│   │       ├── HeroCarousel.vue
+│   │       ├── ServiceFlowSection.vue
+│   │       ├── StatisticsSection.vue
+│   │       └── TestimonialsCarousel.vue
+│   ├── layout
+│   │   ├── Footer.vue
+│   │   ├── Header.vue
+│   │   └── Sidebar.vue
+│   ├── plugins
+│   │   ├── QuillEditor.vue
+│   │   └── highlight.vue
+│   ├── shared
+│   │   ├── dashboard
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout
+│   │   │   └── MainHeader.vue
+│   │   └── ui
+│   │       └── DataTable.vue
+│   └── subsite-admin
+│       └── AdminSidebar.vue
+├── composables/
+│   ├── codePreview.ts
+│   ├── useAppI18n.ts
+│   ├── useAppTheme.ts
+│   ├── useAuth.ts
+│   ├── useCharts.ts
+│   ├── useDashboard.ts
+│   ├── useDataSource.ts
+│   ├── useNuxtApi.ts
+│   ├── useRoles.ts
+│   ├── useRouteNamespace.ts
+│   ├── useTables.ts
+│   ├── useVueQuery.ts
+│   └── useWSRPC.ts
+├── configs/
+│   ├── codemart-menu.ts
+│   ├── codemart.config.ts
+│   ├── dashboard.config.ts
+│   ├── dev.config.ts
+│   ├── example.config.ts
+│   ├── ittools.config.ts
+│   ├── mainsite.config.ts
+│   ├── pymatrix.config.ts
+│   └── subsite-admin.config.ts
+├── constants/
+│   ├── apps
+│   │   ├── admin-constants.ts
+│   │   └── codemart-constants.ts
+│   └── base-constants.ts
+├── services/
+│   ├── api
+│   │   ├── admin
+│   │   │   ├── admin-datasource-api.ts
+│   │   │   └── users
+│   │   │       └── admin-users-api.ts
+│   │   ├── charts.ts
+│   │   ├── codemart
+│   │   │   └── codemart-projects-api.ts
+│   │   ├── dashboard
+│   │   │   └── dashboard-analytics-api.ts
+│   │   ├── dashboard.ts
+│   │   ├── dev
+│   │   │   ├── dev-devops-api.ts
+│   │   │   ├── dev-devops-integration-api.ts
+│   │   │   └── dev-tools-api.ts
+│   │   ├── enhanced-dashboard.ts
+│   │   ├── example
+│   │   │   └── example-datasource-api.ts
+│   │   ├── finance.ts
+│   │   ├── main
+│   │   │   ├── analytics
+│   │   │   │   └── main-analytics-api.ts
+│   │   │   └── main-datasource-api.ts
+│   │   ├── nuxt-fetch.ts
+│   │   ├── pymatrix
+│   │   │   ├── pymatrix-config-api.ts
+│   │   │   ├── pymatrix-device-api.ts
+│   │   │   ├── pymatrix-file-api.ts
+│   │   │   ├── pymatrix-group-api.ts
+│   │   │   ├── pymatrix-health-api.ts
+│   │   │   └── pymatrix-recording-api.ts
+│   │   └── tables.ts
+│   ├── config
+│   │   ├── api-config-manager.ts
+│   │   └── endpoints.ts
+│   └── datasource
+│       └── manager.ts
+├── stores/
+│   ├── app-datasource.ts
+│   ├── apps
+│   │   ├── admin-store.ts
+│   │   └── codemart-store.ts
+│   ├── base
+│   │   └── base-store.ts
+│   ├── datasource.ts
+│   └── index.ts
+├── theme/
+│   ├── apps
+│   │   ├── admin-theme.ts
+│   │   ├── codemart-theme.ts
+│   │   ├── dashboard-theme.ts
+│   │   ├── dev-theme.ts
+│   │   └── example-theme.ts
+│   └── base-theme.config.ts
+├── types/
+│   ├── api.ts
+│   ├── datasource.ts
+│   ├── devops.ts
+│   └── pymatrix.ts
+├── utils/
+│   ├── apiHelpers.ts
+│   └── namespace-registry.ts
+├── layouts/
+│   ├── admin.vue
+│   ├── auth-layout.vue
+│   ├── base.vue
+│   ├── blank.vue
+│   ├── codemart-layout.vue
+│   ├── dashboard.vue
+│   ├── default-with-nav.vue
+│   └── pymatrix.vue
+├── plugins/
+│   ├── datasource.client.ts
+│   ├── maska.ts
+│   ├── perfect-scrollbar.ts
+│   ├── theme.client.ts
+│   ├── tippy.ts
+│   ├── vue-easymde.ts
+│   ├── vue3-apexcharts.ts
+│   ├── vue3-json-excel.ts
+│   └── vue3-popper.ts
+├── middleware/
+│   └── app-entry.global.ts
+├── i18n/
+│   └── locales
+│       ├── da.json
+│       ├── de.json
+│       ├── el.json
+│       ├── en.json
+│       ├── es.json
+│       ├── fa.json
+│       ├── fr.json
+│       ├── hu.json
+│       ├── it.json
+│       ├── ja.json
+│       ├── pl.json
+│       ├── pt.json
+│       ├── ru.json
+│       ├── sv.json
+│       ├── tr.json
+│       └── zh.json
+├── app-entry.ts
+├── app-setting.ts
+├── nuxt.config.ts
+├── package.json
+├── tsconfig.json
+├── assets/
+│   └── css
+│       ├── animate.css
+│       ├── app.css
+│       ├── apps
+│       │   ├── app_pymatrix_theme.css
+│       │   └── pymatrix
+│       │       ├── components
+│       │       │   ├── badges.css
+│       │       │   ├── buttons.css
+│       │       │   ├── forms.css
+│       │       │   ├── panels.css
+│       │       │   ├── tree.css
+│       │       │   └── video.css
+│       │       ├── layout
+│       │       │   ├── grid.css
+│       │       │   ├── sidebar.css
+│       │       │   └── topbar.css
+│       │       └── pymatrix-theme.css
+│       ├── datatable.css
+│       ├── dragndrop.css
+│       ├── file-upload-preview.css
+│       ├── file-upload-with-preview.min.css
+│       ├── flatpickr.css
+│       ├── form-elements.css
+│       ├── fullcalendar.css
+│       ├── lightbox.css
+│       ├── markdown-editor.css
+│       ├── quill-editor.css
+│       ├── range-slider.css
+│       ├── scrumboard.css
+│       ├── select2.css
+│       ├── sweetalert.css
+│       ├── sweetalert2.css
+│       ├── sweetalert2.min.css
+│       ├── swiper.css
+│       ├── tailwind.css
+│       ├── theme
+│       │   ├── animations.css
+│       │   └── variables.css
+│       ├── tippy.css
+│       ├── vue3-datatable.css
+│       ├── vue3-perfect-scrollbar.css
+│       └── wizard.css
+├── public/
+│   ├── assets
+│   │   └── images
+│   │       ├── auth-cover.svg
+│   │       ├── card-americanexpress.svg
+│   │       ├── card-mastercard.svg
+│   │       ├── card-visa.svg
+│   │       ├── carousel1.jpeg
+│   │       ├── carousel2.jpeg
+│   │       ├── carousel3.jpeg
+│   │       ├── checked.svg
+│   │       ├── close.svg
+│   │       ├── coming-soon.svg
+│   │       ├── custom-swal.svg
+│   │       ├── drag-1.jpeg
+│   │       ├── drag-2.jpeg
+│   │       ├── drag-4.jpg
+│   │       ├── features_overview.svg
+│   │       ├── file-preview.svg
+│   │       ├── flags
+│   │       │   ├── AC.svg
+│   │       │   ├── AD.svg
+│   │       │   └── ... some more flag assets hidden ...
+│   │       ├── g-8.png
+│   │       ├── lightbox1.jpg
+│   │       ├── lightbox2.jpeg
+│   │       ├── lightbox3.jpeg
+│   │       ├── lightbox4.jpeg
+│   │       ├── lightbox5.jpeg
+│   │       ├── lightbox6.jpeg
+│   │       ├── litecoin.svg
+│   │       ├── logo.svg
+│   │       ├── map-dark.svg
+│   │       ├── map.svg
+│   │       ├── menu-heade.jpg
+│   │       ├── notification-bg.png
+│   │       ├── product-camera.jpg
+│   │       ├── product-headphones.jpg
+│   │       ├── product-laptop.jpg
+│   │       ├── product-shoes.jpg
+│   │       ├── product-watch.jpg
+│   │       ├── profile-1.jpeg
+│   │       ├── profile-10.jpeg
+│   │       ├── profile-11.jpeg
+│   │       ├── profile-12.jpeg
+│   │       ├── profile-13.jpeg
+│   │       ├── profile-14.jpeg
+│   │       ├── profile-15.jpeg
+│   │       ├── profile-16.jpeg
+│   │       ├── profile-17.jpeg
+│   │       ├── profile-18.jpeg
+│   │       ├── profile-19.jpeg
+│   │       ├── profile-2.jpeg
+│   │       ├── profile-20.jpeg
+│   │       ├── profile-21.jpeg
+│   │       ├── profile-22.jpeg
+│   │       ├── profile-23.jpeg
+│   │       ├── profile-24.jpeg
+│   │       ├── profile-25.jpeg
+│   │       ├── profile-26.jpeg
+│   │       ├── profile-27.jpeg
+│   │       ├── profile-28.jpeg
+│   │       ├── profile-29.jpeg
+│   │       ├── profile-3.jpeg
+│   │       ├── profile-30.jpeg
+│   │       ├── profile-30.png
+│   │       ├── profile-31.jpeg
+│   │       ├── profile-32.jpeg
+│   │       ├── profile-33.jpeg
+│   │       ├── profile-34.jpeg
+│   │       ├── profile-35.png
+│   │       ├── profile-4.jpeg
+│   │       ├── profile-5.jpeg
+│   │       ├── profile-6.jpeg
+│   │       ├── profile-7.jpeg
+│   │       ├── profile-8.jpeg
+│   │       ├── profile-9.jpeg
+│   │       ├── settings-dark.svg
+│   │       ├── settings-light.svg
+│   │       ├── sweet-bg.jpg
+│   │       └── user-profile.jpeg
+│   ├── demo-prepare.html
+│   ├── favicon.png
+│   └── vite.svg
+└── docs/
+    ├── ARCHITECTURE_ANALYSIS_MULTI_LAYER_ISSUES.md
+    ├── ARCHITECTURE_ANALYSIS_REPORT.md
+    ├── ARCHITECTURE_COMPLETE.txt
+    ├── ARCHITECTURE_FIXES_SUMMARY.txt
+    ├── ARCHITECTURE_REFACTORING_PROPOSAL.md
+    ├── COMMAND_TRACE_EXPLANATION.md
+    ├── CSS_ARCHITECTURE_PLAN.md
+    ├── DATASOURCE_ARCHITECTURE.md
+    ├── IMPLEMENTATION_COMPLETE.md
+    ├── IMPLEMENTATION_GUIDE.md
+    ├── IMPLEMENTATION_PHASES.txt
+    ├── MIGRATION_FINAL_REPORT.txt
+    ├── NUXT_REMOTE_FACTORY_PLAN.md
+    └── SCRIPT_AUTO_DISCOVERY_DESIGN.md

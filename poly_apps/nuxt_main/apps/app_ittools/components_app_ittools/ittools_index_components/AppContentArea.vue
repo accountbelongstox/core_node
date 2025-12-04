@@ -8,7 +8,9 @@
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent, type Component } from 'vue'
+import { defineAsyncComponent, defineComponent, type Component } from 'vue'
+import { useAppState } from '@/apps/app_ittools/composables_app_ittools/useAppState'
+import { useI18n } from '@/apps/app_ittools/composables_app_ittools/useI18n'
 
 // Use unified state
 const { activeModule } = useAppState()

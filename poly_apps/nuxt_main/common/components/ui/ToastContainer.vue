@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useToastStore } from '~/apps/app_pymatrix/stores_app_pymatrix/toastStore';
+import { useToastStore } from '~/app_pymatrix_pages/stores/toastStore';
 import BaseToast from './BaseToast.vue';
 
 export interface Props {
