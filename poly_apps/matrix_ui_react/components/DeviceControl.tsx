@@ -175,7 +175,7 @@ export const DeviceControl: React.FC<InspectorProps> = ({
               style={{ backgroundColor: '#1a1c23' }}
               onMouseDown={handleTouch}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ff]/5 to-[#bd00ff]/5 animate-pulse"></div>
+              <div className="absolute inset-0 animate-pulse" style={{ background: 'linear-gradient(to bottom right, rgba(0, 242, 255, 0.05), rgba(189, 0, 255, 0.05))' }}></div>
 
               {/* Grid Overlay */}
               <div
@@ -341,7 +341,8 @@ const InspectorContent: React.FC<{
             {telemetry.map((h, i) => (
               <div
                 key={i}
-                className="flex-1 bg-gradient-to-t from-[#00f2ff]/80 to-[#00f2ff]/20 rounded-t-sm transition-all duration-300"
+                className="flex-1 rounded-t-sm transition-all duration-300"
+                style={{ background: 'linear-gradient(to top, rgba(0, 242, 255, 0.8), rgba(0, 242, 255, 0.2))' }}
                 style={{ height: `${h}%` }}
               ></div>
             ))}

@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => onSelectGroup(null)}
             title="Matrix View"
           >
-             {selectedGroupId === null && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#00f2ff] shadow-[0_0_10px_#00f2ff]"></div>}
+             {selectedGroupId === null && <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: 'var(--cyan)', boxShadow: '0 0 10px var(--cyan)' }}></div>}
              <i className="ph ph-squares-four text-xl mx-auto md:mx-0 md:mr-3 transition-colors" onMouseEnter={(e) => e.currentTarget.style.color = 'var(--cyan)'} onMouseLeave={(e) => e.currentTarget.style.color = ''}></i>
              {!collapsed && <span className="text-xs font-medium">{t('menu.sidebar.allDevices')}</span>}
           </div>

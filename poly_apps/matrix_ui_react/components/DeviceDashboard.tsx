@@ -208,13 +208,14 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
               { id: 'home', icon: 'ph-house', label: t('device.actions.home') },
               { id: 'screenshot', icon: 'ph-camera', label: t('device.actions.screenshot') },
               { id: 'install', icon: 'ph-download-simple', label: t('device.actions.install') },
-              { id: 'script', icon: 'ph-magic-wand', label: t('device.actions.script'), color: 'text-[#bd00ff]' },
-              { id: 'recording', icon: 'ph-video', label: t('device.actions.recording'), color: 'text-[#ff2a6d]' },
+              { id: 'script', icon: 'ph-magic-wand', label: t('device.actions.script'), color: 'var(--purple)' },
+              { id: 'recording', icon: 'ph-video', label: t('device.actions.recording'), color: 'var(--alert)' },
             ].map(action => (
               <button 
                 key={action.id}
                 onClick={() => onBatchAction(action.id as BatchActionType)}
-                className={`w-10 h-10 rounded-lg hover:bg-white/10 flex flex-col items-center justify-center gap-0.5 transition-colors ${action.color || 'text-white'}`}
+                className="w-10 h-10 rounded-lg hover:bg-white/10 flex flex-col items-center justify-center gap-0.5 transition-colors"
+                style={{ color: action.color || 'white' }}
                 title={action.label}
               >
                 <i className={`ph ${action.icon} text-lg`}></i>
