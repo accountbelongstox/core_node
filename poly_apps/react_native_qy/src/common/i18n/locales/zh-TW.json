@@ -1,0 +1,66 @@
+{
+  "common": {
+    "ok": "確定",
+    "cancel": "取消",
+    "confirm": "確認",
+    "back": "返回",
+    "save": "保存",
+    "delete": "刪除",
+    "edit": "編輯",
+    "search": "搜索",
+    "loading": "加載中...",
+    "error": "錯誤",
+    "success": "成功"
+  },
+  "app": {
+    "name": "QY單詞學習",
+    "welcome": "歡迎使用QY單詞學習"
+  },
+  "navigation": {
+    "home": "首頁",
+    "learn": "學習",
+    "review": "複習",
+    "statistics": "統計",
+    "settings": "設置"
+  },
+  "wordGroup": {
+    "title": "單詞組",
+    "create": "創建單詞組",
+    "edit": "編輯單詞組",
+    "delete": "刪除單詞組",
+    "empty": "暫無單詞組"
+  },
+  "learning": {
+    "title": "學習",
+    "start": "開始學習",
+    "pause": "暫停",
+    "resume": "繼續",
+    "stop": "停止",
+    "next": "下一個",
+    "previous": "上一個",
+    "instantReview": "瞬時複習"
+  },
+  "review": {
+    "title": "複習",
+    "today": "今日複習",
+    "overdue": "逾期複習",
+    "start": "開始複習"
+  },
+  "statistics": {
+    "title": "統計",
+    "totalWords": "總學習單詞數",
+    "todayWords": "今日學習",
+    "streakDays": "連續學習天數",
+    "masteryRate": "掌握度"
+  },
+  "settings": {
+    "title": "設置",
+    "language": "語言",
+    "theme": "主題",
+    "pronunciation": "發音",
+    "learning": "學習設置",
+    "notification": "通知",
+    "about": "關於"
+  }
+}
+
