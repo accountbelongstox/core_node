@@ -1,0 +1,66 @@
+{
+  "common": {
+    "ok": "확인",
+    "cancel": "취소",
+    "confirm": "확인",
+    "back": "뒤로",
+    "save": "저장",
+    "delete": "삭제",
+    "edit": "편집",
+    "search": "검색",
+    "loading": "로딩 중...",
+    "error": "오류",
+    "success": "성공"
+  },
+  "app": {
+    "name": "QY 단어 학습",
+    "welcome": "QY 단어 학습에 오신 것을 환영합니다"
+  },
+  "navigation": {
+    "home": "홈",
+    "learn": "학습",
+    "review": "복습",
+    "statistics": "통계",
+    "settings": "설정"
+  },
+  "wordGroup": {
+    "title": "단어 그룹",
+    "create": "단어 그룹 만들기",
+    "edit": "단어 그룹 편집",
+    "delete": "단어 그룹 삭제",
+    "empty": "단어 그룹이 없습니다"
+  },
+  "learning": {
+    "title": "학습",
+    "start": "학습 시작",
+    "pause": "일시 정지",
+    "resume": "재개",
+    "stop": "중지",
+    "next": "다음",
+    "previous": "이전",
+    "instantReview": "즉시 복습"
+  },
+  "review": {
+    "title": "복습",
+    "today": "오늘의 복습",
+    "overdue": "연체된 복습",
+    "start": "복습 시작"
+  },
+  "statistics": {
+    "title": "통계",
+    "totalWords": "학습한 총 단어 수",
+    "todayWords": "오늘의 단어",
+    "streakDays": "연속 학습 일수",
+    "masteryRate": "숙련도"
+  },
+  "settings": {
+    "title": "설정",
+    "language": "언어",
+    "theme": "테마",
+    "pronunciation": "발음",
+    "learning": "학습 설정",
+    "notification": "알림",
+    "about": "정보"
+  }
+}
+
