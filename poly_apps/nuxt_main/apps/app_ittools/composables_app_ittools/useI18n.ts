@@ -1,13 +1,16 @@
 // Unified i18n composable using Nuxt useState
 import { messages, defaultLocale, type Locale, type MessageSchema } from '../i18n_app_ittools'
+import { useStorage } from './useStorage'
 
 export const useI18n = () => {
+  const storage = useStorage()
+
   // Use Nuxt's useState for global state
   const locale = useState<Locale>('app-locale', () => {
-    // Try to get locale from localStorage or use default
+    // Try to get locale from storage or use default
     if (process.client) {
-      const stored = localStorage.getItem('app-locale')
-      return (stored as Locale) || defaultLocale
+      const stored = storage.getItem<Locale>('app-locale')
+      return stored || defaultLocale
     }
     return defaultLocale
   })
@@ -16,7 +19,7 @@ export const useI18n = () => {
   const setLocale = (newLocale: Locale) => {
     locale.value = newLocale
     if (process.client) {
-      localStorage.setItem('app-locale', newLocale)
+      storage.setItem('app-locale', newLocale)
     }
   }
 

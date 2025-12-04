@@ -1,5 +1,7 @@
 // App Navigation Composable - uses unified state management
 import type { ModuleId, MenuItem } from '../types_app_ittools/navigation'
+import { useAppState } from './useAppState'
+import { useI18n } from './useI18n'
 
 export const useAppNavigation = () => {
   const appState = useAppState()

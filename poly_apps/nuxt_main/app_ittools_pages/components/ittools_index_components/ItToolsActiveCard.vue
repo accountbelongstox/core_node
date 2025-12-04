@@ -1,5 +1,5 @@
 <template>
-  <div v-if="tool" class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+  <div v-if="tool" class="glass rounded-2xl p-6">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
       <div>
         <p class="text-xs font-semibold text-blue-500 uppercase tracking-widest mb-2">Active Utility</p>
