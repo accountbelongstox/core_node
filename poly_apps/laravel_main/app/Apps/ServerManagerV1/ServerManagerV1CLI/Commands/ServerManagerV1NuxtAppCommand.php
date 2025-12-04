@@ -138,27 +138,21 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         }
 
         // Define steps based on mode
+        // Note: switch-app.js handles ALL deployment (rsync, pnpm install, etc.)
+        // Laravel only creates service and nginx config
         if ($this->debugMode) {
             $steps = [
                 'Validating app namespace',
-                'Installing node_modules (source)',
-                'Preparing factory directory',
-                'Copying to factory directory',
-                'Ensuring permissions',
-                'Installing factory dependencies',
                 'Creating systemd service (debug mode)',
                 'Configuring nginx proxy',
-                'Starting service'
+                'Starting service (switch-app.js will handle deployment)'
             ];
         } else {
             $steps = [
                 'Validating app namespace',
-                'Installing node_modules',
-                'Copying to factory directory',
-                'Building application',
                 'Creating systemd service (production mode)',
                 'Configuring nginx proxy',
-                'Starting service'
+                'Starting service (switch-app.js will handle deployment)'
             ];
         }
 
@@ -171,25 +165,17 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             if ($this->debugMode) {
                 $result = match($stepNum) {
                     1 => $this->validateAppNamespace($appname),
-                    2 => $this->installNodeModules(),
-                    3 => $this->prepareFactoryDirectory($appname),
-                    4 => $this->copyToFactory($appname),
-                    5 => $this->ensureFactoryPermissions($appname, $user),
-                    6 => $this->ensureFactoryDependencies($appname, $user),
-                    7 => $this->createService($appname, $port),
-                    8 => $this->configureNginx($appname, $domain, $port, $sslMode),
-                    9 => $this->startService($appname),
+                    2 => $this->createService($appname, $port),
+                    3 => $this->configureNginx($appname, $domain, $port, $sslMode),
+                    4 => $this->startService($appname),
                     default => true
                 };
             } else{
                 $result = match($stepNum) {
                     1 => $this->validateAppNamespace($appname),
-                    2 => $this->installNodeModules(),
-                    3 => $this->copyToFactory($appname),
-                    4 => $this->buildApp($appname),
-                    5 => $this->createService($appname, $port),
-                    6 => $this->configureNginx($appname, $domain, $port, $sslMode),
-                    7 => $this->startService($appname),
+                    2 => $this->createService($appname, $port),
+                    3 => $this->configureNginx($appname, $domain, $port, $sslMode),
+                    4 => $this->startService($appname),
                     default => true
                 };
             }
@@ -344,6 +330,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         $excludes = [
             'node_modules',
             'pnpm-lock.yaml',       // Will be regenerated in factory
+            '.pnpmrc',              // Factory uses default pnpm config (symlinks, not hoisted)
             '.pnpm-debug.log',
             '.nuxt',
             '.output',
@@ -427,6 +414,7 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
         $cleanupPaths = [
             "$factoryPath/node_modules",           // Old dependencies
             "$factoryPath/pnpm-lock.yaml",         // Old lockfile (may have wrong store paths)
+            "$factoryPath/.pnpmrc",                // Old pnpm config (hoisted mode conflicts with symlinks)
             "$factoryPath/.pnpm-debug.log",        // Debug logs
         ];
 
