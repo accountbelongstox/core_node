@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import type { ToolParam } from '../../config/tool-params';
+import type { ToolParam } from '../../config_app_ittools/tool-params';
 
 const props = defineProps<{
   toolId: string;

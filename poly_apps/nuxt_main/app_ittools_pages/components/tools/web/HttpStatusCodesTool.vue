@@ -127,8 +127,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { Tool } from '../../../types';
-import { ItToolsMainAPI } from '../../../services/ittools-main-api';
+import type { Tool } from '../../../types_app_ittools';
+import { ItToolsMainAPI } from '../../../services_app_ittools/ittools-main-api';
 
 interface HttpStatusEntry {
   code: number;

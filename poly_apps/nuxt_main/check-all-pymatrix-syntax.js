@@ -23,7 +23,7 @@ function getAllFiles(dir, fileList = []) {
   return fileList;
 }
 
-const appDir = path.join(__dirname, 'apps/app_pymatrix');
+const appDir = path.join(__dirname, 'app_pymatrix_pages');
 const allFiles = getAllFiles(appDir);
 
 console.log(`\n📋 Checking ${allFiles.length} PyMatrix files for syntax issues...\n`);
