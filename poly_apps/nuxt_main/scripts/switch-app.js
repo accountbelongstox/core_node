@@ -249,24 +249,39 @@ function clearDirectory(dirPath) {
   });
 }
 
-function copyDirectory(src, dest) {
+function shouldCopyToPages(entryName, isDirectory) {
+  // Only copy .vue files and layouts/ directory to pages/
+  if (isDirectory) {
+    return entryName === 'layouts';
+  }
+  // Copy .vue files and INDEX.md (but not other .ts, .js, .json, .md files)
+  return entryName.endsWith('.vue') || entryName === 'INDEX.md';
+}
+
+function copyDirectory(src, dest, filterForPages = false) {
   if (!fs.existsSync(src)) {
     error(`Source directory not found: ${src}`);
     process.exit(1);
   }
-  
+
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
   }
-  
+
   const entries = fs.readdirSync(src, { withFileTypes: true });
-  
+
   entries.forEach(entry => {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    
+
+    // Apply filter when copying to pages/ directory
+    if (filterForPages && !shouldCopyToPages(entry.name, entry.isDirectory())) {
+      return; // Skip this file/directory
+    }
+
     if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
+      // For layouts directory, copy everything inside (no filter)
+      copyDirectory(srcPath, destPath, false);
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
@@ -349,7 +364,7 @@ function getSourcePagesDir(targetApp) {
 
 function switchPagesDirectory(targetApp) {
   const sourcePagesDir = getSourcePagesDir(targetApp);
-  
+
   if (!fs.existsSync(sourcePagesDir)) {
     error(`Source pages directory not found: ${sourcePagesDir}`);
     if (targetApp === 'main') {
@@ -359,19 +374,22 @@ function switchPagesDirectory(targetApp) {
     }
     process.exit(1);
   }
-  
+
   backupCurrentPages();
-  
+
   if (fs.existsSync(PAGES_DIR)) {
     clearDirectory(PAGES_DIR);
   } else {
     fs.mkdirSync(PAGES_DIR, { recursive: true });
   }
-  
-  copyDirectory(sourcePagesDir, PAGES_DIR);
+
+  // Copy with filter - only .vue files and layouts/ directory
+  info(`Copying pages from ${sourcePagesDir} (filtering: only .vue files and layouts/)`);
+  copyDirectory(sourcePagesDir, PAGES_DIR, true);
   createIndicatorFile(targetApp, PAGES_DIR);
-  
+
   success(`Successfully switched to ${targetApp} app pages`);
+  info(`Pages directory now contains only .vue files, layouts/, and INDEX.md`);
 }
 
 function pathExistsSync(filePath) {

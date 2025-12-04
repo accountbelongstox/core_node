@@ -74,6 +74,10 @@
 </template>
 
 <script setup lang="ts">
+// Import composables
+import { useAppNavigation } from '@/apps/app_ittools/composables_app_ittools/useAppNavigation'
+import { useI18n } from '@/apps/app_ittools/composables_app_ittools/useI18n'
+
 // Use unified composables
 const {
   activeModule,
