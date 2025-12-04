@@ -7,9 +7,9 @@
     @close="emit('close')"
     @executed="handleExternalExecuted"
   />
-  <div v-else-if="tool" class="h-full flex flex-col bg-white">
+  <div v-else-if="tool" class="h-full flex flex-col glass-strong rounded-2xl overflow-hidden">
     <!-- Tool Header -->
-    <div class="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+    <div class="px-6 py-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">{{ tool.name }}</h2>
@@ -104,7 +104,7 @@
     </div>
 
     <!-- Action Bar -->
-    <div class="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
+    <div class="px-6 py-4 border-t border-white/20 bg-white/10 backdrop-blur-sm flex items-center justify-between">
       <div class="text-sm text-gray-500">
         <i class="fas fa-info-circle mr-1"></i>
         {{ tool.method?.toUpperCase() }} {{ tool.endpoint }}

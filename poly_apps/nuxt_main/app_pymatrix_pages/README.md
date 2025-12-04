@@ -20,7 +20,7 @@ Each `index.vue` should ONLY import a single component with all logic in the app
 </template>
 
 <script setup lang="ts">
-import PyMatrixApp from '@/apps/app_pymatrix/components_app_pymatrix/pymatrix_index/PyMatrixApp.vue';
+import PyMatrixApp from '@/app_pymatrix_pages/components/pymatrix_index/PyMatrixApp.vue';
 </script>
 ```
 

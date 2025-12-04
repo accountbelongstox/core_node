@@ -5,30 +5,30 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useDeviceStore } from '../apps/app_pymatrix/stores_app_pymatrix/deviceStore';
-import { useGroupStore } from '../apps/app_pymatrix/stores_app_pymatrix/groupStore';
-import { useDeviceList } from '../apps/app_pymatrix/composables_app_pymatrix/useDeviceList';
-import { useKeyboardShortcuts, createDefaultPyMatrixShortcuts } from '../apps/app_pymatrix/composables_app_pymatrix/useKeyboardShortcuts';
+import { useDeviceStore } from '../app_pymatrix_pages/stores/deviceStore';
+import { useGroupStore } from '../app_pymatrix_pages/stores/groupStore';
+import { useDeviceList } from '../app_pymatrix_pages/composables/useDeviceList';
+import { useKeyboardShortcuts, createDefaultPyMatrixShortcuts } from '../app_pymatrix_pages/composables/useKeyboardShortcuts';
 import { pyMatrixDeviceAPI } from '../services/api/pymatrix/pymatrix-device-api';
-import { useConnectDevice } from '../apps/app_pymatrix/composables_app_pymatrix/useConnectDevice';
+import { useConnectDevice } from '../app_pymatrix_pages/composables/useConnectDevice';
 import type { DeviceConfig } from '../types/pymatrix';
 
-import PyMatrixDeviceGrid from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixDeviceGrid.vue';
-import PyMatrixEmptyState from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixEmptyState.vue';
-import PyMatrixConnectDialog from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixConnectDialog.vue';
-import KeyboardShortcutsHelp from '../apps/app_pymatrix/components_app_pymatrix/KeyboardShortcutsHelp.vue';
-import GroupControlPanel from '../apps/app_pymatrix/components_app_pymatrix/GroupControlPanel.vue';
-import GroupBatchOperations from '../apps/app_pymatrix/components_app_pymatrix/GroupBatchOperations.vue';
-import GridLayoutControl from '../apps/app_pymatrix/components_app_pymatrix/GridLayoutControl.vue';
-import GroupTreeView from '../apps/app_pymatrix/components_app_pymatrix/GroupTreeView.vue';
-import DeviceSearchBar from '../apps/app_pymatrix/components_app_pymatrix/DeviceSearchBar.vue';
-import DeviceFilterPanel from '../apps/app_pymatrix/components_app_pymatrix/DeviceFilterPanel.vue';
-import PyMatrixFullscreenPlayer from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixFullscreenPlayer.vue';
-import PyMatrixScriptManager from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixScriptManager.vue';
-import SystemHealthMonitor from '../apps/app_pymatrix/components_app_pymatrix/SystemHealthMonitor.vue';
-import { useGroupControl } from '../apps/app_pymatrix/composables_app_pymatrix/useGroupControl';
-import { useUIPreferencesStore } from '../apps/app_pymatrix/stores_app_pymatrix/uiPreferencesStore';
-import { useGroupTreeStore } from '../apps/app_pymatrix/stores_app_pymatrix/groupTreeStore';
+import PyMatrixDeviceGrid from '../app_pymatrix_pages/components/PyMatrixDeviceGrid.vue';
+import PyMatrixEmptyState from '../app_pymatrix_pages/components/PyMatrixEmptyState.vue';
+import PyMatrixConnectDialog from '../app_pymatrix_pages/components/PyMatrixConnectDialog.vue';
+import KeyboardShortcutsHelp from '../app_pymatrix_pages/components/KeyboardShortcutsHelp.vue';
+import GroupControlPanel from '../app_pymatrix_pages/components/GroupControlPanel.vue';
+import GroupBatchOperations from '../app_pymatrix_pages/components/GroupBatchOperations.vue';
+import GridLayoutControl from '../app_pymatrix_pages/components/GridLayoutControl.vue';
+import GroupTreeView from '../app_pymatrix_pages/components/GroupTreeView.vue';
+import DeviceSearchBar from '../app_pymatrix_pages/components/DeviceSearchBar.vue';
+import DeviceFilterPanel from '../app_pymatrix_pages/components/DeviceFilterPanel.vue';
+import PyMatrixFullscreenPlayer from '../app_pymatrix_pages/components/PyMatrixFullscreenPlayer.vue';
+import PyMatrixScriptManager from '../app_pymatrix_pages/components/PyMatrixScriptManager.vue';
+import SystemHealthMonitor from '../app_pymatrix_pages/components/SystemHealthMonitor.vue';
+import { useGroupControl } from '../app_pymatrix_pages/composables/useGroupControl';
+import { useUIPreferencesStore } from '../app_pymatrix_pages/stores/uiPreferencesStore';
+import { useGroupTreeStore } from '../app_pymatrix_pages/stores/groupTreeStore';
 import type { Device } from '../types/pymatrix';
 
 definePageMeta({
