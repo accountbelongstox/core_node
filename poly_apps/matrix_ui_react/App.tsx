@@ -355,34 +355,57 @@ const AppContent: React.FC = () => {
            <div className="hidden md:flex items-center gap-2">
               <button 
                 onClick={() => setShowScripts(true)}
-                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 hover:border-[#bd00ff]/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
-                style={{ '--tw-bg-opacity': '0.2' } as any}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(189, 0, 255, 0.2)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--purple-dim)';
+                  e.currentTarget.style.borderColor = 'rgba(189, 0, 255, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
               >
                 <i className="ph ph-scroll"></i> {t('menu.topbar.scripts')}
               </button>
               <button 
                 onClick={() => setShowSettings(true)}
-                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 hover:border-[#00f2ff]/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 242, 255, 0.2)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--cyan-dim)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 242, 255, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
               >
                 <i className="ph ph-gear"></i> {t('menu.topbar.settings')}
               </button>
               <button 
                 onClick={() => setShowManagement(true)}
-                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 hover:border-[#a855f7]/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.2)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--purple-dim)';
+                  e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
               >
                 <i className="ph ph-sliders"></i> {t('menu.topbar.management')}
               </button>
               <button 
                 onClick={() => setShowStats(true)}
-                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 hover:border-[#05ffa1]/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 255, 161, 0.2)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                className="px-4 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-2"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(5, 255, 161, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(5, 255, 161, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
               >
                 <i className="ph ph-chart-bar"></i> {t('menu.topbar.stats')}
               </button>

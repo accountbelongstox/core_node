@@ -107,14 +107,14 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
   };
 
   const sections: { id: ConfigSection; label: string; icon: string; color: string }[] = [
-    { id: 'connection', label: t('management.sections.connection'), icon: 'ph-plugs-connected', color: 'text-[#00f2ff]' },
-    { id: 'video', label: t('management.sections.video'), icon: 'ph-monitor', color: 'text-[#05ffa1]' },
-    { id: 'input', label: t('management.sections.input'), icon: 'ph-keyboard', color: 'text-[#bd00ff]' },
-    { id: 'group', label: t('management.sections.group'), icon: 'ph-users-three', color: 'text-[#ff2a6d]' },
-    { id: 'recording', label: t('management.sections.recording'), icon: 'ph-video-camera', color: 'text-[#ffaa00]' },
-    { id: 'file', label: t('management.sections.file'), icon: 'ph-folder', color: 'text-[#00d4ff]' },
-    { id: 'preferences', label: t('management.sections.preferences'), icon: 'ph-gear', color: 'text-[#a855f7]' },
-    { id: 'interface', label: t('management.sections.interface'), icon: 'ph-paint-brush', color: 'text-[#ec4899]' },
+    { id: 'connection', label: t('management.sections.connection'), icon: 'ph-plugs-connected', color: 'var(--cyan)' },
+    { id: 'video', label: t('management.sections.video'), icon: 'ph-monitor', color: 'var(--success)' },
+    { id: 'input', label: t('management.sections.input'), icon: 'ph-keyboard', color: 'var(--purple)' },
+    { id: 'group', label: t('management.sections.group'), icon: 'ph-users-three', color: 'var(--alert)' },
+    { id: 'recording', label: t('management.sections.recording'), icon: 'ph-video-camera', color: 'var(--warning)' },
+    { id: 'file', label: t('management.sections.file'), icon: 'ph-folder', color: 'var(--cyan)' },
+    { id: 'preferences', label: t('management.sections.preferences'), icon: 'ph-gear', color: 'var(--purple)' },
+    { id: 'interface', label: t('management.sections.interface'), icon: 'ph-paint-brush', color: 'var(--alert)' },
   ];
 
   // Load config from WebSocket on mount
@@ -147,13 +147,13 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 bg-[#030305]/95 backdrop-blur-xl z-[70] flex">
+    <div className="fixed inset-0 backdrop-blur-xl z-[70] flex" style={{ backgroundColor: 'rgba(3, 3, 5, 0.95)' }}>
       {/* Sidebar */}
-      <div className="w-[280px] bg-[#0a0c10] border-r border-white/10 flex flex-col">
+      <div className="w-[280px] border-r border-white/10 flex flex-col" style={{ backgroundColor: 'var(--bg-black)' }}>
         <div className="h-20 border-b border-white/10 flex items-center justify-between px-6 shrink-0">
           <div>
             <h1 className="text-xl font-bold tracking-widest text-white">{t('management.title')}</h1>
-            <p className="text-[9px] text-[#00f2ff] font-mono">SYSTEM CONFIG</p>
+            <p className="text-[9px] font-mono" style={{ color: 'var(--cyan)' }}>SYSTEM CONFIG</p>
           </div>
           <button 
             onClick={onClose}
@@ -177,9 +177,9 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                 `}
               >
                 {activeSection === section.id && (
-                  <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#00f2ff] shadow-[0_0_10px_#00f2ff] rounded-r"></div>
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-r" style={{ backgroundColor: 'var(--cyan)', boxShadow: '0 0 10px var(--cyan)' }}></div>
                 )}
-                <i className={`ph ${section.icon} text-xl ${section.color}`}></i>
+                <i className={`ph ${section.icon} text-xl`} style={{ color: section.color }}></i>
                 <span className="text-sm font-medium text-white">{section.label}</span>
               </button>
             ))}
@@ -189,7 +189,10 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
         <div className="p-4 border-t border-white/10">
           <button
             onClick={handleSave}
-            className="w-full py-3 bg-[#00f2ff]/10 border border-[#00f2ff]/50 text-[#00f2ff] font-bold tracking-widest hover:bg-[#00f2ff]/20 transition-all rounded text-sm"
+            className="w-full py-3 border font-bold tracking-widest transition-all rounded text-sm"
+            style={{ backgroundColor: 'var(--cyan-dim)', borderColor: 'rgba(0, 242, 255, 0.5)', color: 'var(--cyan)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 242, 255, 0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--cyan-dim)'}
           >
             {t('management.save')}
           </button>
@@ -198,7 +201,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-16 border-b border-white/10 flex items-center justify-between px-8 shrink-0 bg-[#0a0c10]">
+        <div className="h-16 border-b border-white/10 flex items-center justify-between px-8 shrink-0" style={{ backgroundColor: 'var(--bg-black)' }}>
           <div>
             <h2 className="text-lg font-bold tracking-widest text-white">
               {sections.find(s => s.id === activeSection)?.label}
@@ -220,7 +223,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.connection.maxDevices}
                       onChange={(e) => updateConfig('connection', { maxDevices: parseInt(e.target.value) || 1000 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="ADB Reverse 起始端口" description="端口耗尽时自动回落到 forward">
@@ -228,7 +232,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.connection.adbReversePort}
                       onChange={(e) => updateConfig('connection', { adbReversePort: parseInt(e.target.value) || 27183 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigToggle
@@ -240,7 +245,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.connection.portAllocation}
                       onChange={(e) => updateConfig('connection', { portAllocation: e.target.value as 'auto' | 'manual' })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="auto">自动分配</option>
                       <option value="manual">手动分配</option>
@@ -255,14 +261,16 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <input
                       type="text"
                       placeholder="/usr/bin/adb"
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="Scrcpy 服务器路径">
                     <input
                       type="text"
                       placeholder="./scrcpy-server"
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                 </div>
@@ -279,7 +287,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.video.resolution}
                       onChange={(e) => updateConfig('video', { resolution: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="720">720p</option>
                       <option value="1080">1080p</option>
@@ -292,7 +301,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.video.bitrate}
                       onChange={(e) => updateConfig('video', { bitrate: parseInt(e.target.value) || 8000000 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="帧率 (fps)">
@@ -300,7 +310,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.video.framerate}
                       onChange={(e) => updateConfig('video', { framerate: parseInt(e.target.value) || 60 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="裁剪区域" description="格式: width:height:x:y">
@@ -309,7 +320,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       value={config.video.crop}
                       onChange={(e) => updateConfig('video', { crop: e.target.value })}
                       placeholder="1920:1080:0:0"
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                 </div>
@@ -347,7 +359,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.video.gridColumns}
                       onChange={(e) => updateConfig('video', { gridColumns: parseInt(e.target.value) || 4 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                 </div>
@@ -436,14 +449,16 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="number"
                       value={config.group.broadcastDelay}
                       onChange={(e) => updateConfig('group', { broadcastDelay: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="群控模式">
                     <select
                       value={config.group.groupControlMode}
                       onChange={(e) => updateConfig('group', { groupControlMode: e.target.value as 'free' | 'host' | 'client' })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="free">自由模式</option>
                       <option value="host">主机模式</option>
@@ -464,7 +479,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.recording.format}
                       onChange={(e) => updateConfig('recording', { format: e.target.value as 'mp4' | 'mkv' })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="mp4">MP4</option>
                       <option value="mkv">MKV</option>
@@ -489,7 +505,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.recording.screenshotFormat}
                       onChange={(e) => updateConfig('recording', { screenshotFormat: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="png">PNG</option>
                       <option value="jpg">JPG</option>
@@ -500,7 +517,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="text"
                       value={config.recording.screenshotPath}
                       onChange={(e) => updateConfig('recording', { screenshotPath: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="时间戳格式" description="文件名时间戳格式">
@@ -509,7 +527,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       value={config.recording.timestampFormat}
                       onChange={(e) => updateConfig('recording', { timestampFormat: e.target.value })}
                       placeholder="YYYY-MM-DD_HH-mm-ss"
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                 </div>
@@ -527,7 +546,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="text"
                       value={config.file.pushPath}
                       onChange={(e) => updateConfig('file', { pushPath: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                 </div>
@@ -561,14 +581,16 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                       type="text"
                       value={config.preferences.recordingPath}
                       onChange={(e) => updateConfig('preferences', { recordingPath: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     />
                   </ConfigField>
                   <ConfigField label="分辨率预设">
                     <select
                       value={config.preferences.resolutionPreset}
                       onChange={(e) => updateConfig('preferences', { resolutionPreset: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="720">720p</option>
                       <option value="1080">1080p</option>
@@ -619,7 +641,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.interface.theme}
                       onChange={(e) => updateConfig('interface', { theme: e.target.value as 'cyber' | 'dark' | 'light' })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="cyber">赛博朋克</option>
                       <option value="dark">深色</option>
@@ -630,7 +653,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.interface.qssSkin}
                       onChange={(e) => updateConfig('interface', { qssSkin: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="default">默认</option>
                       <option value="matrix">矩阵</option>
@@ -646,7 +670,8 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({ isOpen, onClos
                     <select
                       value={config.interface.language}
                       onChange={(e) => updateConfig('interface', { language: e.target.value as 'auto' | 'zh' | 'en' })}
-                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none"
+                      style={{ '--tw-ring-color': 'var(--cyan)' } as any}
                     >
                       <option value="auto">自动</option>
                       <option value="zh">中文</option>
