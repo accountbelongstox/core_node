@@ -1,5 +1,7 @@
 // Backend Connection Status Management
 // Real data validated: 2025-12-04 with http://192.168.50.3:9000/api_info
+import { useApi } from './useApi'
+import { useI18n } from './useI18n'
 
 export const useBackendStatus = () => {
   const api = useApi()

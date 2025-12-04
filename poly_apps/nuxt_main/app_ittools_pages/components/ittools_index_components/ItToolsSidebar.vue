@@ -1,7 +1,7 @@
 <template>
-  <aside class="w-64 bg-white border-r border-gray-200 overflow-y-auto">
-    <div class="p-4">
-      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+  <aside class="ittools-sidebar">
+    <div class="ittools-sidebar__body">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
         {{ sidebarTitle }}
       </h3>
       <slot name="quick-nav"></slot>
