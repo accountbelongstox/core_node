@@ -197,6 +197,10 @@
 </template>
 
 <script setup lang="ts">
+// Import composables
+import { useApi } from '@/apps/app_ittools/composables_app_ittools/useApi'
+import { useI18n } from '@/apps/app_ittools/composables_app_ittools/useI18n'
+
 // Import API Info Viewer component
 import ApiInfoViewer from './ApiInfoViewer.vue'
 

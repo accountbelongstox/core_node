@@ -52,6 +52,12 @@
 </template>
 
 <script setup lang="ts">
+// Import composables
+import { useAppNavigation } from '@/apps/app_ittools/composables_app_ittools/useAppNavigation'
+import { useI18n } from '@/apps/app_ittools/composables_app_ittools/useI18n'
+import { useAppState } from '@/apps/app_ittools/composables_app_ittools/useAppState'
+import { useBackendStatus } from '@/apps/app_ittools/composables_app_ittools/useBackendStatus'
+
 // Backend connection status management
 // Real data validated: 2025-12-04 with http://192.168.50.3:9000
 

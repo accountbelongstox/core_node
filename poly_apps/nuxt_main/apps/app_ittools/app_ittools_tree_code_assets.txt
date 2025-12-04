@@ -13,7 +13,7 @@
 ================================================================================
 Nuxt App Directory Snapshot
 ================================================================================
-Generated: 2025-12-04 04:39:46
+Generated: 2025-12-04 06:41:53
 App: ittools
 Mode: code_assets
 Nuxt Root: /www/programing/core_node/poly_apps/nuxt_main
@@ -22,21 +22,12 @@ Architecture Guide: development-guides/NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
 
 ittools [code_assets]
 ├── apps/app_ittools/
-│   ├── ARCHITECTURE_PLAN.md
-│   ├── COMPLETE_IMPLEMENTATION_GUIDE.md
-│   ├── DEPLOYMENT_FIX.md
-│   ├── FINAL_IMPLEMENTATION_SUMMARY.md
-│   ├── IMPLEMENTATION_SUMMARY.md
-│   ├── README.md
-│   ├── REAL_BACKEND_INTEGRATION_SUMMARY.md
 │   ├── _prompts
 │   │   ├── AI_COLLABORATION_BRIDGE.json
 │   │   ├── backend.txt
 │   │   └── frontend.txt
 │   ├── app-config.json
 │   ├── app_ittools_tree.md
-│   ├── app_ittools_tree_code_assets.txt
-│   ├── build_prompts.prompt
 │   ├── components_app_ittools
 │   │   ├── BrowserAutomationPanel.vue
 │   │   ├── ClickElementModal.vue
@@ -54,7 +45,8 @@ ittools [code_assets]
 │   │   ├── ToolModal.vue
 │   │   ├── WindowsOperationsPanel.vue
 │   │   ├── ittools_index
-│   │   │   └── ItToolsApp.vue
+│   │   │   ├── ItToolsApp.vue
+│   │   │   └── LaravelWebPanel.vue
 │   │   ├── ittools_index_components
 │   │   │   ├── AppContentArea.vue
 │   │   │   ├── AppSidebar.vue
@@ -65,7 +57,6 @@ ittools [code_assets]
 │   │   │   ├── ItToolsSearchPanel.vue
 │   │   │   ├── ItToolsSidebar.vue
 │   │   │   ├── ItToolsTopBar.vue
-│   │   │   ├── LaravelWebPanel.vue
 │   │   │   ├── LogPanel.vue
 │   │   │   ├── NavigationHeader.vue
 │   │   │   ├── ParticleBackground.vue
@@ -235,6 +226,7 @@ ittools [code_assets]
 │   │   ├── useAppNavigation.ts
 │   │   ├── useAppState.ts
 │   │   ├── useAuth.ts
+│   │   ├── useBackendStatus.ts
 │   │   ├── useI18n.ts
 │   │   ├── useItTools.ts
 │   │   ├── useNginxApi.ts
@@ -493,6 +485,7 @@ ittools [code_assets]
 │   ├── admin.vue
 │   ├── auth-layout.vue
 │   ├── base.vue
+│   ├── blank.vue
 │   ├── codemart-layout.vue
 │   ├── dashboard.vue
 │   ├── default-with-nav.vue

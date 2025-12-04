@@ -7,34 +7,34 @@
   Architecture:
   - Layout: pymatrix (defined in layouts/pymatrix.vue)
   - Content: Complete device control interface with all features
-  - Components: All PyMatrix components from apps/app_pymatrix/
+  - Components: All PyMatrix components from app_pymatrix_pages/
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useDeviceStore } from '@/apps/app_pymatrix/stores_app_pymatrix/deviceStore';
-import { useGroupStore } from '@/apps/app_pymatrix/stores_app_pymatrix/groupStore';
-import { useUIPreferencesStore } from '@/apps/app_pymatrix/stores_app_pymatrix/uiPreferencesStore';
-import { useDeviceList } from '@/apps/app_pymatrix/composables_app_pymatrix/useDeviceList';
-import { useGroupControl } from '@/apps/app_pymatrix/composables_app_pymatrix/useGroupControl';
-import { useKeyboardShortcuts, createDefaultPyMatrixShortcuts } from '@/apps/app_pymatrix/composables_app_pymatrix/useKeyboardShortcuts';
-import { useConnectDevice } from '@/apps/app_pymatrix/composables_app_pymatrix/useConnectDevice';
+import { useDeviceStore } from '@/app_pymatrix_pages/stores/deviceStore';
+import { useGroupStore } from '@/app_pymatrix_pages/stores/groupStore';
+import { useUIPreferencesStore } from '@/app_pymatrix_pages/stores/uiPreferencesStore';
+import { useDeviceList } from '@/app_pymatrix_pages/composables/useDeviceList';
+import { useGroupControl } from '@/app_pymatrix_pages/composables/useGroupControl';
+import { useKeyboardShortcuts, createDefaultPyMatrixShortcuts } from '@/app_pymatrix_pages/composables/useKeyboardShortcuts';
+import { useConnectDevice } from '@/app_pymatrix_pages/composables/useConnectDevice';
 import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
 import type { Device } from '@/types/pymatrix';
 import type { DeviceConfig } from '@/types/pymatrix';
-import { INITIAL_DEVICES } from '@/apps/app_pymatrix/constants_app_pymatrix/initial-state';
+import { INITIAL_DEVICES } from '@/app_pymatrix_pages/constants/initial-state';
 
 // Import all necessary components
-import PyMatrixDeviceGrid from '@/apps/app_pymatrix/components_app_pymatrix/PyMatrixDeviceGrid.vue';
-import PyMatrixEmptyState from '@/apps/app_pymatrix/components_app_pymatrix/PyMatrixEmptyState.vue';
-import DeviceSearchBar from '@/apps/app_pymatrix/components_app_pymatrix/DeviceSearchBar.vue';
-import DeviceFilterPanel from '@/apps/app_pymatrix/components_app_pymatrix/DeviceFilterPanel.vue';
-import GroupControlPanel from '@/apps/app_pymatrix/components_app_pymatrix/GroupControlPanel.vue';
-import GroupTreeView from '@/apps/app_pymatrix/components_app_pymatrix/GroupTreeView.vue';
-import GroupBatchOperations from '@/apps/app_pymatrix/components_app_pymatrix/GroupBatchOperations.vue';
-import GridLayoutControl from '@/apps/app_pymatrix/components_app_pymatrix/GridLayoutControl.vue';
-import PyMatrixFullscreenPlayer from '@/apps/app_pymatrix/components_app_pymatrix/PyMatrixFullscreenPlayer.vue';
-import PyMatrixScriptManager from '@/apps/app_pymatrix/components_app_pymatrix/PyMatrixScriptManager.vue';
-import SystemHealthMonitor from '@/apps/app_pymatrix/components_app_pymatrix/SystemHealthMonitor.vue';
+import PyMatrixDeviceGrid from '@/app_pymatrix_pages/components/PyMatrixDeviceGrid.vue';
+import PyMatrixEmptyState from '@/app_pymatrix_pages/components/PyMatrixEmptyState.vue';
+import DeviceSearchBar from '@/app_pymatrix_pages/components/DeviceSearchBar.vue';
+import DeviceFilterPanel from '@/app_pymatrix_pages/components/DeviceFilterPanel.vue';
+import GroupControlPanel from '@/app_pymatrix_pages/components/GroupControlPanel.vue';
+import GroupTreeView from '@/app_pymatrix_pages/components/GroupTreeView.vue';
+import GroupBatchOperations from '@/app_pymatrix_pages/components/GroupBatchOperations.vue';
+import GridLayoutControl from '@/app_pymatrix_pages/components/GridLayoutControl.vue';
+import PyMatrixFullscreenPlayer from '@/app_pymatrix_pages/components/PyMatrixFullscreenPlayer.vue';
+import PyMatrixScriptManager from '@/app_pymatrix_pages/components/PyMatrixScriptManager.vue';
+import SystemHealthMonitor from '@/app_pymatrix_pages/components/SystemHealthMonitor.vue';
 
 // ✅ Set layout for this page
 definePageMeta({
