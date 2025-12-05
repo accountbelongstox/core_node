@@ -1,0 +1,66 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "app": {
+    "name": "QY Word Learning",
+    "welcome": "Welcome to QY Word Learning"
+  },
+  "navigation": {
+    "home": "Home",
+    "learn": "Learn",
+    "review": "Review",
+    "statistics": "Statistics",
+    "settings": "Settings"
+  },
+  "wordGroup": {
+    "title": "Word Groups",
+    "create": "Create Word Group",
+    "edit": "Edit Word Group",
+    "delete": "Delete Word Group",
+    "empty": "No word groups"
+  },
+  "learning": {
+    "title": "Learning",
+    "start": "Start Learning",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "next": "Next",
+    "previous": "Previous",
+    "instantReview": "Instant Review"
+  },
+  "review": {
+    "title": "Review",
+    "today": "Today's Review",
+    "overdue": "Overdue Review",
+    "start": "Start Review"
+  },
+  "statistics": {
+    "title": "Statistics",
+    "totalWords": "Total Words Learned",
+    "todayWords": "Today's Words",
+    "streakDays": "Streak Days",
+    "masteryRate": "Mastery Rate"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "pronunciation": "Pronunciation",
+    "learning": "Learning Settings",
+    "notification": "Notification",
+    "about": "About"
+  }
+}
+
