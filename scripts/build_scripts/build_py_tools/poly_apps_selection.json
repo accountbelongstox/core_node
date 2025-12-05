@@ -1,0 +1,17 @@
+{
+  "generated_at": "2025-12-05T05:39:22",
+  "project_name": ".claude",
+  "project_path": "D:\\programing\\core_node\\poly_apps\\.claude",
+  "project_port": 10000,
+  "project_type": "unknown",
+  "build_modes": [
+    "dev",
+    "build"
+  ],
+  "platforms": [
+    "web"
+  ],
+  "build_mode_index": 0,
+  "platform_index": 0,
+  "display_line": ".claude[10000]  [dev|web]"
+}

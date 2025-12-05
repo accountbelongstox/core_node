@@ -1,0 +1,123 @@
+{
+  "generated_at": "2025-12-05T05:39:22",
+  "selection_index": 0,
+  "menu_items": [
+    {
+      "project_name": ".claude",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\.claude",
+      "project_port": 10000,
+      "project_type": "unknown",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": ".claude[10000]  [dev|web]"
+    },
+    {
+      "project_name": "flutter_bloom",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom",
+      "project_port": 10001,
+      "project_type": "unknown",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "flutter_bloom[10001]  [dev|web]"
+    },
+    {
+      "project_name": "laravel_dashboard",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\laravel_dashboard",
+      "project_port": 10002,
+      "project_type": "vite",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "laravel_dashboard[10002]  [dev|web]"
+    },
+    {
+      "project_name": "laravel_main",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\laravel_main",
+      "project_port": 10003,
+      "project_type": "unknown",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "laravel_main[10003]  [dev|web]"
+    },
+    {
+      "project_name": "matrix_bak",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\matrix_bak",
+      "project_port": 10004,
+      "project_type": "vite",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "matrix_bak[10004]  [dev|web]"
+    },
+    {
+      "project_name": "matrix_ui_react",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\matrix_ui_react",
+      "project_port": 10005,
+      "project_type": "vite",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "matrix_ui_react[10005]  [dev|web]"
+    },
+    {
+      "project_name": "NewQtScrcpy",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\NewQtScrcpy",
+      "project_port": 10006,
+      "project_type": "unknown",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "NewQtScrcpy[10006]  [dev|web]"
+    },
+    {
+      "project_name": "nsrcc-tactical-ops",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\nsrcc-tactical-ops",
+      "project_port": 10007,
+      "project_type": "vite",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "nsrcc-tactical-ops[10007]  [dev|web]"
+    },
+    {
+      "project_name": "nuxt_main",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\nuxt_main",
+      "project_port": 10008,
+      "project_type": "nuxt",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "nuxt_main[10008]  [dev|web]"
+    },
+    {
+      "project_name": "react_native",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\react_native",
+      "project_port": 10009,
+      "project_type": "react_native",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "react_native[10009]  [debug|web]"
+    },
+    {
+      "project_name": "react_native_qy",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\react_native_qy",
+      "project_port": 10010,
+      "project_type": "react_native",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "react_native_qy[10010]  [debug|web]"
+    },
+    {
+      "project_name": "SmartMatrix",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\SmartMatrix",
+      "project_port": 10011,
+      "project_type": "unknown",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "SmartMatrix[10011]  [dev|web]"
+    },
+    {
+      "project_name": "xincanchuanmeikeji",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\xincanchuanmeikeji",
+      "project_port": 10012,
+      "project_type": "vite",
+      "build_mode_index": 0,
+      "platform_index": 0,
+      "display_line": "xincanchuanmeikeji[10012]  [dev|web]"
+    }
+  ]
+}
