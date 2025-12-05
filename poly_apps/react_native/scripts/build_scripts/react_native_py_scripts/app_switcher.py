@@ -54,6 +54,35 @@ def update_app_json(project_root: Path, app_config: Dict[str, Any]):
     print(f"[OK] Updated app.json: {app_name} / {display_name}")
 
 
+def update_main_activity_component(project_root: Path, app_config: Dict[str, Any]):
+    """Keep MainActivity's component name in sync with app.json"""
+    java_src_root = project_root / "android" / "app" / "src" / "main" / "java"
+    if not java_src_root.exists():
+        return
+
+    # Prefer Kotlin file when available
+    candidates = list(java_src_root.rglob("MainActivity.kt"))
+    if not candidates:
+        candidates = list(java_src_root.rglob("MainActivity.java"))
+
+    if not candidates:
+        return
+
+    main_activity_path = candidates[0]
+    with open(main_activity_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    app_name = app_config.get(KEY_APP_NAME) or app_config.get(FALLBACK_NAMESPACE, "react_init")
+    pattern = r'override\s+fun\s+getMainComponentName\(\):\s+String\s*=\s*"[^"]*"'
+    replacement = f'override fun getMainComponentName(): String = "{app_name}"'
+    new_content, replaced = re.subn(pattern, replacement, content)
+
+    if replaced:
+        with open(main_activity_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f"[OK] Updated MainActivity component name: {app_name}")
+
+
 def update_index_js(project_root: Path, app_namespace: str, app_config: Dict[str, Any]):
     """Update index.js to directly import the selected app entry point"""
     index_js_path = project_root / "index.js"
@@ -88,26 +117,13 @@ def update_android_manifest(project_root: Path, app_config: Dict[str, Any]):
         content = f.read()
 
     modified = False
-
-    # Update package name (use build_config.ini keys with fallback)
-    package_id = app_config.get(KEY_DEFAULT_PACKAGE_ID) or app_config.get(FALLBACK_PACKAGE_ID)
-    if package_id:
-        # Check if package attribute exists
-        if 'package=' in content:
-            # Update existing package
-            pattern = r'package="[^"]*"'
-            replacement = f'package="{package_id}"'
-            new_content = re.sub(pattern, replacement, content)
-        else:
-            # Add package attribute to manifest tag
-            pattern = r'<manifest([^>]*?)>'
-            replacement = f'<manifest\\1 package="{package_id}">'
-            new_content = re.sub(pattern, replacement, content)
-
+    # Remove legacy package attribute if present (namespace now handled in build.gradle)
+    if 'package="' in content:
+        new_content = re.sub(r'\s+package="[^"]*"', '', content, count=1)
         if new_content != content:
             content = new_content
             modified = True
-            print(f"[OK] Set package: {package_id}")
+            print("[OK] Removed legacy manifest package attribute")
 
     # Update android:label if display name is specified
     display_name = app_config.get(KEY_DISPLAY_NAME_ENGLISH) or app_config.get(FALLBACK_DISPLAY_NAME_EN)
@@ -123,6 +139,40 @@ def update_android_manifest(project_root: Path, app_config: Dict[str, Any]):
 
     if modified:
         with open(manifest_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+
+def update_android_build_settings(project_root: Path, app_config: Dict[str, Any]):
+    """Update android/app/build.gradle namespace & applicationId"""
+    package_id = app_config.get(KEY_DEFAULT_PACKAGE_ID) or app_config.get(FALLBACK_PACKAGE_ID)
+    if not package_id:
+        return
+
+    build_gradle_path = project_root / "android" / "app" / "build.gradle"
+    if not build_gradle_path.exists():
+        return
+
+    with open(build_gradle_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    modified = False
+
+    namespace_pattern = r'namespace\s+"[^"]+"'
+    new_content = re.sub(namespace_pattern, f'namespace "{package_id}"', content, count=1)
+    if new_content != content:
+        content = new_content
+        modified = True
+        print(f"[OK] Set namespace: {package_id}")
+
+    application_pattern = r'applicationId\s+"[^"]+"'
+    new_content = re.sub(application_pattern, f'applicationId "{package_id}"', content, count=1)
+    if new_content != content:
+        content = new_content
+        modified = True
+        print(f"[OK] Set applicationId: {package_id}")
+
+    if modified:
+        with open(build_gradle_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
 
@@ -219,6 +269,7 @@ def switch_app(project_root: str, app_namespace: str):
     # Update app.json
     print("[STEP 3/6] Updating app.json...")
     update_app_json(working_directory, app_config)
+    update_main_activity_component(working_directory, app_config)
     print()
 
     # Update index.js
@@ -229,6 +280,7 @@ def switch_app(project_root: str, app_namespace: str):
     # Update Android manifest
     print("[STEP 5/6] Updating Android manifest...")
     update_android_manifest(working_directory, app_config)
+    update_android_build_settings(working_directory, app_config)
     print()
 
     # Update Metro config and run prebuild
