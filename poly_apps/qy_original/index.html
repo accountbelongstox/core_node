@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>WordFlow AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'Noto Sans SC', 'sans-serif'],
+            },
+            colors: {
+              primary: '#3B82F6',
+              accent: '#8B5CF6',
+              glass: {
+                border: 'rgba(255, 255, 255, 0.6)',
+                surface: 'rgba(255, 255, 255, 0.45)',
+                highlight: 'rgba(255, 255, 255, 0.9)',
+              }
+            },
+            animation: {
+              'blob': 'blob 25s infinite',
+              'fade-in': 'fadeIn 0.6s ease-out forwards',
+              'slide-up': 'slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'float': 'float 8s ease-in-out infinite',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              blob: {
+                '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                '33%': { transform: 'translate(50px, -60px) scale(1.15)' },
+                '66%': { transform: 'translate(-30px, 30px) scale(0.95)' },
+                '100%': { transform: 'translate(0px, 0px) scale(1)' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(60px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-15px)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --glass-blur: blur(20px);
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        -webkit-tap-highlight-color: transparent;
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+        color: #334155;
+      }
+      
+      /* Dynamic Background System */
+      .holographic-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -2;
+        background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 50%, #f5f3ff 100%);
+      }
+      
+      .dark .holographic-bg {
+         background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      }
+
+      .blob-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .blob {
+        position: absolute;
+        filter: blur(90px);
+        opacity: 0.6;
+        border-radius: 50%;
+        animation: blob 25s infinite alternate;
+      }
+      
+      .dark .blob { opacity: 0.3; }
+
+      /* Holographic White / Premium Glass */
+      .holo-card {
+        background: rgba(255, 255, 255, 0.45);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        box-shadow: 
+          0 8px 32px 0 rgba(31, 38, 135, 0.05),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+      }
+
+      .dark .holo-card {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        color: #f1f5f9;
+      }
+
+      .holo-card-hover {
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .holo-card-hover:active {
+        transform: scale(0.96);
+        background: rgba(255, 255, 255, 0.6);
+      }
+      
+      .glass-btn {
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      }
+      
+      .dark .glass-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 24px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 24px); }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div class="holographic-bg transition-colors duration-700"></div>
+    <div class="blob-container">
+      <div class="blob bg-indigo-300 w-[600px] h-[600px] -top-[10%] -left-[10%] mix-blend-multiply dark:bg-indigo-900 dark:mix-blend-screen animate-blob"></div>
+      <div class="blob bg-sky-200 w-[500px] h-[500px] top-[40%] -right-[10%] animation-delay-2000 mix-blend-multiply dark:bg-blue-900 dark:mix-blend-screen animate-blob"></div>
+      <div class="blob bg-purple-200 w-[400px] h-[400px] -bottom-[10%] left-[20%] animation-delay-4000 mix-blend-multiply dark:bg-purple-900 dark:mix-blend-screen animate-blob"></div>
+    </div>
+    <div id="root" class="h-full"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,114 +1,97 @@
-# QY单词学习 - React Native App
+This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-基于React Native开发的单词学习应用，支持多种学习模式、智能复习系统和完整的统计分析。
+# Getting Started
 
-## 功能特性
+> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
-### 核心功能
-- 📚 单词组管理：支持文档导入、标准词库、自定义单词组
-- 📖 阅读模式：核心学习功能，支持自动播放、瞬时复习
-- 🔄 复习系统：基于艾宾浩斯遗忘曲线的智能复习
-- 📊 统计分析：完整的学习数据统计和可视化
-- 💾 记忆库：统一的单词记忆数据管理
-- 🔗 词库同步：与后端词库实时同步
+## Step 1: Start Metro
 
-### 系统特性
-- 🌍 多语言支持：支持9种界面语言
-- 🎨 主题系统：支持浅色/深色主题
-- 🔌 API集成：支持API和Mock数据自动切换
-- 💾 数据持久化：使用AsyncStorage本地存储
-- 📱 响应式设计：适配不同屏幕尺寸
+First, you will need to run **Metro**, the JavaScript build tool for React Native.
 
-## 项目结构
+To start the Metro dev server, run the following command from the root of your React Native project:
 
-```
-poly_apps/react_native_qy/
-├── src/
-│   ├── common/              # 共享代码
-│   │   ├── i18n/            # 多语言系统
-│   │   ├── theme/           # 主题系统
-│   │   ├── mock/            # Mock数据中心
-│   │   ├── services/        # API服务
-│   │   └── components/      # 共享组件
-│   └── qy/                  # QY应用代码
-│       ├── qy_pages/        # 页面组件（20+页面）
-│       ├── qy_navigation/  # 导航配置
-│       ├── qy_store/        # 状态管理
-│       ├── qy_services/      # API服务
-│       └── qy_types/         # 类型定义
-├── package.json
-├── tsconfig.json
-└── README.md
+```sh
+# Using npm
+npm start
+
+# OR using Yarn
+yarn start
 ```
 
-## 页面列表
+## Step 2: Build and run your app
 
-1. HomePage - 首页
-2. LearnPage - 学习页面
-3. ReviewPage - 复习页面
-4. StatisticsPage - 统计页面
-5. SettingsPage - 设置页面
-6. WordGroupListPage - 单词组列表
-7. WordGroupDetailPage - 单词组详情
-8. WordDetailPage - 单词详情
-9. ReadingModePage - 阅读模式（核心功能）
-10. MemoryLibraryPage - 记忆库
-11. DocumentUploadPage - 文档上传
-12. LoginPage - 登录
-13. RegisterPage - 注册
-14. ProfilePage - 个人中心
-15. LearningSettingsPage - 学习设置
-16. PronunciationSettingsPage - 发音设置
-17. ThemeSettingsPage - 主题设置
-18. NotificationSettingsPage - 通知设置
-19. DataSyncSettingsPage - 数据同步设置
-20. AboutPage - 关于
-21. HelpPage - 帮助
-22. AchievementPage - 成就
+With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
 
-## 技术栈
+### Android
 
-- React Native 0.82.1
-- TypeScript
-- React Navigation 7.x
-- i18next (多语言)
-- AsyncStorage (数据持久化)
-- react-native-tts (文本转语音)
-
-## 安装和运行
-
-### 安装依赖
-```bash
-npm install
-# 或
-yarn install
-```
-
-### 运行Android
-```bash
+```sh
+# Using npm
 npm run android
+
+# OR using Yarn
+yarn android
 ```
 
-### 运行iOS
-```bash
+### iOS
+
+For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+
+The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+
+```sh
+bundle install
+```
+
+Then, and every time you update your native dependencies, run:
+
+```sh
+bundle exec pod install
+```
+
+For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+
+```sh
+# Using npm
 npm run ios
+
+# OR using Yarn
+yarn ios
 ```
 
-## API配置
+If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
 
-默认API地址：`http://192.168.50.2:9000`
+This is one way to run your app — you can also build it directly from Android Studio or Xcode.
 
-当API不可用时，系统会自动使用Mock数据。
+## Step 3: Modify your app
 
-## 开发规范
+Now that you have successfully run the app, let's make changes!
 
-- 使用TypeScript进行类型检查
-- 所有文本使用多语言key，不硬编码
-- 使用主题系统，支持light/dark模式
-- API请求支持Mock数据回退
-- 使用AsyncStorage进行数据持久化
+Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
 
-## 文档
+When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
 
-详细功能文档请参考：`_prompt/QY手机APP构建.md`
+- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
+- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
 
+## Congratulations! :tada:
+
+You've successfully run and modified your React Native App. :partying_face:
+
+### Now what?
+
+- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
+- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+
+# Troubleshooting
+
+If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+
+# Learn More
+
+To learn more about React Native, take a look at the following resources:
+
+- [React Native Website](https://reactnative.dev) - learn more about React Native.
+- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
+- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
+- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
+- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
