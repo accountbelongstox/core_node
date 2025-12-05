@@ -72,6 +72,11 @@ $script:SCAN_ROOTS = @()
 $script:ALL_DRIVE_ROOTS = @()
 $script:SDK_ROOTS = @()
 $script:AVD_DIRS = @()
+$script:CACHE_DIR = Join-Path $env:LOCALAPPDATA ".core_node\cache\emu_worker"
+$script:CACHE_ADB = Join-Path $script:CACHE_DIR "adb_path.txt"
+$script:CACHE_EMU = Join-Path $script:CACHE_DIR "emu_path.txt"
+$script:CACHE_AVD = Join-Path $script:CACHE_DIR "avd_list.txt"
+$script:TOOLCHAIN_ROOT = ""
 #endregion
 
 #region Helper Functions
@@ -103,6 +108,11 @@ function Describe-Environment {
         (Join-Path $env:USERPROFILE ".android\avd")
     )
     $script:SCAN_ROOTS = ($script:SDK_ROOTS + $script:AVD_DIRS) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+    Write-InfoLine "Active scan roots:"
+    foreach ($r in $script:SCAN_ROOTS) { Write-Host "  $r" }
+    if (-not (Test-Path $script:CACHE_DIR)) {
+        New-Item -ItemType Directory -Path $script:CACHE_DIR -Force | Out-Null
+    }
     Write-InfoLine "PATH entries:"
     foreach ($p in $script:ENV_PATHS) {
         if ($p) { Write-Host "  $p" }
@@ -167,10 +177,56 @@ function Build-AvdListFromIni {
     }
 }
 
+function Load-CachedPaths {
+    if (Test-Path $script:CACHE_ADB) {
+        $adbPath = Get-Content -Path $script:CACHE_ADB -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($adbPath -and (Test-Path $adbPath)) {
+            $script:FOUND_ADB = $adbPath
+            Write-InfoLine "Loaded cached adb path: $adbPath"
+        }
+    }
+    if (Test-Path $script:CACHE_EMU) {
+        $emuPath = Get-Content -Path $script:CACHE_EMU -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($emuPath -and (Test-Path $emuPath)) {
+            $script:FOUND_EMULATOR = $emuPath
+            Write-InfoLine "Loaded cached emulator path: $emuPath"
+        }
+    }
+    if (Test-Path $script:CACHE_AVD) {
+        $cachedAvds = Get-Content -Path $script:CACHE_AVD -ErrorAction SilentlyContinue
+        if ($cachedAvds) {
+            foreach ($avd in $cachedAvds) {
+                if ($avd -and -not ($script:AVD_LIST -contains $avd)) {
+                    $script:AVD_LIST += $avd
+                }
+            }
+            if ($script:AVD_LIST.Count -gt 0) {
+                Write-InfoLine "Loaded cached AVD list."
+            }
+        }
+    }
+}
+
+function Save-CachedPaths {
+    if ($script:FOUND_ADB) {
+        $script:FOUND_ADB | Out-File -FilePath $script:CACHE_ADB -Encoding UTF8 -Force
+    }
+    if ($script:FOUND_EMULATOR) {
+        $script:FOUND_EMULATOR | Out-File -FilePath $script:CACHE_EMU -Encoding UTF8 -Force
+    }
+    if ($script:AVD_LIST.Count -gt 0) {
+        $script:AVD_LIST | Out-File -FilePath $script:CACHE_AVD -Encoding UTF8 -Force
+    }
+}
+
 function Resolve-AndroidTools {
     Write-InfoLine "Resolving Android tools (adb, emulator) via PATH and SDK roots..."
+    Load-CachedPaths
     $cmds = Get-AndroidCommands
-    if (-not $cmds.Adb) {
+    if ($cmds.Emulator -and $cmds.Emulator.Source) {
+        $script:TOOLCHAIN_ROOT = Split-Path (Split-Path $cmds.Emulator.Source -Parent) -Parent
+    }
+    if (-not $script:FOUND_ADB) {
         $adbFound = @()
         foreach ($root in $script:SCAN_ROOTS) {
             if (-not $root) { continue }
@@ -181,7 +237,7 @@ function Resolve-AndroidTools {
         }
         if ($adbFound.Count -gt 0) { $script:FOUND_ADB = $adbFound[0] }
     }
-    if (-not $cmds.Emulator -and -not $cmds.Emu) {
+    if (-not $script:FOUND_EMULATOR) {
         $emuFound = @()
         foreach ($root in $script:SCAN_ROOTS) {
             if (-not $root) { continue }
@@ -196,8 +252,25 @@ function Resolve-AndroidTools {
         }
         if ($emuFound.Count -gt 0) { $script:FOUND_EMULATOR = $emuFound[0] }
     }
+    if ($script:FOUND_EMULATOR -and -not $script:FOUND_ADB) {
+        $emuDir = Split-Path $script:FOUND_EMULATOR -Parent
+        $candidateAdb = Join-Path (Split-Path $emuDir -Parent) "platform-tools\adb.exe"
+        if (Test-Path $candidateAdb) {
+            Write-InfoLine "Aligning adb with emulator toolchain: $candidateAdb"
+            $script:FOUND_ADB = $candidateAdb
+        }
+    }
+    if ($script:FOUND_ADB -and -not $script:FOUND_EMULATOR) {
+        $adbDir = Split-Path $script:FOUND_ADB -Parent
+        $candidateEmu = Join-Path (Split-Path $adbDir -Parent) "emulator\emulator.exe"
+        if (Test-Path $candidateEmu) {
+            Write-InfoLine "Aligning emulator with adb toolchain: $candidateEmu"
+            $script:FOUND_EMULATOR = $candidateEmu
+        }
+    }
     if ($script:FOUND_ADB) { Write-InfoLine "ADB resolved: $script:FOUND_ADB" } else { Write-WarnLine "ADB not resolved." }
     if ($script:FOUND_EMULATOR) { Write-InfoLine "Emulator resolved: $script:FOUND_EMULATOR" } else { Write-WarnLine "Emulator not resolved." }
+    Save-CachedPaths
 }
 
 function Run-Installer {
