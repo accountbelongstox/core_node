@@ -35,6 +35,24 @@ try {
   Info "Installing JS dependencies via pnpm (shamefully-hoist). Watch output for success."
   pnpm install --shamefully-hoist --no-frozen-lockfile
 
+  function Apply-ReanimatedPatch {
+    $patchRoot = Join-Path $root "scripts/reanimated_patch"
+    $targetMain = Join-Path $root "node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated"
+    $targetPatch = Join-Path $root "node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated"
+    $targetWorkletsCMake = Join-Path $root "node_modules/react-native-reanimated/android/src/main/cpp/worklets/CMakeLists.txt"
+    if (Test-Path $targetMain) {
+      Copy-Item "$patchRoot/ReanimatedModule.java" $targetMain -Force
+      Copy-Item "$patchRoot/ReanimatedPackage.java" $targetMain -Force
+    }
+    if (Test-Path $targetPatch) {
+      Copy-Item "$patchRoot/BorderRadiiDrawableUtils.java" $targetPatch -Force
+    }
+    if (Test-Path $targetWorkletsCMake) {
+      Copy-Item "$patchRoot/worklets.CMakeLists.txt" $targetWorkletsCMake -Force
+    }
+  }
+  Apply-ReanimatedPatch
+
   function Build-AndroidDebug {
     Info "Building Android debug APK (Gradle)."
     Push-Location "$root/android"
@@ -106,6 +124,7 @@ try {
       "r" {
         Info "Re-installing JS dependencies with pnpm."
         pnpm install --shamefully-hoist --no-frozen-lockfile
+        Apply-ReanimatedPatch
       }
       "q" { $running = $false }
       default { Warn "Unknown option. Try again." }
