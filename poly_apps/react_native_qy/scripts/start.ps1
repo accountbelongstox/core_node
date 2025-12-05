@@ -32,12 +32,8 @@ try {
   Info "npm version:"
   npm -v
 
-  Info "Installing JS dependencies (npm ci if lockfile is present). Watch output for success."
-  if (Test-Path "$root/package-lock.json") {
-    npm ci
-  } else {
-    npm install
-  }
+  Info "Installing JS dependencies via pnpm (shamefully-hoist). Watch output for success."
+  pnpm install --shamefully-hoist --no-frozen-lockfile
 
   function Build-AndroidDebug {
     Info "Building Android debug APK (Gradle)."
@@ -82,7 +78,7 @@ try {
     Write-Host "[4] iOS debug build (macOS only)"
     Write-Host "[5] Full Android flow: Metro -> run-android"
     Write-Host "[6] Full Android flow: Metro -> Gradle build -> adb install/launch"
-    Write-Host "[r] Re-run npm install/ci"
+    Write-Host "[r] Re-run pnpm install"
     Write-Host "[q] Quit"
     Write-Host ""
   }
@@ -108,8 +104,8 @@ try {
         Install-AndroidViaAdb
       }
       "r" {
-        Info "Re-installing JS dependencies."
-        if (Test-Path "$root/package-lock.json") { npm ci } else { npm install }
+        Info "Re-installing JS dependencies with pnpm."
+        pnpm install --shamefully-hoist --no-frozen-lockfile
       }
       "q" { $running = $false }
       default { Warn "Unknown option. Try again." }
