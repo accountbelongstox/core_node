@@ -1,0 +1,86 @@
+{
+  "repo_root": "D:\\programing\\core_node",
+  "poly_root": "D:\\programing\\core_node\\poly_apps",
+  "base_port": 10000,
+  "generated_at": "2025-12-05T05:39:00",
+  "projects": [
+    {
+      "project_name": ".claude",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\.claude",
+      "project_port": 10000,
+      "project_type": "unknown"
+    },
+    {
+      "project_name": "flutter_bloom",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom",
+      "project_port": 10001,
+      "project_type": "unknown"
+    },
+    {
+      "project_name": "laravel_dashboard",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\laravel_dashboard",
+      "project_port": 10002,
+      "project_type": "vite"
+    },
+    {
+      "project_name": "laravel_main",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\laravel_main",
+      "project_port": 10003,
+      "project_type": "unknown"
+    },
+    {
+      "project_name": "matrix_bak",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\matrix_bak",
+      "project_port": 10004,
+      "project_type": "vite"
+    },
+    {
+      "project_name": "matrix_ui_react",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\matrix_ui_react",
+      "project_port": 10005,
+      "project_type": "vite"
+    },
+    {
+      "project_name": "NewQtScrcpy",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\NewQtScrcpy",
+      "project_port": 10006,
+      "project_type": "unknown"
+    },
+    {
+      "project_name": "nsrcc-tactical-ops",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\nsrcc-tactical-ops",
+      "project_port": 10007,
+      "project_type": "vite"
+    },
+    {
+      "project_name": "nuxt_main",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\nuxt_main",
+      "project_port": 10008,
+      "project_type": "nuxt"
+    },
+    {
+      "project_name": "react_native",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\react_native",
+      "project_port": 10009,
+      "project_type": "react_native"
+    },
+    {
+      "project_name": "react_native_qy",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\react_native_qy",
+      "project_port": 10010,
+      "project_type": "react_native"
+    },
+    {
+      "project_name": "SmartMatrix",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\SmartMatrix",
+      "project_port": 10011,
+      "project_type": "unknown"
+    },
+    {
+      "project_name": "xincanchuanmeikeji",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\xincanchuanmeikeji",
+      "project_port": 10012,
+      "project_type": "vite"
+    }
+  ]
+}
