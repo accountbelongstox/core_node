@@ -22,6 +22,8 @@ $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:SHELLS_DIR = Split-Path (Split-Path $script:PS_CURRENT_DIR -Parent) -Parent
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
+$script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools"
+$script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -61,7 +63,6 @@ function Write-ColorMessage {
 
 #region Main Functions
 function Show-WindowsManagementSubMenu {
-    # Display system information first
     Write-Host ""
     Write-ColorMessage -Message "================================================================================" -Type "Info"
     Write-ColorMessage -Message "Windows System Information" -Type "Info"
@@ -106,7 +107,6 @@ function Show-WindowsManagementSubMenu {
                 if (Test-Path $step7Script) {
                     Write-ColorMessage -Message "Executing Step7: Extend Windows Update Pause Days..." -Type "Info"
                     Write-Host ""
-                    # Execute script in current session to see output
                     & $step7Script
                     Write-Host ""
                     Read-Host "Press Enter to continue"
@@ -126,11 +126,36 @@ function Show-WindowsManagementSubMenu {
                 Clear-AndRedecryptSecrets
             }
         },
+        @{
+            Text = "Start Android Emulator (adb/emu)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $workerScript = Join-Path $script:TOOLS_DIR "workers\AndroidEmulatorWorker.ps1"
+                if (Test-Path $workerScript) {
+                    Write-ColorMessage -Message "Launching Android emulator worker via explorer (non-blocking)..." -Type "Info"
+                    try {
+                        $launchCommand = "explorer `"$workerScript`""
+                        Write-ColorMessage -Message "Command: $launchCommand" -Type "Info"
+                        # Call explorer directly (non-blocking)
+                        explorer "`"$workerScript`""
+                        Write-ColorMessage -Message "Worker launched. Check the new window for progress." -Type "Success"
+                    } catch {
+                        Write-ColorMessage -Message "Failed to start worker script: $($_.Exception.Message)" -Type "Error"
+                    }
+                } else {
+                    Write-ColorMessage -Message "Android worker script not found: $workerScript" -Type "Error"
+                }
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+            }
+        },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
         @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
     )
 
-    # Initialize menu items from saved GlobalVar values
     foreach ($item in $subItems) {
         if ($item.Key) {
             $savedValue = Get-GlobalVar -Key $item.Key
@@ -219,4 +244,3 @@ function Show-WindowsManagementSubMenu {
 
 # Main execution
 Show-WindowsManagementSubMenu
-
