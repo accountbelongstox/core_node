@@ -70,6 +70,8 @@ $script:ADB_SERVER_PORT = 5037
 $script:ALT_PROGRAMFILES = $null
 $script:SCAN_ROOTS = @()
 $script:ALL_DRIVE_ROOTS = @()
+$script:SDK_ROOTS = @()
+$script:AVD_DIRS = @()
 #endregion
 
 #region Helper Functions
@@ -92,22 +94,15 @@ function Describe-Environment {
     Write-InfoLine "Worker directory: $script:WORKER_DIR"
     Write-InfoLine "Tools directory: $script:TOOLS_DIR"
     Write-InfoLine "Install directory: $script:INSTALL_DIR"
-    if ($env:ProgramFiles) {
-        $script:ALT_PROGRAMFILES = ($env:ProgramFiles -replace "Program Files", "Program Files (x86)")
-    }
-    $script:ALL_DRIVE_ROOTS = @()
-    $drives = Get-PSDrive -PSProvider FileSystem
-    foreach ($d in $drives) {
-        $root = $d.Root
-        if ($root) { $script:ALL_DRIVE_ROOTS += $root }
-    }
-    $script:SCAN_ROOTS = @(
+    $script:SDK_ROOTS = @(
         $env:ANDROID_HOME,
         $env:ANDROID_SDK_ROOT,
-        $env:LOCALAPPDATA,
-        $env:ProgramFiles,
-        $script:ALT_PROGRAMFILES
-    ) + $script:ALL_DRIVE_ROOTS
+        (Join-Path $env:LOCALAPPDATA "Android\Sdk")
+    )
+    $script:AVD_DIRS = @(
+        (Join-Path $env:USERPROFILE ".android\avd")
+    )
+    $script:SCAN_ROOTS = ($script:SDK_ROOTS + $script:AVD_DIRS) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
     Write-InfoLine "PATH entries:"
     foreach ($p in $script:ENV_PATHS) {
         if ($p) { Write-Host "  $p" }
@@ -173,16 +168,31 @@ function Build-AvdListFromIni {
 }
 
 function Resolve-AndroidTools {
-    Write-InfoLine "Resolving Android tools (adb, emulator) via PATH and recursive search..."
+    Write-InfoLine "Resolving Android tools (adb, emulator) via PATH and SDK roots..."
     $cmds = Get-AndroidCommands
     if (-not $cmds.Adb) {
-        $adbFound = Recursive-FindBinary -BinaryName "adb.exe"
+        $adbFound = @()
+        foreach ($root in $script:SCAN_ROOTS) {
+            if (-not $root) { continue }
+            if (-not (Test-Path $root)) { continue }
+            Write-InfoLine "Scanning $root for adb.exe ..."
+            $hit = Get-ChildItem -Path $root -Filter "adb.exe" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hit) { $adbFound += $hit.FullName }
+        }
         if ($adbFound.Count -gt 0) { $script:FOUND_ADB = $adbFound[0] }
     }
     if (-not $cmds.Emulator -and -not $cmds.Emu) {
-        $emuFound = Recursive-FindBinary -BinaryName "emulator.exe"
-        if ($emuFound.Count -eq 0) {
-            $emuFound = Recursive-FindBinary -BinaryName "emu.exe"
+        $emuFound = @()
+        foreach ($root in $script:SCAN_ROOTS) {
+            if (-not $root) { continue }
+            if (-not (Test-Path $root)) { continue }
+            Write-InfoLine "Scanning $root for emulator.exe ..."
+            $hit = Get-ChildItem -Path $root -Filter "emulator.exe" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hit) { $emuFound += $hit.FullName }
+            if (-not $hit) {
+                $hitAlt = Get-ChildItem -Path $root -Filter "emu.exe" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($hitAlt) { $emuFound += $hitAlt.FullName }
+            }
         }
         if ($emuFound.Count -gt 0) { $script:FOUND_EMULATOR = $emuFound[0] }
     }
@@ -460,6 +470,11 @@ if (-not $script:FOUND_EMULATOR) {
 
 if (-not $script:HALT_EXECUTION) {
     Start-AdbServer -AdbPath $script:FOUND_ADB
+    if (-not $script:ADB_SERVER_STARTED) {
+        Write-WarnLine "adb server not confirmed listening; invoking platform-tools installer..."
+        Run-Installer -InstallerPath $script:PLATFORM_INSTALLER -Label "Android Platform Tools"
+        Start-AdbServer -AdbPath $script:FOUND_ADB
+    }
 }
 
 $emulatorPath = $script:FOUND_EMULATOR
