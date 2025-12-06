@@ -320,6 +320,55 @@ class UserSyncService
         return $results;
     }
 
+    public static function ensureMultiLangDictionaryTablesExist(): array
+    {
+        $results = [];
+        $connection = 'appqyv1';
+        $schema = DB::connection($connection)->getSchemaBuilder();
+
+        $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
+
+        foreach ($supportedLanguages as $langCode) {
+            $tableName = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
+
+            if (!$schema->hasTable($tableName)) {
+                $schema->create($tableName, function ($table) {
+                    $table->increments('id');
+                    $table->text('content');
+                    $table->string('md5', 32)->unique();
+                    $table->text('translations')->nullable();
+                    $table->boolean('has_translation')->default(false);
+                    $table->string('translation_provider', 50)->nullable();
+                    $table->text('phonetic')->nullable();
+                    $table->text('us_phonetic')->nullable();
+                    $table->text('uk_phonetic')->nullable();
+                    $table->text('tts_files')->nullable();
+                    $table->string('tts_provider', 50)->nullable();
+                    $table->text('image_files')->nullable();
+                    $table->string('image_provider', 50)->nullable();
+                    $table->text('word_details')->nullable();
+                    $table->boolean('is_exist_local')->default(false);
+                    $table->boolean('has_operations')->default(false);
+                    $table->integer('query_count')->default(0);
+                    $table->timestamp('last_modified')->nullable();
+                    $table->timestamp('last_query_time')->nullable();
+                    $table->timestamps();
+
+                    $table->index('md5');
+                    $table->index('content');
+                    $table->index(['query_count'], null, 'desc');
+                    $table->index('has_translation');
+                });
+
+                $results[$tableName] = 'created';
+            } else {
+                $results[$tableName] = 'exists';
+            }
+        }
+
+        return $results;
+    }
+
     public static function ensureMultilingualWordTablesExist(): array
     {
         $results = [];
