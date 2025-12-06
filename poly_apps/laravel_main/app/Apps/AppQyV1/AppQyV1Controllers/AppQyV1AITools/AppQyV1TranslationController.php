@@ -243,7 +243,7 @@ class AppQyV1TranslationController extends Controller
                     ];
 
                     if ($generateAudio && isset($translation['translation'])) {
-                        $ttsService = new \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService();
+                        $ttsService = new \App\Services\EdgeTTS\EdgeTTSService();
                         $audioResult = $ttsService->generateAudio($translation['translation'], $targetLang, 'sentence');
 
                         if ($audioResult['success']) {
