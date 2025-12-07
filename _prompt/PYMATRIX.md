@@ -12,3 +12,6 @@ pycore\pyutils 查看这其中有没有专门的前端启动库。现在前端�
 
 
 pycore/pyutils/native_ui 扩展该库，当使用本地UI启动debug模式是，阻塞直到ui启动成功，自动安装pnpm 自动调用启动命令，使用单独线程启动。development-guides\PYTHON_PYCORE.md 按该规范，现在将   pycore/pyutils/frontend_launcher/ 作为 native_ui 的一个子类。
+
+查看是否符合逻辑，设置为前端debug模式，直接启动热重载的调试，同时目前的 \dist 也没有实现
+  预编译。注意该扩展那里扩展那里，要全局考量不要只改一个地方。
