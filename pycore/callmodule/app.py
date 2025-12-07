@@ -114,10 +114,9 @@ def create_app() -> FastAPI:
         print("Pycore Module Caller FastAPI Server Started")
         print("=" * 60)
         print(f"Dashboard:     http://{config.host}:{config.http_port}/docs")
-        print(f"Health check:  http://{config.host}:{config.http_port}/health")
+        print(f"Status API:    GET  http://{config.host}:{config.http_port}/api/manage/status")
         print(f"API endpoint:  POST http://{config.host}:{config.http_port}/api/call")
         print(f"MCP Backend:   POST http://{config.host}:{config.http_port}/mcp/*")
-        print(f"Singleton Ctl: POST http://{config.host}:{config.http_port}/singleton/*")
         print("=" * 60)
 
     @app.on_event("shutdown")
