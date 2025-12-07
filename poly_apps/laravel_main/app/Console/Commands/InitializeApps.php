@@ -308,6 +308,46 @@ class InitializeApps extends Command
         
         $this->newLine();
 
+        $this->info('Initializing Global Task System...');
+        $globalTaskResults = \App\Services\GlobalTaskSystemInitializer::ensureTablesExist();
+
+        foreach ($globalTaskResults as $table => $status) {
+            if (str_starts_with($status, 'error:')) {
+                $this->line("  ❌ {$table}: {$status}");
+            } elseif ($status === 'created') {
+                $this->line("  ✅ {$table}: table created");
+            } elseif ($status === 'updated') {
+                $this->line("  ✅ {$table}: fields added");
+            } elseif ($status === 'exists') {
+                $this->line("  ✓ {$table}: already configured");
+            } elseif ($status === 'table_missing') {
+                $this->line("  ⚠️  {$table}: base table not found");
+            } else {
+                $this->line("  • {$table}: {$status}");
+            }
+        }
+
+        // Show statistics
+        $taskStats = \App\Services\GlobalTaskSystemInitializer::getTableStats();
+        if (!empty($taskStats) && !isset($taskStats['error'])) {
+            $this->newLine();
+            $this->line('  Global Task System Statistics:');
+
+            if (isset($taskStats['global_tasks'])) {
+                $stats = $taskStats['global_tasks'];
+                $this->line("    Tasks: {$stats['total']} total ({$stats['pending']} pending, {$stats['processing']} processing, {$stats['completed']} completed, {$stats['failed']} failed)");
+            }
+
+            if (isset($taskStats['workers'])) {
+                $stats = $taskStats['workers'];
+                $this->line("    Workers: {$stats['total']} total ({$stats['online']} online, {$stats['busy']} busy, {$stats['offline']} offline)");
+            }
+        } elseif (isset($taskStats['error'])) {
+            $this->line("  ⚠️  Could not fetch statistics: {$taskStats['error']}");
+        }
+
+        $this->newLine();
+
         $this->info('Verifying AI providers...');
         $aiRouter = new UnifiedAIRouter();
         $providersStatus = $aiRouter->getProvidersStatus();
