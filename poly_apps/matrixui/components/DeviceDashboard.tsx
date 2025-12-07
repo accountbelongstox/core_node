@@ -43,8 +43,12 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initial fetch
-    wsService.send('device', 'list');
+    // Wait for connection before sending initial fetch
+    const initialize = async () => {
+      await wsService.connect();
+      wsService.send('device', 'list');
+    };
+    initialize();
 
     // Listener
     const removeListener = wsService.addListener((res) => {
@@ -78,8 +82,8 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
     return mappedDevices;
   }, [mappedDevices, filterStatus]);
 
-  const handleEnroll = () => {
-    wsService.send('device', 'list');
+  const handleEnroll = async () => {
+    await wsService.send('device', 'list');
   };
 
   // --- Box Selection Logic ---
