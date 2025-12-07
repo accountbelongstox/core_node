@@ -1,0 +1,123 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Worker;
+use Illuminate\Support\Facades\Log;
+
+class WorkerManagerService
+{
+    /**
+     * Register a new worker or update existing one
+     *
+     * @param string $workerId Worker ID
+     * @param string $workerName Worker name
+     * @param array $processorTypes Array of execution types this worker can handle
+     * @param string|null $hostname Hostname
+     * @param string|null $platform Platform
+     * @param array $metadata Additional metadata
+     * @return Worker
+     */
+    public function register(
+        string $workerId,
+        string $workerName,
+        array $processorTypes,
+        ?string $hostname = null,
+        ?string $platform = null,
+        array $metadata = []
+    ): Worker {
+        $worker = Worker::updateOrCreate(
+            ['worker_id' => $workerId],
+            [
+                'worker_name' => $workerName,
+                'processor_types' => $processorTypes,
+                'hostname' => $hostname,
+                'platform' => $platform,
+                'metadata' => $metadata,
+                'status' => Worker::STATUS_ONLINE,
+                'last_heartbeat_at' => now(),
+            ]
+        );
+
+        Log::info('Worker registered', [
+            'worker_id' => $workerId,
+            'worker_name' => $workerName,
+            'processor_types' => $processorTypes,
+        ]);
+
+        return $worker;
+    }
+
+    /**
+     * Send heartbeat from worker
+     *
+     * @param string $workerId Worker ID
+     * @return bool Success
+     */
+    public function heartbeat(string $workerId): bool
+    {
+        $worker = Worker::where('worker_id', $workerId)->first();
+
+        if (!$worker) {
+            Log::warning('Heartbeat from unregistered worker', ['worker_id' => $workerId]);
+            return false;
+        }
+
+        $worker->heartbeat();
+
+        Log::debug('Worker heartbeat', [
+            'worker_id' => $workerId,
+            'status' => $worker->status,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Unregister a worker
+     *
+     * @param string $workerId Worker ID
+     * @return bool Success
+     */
+    public function unregister(string $workerId): bool
+    {
+        $worker = Worker::where('worker_id', $workerId)->first();
+
+        if (!$worker) {
+            return false;
+        }
+
+        $worker->markOffline();
+
+        Log::info('Worker unregistered', ['worker_id' => $workerId]);
+
+        return true;
+    }
+
+    /**
+     * Get all workers
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getAllWorkers()
+    {
+        return Worker::orderBy('status')->orderBy('worker_name')->get();
+    }
+
+    /**
+     * Get worker statistics
+     *
+     * @return array Statistics
+     */
+    public function getWorkerStats(): array
+    {
+        return [
+            'total' => Worker::count(),
+            'online' => Worker::where('status', Worker::STATUS_ONLINE)->count(),
+            'busy' => Worker::where('status', Worker::STATUS_BUSY)->count(),
+            'offline' => Worker::where('status', Worker::STATUS_OFFLINE)->count(),
+            'total_completed' => Worker::sum('completed_tasks'),
+            'total_failed' => Worker::sum('failed_tasks'),
+        ];
+    }
+}
