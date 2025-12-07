@@ -61,7 +61,10 @@ class FrontendConfig:
 
     # Build settings
     auto_install: bool = True
-    """Auto-install dependencies with pnpm"""
+    """Auto-install dependencies"""
+
+    package_manager: Literal["pnpm", "npm", "yarn"] = "pnpm"
+    """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
 
     skip_build: bool = False
     """Skip build in production mode"""
@@ -80,7 +83,7 @@ class FrontendConfig:
     """Override build command (e.g., ['npm', 'run', 'build'])"""
 
     install_command: Optional[List[str]] = None
-    """Override install command (default: ['pnpm', 'install'])"""
+    """Override install command (auto-generated from package_manager if None)"""
 
     # Output directories
     static_dir: Optional[Path] = None
@@ -94,7 +97,7 @@ class FrontendConfig:
     """HTTP path for health check"""
 
     health_check_timeout: int = 120
-    """Seconds to wait for frontend to be ready"""
+    """Deprecated - no longer used. Frontend now waits indefinitely for readiness."""
 
     # Debug settings
     show_output: bool = True
@@ -102,6 +105,10 @@ class FrontendConfig:
 
     block_until_ready: bool = False
     """Block until frontend is ready (useful for debug mode)"""
+
+    # Environment variables
+    env_vars: Optional[dict] = None
+    """Custom environment variables to pass to frontend process"""
 
     def __post_init__(self):
         """Validate and normalize configuration"""
