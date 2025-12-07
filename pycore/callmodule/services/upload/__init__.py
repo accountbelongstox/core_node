@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 """
 Upload Service - 上传任务管理服务
 
@@ -365,3 +366,11 @@ class UploadService:
                 "active_tasks": len(self.tasks)
             }
         }
+=======
+"""Upload Service"""
+class UploadService:
+    def get_tasks(self):
+        return {"success": True, "total": 0, "tasks": []}
+    def get_servers(self):
+        return {"success": True, "servers": []}
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 """Client Router - Remote server forwarding and management"""
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 fastapi = get_third_package_fastapi()
@@ -9,11 +10,21 @@ controller = ClientController()
 
 # ============= Request Forwarding =============
 
+=======
+"""Client Router"""
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+fastapi = get_third_package_fastapi()
+from ...controllers.client import ClientController
+router = fastapi.APIRouter(prefix="/api/client", tags=["Remote Client"])
+controller = ClientController()
+
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 @router.post("/forward")
 async def forward_request(endpoint: str, method: str = "POST", data: dict = None):
     """Forward request to remote server"""
     return controller.forward(endpoint, method, data)
 
+<<<<<<< HEAD
 @router.post("/encode-request")
 async def encode_request(data: dict):
     """Encode request data for URL transmission"""
@@ -52,3 +63,9 @@ async def update_server(name: str, updates: dict):
 async def delete_server(name: str):
     """Delete server configuration"""
     return controller.delete_server(name)
+=======
+@router.get("/connection-status")
+async def get_connection_status():
+    """Get connection status to remote server"""
+    return controller.get_connection_status()
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
