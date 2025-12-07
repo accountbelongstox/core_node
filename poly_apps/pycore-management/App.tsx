@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
+<<<<<<< HEAD
 import { DataProvider } from './contexts/DataContext';
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import SystemManagement from './pages/SystemManagement';
@@ -26,6 +29,7 @@ const AppContent: React.FC = () => {
       case 'system_config':
         return <SystemManagement defaultTab={currentView === 'system_config' ? 'config' : 'status'} />;
       case 'local_capabilities':
+<<<<<<< HEAD
         return <LocalProcessing defaultTab="status" />;
       case 'local_config':
         return <LocalProcessing defaultTab="config" />;
@@ -33,6 +37,10 @@ const AppContent: React.FC = () => {
         return <LocalProcessing defaultTab="stats" />;
       case 'local_test':
         return <LocalProcessing defaultTab="test" />;
+=======
+      case 'local_config':
+        return <LocalProcessing defaultTab={currentView === 'local_config' ? 'config' : 'status'} />;
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
       case 'upload_tasks':
         return <UploadTasks />;
       case 'remote_servers':
@@ -65,8 +73,11 @@ const AppContent: React.FC = () => {
       case 'system_config': return t('nav.system.config');
       case 'local_capabilities': return t('nav.local.cap');
       case 'local_config': return t('nav.local.conf');
+<<<<<<< HEAD
       case 'local_stats': return t('nav.local.stats');
       case 'local_test': return t('nav.local.test');
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
       case 'upload_tasks': return t('nav.uploads');
       case 'remote_servers': return t('nav.remote');
       case 'statistics': return t('nav.statistics');
@@ -122,9 +133,13 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AppProvider>
+<<<<<<< HEAD
       <DataProvider autoRefreshInterval={30000}>
         <AppContent />
       </DataProvider>
+=======
+      <AppContent />
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     </AppProvider>
   );
 };

@@ -97,9 +97,12 @@ def launch_app_with_startup(
 
     # ========== Step 2.5: Register THREAD_BUS event handler for frontend.ready ==========
     # Auto-close debug window when frontend is ready (both dev and production modes)
+<<<<<<< HEAD
     # Use closure variable to prevent duplicate execution
     _frontend_ready_executed = [False]
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     def handle_frontend_ready(event_data):
         """
         Handle frontend.ready event - auto-close debug window
@@ -108,12 +111,15 @@ def launch_app_with_startup(
         - Dev mode: HTTP health check passes (frontend_thread.py)
         - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
         """
+<<<<<<< HEAD
         # Prevent duplicate execution
         if _frontend_ready_executed[0]:
             ColorPrint.gray("[DebugLog] Frontend ready handler already executed, skipping")
             return
 
         _frontend_ready_executed[0] = True
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
         startup_thread.log("Frontend ready, closing debug window...", "success")
         startup_thread.set_status("Frontend ready, closing...")

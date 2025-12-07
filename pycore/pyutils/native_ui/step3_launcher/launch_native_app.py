@@ -23,9 +23,18 @@ from pycore.pyutils.native_ui.step9_frontend import (
     FrontendConfig,
     start_frontend_if_needed
 )
+<<<<<<< HEAD
 
 if TYPE_CHECKING:
     from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
+=======
+<<<<<<< HEAD
+=======
+
+if TYPE_CHECKING:
+    from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -117,6 +126,11 @@ def launch_native_app(config: NativeUIConfig) -> None:
             final_url = f"http://localhost:{config.frontend_port}"
             ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     # ========== Phase 4.7: Start RPC v2 (if enabled) ==========
     rpc_service = None
     if config.rpc_enabled:
@@ -134,9 +148,12 @@ def launch_native_app(config: NativeUIConfig) -> None:
                     ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
 
     # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
+<<<<<<< HEAD
     # Use closure variable to prevent duplicate execution
     _cleanup_executed = [False]  # Use list to allow modification in closure
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     def handle_app_close(event_data):
         """
         Handle app.close event - stop all services in proper order
@@ -146,12 +163,15 @@ def launch_native_app(config: NativeUIConfig) -> None:
         - Tray exit action
         - Ctrl+C / KeyboardInterrupt
         """
+<<<<<<< HEAD
         # Prevent duplicate execution (app.close may be triggered multiple times)
         if _cleanup_executed[0]:
             ColorPrint.gray("[NativeLauncher] Cleanup already executed, skipping duplicate app.close")
             return
 
         _cleanup_executed[0] = True
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
 
         # Stop frontend thread first (may have running dev server)
@@ -170,6 +190,10 @@ def launch_native_app(config: NativeUIConfig) -> None:
     THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
     ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
 
+<<<<<<< HEAD
+=======
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
 
@@ -209,6 +233,17 @@ def launch_native_app(config: NativeUIConfig) -> None:
             ColorPrint.cyan(f"  Backend:   {rpc_url}/rpc/<route>  ({len(config.rpc_routers)} routes)")
         ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))
         ColorPrint.print_success("=" * 70 + "\n")
+<<<<<<< HEAD
+=======
+
+    # ========== Phase 6: Launch with or without startup window ==========
+    # Create wrapped main_entry that integrates PySide6 UI
+    def _wrapped_main_entry():
+        """Wrapped main entry that creates PySide6 UI with callbacks"""
+        # Call user's main_entry first (for service setup, etc.)
+        if config.main_entry:
+            config.main_entry()
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     # ========== Phase 6: Launch Main Application ==========
     # Call user's main_entry first (for service setup, etc.)
@@ -290,6 +325,96 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
 
     if frontend_thread and config.debug:
         ColorPrint.print_info(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+
+    return frontend_thread
+
+
+def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread']:
+    """
+    Start frontend service if enabled
+
+    Args:
+        config: Native UI configuration
+
+    Returns:
+        FrontendLauncherThread instance or None if failed
+    """
+    if not config.frontend_enabled:
+        return None
+
+    # Validate frontend configuration
+    if not config.frontend_framework:
+<<<<<<< HEAD
+        ColorPrint.red("[Frontend] frontend_framework is required when frontend_enabled=True")
+        return None
+
+    if not config.frontend_app_dir:
+        ColorPrint.red("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+=======
+        ColorPrint.print_error("[Frontend] frontend_framework is required when frontend_enabled=True")
+        return None
+
+    if not config.frontend_app_dir:
+        ColorPrint.print_error("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+        return None
+
+    # Resolve frontend_app_dir relative to project_root if needed
+    frontend_app_dir = Path(config.frontend_app_dir)
+    if not frontend_app_dir.is_absolute() and config.project_root:
+        frontend_app_dir = Path(config.project_root) / frontend_app_dir
+
+<<<<<<< HEAD
+=======
+    # Build environment variables for frontend (pass backend URL)
+    frontend_env_vars = {}
+    if config.rpc_enabled:
+        backend_url = f"http://localhost:{config.rpc_port}"
+        # Vite environment variables (VITE_ prefix)
+        frontend_env_vars["VITE_API_URL"] = backend_url
+        frontend_env_vars["VITE_API_PORT"] = str(config.rpc_port)
+        frontend_env_vars["VITE_API_HOST"] = config.rpc_host
+        # React/CRA environment variables (REACT_APP_ prefix)
+        frontend_env_vars["REACT_APP_API_URL"] = backend_url
+        frontend_env_vars["REACT_APP_API_PORT"] = str(config.rpc_port)
+        # Next.js environment variables (NEXT_PUBLIC_ prefix)
+        frontend_env_vars["NEXT_PUBLIC_API_URL"] = backend_url
+        frontend_env_vars["NEXT_PUBLIC_API_PORT"] = str(config.rpc_port)
+
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+    # Create frontend configuration
+    frontend_config = FrontendConfig(
+        enabled=True,
+        framework=config.frontend_framework,
+        app_dir=frontend_app_dir,
+        mode=config.frontend_mode,
+        port=config.frontend_port,
+        auto_install=config.frontend_auto_install,
+<<<<<<< HEAD
+        skip_build=config.frontend_skip_build,
+        block_until_ready=config.frontend_block_until_ready,
+        show_output=config.debug
+=======
+        package_manager=config.frontend_package_manager,
+        skip_build=config.frontend_skip_build,
+        block_until_ready=config.frontend_block_until_ready,
+        show_output=config.debug,
+        env_vars=frontend_env_vars if frontend_env_vars else None
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+    )
+
+    # Start frontend
+    frontend_thread = start_frontend_if_needed(
+        config=frontend_config,
+        block=config.frontend_block_until_ready
+    )
+
+    if frontend_thread and config.debug:
+<<<<<<< HEAD
+        ColorPrint.green(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+=======
+        ColorPrint.print_info(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
     return frontend_thread
 
@@ -482,7 +607,11 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
+<<<<<<< HEAD
         app_id=config.app_id,
+=======
+        app_id=config.app_id,  # ← 添加 app_id
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,

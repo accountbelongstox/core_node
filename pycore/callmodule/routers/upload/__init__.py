@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 """Upload Router - Complete upload management endpoints"""
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 fastapi = get_third_package_fastapi()
@@ -13,11 +14,25 @@ controller = UploadController()
 async def get_upload_tasks(status: str = None, limit: int = 50):
     """Get upload tasks list with optional status filter"""
     return controller.get_tasks(status=status, limit=limit)
+=======
+"""Upload Router"""
+from pycore.pyfoundations.third_party import get_third_package_fastapi
+fastapi = get_third_package_fastapi()
+from ...controllers.upload import UploadController
+router = fastapi.APIRouter(prefix="/api/upload", tags=["Upload Management"])
+controller = UploadController()
+
+@router.get("/tasks")
+async def get_upload_tasks():
+    """Get current upload tasks"""
+    return controller.get_tasks()
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
 @router.get("/servers")
 async def get_servers():
     """Get configured upload servers"""
     return controller.get_servers()
+<<<<<<< HEAD
 
 # ============= Progress & Control =============
 
@@ -64,3 +79,5 @@ async def delete_server(name: str):
 async def test_server(name: str):
     """Test server connection"""
     return controller.test_server(name)
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
