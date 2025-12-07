@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 // System Types
 export type ServiceStatus = 'running' | 'stopped' | 'error' | 'starting';
 export type TaskStatus = 'pending' | 'uploading' | 'completed' | 'failed';
@@ -108,6 +111,7 @@ export interface LocalProcessingConfig {
   };
 }
 
+<<<<<<< HEAD
 export interface LocalProcessingStats {
   period: string;
   summary: {
@@ -222,6 +226,8 @@ export interface FileAnalyzeResponse {
   execution_time: number;
 }
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 // Upload Types
 export interface UploadTask {
   upload_id: string;
@@ -303,11 +309,18 @@ export type ViewState =
   | 'system_config'
   | 'local_capabilities'
   | 'local_config'
+<<<<<<< HEAD
   | 'local_stats'
   | 'local_test'
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   | 'upload_tasks'
   | 'remote_servers'
   | 'logs'
   | 'tools'
   | 'statistics'
+<<<<<<< HEAD
   | 'settings';
+=======
+  | 'settings';
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
