@@ -363,7 +363,8 @@ class FrontendLauncherThread(threading.Thread):
             return ["npm", "run", "start"]  # CRA doesn't support --host/--port via CLI
 
         if self.config.framework == "vite":
-            return ["npx", "vite", "dev", "--host", self.config.host, "--port", str(self.config.port)]
+            # Use npm run dev for better compatibility (works with local vite)
+            return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
 
         # Fallback - try npm run dev
         return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
