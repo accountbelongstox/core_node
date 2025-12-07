@@ -346,3 +346,7 @@ apps/**/pnpm-lock.yaml
 [cC][oO][mM]2
 # pyMatrix runtime configuration storage
 poly_apps/pyMatrix/storage/
+
+# Java heap dumps
+*.hprof
+java_pid*.hprof
