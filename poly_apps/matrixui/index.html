@@ -4,122 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>星灿传媒 云矩阵</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" crossorigin>
-    <style>
-      :root {
-        /* Palette */
-        --bg-void: #030305;
-        --bg-panel: rgba(10, 12, 16, 0.85);
-        --cyan: #00f2ff;
-        --cyan-dim: rgba(0, 242, 255, 0.15);
-        --purple: #bd00ff;
-        --purple-dim: rgba(189, 0, 255, 0.15);
-        --alert: #ff2a6d;
-        --success: #05ffa1;
-        --text-main: #ffffff;
-        --text-muted: rgba(255, 255, 255, 0.55);
-
-        /* Glass */
-        --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-        --backdrop: blur(20px);
-      }
-
-      body {
-        background-color: var(--bg-void);
-        /* 字体fallback，防止FOIT（文字不可见闪烁） */
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        color: var(--text-main);
-        overflow: hidden;
-      }
-
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar { width: 4px; height: 4px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
-
-      /* Utility Classes */
-      /* 字体fallback，防止FOIT */
-      .font-mono { 
-        font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace; 
-      }
-      
-      .glass-panel {
-        background: var(--bg-panel);
-        backdrop-filter: var(--backdrop);
-        -webkit-backdrop-filter: var(--backdrop);
-        border: var(--glass-border);
-      }
-
-      /* Animations */
-      @keyframes float {
-        0% { transform: translate(0, 0) scale(1); }
-        100% { transform: translate(30px, -30px) scale(1.1); }
-      }
-      
-      @keyframes move-background {
-        0% { background-position: 0 0; }
-        100% { background-position: 100px 100px; }
-      }
-
-      @keyframes scan {
-        0% { top: -10%; opacity: 0; }
-        50% { opacity: 1; }
-        100% { top: 110%; opacity: 0; }
-      }
-      
-      @keyframes gradient-flow {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-      }
-
-      .blob {
-        position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.3;
-        animation: float 25s infinite ease-in-out alternate;
-        z-index: 0;
-      }
-      .blob-1 { width: 60vw; height: 60vw; background: var(--cyan); top: -20%; left: -10%; }
-      .blob-2 { width: 50vw; height: 50vw; background: var(--purple); bottom: -10%; right: -10%; animation-delay: -5s; }
-
-      .scanlines {
-        background: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
-        background-size: 100% 4px;
-        pointer-events: none;
-        animation: move-background 60s linear infinite;
-      }
-      
-      .noise-bg {
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
-        opacity: 0.04;
-      }
-      
-      .dynamic-bg {
-        background: linear-gradient(-45deg, #030305, #0f1219, #14081f, #051419);
-        background-size: 400% 400%;
-        animation: gradient-flow 15s ease infinite;
-      }
-
-      /* Form Elements for Settings */
-      .form-radio:checked {
-        background-color: var(--cyan);
-        border-color: var(--cyan);
-      }
-      .form-checkbox:checked {
-        background-color: var(--cyan);
-        border-color: var(--cyan);
-      }
-    </style>
     <!-- 主题检测脚本 - 防止闪屏 -->
     <script>
       (function() {
         // 立即设置背景色，防止白色闪屏
-        document.documentElement.style.backgroundColor = '#030305';
-        document.body.style.backgroundColor = '#030305';
-        // 设置主题属性（如果需要）
-        document.documentElement.setAttribute('data-theme', 'dark');
+        if (document.documentElement) {
+          document.documentElement.style.backgroundColor = '#030305';
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        // 等待 body 元素加载
+        if (document.body) {
+          document.body.style.backgroundColor = '#030305';
+        } else {
+          document.addEventListener('DOMContentLoaded', function() {
+            if (document.body) {
+              document.body.style.backgroundColor = '#030305';
+            }
+          });
+        }
       })();
     </script>
     <!-- 资源预加载 -->
@@ -128,7 +32,6 @@
     <!-- 预加载入口脚本 -->
     <link rel="modulepreload" href="/index.tsx">
     <!-- DNS预解析，加速外部资源加载 -->
-    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     <link rel="dns-prefetch" href="https://unpkg.com">
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
     <link rel="dns-prefetch" href="https://aistudiocdn.com">
