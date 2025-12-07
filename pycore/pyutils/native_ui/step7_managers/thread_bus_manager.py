@@ -101,6 +101,7 @@ class BusSignals:
     TRAY_STARTED = "ui.tray.started"
     TRAY_STOPPED = "ui.tray.stopped"
     TRAY_SHOW = "ui.tray.show"
+    TRAY_RESTART = "ui.tray.restart"
     TRAY_EXIT = "ui.tray.exit"
     TRAY_MENU_CLICKED = "ui.tray.menu_clicked"
 

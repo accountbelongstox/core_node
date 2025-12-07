@@ -114,7 +114,7 @@ def start():
         logo_path=str(logo_path) if logo_path.exists() else None,
 
         # ========== Tray Configuration ==========
-        enable_tray=False,  # Matrix uses separate tray service
+        enable_tray=True,  # Enable debug window tray (persists after window closes)
 
         # ========== Debug Window Configuration ==========
         show_debug_window=True,
