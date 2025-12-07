@@ -9,27 +9,33 @@ Refactored to follow project multi-threading standards:
 - No parameter passing between threads
 - Main thread stays alive and manages child threads
 
-New Architecture (2025-12-07):
-- Debug window starts BEFORE all services (in launch_native_app.py Phase 0)
-- This ensures all logs are captured and frontend.ready event is received
-- Provides _start_debug_window() and _cleanup_debug_window() helpers
+Workflow:
+1. Main thread starts TkinterStartupThread
+2. Main thread registers ColorPrint callback immediately
+3. Main thread waits for 'TkinterStartup_ready' signal via THREAD_BUS
+4. Main thread performs initialization (dependencies, etc.)
+5. Main thread ensures minimum display time
+6. Main thread requests startup window to close
+7. Main thread waits for 'TkinterStartup_closed' signal
+8. Main thread calls main_entry() to start PySide6 application
 
 Usage:
-    from pycore.pyutils.native_ui.launcher_with_startup import _start_debug_window, _cleanup_debug_window
+    from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup
 
-    # Phase 0: Start debug window
-    context = _start_debug_window(app_name="My App", ...)
+    def main_app_entry():
+        # Your PySide6 application code
+        pass
 
-    # ... other services ...
-
-    # Phase N: Cleanup
-    _cleanup_debug_window(context)
+    launch_app_with_startup(
+        app_name="My Application",
+        main_entry=main_app_entry
+    )
 """
 
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Optional, Any, Dict
+from typing import Callable, Optional, Any
 
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
@@ -97,12 +103,6 @@ def launch_app_with_startup(
 
     # ========== Step 2.5: Register THREAD_BUS event handler for frontend.ready ==========
     # Auto-close debug window when frontend is ready (both dev and production modes)
-<<<<<<< HEAD
-    # Use closure variable to prevent duplicate execution
-    _frontend_ready_executed = [False]
-
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     def handle_frontend_ready(event_data):
         """
         Handle frontend.ready event - auto-close debug window
@@ -111,15 +111,6 @@ def launch_app_with_startup(
         - Dev mode: HTTP health check passes (frontend_thread.py)
         - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
         """
-<<<<<<< HEAD
-        # Prevent duplicate execution
-        if _frontend_ready_executed[0]:
-            ColorPrint.gray("[DebugLog] Frontend ready handler already executed, skipping")
-            return
-
-        _frontend_ready_executed[0] = True
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
         startup_thread.log("Frontend ready, closing debug window...", "success")
         startup_thread.set_status("Frontend ready, closing...")
@@ -196,124 +187,6 @@ def launch_app_with_startup(
         ColorPrint.print_info("=" * 70)
         ColorPrint.print_info(f" {app_name.upper()} - SHUTDOWN COMPLETE")
         ColorPrint.print_info("=" * 70)
-
-
-def _start_debug_window(
-    app_name: str,
-    startup_width: int = 600,
-    startup_height: int = 500,
-    icon_path: Optional[str] = None,
-    logo_path: Optional[str] = None,
-    enable_language_selector: bool = True,
-    enable_tray: bool = False
-) -> Dict[str, Any]:
-    """
-    Start debug window (Phase 0 helper for launch_native_app)
-
-    Returns context dict with:
-    - startup_thread: TkinterStartupThread instance
-    - frontend_ready_executed: Flag for preventing duplicate execution
-
-    This function should be called BEFORE any services start to ensure:
-    1. All ColorPrint output is captured
-    2. frontend.ready event handler is registered before event is triggered
-    """
-    ColorPrint.print_info("=" * 70)
-    ColorPrint.print_info(f" {app_name.upper()} - INITIALIZATION")
-    ColorPrint.print_info("=" * 70)
-    ColorPrint.print_info("")
-
-    # ========== Step 1: Start TkinterStartupThread ==========
-    ColorPrint.print_info("Starting debug window thread...")
-
-    debug_log_title = f"{app_name} - Debug Log"
-
-    startup_thread = TkinterStartupThread(
-        app_name=debug_log_title,
-        width=startup_width,
-        height=startup_height,
-        icon_path=icon_path,
-        logo_path=logo_path,
-        enable_language_selector=enable_language_selector,
-        enable_tray=enable_tray
-    )
-    startup_thread.start()
-
-    # ========== Step 2: Register ColorPrint callback IMMEDIATELY ==========
-    ColorPrint.register_callback(startup_thread._colorprint_callback)
-
-    # ========== Step 2.5: Register THREAD_BUS event handler for frontend.ready ==========
-    _frontend_ready_executed = [False]
-
-    def handle_frontend_ready(event_data):
-        """
-        Handle frontend.ready event - auto-close debug window
-
-        Triggered by:
-        - Dev mode: HTTP health check passes (frontend_thread.py)
-        - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
-        """
-        if _frontend_ready_executed[0]:
-            ColorPrint.gray("[DebugLog] Frontend ready handler already executed, skipping")
-            return
-
-        _frontend_ready_executed[0] = True
-        ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
-        startup_thread.log("Frontend ready, closing debug window...", "success")
-        startup_thread.set_status("Frontend ready, closing...")
-        time.sleep(1.0)  # Brief delay to show message
-
-        # Unregister ColorPrint callback
-        ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-
-        # Close debug window
-        startup_thread.request_close()
-
-    THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready, priority=100)
-
-    # ========== Step 3: Wait for startup window ready ==========
-    ColorPrint.yellow("Waiting for debug window to be ready...")
-
-    if not THREAD_BUS.wait_signal('TkinterStartup_ready', timeout=5.0):
-        ColorPrint.print_error("ERROR: Debug window failed to start!")
-        ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-        return None
-
-    ColorPrint.print_success("✓ Debug window is ready")
-    startup_thread.log(f"Starting {app_name}...", "info")
-    startup_thread.set_status("Initializing...")
-
-    # Return context for cleanup
-    return {
-        'startup_thread': startup_thread,
-        'frontend_ready_executed': _frontend_ready_executed
-    }
-
-
-def _cleanup_debug_window(context: Optional[Dict[str, Any]]):
-    """
-    Cleanup debug window (Phase 7 helper for launch_native_app)
-
-    Called after main application exits to ensure proper cleanup.
-    """
-    if not context:
-        return
-
-    startup_thread = context.get('startup_thread')
-    if not startup_thread:
-        return
-
-    ColorPrint.print_info("\nCleaning up debug window...")
-
-    # Unregister ColorPrint callback
-    ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-
-    # Request close
-    startup_thread.request_close()
-
-    # Wait for startup thread to fully stop
-    if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):
-        ColorPrint.print_info("✓ Debug window closed")
 
 
 # Test

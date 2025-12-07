@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-<<<<<<< HEAD
         proxy: {
           '/api': {
             target: env.VITE_API_BASE_URL || 'http://localhost:59000',
@@ -17,8 +16,6 @@ export default defineConfig(({ mode }) => {
             rewrite: (path) => path,
           },
         },
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
       },
       plugins: [react()],
       define: {
