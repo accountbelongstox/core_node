@@ -32,10 +32,6 @@ FILES_TO_REMOVE=(
     "poly_apps/SmartMatrix/QtSmartMatrix/SmartMatrixCore/src/third_party/adb/mac/adb"
     "poly_apps/NewQtScrcpy/screenshot/mac-zh.png"
     "poly_apps/NewQtScrcpy/screenshot/mac-en.png"
-    "poly_apps/flutter_bloom/assets/apps/app_bank/ui/login.jpg"
-    "poly_apps/SmartMatrix/QtSmartMatrix/SmartMatrixCore/src/third_party/adb/linux/adb"
-    "poly_apps/qtscrcpy_tc/SmartMatrix/third_party/adb/linux/adb"
-    "poly_apps/qtscrcpy_tc/SmartMatrix/third_party/adb/mac/adb"
     "poly_apps/SmartMatrix/build_msvc_2022/QtScrcpy.dir/RelWithDebInfo/vc143.pdb"
 )
 
