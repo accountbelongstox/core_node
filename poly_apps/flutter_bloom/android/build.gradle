@@ -1,17 +1,14 @@
+// Note: Plugin versions are now managed in settings.gradle using the plugins DSL
+// This is the recommended approach for Gradle 7.0+
+// The buildscript block is kept minimal for backward compatibility
 buildscript {
-    ext.kotlin_version = '2.1.0'
-
     repositories {
         google()
         mavenCentral()
         gradlePluginPortal()
     }
-
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.7.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.google.gms:google-services:4.4.2'
-    }
+    // Most plugins are now defined in settings.gradle
+    // Only add plugins here if they specifically require buildscript classpath
 }
 
 allprojects {

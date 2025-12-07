@@ -81,7 +81,7 @@ class BankBottomNavigation extends StatelessWidget {
         child: Padding(
           padding: padding ?? const EdgeInsets.symmetric(
             horizontal: ThemeDimensions.paddingMedium,
-            vertical: ThemeDimensions.paddingSmall,
+            vertical: 3.0,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -199,19 +199,26 @@ class BankBottomNavigation extends StatelessWidget {
 /// 
 /// Represents a single navigation item in the bank bottom navigation bar
 class BankNavigationItem {
-  final IconData icon;
+  final IconData? icon;
   final IconData? activeIcon;
+  final String? imagePath;
+  final String? activeImagePath;
   final String label;
   final String route;
   final VoidCallback? onTap;
 
   const BankNavigationItem({
-    required this.icon,
+    this.icon,
     this.activeIcon,
+    this.imagePath,
+    this.activeImagePath,
     required this.label,
     required this.route,
     this.onTap,
-  });
+  }) : assert(
+          (icon != null || imagePath != null),
+          'Either icon or imagePath must be provided',
+        );
 }
 
 /// Bank Bottom Navigation with Custom Items
@@ -268,7 +275,7 @@ class CustomBankBottomNavigation extends StatelessWidget {
         child: Padding(
           padding: padding ?? const EdgeInsets.symmetric(
             horizontal: ThemeDimensions.paddingMedium,
-            vertical: ThemeDimensions.paddingSmall,
+            vertical: 3.0,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -297,25 +304,35 @@ class CustomBankBottomNavigation extends StatelessWidget {
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              vertical: ThemeDimensions.paddingSmall,
+              vertical: 3.0,
               horizontal: ThemeDimensions.paddingSizeExtraSmall,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  isActive ? (item.activeIcon ?? item.icon) : item.icon,
-                  color: isActive ? selectedColor : unselectedColor,
-                  size: 28, // Increased from ThemeDimensions.iconSizeMedium
-                ),
+                if (item.imagePath != null)
+                  Image.asset(
+                    isActive
+                        ? (item.activeImagePath ?? item.imagePath!)
+                        : item.imagePath!,
+                    width: 17,
+                    height: 17,
+                    fit: BoxFit.contain,
+                  )
+                else
+                  Icon(
+                    isActive ? (item.activeIcon ?? item.icon!) : item.icon!,
+                    color: isActive ? selectedColor : unselectedColor,
+                    size: 17,
+                  ),
                 if (showLabels) ...[
-                  const SizedBox(height: ThemeDimensions.spacing4),
+                  const SizedBox(height: 2),
                   Text(
                     item.label,
                     style: ThemeTextStyles.bodySmall.copyWith(
                       color: isActive ? selectedColor : unselectedColor,
                       fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      fontSize: 16, // Increased from 12
+                      fontSize: 10,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
