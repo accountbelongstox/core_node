@@ -19,6 +19,10 @@ from pycore import ColorPrint
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url import get_port_range, process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
+from pycore.pyutils.native_ui.step9_frontend import (
+    FrontendConfig,
+    start_frontend_if_needed
+)
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -81,6 +85,16 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # ========== Phase 4.5: Auto-start Timer Manager ==========
     if config.enable_timer:
         _initialize_timer_manager(config)
+
+    # ========== Phase 4.6: Start Frontend (if enabled) ==========
+    frontend_thread = None
+    if config.frontend_enabled:
+        frontend_thread = _start_frontend(config)
+
+        # Update final_url if frontend is in dev mode
+        if frontend_thread and config.frontend_mode == "dev":
+            final_url = f"http://localhost:{config.frontend_port}"
+            ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
 
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
@@ -151,6 +165,58 @@ def launch_native_app(config: NativeUIConfig) -> None:
             import traceback
             traceback.print_exc()
             raise
+
+
+def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread']:
+    """
+    Start frontend service if enabled
+
+    Args:
+        config: Native UI configuration
+
+    Returns:
+        FrontendLauncherThread instance or None if failed
+    """
+    if not config.frontend_enabled:
+        return None
+
+    # Validate frontend configuration
+    if not config.frontend_framework:
+        ColorPrint.red("[Frontend] frontend_framework is required when frontend_enabled=True")
+        return None
+
+    if not config.frontend_app_dir:
+        ColorPrint.red("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+        return None
+
+    # Resolve frontend_app_dir relative to project_root if needed
+    frontend_app_dir = Path(config.frontend_app_dir)
+    if not frontend_app_dir.is_absolute() and config.project_root:
+        frontend_app_dir = Path(config.project_root) / frontend_app_dir
+
+    # Create frontend configuration
+    frontend_config = FrontendConfig(
+        enabled=True,
+        framework=config.frontend_framework,
+        app_dir=frontend_app_dir,
+        mode=config.frontend_mode,
+        port=config.frontend_port,
+        auto_install=config.frontend_auto_install,
+        skip_build=config.frontend_skip_build,
+        block_until_ready=config.frontend_block_until_ready,
+        show_output=config.debug
+    )
+
+    # Start frontend
+    frontend_thread = start_frontend_if_needed(
+        config=frontend_config,
+        block=config.frontend_block_until_ready
+    )
+
+    if frontend_thread and config.debug:
+        ColorPrint.green(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+
+    return frontend_thread
 
 
 def _initialize_timer_manager(config: NativeUIConfig) -> None:
