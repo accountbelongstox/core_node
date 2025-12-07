@@ -154,34 +154,26 @@ class TTSController extends Controller
     
     public function getCacheStats(Request $request): JsonResponse
     {
-        $cacheManager = new \App\Services\EdgeTTS\TTSCacheManager(
-            \App\Providers\PathMapper::getLaravelDataDir() . '/tts_data/json_db'
-        );
-        
-        $stats = $cacheManager->getAllStats();
-        
+        $stats = $this->ttsService->getCacheStats();
+
         return response()->json([
             'success' => true,
             'stats' => $stats,
         ]);
     }
-    
+
     public function clearCache(Request $request): JsonResponse
     {
         $request->validate([
             'language' => 'nullable|string',
             'type' => 'nullable|string|in:sentence,word,letter',
         ]);
-        
-        $cacheManager = new \App\Services\EdgeTTS\TTSCacheManager(
-            \App\Providers\PathMapper::getLaravelDataDir() . '/tts_data/json_db'
-        );
-        
-        $cleared = $cacheManager->clearCache(
+
+        $cleared = $this->ttsService->clearCache(
             $request->input('language'),
             $request->input('type')
         );
-        
+
         return response()->json([
             'success' => true,
             'cleared_files' => $cleared,
