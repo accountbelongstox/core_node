@@ -180,14 +180,10 @@ class NativeUIConfig:
     """Frontend dev server port"""
 
     frontend_auto_install: bool = True
-<<<<<<< HEAD
-    """Auto-install frontend dependencies (pnpm install)"""
-=======
     """Auto-install frontend dependencies"""
 
     frontend_package_manager: str = "pnpm"
     """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
     frontend_skip_build: bool = False
     """Skip build in production mode (use existing build)"""
@@ -195,8 +191,6 @@ class NativeUIConfig:
     frontend_block_until_ready: bool = False
     """Block until frontend is ready (useful for debug mode)"""
 
-<<<<<<< HEAD
-=======
     # ========== RPC v2 Management ==========
     rpc_enabled: bool = False
     """Enable RPC v2 backend service"""
@@ -231,7 +225,6 @@ class NativeUIConfig:
     - Dev mode: RPC v2 only serves API (frontend runs on separate port)
     """
 
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     # ========== Timer Management ==========
     enable_timer: bool = False
     """Enable built-in timer manager (singleton, auto-started)"""

@@ -294,7 +294,7 @@ def create_default_tray_menu(
         ))
 
     if show_callback or hide_callback:
-        items.append(PySide6TrayMenuItem(separator=True))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
 
     if quit_callback:
         items.append(PySide6TrayMenuItem(
@@ -358,7 +358,7 @@ def create_event_driven_tray_menu(
             text="Hide Window",
             callback=lambda: THREAD_BUS.trigger_event('window.hide')
         ))
-        items.append(PySide6TrayMenuItem(separator=True))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
 
     # Window state actions
     if enable_maximize:
@@ -374,7 +374,7 @@ def create_event_driven_tray_menu(
             text="Restore",
             callback=lambda: THREAD_BUS.trigger_event('window.restore')
         ))
-        items.append(PySide6TrayMenuItem(separator=True))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
 
     # Restart action
     if enable_restart:
@@ -382,7 +382,7 @@ def create_event_driven_tray_menu(
             text="Restart",
             callback=lambda: THREAD_BUS.trigger_event('app.restart')
         ))
-        items.append(PySide6TrayMenuItem(separator=True))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
 
     # Quit action (always enabled)
     items.append(PySide6TrayMenuItem(
