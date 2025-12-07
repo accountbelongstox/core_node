@@ -180,7 +180,10 @@ class NativeUIConfig:
     """Frontend dev server port"""
 
     frontend_auto_install: bool = True
-    """Auto-install frontend dependencies (pnpm install)"""
+    """Auto-install frontend dependencies"""
+
+    frontend_package_manager: str = "pnpm"
+    """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
 
     frontend_skip_build: bool = False
     """Skip build in production mode (use existing build)"""
