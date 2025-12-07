@@ -1477,6 +1477,11 @@
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────``` 根据 以上，使用react 来构建一个mobile项目。并将以上文件写到项目中，至少要构架 20个页面。请直接与API中心绑定，当API不可用时，使用mock数据，请建立一个mock数据中心，当页面中的请求api时，在没有设置url时直接得到mock数据。使用多语言系统 ，代码不要硬编码，使用light/dart系统 。
+使用一个新样的style 样式中心 比如 
+├── styles/
+│   ├── globals.css
+│   └── components.css
+│   └── etc... 将所有样式改为全部由css编号 ，而不再使用tailwindcss.注意是要保留已经存在的页，在现在的代码上修改、扩展。
 
 页面太少了，在现在的基础 上继续 添加功能 。（增加单词顺序播放功能，点击后依次播放，自动下下页），不要删原已经存在的页面，新页面扩展出新文件。
 注意进行美 化，使用数据中心化，API中心化。
@@ -1500,4 +1505,137 @@
 首页还要显示，登陆后的信息，登陆后的用户进度，登陆后的在学习的词库，背诵模式(点击直接跳转)，
 不要删原已经存在的页面，页是在现在的代码上扩展。注意美化，和数据 中心化。 直接修改项目代码，
 
-首页公告中心显示混乱，怎么跑到标题栏上去了，将标题栏改为公共，大多数页生效（除了背诵页），标题栏上有单词搜索框，点击不会输入信息，而是直接下拉一个更大的搜索面板，其中有 搜索语言（可以多选），输入词，切换在线翻译（结果 同时有语音）。对顶部菜单进行美化，页面往下拉时自动背景半透明。现在在设置页中的我的页，可以有退出登陆按钮，查看退出登陆后的页面状态。注意不要重写，而是在现在的代码上修改、扩展。
+首页公告中心显示混乱，怎么跑到标题栏上去了，将标题栏改为公共，大多数页生效（除了背诵页），标题栏上有单词搜索框，点击不会输入信息，而是直接下拉一个更大的搜索面板，其中有 搜索语言（可以多选），输入词，切换在线翻译（结果 同时有语音）。对顶部菜单进行美化，页面往下拉时自动背景半透明。现在在设置页中的我的页，可以有退出登陆按钮，查看退出登陆后的页面状态。。注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+对当前项目， dark模式改为 ···沉浸式极光背景 (Aurora Backgrounds)：不再是静态的色块，而是缓慢流动的、深邃的极光渐变，营造出神秘和高端的氛围。
+悬浮式 UI (Floating UI)：导航栏和输入框将脱离边缘，呈现为悬浮的“胶囊”或“岛屿”，增加空间感。
+微交互与光效 (Micro-interactions & Glows)：按钮和输入框在聚焦时会有细腻的光晕（Glow effect），模拟霓虹灯在玻璃上的漫反射。
+排版艺术：优化字体间距和行高，让文字（Muse 模式）看起来更像是一本精致的书，而不是聊天记录。··· 主要针对 Select Material页 ，设置页等，注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+先修正一些BUG，首页的滚动下下滚动，以及设置页等所有的滚动，请修复滚动。底部菜单第三个图标无法显示，Learning Mode 页，当开始设置中的关闭动画时，下跳单词时无任何焦点效果，只有自动top 的效果。注意是要保留已经存在的页，在现在的代码上修改、扩展。
+Show Animation 关闭时 依然有 焦点效果 ，修正这个bug，同时查看现在设计是否放到了统一的状态中心。注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+使用一个新样的style 样式中心 比如 
+├── styles/
+│   ├── globals.css
+│   └── components.css
+│   └── etc... 将所有样式改为全部由css编号 ，而不再使用tailwindcss.注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+
+查看还有那些页面还在使用taiwindcss，或者样式库，继续改为下面的模式，使用原生style, 比如 
+├── styles/
+│   ├── globals.css
+│   └── components.css
+│   └── etc... 将所有样式改为全部由css编号,.注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+注意已经美化好的部份就不要改改动了，
+底部菜单栏（已经美化），
+
+现在要美化的是，登陆页、设置页、Select the correct meaning for: Serendipity页、Learning Mode 页，词库页、playlist页，Quiz页、Pasive页、Statistics页，Brain Stats页，顶部搜索菜单组件。
+推荐样式···沉浸式极光背景 。
+悬浮式 UI 。
+微交互与光效。···将所有样式改为全部由css编号,.注意是要保留已经存在的页，在现在的代码上修改、扩展。
+
+你好！收到，我将继续为您打造极致的“空灵暗色玻璃拟态”风格。
+这次我将专注于您提到的 登录页、设置页、Quiz页 (Serendipity)、Learning Mode (Playlist/Reading)、词库页、Passive页、统计页 以及 顶部搜索组件。
+我将通过 styles/components.css 编写专属的 CSS 类，并重构这些页面的 JSX 代码，彻底移除旧的样式实现，代之以高级的悬浮、光效和极光背景。
+核心样式更新策略
+Quiz 页: 选项卡改为悬浮的“全息玻璃板”，选中时爆发霓虹光效。
+Passive 页: 唱片封面增加动态呼吸光晕，模拟全息投影仪效果。
+Stats/Brain 页: 统计图表改为发光的渐变线条和半透明填充。
+顶部搜索: 搜索栏展开时变为全屏毛玻璃遮罩，输入框悬浮于屏幕中央，聚焦时背景变暗。
+以下是代码更新：
+Updated files:
+styles/components.css
+新增了大量针对特定页面的组件类：
+Quiz: .quiz-option, .timer-ring
+Player: .player-art-glow, .player-control-btn
+Stats: .stat-card, .stat-bar-track, .stat-bar-fill
+Search: .search-overlay, .island-search-bar
+Courses: .course-card-glass
+components/Header.tsx
+重构顶部搜索栏。现在的搜索栏是一个精致的悬浮胶囊，点击后会展开全屏毛玻璃遮罩，提供沉浸式搜索体验。
+pages/Auth/Login.tsx
+重构登录页。移除了多余的容器，让登录卡片悬浮在极光背景中央，输入框使用高斯模糊玻璃材质。
+pages/Library/Courses.tsx
+重构词库页。课程卡片现在是悬浮的玻璃块，带有细腻的边缘光和阴影，语言切换 Tab 更加精致。
+pages/Quiz/Run.tsx
+重构 Quiz 页 (Serendipity)。问题卡片悬浮，选项卡改为全息玻璃按钮，倒计时计时器增加发光圆环动画。
+pages/Listening/Player.tsx
+重构 Passive Mode。封面图增加了呼吸光晕动画，控制按钮栏改为悬浮玻璃条。
+pages/Dashboard/Stats.tsx
+重构统计页。统计卡片使用更通透的玻璃材质，图表条使用渐变发光填充。
+pages/Review/Dashboard.tsx
+重构 Brain Stats 页。记忆仪表盘改为全息圆环风格，移除了厚重的边框。
+pages/Settings/Layout.tsx
+优化设置页布局，确保顶部标题栏与新的悬浮设计语言一致。
+pages/Learning/Playlist.tsx
+微调 Playlist 页面的样式，确保与整体风格统一，强调当前播放项的光效。
+
+
+
+
+我将通过 styles/components.css 注入大量的高级 CSS 类（全息玻璃、霓虹光晕、动态渐变），并逐一重构 JSX 结构，确保每一页都是一件艺术品。
+核心变更概览
+Quiz 页 (Serendipity): 变成一个悬浮的全息竞技场。选项卡不再是简单的按钮，而是悬浮的玻璃板，选中时会有激光扫描效果。
+Passive Mode (Player): 唱片封面变成呼吸发光的星云，背景随着音乐律动（模拟）。
+Stats / Brain: 枯燥的数据变成发光的仪表盘和能量条。
+Login: 极简主义的深空之门设计。
+Search: 顶部搜索栏变成灵动的灵动岛 (Dynamic Island) 交互。
+以下是代码实现：
+Updated files:
+styles/components.css
+新增了大量“Ethereal”风格的组件类：
+Quiz: .quiz-arena, .holo-option (带扫描动画的选项), .timer-orb.
+Player: .player-glow-ring, .glass-control-bar.
+Stats: .stat-glass-card, .energy-bar.
+Search: .island-search-wrapper, .island-search-expanded.
+Settings: .setting-glass-row.
+components/Header.tsx
+重构为灵动岛 (Island) 风格。
+默认状态：悬浮的半透明胶囊。
+搜索状态：平滑展开覆盖顶部，背景模糊加深，输入框自动聚焦。
+pages/Auth/Login.tsx
+完全重写。
+移除杂乱的容器，让 LOGO 和输入框直接悬浮在极光背景上。
+输入框使用超薄玻璃材质 (.glass-input)。
+按钮使用流光渐变。
+pages/Settings/Layout.tsx
+统一所有设置页面的布局容器。
+标题栏改为悬浮设计，不遮挡背景极光。
+pages/Settings/Index.tsx
+个人资料卡片改为全息身份证样式，带有动态光效。
+设置列表项改为悬浮的玻璃条。
+pages/Quiz/Run.tsx
+重构“Serendipity”页面。
+倒计时变成中心发光的能量球。
+问题卡片使用高斯模糊玻璃。
+选项卡增加 .holo-option 样式，点击时有“确认注入”的视觉反馈。
+pages/Listening/Player.tsx
+重构 Passive Mode。
+封面图周围增加了多层呼吸光环 (.player-glow-ring)。
+进度条和控制按钮极简设计，突出沉浸感。
+pages/Dashboard/Stats.tsx
+重构统计页。
+统计图表使用 CSS 渐变绘制，不再是简单的色块。
+关键数据（如 Total Learned）使用超大号渐变字体。
+pages/Review/Dashboard.tsx
+重构 Brain Stats。
+记忆仪表盘改为半圆环能量规。
+记忆分布图使用发光的点阵风格。
+pages/Library/Courses.tsx
+重构词库列表。
+课程卡片悬浮感更强，封面图增加投影。
+顶部标签栏改为磨砂玻璃胶囊。
+pages/Learning/Playlist.tsx
+微调样式以匹配新风格，确保“当前播放单词”的高亮效果更加柔和且醒目（类似阅读灯聚焦）。
+
+
+
+注意已经美化好的部份就不要改改动了，
+底部菜单栏（已经美化），
+
+现在要美化的是，登陆页、设置页、Select the correct meaning for: Serendipity页、Learning Mode 页，词库页、playlist页，Quiz页、Pasive页、Statistics页，Brain Stats页，顶部搜索菜单组件。
+推荐样式···沉浸式极光背景 。
+悬浮式 UI 。
+微交互与光效。···将所有样式改为全部由css编号,.注意是要保留已经存在的页，在现在的代码上修改、扩展。
