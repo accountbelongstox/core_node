@@ -19,6 +19,11 @@ from PySide6.QtGui import QIcon, QPixmap, QMouseEvent, QPainter, QColor
 from typing import Optional, Dict, Any
 from pathlib import Path
 
+# Import THREAD_BUS and i18n (at top of file for consistency)
+from pycore import THREAD_BUS
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
+
 # 导入样式系统
 from .title_bar_styles import (
     TitleBarStyles,
@@ -158,6 +163,13 @@ class PySide6TitleBar(QWidget):
         # Setup UI
         self._setup_ui()
 
+        # Register language change handler for real-time updates
+        THREAD_BUS.register_event_handler(
+            BusSignals.I18N_LANGUAGE_CHANGED,
+            lambda event_data: self._update_ui_text(),
+            priority=50
+        )
+
     def _setup_ui(self):
         """Setup title bar UI using style system."""
         # Set fixed height from styles
@@ -196,7 +208,7 @@ class PySide6TitleBar(QWidget):
         if self.menu_icon_path and Path(self.menu_icon_path).exists():
             self.menu_btn = QPushButton()
             self.menu_btn.setFixedSize(self.styles.button_width, self.styles.button_height)
-            self.menu_btn.setToolTip("Menu")
+            self.menu_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MENU))
             self.menu_btn.setFlat(True)
             self.menu_btn.setCursor(Qt.PointingHandCursor)
 
@@ -237,7 +249,7 @@ class PySide6TitleBar(QWidget):
         # Minimize button
         self.minimize_btn = TitleBarButton(
             self.styles.minimize_icon,
-            "Minimize",
+            i18n.get(I18nKeys.WINDOW_BUTTON_MINIMIZE),
             button_type="minimize",
             styles=self.styles
         )
@@ -247,7 +259,7 @@ class PySide6TitleBar(QWidget):
         # Maximize/Restore button
         self.maximize_btn = TitleBarButton(
             self.styles.maximize_icon,
-            "Maximize",
+            i18n.get(I18nKeys.WINDOW_BUTTON_MAXIMIZE),
             button_type="maximize",
             styles=self.styles
         )
@@ -257,7 +269,7 @@ class PySide6TitleBar(QWidget):
         # Close button
         self.close_btn = TitleBarButton(
             self.styles.close_icon,
-            "Close",
+            i18n.get(I18nKeys.WINDOW_BUTTON_CLOSE),
             button_type="close",
             styles=self.styles
         )
@@ -282,10 +294,30 @@ class PySide6TitleBar(QWidget):
         """
         if maximized:
             self.maximize_btn.setText(self.styles.maximize_icon_restore)
-            self.maximize_btn.setToolTip("Restore")
+            self.maximize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_RESTORE))
         else:
             self.maximize_btn.setText(self.styles.maximize_icon)
-            self.maximize_btn.setToolTip("Maximize")
+            self.maximize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MAXIMIZE))
+
+    def _update_ui_text(self):
+        """Update all UI text with current language (called when language changes)"""
+        # Update menu button tooltip if exists
+        if hasattr(self, 'menu_btn') and self.menu_btn:
+            self.menu_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MENU))
+
+        # Update window control button tooltips
+        self.minimize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MINIMIZE))
+        self.close_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_CLOSE))
+
+        # Update maximize button tooltip based on current window state
+        if self.parent() and hasattr(self.parent(), 'isMaximized'):
+            if self.parent().isMaximized():
+                self.maximize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_RESTORE))
+            else:
+                self.maximize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MAXIMIZE))
+        else:
+            # Default to Maximize if can't determine state
+            self.maximize_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MAXIMIZE))
 
     # ========== Mouse Events for Dragging ==========
 

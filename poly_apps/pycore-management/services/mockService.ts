@@ -1,3 +1,4 @@
+
 import { 
   DashboardOverview, 
   RealtimeMetrics, 
@@ -12,7 +13,20 @@ import {
   UploadServer,
   PerformanceStats,
   UsageTrends,
-  ResourceStats
+  ResourceStats,
+  LocalProcessingStats,
+  TestRequest,
+  TestResponse,
+  ScreenshotRequest,
+  ScreenshotResponse,
+  OCRRequest,
+  OCRResponse,
+  AudioTranscribeRequest,
+  AudioTranscribeResponse,
+  VideoProcessRequest,
+  VideoProcessResponse,
+  FileAnalyzeRequest,
+  FileAnalyzeResponse
 } from '../types';
 
 // Mock Data Generators
@@ -154,6 +168,112 @@ export const updateLocalConfig = async (config: LocalProcessingConfig): Promise<
    console.log("Updated local config:", config);
    return new Promise(resolve => setTimeout(() => resolve(true), 500));
 };
+
+export const getLocalProcessingStats = async (): Promise<LocalProcessingStats> => {
+    const timeline = [];
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(now.getTime() - (6 - i) * 86400000);
+        timeline.push({
+            date: d.toLocaleDateString(),
+            tasks: Math.floor(Math.random() * 500),
+            success: Math.floor(Math.random() * 450),
+            failed: Math.floor(Math.random() * 50),
+        });
+    }
+
+    return Promise.resolve({
+        period: '7d',
+        summary: {
+            total_tasks: 12500,
+            completed: 12450,
+            failed: 50,
+            average_time: 1.45,
+            total_data_processed: 4500,
+        },
+        by_type: [
+            { name: 'Screenshot', count: 5000, success_rate: 99.8 },
+            { name: 'OCR', count: 4500, success_rate: 98.5 },
+            { name: 'Audio', count: 3000, success_rate: 99.2 },
+        ],
+        timeline,
+    });
+};
+
+export const runLocalTest = async (req: TestRequest): Promise<TestResponse> => {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve({
+                success: true,
+                test_type: req.test_type,
+                result: {
+                    message: "Test completed successfully",
+                    details: "Simulated output data...",
+                    score: 0.98
+                },
+                execution_time: 0.85,
+                hardware_used: {
+                    cpu: true,
+                    gpu: req.test_type === 'ocr' || req.test_type === 'audio'
+                }
+            });
+        }, 1500);
+    });
+};
+
+// --- Tool Implementations ---
+
+export const captureScreenshot = async (req: ScreenshotRequest): Promise<ScreenshotResponse> => {
+    return new Promise(resolve => setTimeout(() => resolve({
+        success: true,
+        file_path: `/tmp/screenshot_${Date.now()}.png`,
+        image_data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', // dummy dot
+        ocr_text: req.auto_ocr ? "Detected Text: Pycore Management System v2.0" : undefined,
+        execution_time: 0.5
+    }), 1000));
+};
+
+export const performOCR = async (req: OCRRequest): Promise<OCRResponse> => {
+    return new Promise(resolve => setTimeout(() => resolve({
+        success: true,
+        text: "This is a simulated OCR result extracted from the uploaded image.\nPycore Engine v2.0\nStatus: Active",
+        confidence: 0.98,
+        blocks: [{ text: "Pycore Engine", box: [0,0,100,20] }],
+        execution_time: 1.2
+    }), 1500));
+};
+
+export const transcribeAudio = async (req: AudioTranscribeRequest): Promise<AudioTranscribeResponse> => {
+    return new Promise(resolve => setTimeout(() => resolve({
+        success: true,
+        text: "This is a simulated audio transcription. The engine used was Whisper medium model. Processing was accelerated by GPU.",
+        language: "en",
+        duration: 45.5,
+        segments: [{start: 0, end: 10, text: "This is a simulated audio transcription."}],
+        execution_time: 3.5
+    }), 2000));
+};
+
+export const processVideo = async (req: VideoProcessRequest): Promise<VideoProcessResponse> => {
+    return new Promise(resolve => setTimeout(() => resolve({
+        success: true,
+        metadata: { duration: 120, resolution: '1920x1080', codec: 'h264' },
+        audio_path: req.extract_audio ? '/tmp/audio_extract.mp3' : undefined,
+        subtitle_path: req.generate_subtitle ? '/tmp/video_subs.srt' : undefined,
+        execution_time: 5.0
+    }), 2500));
+};
+
+export const analyzeFile = async (req: FileAnalyzeRequest): Promise<FileAnalyzeResponse> => {
+    return new Promise(resolve => setTimeout(() => resolve({
+        success: true,
+        metadata: { author: "Admin", pages: 12, created: "2023-10-15" },
+        text_preview: req.extract_text ? "Document content preview: \nAnalysis Report 2024..." : undefined,
+        execution_time: 0.8
+    }), 1000));
+};
+
+// --- End Tool Implementations ---
 
 export const getUploadTasks = async (): Promise<UploadTask[]> => {
   return Promise.resolve([

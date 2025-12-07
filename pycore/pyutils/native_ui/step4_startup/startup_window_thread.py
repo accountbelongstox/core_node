@@ -57,7 +57,7 @@ from pycore.pyfoundations.third_party import get_third_package_tkinter
 tk = get_third_package_tkinter()
 ttk = tk.ttk
 
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
@@ -141,25 +141,27 @@ class TkinterStartupThread(threading.Thread):
                                      pid=os.getpid(),
                                      thread_id=threading.get_ident())
 
-        # 3. Initialize UI
+        # 3. Set _running=True BEFORE initializing UI
+        # CRITICAL: Must be set before _initialize_ui() calls _process_logs()
+        self._running = True
+
+        # 4. Initialize UI (will call _process_logs() which needs _running=True)
         self._initialize_ui()
 
-        # 4. Set running state + send ready signal
-        # IMPORTANT: Set _running=True BEFORE mainloop so _process_logs() can schedule itself
-        self._running = True
+        # 5. Set running state + send ready signal
         THREAD_BUS.set_thread_state(thread_name, 'running')
         THREAD_BUS.signal('TkinterStartup_ready', {
             'app_name': self.app_name,
             'window_size': (self.width, self.height)
         })
 
-        # 5. Run mainloop (blocks until window closes)
+        # 6. Run mainloop (blocks until window closes)
         self.root.mainloop()
 
-        # 6. Cleanup window resources
+        # 7. Cleanup window resources
         self._cleanup()
 
-        # 7. Check if tray should be started
+        # 8. Check if tray should be started
         ColorPrint.print_info(f"[{thread_name}] Mainloop ended, checking tray status...")
         ColorPrint.print_info(f"  enable_tray={self.enable_tray}")
         ColorPrint.print_info(f"  stop_event.is_set()={self._stop_event.is_set()}")
@@ -173,18 +175,19 @@ class TkinterStartupThread(threading.Thread):
             if self._stop_event.is_set():
                 ColorPrint.print_warn(f"[{thread_name}] Stop event set, skipping tray mode")
 
-        # 8. Set stopped state + send stopped signal
+        # 9. Set stopped state + send stopped signal
         THREAD_BUS.set_thread_state(thread_name, 'stopped')
         THREAD_BUS.signal('TkinterStartup_stopped', True)
 
-        # 9. Log completion
+        # 10. Log completion
         ColorPrint.print_info(f"[{thread_name}] Thread stopped")
 
     def _initialize_ui(self):
         """Initialize Tkinter UI"""
         # Create root window
         self.root = tk.Tk()
-        self.root.title(f"{self.app_name} - Initializing...")
+        initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
+        self.root.title(f"{self.app_name} - {initializing_text}")
         self.root.geometry(f"{self.width}x{self.height}")
 
         # Hide window initially
@@ -335,7 +338,7 @@ class TkinterStartupThread(threading.Thread):
         # Status label
         self.status_label = tk.Label(
             status_frame,
-            text="Initializing...",
+            text=i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING),
             bg="#34495e",
             fg="#bdc3c7",
             font=("Microsoft YaHei UI", 9)
@@ -425,9 +428,32 @@ class TkinterStartupThread(threading.Thread):
         new_app_name = i18n.get("app.name", default=self.app_name)
 
         if self.root:
+            initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
             title_text = i18n.get("window.title.initializing",
-                                              default=f"{new_app_name} - Initializing...")
+                                              default=f"{new_app_name} - {initializing_text}")
             self.root.title(title_text)
+
+        # Update status label if it exists and current status matches a known key
+        if self.status_label:
+            current_status = self.status_label.cget("text")
+            # Try to identify and re-translate the current status
+            # This is a best-effort approach to maintain the current status semantic
+            status_key_map = {
+                "Initializing": I18nKeys.STARTUP_STATUS_INITIALIZING,
+                "初始化": I18nKeys.STARTUP_STATUS_INITIALIZING,
+                "初期化": I18nKeys.STARTUP_STATUS_INITIALIZING,
+                "Ready": I18nKeys.STARTUP_STATUS_READY,
+                "就绪": I18nKeys.STARTUP_STATUS_READY,
+                "準備完了": I18nKeys.STARTUP_STATUS_READY,
+                "Loading": I18nKeys.STARTUP_STATUS_LOADING,
+                "加载": I18nKeys.STARTUP_STATUS_LOADING,
+                "読み込み": I18nKeys.STARTUP_STATUS_LOADING,
+            }
+            # Check if current status starts with any known key
+            for key_substr, i18n_key in status_key_map.items():
+                if key_substr in current_status:
+                    self.status_label.config(text=i18n.get(i18n_key))
+                    break
 
         # Log change
         current_lang = i18n.get_current_language()
@@ -641,8 +667,20 @@ class TkinterStartupThread(threading.Thread):
                 pass
 
     def _on_user_close(self):
-        """Handle user attempting to close window"""
-        self.log("Closing startup window...", "info")
+        """
+        Handle user attempting to close window
+
+        Triggers global app.close event to ensure all components shut down properly.
+        """
+        self.log("User closed debug window, triggering global app shutdown...", "warning")
+
+        # Trigger global app.close event (synchronous to ensure proper cleanup)
+        THREAD_BUS.trigger_event('app.close', {
+            'source': 'debug_window_close',
+            'window': 'TkinterStartupThread'
+        }, async_mode=False)
+
+        # Close this window
         self._close_window()
 
     def _close_window(self):
@@ -785,7 +823,7 @@ if __name__ == "__main__":
     time.sleep(1)
     startup.log("✓ Installation complete", "success")
     time.sleep(1)
-    startup.set_status("Ready!")
+    startup.set_status(i18n.get(I18nKeys.STARTUP_STATUS_READY))
     time.sleep(2)
 
     # Close window

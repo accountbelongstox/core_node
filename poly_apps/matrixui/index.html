@@ -6,7 +6,7 @@
     <title>星灿传媒 云矩阵</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" crossorigin>
     <style>
       :root {
         /* Palette */
@@ -28,7 +28,8 @@
 
       body {
         background-color: var(--bg-void);
-        font-family: 'Inter', sans-serif;
+        /* 字体fallback，防止FOIT（文字不可见闪烁） */
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
         color: var(--text-main);
         overflow: hidden;
       }
@@ -40,7 +41,10 @@
       ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
 
       /* Utility Classes */
-      .font-mono { font-family: 'JetBrains Mono', monospace; }
+      /* 字体fallback，防止FOIT */
+      .font-mono { 
+        font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace; 
+      }
       
       .glass-panel {
         background: var(--bg-panel);
@@ -108,6 +112,26 @@
         border-color: var(--cyan);
       }
     </style>
+    <!-- 主题检测脚本 - 防止闪屏 -->
+    <script>
+      (function() {
+        // 立即设置背景色，防止白色闪屏
+        document.documentElement.style.backgroundColor = '#030305';
+        document.body.style.backgroundColor = '#030305';
+        // 设置主题属性（如果需要）
+        document.documentElement.setAttribute('data-theme', 'dark');
+      })();
+    </script>
+    <!-- 资源预加载 -->
+    <link rel="preload" href="/index.css" as="style">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" as="style" crossorigin>
+    <!-- 预加载入口脚本 -->
+    <link rel="modulepreload" href="/index.tsx">
+    <!-- DNS预解析，加速外部资源加载 -->
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://unpkg.com">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://aistudiocdn.com">
   <script type="importmap">
 {
   "imports": {
