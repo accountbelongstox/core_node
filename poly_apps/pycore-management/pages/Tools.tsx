@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Scissors,
@@ -6,13 +7,112 @@ import {
   Activity,
   Play,
   Video,
-  FileSearch
+  FileSearch,
+  UploadCloud,
+  CheckCircle,
+  AlertCircle,
+  Loader
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import { api } from '../services/api';
 
 const Tools: React.FC = () => {
   const { t } = useApp();
   const [activeTool, setActiveTool] = useState('screenshot');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const resetState = () => {
+      setResult(null);
+      setLoading(false);
+  };
+
+  const changeTool = (tool: string) => {
+      setActiveTool(tool);
+      resetState();
+  };
+
+  // --- Handlers ---
+
+  const handleScreenshot = async (mode: 'fullscreen' | 'window' | 'region') => {
+      setLoading(true);
+      try {
+          const res = await api.tools.captureScreenshot({
+              mode,
+              auto_ocr: true,
+              auto_upload: false
+          });
+          setResult(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleOCR = async () => {
+      setLoading(true);
+      try {
+          const res = await api.tools.performOCR({
+              image_data: 'dummy_base64',
+              engine: 'PaddleOCR'
+          });
+          setResult(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleAudio = async () => {
+      setLoading(true);
+      try {
+          const res = await api.tools.transcribeAudio({
+              file_name: 'test_audio.mp3',
+              model: 'medium',
+              generate_subtitle: true
+          });
+          setResult(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleVideo = async () => {
+      setLoading(true);
+      try {
+          const res = await api.tools.processVideo({
+              file_name: 'test_video.mp4',
+              extract_audio: true,
+              generate_subtitle: true
+          });
+          setResult(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleFile = async () => {
+      setLoading(true);
+      try {
+          const res = await api.tools.analyzeFile({
+              file_name: 'report.pdf',
+              file_type: 'pdf',
+              extract_text: true,
+              extract_metadata: true
+          });
+          setResult(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLoading(false);
+      }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -23,42 +123,42 @@ const Tools: React.FC = () => {
           <div className="space-y-2">
               <ToolNavButton 
                 active={activeTool === 'screenshot'} 
-                onClick={() => setActiveTool('screenshot')}
+                onClick={() => changeTool('screenshot')}
                 icon={Scissors}
                 label={t('tools.screenshot')}
                 desc="Capture and process screen areas"
               />
               <ToolNavButton 
                 active={activeTool === 'ocr'} 
-                onClick={() => setActiveTool('ocr')}
+                onClick={() => changeTool('ocr')}
                 icon={ScanText}
                 label={t('tools.ocr')}
                 desc="Extract text from images"
               />
               <ToolNavButton 
                 active={activeTool === 'audio'} 
-                onClick={() => setActiveTool('audio')}
+                onClick={() => changeTool('audio')}
                 icon={Mic}
                 label={t('tools.audio')}
                 desc="Transcribe audio files"
               />
               <ToolNavButton 
                 active={activeTool === 'video'} 
-                onClick={() => setActiveTool('video')}
+                onClick={() => changeTool('video')}
                 icon={Video}
                 label={t('tools.video')}
                 desc="Process video streams"
               />
               <ToolNavButton 
                 active={activeTool === 'file'} 
-                onClick={() => setActiveTool('file')}
+                onClick={() => changeTool('file')}
                 icon={FileSearch}
                 label={t('tools.file')}
                 desc="Analyze document metadata"
               />
               <ToolNavButton 
                 active={activeTool === 'test'} 
-                onClick={() => setActiveTool('test')}
+                onClick={() => changeTool('test')}
                 icon={Activity}
                 label={t('tools.test')}
                 desc="Run system diagnostics"
@@ -71,49 +171,82 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Scissors className="text-blue-500" />
-                           Screenshot Tool
+                           {t('tools.screenshot')}
                        </h2>
                        <div className="grid grid-cols-3 gap-4">
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 rounded bg-slate-200 dark:bg-slate-800"></div>
-                               <span className="text-sm font-medium">Fullscreen</span>
-                           </button>
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 rounded border-2 border-slate-400"></div>
-                               <span className="text-sm font-medium">Window</span>
-                           </button>
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 border-2 border-dashed border-slate-400"></div>
-                               <span className="text-sm font-medium">Region</span>
-                           </button>
+                           <ScreenshotBtn onClick={() => handleScreenshot('fullscreen')} label="Fullscreen" icon={<div className="w-8 h-8 rounded bg-slate-300 dark:bg-slate-600"></div>} />
+                           <ScreenshotBtn onClick={() => handleScreenshot('window')} label="Window" icon={<div className="w-8 h-8 rounded border-2 border-slate-400"></div>} />
+                           <ScreenshotBtn onClick={() => handleScreenshot('region')} label="Region" icon={<div className="w-8 h-8 border-2 border-dashed border-slate-400"></div>} />
                        </div>
                        
-                       <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                           <label className="flex items-center gap-2 mb-2">
-                               <input type="checkbox" className="rounded text-blue-600" defaultChecked />
-                               <span className="text-sm text-slate-700 dark:text-slate-300">Auto-upload to active server</span>
-                           </label>
-                           <label className="flex items-center gap-2">
-                               <input type="checkbox" className="rounded text-blue-600" />
-                               <span className="text-sm text-slate-700 dark:text-slate-300">Run OCR after capture</span>
-                           </label>
-                       </div>
+                       {loading && <div className="text-center py-4 text-blue-500 flex items-center justify-center gap-2"><Loader className="animate-spin"/> {t('tools.processing')}</div>}
+                       
+                       {result && (
+                           <ResultBox title="Screenshot Result">
+                               <div className="flex gap-4">
+                                   <div className="w-1/3 bg-slate-200 dark:bg-slate-800 rounded aspect-video flex items-center justify-center text-xs text-slate-500">Preview</div>
+                                   <div className="flex-1 space-y-2">
+                                       <div className="text-sm">File: <span className="font-mono text-slate-600 dark:text-slate-300">{result.file_path}</span></div>
+                                       {result.ocr_text && (
+                                           <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded text-sm font-mono border border-slate-100 dark:border-slate-700">
+                                               {result.ocr_text}
+                                           </div>
+                                       )}
+                                       <div className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={12}/> Captured in {result.execution_time}s</div>
+                                   </div>
+                               </div>
+                           </ResultBox>
+                       )}
                    </div>
                )}
                
                {activeTool === 'ocr' && (
-                   <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4 animate-fade-in">
-                       <ScanText size={48} />
-                       <p>Drag and drop image here or paste from clipboard</p>
-                       <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Select Image</button>
+                   <div className="space-y-6 animate-fade-in">
+                       <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                           <ScanText className="text-green-500" />
+                           {t('tools.ocr')}
+                       </h2>
+                       <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={handleOCR}>
+                           {loading ? <Loader className="animate-spin mb-2" size={32}/> : <UploadCloud size={48} className="mb-4 opacity-50" />}
+                           <p>{loading ? t('tools.processing') : t('tools.upload_drop')}</p>
+                           <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm" disabled={loading}>
+                               {loading ? 'Analyzing...' : 'Select Image'}
+                           </button>
+                       </div>
+
+                       {result && (
+                           <ResultBox title="OCR Result">
+                               <p className="whitespace-pre-wrap font-mono text-sm text-slate-700 dark:text-slate-300 mb-2">{result.text}</p>
+                               <div className="text-xs text-slate-500">Confidence: {(result.confidence * 100).toFixed(1)}% • Time: {result.execution_time}s</div>
+                           </ResultBox>
+                       )}
                    </div>
                )}
                
                {activeTool === 'audio' && (
-                   <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4 animate-fade-in">
-                       <Mic size={48} />
-                       <p>Drop audio files (wav, mp3) to start transcription</p>
-                       <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Select Audio File</button>
+                   <div className="space-y-6 animate-fade-in">
+                       <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                           <Mic className="text-pink-500" />
+                           {t('tools.audio')}
+                       </h2>
+                        <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={handleAudio}>
+                           {loading ? <Loader className="animate-spin mb-2" size={32}/> : <Mic size={48} className="mb-4 opacity-50" />}
+                           <p>{loading ? t('tools.processing') : 'Drop audio files (wav, mp3)'}</p>
+                           <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm" disabled={loading}>
+                               {loading ? 'Transcribing...' : 'Select Audio File'}
+                           </button>
+                       </div>
+
+                       {result && (
+                           <ResultBox title="Transcription Result">
+                               <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 italic">"{result.text}"</p>
+                               <div className="flex gap-4 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-2">
+                                   <span>Language: {result.language}</span>
+                                   <span>Duration: {result.duration}s</span>
+                                   <span>Segments: {result.segments.length}</span>
+                               </div>
+                           </ResultBox>
+                       )}
                    </div>
                )}
 
@@ -121,38 +254,31 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Video className="text-purple-500" />
-                           Video Processor
+                           {t('tools.video')}
                        </h2>
-                       <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
-                           <Video size={48} className="mb-4 opacity-50" />
-                           <p className="mb-4">Drag and drop video files here</p>
-                           <div className="flex gap-2">
-                               <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm">Select File</button>
-                           </div>
+                       <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" onClick={handleVideo}>
+                           {loading ? <Loader className="animate-spin mb-2" size={32}/> : <Video size={48} className="mb-4 opacity-50" />}
+                           <p className="mb-4">{loading ? t('tools.processing') : 'Drag and drop video files here'}</p>
+                           {!loading && <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm">Select File</button>}
                        </div>
-                       <div className="grid grid-cols-2 gap-4">
-                           <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                               <label className="flex items-center gap-2 mb-2 font-medium text-slate-700 dark:text-slate-300">
-                                   <input type="checkbox" className="rounded" />
-                                   Extract Audio
-                               </label>
-                               <select className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm">
-                                   <option>MP3</option>
-                                   <option>WAV</option>
-                                   <option>FLAC</option>
-                               </select>
-                           </div>
-                           <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                               <label className="flex items-center gap-2 mb-2 font-medium text-slate-700 dark:text-slate-300">
-                                   <input type="checkbox" className="rounded" />
-                                   Generate Subtitles
-                               </label>
-                               <select className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm">
-                                   <option>SRT</option>
-                                   <option>VTT</option>
-                               </select>
-                           </div>
-                       </div>
+                       
+                       {result && (
+                           <ResultBox title="Video Processing Output">
+                               <div className="grid grid-cols-2 gap-4 text-sm">
+                                   <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
+                                       <span className="block text-xs text-slate-500">Metadata</span>
+                                       <span className="font-mono text-slate-700 dark:text-slate-300">{result.metadata.resolution} • {result.metadata.codec}</span>
+                                   </div>
+                                   <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
+                                       <span className="block text-xs text-slate-500">Generated Files</span>
+                                       <div className="flex gap-2 mt-1">
+                                            {result.audio_path && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">Audio</span>}
+                                            {result.subtitle_path && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">Subs</span>}
+                                       </div>
+                                   </div>
+                               </div>
+                           </ResultBox>
+                       )}
                    </div>
                )}
 
@@ -160,13 +286,39 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <FileSearch className="text-orange-500" />
-                           File Analysis
+                           {t('tools.file')}
                        </h2>
-                       <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400">
-                           <FileSearch size={48} className="mb-4 opacity-50" />
-                           <p>Analyze PDF, Docx, or Text files</p>
-                           <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Upload Document</button>
+                       <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={handleFile}>
+                           {loading ? <Loader className="animate-spin mb-2" size={32}/> : <FileSearch size={48} className="mb-4 opacity-50" />}
+                           <p>{loading ? t('tools.processing') : 'Analyze PDF, Docx, or Text files'}</p>
+                           <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm" disabled={loading}>
+                               {loading ? 'Scanning...' : 'Upload Document'}
+                           </button>
                        </div>
+
+                       {result && (
+                           <ResultBox title="Analysis Report">
+                               <div className="space-y-2 text-sm">
+                                   <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+                                       <span className="text-slate-500">Author</span>
+                                       <span className="text-slate-800 dark:text-slate-200">{result.metadata.author}</span>
+                                   </div>
+                                   <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+                                       <span className="text-slate-500">Pages</span>
+                                       <span className="text-slate-800 dark:text-slate-200">{result.metadata.pages}</span>
+                                   </div>
+                                   <div className="flex justify-between pb-1">
+                                       <span className="text-slate-500">Created</span>
+                                       <span className="text-slate-800 dark:text-slate-200">{result.metadata.created}</span>
+                                   </div>
+                                   {result.text_preview && (
+                                       <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded font-mono text-xs text-slate-600 dark:text-slate-400">
+                                           {result.text_preview}
+                                       </div>
+                                   )}
+                               </div>
+                           </ResultBox>
+                       )}
                    </div>
                )}
 
@@ -174,7 +326,7 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Activity className="text-green-500" />
-                           System Diagnostics
+                           {t('tools.test')}
                        </h2>
                        <div className="space-y-3">
                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -200,6 +352,8 @@ const Tools: React.FC = () => {
   );
 };
 
+// --- Sub-components ---
+
 const ToolNavButton: React.FC<{ active: boolean; onClick: () => void; icon: any; label: string; desc: string }> = ({ active, onClick, icon: Icon, label, desc }) => (
     <button 
         onClick={onClick}
@@ -215,6 +369,27 @@ const ToolNavButton: React.FC<{ active: boolean; onClick: () => void; icon: any;
         </div>
         <div className={`text-xs ${active ? 'text-blue-100' : 'text-slate-400'}`}>{desc}</div>
     </button>
+);
+
+const ScreenshotBtn: React.FC<{ onClick: () => void; label: string; icon: React.ReactNode }> = ({ onClick, label, icon }) => (
+    <button 
+        onClick={onClick}
+        className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400"
+    >
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+    </button>
+);
+
+const ResultBox: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div className="mt-6 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden animate-fade-in">
+        <div className="bg-slate-50 dark:bg-slate-950 px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <span className="font-semibold text-sm text-slate-700 dark:text-slate-300">{title}</span>
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-900">
+            {children}
+        </div>
+    </div>
 );
 
 export default Tools;

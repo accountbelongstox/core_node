@@ -55,6 +55,24 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Starting native UI application...")
 
+    # ========== Phase 0: Start Debug Window (if enabled) BEFORE other services ==========
+    # IMPORTANT: Debug window must start BEFORE frontend to capture all logs
+    # and receive frontend.ready event properly
+    _debug_window_context = None
+    if config.show_debug_window:
+        from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import _start_debug_window
+        _debug_window_context = _start_debug_window(
+            app_name=config.app_name,
+            startup_width=config.debug_window_width,
+            startup_height=config.debug_window_height,
+            icon_path=config.icon_path,
+            logo_path=config.logo_path,
+            enable_language_selector=config.enable_language_selector,
+            enable_tray=config.enable_tray
+        )
+        if config.debug:
+            ColorPrint.blue("[NativeLauncher] Debug window started and ready")
+
     # ========== Phase 1: Auto Port Allocation ==========
     port_start, port_range = get_port_range(config.app_id, debug=config.debug)
     if config.debug:
@@ -116,6 +134,9 @@ def launch_native_app(config: NativeUIConfig) -> None:
                     ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
 
     # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
+    # Use closure variable to prevent duplicate execution
+    _cleanup_executed = [False]  # Use list to allow modification in closure
+
     def handle_app_close(event_data):
         """
         Handle app.close event - stop all services in proper order
@@ -125,6 +146,12 @@ def launch_native_app(config: NativeUIConfig) -> None:
         - Tray exit action
         - Ctrl+C / KeyboardInterrupt
         """
+        # Prevent duplicate execution (app.close may be triggered multiple times)
+        if _cleanup_executed[0]:
+            ColorPrint.gray("[NativeLauncher] Cleanup already executed, skipping duplicate app.close")
+            return
+
+        _cleanup_executed[0] = True
         ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
 
         # Stop frontend thread first (may have running dev server)
@@ -183,48 +210,19 @@ def launch_native_app(config: NativeUIConfig) -> None:
         ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))
         ColorPrint.print_success("=" * 70 + "\n")
 
-    # ========== Phase 6: Launch with or without startup window ==========
-    # Create wrapped main_entry that integrates PySide6 UI
-    def _wrapped_main_entry():
-        """Wrapped main entry that creates PySide6 UI with callbacks"""
-        # Call user's main_entry first (for service setup, etc.)
-        if config.main_entry:
-            config.main_entry()
+    # ========== Phase 6: Launch Main Application ==========
+    # Call user's main_entry first (for service setup, etc.)
+    if config.main_entry:
+        config.main_entry()
 
-        # Create PySide6 UI if URL is provided (regardless of enable_tray)
-        if final_url:
-            _create_pyside6_ui(config, final_url, callback_manager)
+    # Create PySide6 UI if URL is provided
+    if final_url:
+        _create_pyside6_ui(config, final_url, callback_manager)
 
-    # Check if we should show debug window
-    if config.show_debug_window:
-        # Launch with startup window
-        from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
-
-        launch_app_with_startup(
-            app_name=config.app_name,
-            main_entry=_wrapped_main_entry,
-            startup_width=config.debug_window_width,
-            startup_height=config.debug_window_height,
-            min_display_time=config.min_display_time,
-            icon_path=config.icon_path,
-            logo_path=config.logo_path,
-            enable_language_selector=config.enable_language_selector,
-            enable_tray=config.enable_tray
-        )
-    else:
-        # Launch directly without startup window
-        if config.debug:
-            ColorPrint.print_info("[NativeLauncher] Phase 6: Launching directly (no debug window)")
-
-        try:
-            _wrapped_main_entry()
-        except KeyboardInterrupt:
-            ColorPrint.yellow("\nKeyboard interrupt received")
-        except Exception as e:
-            ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
+    # ========== Phase 7: Cleanup Debug Window (if enabled) ==========
+    if _debug_window_context:
+        from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import _cleanup_debug_window
+        _cleanup_debug_window(_debug_window_context)
 
 
 def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread']:
@@ -484,7 +482,7 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
-        app_id=config.app_id,  # ← 添加 app_id
+        app_id=config.app_id,
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,
@@ -500,6 +498,8 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     ui_config.on_closed = lambda: callback_manager.execute_closed_callbacks()
 
     # Create and start PySide6 framework
+    # Note: No need to explicitly pass startup_config anymore - defaults to show_startup=False
+    # This prevents duplicate debug windows when using launcher_with_startup.py
     framework = PySide6Framework(ui_config)
 
     if config.debug:

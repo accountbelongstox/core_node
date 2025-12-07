@@ -51,7 +51,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         video_router,
     )
 
-    # Import upload layer routers (NEW)
+    # Import upload layer router (NEW - complete with all endpoints)
     from pycore.callmodule.routers.upload import router as upload_router
 
     # Import client layer routers (NEW)
