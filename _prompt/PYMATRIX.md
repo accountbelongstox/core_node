@@ -9,3 +9,6 @@ C:\Users\accou\Downloads\matrixui.zip 复制这个目录 解压到 poly_apps/  �
 无论是那种启动器，都自动先pnpm安装代码全英文，实时输入信息不要使用退出码检测、不要使用返回信息，所有都是依赖直接输出信息、以及结果检测，比如安装检测二进制，是否运行成功直接依靠运行方的输出。依赖文件自身定位相对路径，不要硬编码路径，生产模式还要判断是否要编译。
 
 pycore\pyutils 查看这其中有没有专门的前端启动库。现在前端是 poly_apps\matrix_ui_react 找一下合适的库，并给出更好的解决方案。
+
+
+pycore/pyutils/native_ui 扩展该库，当使用本地UI启动debug模式是，阻塞直到ui启动成功，自动安装pnpm 自动调用启动命令，使用单独线程启动。development-guides\PYTHON_PYCORE.md 按该规范，现在将   pycore/pyutils/frontend_launcher/ 作为 native_ui 的一个子类。
