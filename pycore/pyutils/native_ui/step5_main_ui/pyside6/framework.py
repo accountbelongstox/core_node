@@ -23,6 +23,7 @@ THREAD_BUS events use Qt signals to ensure thread safety.
 
 import sys
 import os
+import signal
 import threading
 import time
 from typing import Optional, Callable, List
@@ -352,6 +353,30 @@ class PySide6Framework(QObject):
         # Start Qt event loop (blocking)
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
+
+            # Install signal handler for Ctrl+C (SIGINT)
+            # This allows KeyboardInterrupt to properly close the application
+            def signal_handler(signum, frame):
+                """Handle Ctrl+C - trigger app.close event and quit Qt"""
+                ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
+                # Trigger app.close event for cleanup
+                THREAD_BUS.trigger_event('app.close', {
+                    'source': 'signal_interrupt',
+                    'signal': signum
+                }, async_mode=False)
+                # Quit Qt application
+                self.qt_app.quit()
+
+            signal.signal(signal.SIGINT, signal_handler)
+
+            # Use a timer to allow Python signal handlers to run periodically
+            # Qt event loop needs to yield control for Python signal handling
+            timer = QTimer()
+            timer.timeout.connect(lambda: None)  # Empty slot to process signals
+            timer.start(500)  # Check every 500ms
+
+            ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
+
             sys.exit(self.qt_app.exec())
 
     def _create_components(self):
