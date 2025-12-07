@@ -14,7 +14,8 @@ param (
     [string]$action,
     [string]$param1,
     [string]$param2,
-    [string]$param3
+    [string]$param3,
+    [switch]$SkipInit
 )
 
 $systemName = "win"
@@ -737,29 +738,42 @@ function Sync-InlineToGlobal {
 }
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
-try {
-    $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
-    if ($winEnvsNormGuard) {
-        Add-Path -newPath $winEnvsNormGuard
-    }
-} catch {
-    Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
-}
+# Only run initialization if -SkipInit is not specified
+if (-not $SkipInit) {
+    Write-Log "Initializing WindowsPathFunction..." -color "Cyan"
 
-# Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
-try {
-    $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
-    $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
-    if ($inlineWinEnvsNormGuard) {
-        Add-Path -newPath $inlineWinEnvsNormGuard
+    try {
+        $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+        $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
+        if ($winEnvsNormGuard) {
+            Add-Path -newPath $winEnvsNormGuard
+        }
+    } catch {
+        Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
     }
-} catch {
-    Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
+
+    # Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
+    try {
+        $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
+        $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
+        if ($inlineWinEnvsNormGuard) {
+            Add-Path -newPath $inlineWinEnvsNormGuard
+        }
+    } catch {
+        Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
+    }
+
+    Write-Log "WindowsPathFunction initialization complete" -color "Green"
+} else {
+    Write-Log "WindowsPathFunction initialization skipped (SkipInit flag)" -color "Gray"
 }
 
 # Main logic
 switch ($action) {
+    "init" {
+        # Explicit initialization action
+        Write-Log "Initialization already performed during script load" -color "Green"
+    }
     "add" {
         Add-Path -newPath $param1
     }
@@ -908,6 +922,8 @@ switch ($action) {
     }
     "help" {
         Write-Log "Invalid action. Available actions:" -color "Red"
+        Write-Log "  Initialization:" -color "Yellow"
+        Write-Log "    -SkipInit switch              - Skip initialization when loading script" -color "White"
         Write-Log "  PATH Management:" -color "Yellow"
         Write-Log "    add <path>                    - Add directory to system PATH (auto-detects file paths)" -color "White"
         Write-Log "    remove <path>                 - Remove directory from system PATH" -color "White"

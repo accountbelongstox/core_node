@@ -1,0 +1,258 @@
+# Universal App Name Replacer - Usage Guide
+
+## Overview
+The Universal App Name Replacer is an enhanced multi-platform application name replacement engine that supports:
+- Android (AndroidManifest.xml, build.gradle, strings.xml)
+- iOS (Info.plist, xcconfig, InfoPlist.strings)
+- macOS (Info.plist, xcconfig)
+- Linux (CMakeLists.txt, .desktop)
+- Windows (CMakeLists.txt, .rc)
+- Web (index.html, manifest.json)
+
+## Features
+✅ Recursive file scanning with smart directory filtering
+✅ Regex-based pattern matching and replacement
+✅ XML-aware processing for structured files
+✅ Multi-language support (English, Chinese, etc.)
+✅ Detailed logging and statistics
+✅ Automatic skipping of binary files and build artifacts
+
+## Basic Usage
+
+### 1. Import the module
+```python
+from utils.universal_app_name_replacer import (
+    UniversalAppNameReplacer,
+    ReplacementConfig
+)
+from pathlib import Path
+```
+
+### 2. Create configuration
+```python
+config = ReplacementConfig(
+    package_id="com.mycompany.myapp",
+    app_name_en="My Awesome App",
+    app_name_cn="我的超棒应用"
+)
+```
+
+### 3. Create replacer instance
+```python
+replacer = UniversalAppNameReplacer(config)
+```
+
+### 4. Replace across all platforms
+```python
+build_root = Path("D:/my_project/build/app_name_20250107")
+results = replacer.replace_all_platforms(build_root)
+```
+
+### 5. Print summary
+```python
+replacer.print_summary(results)
+```
+
+## Advanced Usage
+
+### Replace single platform
+```python
+# Replace only Android
+android_dir = build_root / "android"
+result = replacer.replace_platform("android", android_dir)
+
+print(f"Files scanned: {result.files_scanned}")
+print(f"Files modified: {result.files_modified}")
+print(f"Total replacements: {result.total_replacements}")
+```
+
+### Custom configuration
+```python
+config = ReplacementConfig(
+    package_id="com.example.app",
+    app_name_en="Example App",
+    app_name_cn="示例应用",
+    app_name_default="Example"  # Fallback name
+)
+```
+
+## Supported File Patterns
+
+### Android
+- **/AndroidManifest.xml - Package ID, app label
+- **/build.gradle - applicationId, namespace
+- **/res/values/strings.xml - English app name
+- **/res/values-zh*/strings.xml - Chinese app name
+- **/*.kt, **/*.java - Package declarations
+
+### iOS
+- **/Info.plist - CFBundleDisplayName, CFBundleName, CFBundleIdentifier
+- **/*.xcconfig - PRODUCT_BUNDLE_IDENTIFIER, PRODUCT_NAME
+- **/en.lproj/InfoPlist.strings - English display name
+- **/zh*.lproj/InfoPlist.strings - Chinese display name
+
+### macOS
+- Similar to iOS platform
+
+### Linux
+- **/CMakeLists.txt - BINARY_NAME, APPLICATION_ID, project()
+- **/*.desktop - Name, Name[zh_CN], GenericName
+
+### Windows
+- **/CMakeLists.txt - BINARY_NAME, PRODUCT_NAME, project()
+- **/*.rc - ProductName, FileDescription, InternalName
+
+### Web
+- **/index.html - <title>, <meta name="application-name">
+- **/manifest.json - name, short_name
+
+## Replacement Rules
+
+Each platform has predefined replacement rules with:
+- **file_pattern**: Glob pattern for file matching
+- **search_pattern**: Regex pattern to find text
+- **replace_template**: Template with placeholders {package_id}, {app_name_en}, {app_name_cn}
+- **description**: Human-readable description
+- **is_xml**: Whether to use XML-aware processing
+
+## Automatic Filtering
+
+The replacer automatically skips:
+
+### Directories
+- .git, .gradle, .dart_tool, build, node_modules
+- __pycache__, .idea, .vscode, Pods, DerivedData
+- xcuserdata, .vs, obj, bin, target, dist
+
+### Binary Files
+- Images: .png, .jpg, .gif, .ico, etc.
+- Libraries: .so, .dll, .dylib, .a
+- Archives: .zip, .tar, .gz, .rar
+- Compiled: .class, .dex, .exe, .bin
+
+## Output Format
+
+### Platform Result Structure
+```python
+{
+    'platform': 'android',
+    'files_scanned': 45,
+    'files_modified': 12,
+    'total_replacements': 28,
+    'results': [
+        {
+            'file_path': '/path/to/file.xml',
+            'platform': 'android',
+            'success': True,
+            'replacements_made': 3,
+            'changes': ['AndroidManifest package: 3 replacement(s)'],
+            'error': None
+        }
+    ],
+    'errors': []
+}
+```
+
+## Integration with Step 7
+
+The Step7AndroidConfigController now uses this engine:
+
+```python
+# In step7_android_config_controller.py
+def execute(self, **kwargs):
+    # ... setup code ...
+
+    # Create replacement configuration
+    replacement_config = ReplacementConfig(
+        package_id=package_id,
+        app_name_en=app_name_en,
+        app_name_cn=app_name_cn
+    )
+
+    # Create and execute universal replacer
+    self.replacer = UniversalAppNameReplacer(replacement_config)
+    platform_results = self.replacer.replace_all_platforms(build_root)
+
+    # Print summary
+    self.replacer.print_summary(platform_results, self.step_name)
+```
+
+## Error Handling
+
+The replacer handles errors gracefully:
+- Unicode decode errors are caught and logged
+- Permission errors are skipped
+- File not found errors are handled
+- All errors are collected in result.errors list
+
+## Performance Considerations
+
+- Uses glob patterns for efficient file finding
+- Skips binary files and build directories
+- Processes files in memory (no temporary files)
+- Regex compilation is optimized
+- Large files are handled efficiently
+
+## Example: Complete Workflow
+
+```python
+from pathlib import Path
+from utils.universal_app_name_replacer import (
+    UniversalAppNameReplacer,
+    ReplacementConfig
+)
+
+# Define your app configuration
+config = ReplacementConfig(
+    package_id="com.qnrlx.app",
+    app_name_en="Qunaer Travel",
+    app_name_cn="去那儿旅行"
+)
+
+# Create replacer
+replacer = UniversalAppNameReplacer(config)
+
+# Execute replacement
+build_root = Path("D:/programing/.build_dir/compile_factory/app_travel_20250107")
+results = replacer.replace_all_platforms(build_root)
+
+# Print detailed summary
+replacer.print_summary(results)
+
+# Access individual platform results
+android_result = results['android']
+print(f"Android: {android_result.files_modified} files modified")
+
+ios_result = results['ios']
+print(f"iOS: {ios_result.files_modified} files modified")
+
+# Check for errors
+for platform, result in results.items():
+    if result.errors:
+        print(f"{platform} errors: {result.errors}")
+```
+
+## Troubleshooting
+
+### No files found
+- Check build_root directory path is correct
+- Verify platform directories exist (android/, ios/, etc.)
+- Ensure files have correct extensions
+
+### No replacements made
+- Verify placeholder values in source files match expected patterns
+- Check if files contain the search patterns
+- Review regex patterns in replacement rules
+
+### Encoding errors
+- Most files use UTF-8 encoding
+- Encoding errors are handled with errors='ignore'
+- Check file encoding if issues persist
+
+## Notes
+
+- Always backup your build directory before running
+- Test on a single platform first
+- Review the summary output to verify replacements
+- Check error list if replacements fail
+- Use the Step 7 controller for automated integration
