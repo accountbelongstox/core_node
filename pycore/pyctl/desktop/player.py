@@ -159,13 +159,18 @@ def get_voice_subtitle_player() -> VoiceSubtitlePlayer:
 
     Returns:
         VoiceSubtitlePlayer: Global player instance
+
+    NOTE: Server-side playback is now disabled.
+    All audio playback happens in the frontend (browser).
     """
     global _voice_subtitle_player
 
-    if _voice_subtitle_player is None:
-        with _player_lock:
-            if _voice_subtitle_player is None:
-                _voice_subtitle_player = VoiceSubtitlePlayer()
-                _voice_subtitle_player.start()
+    # DISABLED: Server-side playback no longer needed - frontend plays audio
+    # if _voice_subtitle_player is None:
+    #     with _player_lock:
+    #         if _voice_subtitle_player is None:
+    #             _voice_subtitle_player = VoiceSubtitlePlayer()
+    #             _voice_subtitle_player.start()
 
-    return _voice_subtitle_player
+    # Return None - no server-side player
+    return None

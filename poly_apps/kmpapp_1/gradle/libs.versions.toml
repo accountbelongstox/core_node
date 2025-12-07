@@ -1,0 +1,162 @@
+[versions]
+# Project
+version_code = "30301"
+version_name = "3.3.1"
+android_gradle_plugin = "8.13.1"
+kotlin = "2.2.21"
+android_sdk_compile = "36"
+android_sdk_target = "35"
+android_sdk_min = "24"
+
+# General dependencies
+logging = "3.0.5"
+logcat = "0.4"
+stately = "2.1.0"
+
+# KotlinX
+kotlinx_coroutines = "1.10.2"
+kotlinx_serialization = "1.9.0"
+kotlinx_collections_immutable = "0.4.0"
+kotlinx_datetime = "0.7.1"
+
+# AndroidX
+activity = "1.12.1"
+core = "1.17.0"
+appcompat = "1.7.1"
+corektx = "1.17.0"
+play_delivery = "2.1.0"
+datastore = "1.2.0"
+glance = "1.1.1"
+workmanager = "2.11.0"
+annotation = "1.9.1"
+lifecycle_viewmodel = "2.9.6"
+lifecycle_runtime = "2.10.0"
+
+# Compose
+compose_bom = "2025.12.00"
+compose_activity = "1.12.1"
+compose_compiler = "1.9.3"
+compose_navigation = "2.9.1"
+compose_adaptive = "1.2.0"
+
+# Koin
+koin = "4.1.1"
+
+# SQLDelight
+sqldelight = "2.2.1"
+
+# Moko
+moko_permissions = "0.20.1"
+
+# Multiplatform Utils
+multiplatform_paths = "0.2.2"
+
+# Test
+test_junit = "4.13.2"
+test_uiautomator = "2.3.0"
+test_junit4_android = "1.10.0"
+test_manifest = "1.10.0"
+
+# Quality
+ktlint = "1.8.0"
+detekt = "1.23.8"
+composerules = "0.5.1"
+
+# License
+aboutlibraries = "13.1.0"
+
+# Decompose
+decompose = "3.4.0"
+
+[libraries]
+# Project
+android_gradle_plugin = { module = "com.android.tools.build:gradle", version.ref = "android_gradle_plugin" }
+kotlin_gradle_plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
+# General dependencies
+logging = { module = "io.github.microutils:kotlin-logging", version.ref = "logging" }
+logcat = { module = "com.squareup.logcat:logcat", version.ref = "logcat" }
+stately = { module = "co.touchlab:stately-common", version.ref = "stately" }
+
+# KotlinX
+kotlinx_coroutines_core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx_coroutines" }
+kotlinx_coroutines_test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx_coroutines" }
+kotlinx_coroutines_swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx_coroutines" }
+kotlinx_serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx_serialization" }
+kotlinx_collections_immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx_collections_immutable" }
+kotlinx_datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx_datetime" }
+
+# AndroidX
+androidx_activity = { module = "androidx.activity:activity", version.ref = "activity" }
+androidx_core = { module = "androidx.core:core", version.ref = "core" }
+androidx_appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx_corektx = { module = "androidx.core:core-ktx", version.ref = "corektx" }
+androidx_playcore = { module = "com.google.android.play:feature-delivery", version.ref = "play_delivery" }
+androidx_datastore = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+androidx_glance = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+androidx_glance_material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
+androidx_workmanager = { module = "androidx.work:work-runtime-ktx", version.ref = "workmanager" }
+androidx_lifecycle_viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle_viewmodel" }
+androidx_annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
+androidx_lifecycle_runtime = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle_runtime" }
+
+compose_bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose_bom" }
+compose_ui = { module = "androidx.compose.ui:ui" }
+compose_icons = { module = "androidx.compose.material:material-icons-extended" }
+compose_material3 = { module = "androidx.compose.material3:material3" }
+compose_adaptive_navigation = { module = "org.jetbrains.compose.material3.adaptive:adaptive-navigation", version.ref = "compose_adaptive" }
+
+compose_navigation = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "compose_navigation" }
+
+# Dynamic Feature don't recognize BOM
+compose_activity = { module = "androidx.activity:activity-compose", version.ref = "compose_activity" }
+
+#Koin
+koin_core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin_android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin_test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+koin_compose = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+
+# SQLDelight
+sqldelight_driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+sqldelight_native = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
+sqldelight_jvm = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+sqldelight_coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
+
+# Moko
+moko_permissions_compose = { module = "dev.icerock.moko:permissions-compose", version.ref = "moko_permissions" }
+moko_permissions_notifications = { module = "dev.icerock.moko:permissions-notifications", version.ref = "moko_permissions" }
+
+## Multiplatform Utils
+multiplatform_path = { module = "me.sujanpoudel.multiplatform.utils:multiplatform-paths", version.ref = "multiplatform_paths" }
+
+# Test
+test_junit = { module = "junit:junit", version.ref = "test_junit" }
+test_uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "test_uiautomator" }
+
+test-junit4-android = { module = "androidx.compose.ui:ui-test-junit4-android", version.ref = "test_junit4_android" }
+test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "test_manifest" }
+
+# Quality
+ktlint = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
+detekt = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+composerules-detekt = { module = "io.nlopez.compose.rules:detekt", version.ref = "composerules" }
+composerules-ktlint = { module = "io.nlopez.compose.rules:ktlint", version.ref = "composerules" }
+
+# License
+aboutlibraries_plugin = { module = "com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin", version.ref = "aboutlibraries" }
+aboutlibraries_ui = { module = "com.mikepenz:aboutlibraries-compose", version.ref = "aboutlibraries" }
+
+# Decompose
+decompose = { module = "com.arkivanov.decompose:decompose", version.ref = "decompose" }
+decompose_compose = { module = "com.arkivanov.decompose:extensions-compose", version.ref = "decompose" }
+
+[bundles]
+compose = ["compose.ui", "compose.icons", "compose.material3"]
+
+[plugins]
+kotlin_serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose_compiler" }
+
+compose_compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

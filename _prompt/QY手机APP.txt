@@ -38,3 +38,4 @@ D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\_prompts\api_inf
 pycore\pylauncher\launcher.py 查看启动器，现在pyapps\matrix\matrix_main.py找到差异化，使期完全调用
  pycore\pylauncher\launcher.py 来组织UI，tray, rpc v2来组织后台，查看规范  development-guides\PYTHON_PYCORE.md
 先给出方案。
+

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<resources>
+
+    <!-- Home -->
+    <string name="home_title_tasks">任务</string>
+    <string name="home_title_search">搜索</string>
+    <string name="home_title_categories">分类</string>
+    <string name="home_title_settings">更多</string>
+
+    <!-- Tasks -->
+    <string name="task_cd_add_task">添加任务</string>
+    <string name="task_list_header_empty">太棒了！所有任务都已完成！</string>
+    <string name="task_list_cd_empty_list">全部完成</string>
+    <string name="task_list_header_error">糟糕…出错了…</string>
+    <string name="task_list_cd_error">出现错误</string>
+    <string name="task_detail_header_error">此任务不再可用</string>
+    <string name="task_detail_cd_error">未找到任务</string>
+
+    <string name="task_detail_cd_icon_category">分类</string>
+    <string name="task_detail_cd_icon_description">描述</string>
+    <string name="task_detail_cd_icon_alarm">提醒</string>
+    <string name="task_detail_cd_icon_remove_alarm">移除提醒</string>
+    <string name="task_detail_cd_icon_repeat_alarm">重复提醒</string>
+
+    <string name="task_detail_category_empty_list">无分类</string>
+
+    <string name="task_detail_alarm_no_alarm">无提醒</string>
+
+    <string name="task_detail_pane_title">选择任务查看详情</string>
+
+    <string name="task_alarm_repeating_never">从不</string>
+    <string name="task_alarm_repeating_hourly">每小时</string>
+    <string name="task_alarm_repeating_daily">每天</string>
+    <string name="task_alarm_repeating_weekly">每周</string>
+    <string name="task_alarm_repeating_monthly">每月</string>
+    <string name="task_alarm_repeating_yearly">每年</string>
+
+    <string name="task_add_save">添加</string>
+    <string name="task_add_label">任务</string>
+
+    <string name="task_snackbar_message_complete">任务已完成</string>
+    <string name="task_snackbar_button_undo">撤销</string>
+
+    <string name="task_alarm_permission_dialog_title">提醒和通知</string>
+    <string name="task_alarm_permission_dialog_text">为了让提醒功能正常工作，千语单词需要设置提醒和通知的权限。如果未授予此权限，现有提醒也将无法正常工作。</string>
+    <string name="task_alarm_permission_dialog_confirm">授予权限</string>
+    <string name="task_alarm_permission_dialog_cancel">稍后</string>
+
+    <string name="task_notification_permission_dialog_title">通知</string>
+    <string name="task_notification_permission_dialog_text">为了发送提醒通知，千语单词需要发送通知的权限。如果未授予此权限，现有提醒也将无法正常工作。</string>
+    <string name="task_notification_permission_dialog_confirm">授予权限</string>
+    <string name="task_notification_permission_dialog_cancel">稍后</string>
+
+    <string name="task_notification_rationale_dialog_title">通知</string>
+    <string name="task_notification_rationale_dialog_text">没有通知权限无法设置提醒。如果您想使用此功能，请前往应用设置并手动授予权限。</string>
+    <string name="task_notification_rationale_dialog_confirm">前往设置</string>
+    <string name="task_notification_rationale_dialog_cancel">忽略</string>
+
+    <!-- Category -->
+    <string name="category_list_header_empty">无分类</string>
+    <string name="category_list_cd_empty_list">无可用分类</string>
+    <string name="category_icon_cd">分类</string>
+    <string name="category_sheet_save">保存</string>
+    <string name="category_cd_add_category">添加分类</string>
+    <string name="category_add_label">分类</string>
+
+    <string name="category_dialog_remove_title">删除分类</string>
+    <string name="category_dialog_remove_text">确定要删除此分类吗？\n删除 "%1$s" 也会删除此分类下的所有任务。</string>
+    <string name="category_dialog_remove_confirm">删除</string>
+    <string name="category_dialog_remove_cancel">取消</string>
+    <string name="category_cd_remove_category">删除</string>
+
+    <!-- Search -->
+    <string name="search_cd_icon">搜索</string>
+    <string name="search_cd_empty_list">无任务</string>
+    <string name="search_header_empty">未找到任务</string>
+
+    <!-- Preferences -->
+    <string name="preference_title_about">关于</string>
+    <string name="preference_title_version">版本</string>
+    <string name="preference_title_tracker">任务追踪</string>
+
+    <string name="about_title">千语单词</string>
+    <string name="about_description">千语单词 (Thousand Words) 是一款帮助您掌握新单词的词汇学习应用。\n\n这一切始于我创建的一个项目，用于学习并了解最新的 Android 组件和库。现在，得益于 Kotlin 和 Compose Multiplatform，它可以在多个平台上使用！如果您是开发者或爱好者，欢迎访问、复制和更新开源代码。\n\n非常感谢您使用我的应用！</string>
+    <string name="about_button_project">在 GitHub 上访问项目</string>
+    <string name="about_cd_github">GitHub</string>
+    <string name="preference_title_app_theme">应用主题</string>
+    <string name="preference_light_theme">浅色主题</string>
+    <string name="preference_dark_theme">深色主题</string>
+    <string name="preference_system_default_theme">跟随系统</string>
+    <string name="preference_title_features">功能</string>
+    <string name="preference_title_settings">设置</string>
+    <string name="preference_title_open_source">开源许可</string>
+
+    <!-- Database -->
+    <string name="category_default_personal">个人</string>
+    <string name="category_default_work">工作</string>
+    <string name="category_default_shopping">购物清单</string>
+
+    <!-- Tracker -->
+    <string name="tracker_name_no_category">无分类</string>
+    <string name="tracker_cp_item_icon">已完成项目</string>
+
+    <string name="tracker_message_description">最近 30 天</string>
+    <string name="tracker_cp_info_icon">已完成任务</string>
+
+    <string name="tracker_cd_empty">无已完成任务</string>
+    <string name="tracker_header_empty">您在过去 30 天内没有已完成的任务</string>
+    <string name="tracker_header_error">糟糕…出错了…</string>
+    <string name="tracker_cd_error">出现错误</string>
+
+    <!-- Alarm -->
+    <string name="content_app_name">千语单词</string>
+
+    <string name="channel_task_name">任务提醒</string>
+    <string name="channel_task_description">提醒通知</string>
+
+    <string name="notification_action_completed">完成</string>
+    <string name="notification_action_snooze">15 分钟后</string>
+
+    <string name="dialog_picker_next">下一步</string>
+    <string name="dialog_picker_confirm">确认</string>
+
+    <string name="default_ok">确定</string>
+
+    <!-- Relative Date -->
+    <string name="relative_date_time_just_now">刚刚</string>
+    <string name="relative_date_time_one_minute">1 分钟前</string>
+    <string name="relative_date_time_minutes">%d 分钟前</string>
+    <string name="relative_date_time_one_hour">1 小时前</string>
+    <string name="relative_date_time_hours">%d 小时前</string>
+    <string name="relative_date_time_yesterday">昨天</string>
+    <string name="relative_date_time_days">%d 天前</string>
+
+    <!-- WordFlow -->
+    <string name="wordflow_login_title">登录</string>
+    <string name="wordflow_login_subtitle">欢迎使用千语单词</string>
+    <string name="wordflow_login_button">开始学习</string>
+    <string name="wordflow_dashboard_title">学习仪表板</string>
+    <string name="wordflow_courses_title">课程列表</string>
+    <string name="wordflow_course_detail_title">课程详情</string>
+    <string name="wordflow_share_course">分享课程</string>
+
+    <!-- Language Settings -->
+    <string name="preference_title_language">语言</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese_simplified">简体中文</string>
+    <string name="language_chinese_traditional">繁體中文</string>
+    <string name="language_portuguese_brazil">Português (Brasil)</string>
+    <string name="language_system_default">跟随系统</string>
+
+</resources>
+
