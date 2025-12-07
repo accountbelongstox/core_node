@@ -24,7 +24,8 @@
       "checking_deps": "Checking dependencies...",
       "installing": "Installing...",
       "loading": "Loading...",
-      "ready": "Ready"
+      "ready": "Ready",
+      "error": "Error"
     }
   },
   "tray": {

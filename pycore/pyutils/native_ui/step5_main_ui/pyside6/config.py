@@ -145,18 +145,25 @@ class PySide6UIConfig:
 @dataclass
 class StartupWindowConfig:
     """
-    Startup Window Configuration (Python native/tkinter)
+    Startup Window Configuration (DEPRECATED in favor of TkinterStartupThread)
 
     Simple configuration for the initialization window that shows
     BEFORE PySide6 dependencies are installed.
 
-    This window can be used as a debug/log window that shows ColorPrint output.
+    DEPRECATED: This config is kept for backward compatibility but should not be used.
+    Use NativeUIConfig.show_debug_window=True with launcher_with_startup.py instead.
+
+    This creates TkinterStartupThread which has better features:
+    - Thread-safe
+    - ColorPrint integration
+    - Language selector support
+    - Auto-close on frontend.ready
     """
     app_name: str = "Application"
     width: int = 500
     height: int = 400
     icon_path: Optional[str] = None  # Path to window icon (.ico for Windows, .png for Linux)
-    show_startup: bool = True  # Whether to show startup window
+    show_startup: bool = False  # Default: False (use TkinterStartupThread via launcher_with_startup instead)
     auto_close: bool = True  # Auto-close when PySide6 starts (False = keep as debug window)
     daemon: bool = True  # Run as daemon thread (auto-terminates with main)
     on_complete: Optional[Callable] = None  # Called when startup completes

@@ -24,6 +24,16 @@ from .routers import (
     code_sync_router,
     notebooklm_stt_router
 )
+# Import new layer routers
+from .routers.local import (
+    screenshot_router,
+    image_router,
+    audio_router,
+    file_router,
+    video_router,
+)
+from .routers.upload import router as upload_router
+from .routers.client import router as client_router
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -66,7 +76,7 @@ def create_app() -> FastAPI:
         print(f"[App] Mounted desktop UI at /desktop -> {DESKTOP_UI_DIR}")
 
     # Register routers
-    # Management layer routers (NEW)
+    # Management layer routers
     app.include_router(status_router)
     app.include_router(config_router)
     app.include_router(control_router)
@@ -75,6 +85,19 @@ def create_app() -> FastAPI:
     app.include_router(local_config_router)
     app.include_router(local_stats_router)
     app.include_router(local_test_router)
+
+    # Local processing layer routers
+    app.include_router(screenshot_router)
+    app.include_router(image_router)
+    app.include_router(audio_router)
+    app.include_router(file_router)
+    app.include_router(video_router)
+
+    # Upload layer router
+    app.include_router(upload_router)
+
+    # Client layer router
+    app.include_router(client_router)
 
     # Legacy routers (still active)
     app.include_router(module_call_router)

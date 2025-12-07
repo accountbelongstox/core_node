@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { DataProvider } from './contexts/DataContext';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import SystemManagement from './pages/SystemManagement';
@@ -25,8 +26,13 @@ const AppContent: React.FC = () => {
       case 'system_config':
         return <SystemManagement defaultTab={currentView === 'system_config' ? 'config' : 'status'} />;
       case 'local_capabilities':
+        return <LocalProcessing defaultTab="status" />;
       case 'local_config':
-        return <LocalProcessing defaultTab={currentView === 'local_config' ? 'config' : 'status'} />;
+        return <LocalProcessing defaultTab="config" />;
+      case 'local_stats':
+        return <LocalProcessing defaultTab="stats" />;
+      case 'local_test':
+        return <LocalProcessing defaultTab="test" />;
       case 'upload_tasks':
         return <UploadTasks />;
       case 'remote_servers':
@@ -59,6 +65,8 @@ const AppContent: React.FC = () => {
       case 'system_config': return t('nav.system.config');
       case 'local_capabilities': return t('nav.local.cap');
       case 'local_config': return t('nav.local.conf');
+      case 'local_stats': return t('nav.local.stats');
+      case 'local_test': return t('nav.local.test');
       case 'upload_tasks': return t('nav.uploads');
       case 'remote_servers': return t('nav.remote');
       case 'statistics': return t('nav.statistics');
@@ -114,7 +122,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AppProvider>
-      <AppContent />
+      <DataProvider autoRefreshInterval={30000}>
+        <AppContent />
+      </DataProvider>
     </AppProvider>
   );
 };
