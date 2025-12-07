@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
+use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -13,7 +13,7 @@ class AppQyV1TTSController extends Controller
     
     public function __construct()
     {
-        $this->ttsService = new AppQyV1TTSService();
+        $this->ttsService = new EdgeTTSService();
     }
     
     public function generate(Request $request): JsonResponse
