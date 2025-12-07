@@ -150,6 +150,13 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
 )
 _PYSIDE6_AVAILABLE = True
 
+# Frontend Launcher (Step 9) - Integrated frontend management
+from pycore.pyutils.native_ui.step9_frontend import (
+    FrontendConfig,
+    FrontendLauncherThread,
+    start_frontend_if_needed
+)
+
 __all__ = [
     # I18n Manager (core utility)
     'I18nManager',
@@ -163,6 +170,11 @@ __all__ = [
     'TrayMenuItemDict',  # Type alias for simple dict-based tray menu items
     'launch_native_app',
     'launch',  # Alias for launch_native_app
+
+    # Frontend Launcher (Step 9) - For advanced users
+    'FrontendConfig',
+    'FrontendLauncherThread',
+    'start_frontend_if_needed',
 ]
 
 # Note: Other utilities (TimerManager, ShutdownManager, CallbackManager, etc.)

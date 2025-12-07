@@ -35,7 +35,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations import ColorPrint, is_cuda_available
 from pycore.pyutils.azure_speech.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.whisper_stt.audio_utils import (
     convert_to_whisper_format,
@@ -54,7 +54,8 @@ from pycore.pyutils.whisper_stt.audio_capture import (
 
 # Whisper model sizes
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large", "turbo"]
-DEFAULT_MODEL = "turbo"
+DEFAULT_MODEL_CPU = "turbo"
+DEFAULT_MODEL_GPU = "large"
 
 
 def _get_whisper():
@@ -68,26 +69,46 @@ def _get_whisper():
     return get_third_package_whisper()
 
 
+def _get_optimal_model() -> str:
+    """
+    Get optimal Whisper model based on hardware capabilities
+
+    Uses CUDADetector from pyfoundations to check GPU availability.
+    Does not depend on torch or any third-party packages for detection.
+
+    Returns:
+        str: Model name - "large" if CUDA available, "turbo" otherwise
+    """
+    if is_cuda_available():
+        ColorPrint.green("[WHISPER] CUDA detected - using 'large' model for best accuracy")
+        return DEFAULT_MODEL_GPU
+    else:
+        ColorPrint.cyan("[WHISPER] CUDA not detected - using 'turbo' model for CPU efficiency")
+        return DEFAULT_MODEL_CPU
+
+
 class WhisperSTTProvider(BaseSpeechRecognitionProvider):
     """
     Speech recognition provider using OpenAI's Whisper model
 
     Features:
     - Multiple model sizes (tiny, base, small, medium, large, turbo)
+    - Automatic model selection based on GPU availability
     - Automatic audio format conversion
     - Support for multiple input sources
     - Language detection and specification
     - Translation to English
     """
 
-    def __init__(self, model_name: str = DEFAULT_MODEL):
+    def __init__(self, model_name: Optional[str] = None):
         """
         Initialize Whisper STT provider
 
         Args:
-            model_name: Whisper model name (tiny, base, small, medium, large, turbo)
+            model_name: Whisper model name (tiny, base, small, medium, large, turbo).
+                       If None, automatically selects 'large' for GPU or 'turbo' for CPU.
         """
-        self._model_name = model_name
+        self._model_name = model_name  # None means auto-detect
         self._model = None
         self._initialized = False
         self._is_recognizing = False
@@ -99,7 +120,8 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         Initialize Whisper model
 
         Args:
-            model_name: Optional model name to override default
+            model_name: Optional model name to override default.
+                       If None and no default set, auto-detects optimal model based on GPU.
 
         Returns:
             True if initialization successful
@@ -113,8 +135,13 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             ColorPrint.yellow("[WhisperSTT] Install with: pip install -U openai-whisper")
             return False
 
+        # Determine model name
         if model_name:
             self._model_name = model_name
+        elif self._model_name is None:
+            # Auto-detect optimal model based on GPU
+            self._model_name = _get_optimal_model()
+            ColorPrint.blue(f"[WhisperSTT] Auto-selected model: {self._model_name}")
 
         if self._model_name not in WHISPER_MODELS:
             ColorPrint.red(f"[WhisperSTT] Invalid model: {self._model_name}")
@@ -498,7 +525,7 @@ _whisper_provider: Optional[WhisperSTTProvider] = None
 _provider_lock = threading.Lock()
 
 
-def get_whisper_stt_provider(model_name: str = DEFAULT_MODEL) -> WhisperSTTProvider:
+def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProvider:
     """
     Get global WhisperSTTProvider singleton
 

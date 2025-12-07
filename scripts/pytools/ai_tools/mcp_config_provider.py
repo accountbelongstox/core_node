@@ -23,23 +23,28 @@ Supported MCP Servers:
 - MCPUnifiedServer: Unified MCP server (stdio transport)
 """
 
+import importlib.util
+import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Calculate paths relative to this script
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
+SECRET_SPEC = importlib.util.spec_from_file_location(
+    "ai_tools_secret_manager",
+    SECRET_MANAGER_PATH
+)
+SECRET_MODULE = importlib.util.module_from_spec(SECRET_SPEC)
+assert SECRET_SPEC.loader is not None
+SECRET_SPEC.loader.exec_module(SECRET_MODULE)
+get_secret_key = SECRET_MODULE.get_secret_key
 
 
 def get_secret_value(key_name: str) -> Optional[str]:
-    """Get secret value from secret manager"""
-    try:
-        from .secret_manager import get_secret_key
-        value = get_secret_key(key_name)
-        return value if value else None
-    except Exception as e:
-        print(f"[WARNING] Could not load secret {key_name}: {e}")
-        return None
+    value = get_secret_key(key_name)
+    return value if value else None
 
 
 class MCPConfig:
@@ -85,21 +90,39 @@ class MCPConfigProvider:
         context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
 
         if not context7_api_key:
-            print(f"[WARNING] CONTEXT7_API_KEY not found in secret manager")
-            print(f"[INFO] Adding Context7 MCP with empty API key (can be configured later)")
-            context7_api_key = ""
-        else:
-            print(f"[INFO] Context7 API key loaded successfully")
+            print("[ERROR] CONTEXT7_API_KEY not found in secret manager.")
+            print("[HINT] Please add CONTEXT7_API_KEY_1 via the secret manager.")
+            return None
+
+        print("[INFO] Context7 API key loaded successfully")
 
         # Codex uses stdio with npx, Claude uses HTTP
         if target.lower() == "codex":
+            env = {}
+            home_dir = Path.home()
+            if os.name == "nt":
+                appdata_path = os.environ.get("APPDATA", str(home_dir / "AppData" / "Roaming"))
+                system_root = os.environ.get("SystemRoot", "C:\\Windows")
+                npx_path = Path(appdata_path) / "npm" / "npx.cmd"
+                command_path = str(npx_path) if npx_path.exists() else "npx"
+            else:
+                appdata_path = os.environ.get("APPDATA", "")
+                system_root = os.environ.get("SystemRoot", "")
+                command_path = "npx"
+
+            if context7_api_key:
+                env["CONTEXT7_API_KEY"] = context7_api_key
+            if os.name == "nt":
+                env.setdefault("APPDATA", appdata_path)
+                env.setdefault("SystemRoot", system_root)
+
             # Codex format: codex mcp add context7 -- npx -y @upstash/context7-mcp
             return MCPConfig(
                 name="context7",
                 transport_type="stdio",
-                command="npx",
+                command=command_path,
                 args=["-y", "@upstash/context7-mcp"],
-                env={"CONTEXT7_API_KEY": context7_api_key} if context7_api_key else {}
+                env=env
             )
         else:
             # Claude format: HTTP transport with headers

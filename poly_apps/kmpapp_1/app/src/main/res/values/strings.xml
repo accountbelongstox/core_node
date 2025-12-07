@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <string name="app_name" translatable="false">千语单词</string>
+
+    <!-- Suppress `UnusedResources` due to some bug on Dynamic Features tags -->
+    <string name="dynamic_feature_title_tracker" translatable="false" tools:ignore="UnusedResources">Task Tracker</string>
+
+</resources>

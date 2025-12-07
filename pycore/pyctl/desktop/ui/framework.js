@@ -7,6 +7,29 @@ const api = new VoiceSubtitleAPI(CONFIG);
 // ========== Initialize LAN Scanner ==========
 const lanScanner = new LANScanner(CONFIG);
 
+// ========== Mobile Debug Helper ==========
+// Detect if running on mobile device
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+// Debug log function that respects GLOBAL_DEBUG setting
+function debugLog(message, useAlert = false) {
+    if (!GLOBAL_DEBUG) return; // Skip if debug is disabled
+
+    console.log(message);
+    if (isMobile && useAlert) {
+        alert(message);
+    }
+}
+
+// Initial debug info (only if debug enabled)
+if (GLOBAL_DEBUG) {
+    debugLog('[Framework] Platform: ' + (isMobile ? 'Mobile' : 'Desktop'));
+    debugLog('[Framework] User Agent: ' + navigator.userAgent);
+    debugLog('[Framework] Initializing WebSocket RPC Client', isMobile);
+    debugLog('[Framework] WebSocket URL: ' + CONFIG.WEBSOCKET.URL, isMobile);
+    console.log('[Framework] WebSocket Options:', CONFIG.WEBSOCKET.OPTIONS);
+}
+
 // ========== RPC Client ==========
 const rpcClient = new FastAPIWsRpcClient(CONFIG.WEBSOCKET.URL, CONFIG.WEBSOCKET.OPTIONS);
 
@@ -17,6 +40,7 @@ let isPlaying = false;
 let activeModule = CONFIG.UI.DEFAULT_MODULE;
 let selectedItems = new Set();
 let isSubtitleMode = false;
+let userHasInteracted = false; // Track user interaction for autoplay
 
 // ========== DOM Elements ==========
 // Audio Player
@@ -46,16 +70,24 @@ const modules = {
 
 // ========== Initialization ==========
 async function init() {
+    debugLog('[Framework] Initializing application...', isMobile);
+    debugLog('[Framework] Current hostname: ' + window.location.hostname, isMobile);
+    if (GLOBAL_DEBUG) console.log('[Framework] Server config:', CONFIG.SERVER);
+
     try {
+        debugLog('[RPC] Attempting to connect to WebSocket...', isMobile);
+        debugLog('[RPC] URL: ' + CONFIG.WEBSOCKET.URL, isMobile);
+
         await rpcClient.connect();
-        console.log('[RPC] Connected to WebSocket');
+        debugLog('[RPC] Connected to WebSocket successfully!', isMobile);
         updateStatus(true);
 
         // Fetch initial data
         await Promise.all([
             fetchQueue(),
             fetchCategories(),
-            updateStatistics()
+            updateStatistics(),
+            loadNotebookLMStatus()
         ]);
 
         // Start auto-refresh
@@ -66,10 +98,62 @@ async function init() {
 
         // Setup event listeners
         setupEventListeners();
+
+        // Setup user interaction detection
+        setupUserInteractionDetection();
     } catch (error) {
-        console.error('[RPC] Connection failed:', error);
+        // Always log errors (even if GLOBAL_DEBUG is false)
+        console.error('[RPC] Connection failed!');
+        console.error('[RPC] Error details:', error);
+        console.error('[RPC] Error message:', error.message);
+        if (GLOBAL_DEBUG) console.error('[RPC] Error stack:', error.stack);
+
+        // Show alert on mobile for critical errors
+        if (isMobile) {
+            alert('[RPC] Connection FAILED! Error: ' + error.message);
+        }
+
         updateStatus(false);
+
+        // Show user-friendly error message
+        const subtitleText = document.getElementById('subtitleText');
+        if (subtitleText) {
+            subtitleText.innerHTML = `
+                <div class="empty-state" style="color: #f44336;">
+                    <div class="icon">⚠️</div>
+                    <div style="margin-top: 10px; font-size: 16px;">WebSocket Connection Failed</div>
+                    <div style="margin-top: 5px; font-size: 12px; opacity: 0.7;">
+                        ${error.message || 'Unknown error'}
+                    </div>
+                    <div style="margin-top: 10px; font-size: 11px; opacity: 0.6;">
+                        URL: ${CONFIG.WEBSOCKET.URL}
+                    </div>
+                    <div style="margin-top: 5px; font-size: 11px; opacity: 0.6;">
+                        ${isMobile ? 'Check if port 59000 is accessible from mobile network' : 'Check console for details (F12)'}
+                    </div>
+                </div>
+            `;
+        }
     }
+}
+
+// ========== User Interaction Detection ==========
+function setupUserInteractionDetection() {
+    // Listen for any user interaction to enable autoplay
+    const markUserInteraction = () => {
+        if (!userHasInteracted) {
+            userHasInteracted = true;
+            debugLog('[Player] User interaction detected, autoplay enabled');
+            // Remove listeners after first interaction
+            document.removeEventListener('click', markUserInteraction);
+            document.removeEventListener('keydown', markUserInteraction);
+            document.removeEventListener('touchstart', markUserInteraction);
+        }
+    };
+
+    document.addEventListener('click', markUserInteraction, { once: true });
+    document.addEventListener('keydown', markUserInteraction, { once: true });
+    document.addEventListener('touchstart', markUserInteraction, { once: true });
 }
 
 // ========== Module Navigation ==========
@@ -176,7 +260,7 @@ async function fetchQueue() {
             const queueChanged = oldQueueLength !== currentQueue.length;
 
             if (currentQueue.length > 0 && !isPlaying && audioPlayer.paused && queueChanged) {
-                console.log('[Queue] Queue changed, starting playback');
+                debugLog('[Queue] Queue changed, starting playback');
                 playCurrentItem();
             }
         }
@@ -271,7 +355,7 @@ function playCurrentItem() {
     const item = currentQueue[currentIndex];
     if (!item) return;
 
-    console.log('[Player] Playing:', item);
+    debugLog('[Player] Playing: ' + JSON.stringify(item));
 
     // Update subtitle
     updateSubtitle(item.text, item.audio_path);
@@ -285,11 +369,44 @@ function playCurrentItem() {
         .then(() => {
             isPlaying = true;
             updatePlayPauseButton();
-            console.log('[Player] Started playback');
+            debugLog('[Player] Started playback');
         })
         .catch(err => {
             console.error('[Player] Play error:', err);
+
+            // Show user-friendly message for autoplay restrictions
+            if (err.name === 'NotAllowedError') {
+                if (!userHasInteracted) {
+                    console.warn('[Player] Autoplay blocked - user interaction required');
+                    showAutoplayPrompt();
+                } else {
+                    console.error('[Player] Play failed despite user interaction:', err);
+                }
+            }
         });
+}
+
+// Show a prompt for user to enable playback
+function showAutoplayPrompt() {
+    // Update subtitle to show prompt
+    const promptHtml = `
+        <div class="empty-state" style="cursor: pointer;">
+            <div class="icon">🎵</div>
+            <div style="margin-top: 10px; font-size: 16px;">Click anywhere to start playback</div>
+            <div style="margin-top: 5px; font-size: 12px; opacity: 0.7;">Browser requires user interaction</div>
+        </div>
+    `;
+    subtitleText.innerHTML = promptHtml;
+    subtitleText.style.animation = 'pulse 2s ease-in-out infinite';
+
+    // Add one-time click handler to start playback
+    const startPlayback = () => {
+        userHasInteracted = true;
+        subtitleText.style.animation = '';
+        playCurrentItem();
+        document.removeEventListener('click', startPlayback);
+    };
+    document.addEventListener('click', startPlayback, { once: true });
 }
 
 // ========== UI Updates ==========
@@ -522,6 +639,8 @@ function setupEventListeners() {
     // Background features
     document.getElementById('clipboardMonitorToggle')?.addEventListener('change', toggleClipboardMonitor);
     document.getElementById('screenshotMonitorToggle')?.addEventListener('change', toggleScreenshotMonitor);
+    document.getElementById('notebooklmSttToggle')?.addEventListener('change', toggleNotebookLMSTT);
+    document.getElementById('convertNotebookBtn')?.addEventListener('click', convertNotebookNow);
 
     // Subtitle mode
     document.getElementById('subtitleModeBtn')?.addEventListener('click', toggleSubtitleMode);
@@ -557,20 +676,20 @@ function setupEventListeners() {
     // Playback settings - reload queue when changed
     document.querySelectorAll('input[name="playbackMode"]').forEach(radio => {
         radio.addEventListener('change', () => {
-            console.log('[Settings] Playback mode changed, reloading queue');
+            debugLog('[Settings] Playback mode changed, reloading queue');
             fetchQueue();
         });
     });
 
     document.getElementById('categoryFilter')?.addEventListener('change', () => {
-        console.log('[Settings] Category filter changed, reloading queue');
+        debugLog('[Settings] Category filter changed, reloading queue');
         fetchQueue();
     });
 
     document.getElementById('latestCount')?.addEventListener('change', () => {
         const playbackMode = document.querySelector('input[name="playbackMode"]:checked')?.value;
         if (playbackMode === 'latest') {
-            console.log('[Settings] Latest count changed, reloading queue');
+            debugLog('[Settings] Latest count changed, reloading queue');
             fetchQueue();
         }
     });
@@ -579,7 +698,7 @@ function setupEventListeners() {
     document.getElementById('startSyncBtn')?.addEventListener('click', startCodeSync);
     document.getElementById('stopSyncBtn')?.addEventListener('click', stopCodeSync);
     document.getElementById('codeSyncMode')?.addEventListener('change', (e) => {
-        console.log('[Code Sync] Mode selector changed:', e.target.value);
+        debugLog('[Code Sync] Mode selector changed: ' + e.target.value);
         // Update display based on selected mode
         updateCodeSyncPanelVisibility(e.target.value);
     });
@@ -631,11 +750,11 @@ function setupEventListeners() {
     });
     document.getElementById('scanInterval')?.addEventListener('change', (e) => {
         CONFIG.REMOTE_API.SCAN_INTERVAL = parseInt(e.target.value) * 1000;
-        console.log('[API Config] Scan interval updated:', e.target.value, 'seconds');
+        debugLog('[API Config] Scan interval updated: ' + e.target.value + ' seconds');
     });
     document.getElementById('scanTimeout')?.addEventListener('change', (e) => {
         CONFIG.REMOTE_API.SCAN_TIMEOUT = parseInt(e.target.value);
-        console.log('[API Config] Scan timeout updated:', e.target.value, 'ms');
+        debugLog('[API Config] Scan timeout updated: ' + e.target.value + ' ms');
     });
 }
 
@@ -853,7 +972,7 @@ async function changeCategoryForSelected() {
 // ========== Background Features ==========
 async function toggleClipboardMonitor(event) {
     const enabled = event.target.checked;
-    console.log('[Clipboard Monitor]', enabled ? 'Enabled' : 'Disabled');
+    debugLog('[Clipboard Monitor] ' + (enabled ? 'Enabled' : 'Disabled'));
 
     const apiUrl = enabled
         ? api.getFullUrl(CONFIG.API.CLIPBOARD_START)
@@ -879,7 +998,7 @@ async function toggleClipboardMonitor(event) {
 async function toggleScreenshotMonitor(event) {
     const enabled = event.target.checked;
     const interval = parseInt(document.getElementById('screenshotInterval').value);
-    console.log('[Screenshot Monitor]', enabled ? `Enabled (${interval}s)` : 'Disabled');
+    debugLog('[Screenshot Monitor] ' + (enabled ? 'Enabled (' + interval + 's)' : 'Disabled'));
 
     const apiUrl = enabled
         ? api.getFullUrl(CONFIG.API.SCREENSHOT_START)
@@ -914,7 +1033,7 @@ async function toggleScreenshotMonitor(event) {
 // ========== Subtitle Mode ==========
 
 function enterSubtitleMode() {
-    console.log('[Subtitle Mode] Entering subtitle mode...');
+    debugLog('[Subtitle Mode] Entering subtitle mode...');
 
     isSubtitleMode = true;
 
@@ -943,7 +1062,7 @@ function enterSubtitleMode() {
                 timestamp: new Date().toISOString()
             }
         }).then(() => {
-            console.log('[Subtitle Mode] Window adjustment requested');
+            debugLog('[Subtitle Mode] Window adjustment requested');
         }).catch(err => {
             console.error('[Subtitle Mode] Failed to request window adjustment:', err);
         });
@@ -953,7 +1072,7 @@ function enterSubtitleMode() {
 }
 
 function exitSubtitleMode() {
-    console.log('[Subtitle Mode] Exiting subtitle mode...');
+    debugLog('[Subtitle Mode] Exiting subtitle mode...');
 
     isSubtitleMode = false;
 
@@ -982,7 +1101,7 @@ function exitSubtitleMode() {
                 timestamp: new Date().toISOString()
             }
         }).then(() => {
-            console.log('[Subtitle Mode] Window restoration requested');
+            debugLog('[Subtitle Mode] Window restoration requested');
         }).catch(err => {
             console.error('[Subtitle Mode] Failed to request window restoration:', err);
         });
@@ -1216,18 +1335,18 @@ function closeTaskDetail() {
 // ========== Settings Dialog Functions ==========
 
 function openSettingsDialog() {
-    console.log('[Settings] Opening settings dialog');
+    debugLog('[Settings] Opening settings dialog');
     document.getElementById('settingsDialog').style.display = 'flex';
     updateApiConfigDisplay();
 }
 
 function closeSettingsDialog() {
-    console.log('[Settings] Closing settings dialog');
+    debugLog('[Settings] Closing settings dialog');
     document.getElementById('settingsDialog').style.display = 'none';
 }
 
 function switchSettingsTab(tabName) {
-    console.log('[Settings] Switching to tab:', tabName);
+    debugLog('[Settings] Switching to tab: ' + tabName);
 
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1298,7 +1417,7 @@ function updateApiConfigDisplay() {
 }
 
 function switchApiMode(mode) {
-    console.log('[API Config] Switching to', mode, 'mode');
+    debugLog('[API Config] Switching to ' + mode + ' mode');
 
     if (mode === 'remote') {
         // Don't enable remote mode until we have a server URL
@@ -1322,7 +1441,7 @@ function switchApiMode(mode) {
         dialog.success(`Switched to ${mode} mode`);
 
         // Refresh queue and data with local API
-        console.log('[API Config] Refreshing data from local API...');
+        debugLog('[API Config] Refreshing data from local API...');
         fetchQueue();
         fetchCategories();
         updateStatistics();
@@ -1348,7 +1467,7 @@ function applyCustomUrl() {
     CONFIG.REMOTE_API.CUSTOM_URL = url;
     CONFIG.REMOTE_API.ENABLED = true;
 
-    console.log('[API Config] Custom URL set:', url);
+    debugLog('[API Config] Custom URL set: ' + url);
 
     updateApiConfigDisplay();
     dialog.success('Custom API URL applied');
@@ -1357,14 +1476,14 @@ function applyCustomUrl() {
     testConnection();
 
     // Refresh data from new API
-    console.log('[API Config] Refreshing data from custom URL...');
+    debugLog('[API Config] Refreshing data from custom URL...');
     fetchQueue();
     fetchCategories();
     updateStatistics();
 }
 
 async function testConnection() {
-    console.log('[API Config] Testing connection...');
+    debugLog('[API Config] Testing connection...');
 
     const apiUrl = api.getFullUrl(CONFIG.API.PING);
     const indicator = document.getElementById('connectionState');
@@ -1376,7 +1495,8 @@ async function testConnection() {
         if (data && data.success) {
             indicator.innerHTML = '<span class="connection-indicator">🟢</span> Connected';
             dialog.success('Connection successful!');
-            console.log('[API Config] Connection test passed:', data);
+            debugLog('[API Config] Connection test passed');
+            if (GLOBAL_DEBUG) console.log('[API Config] Response data:', data);
         } else {
             indicator.innerHTML = '<span class="connection-indicator">🔴</span> Failed';
             dialog.error('Connection test failed');
@@ -1395,7 +1515,7 @@ function startLanScanning() {
         return;
     }
 
-    console.log('[API Config] Starting LAN scan...');
+    debugLog('[API Config] Starting LAN scan...');
     isScanning = true;
 
     // Update UI
@@ -1426,7 +1546,8 @@ function startLanScanning() {
 
     // Start scanner
     lanScanner.startScanning((servers) => {
-        console.log('[API Config] Discovered servers:', servers);
+        debugLog('[API Config] Discovered servers: ' + servers.length);
+        if (GLOBAL_DEBUG) console.log('[API Config] Server details:', servers);
         updateDiscoveredServers(servers);
 
         // Auto-select first server if no custom URL and auto-discover enabled
@@ -1437,7 +1558,7 @@ function startLanScanning() {
             dialog.success(`Auto-connected to ${servers[0].url}`);
 
             // Refresh data from new server
-            console.log('[API Config] Refreshing data from discovered server...');
+            debugLog('[API Config] Refreshing data from discovered server...');
             fetchQueue();
             fetchCategories();
             updateStatistics();
@@ -1448,7 +1569,7 @@ function startLanScanning() {
 function stopLanScanning() {
     if (!isScanning) return;
 
-    console.log('[API Config] Stopping LAN scan...');
+    debugLog('[API Config] Stopping LAN scan...');
     isScanning = false;
 
     lanScanner.stopScanning();
@@ -1495,7 +1616,7 @@ function updateDiscoveredServers(servers) {
                 testConnection();
 
                 // Refresh data from selected server
-                console.log('[API Config] Refreshing data from selected server...');
+                debugLog('[API Config] Refreshing data from selected server...');
                 fetchQueue();
                 fetchCategories();
                 updateStatistics();
@@ -1512,7 +1633,7 @@ function updateDiscoveredServers(servers) {
 
 function toggleAutoDiscovery(enabled) {
     CONFIG.REMOTE_API.AUTO_DISCOVER = enabled;
-    console.log('[API Config] Auto-discovery:', enabled ? 'Enabled' : 'Disabled');
+    debugLog('[API Config] Auto-discovery: ' + (enabled ? 'Enabled' : 'Disabled'));
 
     if (enabled && CONFIG.REMOTE_API.ENABLED) {
         startLanScanning();
@@ -1596,7 +1717,7 @@ async function stopCodeSync() {
 
 async function toggleBackup(event) {
     const enabled = event.target.checked;
-    console.log('[Code Sync] Backup toggle:', enabled ? 'Enabled' : 'Disabled');
+    debugLog('[Code Sync] Backup toggle: ' + (enabled ? 'Enabled' : 'Disabled'));
 
     const apiUrl = api.getFullUrl(CONFIG.API.CODE_SYNC_TOGGLE_BACKUP);
 
@@ -1779,15 +1900,115 @@ function updateSyncLogs(logs) {
     container.scrollTop = 0;
 }
 
+// ========== NotebookLM STT Functions ==========
+async function toggleNotebookLMSTT(event) {
+    const enabled = event.target.checked;
+    const statusEl = document.getElementById('notebooklmStatus');
+
+    try {
+        statusEl.textContent = enabled ? 'Enabling...' : 'Disabling...';
+
+        const response = await fetch(`${CONFIG.SERVER.BASE_URL}/notebooklm-stt/settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusEl.textContent = enabled ? '✓ Auto-convert enabled' : '✗ Disabled';
+            statusEl.style.color = enabled ? 'var(--success-color)' : 'var(--text-secondary)';
+            debugLog(`[NotebookLM STT] ${data.message}`);
+        } else {
+            throw new Error(data.message || 'Failed to update settings');
+        }
+    } catch (error) {
+        console.error('[NotebookLM STT] Toggle error:', error);
+        statusEl.textContent = `Error: ${error.message}`;
+        statusEl.style.color = 'var(--error-color)';
+        event.target.checked = !enabled; // Revert checkbox
+    }
+}
+
+async function convertNotebookNow() {
+    const statusEl = document.getElementById('notebooklmStatus');
+    const convertBtn = document.getElementById('convertNotebookBtn');
+
+    try {
+        convertBtn.disabled = true;
+        convertBtn.textContent = '⏳ Converting...';
+        statusEl.textContent = 'Processing audio files...';
+        statusEl.style.color = 'var(--accent-color)';
+
+        const response = await fetch(`${CONFIG.SERVER.BASE_URL}/notebooklm-stt/convert-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusEl.textContent = '✓ Conversion started in background';
+            statusEl.style.color = 'var(--success-color)';
+            debugLog('[NotebookLM STT] Conversion started');
+
+            // Poll for completion (simple approach)
+            setTimeout(() => {
+                statusEl.textContent = 'Check terminal for conversion results';
+                statusEl.style.color = 'var(--text-secondary)';
+            }, 3000);
+        } else {
+            throw new Error(data.message || data.detail || 'Conversion failed');
+        }
+    } catch (error) {
+        console.error('[NotebookLM STT] Convert error:', error);
+        statusEl.textContent = `Error: ${error.message}`;
+        statusEl.style.color = 'var(--error-color)';
+    } finally {
+        convertBtn.disabled = false;
+        convertBtn.textContent = '▶ Convert Now';
+    }
+}
+
+async function loadNotebookLMStatus() {
+    try {
+        const response = await fetch(`${CONFIG.SERVER.BASE_URL}/notebooklm-stt/status`);
+        const data = await response.json();
+
+        if (data.success) {
+            const toggle = document.getElementById('notebooklmSttToggle');
+            const statusEl = document.getElementById('notebooklmStatus');
+
+            if (toggle) {
+                toggle.checked = data.enabled;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = data.enabled ? '✓ Auto-convert enabled' : '✗ Disabled';
+                statusEl.style.color = data.enabled ? 'var(--success-color)' : 'var(--text-secondary)';
+            }
+
+            debugLog(`[NotebookLM STT] Status loaded: ${data.enabled ? 'enabled' : 'disabled'}`);
+        }
+    } catch (error) {
+        console.error('[NotebookLM STT] Failed to load status:', error);
+    }
+}
+
 // ========== RPC Connection Events ==========
 rpcClient.on('connection', () => {
-    console.log('[RPC] WebSocket connected');
+    debugLog('[RPC] WebSocket connected');
     updateStatus(true);
     fetchQueue();
 });
 
 rpcClient.on('disconnect', () => {
-    console.log('[RPC] WebSocket disconnected');
+    debugLog('[RPC] WebSocket disconnected');
     updateStatus(false);
 });
 

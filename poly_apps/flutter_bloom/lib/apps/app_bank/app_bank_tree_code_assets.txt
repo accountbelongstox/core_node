@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-20 03:45:08
+Generated: 2025-12-07 00:36:07
 App: app_bank
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -13,6 +13,7 @@ app_bank [code_assets]
 │   ├── .prompt
 │   │   └── cursor.txt
 │   ├── app_bank_tree.md
+│   ├── app_bank_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_bank
 │   │   ├── api_config_app_bank.dart
@@ -23,6 +24,47 @@ app_bank [code_assets]
 │   │   ├── prefs_app_bank.dart
 │   │   ├── provider_app_bank.dart
 │   │   └── theme_config_app_bank.dart
+│   ├── design_docs_and_progress
+│   │   ├── 1_concept_designs
+│   │   │   ├── README.md
+│   │   │   ├── architecture.md
+│   │   │   ├── data_model.md
+│   │   │   ├── images
+│   │   │   │   ├── README.md
+│   │   │   │   └── example_architecture.png
+│   │   │   └── user_flows.md
+│   │   ├── 2_page_designs_rough
+│   │   │   ├── README.md
+│   │   │   ├── example_home_page_rough.md
+│   │   │   ├── example_profile_page_rough.md
+│   │   │   └── images
+│   │   │       ├── README.md
+│   │   │       └── example_home_wireframe.png
+│   │   ├── 3_page_designs_detailed
+│   │   │   ├── README.md
+│   │   │   └── example_home_page
+│   │   │       ├── README.md
+│   │   │       ├── design_specs.md
+│   │   │       └── images
+│   │   │           ├── README.md
+│   │   │           └── example_mockup.png
+│   │   ├── README.md
+│   │   ├── backend_bridge
+│   │   │   └── sample_bridge
+│   │   │       └── progress.md
+│   │   ├── feature_progress
+│   │   │   └── sample_module
+│   │   │       └── progress.md
+│   │   ├── final_designs
+│   │   │   └── pageview_map.json
+│   │   ├── pageview_map.json
+│   │   └── progress_logs
+│   │       ├── concept_progress.md
+│   │       ├── design_progress.md
+│   │       ├── flow_progress.md
+│   │       ├── ui_dev_progress.md
+│   │       └── wireframe_progress.md
+│   ├── error.txt
 │   ├── features_app_bank
 │   │   ├── account_overview
 │   │   │   └── views
@@ -36,8 +78,16 @@ app_bank [code_assets]
 │   │   │       ├── card_management_screen.dart
 │   │   │       └── card_management_screen_enhanced.dart
 │   │   ├── dashboard
+│   │   │   ├── components
+│   │   │   │   └── wealth_selection_section.dart
 │   │   │   └── views
 │   │   │       └── dashboard_screen.dart
+│   │   ├── debug
+│   │   │   └── views
+│   │   │       ├── debug_settings_screen.dart
+│   │   │       ├── developer_feedback_screen.dart
+│   │   │       ├── developer_tools_screen.dart
+│   │   │       └── exclusive_customer_screen.dart
 │   │   ├── help
 │   │   │   └── views
 │   │   │       └── help_screen.dart
@@ -107,14 +157,30 @@ app_bank [code_assets]
 │       ├── bank_custom_button.dart
 │       └── bank_custom_card.dart
 ├── lib/common/
+│   ├── README.md
 │   ├── app
 │   │   └── main_common.dart
 │   ├── assets
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
+│   ├── auth_v2
+│   │   ├── README.md
+│   │   ├── auth_config.dart
+│   │   ├── auth_interface.dart
+│   │   ├── auth_manager.dart
+│   │   ├── auth_models.dart
+│   │   ├── auth_provider_factory.dart
+│   │   ├── auth_v2.dart
+│   │   └── providers
+│   │       ├── github_auth_provider.dart
+│   │       ├── google_auth_provider.dart
+│   │       ├── phone_auth_provider.dart
+│   │       ├── qq_auth_provider.dart
+│   │       └── wechat_auth_provider.dart
 │   ├── cache_manager
 │   │   └── cache_manager.dart
+│   ├── common.dart
 │   ├── common_tree.md
 │   ├── constants
 │   │   └── app_constants.dart
@@ -130,11 +196,16 @@ app_bank [code_assets]
 │   │   │   └── base_model.dart
 │   │   └── sqlite
 │   │       └── sqlite_service.dart
+│   ├── i18n
+│   │   ├── i18n_service.dart
+│   │   └── translations.dart
 │   ├── iframe
 │   │   └── iframe_listner.dart
 │   ├── localization
 │   │   ├── common_en.dart
 │   │   ├── common_zh.dart
+│   │   ├── language_change_notifier.dart
+│   │   ├── localization.dart
 │   │   ├── localization_keys.dart
 │   │   ├── localization_manager.dart
 │   │   └── map_locales.dart
@@ -162,6 +233,7 @@ app_bank [code_assets]
 │   │   │   └── auth_controller.dart
 │   │   ├── core
 │   │   │   ├── endpoint_network_models.dart
+│   │   │   ├── multi_endpoint_discovery.dart
 │   │   │   ├── network_config.dart
 │   │   │   ├── network_queue_and_offline.dart
 │   │   │   ├── network_retry_manager.dart
@@ -192,6 +264,7 @@ app_bank [code_assets]
 │   │   ├── models
 │   │   │   ├── api_config.dart
 │   │   │   └── api_response.dart
+│   │   ├── network.dart
 │   │   ├── network_framework.dart
 │   │   ├── parsers
 │   │   │   └── adaptive_data_parser.dart
@@ -276,6 +349,8 @@ app_bank [code_assets]
 │   │       ├── tencent_maps_flutter_integration.dart
 │   │       ├── tencent_maps_sdk.dart
 │   │       └── tencent_maps_service.dart
+│   ├── services
+│   │   └── settings_service.dart
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
@@ -287,7 +362,8 @@ app_bank [code_assets]
 │   │   ├── adapters
 │   │   │   ├── storage_adapter_factory.dart
 │   │   │   ├── storage_adapter_unified.dart
-│   │   │   └── web_storage_adapter.dart
+│   │   │   ├── web_storage_adapter.dart
+│   │   │   └── web_storage_adapter_stub.dart
 │   │   ├── app_prefs_base.dart
 │   │   ├── app_storage_base.dart
 │   │   ├── cleanup
@@ -348,10 +424,15 @@ app_bank [code_assets]
 │   │   └── utils
 │   │       └── storage_utils.dart
 │   ├── theme
+│   │   ├── app_theme.dart
 │   │   ├── base
+│   │   │   ├── theme_animations.dart
 │   │   │   ├── theme_colors.dart
 │   │   │   ├── theme_constants.dart
 │   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_effects.dart
+│   │   │   ├── theme_extensions.dart
+│   │   │   ├── theme_gradients.dart
 │   │   │   ├── theme_shadow.dart
 │   │   │   └── theme_text_styles.dart
 │   │   ├── compatibility
@@ -369,6 +450,7 @@ app_bank [code_assets]
 │   │   │   └── web
 │   │   │       ├── web_dark_theme.dart
 │   │   │       └── web_light_theme.dart
+│   │   ├── theme.dart
 │   │   └── theme_manager.dart
 │   ├── utils
 │   │   ├── common
@@ -404,11 +486,23 @@ app_bank [code_assets]
 │   │       ├── web_tools_web.dart
 │   │       └── webabs.dart
 │   └── widgets
+│       ├── README.md
 │       ├── action_bar.dart
 │       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
 │       ├── back_app_bar.dart
+│       ├── badges
+│       │   ├── badges_chips.dart
+│       │   └── premium_badges.dart
 │       ├── bank_bottom_navigation.dart
 │       ├── bank_scaffold.dart
+│       ├── buttons
+│       │   ├── premium_buttons.dart
+│       │   └── primary_button.dart
+│       ├── cards
+│       │   ├── custom_cards.dart
+│       │   └── premium_cards.dart
 │       ├── config.dart
 │       ├── confirmation_dialog.dart
 │       ├── country_picker.dart
@@ -437,12 +531,20 @@ app_bank [code_assets]
 │       │   └── swipeable_widget.dart
 │       ├── custom_text_field.dart
 │       ├── custom_title.dart
+│       ├── dialogs
+│       │   └── custom_dialogs.dart
 │       ├── digital_payment_dialog.dart
 │       ├── enhanced_bottom_navigation.dart
 │       ├── enhanced_top_menu.dart
 │       ├── floating_avatar_header.dart
+│       ├── glassmorphism_card.dart
+│       ├── gradient_button.dart
 │       ├── image_dialog.dart
 │       ├── info_row_widget.dart
+│       ├── inputs
+│       │   └── custom_text_fields.dart
+│       ├── lists
+│       │   └── list_items.dart
 │       ├── navigation_widgets.dart
 │       ├── network_connection_dialog.dart
 │       ├── no_data_screen.dart
@@ -450,15 +552,19 @@ app_bank [code_assets]
 │       ├── outelineborder.dart
 │       ├── paginated_list_view.dart
 │       ├── payment_item_info.dart
+│       ├── progress
+│       │   └── progress_indicators.dart
 │       ├── responsive_layout.dart
 │       ├── segmented_button.dart
 │       ├── settings_page_example.dart
-│       └── type_button_widget.dart
+│       ├── states
+│       │   └── empty_state.dart
+│       ├── type_button_widget.dart
+│       └── widgets.dart
 ├── assets/apps/app_bank/
 │   ├── directory_tree.md
 │   ├── icons
-│   │   ├── logo.png
-│   │   └── logo.webp.backup
+│   │   └── logo.png
 │   ├── icons1
 │   │   ├── 1.jpg
 │   │   ├── 10.jpg
@@ -777,7 +883,9 @@ app_bank [code_assets]
     │   ├── welcome.jpg
     │   └── youtube.png
     ├── images
-    │   └── .gitkeep
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
     └── launch
         ├── .gitkeep
         ├── dark_launch.backup.jpg

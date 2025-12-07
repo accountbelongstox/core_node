@@ -42,7 +42,7 @@ def get_secret_directories():
         - RAW_DIR: .secret_ignore directory
     """
     current_file = Path(__file__).resolve()
-    project_root = current_file.parent.parent.parent
+    project_root = current_file.parent.parent.parent.parent
     secret_keys_dir = project_root / '.secret_keys'
     encrypted_dir = secret_keys_dir / 'already_encrypted'
     raw_dir = secret_keys_dir / '.secret_ignore'
