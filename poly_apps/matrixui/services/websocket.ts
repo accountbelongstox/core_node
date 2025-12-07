@@ -70,13 +70,16 @@ class WebSocketService {
     }, 150 + Math.random() * 200);
   }
 
-  public send(namespace: string, action: string, data: any = {}) {
+  public async send(namespace: string, action: string, data: any = {}): Promise<void> {
     if (!this.isConnected) {
-      console.warn('[WS] Not connected, queueing message:', action);
+      // Silently queue message without warning (this is expected during initialization)
       this.messageQueue.push({ namespace, action, data });
       // Try to connect if not already connecting
       if (!this.connectionPromise) {
-        this.connect();
+        await this.connect();
+      } else {
+        // Wait for existing connection to complete
+        await this.connectionPromise;
       }
       return;
     }

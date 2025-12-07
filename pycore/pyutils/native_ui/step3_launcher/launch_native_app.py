@@ -89,6 +89,50 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.enable_timer:
         _initialize_timer_manager(config)
 
+    # ========== Phase 4.55: Pre-register frontend.ready handler (if debug window enabled) ==========
+    # IMPORTANT: This must happen BEFORE frontend starts to catch the frontend.ready event
+    startup_thread_ref = {'thread': None, 'frontend_ready': False} if config.show_debug_window else None
+
+    if config.show_debug_window:
+        def handle_frontend_ready_early(event_data):
+            """
+            Handle frontend.ready event - auto-close debug window
+
+            This handler is registered BEFORE frontend starts to ensure
+            it catches the frontend.ready event when it's triggered.
+
+            Triggered by:
+            - Dev mode: HTTP health check passes (frontend_thread.py)
+            - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+            """
+            import time
+
+            # Mark that frontend is ready
+            startup_thread_ref['frontend_ready'] = True
+
+            thread = startup_thread_ref['thread']
+            if thread is None:
+                if config.debug:
+                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - will close debug window when it becomes available")
+                return
+
+            ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
+            thread.log("Frontend ready, closing debug window...", "success")
+            thread.set_status("Frontend ready, closing...")
+            time.sleep(1.0)  # Brief delay to show message
+
+            # Unregister ColorPrint callback
+            ColorPrint.unregister_callback(thread._colorprint_callback)
+
+            # Close debug window
+            thread.request_close()
+
+        # Register handler with high priority to ensure it runs first
+        THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready_early, priority=100)
+
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Phase 4.55: Registered frontend.ready handler (pre-frontend startup)")
+
     # ========== Phase 4.6: Start Frontend (if enabled) ==========
     frontend_thread = None
     if config.frontend_enabled:
@@ -209,7 +253,8 @@ def launch_native_app(config: NativeUIConfig) -> None:
             icon_path=config.icon_path,
             logo_path=config.logo_path,
             enable_language_selector=config.enable_language_selector,
-            enable_tray=config.enable_tray
+            enable_tray=config.enable_tray,
+            startup_thread_ref=startup_thread_ref  # Pass reference for early handler
         )
     else:
         # Launch directly without startup window

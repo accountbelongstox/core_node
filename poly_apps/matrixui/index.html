@@ -9,24 +9,38 @@
     <!-- 主题检测脚本 - 防止闪屏 -->
     <script>
       (function() {
-        // 立即设置背景色，防止白色闪屏
+        // 立即设置背景图片和背景色，防止白色闪屏
+        const bgImage = '/background.jpg';
+        const bgColor = '#030305';
+        
         if (document.documentElement) {
-          document.documentElement.style.backgroundColor = '#030305';
+          document.documentElement.style.backgroundColor = bgColor;
           document.documentElement.setAttribute('data-theme', 'dark');
         }
-        // 等待 body 元素加载
-        if (document.body) {
-          document.body.style.backgroundColor = '#030305';
-        } else {
-          document.addEventListener('DOMContentLoaded', function() {
-            if (document.body) {
-              document.body.style.backgroundColor = '#030305';
-            }
-          });
+        
+        // 设置背景图片的函数
+        function setBackgroundImage() {
+          if (document.body) {
+            document.body.style.backgroundImage = `url(${bgImage})`;
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundRepeat = 'no-repeat';
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundAttachment = 'fixed';
+            document.body.style.backgroundColor = bgColor;
+          }
+        }
+        
+        // 立即尝试设置
+        setBackgroundImage();
+        
+        // 如果 body 还未加载，等待 DOMContentLoaded
+        if (!document.body) {
+          document.addEventListener('DOMContentLoaded', setBackgroundImage);
         }
       })();
     </script>
     <!-- 资源预加载 -->
+    <link rel="preload" href="/background.jpg" as="image">
     <link rel="preload" href="/index.css" as="style">
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" as="style" crossorigin>
     <!-- 预加载入口脚本 -->
