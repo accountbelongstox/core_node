@@ -22,3 +22,6 @@ e 1：所有的打印方法是否是都使用color printer 类库，将打印信
 Log 窗口先显示（Tkinter） 是否注册到了 color printer ，debug窗口是用来显示预加载信息的。因为实际 编译后没有黑框框窗口，3：Debug Log
 在前端页面启动成功后自动关闭，由外部调用其关闭事件，当然事件是由thread bus处理的，所有thread禁止互相调用，全部由全局的thread
 bus处理事件，同时你也要匹配之前的其他线程，比如前端UI线程。
+
+查看全局为什么没有正确使用现在的thread bus，同时确保thread bus的注册机制有效，能正确的按顺序
+通知到所有的线程关闭等活动。
