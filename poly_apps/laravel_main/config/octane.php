@@ -154,6 +154,19 @@ return [
             'name' => 'string:1000',
             'votes' => 'int',
         ],
+        'timer_state:1' => [
+            'running' => 'int',
+            'start_time' => 'int',
+            'total_ticks' => 'int',
+        ],
+        'timer_tasks:100' => [
+            'name' => 'string:50',
+            'interval' => 'int',
+            'last_run' => 'int',
+            'run_count' => 'int',
+            'error_count' => 'int',
+            'last_duration' => 'float',
+        ],
     ],
 
     /*
