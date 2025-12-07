@@ -160,10 +160,11 @@ class PySide6Framework(QObject):
 
         # Configuration
         self.config = config or PySide6UIConfig()
+        # Default: No startup window (use TkinterStartupThread via launcher_with_startup.py instead)
         self.startup_config = startup_config or StartupWindowConfig(
             app_name=self.config.app_name,
-            show_startup=True,  # Default: show startup window
-            auto_close=True  # Default: auto-close when PySide6 starts
+            show_startup=False,  # Default: False (changed to avoid duplicate windows)
+            auto_close=True
         )
 
         # Qt Application
@@ -434,10 +435,10 @@ class PySide6Framework(QObject):
                     background=self.config.loading_background
                 )
 
-            # Load URL after a delay
+            # Load URL with minimal delay (100ms for UI initialization)
             if self.config.webview_url:
-                ColorPrint.blue(f"[PySide6Framework] Scheduling URL load (500ms delay): {self.config.webview_url}")
-                QTimer.singleShot(500, lambda: self.webview.load_url(self.config.webview_url))
+                ColorPrint.blue(f"[PySide6Framework] Scheduling URL load (100ms delay): {self.config.webview_url}")
+                QTimer.singleShot(100, lambda: self.webview.load_url(self.config.webview_url))
 
             self.main_window.set_content(self.webview)
             ColorPrint.green("[PySide6Framework] WebView attached to main window")

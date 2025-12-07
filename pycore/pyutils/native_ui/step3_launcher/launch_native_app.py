@@ -23,12 +23,9 @@ from pycore.pyutils.native_ui.step9_frontend import (
     FrontendConfig,
     start_frontend_if_needed
 )
-<<<<<<< HEAD
-=======
 
 if TYPE_CHECKING:
     from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -92,6 +89,50 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.enable_timer:
         _initialize_timer_manager(config)
 
+    # ========== Phase 4.55: Pre-register frontend.ready handler (if debug window enabled) ==========
+    # IMPORTANT: This must happen BEFORE frontend starts to catch the frontend.ready event
+    startup_thread_ref = {'thread': None, 'frontend_ready': False} if config.show_debug_window else None
+
+    if config.show_debug_window:
+        def handle_frontend_ready_early(event_data):
+            """
+            Handle frontend.ready event - auto-close debug window
+
+            This handler is registered BEFORE frontend starts to ensure
+            it catches the frontend.ready event when it's triggered.
+
+            Triggered by:
+            - Dev mode: HTTP health check passes (frontend_thread.py)
+            - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+            """
+            import time
+
+            # Mark that frontend is ready
+            startup_thread_ref['frontend_ready'] = True
+
+            thread = startup_thread_ref['thread']
+            if thread is None:
+                if config.debug:
+                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - will close debug window when it becomes available")
+                return
+
+            ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
+            thread.log("Frontend ready, closing debug window...", "success")
+            thread.set_status("Frontend ready, closing...")
+            time.sleep(1.0)  # Brief delay to show message
+
+            # Unregister ColorPrint callback
+            ColorPrint.unregister_callback(thread._colorprint_callback)
+
+            # Close debug window
+            thread.request_close()
+
+        # Register handler with high priority to ensure it runs first
+        THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready_early, priority=100)
+
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Phase 4.55: Registered frontend.ready handler (pre-frontend startup)")
+
     # ========== Phase 4.6: Start Frontend (if enabled) ==========
     frontend_thread = None
     if config.frontend_enabled:
@@ -102,8 +143,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
             final_url = f"http://localhost:{config.frontend_port}"
             ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
 
-<<<<<<< HEAD
-=======
     # ========== Phase 4.7: Start RPC v2 (if enabled) ==========
     rpc_service = None
     if config.rpc_enabled:
@@ -148,7 +187,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
     THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
     ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
 
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
 
@@ -215,7 +253,8 @@ def launch_native_app(config: NativeUIConfig) -> None:
             icon_path=config.icon_path,
             logo_path=config.logo_path,
             enable_language_selector=config.enable_language_selector,
-            enable_tray=config.enable_tray
+            enable_tray=config.enable_tray,
+            startup_thread_ref=startup_thread_ref  # Pass reference for early handler
         )
     else:
         # Launch directly without startup window
@@ -248,19 +287,11 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
 
     # Validate frontend configuration
     if not config.frontend_framework:
-<<<<<<< HEAD
-        ColorPrint.red("[Frontend] frontend_framework is required when frontend_enabled=True")
-        return None
-
-    if not config.frontend_app_dir:
-        ColorPrint.red("[Frontend] frontend_app_dir is required when frontend_enabled=True")
-=======
         ColorPrint.print_error("[Frontend] frontend_framework is required when frontend_enabled=True")
         return None
 
     if not config.frontend_app_dir:
         ColorPrint.print_error("[Frontend] frontend_app_dir is required when frontend_enabled=True")
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
         return None
 
     # Resolve frontend_app_dir relative to project_root if needed
@@ -268,8 +299,6 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     if not frontend_app_dir.is_absolute() and config.project_root:
         frontend_app_dir = Path(config.project_root) / frontend_app_dir
 
-<<<<<<< HEAD
-=======
     # Build environment variables for frontend (pass backend URL)
     frontend_env_vars = {}
     if config.rpc_enabled:
@@ -285,7 +314,6 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
         frontend_env_vars["NEXT_PUBLIC_API_URL"] = backend_url
         frontend_env_vars["NEXT_PUBLIC_API_PORT"] = str(config.rpc_port)
 
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     # Create frontend configuration
     frontend_config = FrontendConfig(
         enabled=True,
@@ -294,17 +322,11 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
         mode=config.frontend_mode,
         port=config.frontend_port,
         auto_install=config.frontend_auto_install,
-<<<<<<< HEAD
-        skip_build=config.frontend_skip_build,
-        block_until_ready=config.frontend_block_until_ready,
-        show_output=config.debug
-=======
         package_manager=config.frontend_package_manager,
         skip_build=config.frontend_skip_build,
         block_until_ready=config.frontend_block_until_ready,
         show_output=config.debug,
         env_vars=frontend_env_vars if frontend_env_vars else None
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     )
 
     # Start frontend
@@ -314,11 +336,7 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     )
 
     if frontend_thread and config.debug:
-<<<<<<< HEAD
-        ColorPrint.green(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
-=======
         ColorPrint.print_info(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
     return frontend_thread
 

@@ -415,3 +415,8 @@ status = heartbeat.get_status()
 - `ui.*` - Native UI tasks
 - `app_{name}.*` - Application-specific tasks
 - `util_{name}.*` - Utility module tasks
+
+## 11. Native UI / WebView Development
+
+### 11.1 WebView Flash Prevention (PySide6)
+- **REQUIRED**: Set WebView background color to match React app background (`page.setBackgroundColor(QColor("#030305"))` in `webview.py`) and set background color immediately in HTML `<head>` script before CSS loads to prevent white flash (FOUC).
