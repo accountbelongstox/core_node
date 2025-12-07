@@ -107,6 +107,120 @@ export interface LocalProcessingConfig {
   };
 }
 
+export interface LocalProcessingStats {
+  period: string;
+  summary: {
+    total_tasks: number;
+    completed: number;
+    failed: number;
+    average_time: number; // seconds
+    total_data_processed: number; // MB
+  };
+  by_type: {
+    name: string;
+    count: number;
+    success_rate: number;
+  }[];
+  timeline: {
+    date: string;
+    tasks: number;
+    success: number;
+    failed: number;
+  }[];
+}
+
+export interface TestRequest {
+  test_type: 'screenshot' | 'ocr' | 'audio' | 'video';
+  test_data?: string;
+}
+
+export interface TestResponse {
+  success: boolean;
+  test_type: string;
+  result: any;
+  execution_time: number;
+  hardware_used: {
+    cpu: boolean;
+    gpu: boolean;
+  };
+  error?: string;
+}
+
+// --- Specific Tool Request/Response Types ---
+
+export interface ScreenshotRequest {
+  mode: 'fullscreen' | 'window' | 'region';
+  format?: 'png' | 'jpg';
+  auto_ocr: boolean;
+  auto_upload: boolean;
+}
+
+export interface ScreenshotResponse {
+  success: boolean;
+  file_path: string;
+  image_data?: string; // base64
+  ocr_text?: string;
+  execution_time: number;
+}
+
+export interface OCRRequest {
+  image_data: string; // base64
+  engine: string;
+  language?: string;
+}
+
+export interface OCRResponse {
+  success: boolean;
+  text: string;
+  confidence: number;
+  blocks: { text: string; box: number[] }[];
+  execution_time: number;
+}
+
+export interface AudioTranscribeRequest {
+  file_name: string;
+  // In real app, we might upload file via FormData, but for mock/type simplicity:
+  model: string;
+  generate_subtitle: boolean;
+}
+
+export interface AudioTranscribeResponse {
+  success: boolean;
+  text: string;
+  language: string;
+  duration: number;
+  segments: { start: number; end: number; text: string }[];
+  execution_time: number;
+}
+
+export interface VideoProcessRequest {
+  file_name: string;
+  extract_audio: boolean;
+  generate_subtitle: boolean;
+}
+
+export interface VideoProcessResponse {
+  success: boolean;
+  metadata: { duration: number; resolution: string; codec: string };
+  audio_path?: string;
+  subtitle_path?: string;
+  execution_time: number;
+}
+
+export interface FileAnalyzeRequest {
+  file_name: string;
+  file_type: string;
+  extract_text: boolean;
+  extract_metadata: boolean;
+}
+
+export interface FileAnalyzeResponse {
+  success: boolean;
+  metadata: { author?: string; pages?: number; created?: string };
+  text_preview?: string;
+  execution_time: number;
+}
+
 // Upload Types
 export interface UploadTask {
   upload_id: string;
@@ -188,6 +302,8 @@ export type ViewState =
   | 'system_config'
   | 'local_capabilities'
   | 'local_config'
+  | 'local_stats'
+  | 'local_test'
   | 'upload_tasks'
   | 'remote_servers'
   | 'logs'
