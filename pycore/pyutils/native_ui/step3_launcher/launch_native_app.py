@@ -13,9 +13,9 @@ Provides a single function launch_native_app() that handles everything:
 - Lifecycle management
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url import get_port_range, process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
@@ -23,6 +23,12 @@ from pycore.pyutils.native_ui.step9_frontend import (
     FrontendConfig,
     start_frontend_if_needed
 )
+<<<<<<< HEAD
+=======
+
+if TYPE_CHECKING:
+    from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -96,6 +102,53 @@ def launch_native_app(config: NativeUIConfig) -> None:
             final_url = f"http://localhost:{config.frontend_port}"
             ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
 
+<<<<<<< HEAD
+=======
+    # ========== Phase 4.7: Start RPC v2 (if enabled) ==========
+    rpc_service = None
+    if config.rpc_enabled:
+        rpc_service = _start_rpc_v2_service(config, frontend_thread, callback_manager)
+
+        # Update final_url if RPC v2 is serving frontend (production mode)
+        if rpc_service and config.rpc_auto_mount_frontend:
+            if config.frontend_mode == "production" and config.frontend_enabled:
+                final_url = f"http://localhost:{config.rpc_port}"
+                ColorPrint.cyan(f"[NativeLauncher] Updated URL to RPC v2 (with frontend): {final_url}")
+            elif not config.frontend_enabled:
+                # RPC only mode (no frontend)
+                final_url = f"http://localhost:{config.rpc_port}"
+                if config.debug:
+                    ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
+
+    # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
+    def handle_app_close(event_data):
+        """
+        Handle app.close event - stop all services in proper order
+
+        Triggered by:
+        - Window close (main_window.py closeEvent)
+        - Tray exit action
+        - Ctrl+C / KeyboardInterrupt
+        """
+        ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
+
+        # Stop frontend thread first (may have running dev server)
+        if frontend_thread:
+            ColorPrint.blue("[NativeLauncher] Stopping frontend thread...")
+            frontend_thread.stop()
+
+        # Stop RPC v2 server
+        if rpc_service:
+            ColorPrint.blue("[NativeLauncher] Stopping RPC v2 server...")
+            rpc_service.stop()
+
+        ColorPrint.green("[NativeLauncher] All services stopped")
+
+    # Register with high priority to ensure cleanup happens early
+    THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
+    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
+
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
 
@@ -122,6 +175,19 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
     if config.debug:
         ColorPrint.print_info(f"[NativeLauncher] Phase 5: Became primary instance on port {detection.port}")
+
+    # ========== Print Startup Summary ==========
+    if config.debug:
+        ColorPrint.print_success("\n" + "=" * 70)
+        ColorPrint.print_success("  SERVICES INITIALIZED")
+        ColorPrint.print_success("=" * 70)
+        if frontend_thread and config.frontend_enabled:
+            ColorPrint.cyan(f"  Frontend:  {final_url}  ({config.frontend_framework} {config.frontend_mode})")
+        if config.rpc_enabled:
+            rpc_url = f"http://{config.rpc_host}:{config.rpc_port}"
+            ColorPrint.cyan(f"  Backend:   {rpc_url}/rpc/<route>  ({len(config.rpc_routers)} routes)")
+        ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))
+        ColorPrint.print_success("=" * 70 + "\n")
 
     # ========== Phase 6: Launch with or without startup window ==========
     # Create wrapped main_entry that integrates PySide6 UI
@@ -182,11 +248,19 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
 
     # Validate frontend configuration
     if not config.frontend_framework:
+<<<<<<< HEAD
         ColorPrint.red("[Frontend] frontend_framework is required when frontend_enabled=True")
         return None
 
     if not config.frontend_app_dir:
         ColorPrint.red("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+=======
+        ColorPrint.print_error("[Frontend] frontend_framework is required when frontend_enabled=True")
+        return None
+
+    if not config.frontend_app_dir:
+        ColorPrint.print_error("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
         return None
 
     # Resolve frontend_app_dir relative to project_root if needed
@@ -194,6 +268,24 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     if not frontend_app_dir.is_absolute() and config.project_root:
         frontend_app_dir = Path(config.project_root) / frontend_app_dir
 
+<<<<<<< HEAD
+=======
+    # Build environment variables for frontend (pass backend URL)
+    frontend_env_vars = {}
+    if config.rpc_enabled:
+        backend_url = f"http://localhost:{config.rpc_port}"
+        # Vite environment variables (VITE_ prefix)
+        frontend_env_vars["VITE_API_URL"] = backend_url
+        frontend_env_vars["VITE_API_PORT"] = str(config.rpc_port)
+        frontend_env_vars["VITE_API_HOST"] = config.rpc_host
+        # React/CRA environment variables (REACT_APP_ prefix)
+        frontend_env_vars["REACT_APP_API_URL"] = backend_url
+        frontend_env_vars["REACT_APP_API_PORT"] = str(config.rpc_port)
+        # Next.js environment variables (NEXT_PUBLIC_ prefix)
+        frontend_env_vars["NEXT_PUBLIC_API_URL"] = backend_url
+        frontend_env_vars["NEXT_PUBLIC_API_PORT"] = str(config.rpc_port)
+
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     # Create frontend configuration
     frontend_config = FrontendConfig(
         enabled=True,
@@ -202,9 +294,17 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
         mode=config.frontend_mode,
         port=config.frontend_port,
         auto_install=config.frontend_auto_install,
+<<<<<<< HEAD
         skip_build=config.frontend_skip_build,
         block_until_ready=config.frontend_block_until_ready,
         show_output=config.debug
+=======
+        package_manager=config.frontend_package_manager,
+        skip_build=config.frontend_skip_build,
+        block_until_ready=config.frontend_block_until_ready,
+        show_output=config.debug,
+        env_vars=frontend_env_vars if frontend_env_vars else None
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
     )
 
     # Start frontend
@@ -214,7 +314,11 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     )
 
     if frontend_thread and config.debug:
+<<<<<<< HEAD
         ColorPrint.green(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+=======
+        ColorPrint.print_info(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
 
     return frontend_thread
 
@@ -229,21 +333,131 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
         timer_mgr = get_timer_manager()
         timer_mgr.register_task("my_task", interval=5.0, callback=my_callback)
     """
+    from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+
+    timer_mgr = get_timer_manager()
+
+    if not timer_mgr.is_running():
+        timer_mgr.start()
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
+    else:
+        if config.debug:
+            ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
+
+
+def _start_rpc_v2_service(
+    config: NativeUIConfig,
+    frontend_thread: Optional['FrontendLauncherThread'],
+    callback_manager: CallbackManager
+):
+    """
+    启动 RPC v2 服务，协调静态文件挂载
+
+    Args:
+        config: Native UI 配置
+        frontend_thread: 前端线程（用于获取静态挂载配置）
+        callback_manager: 回调管理器（用于注册清理回调）
+
+    Returns:
+        RPC v2 服务实例或 None
+    """
+    if config.debug:
+        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
+
     try:
-        from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+        from pycore.pylauncher import LauncherConfig, ServiceLauncher
 
-        timer_mgr = get_timer_manager()
+        # ========== 1. 准备静态挂载配置 ==========
+        static_mounts = []
 
-        if not timer_mgr.is_running():
-            timer_mgr.start()
+        # 从 frontend_thread 获取静态挂载配置（如果启用且为生产模式）
+        if config.rpc_auto_mount_frontend and frontend_thread:
+            frontend_static_mount = frontend_thread.get_static_mount()
+            if frontend_static_mount:
+                static_mounts.append(frontend_static_mount)
+                if config.debug:
+                    ColorPrint.green(
+                        f"[NativeLauncher] Frontend static mount: "
+                        f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
+                    )
+            elif config.debug:
+                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (dev mode or not ready)")
+
+        # ========== 2. 创建 RPC v2 服务配置 ==========
+        rpc_v2_config = {
+            'port': config.rpc_port,
+            'host': config.rpc_host,
+            'debug': config.rpc_debug,
+            'fastapi_routers': config.rpc_routers,
+            'static_mounts': static_mounts,
+            'allow_origins': config.rpc_allow_origins
+        }
+
+        if config.debug:
+            ColorPrint.blue(f"[NativeLauncher] RPC v2 config:")
+            ColorPrint.blue(f"  - Host: {config.rpc_host}:{config.rpc_port}")
+            ColorPrint.blue(f"  - Routers: {len(config.rpc_routers)}")
+            ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
+
+        # ========== 3. 使用 ServiceLauncher 启动 RPC v2 ==========
+        launcher_config = LauncherConfig(
+            app_id=f"{config.app_id}_rpc",
+            app_name=f"{config.app_name} RPC",
+            singleton=False,  # native_ui 已经处理了单例
+            services={
+                'heartbeat': {},
+                'rpc_v2': rpc_v2_config
+            }
+        )
+
+        launcher = ServiceLauncher(launcher_config)
+        success = launcher.start()
+
+        if not success:
+            ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC v2 service")
+            return None
+
+        # ========== 4. 注册关闭回调（清理 RPC v2）==========
+        def cleanup_rpc_v2():
             if config.debug:
-                ColorPrint.print_info("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
-        else:
-            if config.debug:
-                ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
+                ColorPrint.print_info("[NativeLauncher] Stopping RPC v2 service...")
+            try:
+                launcher.stop()
+                ColorPrint.green("[NativeLauncher] RPC v2 service stopped")
+            except Exception as e:
+                ColorPrint.print_error(f"[NativeLauncher] Error stopping RPC v2: {e}")
+
+        callback_manager.add_closing_callback(cleanup_rpc_v2)
+
+        # ========== 5. 返回 RPC v2 服务实例 ==========
+        rpc_service = launcher.get_service('rpc_v2')
+
+        if config.debug:
+            ColorPrint.print_success(
+                f"[NativeLauncher] Phase 4.7: RPC v2 started on {config.rpc_host}:{config.rpc_port}"
+            )
+            ColorPrint.blue(f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}/rpc/<route>")
+            ColorPrint.blue(f"  - WebSocket: ws://{config.rpc_host}:{config.rpc_port}/rpc/ws")
+            if static_mounts:
+                ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
+
+        # ========== 6. Trigger frontend.ready event (production mode with static files) ==========
+        if static_mounts:
+            THREAD_BUS.trigger_event('frontend.ready', {
+                'mode': 'production',
+                'port': config.rpc_port,
+                'framework': 'rpc_v2_static'
+            })
+            ColorPrint.blue("[NativeLauncher] Triggered THREAD_BUS event: frontend.ready (production mode)")
+
+        return rpc_service
 
     except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Phase 4.5: Failed to start timer manager: {e}")
+        ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: CallbackManager) -> None:
@@ -276,15 +490,28 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
                 )
             )
 
-    # Extract window size
+    # Extract window size (support tuple or "fullscreen")
     if isinstance(config.window_size, tuple):
         window_width, window_height = config.window_size
+    elif config.window_size == "fullscreen":
+        # Get screen size for fullscreen
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            window_width, window_height = screen_geometry.width(), screen_geometry.height()
+            if config.debug:
+                ColorPrint.green(f"[NativeLauncher] Fullscreen mode: {window_width}x{window_height}")
+        else:
+            window_width, window_height = 1920, 1080  # Fallback
     else:
         window_width, window_height = 1280, 900  # Default
 
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
+        app_id=config.app_id,  # ← 添加 app_id
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,

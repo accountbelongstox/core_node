@@ -70,21 +70,34 @@ class Config:
 
     # ==================== Web Service Configuration ====================
     WEB_HOST = "0.0.0.0"
-    WEB_PORT = 8000
+    WEB_PORT = 48000  # High port number to avoid conflicts
 
-    # Frontend configuration (HARDCODED - modify here to change settings)
-    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "nuxt_main"
-    FRONTEND_PORT = 38007  # Matrix frontend port (from app-config.json) - 38007 to avoid common port conflicts
+    # ==================== Frontend Configuration ====================
+    # Frontend framework: Vite + React (matrixui)
+    # Previous: Nuxt multi-app (deprecated)
+
+    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "matrixui"  # Vite + React frontend
+    FRONTEND_PORT = 38007  # Matrix frontend port (from app-config.json)
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
-    # Frontend mode: 'dev' (separate ports) or 'production' (unified port with backend)
-    FRONTEND_MODE = "production"  # Change to "dev" for development
+    # Frontend modes:
+    # - "dev": Hot reload development
+    #   * Starts Vite dev server on port 38007
+    #   * Frontend runs independently with hot reload
+    #   * Backend (RPC v2) on port 48000 for API only
+    #   * WebView points to http://localhost:38007
+    #
+    # - "production": Production build
+    #   * Compiles frontend to dist/ folder
+    #   * RPC v2 serves static files at /
+    #   * Single port (48000) for both frontend and backend
+    #   * WebView points to http://localhost:48000
 
-    # Skip build: True to skip compilation (use existing .output), False to compile
-    FRONTEND_SKIP_BUILD = True  # Change to False to force rebuild
+    FRONTEND_MODE = "dev"  # Current mode: dev for hot reload debugging
 
-    # Force rebuild: True to force rebuild even if .output exists, False for normal behavior
-    FRONTEND_FORCE_REBUILD = False  # Change to True to force rebuild
+    # Build control (production mode only)
+    FRONTEND_SKIP_BUILD = False  # False: build when needed, True: use existing dist
+    FRONTEND_FORCE_REBUILD = False  # True: always rebuild, False: normal behavior
 
     # Static files directory (production mode)
     STATIC_DIR = APP_ROOT / "static"
@@ -134,10 +147,12 @@ class Config:
     }
 
     # ==================== CORS Configuration ====================
-    # Matrix frontend runs on port 38007 (defined in app-config.json)
+    # Matrix frontend runs on FRONTEND_PORT (dev: 38007 Vite, prod: 48000 RPC v2)
     CORS_ALLOW_ORIGINS = [
         f"http://localhost:{FRONTEND_PORT}",
         f"http://127.0.0.1:{FRONTEND_PORT}",
+        f"http://localhost:{WEB_PORT}",  # Backend port (48000)
+        f"http://127.0.0.1:{WEB_PORT}",  # Backend port (48000)
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_METHODS = ["*"]
