@@ -362,6 +362,5 @@ java_pid*.hprof
 
 # Build artifacts and binaries
 **/third_party/ffmpeg/lib/*.a
-**/third_party/adb/**/adb
 **/screenshot/*.png
 **/*.pdb
