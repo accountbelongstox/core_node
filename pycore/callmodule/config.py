@@ -30,6 +30,18 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     """
     ColorPrint.blue("[ConfigBuilder] Building launcher configuration...")
 
+    # Import management layer routers (NEW)
+    from pycore.callmodule.routers.management import (
+        status_router,
+        config_router,
+        control_router,
+        logs_router,
+        capabilities_router,
+        local_config_router,
+        local_stats_router,
+        local_test_router,
+    )
+
     # Import routers (from independent files)
     from pycore.callmodule.routers.web_router import router as web_router
     from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
@@ -62,6 +74,17 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'host': host,
             'debug': debug,
             'fastapi_routers': [
+                # === Management Layer Routers (NEW) ===
+                status_router,           # System status endpoint
+                config_router,           # System configuration endpoints
+                control_router,          # System control operations
+                logs_router,             # Log management endpoints
+                capabilities_router,     # Local processing capabilities
+                local_config_router,     # Local processing configuration
+                local_stats_router,      # Local processing statistics
+                local_test_router,       # Local processing test endpoint
+
+                # === Legacy Routers ===
                 web_router,              # Web UI routes
                 health_router,           # Health check and status routes
                 voice_subtitle_router,   # Voice subtitle API routes
