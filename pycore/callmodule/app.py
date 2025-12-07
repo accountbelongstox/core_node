@@ -9,20 +9,6 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 fastapi = get_third_package_fastapi()
 
 from .routers import (
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-    health_router,
-    module_call_router,
-    ocr_router,
-    translator_router,
-    mcp_router,
-    singleton_router,
-    web_router,
-    code_sync_router,
-    voice_subtitle_router,
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     # Management routers
     status_router,
     config_router,
@@ -36,7 +22,6 @@ from .routers import (
     module_call_router,
     mcp_router,
     code_sync_router,
-<<<<<<< HEAD
     notebooklm_stt_router
 )
 # Import new layer routers
@@ -49,11 +34,6 @@ from .routers.local import (
 )
 from .routers.upload import router as upload_router
 from .routers.client import router as client_router
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
-    notebooklm_stt_router
-)
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -96,11 +76,7 @@ def create_app() -> FastAPI:
         print(f"[App] Mounted desktop UI at /desktop -> {DESKTOP_UI_DIR}")
 
     # Register routers
-<<<<<<< HEAD
-    # Management layer routers
-=======
     # Management layer routers (NEW)
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     app.include_router(status_router)
     app.include_router(config_router)
     app.include_router(control_router)
@@ -110,7 +86,6 @@ def create_app() -> FastAPI:
     app.include_router(local_stats_router)
     app.include_router(local_test_router)
 
-<<<<<<< HEAD
     # Local processing layer routers
     app.include_router(screenshot_router)
     app.include_router(image_router)
@@ -124,19 +99,10 @@ def create_app() -> FastAPI:
     # Client layer router
     app.include_router(client_router)
 
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     # Legacy routers (still active)
     app.include_router(module_call_router)
     app.include_router(mcp_router)  # MCP backend integrated routes
     app.include_router(code_sync_router)  # Code sync routes
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-    app.include_router(voice_subtitle_router)  # Voice subtitle queue routes
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     app.include_router(notebooklm_stt_router)  # NotebookLM STT auto-convert routes
 
     @app.on_event("startup")
