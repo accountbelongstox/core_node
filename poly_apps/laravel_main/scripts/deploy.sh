@@ -306,6 +306,78 @@ up_20251127_install_chokidar() {
 }
 
 # ============================================================================
+# UP: 20251206_install_faker
+# Date: 2025-12-06
+# Description: Install FakerPHP library for model factories and seeding
+# Idempotent: Can be run multiple times safely
+# ============================================================================
+up_20251206_install_faker() {
+    local version="20251206_install_faker"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-12-06${NC}"
+    echo -e "${CYAN}[UP] Description: Install FakerPHP for testing${NC}"
+
+    if is_up_applied "$version"; then
+        echo -e "${BLUE}[UP] Note: Already applied before, re-running for idempotency${NC}"
+    fi
+
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
+        return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    if ! command -v composer &> /dev/null; then
+        echo -e "${RED}[UP] Composer not found${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[UP] OK Composer found${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Installing/Updating FakerPHP...${NC}"
+    if $USE_SUDO composer show | grep -q "fakerphp/faker"; then
+        echo -e "${BLUE}[UP] FakerPHP already installed, ensuring latest version...${NC}"
+        $USE_SUDO composer update fakerphp/faker --dev
+    else
+        echo -e "${BLUE}[UP] Installing FakerPHP...${NC}"
+        $USE_SUDO composer require fakerphp/faker --dev
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Verifying installation...${NC}"
+    if $USE_SUDO composer show | grep -q "fakerphp/faker"; then
+        echo -e "${GREEN}[UP] OK FakerPHP package installed${NC}"
+    else
+        echo -e "${RED}[UP] ERROR FakerPHP package not found${NC}"
+        return 1
+    fi
+
+    echo -e "${BLUE}[UP] Step 4: Testing fake() helper...${NC}"
+    if php artisan tinker --execute="var_dump(function_exists('fake'));" 2>/dev/null | grep -q "bool(true)"; then
+        echo -e "${GREEN}[UP] OK fake() helper function is available${NC}"
+    else
+        echo -e "${YELLOW}[UP] WARNING fake() helper may not be available${NC}"
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
 # REUSABLE FUNCTIONS - Can be called from other scripts
 # ============================================================================
 
@@ -491,6 +563,7 @@ run_all_ups() {
     up_20251115_install_laravel_mcp || failed=1
     up_20251115_install_octane || failed=1
     up_20251127_install_chokidar || failed=1
+    up_20251206_install_faker || failed=1
 
     if [ $failed -eq 0 ]; then
         echo -e "${GREEN}[UP] All updates applied successfully${NC}"
