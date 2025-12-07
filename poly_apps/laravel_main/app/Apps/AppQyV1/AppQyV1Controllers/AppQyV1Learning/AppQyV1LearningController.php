@@ -225,7 +225,7 @@ class AppQyV1LearningController extends Controller
             }
         }
 
-        $ttsService = new \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService();
+        $ttsService = new \App\Services\EdgeTTS\EdgeTTSService();
 
         $cards = $progressWords->map(function($progress) use ($dictionaryEntries, $user, $langCode, $ttsService) {
             $md5 = $progress->word_md5;

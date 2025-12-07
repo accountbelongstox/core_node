@@ -2,7 +2,7 @@
 
 namespace App\Services\TimerTasks;
 
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
+use App\Services\EdgeTTS\EdgeTTSService;
 use App\CallPycoreUtils\PycoreGoogleTranslateUtil;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -18,7 +18,7 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
 
     public function __construct()
     {
-        $this->ttsService = new AppQyV1TTSService();
+        $this->ttsService = new EdgeTTSService();
     }
     
     public function getName(): string
