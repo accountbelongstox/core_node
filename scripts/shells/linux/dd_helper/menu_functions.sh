@@ -65,6 +65,9 @@ handle_menu_action() {
         "get_git")
             get_git
             ;;
+        "show_git_management_menu")
+            show_git_management_menu
+            ;;
         "show_system_info_menu")
             echo "Opening System Information & Variables menu..."
             bash "$SYSTEM_INFO_SCRIPT_PATH"
