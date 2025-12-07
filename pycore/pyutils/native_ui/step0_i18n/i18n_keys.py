@@ -41,6 +41,7 @@ class I18nKeys:
     STARTUP_STATUS_INSTALLING = "startup.status.installing"
     STARTUP_STATUS_LOADING = "startup.status.loading"
     STARTUP_STATUS_READY = "startup.status.ready"
+    STARTUP_STATUS_ERROR = "startup.status.error"
     
     # Tray keys
     TRAY_TOOLTIP = "tray.tooltip"
