@@ -276,9 +276,13 @@ class StyleSheetGenerator:
 
     @staticmethod
     def generate_title_label_stylesheet(styles: TitleBarStyles) -> str:
-        """生成标题文字样式表"""
-        text_shadow = f"text-shadow: {styles.title_text_shadow};" if styles.title_text_shadow != "none" else ""
+        """
+        Generate title label stylesheet
 
+        Note: Qt StyleSheet does not support 'text-shadow' CSS property,
+        so we skip it even if defined in styles config.
+        """
+        # Qt StyleSheet doesn't support text-shadow, skip it
         return f"""
             QLabel {{
                 color: {styles.title_color};
@@ -286,7 +290,6 @@ class StyleSheetGenerator:
                 font-weight: {styles.title_font_weight};
                 font-family: {styles.title_font_family};
                 padding: {styles.title_padding};
-                {text_shadow}
             }}
         """
 

@@ -101,6 +101,29 @@ def launch_app_with_startup(
     # This ensures debug messages during initialization appear in tk window
     ColorPrint.register_callback(startup_thread._colorprint_callback)
 
+    # ========== Step 2.5: Register THREAD_BUS event handler for frontend.ready ==========
+    # Auto-close debug window when frontend is ready (both dev and production modes)
+    def handle_frontend_ready(event_data):
+        """
+        Handle frontend.ready event - auto-close debug window
+
+        Triggered by:
+        - Dev mode: HTTP health check passes (frontend_thread.py)
+        - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+        """
+        ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
+        startup_thread.log("Frontend ready, closing debug window...", "success")
+        startup_thread.set_status("Frontend ready, closing...")
+        time.sleep(1.0)  # Brief delay to show message
+
+        # Unregister ColorPrint callback
+        ColorPrint.unregister_callback(startup_thread._colorprint_callback)
+
+        # Close debug window
+        startup_thread.request_close()
+
+    THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready, priority=100)
+
     # ========== Step 3: Wait for startup window ready ==========
     ColorPrint.yellow("Waiting for startup window to be ready...")
 
@@ -128,26 +151,11 @@ def launch_app_with_startup(
         startup_thread.set_status("Ready to launch...")
         time.sleep(remaining)
 
-    # ========== Step 6: Close startup window ==========
+    # ========== Step 6: Launch main application (Debug window will auto-close on frontend.ready) ==========
     ColorPrint.print_info("\nLaunching main application...")
-    startup_thread.log("Launching main application...", "info")
-    startup_thread.set_status("Closing debug window...")
-    time.sleep(0.5)
+    ColorPrint.print_info("Note: Debug window will auto-close when frontend is ready...")
 
-    # Unregister ColorPrint callback before closing
-    ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-
-    # Request close via public API (thread-safe)
-    startup_thread.request_close()
-
-    # Wait for window to actually close
-    ColorPrint.yellow("Waiting for debug window to close...")
-    if THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=5.0):
-        ColorPrint.print_success("✓ Debug window closed")
-    else:
-        ColorPrint.yellow("WARNING: Debug window close timeout (continuing anyway)")
-
-    # ========== Step 7: Launch main application ==========
+    # ========== Step 7: Start main application ==========
     ColorPrint.print_info("")
     ColorPrint.print_success("=" * 70)
     ColorPrint.print_success(f" {app_name.upper()} - STARTING MAIN APPLICATION")

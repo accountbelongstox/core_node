@@ -67,7 +67,7 @@ def start():
     logo_path = resources_dir / "logo.png"
 
     # Frontend project path (Vite + React)
-    frontend_app_dir = PROJECT_ROOT / "poly_apps" / "matrix_ui_react"
+    frontend_app_dir = PROJECT_ROOT / "poly_apps" / "matrixui"
 
     # Create Native UI configuration (integrates all features)
     config = NativeUIConfig(
@@ -107,7 +107,7 @@ def start():
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
 
         # ========== UI Configuration ==========
-        window_size=(1400, 900),
+        window_size="fullscreen",  # 全屏启动 (可选: (1400, 900) 或 "fullscreen")
         show_on_start=True,
         frameless=True,
         icon_path=str(icon_path) if icon_path.exists() else None,
