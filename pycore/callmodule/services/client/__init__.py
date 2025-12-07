@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 """
 Client Service - Remote server request forwarding
 
@@ -225,3 +226,11 @@ class ClientService:
                 "success": False,
                 "error": str(e)
             }
+=======
+"""Client Service"""
+class ClientService:
+    def forward_request(self, endpoint, method, data):
+        return {"success": False, "error": "Not implemented"}
+    def get_connection_status(self):
+        return {"connected": False}
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522

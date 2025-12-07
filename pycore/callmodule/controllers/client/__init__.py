@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Client Controller"""
+<<<<<<< HEAD
 from typing import Optional
 from ...services.client import ClientService
 
@@ -38,3 +39,13 @@ class ClientController:
     def test_connection(self, name: str):
         """Test server connection"""
         return self.service.test_connection(name)
+=======
+from ...services.client import ClientService
+class ClientController:
+    def __init__(self):
+        self.service = ClientService()
+    def forward(self, endpoint, method, data):
+        return self.service.forward_request(endpoint, method, data)
+    def get_connection_status(self):
+        return self.service.get_connection_status()
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
