@@ -118,12 +118,16 @@ class FastAPIRPCServer:
 
         # Register FastAPI routers (from config)
         fastapi_routers = options.get("fastapi_routers", [])
-        for router in fastapi_routers:
+        if fastapi_routers:
+            router_names = []
+            for router in fastapi_routers:
+                self.app.include_router(router)
+                # Extract router name from tags or prefix
+                router_name = router.tags[0] if router.tags else (router.prefix or "unnamed")
+                router_names.append(router_name)
+
             if self.debug:
-                ColorPrint.blue(f"[FastAPIRPC] Registering FastAPI router: {router}")
-            self.app.include_router(router)
-            if self.debug:
-                ColorPrint.green(f"[FastAPIRPC] Router registered")
+                ColorPrint.green(f"[FastAPIRPC] Registered {len(fastapi_routers)} routers: {', '.join(router_names)}")
 
         # Mount static directories (from config)
         static_mounts = options.get("static_mounts", [])
