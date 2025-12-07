@@ -175,9 +175,9 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
     """
     Create default tray menu
 
-    Signals emitted via THREAD_BUS:
-    - 'tray_show': Show main window
-    - 'tray_exit': Exit application
+    Signals emitted via THREAD_BUS (using BusSignals):
+    - BusSignals.TRAY_SHOW ('ui.tray.show'): Show main window
+    - BusSignals.TRAY_EXIT ('ui.tray.exit'): Exit application
 
     Args:
         app_name: Application name (not used, kept for compatibility)
@@ -185,33 +185,44 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
     Returns:
         List of TrayMenuItem objects
     """
-    # Import I18nKeys here to avoid circular import
+    # Import I18nKeys and BusSignals here to avoid circular import
     try:
         from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
+        from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
         return [
             TrayMenuItem(
                 text_key=I18nKeys.TRAY_MENU_SHOW,
-                signal="tray_show",
+                signal=BusSignals.TRAY_SHOW,  # Use BusSignals.TRAY_SHOW instead of "tray_show"
                 default=True
+            ),
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
+                text_key=I18nKeys.TRAY_MENU_RESTART,
+                signal=BusSignals.TRAY_RESTART  # Use BusSignals.TRAY_RESTART
             ),
             TrayMenuItem.SEPARATOR,
             TrayMenuItem(
                 text_key=I18nKeys.TRAY_MENU_EXIT,
-                signal="tray_exit"
+                signal=BusSignals.TRAY_EXIT  # Use BusSignals.TRAY_EXIT instead of "tray_exit"
             )
         ]
     except ImportError:
-        # Fallback if I18nKeys not available
+        # Fallback if I18nKeys not available (use hardcoded signal names)
         return [
             TrayMenuItem(
                 text_key="tray.menu.show",
-                signal="tray_show",
+                signal="ui.tray.show",  # Use full signal path
                 default=True
             ),
             TrayMenuItem.SEPARATOR,
             TrayMenuItem(
+                text_key="tray.menu.restart",
+                signal="ui.tray.restart"  # Use full signal path
+            ),
+            TrayMenuItem.SEPARATOR,
+            TrayMenuItem(
                 text_key="tray.menu.exit",
-                signal="tray_exit"
+                signal="ui.tray.exit"  # Use full signal path
             )
         ]
 
