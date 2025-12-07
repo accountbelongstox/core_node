@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Pycore Module Caller - Entry Point
+Pycore Module Caller - Unified Entry Point
 
-Launches Pycore Module Caller with platform-aware configuration.
+Launches Pycore Module Caller with Native UI integration (like Matrix).
 
 Architecture:
-- callmodule/: Builds configuration and registers event handlers
-- pylauncher/: Handles singleton detection and service launching
-- pythreadpool/: Starts actual service threads
+- NEW (default): Uses NativeUIConfig + launch_native_app (integrated frontend + UI)
+- LEGACY: Uses ServiceLauncher (old approach, use --legacy flag)
+
+Platform-specific behavior:
+- Windows: Shows PySide6 UI window + system tray + frontend (Vite dev server)
+- Linux: Background mode (frontend only, no UI window, no tray)
 
 Usage:
-    python pycore_module_caller.py                        # Default (0.0.0.0:59000)
+    python pycore_module_caller.py                        # Native UI mode (default)
     python pycore_module_caller.py --host 0.0.0.0 --port 8000
     python pycore_module_caller.py --debug
+    python pycore_module_caller.py --legacy               # Use old ServiceLauncher mode
 """
 
 import sys
@@ -24,23 +28,38 @@ from pathlib import Path
 PYCORE_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PYCORE_ROOT))
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import ServiceLauncher
-from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
-from pycore.callmodule.event_handlers import register_event_handlers
+from pycore import ColorPrint
 
 
-def main(host='0.0.0.0', port=59000, debug=False):
+def main_native_ui(host='0.0.0.0', port=59000, debug=False):
     """
-    Main entry point
+    Main entry point using Native UI pattern (default)
 
     Args:
         host: RPC v2 server host
         port: RPC v2 server port
         debug: Debug mode
     """
+    from pycore.callmodule.callmodule_main import start
+    start(host=host, port=port, debug=debug)
+
+
+def main_legacy(host='0.0.0.0', port=59000, debug=False):
+    """
+    Legacy entry point using ServiceLauncher
+
+    Args:
+        host: RPC v2 server host
+        port: RPC v2 server port
+        debug: Debug mode
+    """
+    from pycore import THREAD_BUS
+    from pycore.pylauncher import ServiceLauncher
+    from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
+    from pycore.callmodule.event_handlers import register_event_handlers
+
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("Pycore Module Caller - Starting")
+    ColorPrint.blue("Pycore Module Caller - Legacy Mode")
     ColorPrint.blue("=" * 70)
 
     # 1. Build configuration (callmodule layer - only config, no threads)
@@ -101,6 +120,13 @@ if __name__ == '__main__':
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--legacy', action='store_true', help='Use legacy ServiceLauncher mode (old)')
 
     args = parser.parse_args()
-    main(host=args.host, port=args.port, debug=args.debug)
+
+    if args.legacy:
+        # Legacy mode (old ServiceLauncher approach)
+        main_legacy(host=args.host, port=args.port, debug=args.debug)
+    else:
+        # Native UI mode (default, new approach)
+        main_native_ui(host=args.host, port=args.port, debug=args.debug)
