@@ -350,3 +350,17 @@ poly_apps/pyMatrix/storage/
 # Java heap dumps
 *.hprof
 java_pid*.hprof
+
+# Large database and media files
+**/word_content.sqlitemate
+**/word_content.sqlite
+**/*.sqlitemate
+**/recordings/*.mp4
+**/recordings/*.mkv
+**/recordings/*.avi
+
+# Build artifacts and binaries
+**/third_party/ffmpeg/lib/*.a
+**/third_party/adb/**/adb
+**/screenshot/*.png
+**/*.pdb
