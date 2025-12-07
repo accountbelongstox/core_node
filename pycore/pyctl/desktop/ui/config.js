@@ -1,12 +1,39 @@
 // Voice Subtitle Framework Configuration
 
+// ========== Global Debug Control ==========
+// Set to true to enable debug logging (console.log and mobile alerts)
+// Set to false to disable all debug output
+const GLOBAL_DEBUG = false;
+
+// Dynamically determine the base URL based on current location
+const _getServerConfig = () => {
+    const host = window.location.hostname;
+    const port = 59000;
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+
+    const config = {
+        HOST: host,
+        PORT: port,
+        BASE_URL: `${protocol}://${host}:${port}`,
+        WS_URL: `${wsProtocol}://${host}:${port}/rpc/ws`
+    };
+
+    // Debug output (only if GLOBAL_DEBUG is true)
+    if (GLOBAL_DEBUG) {
+        console.log('[CONFIG] Server configuration generated:');
+        console.log('[CONFIG]   - Current location:', window.location.href);
+        console.log('[CONFIG]   - Hostname:', host);
+        console.log('[CONFIG]   - Base URL:', config.BASE_URL);
+        console.log('[CONFIG]   - WebSocket URL:', config.WS_URL);
+    }
+
+    return config;
+};
+
 const CONFIG = {
-    // Server configuration
-    SERVER: {
-        HOST: 'localhost',
-        PORT: 59000,
-        BASE_URL: 'http://localhost:59000'
-    },
+    // Server configuration (dynamically determined)
+    SERVER: _getServerConfig(),
 
     // Remote API configuration
     REMOTE_API: {
@@ -70,9 +97,9 @@ const CONFIG = {
         PING: '/ping'
     },
 
-    // WebSocket configuration
+    // WebSocket configuration (uses dynamically determined URL)
     WEBSOCKET: {
-        URL: 'ws://localhost:59000/rpc/ws',
+        URL: _getServerConfig().WS_URL,
         OPTIONS: {
             debug: true,
             reconnect: true,

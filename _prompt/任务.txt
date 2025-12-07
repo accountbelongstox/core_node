@@ -22,12 +22,12 @@ Starting execution of 132_setup_domain_ssl.sh...
  根据其中的错误信息你可以要同时分析一下 /www/programing/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh  /www/programing/core_node/poly_apps/laravel_main  /www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1 当然你能确保你分析出得问题再改动。
  
 
-请修改laravel,参考 /www/programing/core_node/scripts/shells/linux/common/gvar_common.sh 根据系统差异写一个map映射文件， map_web_path ，写一个php版的主在 /www/programing/core_node/poly_apps/laravel_main/app/Providers/GlobalVar.php 作为公用，之后在 nginx管理中，让证书放在 map "nginxconfig" 下的  letsencrypt 目录下，每次申请证书时，如果未过期直接跳过，如果临期或不存在则重新申请。 同时还有1：确保laravel nginx管理的其他方法，比如添加网站，都使用同样的地址，2，确保前置安装方法 /www/programing/core_node/scripts/shells/linux/debian/install_shells/25_install_nginx.sh /www/programing/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh 都使用同样的地址。以上方法在反复运行时会修正配置文件。  现在对 /www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1中的路径路径都使用映射。 isWSL 请检测 /mnt/c/User目录，isProduction 只要不是wsl和桌面环境(而不靠参数)。            'nginx' => '/etc/nginx',
+请修改laravel,参考 /www/programing/core_node/scripts/shells/linux/common/gvar_common.sh 根据系统差异写一个map映射文件， map_web_path ，写一个php版的主在 /www/programing/core_node/ poly_apps/laravel_main/app/Providers/GlobalVar.php 作为公用，之后在 nginx管理中，让证书放在 map "nginxconfig" 下的  letsencrypt 目录下，每次申请证书时，如果未过期直接跳过，如果临期或不存在则重新申请。 同时还有1：确保laravel nginx管理的其他方法，比如添加网站，都使用同样的地址，2，确保前置安装方法 /www/programing/core_node/scripts/shells/linux/debian/install_shells/25_install_nginx.sh /www/programing/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh 都使用同样的地址。以上方法在反复运行时会修正配置文件。  现在对 /www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1中的路径路径都使用映射。 isWSL 请检测 /mnt/c/User目录，isProduction 只要不是wsl和桌面环境(而不靠参数)。            'nginx' => '/etc/nginx',
             'php' => '/etc/php',
             'logs' => '/var/log', 这几个不用映射，以实际查找到的为准。logs 映射为  laravel_db/log 需要新增一个laravel_data_dir（也就是laravel_db） 映射为  $basePath . '/wwwroot/laravel_db',
             重复的路径定义也合并。  
      将其中的规范写在  
-     
+
 
 php artisan servermanager:sync
 

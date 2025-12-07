@@ -469,17 +469,25 @@ function Invoke-InteractiveMenu {
 
 function Set-ProjectEnvironmentVariables {
     Write-ColorMessage -Message "Setting project environment variables..." -Type "Info"
-    
-    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_DIR
-    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_DIR
-    Write-ColorMessage -Message "Added PROJECT_DIR to PATH: $PROJECT_DIR" -Type "Success"
-    
-    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_SCRIPTS_DIR
-    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_SCRIPTS_DIR
-    Write-ColorMessage -Message "Added PROJECT_SCRIPTS_DIR to PATH: $PROJECT_SCRIPTS_DIR" -Type "Success"
-    
-    # Refresh environment variables using WindowsPathFunction.ps1
-    & $windowsPathFunctionPath -action "refresh-bat"
+
+    try {
+        # First call - execute initialization
+        Write-ColorMessage -Message "First call to WindowsPathFunction - performing initialization" -Type "Info"
+        & $windowsPathFunctionPath -action "add" -param1 $PROJECT_DIR
+        Write-ColorMessage -Message "Added PROJECT_DIR to PATH: $PROJECT_DIR" -Type "Success"
+
+        # Subsequent calls - skip initialization
+        Write-ColorMessage -Message "Subsequent calls - skipping initialization" -Type "Info"
+        & $windowsPathFunctionPath -action "add" -param1 $PROJECT_SCRIPTS_DIR -SkipInit
+        Write-ColorMessage -Message "Added PROJECT_SCRIPTS_DIR to PATH: $PROJECT_SCRIPTS_DIR" -Type "Success"
+
+        # Refresh environment variables - skip initialization
+        & $windowsPathFunctionPath -action "refresh-bat" -SkipInit
+        Write-ColorMessage -Message "Environment variables refresh batch created" -Type "Success"
+    } catch {
+        Write-ColorMessage -Message "Warning: Failed to configure environment: $($_.Exception.Message)" -Type "Warning"
+        Write-ColorMessage -Message "Continuing with initialization..." -Type "Info"
+    }
 }
 
 function Initialize-Environment {
