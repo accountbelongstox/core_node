@@ -13,7 +13,7 @@ Provides a single function launch_native_app() that handles everything:
 - Lifecycle management
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from pycore import ColorPrint
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
@@ -23,6 +23,9 @@ from pycore.pyutils.native_ui.step9_frontend import (
     FrontendConfig,
     start_frontend_if_needed
 )
+
+if TYPE_CHECKING:
+    from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -95,6 +98,22 @@ def launch_native_app(config: NativeUIConfig) -> None:
         if frontend_thread and config.frontend_mode == "dev":
             final_url = f"http://localhost:{config.frontend_port}"
             ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
+
+    # ========== Phase 4.7: Start RPC v2 (if enabled) ==========
+    rpc_service = None
+    if config.rpc_enabled:
+        rpc_service = _start_rpc_v2_service(config, frontend_thread, callback_manager)
+
+        # Update final_url if RPC v2 is serving frontend (production mode)
+        if rpc_service and config.rpc_auto_mount_frontend:
+            if config.frontend_mode == "production" and config.frontend_enabled:
+                final_url = f"http://localhost:{config.rpc_port}"
+                ColorPrint.cyan(f"[NativeLauncher] Updated URL to RPC v2 (with frontend): {final_url}")
+            elif not config.frontend_enabled:
+                # RPC only mode (no frontend)
+                final_url = f"http://localhost:{config.rpc_port}"
+                if config.debug:
+                    ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
 
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
@@ -182,11 +201,11 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
 
     # Validate frontend configuration
     if not config.frontend_framework:
-        ColorPrint.red("[Frontend] frontend_framework is required when frontend_enabled=True")
+        ColorPrint.print_error("[Frontend] frontend_framework is required when frontend_enabled=True")
         return None
 
     if not config.frontend_app_dir:
-        ColorPrint.red("[Frontend] frontend_app_dir is required when frontend_enabled=True")
+        ColorPrint.print_error("[Frontend] frontend_app_dir is required when frontend_enabled=True")
         return None
 
     # Resolve frontend_app_dir relative to project_root if needed
@@ -214,7 +233,7 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     )
 
     if frontend_thread and config.debug:
-        ColorPrint.green(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
+        ColorPrint.print_info(f"[NativeLauncher] Phase 4.6: Frontend started ({config.frontend_framework})")
 
     return frontend_thread
 
@@ -244,6 +263,111 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
 
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Phase 4.5: Failed to start timer manager: {e}")
+
+
+def _start_rpc_v2_service(
+    config: NativeUIConfig,
+    frontend_thread: Optional['FrontendLauncherThread'],
+    callback_manager: CallbackManager
+):
+    """
+    启动 RPC v2 服务，协调静态文件挂载
+
+    Args:
+        config: Native UI 配置
+        frontend_thread: 前端线程（用于获取静态挂载配置）
+        callback_manager: 回调管理器（用于注册清理回调）
+
+    Returns:
+        RPC v2 服务实例或 None
+    """
+    if config.debug:
+        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
+
+    try:
+        from pycore.pylauncher import LauncherConfig, ServiceLauncher
+
+        # ========== 1. 准备静态挂载配置 ==========
+        static_mounts = []
+
+        # 从 frontend_thread 获取静态挂载配置（如果启用且为生产模式）
+        if config.rpc_auto_mount_frontend and frontend_thread:
+            frontend_static_mount = frontend_thread.get_static_mount()
+            if frontend_static_mount:
+                static_mounts.append(frontend_static_mount)
+                if config.debug:
+                    ColorPrint.green(
+                        f"[NativeLauncher] Frontend static mount: "
+                        f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
+                    )
+            elif config.debug:
+                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (dev mode or not ready)")
+
+        # ========== 2. 创建 RPC v2 服务配置 ==========
+        rpc_v2_config = {
+            'port': config.rpc_port,
+            'host': config.rpc_host,
+            'debug': config.rpc_debug,
+            'fastapi_routers': config.rpc_routers,
+            'static_mounts': static_mounts,
+            'allow_origins': config.rpc_allow_origins
+        }
+
+        if config.debug:
+            ColorPrint.blue(f"[NativeLauncher] RPC v2 config:")
+            ColorPrint.blue(f"  - Host: {config.rpc_host}:{config.rpc_port}")
+            ColorPrint.blue(f"  - Routers: {len(config.rpc_routers)}")
+            ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
+
+        # ========== 3. 使用 ServiceLauncher 启动 RPC v2 ==========
+        launcher_config = LauncherConfig(
+            app_id=f"{config.app_id}_rpc",
+            app_name=f"{config.app_name} RPC",
+            singleton=False,  # native_ui 已经处理了单例
+            services={
+                'heartbeat': {},
+                'rpc_v2': rpc_v2_config
+            }
+        )
+
+        launcher = ServiceLauncher(launcher_config)
+        success = launcher.start()
+
+        if not success:
+            ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC v2 service")
+            return None
+
+        # ========== 4. 注册关闭回调（清理 RPC v2）==========
+        def cleanup_rpc_v2():
+            if config.debug:
+                ColorPrint.print_info("[NativeLauncher] Stopping RPC v2 service...")
+            try:
+                launcher.stop()
+                ColorPrint.green("[NativeLauncher] RPC v2 service stopped")
+            except Exception as e:
+                ColorPrint.print_error(f"[NativeLauncher] Error stopping RPC v2: {e}")
+
+        callback_manager.add_closing_callback(cleanup_rpc_v2)
+
+        # ========== 5. 返回 RPC v2 服务实例 ==========
+        rpc_service = launcher.get_service('rpc_v2')
+
+        if config.debug:
+            ColorPrint.print_success(
+                f"[NativeLauncher] Phase 4.7: RPC v2 started on {config.rpc_host}:{config.rpc_port}"
+            )
+            ColorPrint.blue(f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}/rpc/<route>")
+            ColorPrint.blue(f"  - WebSocket: ws://{config.rpc_host}:{config.rpc_port}/rpc/ws")
+            if static_mounts:
+                ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
+
+        return rpc_service
+
+    except Exception as e:
+        ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: CallbackManager) -> None:

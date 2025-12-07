@@ -3,7 +3,21 @@
 Controllers - Handle request/response logic
 """
 
-from .module_call_controller import ModuleCallController
-from .health_controller import HealthController
+# Management controllers (NEW)
+from .management import (
+    SystemController,
+    LocalProcessingController,
+    LogsController,
+)
 
-__all__ = ['ModuleCallController', 'HealthController']
+# Legacy controllers
+from .module_call_controller import ModuleCallController
+
+__all__ = [
+    # Management controllers
+    'SystemController',
+    'LocalProcessingController',
+    'LogsController',
+    # Legacy controllers
+    'ModuleCallController',
+]

@@ -42,16 +42,11 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         local_test_router,
     )
 
-    # Import routers (from independent files)
-    from pycore.callmodule.routers.web_router import router as web_router
-    from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
+    # Import legacy routers (from independent files - still active)
     from pycore.callmodule.routers.mcp_router import mcp_router
-    from pycore.callmodule.routers.ocr_router import ocr_router
-    from pycore.callmodule.routers.translator_router import translator_router
-    from pycore.callmodule.routers.health_router import health_router
-    from pycore.callmodule.routers.singleton_router import singleton_router
     from pycore.callmodule.routers.code_sync_router import router as code_sync_router
     from pycore.callmodule.routers.module_call_router import module_call_router
+    from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
 
     # Define static mounts configuration
     PYCORE_ROOT = Path(__file__).parent.parent
@@ -84,16 +79,11 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 local_stats_router,      # Local processing statistics
                 local_test_router,       # Local processing test endpoint
 
-                # === Legacy Routers ===
-                web_router,              # Web UI routes
-                health_router,           # Health check and status routes
-                voice_subtitle_router,   # Voice subtitle API routes
+                # === Legacy Routers (Still Active) ===
                 mcp_router,              # MCP backend routes (file, database, codebase tools)
-                ocr_router,              # OCR API routes
-                translator_router,       # Translator API routes
-                singleton_router,        # Singleton control routes
                 code_sync_router,        # Code sync routes
-                module_call_router       # Module call API routes
+                module_call_router,      # Module call API routes
+                notebooklm_stt_router,   # NotebookLM STT routes
             ],
             'static_mounts': static_mounts  # Mount static files
         },
