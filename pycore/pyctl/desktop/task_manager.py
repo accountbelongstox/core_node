@@ -8,9 +8,11 @@ Manages async tasks with progress tracking.
 import time
 import threading
 import uuid
+import asyncio
+import inspect
 from datetime import datetime
-from typing import Dict, List, Optional, Callable
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, Callable, Union, Coroutine
+from dataclasses import dataclass
 from enum import Enum
 
 from pycore import ColorPrint
@@ -52,8 +54,52 @@ class Task:
             self.updated_at = datetime.now().isoformat()
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary"""
-        return asdict(self)
+        """
+        Convert to dictionary (manual serialization to avoid deepcopy issues)
+
+        Note: asdict() tries to deepcopy all fields, which fails if input_data
+        or result contains non-serializable objects (like async functions).
+        """
+        return {
+            'task_id': self.task_id,
+            'task_type': self.task_type,
+            'status': self.status,
+            'progress': self.progress,
+            'input_data': self._safe_copy_dict(self.input_data),
+            'result': self._safe_copy_dict(self.result) if self.result else None,
+            'error': self.error,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'estimated_time': self.estimated_time
+        }
+
+    def _safe_copy_dict(self, data: Dict) -> Dict:
+        """
+        Safely copy dictionary, handling non-serializable objects
+
+        Args:
+            data: Dictionary to copy
+
+        Returns:
+            Dict: Shallow copy with repr() for non-serializable values
+        """
+        result = {}
+        for key, value in data.items():
+            try:
+                # Try to use basic types directly
+                if isinstance(value, (str, int, float, bool, type(None))):
+                    result[key] = value
+                elif isinstance(value, (list, tuple)):
+                    result[key] = list(value)
+                elif isinstance(value, dict):
+                    result[key] = dict(value)
+                else:
+                    # For complex objects, use string representation
+                    result[key] = str(value)
+            except Exception:
+                # Fallback to repr for any problematic values
+                result[key] = repr(value)
+        return result
 
     def update_progress(self, progress: int, status: Optional[str] = None):
         """Update task progress"""
@@ -193,14 +239,14 @@ class TaskManager:
     def execute_task(
         self,
         task_id: str,
-        executor: Callable[[Task], Dict]
+        executor: Union[Callable[[Task], Dict], Callable[[Task], Coroutine]]
     ):
         """
         Execute task in background thread
 
         Args:
             task_id: Task ID
-            executor: Function that executes the task and returns result
+            executor: Function (sync or async) that executes the task and returns result
         """
         def _run():
             task = self.get_task(task_id)
@@ -208,25 +254,31 @@ class TaskManager:
                 ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
                 return
 
-            try:
-                # Set to processing
-                self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
+            # Set to processing
+            self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
 
-                # Execute task
+            # Execute task (handle both sync and async executors)
+            ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
+
+            if inspect.iscoroutinefunction(executor):
+                # Async executor - run in new event loop
+                ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
+                result = asyncio.run(executor(task))
+            else:
+                # Sync executor - run directly
+                ColorPrint.blue(f"[TaskManager] Running sync executor")
                 result = executor(task)
 
-                # Mark as completed
-                self.complete_task(task_id, result)
+            ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
+            ColorPrint.blue(f"[TaskManager] Result: {result}")
 
-            except Exception as e:
-                ColorPrint.red(f"[TaskManager] Task execution error: {e}")
-                import traceback
-                traceback.print_exc()
-                self.fail_task(task_id, str(e))
+            # Mark as completed (let exceptions propagate)
+            self.complete_task(task_id, result)
 
         # Run in background thread
         thread = threading.Thread(target=_run, daemon=True, name=f"Task-{task_id}")
         thread.start()
+        ColorPrint.cyan(f"[TaskManager] Started background thread for task {task_id}")
 
     def _generate_task_id(self, task_type: str) -> str:
         """Generate unique task ID"""

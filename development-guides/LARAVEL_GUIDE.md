@@ -33,7 +33,6 @@ To ensure code reusability and easy discovery, please strictly follow the follow
 - **Global Providers (`app/Providers`)**: This directory provides a global library of constants and important variables. Before defining new constants, **must** first reference and check whether related configurations already exist in these Providers. **Path mapping uniformly uses `App\Providers\PathMapper`, which has merged the functionality of `DatabasePathHelper`, `ExternalStorageHelper`, and `WebPathHelper`**.
 - Please use `PathMapper::mapWebPath()`.
 
-
 ## 2.2. Multi-App Aggregation Structure
 
 This codebase is designed to support multiple applications simultaneously. Each application is isolated in its dedicated module.

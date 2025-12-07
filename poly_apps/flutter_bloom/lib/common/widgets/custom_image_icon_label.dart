@@ -30,6 +30,8 @@ class CustomImageIconLabel extends StatelessWidget {
   final bool showBorder;
   final Widget? badge;
   final FontWeight? labelFontWeight;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   const CustomImageIconLabel({
     super.key,
@@ -50,6 +52,8 @@ class CustomImageIconLabel extends StatelessWidget {
     this.showBorder = false,
     this.badge,
     this.labelFontWeight,
+    this.maxLines = 1,
+    this.overflow = TextOverflow.ellipsis,
   });
 
   @override
@@ -105,6 +109,7 @@ class CustomImageIconLabel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             imageWidget,
             SizedBox(height: spacing),
@@ -115,8 +120,8 @@ class CustomImageIconLabel extends StatelessWidget {
                 fontSize: labelSize,
                 fontWeight: labelFontWeight,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: maxLines,
+              overflow: overflow,
               textAlign: TextAlign.center,
             ),
           ],
