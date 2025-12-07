@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import { Language } from '../types';
 
 type TranslationKeys = {
@@ -14,8 +17,11 @@ const en: TranslationKeys = {
   'nav.local': 'Local Processing',
   'nav.local.cap': 'Capabilities',
   'nav.local.conf': 'Configuration',
+<<<<<<< HEAD
   'nav.local.stats': 'Statistics',
   'nav.local.test': 'Quick Test',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   'nav.uploads': 'Uploads',
   'nav.remote': 'Remote Servers',
   'nav.logs': 'Logs',
@@ -35,9 +41,12 @@ const en: TranslationKeys = {
   'common.edit': 'Edit',
   'common.test': 'Test',
   'common.clear': 'Clear',
+<<<<<<< HEAD
   'common.start': 'Start',
   'common.process': 'Process',
   'common.result': 'Result',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   
   // Dashboard
   'dash.title': 'System Dashboard',
@@ -69,11 +78,14 @@ const en: TranslationKeys = {
   'local.screenshot': 'Screenshot Settings',
   'local.ocr': 'OCR Settings',
   'local.audio': 'Audio Settings',
+<<<<<<< HEAD
   'local.stats.title': 'Processing Statistics',
   'local.test.title': 'Capability Testing',
   'local.test.type': 'Test Type',
   'local.test.run': 'Run Diagnostic',
   'local.test.result': 'Test Result',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   
   // Uploads
   'upload.tasks': 'Active Tasks',
@@ -100,9 +112,12 @@ const en: TranslationKeys = {
   'tools.video': 'Video Processing',
   'tools.file': 'File Analysis',
   'tools.test': 'System Test',
+<<<<<<< HEAD
   'tools.capture': 'Capture',
   'tools.upload_drop': 'Drag and drop file here or click to select',
   'tools.processing': 'Processing...',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   
   // Statistics
   'stats.title': 'Analytics & Statistics',
@@ -133,8 +148,11 @@ const zh: TranslationKeys = {
   'nav.local': '本地处理',
   'nav.local.cap': '处理能力',
   'nav.local.conf': '处理配置',
+<<<<<<< HEAD
   'nav.local.stats': '处理统计',
   'nav.local.test': '快速测试',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
   'nav.uploads': '上传管理',
   'nav.remote': '远程服务器',
   'nav.logs': '日志中心',
@@ -154,9 +172,12 @@ const zh: TranslationKeys = {
   'common.edit': '编辑',
   'common.test': '测试',
   'common.clear': '清除',
+<<<<<<< HEAD
   'common.start': '开始',
   'common.process': '开始处理',
   'common.result': '处理结果',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   // Dashboard
   'dash.title': '系统仪表盘',
@@ -188,11 +209,14 @@ const zh: TranslationKeys = {
   'local.screenshot': '截图设置',
   'local.ocr': 'OCR 设置',
   'local.audio': '音频设置',
+<<<<<<< HEAD
   'local.stats.title': '处理统计',
   'local.test.title': '能力测试',
   'local.test.type': '测试类型',
   'local.test.run': '运行诊断',
   'local.test.result': '测试结果',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   // Uploads
   'upload.tasks': '进行中任务',
@@ -219,9 +243,12 @@ const zh: TranslationKeys = {
   'tools.video': '视频处理',
   'tools.file': '文件分析',
   'tools.test': '系统测试',
+<<<<<<< HEAD
   'tools.capture': '开始截图',
   'tools.upload_drop': '拖拽文件到此处或点击上传',
   'tools.processing': '处理中...',
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   // Statistics
   'stats.title': '统计分析',
@@ -247,4 +274,8 @@ export const translations = { en, zh };
 
 export const getTranslation = (lang: Language, key: string): string => {
   return translations[lang][key] || key;
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522

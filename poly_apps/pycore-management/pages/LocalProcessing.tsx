@@ -7,6 +7,7 @@ import {
   Check,
   X,
   Zap,
+<<<<<<< HEAD
   Save,
   BarChart2,
   Play,
@@ -33,11 +34,25 @@ import { formatDuration, formatFileSize } from '../utils/formatters';
 
 interface Props {
   defaultTab?: 'status' | 'config' | 'stats' | 'test';
+=======
+  Save
+} from 'lucide-react';
+import { api } from '../services/api';
+import { useApp } from '../contexts/AppContext';
+import { LocalCapabilities, LocalProcessingConfig } from '../types';
+
+interface Props {
+  defaultTab?: 'status' | 'config';
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 }
 
 const LocalProcessing: React.FC<Props> = ({ defaultTab = 'status' }) => {
   const { t } = useApp();
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<'status' | 'config' | 'stats' | 'test'>('status');
+=======
+  const [activeTab, setActiveTab] = useState<'status' | 'config'>('status');
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -49,23 +64,51 @@ const LocalProcessing: React.FC<Props> = ({ defaultTab = 'status' }) => {
       
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex gap-6">
+<<<<<<< HEAD
           <TabButton active={activeTab === 'status'} onClick={() => setActiveTab('status')} label={t('nav.local.cap')} />
           <TabButton active={activeTab === 'config'} onClick={() => setActiveTab('config')} label={t('nav.local.conf')} />
           <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} label={t('nav.local.stats')} />
           <TabButton active={activeTab === 'test'} onClick={() => setActiveTab('test')} label={t('nav.local.test')} />
+=======
+          <button
+            onClick={() => setActiveTab('status')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'status'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+            }`}
+          >
+            {t('nav.local.cap')}
+          </button>
+          <button
+            onClick={() => setActiveTab('config')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'config'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+            }`}
+          >
+            {t('nav.local.conf')}
+          </button>
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         </nav>
       </div>
 
       <div className="min-h-[400px]">
+<<<<<<< HEAD
         {activeTab === 'status' && <CapabilitiesView />}
         {activeTab === 'config' && <ConfigView />}
         {activeTab === 'stats' && <StatsView />}
         {activeTab === 'test' && <TestView />}
+=======
+        {activeTab === 'status' ? <CapabilitiesView /> : <ConfigView />}
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
       </div>
     </div>
   );
 };
 
+<<<<<<< HEAD
 const TabButton: React.FC<{ active: boolean; onClick: () => void; label: string }> = ({ active, onClick, label }) => (
     <button
         onClick={onClick}
@@ -79,6 +122,8 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; label: string 
     </button>
 );
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 const CapabilitiesView: React.FC = () => {
     const [capabilities, setCapabilities] = useState<LocalCapabilities | null>(null);
 
@@ -150,6 +195,20 @@ const CapabilitiesView: React.FC = () => {
                     </table>
                 </div>
             </div>
+<<<<<<< HEAD
+=======
+
+            {/* Quick Test Area */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Quick Test</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <TestButton icon={Image} label="Test Screenshot" />
+                    <TestButton icon={Zap} label="Test OCR Engine" />
+                    <TestButton icon={Mic} label="Test Audio Input" />
+                    <TestButton icon={Video} label="Test GPU Encoder" />
+                </div>
+            </div>
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         </div>
     );
 };
@@ -244,6 +303,7 @@ const ConfigView: React.FC = () => {
              </div>
         </div>
     );
+<<<<<<< HEAD
 };
 
 const StatsView: React.FC = () => {
@@ -410,6 +470,9 @@ const TestView: React.FC = () => {
         </div>
     );
 };
+=======
+}
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
 const HardwareCard: React.FC<{ title: string; model: string; stats: string; available: boolean }> = ({ title, model, stats, available }) => (
     <div className={`p-5 rounded-xl border ${available ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-75'}`}>
@@ -450,11 +513,19 @@ const CapabilityRow: React.FC<{ icon: any; title: string; available: boolean; de
     </tr>
 );
 
+<<<<<<< HEAD
 const StatsCard: React.FC<{ title: string; value: string | number; color: string }> = ({ title, value, color }) => (
     <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
         <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{title}</div>
         <div className={`text-2xl font-bold ${color}`}>{value}</div>
     </div>
+=======
+const TestButton: React.FC<{ icon: any; label: string }> = ({ icon: Icon, label }) => (
+    <button className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-slate-600 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-300">
+        <Icon size={24} />
+        <span className="text-sm font-medium">{label}</span>
+    </button>
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 );
 
 export default LocalProcessing;

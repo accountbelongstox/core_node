@@ -11,6 +11,12 @@ C:\Users\accou\Downloads\matrixui.zip 复制这个目录 解压到 poly_apps/  �
 pycore\pyutils 查看这其中有没有专门的前端启动库。现在前端是 poly_apps\matrix_ui_react 找一下合适的库，并给出更好的解决方案。
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+pycore/pyutils/native_ui 扩展该库，当使用本地UI启动debug模式是，阻塞直到ui启动成功，自动安装pnpm 自动调用启动命令，使用单独线程启动。development-guides\PYTHON_PYCORE.md 按该规范，现在将   pycore/pyutils/frontend_launcher/ 作为 native_ui 的一个子类。
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 pycore/pyutils/native_ui 扩展该库，当使用本地UI启动debug模式是，阻塞直到ui启动成功，自动安装pnpm 自动调用启动命令，使用单独线程启动。development-guides\PYTHON_PYCORE.md 按该规范，现在将   pycore/pyutils/frontend_launcher/ 作为 native_ui 的一个子类。
 
 查看是否符合逻辑，设置为前端debug模式，直接启动热重载的调试，同时目前的 \dist 也没有实现
@@ -25,6 +31,7 @@ bus处理事件，同时你也要匹配之前的其他线程，比如前端UI线
 
 查看全局为什么没有正确使用现在的thread bus，同时确保thread bus的注册机制有效，能正确的按顺序
 通知到所有的线程关闭等活动。
+<<<<<<< HEAD
 ````````````````````````````````````````````````````````````````````````````````````````````````````````
 
 目前是只有一个debug窗口了，但这个窗口没有正确的注册到colore
@@ -32,3 +39,6 @@ printer，查看另一个debug的逻辑，修正，同是现在启动的debug窗
 的多语言是否一致，之后使用thread bus和多语言的全局对象（注意多语言只有一个全局对象，启动即创建，可以在子app中调用扩展key
 val），不要处处去new，因为这样没法全局生效。查看其中是一致，之后扩展现在的debug窗口上的多语言选择，使tray等窗口标题等(非webview)能实
 时切换语言。同时代码中禁止硬编码、而是直接使用多语言。
+=======
+>>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522

@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import { 
   DashboardOverview, 
   RealtimeMetrics, 
@@ -13,6 +16,7 @@ import {
   UploadServer,
   PerformanceStats,
   UsageTrends,
+<<<<<<< HEAD
   ResourceStats,
   LocalProcessingStats,
   TestRequest,
@@ -27,6 +31,9 @@ import {
   VideoProcessResponse,
   FileAnalyzeRequest,
   FileAnalyzeResponse
+=======
+  ResourceStats
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 } from '../types';
 
 // Mock Data Generators
@@ -169,6 +176,7 @@ export const updateLocalConfig = async (config: LocalProcessingConfig): Promise<
    return new Promise(resolve => setTimeout(() => resolve(true), 500));
 };
 
+<<<<<<< HEAD
 export const getLocalProcessingStats = async (): Promise<LocalProcessingStats> => {
     const timeline = [];
     const now = new Date();
@@ -275,6 +283,8 @@ export const analyzeFile = async (req: FileAnalyzeRequest): Promise<FileAnalyzeR
 
 // --- End Tool Implementations ---
 
+=======
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 export const getUploadTasks = async (): Promise<UploadTask[]> => {
   return Promise.resolve([
     {
@@ -392,4 +402,8 @@ export const getResourceStats = async (): Promise<ResourceStats> => {
             { interface: 'wlan0', upload_total: 210, download_total: 540 }
         ]
     });
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
