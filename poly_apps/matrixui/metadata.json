@@ -1,0 +1,8 @@
+{
+  "name": "matrixui",
+  "description": "云矩阵 // V3.0",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
