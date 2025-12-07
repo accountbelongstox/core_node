@@ -285,12 +285,23 @@ class FrontendLauncherThread(threading.Thread):
         if self.config.build_command:
             return self.config.build_command
 
+        # Framework-specific commands
         if self.config.framework == "nuxt":
             return ["npx", "nuxi", "build"]
         if self.config.framework == "next":
             return ["npx", "next", "build"]
+        if self.config.framework == "nexus":
+            return ["npx", "nexus", "build"]
+        if self.config.framework == "vue":
+            return ["npm", "run", "build"]
+        if self.config.framework == "react-native":
+            return ["npx", "expo", "export:web"]
+        if self.config.framework == "react":
+            return ["npm", "run", "build"]
+        if self.config.framework == "vite":
+            return ["npx", "vite", "build"]
 
-        # React/Vite default
+        # Fallback
         return ["npm", "run", "build"]
 
     def _handle_dev_mode(self) -> bool:
@@ -329,14 +340,32 @@ class FrontendLauncherThread(threading.Thread):
         if self.config.dev_command:
             return self.config.dev_command
 
+        # Framework-specific commands
         if self.config.framework == "nuxt":
             return ["npx", "nuxi", "dev", "--hostname", self.config.host, "--port", str(self.config.port)]
+
         if self.config.framework == "next":
             return ["npx", "next", "dev", "-H", self.config.host, "-p", str(self.config.port)]
-        if self.config.framework == "react":
-            return ["npm", "run", "start", "--", "--host", self.config.host, "--port", str(self.config.port)]
 
-        # Vite default
+        if self.config.framework == "nexus":
+            return ["npx", "nexus", "dev", "--host", self.config.host, "--port", str(self.config.port)]
+
+        if self.config.framework == "vue":
+            # Vue CLI or Vite
+            return ["npm", "run", "serve", "--", "--host", self.config.host, "--port", str(self.config.port)]
+
+        if self.config.framework == "react-native":
+            # React Native Web via Expo
+            return ["npx", "expo", "start", "--web", "--port", str(self.config.port)]
+
+        if self.config.framework == "react":
+            # Create React App
+            return ["npm", "run", "start"]  # CRA doesn't support --host/--port via CLI
+
+        if self.config.framework == "vite":
+            return ["npx", "vite", "dev", "--host", self.config.host, "--port", str(self.config.port)]
+
+        # Fallback - try npm run dev
         return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
 
     def _build_env(self) -> dict:
