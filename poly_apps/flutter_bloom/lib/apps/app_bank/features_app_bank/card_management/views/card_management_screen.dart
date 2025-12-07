@@ -13,6 +13,8 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/bank_scaffold.dart';
 import '../../../config_app_bank/theme_config_app_bank.dart';
+import '../components/card_top_header.dart';
+import '../components/card_features_grid.dart';
 
 class BankCardManagementScreen extends StatelessWidget {
   const BankCardManagementScreen({super.key});
@@ -24,12 +26,13 @@ class BankCardManagementScreen extends StatelessWidget {
       backgroundColor: BankColorProvider.scaffoldBackground,
       body: Column(
         children: [
-          _buildTopHeader(context),
+          const CardTopHeader(),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildFeaturesGrid(context),
+                  const CardFeaturesGrid(),
                   _buildCardRecommendation(context),
                   _buildNewbieBanner(context),
                   _buildOffersSection(context),
@@ -40,141 +43,6 @@ class BankCardManagementScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-
-
-  Widget _buildTopHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Row(
-            children: [
-              const Text('📍', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 4),
-              const Text(
-                '北京',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                '积分充话费',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Text('🎤', style: TextStyle(fontSize: 16)),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F0F0),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Text('🎧', style: TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    '客服',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeaturesGrid(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-      color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildFeatureItem('assets/apps/app_bank/images/credit_newbie.png', '新户享好礼', const Color(0xFFE3F2FD), '👤'),
-          _buildFeatureItem('assets/apps/app_bank/images/credit_benefits.png', '卡权益', const Color(0xFFFFF3E0), '💳'),
-          _buildFeatureItem('assets/apps/app_bank/images/credit_offers.png', '卡优惠', const Color(0xFFF3E5F5), '💰'),
-          _buildFeatureItem('assets/apps/app_bank/images/credit_referral.png', '推荐有礼', const Color(0xFFE8F5E8), '🎁'),
-          _buildFeatureItem('assets/apps/app_bank/images/credit_more.png', '更多', const Color(0xFFFCE4EC), '⭕'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureItem(String imagePath, String title, Color backgroundColor, String fallbackEmoji) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Image.asset(
-              imagePath,
-              width: 24,
-              height: 24,
-              errorBuilder: (context, error, stackTrace) {
-                return Text(fallbackEmoji, style: const TextStyle(fontSize: 24));
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.black87,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
     );
   }
 
@@ -222,11 +90,23 @@ class BankCardManagementScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildCreditCard('assets/apps/app_bank/images/card_anime.png', '动漫卡', const LinearGradient(colors: [Color(0xFF667EEA), Color(0xFF764BA2)])),
+              _buildCreditCard(
+                  'assets/apps/app_bank/images/card_anime.png',
+                  '动漫卡',
+                  const LinearGradient(
+                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)])),
               const SizedBox(width: 8),
-              _buildCreditCard('assets/apps/app_bank/images/card_mastercard.png', '万事达', const LinearGradient(colors: [Color(0xFF1A1A1A), Color(0xFF333333)])),
+              _buildCreditCard(
+                  'assets/apps/app_bank/images/card_mastercard.png',
+                  '万事达',
+                  const LinearGradient(
+                      colors: [Color(0xFF1A1A1A), Color(0xFF333333)])),
               const SizedBox(width: 8),
-              _buildCreditCard('assets/apps/app_bank/images/card_cute.png', '可爱卡', const LinearGradient(colors: [Color(0xFF74B9FF), Color(0xFF0984E3)])),
+              _buildCreditCard(
+                  'assets/apps/app_bank/images/card_cute.png',
+                  '可爱卡',
+                  const LinearGradient(
+                      colors: [Color(0xFF74B9FF), Color(0xFF0984E3)])),
             ],
           ),
           const SizedBox(height: 16),
@@ -282,7 +162,8 @@ class BankCardManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCreditCard(String imagePath, String title, LinearGradient gradient) {
+  Widget _buildCreditCard(
+      String imagePath, String title, LinearGradient gradient) {
     return Container(
       width: 100,
       height: 60,

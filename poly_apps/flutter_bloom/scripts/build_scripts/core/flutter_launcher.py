@@ -84,21 +84,18 @@ class FlutterBloomLauncher:
             }
 
             if action.lower() == "debug":
-                # Use debug script generator to create platform-specific debug script
+                # Use debug script generator to set variables
                 from shared.debug_script_generator import debug_script_generator
 
-                debug_result = debug_script_generator.prepare_debug_script()
+                debug_script_generator.prepare_debug_script()
 
-                if debug_result["success"]:
-                    routing_result.update({
-                        "success": True,
-                        "script_path": debug_result["script_path"],
-                        "mode": "debug"
-                    })
-                    print(f"[INFO] Debug script generated and ready: {debug_result['script_path']}")
-                else:
-                    error_msg = debug_result.get("error", "Unknown error")
-                    routing_result["error"] = f"Debug script generation failed: {error_msg}"
+                # Script path is set in variables, PowerShell will read it
+                routing_result.update({
+                    "success": True,
+                    "script_path": "",  # PowerShell reads from variables
+                    "mode": "debug"
+                })
+                print(f"[INFO] Debug variables set, PowerShell will execute script")
 
             elif action.lower() in ["build", "release"]:
                 routing_result.update({

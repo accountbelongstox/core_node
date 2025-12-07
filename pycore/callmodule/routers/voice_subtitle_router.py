@@ -92,6 +92,11 @@ async def add_text(request: AddTextRequest):
 
     Returns task_id for status tracking
     """
+    ColorPrint.green(f"[VoiceSubtitle] ========== /add-text request ==========")
+    ColorPrint.blue(f"  Text: {request.text[:50]}..." if len(request.text) > 50 else f"  Text: {request.text}")
+    ColorPrint.blue(f"  Languages: {request.langs}")
+    ColorPrint.blue(f"  Category: {request.category}")
+
     task_manager = get_task_manager()
 
     # Create task
@@ -105,15 +110,27 @@ async def add_text(request: AddTextRequest):
         estimated_time=5
     )
 
-    # Execute in background
+    ColorPrint.cyan(f"[VoiceSubtitle] Created task: {task_id}")
+
+    # Execute in background (async executor)
     async def executor(task):
+        ColorPrint.yellow(f"[VoiceSubtitle] ========== Executing task {task_id} ==========")
         result = await process_text_input(request.text, request.langs, request.category)
+
+        # Check result (don't catch exceptions, let them propagate)
         if not result['success']:
-            raise Exception(result.get('error', 'Unknown error'))
+            error_msg = result.get('error', 'Unknown error')
+            ColorPrint.red(f"[VoiceSubtitle] Task {task_id} returned failure: {error_msg}")
+            raise Exception(error_msg)
+
+        ColorPrint.green(f"[VoiceSubtitle] ========== Task {task_id} completed ==========")
+        ColorPrint.blue(f"  Added items: {result.get('added_count', 0)}")
         return result
 
     task_manager.execute_task(task_id, executor)
 
+    ColorPrint.green(f"[VoiceSubtitle] Request accepted, task_id: {task_id}")
+    ColorPrint.green(f"========================================")
     return {
         "success": True,
         "task_id": task_id,
