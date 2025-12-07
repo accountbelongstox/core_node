@@ -39,11 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
       children: [
         { id: 'local_capabilities', label: t('nav.local.cap') },
         { id: 'local_config', label: t('nav.local.conf') },
-<<<<<<< HEAD
         { id: 'local_stats', label: t('nav.local.stats') },
         { id: 'local_test', label: t('nav.local.test') },
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
       ]
     },
     { id: 'upload_tasks', label: t('nav.uploads'), icon: UploadCloud },

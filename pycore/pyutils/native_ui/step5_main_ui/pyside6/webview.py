@@ -7,9 +7,10 @@ WebView widget using QWebEngineView for displaying web content.
 """
 
 from PySide6.QtCore import QUrl, Signal, Slot, QTimer
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtGui import QColor
 
 from typing import Optional
 from pathlib import Path
@@ -68,8 +69,15 @@ class PySide6WebView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # Create stacked widget for smooth transitions
+        self.stacked_widget = QStackedWidget()
+
         # Create web view
         self.web_view = QWebEngineView()
+
+        # Set background color to prevent white flash
+        page = self.web_view.page()
+        page.setBackgroundColor(QColor("#1e1e1e"))
 
         # Configure settings
         settings = self.web_view.settings()
@@ -94,12 +102,15 @@ class PySide6WebView(QWidget):
         # Create loading widget
         self._create_loading_widget()
 
-        # Add to layout (loading widget shown first)
-        layout.addWidget(self.loading_widget)
-        layout.addWidget(self.web_view)
+        # Add widgets to stacked widget
+        self.stacked_widget.addWidget(self.loading_widget)  # Index 0
+        self.stacked_widget.addWidget(self.web_view)        # Index 1
 
-        # Hide web view initially
-        self.web_view.hide()
+        # Show loading widget initially
+        self.stacked_widget.setCurrentIndex(0)
+
+        # Add stacked widget to layout
+        layout.addWidget(self.stacked_widget)
 
     def _create_loading_widget(self):
         """Create loading page widget."""
@@ -275,14 +286,19 @@ class PySide6WebView(QWidget):
 
         layout.addWidget(temp_web)
 
-        # Show loading widget
-        self.loading_widget.show()
-        self.web_view.hide()
+        # Switch to loading widget
+        self.stacked_widget.setCurrentIndex(0)
 
     def hide_loading_page(self):
         """Hide loading page and show web view."""
-        self.loading_widget.hide()
-        self.web_view.show()
+        # Disable updates to prevent flicker
+        self.stacked_widget.setUpdatesEnabled(False)
+
+        # Switch to webview
+        self.stacked_widget.setCurrentIndex(1)
+
+        # Re-enable updates
+        self.stacked_widget.setUpdatesEnabled(True)
 
     def _generate_loading_html(
         self,
@@ -358,8 +374,8 @@ class PySide6WebView(QWidget):
     def _on_load_finished(self, success: bool):
         """Handle load finished."""
         if success:
-            # Hide loading page after a short delay
-            QTimer.singleShot(500, self.hide_loading_page)
+            # Hide loading page immediately (no delay needed with QStackedWidget)
+            self.hide_loading_page()
 
         self.load_finished.emit(success)
 

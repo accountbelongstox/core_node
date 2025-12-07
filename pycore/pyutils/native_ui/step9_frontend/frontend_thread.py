@@ -13,14 +13,7 @@ import time
 import socket
 import threading
 import subprocess
-<<<<<<< HEAD
 import platform
-=======
-<<<<<<< HEAD
-=======
-import platform
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 from pathlib import Path
 from typing import Optional, List
 
@@ -28,11 +21,6 @@ from pycore.pyfoundations.color_print import ColorPrint
 from .frontend_config import FrontendConfig
 
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 def _resolve_command_for_platform(command: List[str]) -> List[str]:
     """
     Resolve command for current platform (Windows requires .cmd/.bat extension)
@@ -55,10 +43,6 @@ def _resolve_command_for_platform(command: List[str]) -> List[str]:
     return command
 
 
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 class FrontendLauncherThread(threading.Thread):
     """
     Frontend launcher thread
@@ -109,40 +93,6 @@ class FrontendLauncherThread(threading.Thread):
         """Thread entry point - called by Thread.start()"""
         self.running = True
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        # Step 1: Install dependencies if needed
-        if self.config.auto_install:
-            if not self._ensure_dependencies():
-                self.error_message = "Dependency installation failed"
-                self.error_event.set()
-                self.running = False
-                return
-
-        # Step 2: Start frontend based on mode
-        if self.config.mode == "production":
-            success = self._handle_production_mode()
-        else:
-            success = self._handle_dev_mode()
-
-        if not success:
-            self.error_event.set()
-            self.running = False
-            return
-
-        # Step 3: Signal ready
-        self.ready = True
-        self.ready_event.set()
-        ColorPrint.green(f"[FrontendThread] Frontend ready")
-
-        # Keep thread alive while process runs (dev mode only)
-        if self.config.mode == "dev" and self.process:
-            self.process.wait()
-
-        self.running = False
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         try:
             # Step 1: Install dependencies if needed
             if self.config.auto_install:
@@ -184,10 +134,6 @@ class FrontendLauncherThread(threading.Thread):
 
         finally:
             self.running = False
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     def _ensure_dependencies(self) -> bool:
         """
@@ -205,12 +151,6 @@ class FrontendLauncherThread(threading.Thread):
 
         # Check if node_modules exists and is up to date
         if node_modules.exists():
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-            lock_file = self.config.app_dir / "pnpm-lock.yaml"
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
             # Detect lock file based on package manager
             lock_files = {
                 "pnpm": "pnpm-lock.yaml",
@@ -220,10 +160,6 @@ class FrontendLauncherThread(threading.Thread):
             lock_file_name = lock_files.get(self.config.package_manager, "pnpm-lock.yaml")
             lock_file = self.config.app_dir / lock_file_name
 
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
             if lock_file.exists():
                 lock_mtime = lock_file.stat().st_mtime
                 modules_mtime = node_modules.stat().st_mtime
@@ -237,25 +173,11 @@ class FrontendLauncherThread(threading.Thread):
 
     def _run_install(self) -> bool:
         """
-<<<<<<< HEAD
         Run package manager install (pnpm/npm/yarn)
-=======
-<<<<<<< HEAD
-        Run pnpm install
-=======
-        Run package manager install (pnpm/npm/yarn)
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         Returns:
             True if installation successful
         """
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        command = self.config.install_command or ["pnpm", "install"]
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         # Use custom install_command or generate from package_manager
         if self.config.install_command:
             command = self.config.install_command
@@ -264,10 +186,6 @@ class FrontendLauncherThread(threading.Thread):
             command = [pm, "install"]
 
         command = _resolve_command_for_platform(command)
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.blue(f"[FrontendThread] Running: {' '.join(command)}")
 
         process = subprocess.Popen(
@@ -279,50 +197,6 @@ class FrontendLauncherThread(threading.Thread):
             bufsize=1
         )
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        # Stream output
-        success_indicators = [
-            "dependencies are up to date",
-            "done in",
-            "packages installed",
-            "already up-to-date",
-        ]
-
-        output_lines = []
-        for line in process.stdout:
-            stripped = line.strip()
-            if stripped:
-                output_lines.append(stripped)
-                if self.config.show_output:
-                    print(f"  {stripped}")
-
-        process.wait()
-
-        # Check success
-        full_output = "\n".join(output_lines).lower()
-        success = any(indicator in full_output for indicator in success_indicators)
-
-        # Verify node_modules created
-        node_modules_exists = (self.config.app_dir / "node_modules").exists()
-
-        if success and node_modules_exists:
-            ColorPrint.green("[FrontendThread] Dependencies installed successfully")
-            return True
-        else:
-            ColorPrint.red("[FrontendThread] Dependency installation failed")
-            self.error_message = "pnpm install failed"
-            return False
-
-    def _handle_production_mode(self) -> bool:
-        """
-        Handle production mode
-
-        Returns:
-            True if successful
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         # Stream output in real-time
         for line in process.stdout:
             stripped = line.strip()
@@ -345,10 +219,6 @@ class FrontendLauncherThread(threading.Thread):
     def _handle_production_mode(self):
         """
         Handle production mode (no early exits)
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         """
         # Check if we should build
         should_build = self._should_run_build()
@@ -356,30 +226,6 @@ class FrontendLauncherThread(threading.Thread):
         if not should_build:
             ColorPrint.yellow("[FrontendThread] Build skipped - output is up to date")
         else:
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-            if not self._run_build():
-                ColorPrint.red("[FrontendThread] Build failed")
-                self.error_message = "Build failed"
-                return False
-
-        # Verify output directories exist
-        if not self.config.output_dir.exists():
-            ColorPrint.red(f"[FrontendThread] Output directory missing: {self.config.output_dir}")
-            self.error_message = f"Output directory missing: {self.config.output_dir}"
-            return False
-
-        if not self.config.static_dir.exists():
-            ColorPrint.red(f"[FrontendThread] Static directory missing: {self.config.static_dir}")
-            self.error_message = f"Static directory missing: {self.config.static_dir}"
-            return False
-
-        ColorPrint.green("[FrontendThread] Production build ready")
-        ColorPrint.green(f"[FrontendThread] Static files: {self.config.static_dir}")
-        return True
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
             ColorPrint.blue("[FrontendThread] Running build...")
             self._run_build()
 
@@ -395,10 +241,6 @@ class FrontendLauncherThread(threading.Thread):
             ColorPrint.green(f"[FrontendThread] Static files: {self.config.static_dir}")
 
         ColorPrint.green("[FrontendThread] Production mode initialized")
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     def _should_run_build(self) -> bool:
         """Check if build is needed"""
@@ -428,17 +270,6 @@ class FrontendLauncherThread(threading.Thread):
 
     def _run_build(self) -> bool:
         """
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        Run production build
-
-        Returns:
-            True if build successful
-        """
-        command = self._resolve_build_command()
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         Run production build (no timeout, ignores exit codes)
 
         Returns:
@@ -446,10 +277,6 @@ class FrontendLauncherThread(threading.Thread):
         """
         command = self._resolve_build_command()
         command = _resolve_command_for_platform(command)
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.blue("[FrontendThread] " + "=" * 70)
         ColorPrint.blue("[FrontendThread] BUILDING FRONTEND")
         ColorPrint.blue("[FrontendThread] " + "=" * 70)
@@ -466,22 +293,6 @@ class FrontendLauncherThread(threading.Thread):
             bufsize=1
         )
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        # Stream output
-        for line in process.stdout:
-            stripped = line.strip()
-            if stripped and self.config.show_output:
-                print(f"  {stripped}")
-
-        process.wait()
-
-        if process.returncode != 0:
-            ColorPrint.red(f"[FrontendThread] Build failed with exit code {process.returncode}")
-            return False
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         # Stream output in real-time
         for line in process.stdout:
             stripped = line.strip()
@@ -494,10 +305,6 @@ class FrontendLauncherThread(threading.Thread):
         # Don't check exit code - just log completion
         if process.returncode != 0:
             ColorPrint.yellow(f"[FrontendThread] Build exited with code {process.returncode} (continuing anyway)")
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         ColorPrint.green("[FrontendThread] " + "=" * 70)
         ColorPrint.green("[FrontendThread] BUILD COMPLETED")
@@ -528,49 +335,19 @@ class FrontendLauncherThread(threading.Thread):
         # Fallback
         return ["npm", "run", "build"]
 
-<<<<<<< HEAD
     def _handle_dev_mode(self):
         """
         Handle dev mode - start dev server (waits indefinitely for ready)
-=======
-<<<<<<< HEAD
-    def _handle_dev_mode(self) -> bool:
-        """
-        Handle dev mode - start dev server
-
-        Returns:
-            True if started successfully
-=======
-    def _handle_dev_mode(self):
-        """
-        Handle dev mode - start dev server (waits indefinitely for ready)
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         """
         ColorPrint.blue("[FrontendThread] Starting dev server...")
 
         command = self._resolve_dev_command()
-<<<<<<< HEAD
         command = _resolve_command_for_platform(command)
-=======
-<<<<<<< HEAD
-=======
-        command = _resolve_command_for_platform(command)
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         env = self._build_env()
 
         ColorPrint.cyan(f"[FrontendThread] Command: {' '.join(command)}")
 
-<<<<<<< HEAD
         # Start dev server with real-time output
-=======
-<<<<<<< HEAD
-        # Start dev server
-=======
-        # Start dev server with real-time output
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         stdout = None if self.config.show_output else subprocess.DEVNULL
         stderr = None if self.config.show_output else subprocess.DEVNULL
 
@@ -584,18 +361,8 @@ class FrontendLauncherThread(threading.Thread):
 
         ColorPrint.blue(f"[FrontendThread] Dev server started (PID: {self.process.pid})")
 
-<<<<<<< HEAD
         # Wait for HTTP ready (no timeout)
         self._wait_for_http()
-=======
-<<<<<<< HEAD
-        # Wait for HTTP ready
-        return self._wait_for_http()
-=======
-        # Wait for HTTP ready (no timeout)
-        self._wait_for_http()
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     def _resolve_dev_command(self) -> List[str]:
         """Resolve dev command based on framework"""
@@ -625,17 +392,8 @@ class FrontendLauncherThread(threading.Thread):
             return ["npm", "run", "start"]  # CRA doesn't support --host/--port via CLI
 
         if self.config.framework == "vite":
-<<<<<<< HEAD
             # Use npm run dev for better compatibility (works with local vite)
             return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
-=======
-<<<<<<< HEAD
-            return ["npx", "vite", "dev", "--host", self.config.host, "--port", str(self.config.port)]
-=======
-            # Use npm run dev for better compatibility (works with local vite)
-            return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         # Fallback - try npm run dev
         return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
@@ -643,79 +401,32 @@ class FrontendLauncherThread(threading.Thread):
     def _build_env(self) -> dict:
         """Build environment variables for dev server"""
         env = os.environ.copy()
-<<<<<<< HEAD
 
         # Standard port/host variables
-=======
-<<<<<<< HEAD
-=======
-
-        # Standard port/host variables
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         env["PORT"] = str(self.config.port)
         env["HOST"] = self.config.host
         env["NUXT_PORT"] = str(self.config.port)
         env["NUXT_HOST"] = self.config.host
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         # Add custom environment variables (from config)
         if self.config.env_vars:
             for key, value in self.config.env_vars.items():
                 env[key] = str(value)
 
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         return env
 
     def _wait_for_http(self) -> bool:
         """
-<<<<<<< HEAD
         Wait for HTTP server to be ready (no timeout, waits indefinitely)
-=======
-<<<<<<< HEAD
-        Wait for HTTP server to be ready
-=======
-        Wait for HTTP server to be ready (no timeout, waits indefinitely)
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         Returns:
             True if server is ready
         """
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        deadline = time.time() + self.config.health_check_timeout
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         path = self.config.health_path
         host = "localhost"  # Always use localhost for health check
         port = self.config.port
 
         ColorPrint.blue(f"[FrontendThread] Waiting for frontend at http://{host}:{port}{path}")
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-
-        while time.time() < deadline:
-            if self._http_ok(host, port, path):
-                ColorPrint.green(f"[FrontendThread] Frontend ready at http://{host}:{port}")
-                return True
-            time.sleep(2)
-
-        ColorPrint.red(f"[FrontendThread] Frontend not ready after {self.config.health_check_timeout}s")
-        self.error_message = "Frontend health check timeout"
-        return False
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ColorPrint.yellow(f"[FrontendThread] No timeout set - will wait indefinitely...")
 
         check_count = 0
@@ -731,10 +442,6 @@ class FrontendLauncherThread(threading.Thread):
                 ColorPrint.cyan(f"[FrontendThread] Still waiting... ({elapsed}s elapsed)")
 
             time.sleep(2)
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     def _http_ok(self, host: str, port: int, path: str) -> bool:
         """Check if HTTP server responds"""
@@ -758,24 +465,6 @@ class FrontendLauncherThread(threading.Thread):
 
     def wait_for_ready(self, timeout: Optional[float] = None) -> bool:
         """
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        Wait for frontend to be ready
-
-        Args:
-            timeout: Timeout in seconds (None = use config timeout)
-
-        Returns:
-            True if ready, False if error or timeout
-        """
-        if timeout is None:
-            timeout = self.config.health_check_timeout
-
-        # Wait for either ready or error
-        ready = self.ready_event.wait(timeout=timeout)
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         Wait for frontend to be ready (no timeout, waits indefinitely)
 
         Args:
@@ -786,25 +475,11 @@ class FrontendLauncherThread(threading.Thread):
         """
         # Wait indefinitely for either ready or error
         self.ready_event.wait()
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
         if self.error_event.is_set():
             ColorPrint.red(f"[FrontendThread] Error: {self.error_message}")
             return False
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-        if not ready:
-            ColorPrint.red(f"[FrontendThread] Timeout waiting for frontend")
-            return False
-
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         return True
 
     def stop(self):
