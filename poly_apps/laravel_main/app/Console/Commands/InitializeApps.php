@@ -106,7 +106,15 @@ class InitializeApps extends Command
         $totalCount = count($results);
         $this->info("Successfully initialized {$successCount}/{$totalCount} databases.");
         $this->newLine();
-        
+
+        $this->info('Creating multilingual dictionary tables (EdgeTTS cache)...');
+        $dictResults = \App\Services\UserSyncService::ensureMultiLangDictionaryTablesExist();
+        foreach ($dictResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
         $this->info('Creating TTS cache tables...');
         $ttsResults = \App\Services\UserSyncService::ensureTTSCacheTablesExist();
         foreach ($ttsResults as $table => $status) {

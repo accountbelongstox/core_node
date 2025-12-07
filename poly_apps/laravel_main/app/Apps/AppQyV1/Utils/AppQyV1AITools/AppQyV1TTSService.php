@@ -7,6 +7,20 @@ use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
+/**
+ * @deprecated This class is deprecated. Use App\Services\EdgeTTS\EdgeTTSService instead.
+ * All TTS functionality has been consolidated into EdgeTTSService with improved features.
+ *
+ * Migration Path:
+ * - Old: App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService
+ * - New: App\Services\EdgeTTS\EdgeTTSService
+ *
+ * The new service includes:
+ * - Database-backed caching using AppQyV1MultiLangDictionaryModel
+ * - Namespace-based file organization for better scalability
+ * - EdgeTTSChecker integration for availability checking
+ * - All methods from both old services (batch generation, status checking, etc.)
+ */
 class AppQyV1TTSService
 {
     private $dataDir;
