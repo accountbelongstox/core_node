@@ -269,6 +269,10 @@ class PySide6Framework(QObject):
 
         # Create Qt application if not exists
         ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
+
+        # Suppress Qt CSS warnings for unsupported properties
+        os.environ.setdefault('QT_LOGGING_RULES', 'qt.qpa.*.warning=false;*.debug=false')
+
         if not QApplication.instance():
             self.qt_app = QApplication(sys.argv)
             self._qt_app_created_internally = True

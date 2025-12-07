@@ -142,6 +142,19 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.debug:
         ColorPrint.print_info(f"[NativeLauncher] Phase 5: Became primary instance on port {detection.port}")
 
+    # ========== Print Startup Summary ==========
+    if config.debug:
+        ColorPrint.print_success("\n" + "=" * 70)
+        ColorPrint.print_success("  SERVICES INITIALIZED")
+        ColorPrint.print_success("=" * 70)
+        if frontend_thread and config.frontend_enabled:
+            ColorPrint.cyan(f"  Frontend:  {final_url}  ({config.frontend_framework} {config.frontend_mode})")
+        if config.rpc_enabled:
+            rpc_url = f"http://{config.rpc_host}:{config.rpc_port}"
+            ColorPrint.cyan(f"  Backend:   {rpc_url}/rpc/<route>  ({len(config.rpc_routers)} routes)")
+        ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))
+        ColorPrint.print_success("=" * 70 + "\n")
+
     # ========== Phase 6: Launch with or without startup window ==========
     # Create wrapped main_entry that integrates PySide6 UI
     def _wrapped_main_entry():
@@ -213,6 +226,21 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     if not frontend_app_dir.is_absolute() and config.project_root:
         frontend_app_dir = Path(config.project_root) / frontend_app_dir
 
+    # Build environment variables for frontend (pass backend URL)
+    frontend_env_vars = {}
+    if config.rpc_enabled:
+        backend_url = f"http://localhost:{config.rpc_port}"
+        # Vite environment variables (VITE_ prefix)
+        frontend_env_vars["VITE_API_URL"] = backend_url
+        frontend_env_vars["VITE_API_PORT"] = str(config.rpc_port)
+        frontend_env_vars["VITE_API_HOST"] = config.rpc_host
+        # React/CRA environment variables (REACT_APP_ prefix)
+        frontend_env_vars["REACT_APP_API_URL"] = backend_url
+        frontend_env_vars["REACT_APP_API_PORT"] = str(config.rpc_port)
+        # Next.js environment variables (NEXT_PUBLIC_ prefix)
+        frontend_env_vars["NEXT_PUBLIC_API_URL"] = backend_url
+        frontend_env_vars["NEXT_PUBLIC_API_PORT"] = str(config.rpc_port)
+
     # Create frontend configuration
     frontend_config = FrontendConfig(
         enabled=True,
@@ -221,9 +249,11 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
         mode=config.frontend_mode,
         port=config.frontend_port,
         auto_install=config.frontend_auto_install,
+        package_manager=config.frontend_package_manager,
         skip_build=config.frontend_skip_build,
         block_until_ready=config.frontend_block_until_ready,
-        show_output=config.debug
+        show_output=config.debug,
+        env_vars=frontend_env_vars if frontend_env_vars else None
     )
 
     # Start frontend
@@ -248,21 +278,17 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
         timer_mgr = get_timer_manager()
         timer_mgr.register_task("my_task", interval=5.0, callback=my_callback)
     """
-    try:
-        from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+    from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
 
-        timer_mgr = get_timer_manager()
+    timer_mgr = get_timer_manager()
 
-        if not timer_mgr.is_running():
-            timer_mgr.start()
-            if config.debug:
-                ColorPrint.print_info("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
-        else:
-            if config.debug:
-                ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
-
-    except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Phase 4.5: Failed to start timer manager: {e}")
+    if not timer_mgr.is_running():
+        timer_mgr.start()
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Phase 4.5: Timer manager started (singleton)")
+    else:
+        if config.debug:
+            ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
 
 
 def _start_rpc_v2_service(
@@ -361,6 +387,15 @@ def _start_rpc_v2_service(
             if static_mounts:
                 ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
 
+        # ========== 6. Trigger frontend.ready event (production mode with static files) ==========
+        if static_mounts:
+            THREAD_BUS.trigger_event('frontend.ready', {
+                'mode': 'production',
+                'port': config.rpc_port,
+                'framework': 'rpc_v2_static'
+            })
+            ColorPrint.blue("[NativeLauncher] Triggered THREAD_BUS event: frontend.ready (production mode)")
+
         return rpc_service
 
     except Exception as e:
@@ -400,15 +435,28 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
                 )
             )
 
-    # Extract window size
+    # Extract window size (support tuple or "fullscreen")
     if isinstance(config.window_size, tuple):
         window_width, window_height = config.window_size
+    elif config.window_size == "fullscreen":
+        # Get screen size for fullscreen
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            window_width, window_height = screen_geometry.width(), screen_geometry.height()
+            if config.debug:
+                ColorPrint.green(f"[NativeLauncher] Fullscreen mode: {window_width}x{window_height}")
+        else:
+            window_width, window_height = 1920, 1080  # Fallback
     else:
         window_width, window_height = 1280, 900  # Default
 
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
+        app_id=config.app_id,  # ← 添加 app_id
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,

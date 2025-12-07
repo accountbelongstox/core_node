@@ -73,10 +73,10 @@ class Config:
     WEB_PORT = 48000  # High port number to avoid conflicts
 
     # ==================== Frontend Configuration ====================
-    # Frontend framework: Vite + React (matrix_ui_react)
+    # Frontend framework: Vite + React (matrixui)
     # Previous: Nuxt multi-app (deprecated)
 
-    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "matrix_ui_react"  # Vite + React frontend
+    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "matrixui"  # Vite + React frontend
     FRONTEND_PORT = 38007  # Matrix frontend port (from app-config.json)
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
