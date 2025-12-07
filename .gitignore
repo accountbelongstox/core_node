@@ -350,7 +350,8 @@ poly_apps/pyMatrix/storage/
 # Java heap dumps
 *.hprof
 java_pid*.hprof
-
+**/*.hprof
+**/java_pid*.hprof
 # Large database and media files
 **/word_content.sqlitemate
 **/word_content.sqlite
