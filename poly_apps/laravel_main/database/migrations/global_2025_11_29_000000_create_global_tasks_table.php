@@ -8,24 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('global_tasks', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('task_id')->unique();
-            $table->string('app_name')->index();
-            $table->string('task_type')->nullable();
-            $table->string('status')->default('pending')->index();
-            $table->decimal('progress', 5, 2)->default(0);
-            $table->json('payload')->nullable();
-            $table->json('steps')->nullable();
-            $table->json('result')->nullable();
-            $table->text('error')->nullable();
-            $table->string('queue_item_id')->nullable()->index();
-            $table->timestamps();
-        });
+        // Skip - table creation is now handled by 2025_12_07_071446_add_worker_fields_to_global_tasks_table.php
+        // This migration is kept for compatibility
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('global_tasks');
+        // Skip - table management is now handled by newer migration
     }
 };
