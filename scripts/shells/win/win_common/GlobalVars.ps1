@@ -442,11 +442,56 @@ function Get-AllGlobalVars {
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    
+
     $vars = @{}
-    Get-ChildItem $Global:GLOBAL_VAR_DIR | ForEach-Object {
-        $vars[$_.Name] = Get-Content $_.FullName -Raw
+    $maxFileSizeMB = 10
+    $maxFileSizeBytes = $maxFileSizeMB * 1MB
+
+    # Removed verbose output - reading GlobalVars silently now
+
+    Get-ChildItem $Global:GLOBAL_VAR_DIR -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $fileSizeMB = [math]::Round($_.Length / 1MB, 2)
+        $fileSizeKB = [math]::Round($_.Length / 1KB, 2)
+
+        # Silent mode - only show errors
+        # if ($_.Length -gt 1MB) {
+        #     Write-Host "  Reading file: $($_.Name) (Size: $fileSizeMB MB)" -ForegroundColor Yellow
+        # } else {
+        #     Write-Host "  Reading file: $($_.Name) (Size: $fileSizeKB KB)" -ForegroundColor Gray
+        # }
+
+        # Check if file exceeds size limit
+        if ($_.Length -gt $maxFileSizeBytes) {
+            Write-Host "    WARNING: File exceeds ${maxFileSizeMB}MB limit - DELETING: $($_.Name)" -ForegroundColor Red
+            try {
+                Remove-Item -Path $_.FullName -Force -ErrorAction Stop
+                Write-Host "    DELETED: $($_.Name)" -ForegroundColor Red
+            } catch {
+                Write-Host "    ERROR: Failed to delete file - $($_.Exception.Message)" -ForegroundColor Red
+            }
+            $vars[$_.Name] = ""
+            return
+        }
+
+        try {
+            $vars[$_.Name] = Get-Content $_.FullName -Raw -ErrorAction Stop
+            # Write-Host "    OK" -ForegroundColor Green  # Removed - silent mode
+        } catch [System.OutOfMemoryException] {
+            Write-Host "    ERROR: Out of memory reading file: $($_.Name)" -ForegroundColor Red
+            Write-Host "    File size: $fileSizeMB MB - DELETING" -ForegroundColor Red
+            try {
+                Remove-Item -Path $_.FullName -Force -ErrorAction Stop
+                Write-Host "    DELETED: $($_.Name)" -ForegroundColor Red
+            } catch {
+                Write-Host "    ERROR: Failed to delete file - $($_.Exception.Message)" -ForegroundColor Red
+            }
+            $vars[$_.Name] = ""
+        } catch {
+            Write-Host "    ERROR: $($_.Exception.Message)" -ForegroundColor Red
+            $vars[$_.Name] = ""
+        }
     }
+
     return $vars
 }
 

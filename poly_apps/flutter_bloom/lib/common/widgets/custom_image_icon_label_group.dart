@@ -50,6 +50,8 @@ class IconGroupConfig {
   final bool enablePagination;
   final int maxRowsPerPage;
   final bool distributeEvenly;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   const IconGroupConfig({
     required this.items,
@@ -74,6 +76,8 @@ class IconGroupConfig {
     this.enablePagination = false,
     this.maxRowsPerPage = 2,
     this.distributeEvenly = false,
+    this.maxLines = 2,
+    this.overflow = TextOverflow.visible,
   });
 }
 
@@ -140,6 +144,8 @@ class _CustomImageIconLabelGroupState extends State<CustomImageIconLabelGroup> {
         labelFontWeight: config.labelFontWeight,
         showBackground: false,
         showBorder: false,
+        maxLines: config.maxLines,
+        overflow: config.overflow,
       );
     }).toList();
 
@@ -261,6 +267,7 @@ class _CustomImageIconLabelGroupState extends State<CustomImageIconLabelGroup> {
     }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: config.mainAxisAlignment,
       crossAxisAlignment: config.crossAxisAlignment,
       children: rows,

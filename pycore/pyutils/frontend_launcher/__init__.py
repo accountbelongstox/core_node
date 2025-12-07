@@ -26,5 +26,6 @@ Usage:
 
 from .nuxt_launcher import NuxtLauncher
 from .frontend_config import FrontendConfig
+from .universal_launcher import UniversalFrontendLauncher, UniversalFrontendConfig
 
-__all__ = ['NuxtLauncher', 'FrontendConfig']
+__all__ = ['NuxtLauncher', 'FrontendConfig', 'UniversalFrontendLauncher', 'UniversalFrontendConfig']

@@ -127,26 +127,23 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
-            Text = "Start Android Emulator (adb/emu)";
+            Text = "Start Android Emulator (Stable)";
             Values = @("default");
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
                 Clear-Host
-                $workerScript = Join-Path $script:TOOLS_DIR "workers\AndroidEmulatorWorker.ps1"
-                if (Test-Path $workerScript) {
-                    Write-ColorMessage -Message "Launching Android emulator worker via explorer (non-blocking)..." -Type "Info"
+                $stableLauncher = Join-Path $script:TOOLS_DIR "AndroidEmulatorStableLauncher.ps1"
+                if (Test-Path $stableLauncher) {
+                    Write-ColorMessage -Message "Launching stable Android emulator launcher..." -Type "Info"
+                    Write-Host ""
                     try {
-                        $launchCommand = "explorer `"$workerScript`""
-                        Write-ColorMessage -Message "Command: $launchCommand" -Type "Info"
-                        # Call explorer directly (non-blocking)
-                        explorer "`"$workerScript`""
-                        Write-ColorMessage -Message "Worker launched. Check the new window for progress." -Type "Success"
+                        & powershell -NoProfile -ExecutionPolicy Bypass -File $stableLauncher
                     } catch {
-                        Write-ColorMessage -Message "Failed to start worker script: $($_.Exception.Message)" -Type "Error"
+                        Write-ColorMessage -Message "Failed to start emulator launcher: $($_.Exception.Message)" -Type "Error"
                     }
                 } else {
-                    Write-ColorMessage -Message "Android worker script not found: $workerScript" -Type "Error"
+                    Write-ColorMessage -Message "Stable launcher script not found: $stableLauncher" -Type "Error"
                 }
                 Write-Host ""
                 Read-Host "Press Enter to continue"

@@ -203,16 +203,22 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
         category: Queue item category (default: "normal")
 
     Returns:
-        Dict: {success, items_added, error}
+        Dict: {success, added_count, items_added, error}
     """
-    ColorPrint.blue(f"[VoiceSubtitle] Processing text input: {text[:100]}...")
+    ColorPrint.green(f"[Processor] ========== Starting text processing ==========")
+    ColorPrint.blue(f"[Processor] Input text: {text[:100]}...")
+    ColorPrint.blue(f"[Processor] Target languages: {langs}")
+    ColorPrint.blue(f"[Processor] Category: {category}")
 
     items_added = []
+    total_items_count = 0
 
     async with GoogleTranslator() as translator:
-        for lang in langs:
-            # Always translate to ensure text matches target language
-            ColorPrint.blue(f"[VoiceSubtitle] Translating to {lang}...")
+        for lang_index, lang in enumerate(langs, 1):
+            ColorPrint.cyan(f"[Processor] [{lang_index}/{len(langs)}] Processing language: {lang}")
+
+            # Translate
+            ColorPrint.blue(f"[Processor] Translating to {lang}...")
             translate_result = await translator.translate_single(
                 text=text,
                 src='auto',
@@ -220,15 +226,19 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
             )
 
             translated_text = translate_result.translated_text
-            ColorPrint.green(f"[VoiceSubtitle] Translated: {translated_text[:80]}...")
+            ColorPrint.green(f"[Processor] ✓ Translation: {translated_text[:80]}...")
 
             # Generate TTS
+            ColorPrint.blue(f"[Processor] Generating TTS for {lang}...")
             tts_results = await generate_tts_for_text(translated_text, lang)
+            ColorPrint.green(f"[Processor] ✓ Generated {len(tts_results)} TTS audio(s)")
 
-            # Add to queue with category
+            # Add to queue
             queue = get_voice_subtitle_queue()
-            for item in tts_results:
+            for item_index, item in enumerate(tts_results, 1):
                 queue.add_item(text=item['text'], audio_path=item['audio_path'], category=category)
+                total_items_count += 1
+                ColorPrint.green(f"[Processor] ✓ Added [{item_index}/{len(tts_results)}]: {item['text'][:50]}...")
                 items_added.append({
                     'lang': lang,
                     'text': item['text'],
@@ -236,8 +246,12 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
                     'category': category
                 })
 
+    ColorPrint.green(f"[Processor] ========== Processing completed ==========")
+    ColorPrint.green(f"[Processor] Total items added: {total_items_count}")
+
     return {
         'success': True,
+        'added_count': total_items_count,
         'items_added': items_added
     }
 
