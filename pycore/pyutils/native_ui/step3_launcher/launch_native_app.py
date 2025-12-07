@@ -15,7 +15,7 @@ Provides a single function launch_native_app() that handles everything:
 
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url import get_port_range, process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
@@ -114,6 +114,34 @@ def launch_native_app(config: NativeUIConfig) -> None:
                 final_url = f"http://localhost:{config.rpc_port}"
                 if config.debug:
                     ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
+
+    # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
+    def handle_app_close(event_data):
+        """
+        Handle app.close event - stop all services in proper order
+
+        Triggered by:
+        - Window close (main_window.py closeEvent)
+        - Tray exit action
+        - Ctrl+C / KeyboardInterrupt
+        """
+        ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
+
+        # Stop frontend thread first (may have running dev server)
+        if frontend_thread:
+            ColorPrint.blue("[NativeLauncher] Stopping frontend thread...")
+            frontend_thread.stop()
+
+        # Stop RPC v2 server
+        if rpc_service:
+            ColorPrint.blue("[NativeLauncher] Stopping RPC v2 server...")
+            rpc_service.stop()
+
+        ColorPrint.green("[NativeLauncher] All services stopped")
+
+    # Register with high priority to ensure cleanup happens early
+    THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
+    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
 
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
