@@ -188,6 +188,40 @@ class NativeUIConfig:
     frontend_block_until_ready: bool = False
     """Block until frontend is ready (useful for debug mode)"""
 
+    # ========== RPC v2 Management ==========
+    rpc_enabled: bool = False
+    """Enable RPC v2 backend service"""
+
+    rpc_port: int = 8000
+    """RPC v2 service port"""
+
+    rpc_host: str = "0.0.0.0"
+    """RPC v2 service host"""
+
+    rpc_debug: bool = True
+    """RPC v2 debug mode"""
+
+    rpc_routers: List = field(default_factory=list)
+    """
+    FastAPI router list (passed to RPC v2)
+
+    Example:
+        from my_app.api import user_router, data_router
+        rpc_routers = [user_router, data_router]
+    """
+
+    rpc_allow_origins: List[str] = field(default_factory=lambda: ["*"])
+    """CORS allowed origins list"""
+
+    rpc_auto_mount_frontend: bool = True
+    """
+    Auto-mount frontend static files (from frontend_thread)
+
+    If enabled:
+    - Production mode: RPC v2 will mount compiled frontend at '/'
+    - Dev mode: RPC v2 only serves API (frontend runs on separate port)
+    """
+
     # ========== Timer Management ==========
     enable_timer: bool = False
     """Enable built-in timer manager (singleton, auto-started)"""
@@ -245,6 +279,36 @@ class NativeUIConfig:
             raise ValueError(
                 "url_type must be 'remote', 'static', 'nuxt_app', 'vue_dist', or 'auto'"
             )
+
+        # Frontend validation
+        if self.frontend_enabled:
+            if not self.frontend_framework:
+                raise ValueError("frontend_framework is required when frontend_enabled=True")
+            if not self.frontend_app_dir:
+                raise ValueError("frontend_app_dir is required when frontend_enabled=True")
+
+            valid_frameworks = ("nuxt", "react", "react-native", "vite", "vue", "next", "nexus")
+            if self.frontend_framework not in valid_frameworks:
+                raise ValueError(f"frontend_framework must be one of: {valid_frameworks}")
+
+            if self.frontend_mode not in ("dev", "production"):
+                raise ValueError("frontend_mode must be 'dev' or 'production'")
+
+        # RPC v2 validation
+        if self.rpc_enabled:
+            if self.rpc_port <= 0 or self.rpc_port > 65535:
+                raise ValueError("rpc_port must be between 1 and 65535")
+
+            if not self.rpc_host:
+                raise ValueError("rpc_host cannot be empty when rpc_enabled=True")
+
+            # Validate routers are provided (though empty list is allowed for testing)
+            if not isinstance(self.rpc_routers, list):
+                raise ValueError("rpc_routers must be a list")
+
+            # Validate allow_origins
+            if not isinstance(self.rpc_allow_origins, list):
+                raise ValueError("rpc_allow_origins must be a list")
 
     def auto_detect_paths(self) -> None:
         """
