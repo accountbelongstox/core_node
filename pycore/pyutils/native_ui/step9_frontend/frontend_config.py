@@ -61,20 +61,10 @@ class FrontendConfig:
 
     # Build settings
     auto_install: bool = True
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-    """Auto-install dependencies with pnpm"""
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     """Auto-install dependencies"""
 
     package_manager: Literal["pnpm", "npm", "yarn"] = "pnpm"
     """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     skip_build: bool = False
     """Skip build in production mode"""
@@ -93,15 +83,7 @@ class FrontendConfig:
     """Override build command (e.g., ['npm', 'run', 'build'])"""
 
     install_command: Optional[List[str]] = None
-<<<<<<< HEAD
     """Override install command (auto-generated from package_manager if None)"""
-=======
-<<<<<<< HEAD
-    """Override install command (default: ['pnpm', 'install'])"""
-=======
-    """Override install command (auto-generated from package_manager if None)"""
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     # Output directories
     static_dir: Optional[Path] = None
@@ -115,15 +97,7 @@ class FrontendConfig:
     """HTTP path for health check"""
 
     health_check_timeout: int = 120
-<<<<<<< HEAD
     """Deprecated - no longer used. Frontend now waits indefinitely for readiness."""
-=======
-<<<<<<< HEAD
-    """Seconds to wait for frontend to be ready"""
-=======
-    """Deprecated - no longer used. Frontend now waits indefinitely for readiness."""
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
     # Debug settings
     show_output: bool = True
@@ -132,19 +106,10 @@ class FrontendConfig:
     block_until_ready: bool = False
     """Block until frontend is ready (useful for debug mode)"""
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     # Environment variables
     env_vars: Optional[dict] = None
     """Custom environment variables to pass to frontend process"""
 
-<<<<<<< HEAD
-=======
->>>>>>> 84af4ea25b9227227201b8adaa090ef48e754973
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     def __post_init__(self):
         """Validate and normalize configuration"""
         if not self.enabled:

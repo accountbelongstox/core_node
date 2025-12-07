@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import React, { useState } from 'react';
 import { 
   Scissors,
@@ -10,7 +6,6 @@ import {
   Activity,
   Play,
   Video,
-<<<<<<< HEAD
   FileSearch,
   UploadCloud,
   CheckCircle,
@@ -19,16 +14,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { api } from '../services/api';
-=======
-  FileSearch
-} from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
 const Tools: React.FC = () => {
   const { t } = useApp();
   const [activeTool, setActiveTool] = useState('screenshot');
-<<<<<<< HEAD
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -123,8 +112,6 @@ const Tools: React.FC = () => {
           setLoading(false);
       }
   };
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -135,66 +122,42 @@ const Tools: React.FC = () => {
           <div className="space-y-2">
               <ToolNavButton 
                 active={activeTool === 'screenshot'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('screenshot')}
-=======
-                onClick={() => setActiveTool('screenshot')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={Scissors}
                 label={t('tools.screenshot')}
                 desc="Capture and process screen areas"
               />
               <ToolNavButton 
                 active={activeTool === 'ocr'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('ocr')}
-=======
-                onClick={() => setActiveTool('ocr')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={ScanText}
                 label={t('tools.ocr')}
                 desc="Extract text from images"
               />
               <ToolNavButton 
                 active={activeTool === 'audio'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('audio')}
-=======
-                onClick={() => setActiveTool('audio')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={Mic}
                 label={t('tools.audio')}
                 desc="Transcribe audio files"
               />
               <ToolNavButton 
                 active={activeTool === 'video'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('video')}
-=======
-                onClick={() => setActiveTool('video')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={Video}
                 label={t('tools.video')}
                 desc="Process video streams"
               />
               <ToolNavButton 
                 active={activeTool === 'file'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('file')}
-=======
-                onClick={() => setActiveTool('file')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={FileSearch}
                 label={t('tools.file')}
                 desc="Analyze document metadata"
               />
               <ToolNavButton 
                 active={activeTool === 'test'} 
-<<<<<<< HEAD
                 onClick={() => changeTool('test')}
-=======
-                onClick={() => setActiveTool('test')}
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                 icon={Activity}
                 label={t('tools.test')}
                 desc="Run system diagnostics"
@@ -207,7 +170,6 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Scissors className="text-blue-500" />
-<<<<<<< HEAD
                            {t('tools.screenshot')}
                        </h2>
                        <div className="grid grid-cols-3 gap-4">
@@ -234,40 +196,10 @@ const Tools: React.FC = () => {
                                </div>
                            </ResultBox>
                        )}
-=======
-                           Screenshot Tool
-                       </h2>
-                       <div className="grid grid-cols-3 gap-4">
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 rounded bg-slate-200 dark:bg-slate-800"></div>
-                               <span className="text-sm font-medium">Fullscreen</span>
-                           </button>
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 rounded border-2 border-slate-400"></div>
-                               <span className="text-sm font-medium">Window</span>
-                           </button>
-                           <button className="h-24 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 dark:text-slate-400">
-                               <div className="w-8 h-8 border-2 border-dashed border-slate-400"></div>
-                               <span className="text-sm font-medium">Region</span>
-                           </button>
-                       </div>
-                       
-                       <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                           <label className="flex items-center gap-2 mb-2">
-                               <input type="checkbox" className="rounded text-blue-600" defaultChecked />
-                               <span className="text-sm text-slate-700 dark:text-slate-300">Auto-upload to active server</span>
-                           </label>
-                           <label className="flex items-center gap-2">
-                               <input type="checkbox" className="rounded text-blue-600" />
-                               <span className="text-sm text-slate-700 dark:text-slate-300">Run OCR after capture</span>
-                           </label>
-                       </div>
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                    </div>
                )}
                
                {activeTool === 'ocr' && (
-<<<<<<< HEAD
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <ScanText className="text-green-500" />
@@ -287,17 +219,10 @@ const Tools: React.FC = () => {
                                <div className="text-xs text-slate-500">Confidence: {(result.confidence * 100).toFixed(1)}% • Time: {result.execution_time}s</div>
                            </ResultBox>
                        )}
-=======
-                   <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4 animate-fade-in">
-                       <ScanText size={48} />
-                       <p>Drag and drop image here or paste from clipboard</p>
-                       <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Select Image</button>
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                    </div>
                )}
                
                {activeTool === 'audio' && (
-<<<<<<< HEAD
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Mic className="text-pink-500" />
@@ -321,12 +246,6 @@ const Tools: React.FC = () => {
                                </div>
                            </ResultBox>
                        )}
-=======
-                   <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4 animate-fade-in">
-                       <Mic size={48} />
-                       <p>Drop audio files (wav, mp3) to start transcription</p>
-                       <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Select Audio File</button>
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                    </div>
                )}
 
@@ -334,7 +253,6 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Video className="text-purple-500" />
-<<<<<<< HEAD
                            {t('tools.video')}
                        </h2>
                        <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" onClick={handleVideo}>
@@ -360,40 +278,6 @@ const Tools: React.FC = () => {
                                </div>
                            </ResultBox>
                        )}
-=======
-                           Video Processor
-                       </h2>
-                       <div className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
-                           <Video size={48} className="mb-4 opacity-50" />
-                           <p className="mb-4">Drag and drop video files here</p>
-                           <div className="flex gap-2">
-                               <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm">Select File</button>
-                           </div>
-                       </div>
-                       <div className="grid grid-cols-2 gap-4">
-                           <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                               <label className="flex items-center gap-2 mb-2 font-medium text-slate-700 dark:text-slate-300">
-                                   <input type="checkbox" className="rounded" />
-                                   Extract Audio
-                               </label>
-                               <select className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm">
-                                   <option>MP3</option>
-                                   <option>WAV</option>
-                                   <option>FLAC</option>
-                               </select>
-                           </div>
-                           <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                               <label className="flex items-center gap-2 mb-2 font-medium text-slate-700 dark:text-slate-300">
-                                   <input type="checkbox" className="rounded" />
-                                   Generate Subtitles
-                               </label>
-                               <select className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm">
-                                   <option>SRT</option>
-                                   <option>VTT</option>
-                               </select>
-                           </div>
-                       </div>
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                    </div>
                )}
 
@@ -401,7 +285,6 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <FileSearch className="text-orange-500" />
-<<<<<<< HEAD
                            {t('tools.file')}
                        </h2>
                        <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={handleFile}>
@@ -435,15 +318,6 @@ const Tools: React.FC = () => {
                                </div>
                            </ResultBox>
                        )}
-=======
-                           File Analysis
-                       </h2>
-                       <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-400">
-                           <FileSearch size={48} className="mb-4 opacity-50" />
-                           <p>Analyze PDF, Docx, or Text files</p>
-                           <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Upload Document</button>
-                       </div>
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                    </div>
                )}
 
@@ -451,11 +325,7 @@ const Tools: React.FC = () => {
                    <div className="space-y-6 animate-fade-in">
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                            <Activity className="text-green-500" />
-<<<<<<< HEAD
                            {t('tools.test')}
-=======
-                           System Diagnostics
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
                        </h2>
                        <div className="space-y-3">
                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -481,11 +351,8 @@ const Tools: React.FC = () => {
   );
 };
 
-<<<<<<< HEAD
 // --- Sub-components ---
 
-=======
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 const ToolNavButton: React.FC<{ active: boolean; onClick: () => void; icon: any; label: string; desc: string }> = ({ active, onClick, icon: Icon, label, desc }) => (
     <button 
         onClick={onClick}
@@ -503,7 +370,6 @@ const ToolNavButton: React.FC<{ active: boolean; onClick: () => void; icon: any;
     </button>
 );
 
-<<<<<<< HEAD
 const ScreenshotBtn: React.FC<{ onClick: () => void; label: string; icon: React.ReactNode }> = ({ onClick, label, icon }) => (
     <button 
         onClick={onClick}
@@ -526,6 +392,3 @@ const ResultBox: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
 );
 
 export default Tools;
-=======
-export default Tools;
->>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
