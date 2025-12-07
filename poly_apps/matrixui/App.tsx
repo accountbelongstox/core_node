@@ -3,11 +3,16 @@
 
 
 
+<<<<<<< HEAD
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+=======
+import React, { useState, useEffect } from 'react';
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import { Sidebar } from './components/Navigation';
 import { DeviceDashboard } from './components/DeviceDashboard';
 import { DeviceControl } from './components/DeviceControl';
 import { BottomToolbar } from './components/BottomToolbar';
+<<<<<<< HEAD
 import { DeviceConfigModal } from './components/DeviceConfigModal'; // Import DeviceConfigModal
 import { LoadingScreen } from './components/LoadingScreen';
 
@@ -15,6 +20,12 @@ import { LoadingScreen } from './components/LoadingScreen';
 const ScriptLibrary = lazy(() => import('./components/ScriptLibrary').then(m => ({ default: m.ScriptLibrary })));
 const FileManager = lazy(() => import('./components/FileManager').then(m => ({ default: m.FileManager })));
 const MediaGallery = lazy(() => import('./components/MediaGallery').then(m => ({ default: m.MediaGallery })));
+=======
+import { ScriptLibrary } from './components/ScriptLibrary'; 
+import { FileManager } from './components/FileManager';
+import { MediaGallery } from './components/MediaGallery'; // Import MediaGallery
+import { DeviceConfigModal } from './components/DeviceConfigModal'; // Import DeviceConfigModal
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 import { Device, DeviceGroup, DeviceLog, BatchActionType, StreamConfig } from './types';
 import { I18nProvider, useI18n } from './services/i18n';
 import { wsService } from './services/websocket';
@@ -79,6 +90,7 @@ const MatrixApp: React.FC = () => {
     locked_video_orientation: -1
   });
 
+<<<<<<< HEAD
   // Logs - 初始为空，避免mock数据导致的闪烁
   const [logs, setLogs] = useState<DeviceLog[]>([]);
   
@@ -91,6 +103,13 @@ const MatrixApp: React.FC = () => {
       { time, type: 'success', msg: 'Connected to Cloud Matrix' },
     ]);
   }, []);
+=======
+  // Logs
+  const [logs, setLogs] = useState<DeviceLog[]>([
+    { time: '10:00:01', type: 'info', msg: 'System initialized' },
+    { time: '10:00:02', type: 'success', msg: 'Connected to Cloud Matrix' },
+  ]);
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
 
   useEffect(() => {
     wsService.connect();
@@ -190,12 +209,19 @@ const MatrixApp: React.FC = () => {
       
       <div className={`h-[calc(100vh-64px)] ${showScripts ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>
         {showScripts ? (
+<<<<<<< HEAD
            <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
              <ScriptLibrary 
                selectedCount={selectedIds.size}
                onExecute={handleScriptExecution}
              />
            </Suspense>
+=======
+           <ScriptLibrary 
+             selectedCount={selectedIds.size}
+             onExecute={handleScriptExecution}
+           />
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
         ) : (
           <div className="space-y-8">
             {/* Language Selection */}
@@ -368,6 +394,7 @@ const MatrixApp: React.FC = () => {
          {/* Main Content Area */}
          <main className="flex-1 overflow-hidden relative flex flex-col transition-all duration-300 bg-gradient-to-br from-white/[0.02] to-transparent pb-32">
              {showFileManager ? (
+<<<<<<< HEAD
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
                   <FileManager 
                      targetDeviceSerial={fileManagerTarget} 
@@ -378,6 +405,14 @@ const MatrixApp: React.FC = () => {
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
                   <MediaGallery onClose={() => setShowMediaGallery(false)} />
                 </Suspense>
+=======
+                <FileManager 
+                   targetDeviceSerial={fileManagerTarget} 
+                   onClose={() => setShowFileManager(false)} 
+                />
+             ) : showMediaGallery ? (
+                <MediaGallery onClose={() => setShowMediaGallery(false)} />
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
              ) : (
                 <DeviceDashboard 
                   selectedIds={selectedIds}
@@ -416,9 +451,13 @@ const MatrixApp: React.FC = () => {
 const App: React.FC = () => {
   return (
     <I18nProvider>
+<<<<<<< HEAD
       <Suspense fallback={<LoadingScreen />}>
         <MatrixApp />
       </Suspense>
+=======
+      <MatrixApp />
+>>>>>>> 50447b58a7cf4913b20ff7875b042e6568a17522
     </I18nProvider>
   );
 };
