@@ -43,8 +43,8 @@ class FrontendConfig:
     enabled: bool = False
     """Whether to start frontend service"""
 
-    framework: Literal["nuxt", "react", "vite", "next"] = "vite"
-    """Frontend framework type"""
+    framework: Literal["nuxt", "react", "react-native", "vite", "vue", "next", "nexus"] = "vite"
+    """Frontend framework type (nuxt|react|react-native|vite|vue|next|nexus)"""
 
     app_dir: Optional[Path] = None
     """Frontend project directory (required if enabled=True)"""
@@ -118,8 +118,9 @@ class FrontendConfig:
             raise ValueError(f"Frontend app_dir does not exist: {self.app_dir}")
 
         # Validate framework
-        if self.framework not in ("nuxt", "react", "vite", "next"):
-            raise ValueError(f"Invalid framework: {self.framework}")
+        valid_frameworks = ("nuxt", "react", "react-native", "vite", "vue", "next", "nexus")
+        if self.framework not in valid_frameworks:
+            raise ValueError(f"Invalid framework: {self.framework}. Supported: {valid_frameworks}")
 
         # Validate mode
         if self.mode not in ("dev", "production"):
@@ -147,6 +148,13 @@ class FrontendConfig:
             return self.app_dir / ".output" / "public"
         if self.framework == "next":
             return self.app_dir / ".next" / "static"
+        if self.framework == "nexus":
+            return self.app_dir / ".next" / "static"
+        if self.framework == "vue":
+            return self.app_dir / "dist"
+        if self.framework == "react-native":
+            # React Native Web build output
+            return self.app_dir / "web-build"
         # React/Vite default
         return self.app_dir / "dist"
 
@@ -156,6 +164,12 @@ class FrontendConfig:
             return self.app_dir / ".output"
         if self.framework == "next":
             return self.app_dir / ".next"
+        if self.framework == "nexus":
+            return self.app_dir / ".next"
+        if self.framework == "vue":
+            return self.app_dir / "dist"
+        if self.framework == "react-native":
+            return self.app_dir / "web-build"
         # React/Vite default
         return self.app_dir / "dist"
 
