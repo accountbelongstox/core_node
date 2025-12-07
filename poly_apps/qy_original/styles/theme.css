@@ -1,0 +1,147 @@
+/* Design Tokens & Theme Engine */
+:root {
+  /* Colors - Light Mode Default */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  
+  --accent-blue: #3b82f6;
+  --accent-indigo: #6366f1;
+  --accent-purple: #a855f7;
+  --accent-pink: #ec4899;
+  --accent-glow: rgba(59, 130, 246, 0.5);
+  
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-hover: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 32px rgba(148, 163, 184, 0.2);
+  --dock-bg: rgba(255, 255, 255, 0.8);
+  
+  /* Fonts */
+  --font-sans: 'Inter', 'Noto Sans SC', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  
+  /* Spacing */
+  --safe-top: env(safe-area-inset-top, 24px);
+  --safe-bottom: env(safe-area-inset-bottom, 24px);
+}
+
+/* Dark Mode Tokens */
+html.dark {
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #64748b;
+  
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-bg-hover: rgba(30, 41, 59, 0.7);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --dock-bg: rgba(20, 25, 40, 0.7);
+  --accent-glow: rgba(99, 102, 241, 0.6);
+}
+
+/* Base Reset */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.8s ease, color 0.5s ease;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Aurora Background Engine v2.0 (Deep Flow) */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  transition: background 1.5s ease;
+}
+
+html.dark .aurora-bg {
+  background-color: #020617;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.15), transparent 25%), 
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.15), transparent 25%);
+}
+
+html:not(.dark) .aurora-bg {
+  background: linear-gradient(135deg, #fdfbf7 0%, #eff6ff 100%);
+}
+
+.aurora-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+html.dark .aurora-overlay {
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.1), transparent 50%),
+    radial-gradient(circle at 0% 0%, rgba(168, 85, 247, 0.15), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15), transparent 40%);
+  filter: blur(60px);
+  animation: auroraDeepBreath 10s ease-in-out infinite alternate;
+}
+
+html:not(.dark) .aurora-overlay {
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(191, 219, 254, 0.4), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(233, 213, 255, 0.4), transparent 40%);
+  filter: blur(80px);
+  animation: auroraLightFloat 15s ease-in-out infinite alternate;
+}
+
+/* Animations */
+@keyframes auroraDeepBreath {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.1); opacity: 0.8; }
+}
+
+@keyframes auroraLightFloat {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-20px, 20px); }
+}
+
+@keyframes slideUpFade {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  70% { box-shadow: 0 0 10px 4px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.animate-slide-up { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-up-fade { animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-pulse-slow { animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 10px; background: rgba(0,0,0,0.1); }
+html.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
