@@ -1,0 +1,7 @@
+{
+  "name": "WordFlow AI",
+  "description": "Next-generation language learning application featuring holographic design, intelligent memory engines, and comprehensive study modes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

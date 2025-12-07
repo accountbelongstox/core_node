@@ -40,6 +40,13 @@ from pycore.pyfoundations.system_info import (
     SYSTEM_SUMMARY
 )
 
+# CUDA detection
+from pycore.pyfoundations.cuda_detector import (
+    CUDADetector,
+    is_cuda_available,
+    get_cuda_info
+)
+
 # Global task system
 from pycore.pyfoundations.task_models import (
     Task,
@@ -79,6 +86,11 @@ __all__ = [
     'MEMORY_INFO',
     'DISK_INFO',
     'SYSTEM_SUMMARY',
+
+    # CUDA detection
+    'CUDADetector',
+    'is_cuda_available',
+    'get_cuda_info',
 
     # Global task system
     'Task',

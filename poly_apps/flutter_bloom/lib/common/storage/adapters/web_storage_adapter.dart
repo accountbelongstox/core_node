@@ -13,7 +13,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
-import 'dart:html' as html;
+import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 import '../interfaces/storage_interface.dart';
 import '../models/storage_models.dart';
 
@@ -21,7 +21,7 @@ import '../models/storage_models.dart';
 /// Provides the same interface as other storage adapters but uses browser localStorage
 class WebStorageAdapter implements KeyValueStorageInterface {
   static WebStorageAdapter? _instance;
-  static WebStorageAdapter get instance => 
+  static WebStorageAdapter get instance =>
       _instance ??= WebStorageAdapter._internal();
 
   WebStorageAdapter._internal();
@@ -39,7 +39,8 @@ class WebStorageAdapter implements KeyValueStorageInterface {
     _subDirectory = subDirectory ?? 'storage_web';
 
     if (!kIsWeb) {
-      throw UnsupportedError('WebStorageAdapter can only be used on web platform');
+      throw UnsupportedError(
+          'WebStorageAdapter can only be used on web platform');
     }
 
     _isInitialized = true;
@@ -68,20 +69,20 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<void> deleteBox(String boxName) async {
     _ensureInitialized();
-    
+
     // Get all keys for this box
     final keys = await getKeys(boxName);
     for (final key in keys) {
       await deleteKey(boxName, key.toString());
     }
-    
+
     await closeBox(boxName);
   }
 
   @override
   Future<void> clearBox(String boxName) async {
     _ensureInitialized();
-    
+
     // Get all keys for this box
     final keys = await getKeys(boxName);
     for (final key in keys) {
@@ -92,11 +93,11 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<T?> getValue<T>(String boxName, String key, {T? defaultValue}) async {
     _ensureInitialized();
-    
+
     try {
       final storageKey = _getStorageKey(boxName, key);
       final value = _getFromLocalStorage(storageKey);
-      
+
       if (value == null) {
         return defaultValue;
       }
@@ -111,13 +112,13 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<void> putValue<T>(String boxName, String key, T value) async {
     _ensureInitialized();
-    
+
     try {
       final storageKey = _getStorageKey(boxName, key);
       final serialized = _serializeValue<T>(value);
-      
+
       _setToLocalStorage(storageKey, serialized);
-      
+
       // Notify listeners
       _notifyChange(boxName, key, value, StorageChangeType.updated);
     } catch (e) {
@@ -129,11 +130,11 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<void> deleteKey(String boxName, String key) async {
     _ensureInitialized();
-    
+
     try {
       final storageKey = _getStorageKey(boxName, key);
       _removeFromLocalStorage(storageKey);
-      
+
       // Notify listeners
       _notifyChange(boxName, key, null, StorageChangeType.deleted);
     } catch (e) {
@@ -145,7 +146,7 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<bool> containsKey(String boxName, String key) async {
     _ensureInitialized();
-    
+
     try {
       final storageKey = _getStorageKey(boxName, key);
       return _getFromLocalStorage(storageKey) != null;
@@ -158,11 +159,11 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<Iterable<dynamic>> getKeys(String boxName) async {
     _ensureInitialized();
-    
+
     try {
       final prefix = _getBoxPrefix(boxName);
       final keys = <String>[];
-      
+
       // Get all localStorage keys
       for (int i = 0; i < _getLocalStorageLength(); i++) {
         final key = _getLocalStorageKey(i);
@@ -172,7 +173,7 @@ class WebStorageAdapter implements KeyValueStorageInterface {
           keys.add(actualKey);
         }
       }
-      
+
       return keys;
     } catch (e) {
       debugPrint('WebStorageAdapter getKeys error: $e');
@@ -183,11 +184,11 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   @override
   Future<Map<String, dynamic>> getAllFromBox(String boxName) async {
     _ensureInitialized();
-    
+
     try {
       final prefix = _getBoxPrefix(boxName);
       final Map<String, dynamic> data = {};
-      
+
       // Get all localStorage keys for this box
       for (int i = 0; i < _getLocalStorageLength(); i++) {
         final key = _getLocalStorageKey(i);
@@ -199,7 +200,7 @@ class WebStorageAdapter implements KeyValueStorageInterface {
           }
         }
       }
-      
+
       return data;
     } catch (e) {
       debugPrint('WebStorageAdapter getAllFromBox error: $e');
@@ -214,33 +215,33 @@ class WebStorageAdapter implements KeyValueStorageInterface {
     }
 
     final controller = _changeControllers[boxName]!;
-    
+
     if (key != null) {
       return controller.stream.where((change) => change.key == key);
     }
-    
+
     return controller.stream;
   }
 
   /// Set value with expiration (Web localStorage doesn't support TTL, so we simulate it)
   Future<void> putValueWithExpiry<T>(
-    String boxName, 
-    String key, 
-    T value, 
+    String boxName,
+    String key,
+    T value,
     Duration expiry,
   ) async {
     _ensureInitialized();
-    
+
     try {
       final expiryTime = DateTime.now().add(expiry).millisecondsSinceEpoch;
       final data = {
         'value': _serializeValue<T>(value),
         'expiry': expiryTime,
       };
-      
+
       final storageKey = _getStorageKey(boxName, key);
       _setToLocalStorage(storageKey, jsonEncode(data));
-      
+
       // Notify listeners
       _notifyChange(boxName, key, value, StorageChangeType.updated);
     } catch (e) {
@@ -252,10 +253,10 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   /// Clean up expired entries
   Future<int> cleanupExpiredEntries() async {
     _ensureInitialized();
-    
+
     try {
       int cleanedCount = 0;
-      
+
       // Check all localStorage entries for expiry
       for (int i = 0; i < _getLocalStorageLength(); i++) {
         final key = _getLocalStorageKey(i);
@@ -277,7 +278,7 @@ class WebStorageAdapter implements KeyValueStorageInterface {
           }
         }
       }
-      
+
       debugPrint('Cleaned up $cleanedCount expired entries from localStorage');
       return cleanedCount;
     } catch (e) {
@@ -289,11 +290,11 @@ class WebStorageAdapter implements KeyValueStorageInterface {
   /// Get storage statistics
   Future<Map<String, dynamic>> getStorageStats() async {
     _ensureInitialized();
-    
+
     try {
       final totalEntries = _getLocalStorageLength();
       final Map<String, int> boxStats = {};
-      
+
       // Count entries per box
       for (int i = 0; i < totalEntries; i++) {
         final key = _getLocalStorageKey(i);
@@ -331,7 +332,8 @@ class WebStorageAdapter implements KeyValueStorageInterface {
     }
   }
 
-  void _notifyChange(String boxName, String key, dynamic value, StorageChangeType type) {
+  void _notifyChange(
+      String boxName, String key, dynamic value, StorageChangeType type) {
     final controller = _changeControllers[boxName];
     if (controller != null && !controller.isClosed) {
       controller.add(StorageChange(
@@ -365,7 +367,7 @@ class WebStorageAdapter implements KeyValueStorageInterface {
     if (value == null) {
       return '';
     }
-    
+
     if (value is String) {
       return value;
     } else if (value is int || value is double || value is bool) {

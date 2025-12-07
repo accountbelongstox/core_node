@@ -163,6 +163,31 @@ class NativeUIConfig:
     Example: [stop_services, cleanup_resources, save_state]
     """
 
+    # ========== Frontend Management ==========
+    frontend_enabled: bool = False
+    """Enable integrated frontend launcher"""
+
+    frontend_framework: Optional[str] = None
+    """Frontend framework (nuxt|react|react-native|vite|vue|next|nexus)"""
+
+    frontend_app_dir: Optional[Path] = None
+    """Frontend project directory (absolute or relative to project_root)"""
+
+    frontend_mode: str = "production"
+    """Frontend mode (dev|production)"""
+
+    frontend_port: int = 3000
+    """Frontend dev server port"""
+
+    frontend_auto_install: bool = True
+    """Auto-install frontend dependencies (pnpm install)"""
+
+    frontend_skip_build: bool = False
+    """Skip build in production mode (use existing build)"""
+
+    frontend_block_until_ready: bool = False
+    """Block until frontend is ready (useful for debug mode)"""
+
     # ========== Timer Management ==========
     enable_timer: bool = False
     """Enable built-in timer manager (singleton, auto-started)"""
