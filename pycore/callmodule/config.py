@@ -30,7 +30,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     """
     ColorPrint.blue("[ConfigBuilder] Building launcher configuration...")
 
-    # Import management layer routers (NEW)
+    # Import management layer routers
     from pycore.callmodule.routers.management import (
         status_router,
         config_router,
@@ -41,6 +41,21 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         local_stats_router,
         local_test_router,
     )
+
+    # Import local processing layer routers (NEW)
+    from pycore.callmodule.routers.local import (
+        screenshot_router,
+        image_router,
+        audio_router,
+        file_router,
+        video_router,
+    )
+
+    # Import upload layer routers (NEW)
+    from pycore.callmodule.routers.upload import router as upload_router
+
+    # Import client layer routers (NEW)
+    from pycore.callmodule.routers.client import router as client_router
 
     # Import legacy routers (from independent files - still active)
     from pycore.callmodule.routers.mcp_router import mcp_router
@@ -69,7 +84,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'host': host,
             'debug': debug,
             'fastapi_routers': [
-                # === Management Layer Routers (NEW) ===
+                # === Management Layer Routers ===
                 status_router,           # System status endpoint
                 config_router,           # System configuration endpoints
                 control_router,          # System control operations
@@ -78,6 +93,19 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 local_config_router,     # Local processing configuration
                 local_stats_router,      # Local processing statistics
                 local_test_router,       # Local processing test endpoint
+
+                # === Local Processing Layer Routers (Edge Computing) ===
+                screenshot_router,       # Screenshot capture with auto-OCR
+                image_router,            # Image OCR and processing
+                audio_router,            # Audio transcription and subtitle generation
+                file_router,             # File analysis (PDF/DOCX/XLSX)
+                video_router,            # Video processing (audio extraction, subtitles)
+
+                # === Upload Layer Routers ===
+                upload_router,           # Upload task management and server config
+
+                # === Client Layer Routers ===
+                client_router,           # Remote server request forwarding
 
                 # === Legacy Routers (Still Active) ===
                 mcp_router,              # MCP backend routes (file, database, codebase tools)
