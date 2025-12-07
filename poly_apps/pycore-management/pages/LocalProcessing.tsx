@@ -7,19 +7,37 @@ import {
   Check,
   X,
   Zap,
-  Save
+  Save,
+  BarChart2,
+  Play,
+  Activity,
+  Upload
 } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 import { api } from '../services/api';
 import { useApp } from '../contexts/AppContext';
-import { LocalCapabilities, LocalProcessingConfig } from '../types';
+import { LocalCapabilities, LocalProcessingConfig, LocalProcessingStats, TestResponse } from '../types';
+import { formatDuration, formatFileSize } from '../utils/formatters';
 
 interface Props {
-  defaultTab?: 'status' | 'config';
+  defaultTab?: 'status' | 'config' | 'stats' | 'test';
 }
 
 const LocalProcessing: React.FC<Props> = ({ defaultTab = 'status' }) => {
   const { t } = useApp();
-  const [activeTab, setActiveTab] = useState<'status' | 'config'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'config' | 'stats' | 'test'>('status');
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -31,35 +49,35 @@ const LocalProcessing: React.FC<Props> = ({ defaultTab = 'status' }) => {
       
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex gap-6">
-          <button
-            onClick={() => setActiveTab('status')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'status'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
-            }`}
-          >
-            {t('nav.local.cap')}
-          </button>
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'config'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
-            }`}
-          >
-            {t('nav.local.conf')}
-          </button>
+          <TabButton active={activeTab === 'status'} onClick={() => setActiveTab('status')} label={t('nav.local.cap')} />
+          <TabButton active={activeTab === 'config'} onClick={() => setActiveTab('config')} label={t('nav.local.conf')} />
+          <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} label={t('nav.local.stats')} />
+          <TabButton active={activeTab === 'test'} onClick={() => setActiveTab('test')} label={t('nav.local.test')} />
         </nav>
       </div>
 
       <div className="min-h-[400px]">
-        {activeTab === 'status' ? <CapabilitiesView /> : <ConfigView />}
+        {activeTab === 'status' && <CapabilitiesView />}
+        {activeTab === 'config' && <ConfigView />}
+        {activeTab === 'stats' && <StatsView />}
+        {activeTab === 'test' && <TestView />}
       </div>
     </div>
   );
 };
+
+const TabButton: React.FC<{ active: boolean; onClick: () => void; label: string }> = ({ active, onClick, label }) => (
+    <button
+        onClick={onClick}
+        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            active
+            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+            : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+        }`}
+    >
+        {label}
+    </button>
+);
 
 const CapabilitiesView: React.FC = () => {
     const [capabilities, setCapabilities] = useState<LocalCapabilities | null>(null);
@@ -130,17 +148,6 @@ const CapabilitiesView: React.FC = () => {
                             />
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            {/* Quick Test Area */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
-                <h2 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Quick Test</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <TestButton icon={Image} label="Test Screenshot" />
-                    <TestButton icon={Zap} label="Test OCR Engine" />
-                    <TestButton icon={Mic} label="Test Audio Input" />
-                    <TestButton icon={Video} label="Test GPU Encoder" />
                 </div>
             </div>
         </div>
@@ -237,7 +244,172 @@ const ConfigView: React.FC = () => {
              </div>
         </div>
     );
-}
+};
+
+const StatsView: React.FC = () => {
+    const { t } = useApp();
+    const [stats, setStats] = useState<LocalProcessingStats | null>(null);
+
+    useEffect(() => {
+        api.local.getStats().then(setStats);
+    }, []);
+
+    if (!stats) return <div className="p-8 text-center">{t('common.loading')}</div>;
+
+    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+             {/* Summary Cards */}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <StatsCard title="Total Tasks" value={stats.summary.total_tasks} color="text-blue-600" />
+                 <StatsCard title="Success Rate" value={`${((stats.summary.completed / stats.summary.total_tasks) * 100).toFixed(1)}%`} color="text-green-600" />
+                 <StatsCard title="Avg. Time" value={`${stats.summary.average_time}s`} color="text-purple-600" />
+                 <StatsCard title="Data Processed" value={`${(stats.summary.total_data_processed / 1024).toFixed(1)} GB`} color="text-orange-600" />
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Timeline Chart */}
+                 <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Processing Timeline (7 Days)</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.timeline}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.3} />
+                                <XAxis dataKey="date" stroke="#94a3b8" tick={{fontSize: 12}} />
+                                <YAxis stroke="#94a3b8" tick={{fontSize: 12}} />
+                                <Tooltip 
+                                    contentStyle={{backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc'}}
+                                    itemStyle={{color: '#f8fafc'}}
+                                />
+                                <Legend />
+                                <Bar dataKey="success" name="Success" fill="#10b981" stackId="a" />
+                                <Bar dataKey="failed" name="Failed" fill="#ef4444" stackId="a" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                 </div>
+
+                 {/* Type Distribution */}
+                 <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Task Types</h3>
+                    <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={stats.by_type}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="count"
+                                >
+                                    {stats.by_type.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                         </ResponsiveContainer>
+                    </div>
+                 </div>
+             </div>
+        </div>
+    );
+};
+
+const TestView: React.FC = () => {
+    const { t } = useApp();
+    const [testType, setTestType] = useState<'screenshot' | 'ocr' | 'audio' | 'video'>('screenshot');
+    const [testing, setTesting] = useState(false);
+    const [result, setResult] = useState<TestResponse | null>(null);
+
+    const handleRunTest = async () => {
+        setTesting(true);
+        setResult(null);
+        try {
+            const res = await api.local.runTest({ test_type: testType, test_data: 'dummy_base64_data' });
+            setResult(res);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+             <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+                 <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-6">{t('local.test.title')}</h2>
+                 
+                 <div className="space-y-4">
+                     <div>
+                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t('local.test.type')}</label>
+                         <div className="grid grid-cols-2 gap-2">
+                             {(['screenshot', 'ocr', 'audio', 'video'] as const).map(type => (
+                                 <button
+                                    key={type}
+                                    onClick={() => setTestType(type)}
+                                    className={`px-3 py-2 text-sm rounded-lg capitalize border transition-all ${
+                                        testType === type 
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-700 dark:text-blue-300'
+                                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                    }`}
+                                 >
+                                     {type}
+                                 </button>
+                             ))}
+                         </div>
+                     </div>
+
+                     <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 flex flex-col items-center text-center">
+                         <Upload size={24} className="text-slate-400 mb-2" />
+                         <p className="text-xs text-slate-500 mb-2">Upload Sample Data (Optional)</p>
+                         <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Browse Files</button>
+                     </div>
+
+                     <button 
+                        onClick={handleRunTest}
+                        disabled={testing}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+                     >
+                         {testing ? <Activity className="animate-spin" size={18} /> : <Play size={18} />}
+                         {testing ? 'Running Diagnostics...' : t('local.test.run')}
+                     </button>
+                 </div>
+             </div>
+
+             <div className="lg:col-span-2">
+                 {result ? (
+                     <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 h-full animate-fade-in">
+                         <div className="flex items-center gap-3 mb-6">
+                             <div className={`p-2 rounded-full ${result.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                 {result.success ? <Check size={24} /> : <X size={24} />}
+                             </div>
+                             <div>
+                                 <h3 className="font-bold text-slate-900 dark:text-white text-lg">Test Completed</h3>
+                                 <p className="text-sm text-slate-500">Execution time: {result.execution_time}s</p>
+                             </div>
+                         </div>
+
+                         <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-4 font-mono text-sm border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                             <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                                 {JSON.stringify(result, null, 2)}
+                             </pre>
+                         </div>
+                     </div>
+                 ) : (
+                     <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 p-6 h-full flex flex-col items-center justify-center text-slate-400">
+                         <Activity size={48} className="mb-4 opacity-20" />
+                         <p>Select a test type and run diagnostic to see results</p>
+                     </div>
+                 )}
+             </div>
+        </div>
+    );
+};
 
 const HardwareCard: React.FC<{ title: string; model: string; stats: string; available: boolean }> = ({ title, model, stats, available }) => (
     <div className={`p-5 rounded-xl border ${available ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-75'}`}>
@@ -278,11 +450,11 @@ const CapabilityRow: React.FC<{ icon: any; title: string; available: boolean; de
     </tr>
 );
 
-const TestButton: React.FC<{ icon: any; label: string }> = ({ icon: Icon, label }) => (
-    <button className="flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-slate-600 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-300">
-        <Icon size={24} />
-        <span className="text-sm font-medium">{label}</span>
-    </button>
+const StatsCard: React.FC<{ title: string; value: string | number; color: string }> = ({ title, value, color }) => (
+    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">{title}</div>
+        <div className={`text-2xl font-bold ${color}`}>{value}</div>
+    </div>
 );
 
 export default LocalProcessing;

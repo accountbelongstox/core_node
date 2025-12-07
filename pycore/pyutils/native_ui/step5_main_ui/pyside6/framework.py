@@ -160,10 +160,11 @@ class PySide6Framework(QObject):
 
         # Configuration
         self.config = config or PySide6UIConfig()
+        # Default: No startup window (use TkinterStartupThread via launcher_with_startup.py instead)
         self.startup_config = startup_config or StartupWindowConfig(
             app_name=self.config.app_name,
-            show_startup=True,  # Default: show startup window
-            auto_close=True  # Default: auto-close when PySide6 starts
+            show_startup=False,  # Default: False (changed to avoid duplicate windows)
+            auto_close=True
         )
 
         # Qt Application
