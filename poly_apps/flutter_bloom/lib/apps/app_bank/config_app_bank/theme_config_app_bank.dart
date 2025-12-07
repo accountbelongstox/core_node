@@ -231,9 +231,12 @@ class BankColorProvider {
   BankColorProvider._();
 
   // Background Colors
-  static const Color scaffoldBackground = Color(0xFFF4FCFF); // Light blue background
+  static const Color scaffoldBackground = Color(0xFFF4FCFF); // Light blue background (top 10%)
   static const Color cardBackground = ThemeColors.white;
-  static const Color surfaceBackground = Color(0xFFF4FCFF);
+  static const Color surfaceBackground = Color(0xFFF4FCFF); // Top color
+  // Gradient background colors for bottom 90%
+  static const Color gradientStart = Color(0xFFF6FBFF); // #F6FBFF
+  static const Color gradientEnd = Color(0xFFF2F9FF); // #F2F9FF
   
   // Primary Colors
   static const Color primaryBlue = Color(0xFF4A90E2);

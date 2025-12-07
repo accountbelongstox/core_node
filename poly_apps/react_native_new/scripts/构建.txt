@@ -1,0 +1,10 @@
+should_copy 你妈B的，你怎么使用一个package json来判断是不是要复制，干你娘的你个狗B狗娘养的AI，逐个文件对比。只要有新
+  的就要复制，而就是一个简单的文件就跳过别的文件。只是跳过node module和其他缓存文件和目录。在工厂目录 改为app_name1
+  app_name2，每次都是递增使用新的目录 ，复制之前打印已经存在的同一APP的目录 ，输出一个菜单。默认就是使用新目录（标注目
+  录名），如果使用上下箭头可以选择旧的目录（如果有新的就替换其中文件），这样可以跳过一部份。
+
+python .\scripts\pytools\directory_tree.py poly_apps\react_native\scripts\build_scripts
+Generating directory tree: D:\programing\core_node\poly_apps\react_native\scripts\build_scripts
+Directory tree saved to: D:\programing\core_node\poly_apps\react_native\scripts\build_scripts\build_scripts_tree.md
+
+狗BAI

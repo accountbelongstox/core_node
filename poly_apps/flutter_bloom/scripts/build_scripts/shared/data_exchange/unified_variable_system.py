@@ -137,10 +137,12 @@ class UnifiedVariableSystem:
         # App selector cache keys
         self.KEY_APP_ACTION_MODE_PREFIX = "KEY_APP_ACTION_MODE_"
         self.KEY_APP_PLATFORM_MODE_PREFIX = "KEY_APP_PLATFORM_MODE_"
+        self.KEY_APP_EMULATOR_MODE_PREFIX = "KEY_APP_EMULATOR_MODE_"
         self.KEY_LAST_SELECTED_APP_INDEX = "KEY_LAST_SELECTED_APP_INDEX"
         self.KEY_CURRENT_ACTIVE_APP = "KEY_CURRENT_ACTIVE_APP"
         self.KEY_CURRENT_ACTIVE_ACTION = "KEY_CURRENT_ACTIVE_ACTION"
         self.KEY_CURRENT_ACTIVE_PLATFORM = "KEY_CURRENT_ACTIVE_PLATFORM"
+        self.KEY_SELECTED_EMULATOR = "KEY_SELECTED_EMULATOR"
 
         # Unified aliases for consistency - these point to the same values as above
         self.KEY_SELECTED_APP_NAME = "KEY_APP_NAME"  # Alias for KEY_APP_NAME for consistency
