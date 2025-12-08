@@ -113,7 +113,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
             thread = startup_thread_ref['thread']
             if thread is None:
                 if config.debug:
-                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - will close debug window when it becomes available")
+                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - waiting for startup window thread")
                 return
 
             ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
@@ -400,7 +400,10 @@ def _start_rpc_v2_service(
                         f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
                     )
             elif config.debug:
-                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (dev mode or not ready)")
+                if config.frontend_mode == "dev":
+                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (using dev server)")
+                else:
+                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (not ready yet)")
 
         # ========== 2. 创建 RPC v2 服务配置 ==========
         rpc_v2_config = {

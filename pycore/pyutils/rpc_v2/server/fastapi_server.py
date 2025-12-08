@@ -636,32 +636,52 @@ class FastAPIRPCServer:
         )
 
         # Deliver pending events/inventory
-        pending_events = self.request_event_table.get_pending_notifications(client_id)
-        inventory_items = self.inventory_table.get_by_client(client_id)
+        try:
+            pending_events = self.request_event_table.get_pending_notifications(client_id)
+            inventory_items = self.inventory_table.get_by_client(client_id)
 
-        for event in pending_events[:10]:
-            await self.ack_manager.notify_websocket_with_retry(
-                client_id=client_id,
-                request_id=event.request_id,
-                result=event.result,
-                error=event.error,
-            )
+            for event in pending_events[:10]:
+                try:
+                    await self.ack_manager.notify_websocket_with_retry(
+                        client_id=client_id,
+                        request_id=event.request_id,
+                        result=event.result,
+                        error=event.error,
+                    )
+                except Exception as e:
+                    if self.debug:
+                        ColorPrint.yellow(f"[WS] Failed to notify pending event {event.request_id}: {e}")
+                    # Continue with next event
 
-        for item in inventory_items[:10]:
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": item.route,
-                    "id": item.request_id,
-                    "result": item.result,
-                    "error": item.error,
-                    "success": item.error is None,
-                    "from_inventory": True,
-                    "requires_ack": True,
-                    "queue": None,
-                }
-            )
-            self.inventory_table.delete(item.request_id)
+            for item in inventory_items[:10]:
+                try:
+                    await websocket.send_json(
+                        {
+                            "type": MSG_TYPES["RESPONSE"],
+                            "route": item.route,
+                            "id": item.request_id,
+                            "result": item.result,
+                            "error": item.error,
+                            "success": item.error is None,
+                            "from_inventory": True,
+                            "requires_ack": True,
+                            "queue": None,
+                        }
+                    )
+                    self.inventory_table.delete(item.request_id)
+                except (WebSocketDisconnect, Exception) as e:
+                    if self.debug:
+                        ColorPrint.yellow(f"[WS] Failed to send inventory item {item.request_id}: {e}")
+                    # If WebSocket is disconnected, break out of the loop
+                    if isinstance(e, WebSocketDisconnect):
+                        raise
+                    # Continue with next item
+        except WebSocketDisconnect:
+            # Client disconnected during inventory delivery, exit gracefully
+            if self.debug:
+                ColorPrint.yellow(f"[WS] Client disconnected during inventory delivery: {client_id[:8]}")
+            await self.client_registry.unregister_websocket_client(client_id)
+            return
 
         try:
             while True:
