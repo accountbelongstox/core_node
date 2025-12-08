@@ -231,11 +231,11 @@ class FastAPIRPCServer:
 
     # ------------------------------------------------------------------ Internal setup
     def _add_default_static_dirs(self):
-        """Serve RPC JS client at /js/rpc by default."""
+        """Serve RPC JS client at /rpc/src by default."""
         pyutils_root = Path(__file__).resolve().parents[2]
         client_js_dir = pyutils_root / "rpc_v2" / "client"
         if client_js_dir.exists():
-            self.add_static_dir("/js/rpc", str(client_js_dir))
+            self.add_static_dir("/rpc/src", str(client_js_dir))
 
     def _register_builtin_routes(self):
         """Wire HTTP + WebSocket endpoints."""
