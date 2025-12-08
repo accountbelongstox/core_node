@@ -31,3 +31,34 @@ C:\Users\admin\AppData\Local\nvm\v20.19.2\node_modules\mcp-chrome-bridge\dist\lo
 `xxx/node_modules/mcp-chrome-bridge/dist/run_host.sh`
 
 Check if this script has execution permissions
+
+---
+
+## 🔊 Audio Recording Troubleshooting
+
+### Recording stops immediately or never starts
+
+- Ensure the active tab is not a Chrome system page (`chrome://` or another extension page); those cannot be captured.
+- Confirm the popup shows at least one enabled API server or that an MCP tool call passed `apiServers`.
+- If the microphone prompt was dismissed previously, re-enable it via Chrome → Settings → Privacy & Security → Site Settings → Microphone.
+
+### Laravel/AppQyV1 endpoint rejects uploads
+
+- The extension emits WebM/Opus. Convert to a supported format (mp3/wav/ogg) before calling `AppQyV1WordDataSubmissionController`.
+  ```bash
+  ffmpeg -i chunk.webm -ar 44100 -ac 2 output.mp3
+  ```
+- Verify the form fields being appended: `chunkIndex`, `timestamp`, `isFinal`, and all `sessionMetadata` entries such as `word`, `type`, `quality`, `source`.
+- For chunked uploads, collect each part in order (`chunkIndex`) and only attempt conversion when `isFinal=true`.
+
+### Metadata is missing on the server
+
+- Make sure the popup's **Session Metadata (JSON)** block contains valid JSON (the panel now shows validation errors).
+- When triggering recordings from MCP tools, include the `sessionMetadata` object inside `chrome_audio_start`.
+- WebSocket servers should listen for the first text frame `{ "type": "metadata", "data": {...} }` before consuming binary audio.
+
+### WebSocket receives only metadata but no audio
+
+- Confirm the endpoint URL uses `ws://`/`wss://`. If you provide `http://`, the extension automatically rewrites it, but proxies/firewalls might still block the request.
+- Check DevTools → chrome-extension://... → Background page → Console for `[Audio Offscreen]` logs to verify events.
+- Reduce `chunkInterval` if the server expects smaller packets (default 1000 ms).
