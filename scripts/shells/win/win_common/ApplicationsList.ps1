@@ -250,6 +250,20 @@ $Global:WINDOWS_10_ESSENTIAL_PATCHES = @{
             }
         )
     }
+    Bandizip = @{
+        PackageId          = "Bandisoft.Bandizip"
+        Exec              = "Bandizip.exe"
+        Name              = "Bandizip"
+        Description       = "Lightweight, fast and free All-In-One Zip Archiver - Essential for Windows 10"
+        InstallType       = "winget"
+        ForceToInstallDir = $false
+        VerifySuffix      = ""
+        IncludeSystemPaths = $true
+        AdditionalKeywords = @("bandizip", "bz")
+        EnvVars           = @()
+        DesktopShortcuts  = @()
+        PostInstallCallbacks = @()
+    }
 }
 
 $Global:BasePackages = @{
