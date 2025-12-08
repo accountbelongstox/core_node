@@ -409,7 +409,8 @@ def _start_rpc_v2_service(
             'debug': config.rpc_debug,
             'fastapi_routers': config.rpc_routers,
             'static_mounts': static_mounts,
-            'allow_origins': config.rpc_allow_origins
+            'allow_origins': config.rpc_allow_origins,
+            'init_callback': config.rpc_init_callback  # Pass callback to register routes
         }
 
         if config.debug:
