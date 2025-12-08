@@ -392,6 +392,20 @@ class FrontendLauncherThread(threading.Thread):
         """
         ColorPrint.blue("[FrontendThread] Starting dev server...")
 
+        # Step 0: Force clean frontend port to prevent Vite auto-increment
+        ColorPrint.blue(f"[FrontendThread] Checking if port {self.config.port} is occupied...")
+        from .port_killer import is_port_available, kill_process_on_port
+
+        if not is_port_available(self.config.port, self.config.host):
+            ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied, cleaning...")
+            if kill_process_on_port(self.config.port, force=True):
+                ColorPrint.green(f"[FrontendThread] Port {self.config.port} cleaned successfully")
+                time.sleep(0.5)  # Wait for port to be fully released
+            else:
+                ColorPrint.red(f"[FrontendThread] Failed to clean port {self.config.port}")
+        else:
+            ColorPrint.green(f"[FrontendThread] Port {self.config.port} is available")
+
         command = self._resolve_dev_command()
         command = _resolve_command_for_platform(command)
         env = self._build_env()
