@@ -39,6 +39,7 @@ export interface Device {
   ip: string;
   ping: number;
   name?: string;
+  manufacturer?: string;
 }
 
 export interface DeviceGroup {

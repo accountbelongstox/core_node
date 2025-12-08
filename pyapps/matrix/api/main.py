@@ -343,13 +343,13 @@ def _register_device_routes(rpc_server):
 
     async def adb_device_list(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager device list (auto-discovered devices)"""
-        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+        from pyapps.matrix.matrix_main import get_adb_service
 
-        adb_thread = get_adb_heartbeat_thread()
-        if not adb_thread:
+        adb_service = get_adb_service()
+        if not adb_service:
             return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
 
-        device_table = adb_thread.get_device_table()
+        device_table = adb_service.get_device_table()
         all_devices = device_table.get_all_devices()
 
         devices_list = []
@@ -376,19 +376,24 @@ def _register_device_routes(rpc_server):
 
     async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager statistics"""
-        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+        from pyapps.matrix.matrix_main import get_adb_service
+        from pycore.pyheartbeat import get_heartbeat_system
 
-        adb_thread = get_adb_heartbeat_thread()
-        if not adb_thread:
+        adb_service = get_adb_service()
+        if not adb_service:
             return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
 
-        device_table = adb_thread.get_device_table()
-        stats = device_table.get_stats()
+        device_table = adb_service.get_device_table()
+        device_stats = device_table.get_stats()
+
+        # Get complete heartbeat system stats (includes all details)
+        heartbeat = get_heartbeat_system()
+        heartbeat_stats = heartbeat.get_stats()
 
         return {
-            "stats": stats,
-            "heartbeat_running": adb_thread.is_running(),
-            "total_ticks": adb_thread.get_total_ticks() if hasattr(adb_thread, 'get_total_ticks') else 0,
+            "device_stats": device_stats,
+            "heartbeat_stats": heartbeat_stats,
+            "service_running": True
         }
 
     rpc_server.route('device.list', list_devices, sync=True, description='List all ADB devices')

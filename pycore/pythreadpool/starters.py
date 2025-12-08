@@ -78,11 +78,11 @@ def _register_builtin_handlers():
 # ============================================================
 
 def start_heartbeat(config: Dict[str, Any]) -> Any:
-    """Start heartbeat service (original class)"""
+    """Start heartbeat service (unified architecture)"""
     # Register built-in handlers on first service start
     _register_builtin_handlers()
 
-    ColorPrint.blue("[heartbeat] Starting Heartbeat System...")
+    ColorPrint.blue("[heartbeat] Starting Unified Heartbeat System...")
     from pycore.pyheartbeat import initialize_heartbeat_system
 
     instance = initialize_heartbeat_system()
@@ -102,7 +102,7 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
         name="heartbeat"
     )
 
-    ColorPrint.green("[heartbeat] Heartbeat System started")
+    ColorPrint.green("[heartbeat] Unified Heartbeat System started")
     return instance
 
 

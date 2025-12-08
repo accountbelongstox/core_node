@@ -454,6 +454,8 @@ class FrontendSingletonDetector:
         """
         Send shutdown request to existing frontend instance
 
+        If communication fails, use port killer to force shutdown.
+
         Args:
             existing_port: Port of existing frontend
 
@@ -479,11 +481,23 @@ class FrontendSingletonDetector:
                 'reason': reason
             }
 
-        self._log("No valid shutdown response received", "ERROR")
-        return {
-            'accepted': False,
-            'reason': 'No response from existing frontend'
-        }
+        # Communication failed - use port killer
+        self._log("No valid shutdown response received, using port killer...", "WARNING")
+
+        from .port_killer import kill_process_on_port
+
+        if kill_process_on_port(existing_port, force=True):
+            self._log(f"Port {existing_port} forcefully cleaned", "INFO")
+            return {
+                'accepted': True,
+                'reason': 'Process killed by port killer'
+            }
+        else:
+            self._log(f"Failed to kill process on port {existing_port}", "ERROR")
+            return {
+                'accepted': False,
+                'reason': 'Port killer failed'
+            }
 
     def stop(self):
         """Stop detector and close socket"""

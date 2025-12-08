@@ -181,6 +181,14 @@ def launch_native_app(config: NativeUIConfig) -> None:
             ColorPrint.blue("[NativeLauncher] Stopping RPC v2 server...")
             rpc_service.stop()
 
+        # CRITICAL FIX: Stop startup thread (if it exists and is running)
+        # This ensures the TkinterStartupThread tray is stopped properly on exit
+        if startup_thread_ref and startup_thread_ref.get('thread'):
+            thread = startup_thread_ref['thread']
+            if thread and thread.is_alive():
+                ColorPrint.blue("[NativeLauncher] Stopping startup thread (debug window/tray)...")
+                thread.request_close()
+
         ColorPrint.green("[NativeLauncher] All services stopped")
 
     # Register with high priority to ensure cleanup happens early
@@ -190,25 +198,26 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
 
+    # Create singleton detector with shutdown_existing=True
+    # This means: if an old instance exists, notify it to shutdown and take over
     detector = SingletonDetector(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,
         timeout=1.0,
-        debug=config.debug
+        debug=config.debug,
+        shutdown_existing=True  # New instance will shutdown old instance and take over
     )
 
     detection = detector.detect_and_bind()
 
-    # Check existing instance
-    if detection.existing_instance:
-        if not config.force:
-            ColorPrint.print_warn(f"[NativeLauncher] Instance already running at port {detection.existing_port}")
-            return
-
     # Check if became primary
     if not detection.is_primary:
-        ColorPrint.print_error("[NativeLauncher] No available ports in range")
+        if detection.existing_instance:
+            # Should not happen with shutdown_existing=True, but handle it anyway
+            ColorPrint.print_error(f"[NativeLauncher] Failed to take over from existing instance at port {detection.existing_port}")
+        else:
+            ColorPrint.print_error("[NativeLauncher] No available ports in range")
         return
 
     if config.debug:

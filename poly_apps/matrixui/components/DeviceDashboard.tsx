@@ -3,11 +3,12 @@
 
 
 
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { Device, BatchActionType, DeviceLog } from '../types';
 import { DeviceInfo } from '../types/api';
 import { wsService } from '../services/websocket';
 import { useI18n } from '../services/i18n';
+import { DeviceVideoStream } from './DeviceVideoStream';
 
 interface DeviceDashboardProps {
   selectedIds: Set<string>;
@@ -27,14 +28,35 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   onBatchAction,
   onQuickAction,
   filterStatus,
-  setFilterStatus,
+  setFilterStatus, 
   addLog
 }) => {
   const { t } = useI18n();
   const [wsDevices, setWsDevices] = useState<DeviceInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const videoStreamEnabledRef = useRef<Map<string, boolean>>(new Map());
+  const addLogRef = useRef(addLog);
+  
+  // Update ref when addLog changes
+  useEffect(() => {
+    addLogRef.current = addLog;
+  }, [addLog]);
+  
+  // Stable error handler for video streams (use ref to avoid recreating)
+  const handleVideoStreamErrorRef = useRef<Map<string, (error: Error) => void>>(new Map());
+  
+  const getVideoStreamErrorHandler = useCallback((serial: string) => {
+    if (!handleVideoStreamErrorRef.current.has(serial)) {
+      handleVideoStreamErrorRef.current.set(serial, (error: Error) => {
+        console.error(`[DeviceVideoStream] Error for ${serial}:`, error);
+        addLogRef.current('error', `Video stream error for ${serial}: ${error.message}`);
+      });
+    }
+    return handleVideoStreamErrorRef.current.get(serial)!;
+  }, []);
   
   // Selection Box State
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ start: {x: number, y: number}, end: {x: number, y: number} } | null>(null);
   const deviceRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -42,38 +64,83 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const [activeTouch, setActiveTouch] = useState<string | null>(null); // Device serial currently being touched
   const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Wait for connection before sending initial fetch
-    const initialize = async () => {
-      await wsService.connect();
-      wsService.send('device', 'list');
-    };
-    initialize();
+  // Fetch devices using RPC v2 API
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      if (!wsService.isRpcConnected()) {
+        await wsService.connectRpc();
+      }
+      const result = await wsService.callRpc('adb.device.list', {});
+      if (result && result.devices) {
+        setWsDevices(result.devices);
+        addLog('success', `Loaded ${result.devices.length} devices`);
+      }
+    } catch (error) {
+      console.error('[DeviceDashboard] Failed to fetch devices:', error);
+      addLog('error', `Failed to fetch devices: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Listener
-    const removeListener = wsService.addListener((res) => {
-      if (res.namespace === 'device' && res.action === 'list') {
-        setWsDevices(res.data.devices);
+  useEffect(() => {
+    // Initial fetch
+    fetchDevices();
+
+    // Listen for device updates via RPC events
+    wsService.onRpcEvent('adb.devices.update', (data: any) => {
+      if (data && data.devices) {
+        setWsDevices(data.devices);
+        addLog('info', `Device list updated: ${data.devices.length} devices`);
       }
     });
 
-    return () => { removeListener(); };
+    // Periodic refresh (every 10 seconds)
+    const refreshInterval = setInterval(() => {
+      fetchDevices();
+    }, 10000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      wsService.offRpcEvent('adb.devices.update');
+    };
   }, []);
 
   const mappedDevices: Device[] = useMemo(() => {
-    return wsDevices.map(d => ({
-      serial: d.serial,
-      model: d.model,
-      version: d.android_version || 'unknown',
-      status: d.status === 'device' ? 'online' : 'offline',
-      battery: 85,
-      resolution: '1080x2400',
-      groupId: 'root',
-      tags: [],
-      ip: '192.168.1.x',
-      ping: 25,
-      name: d.model
-    }));
+    return wsDevices.map(d => {
+      // Determine device status based on state or legacy status field
+      let deviceStatus: 'online' | 'offline' | 'busy' = 'offline';
+      
+      if (d.state) {
+        // Use new state field
+        if (d.state === 'wifi_connected' || d.state === 'usb_connected') {
+          deviceStatus = 'online';
+        } else if (d.state === 'configuring') {
+          deviceStatus = 'busy';
+        } else {
+          deviceStatus = 'offline';
+        }
+      } else if (d.status) {
+        // Fallback to legacy status field
+        deviceStatus = d.status === 'device' ? 'online' : 'offline';
+      }
+      
+      return {
+        serial: d.serial,
+        model: d.model || 'Unknown',
+        version: d.android_version || 'unknown',
+        status: deviceStatus,
+        battery: 85, // TODO: Get from device info
+        resolution: '1080x2400', // TODO: Get from device info
+        groupId: 'root',
+        tags: [],
+        ip: d.ip || d.serial || '192.168.1.x',
+        ping: 25, // TODO: Get from device info
+        name: d.model || d.serial,
+        manufacturer: d.manufacturer || 'Unknown'
+      };
+    });
   }, [wsDevices]);
 
   const filtered = useMemo(() => {
@@ -83,7 +150,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   }, [mappedDevices, filterStatus]);
 
   const handleEnroll = async () => {
-    await wsService.send('device', 'list');
+    await fetchDevices();
   };
 
   // --- Box Selection Logic ---
@@ -265,7 +332,25 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
         )}
 
         <div className="flex flex-wrap content-start gap-6">
-          {filtered.map(device => (
+          {loading && filtered.length === 0 ? (
+            <div className="w-full flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
+                  <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
+                </div>
+                <span className="text-slate-400 font-mono text-sm">Loading devices...</span>
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="w-full flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-2 text-slate-500">
+                <i className="ph ph-devices text-4xl"></i>
+                <span className="font-mono text-sm">No devices found</span>
+              </div>
+            </div>
+          ) : (
+            filtered.map(device => (
             <div
               key={device.serial}
               ref={el => { if (el) deviceRefs.current.set(device.serial, el); else deviceRefs.current.delete(device.serial); }}
@@ -293,27 +378,12 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                 onDoubleClick={(e) => handleDeviceInteraction(e, device.serial, 'double')}
               >
                 {device.status === 'online' ? (
-                  <div className="w-full h-full relative flex flex-col items-center justify-center p-4 pointer-events-none">
-                     {/* Background Grid */}
-                     <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(0,242,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-                     
-                     {/* Central Spinner */}
-                     <div className="relative w-16 h-16 mb-4">
-                        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
-                        <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <i className="ph-fill ph-lightning text-[#00f2ff] text-xl animate-pulse"></i>
-                        </div>
-                     </div>
-                     
-                     {/* Status Text */}
-                     <div className="font-mono text-[9px] text-[#00f2ff] tracking-[2px] mb-2 animate-pulse">{t('dashboard.establishing_link')}</div>
-                     
-                     {/* Progress Bar */}
-                     <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-[#00f2ff] via-[#bd00ff] to-[#00f2ff] w-[60%] animate-[shimmer_1.5s_infinite]"></div>
-                     </div>
-                  </div>
+                  <DeviceVideoStream 
+                    key={device.serial} // Key to ensure component remounts when serial changes
+                    serial={device.serial}
+                    enabled={videoStreamEnabledRef.current.get(device.serial) ?? true}
+                    onError={getVideoStreamErrorHandler(device.serial)}
+                  />
                 ) : (
                   <div className="flex flex-col items-center text-slate-700 pointer-events-none">
                     <i className="ph ph-plugs text-3xl mb-2"></i>
@@ -324,7 +394,9 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                 {/* HUD Overlay */}
                 <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between">
                   <div className="flex justify-between items-start">
-                    <span className="px-1.5 py-0.5 bg-black/80 border border-white/10 backdrop-blur rounded text-[9px] font-mono text-white/80">{device.serial}</span>
+                    <span className="px-1.5 py-0.5 bg-black/80 border border-white/10 backdrop-blur rounded text-[9px] font-mono text-white/80">
+                      {device.serial}
+                    </span>
                     {device.status === 'online' && <span className="w-2 h-2 bg-[#05ffa1] rounded-full shadow-[0_0_10px_#05ffa1] animate-pulse"></span>}
                   </div>
                 </div>
@@ -354,11 +426,15 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
 
               {/* Footer */}
               <div className="h-[45px] bg-[#0d0f14] flex items-center justify-between px-3 pointer-events-auto">
-                <div className="flex flex-col">
-                   <span className="text-[11px] font-bold text-slate-200">{device.name}</span>
-                   <span className="text-[9px] font-mono text-slate-500">{device.ip}</span>
+                <div className="flex flex-col flex-1 min-w-0">
+                   <span className="text-[11px] font-bold text-slate-200 truncate">{device.name}</span>
+                   <div className="flex items-center gap-1.5">
+                     <span className="text-[9px] font-mono text-slate-500">{device.manufacturer || 'Unknown'}</span>
+                     <span className="text-[8px] text-slate-600">•</span>
+                     <span className="text-[9px] font-mono text-slate-500">Android {device.version}</span>
+                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded border border-white/5 ml-2">
                    <i className={`ph-fill ph-wifi-high text-[10px] ${device.status === 'online' ? 'text-[#05ffa1]' : 'text-slate-600'}`}></i>
                    <span className="text-[9px] font-mono text-slate-400">{device.ping}ms</span>
                 </div>
@@ -386,7 +462,8 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                  ))}
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
