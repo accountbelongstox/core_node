@@ -442,5 +442,193 @@
   "pagesUnit": {
     "message": "页",
     "description": "页面计数单位"
+  },
+  "audioRecordingLabel": {
+    "message": "音频录制",
+    "description": "音频录制面板标题"
+  },
+  "recordingStatusLabel": {
+    "message": "录制状态：",
+    "description": "录制状态标签"
+  },
+  "recordingStatus": {
+    "message": "录制中",
+    "description": "录制活动状态"
+  },
+  "idleStatus": {
+    "message": "空闲",
+    "description": "录制空闲状态"
+  },
+  "durationLabel": {
+    "message": "时长：",
+    "description": "录制时长标签"
+  },
+  "chunkCountLabel": {
+    "message": "块计数：",
+    "description": "录制块计数标签"
+  },
+  "apiServerConfigLabel": {
+    "message": "API 服务器配置",
+    "description": "API 服务器配置部分标题"
+  },
+  "serverNamePlaceholder": {
+    "message": "服务器名称",
+    "description": "服务器名称输入占位符"
+  },
+  "urlLabel": {
+    "message": "URL：",
+    "description": "URL 输入标签"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL 输入占位符"
+  },
+  "authTokenLabel": {
+    "message": "认证令牌：",
+    "description": "认证令牌输入标签"
+  },
+  "optionalPlaceholder": {
+    "message": "可选",
+    "description": "可选字段占位符"
+  },
+  "streamingModeLabel": {
+    "message": "流模式：",
+    "description": "流模式选择标签"
+  },
+  "realtimeWebsocketOption": {
+    "message": "实时 (WebSocket)",
+    "description": "实时 WebSocket 流选项"
+  },
+  "chunkedUploadOption": {
+    "message": "分块上传 (HTTP)",
+    "description": "分块 HTTP 上传选项"
+  },
+  "completeFileUploadOption": {
+    "message": "完整文件上传",
+    "description": "完整文件上传选项"
+  },
+  "chunkIntervalLabel": {
+    "message": "块间隔（毫秒）：",
+    "description": "块间隔输入标签"
+  },
+  "addApiServerButton": {
+    "message": "+ 添加 API 服务器",
+    "description": "添加 API 服务器按钮文本"
+  },
+  "recordingSettingsLabel": {
+    "message": "录制设置",
+    "description": "录制设置部分标题"
+  },
+  "includeMicrophoneLabel": {
+    "message": "包含麦克风",
+    "description": "包含麦克风复选框标签"
+  },
+  "saveLocallyLabel": {
+    "message": "本地保存录制",
+    "description": "本地保存录制复选框标签"
+  },
+  "autoStopSilenceLabel": {
+    "message": "静音时自动停止",
+    "description": "静音时自动停止复选框标签"
+  },
+  "silenceDurationLabel": {
+    "message": "静音时长（秒）：",
+    "description": "静音时长输入标签"
+  },
+  "maxDurationLabel": {
+    "message": "最大录制时长：",
+    "description": "最大录制时长选择标签"
+  },
+  "oneMinuteOption": {
+    "message": "1 分钟",
+    "description": "1 分钟时长选项"
+  },
+  "fiveMinutesOption": {
+    "message": "5 分钟",
+    "description": "5 分钟时长选项"
+  },
+  "tenMinutesOption": {
+    "message": "10 分钟",
+    "description": "10 分钟时长选项"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 分钟",
+    "description": "30 分钟时长选项"
+  },
+  "oneHourOption": {
+    "message": "1 小时",
+    "description": "1 小时时长选项"
+  },
+  "noLimitOption": {
+    "message": "无限制",
+    "description": "无限制时长选项"
+  },
+  "sessionMetadataLabel": {
+    "message": "会话元数据（JSON）",
+    "description": "会话元数据部分标题"
+  },
+  "sessionMetadataHelper": {
+    "message": "此处定义的键/值对将附加到每次 HTTP 上传，并通过 WebSocket 作为元数据载荷发送一次。",
+    "description": "会话元数据帮助文本"
+  },
+  "startRecordingButton": {
+    "message": "开始录制",
+    "description": "开始录制按钮文本"
+  },
+  "stopRecordingButton": {
+    "message": "停止录制",
+    "description": "停止录制按钮文本"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "启用后台音频流",
+    "description": "启用后台音频流复选框标签"
+  },
+  "activeStatus": {
+    "message": "活动",
+    "description": "活动状态徽章"
+  },
+  "backgroundStreamingDescription": {
+    "message": "启用后，即使关闭此弹出窗口，音频也会持续捕获并流式传输到配置的 API 服务器。",
+    "description": "后台流描述文本"
+  },
+  "defaultServerName": {
+    "message": "服务器 $INDEX$",
+    "description": "默认服务器名称（带索引）",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "会话元数据 JSON 无效：$ERROR$",
+    "description": "无效 JSON 错误消息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "意外的标记"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "启动录制失败：$ERROR$",
+    "description": "启动录制错误消息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "无麦克风权限"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "启动录制时出错：$ERROR$",
+    "description": "一般录制错误消息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "未知错误"
+      }
+    }
   }
 }
