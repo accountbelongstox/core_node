@@ -75,25 +75,10 @@ class PySide6WebView(QWidget):
         # Create web view
         self.web_view = QWebEngineView()
 
-        # Set background image to prevent white flash
-        # Background image path relative to this file
-        background_path = Path(__file__).parent / "resources" / "background.jpg"
-        if background_path.exists():
-            # Set background image using stylesheet
-            bg_url = QUrl.fromLocalFile(str(background_path.absolute())).toString()
-            self.web_view.setStyleSheet(f"""
-                QWebEngineView {{
-                    background-image: url({bg_url});
-                    background-position: center;
-                    background-repeat: no-repeat;
-                    background-attachment: fixed;
-                    background-color: #030305;
-                }}
-            """)
-        else:
-            # Fallback to solid color if image not found
-            page = self.web_view.page()
-            page.setBackgroundColor(QColor("#030305"))
+        # Set background color to prevent white flash
+        # Must match the React app's background color (#030305)
+        page = self.web_view.page()
+        # page.setBackgroundColor(QColor("#030305"))
 
         # Configure settings
         settings = self.web_view.settings()
