@@ -1,6 +1,6 @@
 # Matrix API Documentation
 
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Protocol:** RPC v2 WebSocket
 **Endpoint:** `ws://localhost:48000/rpc/ws`
 
@@ -28,7 +28,8 @@ Matrix 应用已完全迁移到 **RPC v2 WebSocket 协议**。所有 HTTP REST A
 - ✅ **完全 WebSocket** - 移除所有 HTTP REST 端点
 - ✅ **ACK 机制** - 可靠的消息确认
 - ✅ **请求/响应模式** - 基于请求 ID 的异步响应
-- ✅ **44 个端点** - 覆盖设备管理、屏幕控制、文件管理、录制、分组、配置、控制、视频流
+- ✅ **50 个端点** - 覆盖设备管理、屏幕控制、文件管理、录制、分组、配置、控制、视频流
+- ✅ **Host/Slave 同步** - 实时输入事件广播（QtScrcpy 风格）
 
 ---
 
@@ -174,7 +175,7 @@ def start_rpc_v2(config):
 
 ## API端点清单
 
-**总计：44 个端点**
+**总计：50 个端点**
 
 ### 1. Health & System (2)
 - `health` - 基础健康检查
@@ -207,7 +208,16 @@ def start_rpc_v2(config):
 - `recording.status` - 获取录屏状态
 - `screenshot.capture` - 截图
 
-### 6. Group Batch Operations (7)
+### 6. Group Management & Sync (13) ⭐ 新增
+#### 6.1 Group Management (6)
+- `group.create` - 创建设备组（指定 master）
+- `group.add_slave` - 添加 slave 设备到组
+- `group.remove_slave` - 从组中移除 slave 设备
+- `group.enable_sync` - 启用 Host/Slave 输入同步
+- `group.disable_sync` - 禁用 Host/Slave 输入同步
+- `group.get_state` - 获取组状态（master/slaves/sync 状态）
+
+#### 6.2 Batch Operations (7)
 - `group.batch_screenshot` - 批量截图
 - `group.batch_start_recording` - 批量开始录屏
 - `group.batch_stop_recording` - 批量停止录屏
@@ -225,10 +235,10 @@ def start_rpc_v2(config):
 - `config.device_delete` - 删除设备配置
 
 ### 8. Device Control (7)
-- `control.touch` - 触摸事件
-- `control.key` - 按键事件
-- `control.text` - 文本输入
-- `control.swipe` - 滑动手势
+- `control.touch` - 触摸事件（自动同步到 slaves）⭐
+- `control.key` - 按键事件（自动同步到 slaves）⭐
+- `control.text` - 文本输入（自动同步到 slaves）⭐
+- `control.swipe` - 滑动手势（自动同步到 slaves）⭐
 - `control.systemkey` - 系统按键
 - `control.clipboard_set` - 设置剪贴板
 - `control.clipboard_get` - 获取剪贴板
@@ -479,7 +489,166 @@ def start_rpc_v2(config):
 
 ---
 
-### 6. Group Batch Operations
+### 6. Group Management & Sync
+
+Matrix 支持 Host/Slave 设备组管理和实时输入同步。当启用同步后，master 设备的触摸、按键、文本输入等事件会自动广播到所有 slave 设备（类似 QtScrcpy 的 GroupController 功能）。
+
+#### 6.1 Group Management
+
+##### `group.create`
+创建设备组并指定 master 设备
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组唯一 ID
+- `hostSerial` (string, 必需) - Master 设备序列号
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-001",
+  "route": "group.create",
+  "data": {
+    "groupId": "group-001",
+    "hostSerial": "ABC123"
+  }
+}
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "hostSerial": "ABC123"
+}
+```
+
+##### `group.add_slave`
+添加 slave 设备到组
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组 ID
+- `slaveSerial` (string, 必需) - Slave 设备序列号
+
+**请求示例:**
+```json
+{
+  "route": "group.add_slave",
+  "data": {
+    "groupId": "group-001",
+    "slaveSerial": "DEF456"
+  }
+}
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "slaveSerial": "DEF456"
+}
+```
+
+##### `group.remove_slave`
+从组中移除 slave 设备
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组 ID
+- `slaveSerial` (string, 必需) - Slave 设备序列号
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "slaveSerial": "DEF456"
+}
+```
+
+##### `group.enable_sync`
+启用 Host/Slave 实时输入同步
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组 ID
+
+**请求示例:**
+```json
+{
+  "route": "group.enable_sync",
+  "data": {
+    "groupId": "group-001"
+  }
+}
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "syncEnabled": true
+}
+```
+
+**说明:**
+启用后，发送到 master 设备的以下事件会自动广播到所有 slave 设备：
+- `control.touch` - 触摸事件
+- `control.key` - 按键事件
+- `control.text` - 文本输入
+- `control.swipe` - 滑动手势
+
+##### `group.disable_sync`
+禁用 Host/Slave 实时输入同步
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组 ID
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "syncEnabled": false
+}
+```
+
+##### `group.get_state`
+获取组状态（master/slaves/sync 状态）
+
+**请求参数:**
+- `groupId` (string, 必需) - 分组 ID
+
+**请求示例:**
+```json
+{
+  "route": "group.get_state",
+  "data": {
+    "groupId": "group-001"
+  }
+}
+```
+
+**响应:**
+```json
+{
+  "success": true,
+  "groupId": "group-001",
+  "hostSerial": "ABC123",
+  "slaveSerials": ["DEF456", "GHI789"],
+  "totalDevices": 3,
+  "enabled": true
+}
+```
+
+**响应字段说明:**
+- `hostSerial` - Master 设备序列号
+- `slaveSerials` - Slave 设备序列号列表
+- `totalDevices` - 总设备数（master + slaves）
+- `enabled` - 是否启用实时同步
+
+#### 6.2 Batch Operations
 
 #### `group.batch_screenshot`
 批量截图
@@ -757,6 +926,7 @@ const screenshot = await client.request('screenshot.capture', {
 |------|------|
 | `MISSING_SERIAL` | 缺少设备序列号 |
 | `MISSING_GROUP_ID` | 缺少分组 ID |
+| `MISSING_PARAMETERS` | 缺少必需参数 (groupId/hostSerial/slaveSerial) |
 | `MISSING_DEVICE_NAME` | 缺少设备名称 |
 | `MISSING_TASK_ID` | 缺少任务 ID |
 | `MISSING_PACKAGE` | 缺少包名 |
@@ -787,6 +957,11 @@ const screenshot = await client.request('screenshot.capture', {
 | `SCREENSHOT_FAILED` | 截图失败 |
 | `LIST_PACKAGES_FAILED` | 列出包失败 |
 | `UNINSTALL_FAILED` | 卸载失败 |
+| `CREATE_GROUP_FAILED` | 创建分组失败 |
+| `ADD_SLAVE_FAILED` | 添加 slave 失败 |
+| `REMOVE_SLAVE_FAILED` | 移除 slave 失败 |
+| `ENABLE_SYNC_FAILED` | 启用同步失败 |
+| `DISABLE_SYNC_FAILED` | 禁用同步失败 |
 | `BATCH_*_FAILED` | 批量操作失败 |
 
 ---
@@ -844,6 +1019,12 @@ const devices = await client.request('device.list');
 
 ---
 
-**文档版本:** 2.0.0
+**文档版本:** 2.1.0
 **最后更新:** 2025-12-08
 **维护者:** Matrix Team
+
+**更新内容 (v2.1.0):**
+- ✅ 新增 Host/Slave 输入同步功能（6个新端点）
+- ✅ ControlService 集成 GroupController 实时广播
+- ✅ 自动同步 touch/key/text/swipe 事件到 slave 设备
+- ✅ 总端点数量：44 → 50

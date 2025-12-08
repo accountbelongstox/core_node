@@ -108,14 +108,14 @@ class DevicePushService:
                 for device_info in all_devices:
                     devices_list.append({
                         "serial": device_info.serial,
-                        "ip": device_info.ip,
-                        "connection_type": device_info.connection_type.value,
+                        "ip": device_info.ip_address,
+                        "connection_type": device_info.device_type.value,
                         "state": device_info.state.value,
                         "is_root": device_info.is_root,
                         "model": device_info.model,
                         "android_version": device_info.android_version,
                         "last_seen": device_info.last_seen,
-                        "connected_at": device_info.connected_at,
+                        "connected_at": device_info.first_seen,
                     })
 
                 stats = device_table.get_stats()
