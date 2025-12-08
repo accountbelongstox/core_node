@@ -231,11 +231,11 @@ class FastAPIRPCServer:
 
     # ------------------------------------------------------------------ Internal setup
     def _add_default_static_dirs(self):
-        """Serve RPC JS client at /js/rpc by default."""
+        """Serve RPC JS client at /rpc/src by default."""
         pyutils_root = Path(__file__).resolve().parents[2]
         client_js_dir = pyutils_root / "rpc_v2" / "client"
         if client_js_dir.exists():
-            self.add_static_dir("/js/rpc", str(client_js_dir))
+            self.add_static_dir("/rpc/src", str(client_js_dir))
 
     def _register_builtin_routes(self):
         """Wire HTTP + WebSocket endpoints."""
@@ -752,6 +752,9 @@ class FastAPIRPCServer:
                     )
                     return
 
+            # ✅ Check if route is synchronous (immediate response)
+            is_sync = self.routes_manager.is_sync_route(route)
+
             self.request_event_table.create_event(
                 request_id=request_id,
                 route=route,
@@ -760,8 +763,13 @@ class FastAPIRPCServer:
                 client_type="websocket",
             )
 
-            asyncio.create_task(
-                self.request_processor.process_request_async(
+            if is_sync:
+                # ✅ Synchronous route: await processing and return immediately
+                if self.debug:
+                    ColorPrint.blue(f"[WS RPC] Sync route {route}, processing immediately...")
+
+                # Await processing completion
+                await self.request_processor.process_request_async(
                     request_id=request_id,
                     route=route,
                     params=params,
@@ -772,19 +780,74 @@ class FastAPIRPCServer:
                         client_id=client_id,
                         websocket=websocket,
                     ).__dict__,
-                    notify_callback=self.ack_manager.notify_websocket_with_retry,
+                    notify_callback=None  # No callback for sync routes
                 )
-            )
 
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["EVENT"],
-                    "route": "request_accepted",
-                    "event": "request_accepted",
-                    "id": request_id,
-                    "data": {"status": "accepted"},
-                }
-            )
+                # Get completed event
+                event = self.request_event_table.get_event(request_id)
+                if event and event.status == RequestStatus.COMPLETED:
+                    if self.debug:
+                        ColorPrint.green(f"[WS RPC] Sync route {route} completed, sending result")
+
+                    # ✅ Send result immediately (no ACK mechanism)
+                    await websocket.send_json(
+                        {
+                            "type": MSG_TYPES["RESPONSE"],
+                            "route": route,
+                            "id": request_id,
+                            "result": event.result,
+                            "error": event.error,
+                            "success": event.error is None,
+                            "sync_response": True,  # ✅ Mark as sync response
+                            "requires_ack": False,  # ✅ No ACK required
+                            "queue": None,
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                    return  # ✅ Sync route completed, exit handler
+                else:
+                    # Processing failed
+                    await websocket.send_json(
+                        {
+                            "type": MSG_TYPES["ERROR"],
+                            "route": route,
+                            "id": request_id,
+                            "error": event.error if event else "Processing failed",
+                            "success": False,
+                        }
+                    )
+                    return  # ✅ Sync route failed, exit handler
+            else:
+                # ✅ Asynchronous route: use ACK mechanism (original behavior)
+                if self.debug:
+                    ColorPrint.blue(f"[WS RPC] Async route {route}, using ACK mechanism...")
+
+                asyncio.create_task(
+                    self.request_processor.process_request_async(
+                        request_id=request_id,
+                        route=route,
+                        params=params,
+                        client_id=client_id,
+                        client_type="websocket",
+                        context=RPCRequestContext(
+                            transport="websocket",
+                            client_id=client_id,
+                            websocket=websocket,
+                        ).__dict__,
+                        notify_callback=self.ack_manager.notify_websocket_with_retry,
+                    )
+                )
+
+                # Send accepted event for async routes
+                await websocket.send_json(
+                    {
+                        "type": MSG_TYPES["EVENT"],
+                        "route": "request_accepted",
+                        "event": "request_accepted",
+                        "id": request_id,
+                        "data": {"status": "accepted"},
+                    }
+                )
 
         elif msg_type == MSG_TYPES["PING"]:
             await self.client_registry.update_client_ping(client_id)
