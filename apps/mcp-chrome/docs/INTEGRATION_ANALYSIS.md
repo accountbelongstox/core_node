@@ -492,6 +492,28 @@ Start recording audio from browser tab and/or microphone.
 
 ---
 
+## Laravel AppQyV1 Mapping
+
+To align the Chrome recorder with `laravel_main` → `AppQyV1`, reuse the new session metadata surface:
+
+| Metadata Key | Laravel Field | Notes |
+|--------------|---------------|-------|
+| `word` | URL parameter / dictionary slug | Include both in the endpoint URL and metadata body. |
+| `type` | `type` request input (`word`/`sentence`) | Mirrors AppQyV1 validation. |
+| `quality` | `quality` request input | Choose from `low`, `medium`, `high`. |
+| `source` | Custom provenance field | e.g., `chrome_extension` for auditing. |
+
+Guidelines:
+
+1. Use `streamingMode: 'file'` for `/api/dict/v1/word/{word}/audio` or `streamingMode: 'chunks'` if you want incremental processing.
+2. Convert the uploaded WebM to mp3/wav/ogg (FFmpeg) before calling `AppQyV1WordDataSubmissionController::submitAudio`.
+3. For chunk uploads, buffer by `chunkIndex` and trigger conversion once `isFinal=true`.
+4. WebSocket collectors should read the initial `{ type: 'metadata', data: {...} }` frame to associate binary audio with the correct dictionary entry.
+
+This keeps the extension generic while letting Laravel reuse its external storage manager, CDN prefixes, and initialization markers.
+
+---
+
 ## 🎯 Recommendation
 
 **Prioritize Phase 1 (Audio Recording)** for the following reasons:
