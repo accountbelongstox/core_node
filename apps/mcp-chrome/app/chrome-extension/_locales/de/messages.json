@@ -442,5 +442,193 @@
   "pagesUnit": {
     "message": "Seiten",
     "description": "Seiten Zähleinheit"
+  },
+  "audioRecordingLabel": {
+    "message": "Audioaufnahme",
+    "description": "Audioaufnahme-Panel-Titel"
+  },
+  "recordingStatusLabel": {
+    "message": "Aufnahmestatus:",
+    "description": "Aufnahmestatus-Label"
+  },
+  "recordingStatus": {
+    "message": "Aufnahme läuft",
+    "description": "Aktiver Aufnahmestatus"
+  },
+  "idleStatus": {
+    "message": "Inaktiv",
+    "description": "Inaktiver Aufnahmestatus"
+  },
+  "durationLabel": {
+    "message": "Dauer:",
+    "description": "Aufnahmedauer-Label"
+  },
+  "chunkCountLabel": {
+    "message": "Chunk-Anzahl:",
+    "description": "Aufnahme-Chunk-Anzahl-Label"
+  },
+  "apiServerConfigLabel": {
+    "message": "API-Server-Konfiguration",
+    "description": "API-Server-Konfiguration-Abschnittstitel"
+  },
+  "serverNamePlaceholder": {
+    "message": "Servername",
+    "description": "Servername-Eingabe-Platzhalter"
+  },
+  "urlLabel": {
+    "message": "URL:",
+    "description": "URL-Eingabe-Label"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL-Eingabe-Platzhalter"
+  },
+  "authTokenLabel": {
+    "message": "Authentifizierungstoken:",
+    "description": "Authentifizierungstoken-Eingabe-Label"
+  },
+  "optionalPlaceholder": {
+    "message": "Optional",
+    "description": "Optionales Feld-Platzhalter"
+  },
+  "streamingModeLabel": {
+    "message": "Streaming-Modus:",
+    "description": "Streaming-Modus-Auswahl-Label"
+  },
+  "realtimeWebsocketOption": {
+    "message": "Echtzeit (WebSocket)",
+    "description": "Echtzeit-WebSocket-Streaming-Option"
+  },
+  "chunkedUploadOption": {
+    "message": "Chunked Upload (HTTP)",
+    "description": "Chunked-HTTP-Upload-Option"
+  },
+  "completeFileUploadOption": {
+    "message": "Kompletter Datei-Upload",
+    "description": "Kompletter-Datei-Upload-Option"
+  },
+  "chunkIntervalLabel": {
+    "message": "Chunk-Intervall (ms):",
+    "description": "Chunk-Intervall-Eingabe-Label"
+  },
+  "addApiServerButton": {
+    "message": "+ API-Server hinzufügen",
+    "description": "API-Server hinzufügen-Button-Text"
+  },
+  "recordingSettingsLabel": {
+    "message": "Aufnahmeeinstellungen",
+    "description": "Aufnahmeeinstellungen-Abschnittstitel"
+  },
+  "includeMicrophoneLabel": {
+    "message": "Mikrofon einbeziehen",
+    "description": "Mikrofon einbeziehen-Checkbox-Label"
+  },
+  "saveLocallyLabel": {
+    "message": "Aufnahme lokal speichern",
+    "description": "Aufnahme lokal speichern-Checkbox-Label"
+  },
+  "autoStopSilenceLabel": {
+    "message": "Auto-Stopp bei Stille",
+    "description": "Auto-Stopp bei Stille-Checkbox-Label"
+  },
+  "silenceDurationLabel": {
+    "message": "Stilledauer (Sekunden):",
+    "description": "Stilledauer-Eingabe-Label"
+  },
+  "maxDurationLabel": {
+    "message": "Maximale Aufnahmedauer:",
+    "description": "Maximale Aufnahmedauer-Auswahl-Label"
+  },
+  "oneMinuteOption": {
+    "message": "1 Minute",
+    "description": "1 Minute Dauer-Option"
+  },
+  "fiveMinutesOption": {
+    "message": "5 Minuten",
+    "description": "5 Minuten Dauer-Option"
+  },
+  "tenMinutesOption": {
+    "message": "10 Minuten",
+    "description": "10 Minuten Dauer-Option"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 Minuten",
+    "description": "30 Minuten Dauer-Option"
+  },
+  "oneHourOption": {
+    "message": "1 Stunde",
+    "description": "1 Stunde Dauer-Option"
+  },
+  "noLimitOption": {
+    "message": "Keine Begrenzung",
+    "description": "Keine Begrenzung Dauer-Option"
+  },
+  "sessionMetadataLabel": {
+    "message": "Sitzungsmetadaten (JSON)",
+    "description": "Sitzungsmetadaten-Abschnittstitel"
+  },
+  "sessionMetadataHelper": {
+    "message": "Hier definierte Schlüssel/Wert-Paare werden zu jedem HTTP-Upload hinzugefügt und einmal über WebSocket als Metadaten-Payload gesendet.",
+    "description": "Sitzungsmetadaten-Hilfetext"
+  },
+  "startRecordingButton": {
+    "message": "Aufnahme starten",
+    "description": "Aufnahme starten-Button-Text"
+  },
+  "stopRecordingButton": {
+    "message": "Aufnahme stoppen",
+    "description": "Aufnahme stoppen-Button-Text"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "Hintergrund-Audio-Streaming aktivieren",
+    "description": "Hintergrund-Audio-Streaming aktivieren-Checkbox-Label"
+  },
+  "activeStatus": {
+    "message": "AKTIV",
+    "description": "Aktiv-Status-Badge"
+  },
+  "backgroundStreamingDescription": {
+    "message": "Wenn aktiviert, wird Audio kontinuierlich erfasst und an konfigurierte API-Server gestreamt, auch wenn dieses Popup geschlossen ist.",
+    "description": "Hintergrund-Streaming-Beschreibungstext"
+  },
+  "defaultServerName": {
+    "message": "Server $INDEX$",
+    "description": "Standard-Servername mit Index",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "Sitzungsmetadaten-JSON ungültig: $ERROR$",
+    "description": "Ungültiger JSON-Fehler-Nachricht",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Unerwartetes Token"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "Aufnahme konnte nicht gestartet werden: $ERROR$",
+    "description": "Aufnahme starten-Fehlermeldung",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Keine Mikrofonberechtigung"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "Fehler beim Starten der Aufnahme: $ERROR$",
+    "description": "Allgemeine Aufnahme-Fehlermeldung",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Unbekannter Fehler"
+      }
+    }
   }
 }

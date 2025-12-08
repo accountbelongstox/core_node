@@ -17,6 +17,7 @@ interface AudioConfig {
     chunkInterval: number;
     enabled: boolean;
   }>;
+  sessionMetadata?: Record<string, string | number | boolean>;
 }
 
 interface AudioStatus {
@@ -34,6 +35,26 @@ let currentRecordingStatus: AudioStatus = {
 
 // Track background streaming state
 let backgroundStreamingEnabled = false;
+
+type ApiServerConfig = {
+  id: string;
+  name: string;
+  url: string;
+  authToken?: string;
+  streamingMode: 'realtime' | 'chunks' | 'file';
+  chunkInterval?: number;
+  enabled?: boolean;
+};
+
+function normalizeApiServers(servers: ApiServerConfig[] = []) {
+  return servers
+    .filter((server) => server.enabled !== false)
+    .map((server) => ({
+      ...server,
+      chunkInterval: server.chunkInterval ?? 1000,
+      enabled: true,
+    }));
+}
 
 /**
  * Handle chrome_audio_start tool request
@@ -109,8 +130,9 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
     const audioConfig = storedConfig.audioRecordingConfig || {};
 
     // Merge with MCP params
+    const selectedServers = (params.apiServers?.length ? params.apiServers : audioConfig.apiServers) || [];
     const finalConfig = {
-      apiServers: audioConfig.apiServers || [],
+      apiServers: normalizeApiServers(selectedServers),
       recordingSettings: {
         includeMicrophone: params.includeMicrophone !== false,
         saveLocal: params.saveLocal || false,
@@ -119,6 +141,7 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
         maxDuration: params.maxDuration || 0,
         ...(audioConfig.recordingSettings || {}),
       },
+      sessionMetadata: params.sessionMetadata ?? audioConfig.sessionMetadata ?? {},
     };
 
     // Override with MCP params if provided
@@ -303,6 +326,7 @@ export async function handleBackgroundStreamingToggle(params: {
         maxDuration: 0, // No duration limit for background streaming
         autoStopOnSilence: false, // Don't auto-stop for background streaming
         apiServers: params.config.apiServers,
+        sessionMetadata: params.config.sessionMetadata,
       });
 
       if (result.success) {
