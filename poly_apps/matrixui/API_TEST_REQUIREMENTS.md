@@ -9,16 +9,27 @@
 ## 2. RPC 客户端使用
 
 ### 2.1 客户端库路径
+
+**源码路径** (仅供参考):
 ```
 pycore/pyutils/rpc_v2/client/unified_rpc_client.js
 ```
+
+**HTTP 访问地址** (实际使用):
+```
+http://localhost:48000/rpc/src/unified_rpc_client.js
+```
+
+**说明**: RPC v2 服务器自动将客户端库挂载到 `/rpc/src/` 路径，因此可以通过 HTTP 直接访问，无需使用相对路径。
 
 ### 2.2 基本使用方法
 
 ```javascript
 // 1. 引入客户端库
 // 在浏览器中：
-<script src="../../pycore/pyutils/rpc_v2/client/unified_rpc_client.js"></script>
+<script src="http://localhost:48000/rpc/src/unified_rpc_client.js"></script>
+// 或使用相对路径（如果在同域）：
+<script src="/rpc/src/unified_rpc_client.js"></script>
 
 // 2. 创建客户端实例
 const client = new FastAPIRpcClient('http://localhost:48000', {
@@ -328,7 +339,7 @@ const result2 = await client.call('adb.device.list', {});
   <h2>最后响应</h2>
   <pre id="response"></pre>
 
-  <script src="../../pycore/pyutils/rpc_v2/client/unified_rpc_client.js"></script>
+  <script src="/rpc/src/unified_rpc_client.js"></script>
   <script>
     let client = null;
 
