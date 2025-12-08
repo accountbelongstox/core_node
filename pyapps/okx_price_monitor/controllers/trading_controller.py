@@ -123,6 +123,8 @@ class TradingController:
         days_to_load = strategy_config.HISTORY_INIT_DAYS
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days_to_load)
+        start_ts_ms = int(start_time.timestamp() * 1000)
+        end_ts_ms = int(end_time.timestamp() * 1000)
 
         print(f"Loading {days_to_load} days of data ({start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')})")
         print("Data Flow: OKX API -> SQLite -> Redis")
@@ -132,7 +134,10 @@ class TradingController:
         failed_count = 0
 
         for i, coin_symbol in enumerate(self.coin_symbols, 1):
+            inst_id = f"{coin_symbol}-USDT"
+            existing_count = self.db_manager.count_records(coin_symbol, start_ts_ms, end_ts_ms)
             print(f"[{i}/{len(self.coin_symbols)}] Loading {coin_symbol}...", end=' ')
+            print(f"(existing rows: {existing_count})", end=' ')
 
             # Check existing data in SQLite (both oldest and latest)
             time_range = self.db_manager.get_time_range(coin_symbol)
@@ -142,12 +147,12 @@ class TradingController:
                 oldest_dt = datetime.fromtimestamp(oldest_ms / 1000)
                 latest_dt = datetime.fromtimestamp(latest_ms / 1000)
 
-                print(f"(DB: {oldest_dt.strftime('%m-%d')} to {latest_dt.strftime('%m-%d')})", end=' ')
+                print(f"(DB window: {oldest_dt.strftime('%m-%d %H:%M')} to {latest_dt.strftime('%m-%d %H:%M')})", end=' ')
 
                 # Check for duplicates and deduplicate if needed
                 dup_count = self.db_manager.check_duplicates(coin_symbol)
                 if dup_count > 0:
-                    print(f"[Dedup: {dup_count}]", end=' ')
+                    print(f"[Dedup before load: {dup_count}]", end=' ')
                     self.db_manager.deduplicate_coin_data(coin_symbol)
 
                 # Check if data is complete and up-to-date
@@ -157,8 +162,8 @@ class TradingController:
                 if has_enough_history and is_up_to_date:
                     # Data is complete and recent, just load to Redis
                     print("[Up-to-date] Loading to Redis...", end=' ')
-                    self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
-                    print("[OK]")
+                    loaded_rows = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
+                    print(f"[OK] rows={loaded_rows}")
                     loaded_count += 1
                     continue
 
@@ -172,20 +177,17 @@ class TradingController:
                     gap_start = latest_dt
                     gap_end = end_time
                     print(f"[Gap: {gap_start.strftime('%m-%d %H:%M')} to {gap_end.strftime('%m-%d %H:%M')}]", end=' ')
-                    inst_id = f"{coin_symbol}-USDT"
                     candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
                 else:
                     # Only need older historical data
                     gap_start = start_time
                     gap_end = oldest_dt
                     print(f"[Gap: {gap_start.strftime('%m-%d')} to {gap_end.strftime('%m-%d')}]", end=' ')
-                    inst_id = f"{coin_symbol}-USDT"
                     candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
 
             else:
                 # No existing data, fetch full range
                 print("[New]", end=' ')
-                inst_id = f"{coin_symbol}-USDT"
                 candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
 
             # Process fetched data
@@ -197,11 +199,12 @@ class TradingController:
             # Save to SQLite (INSERT OR REPLACE handles duplicates)
             for candle in candles_data:
                 self.db_manager.insert_historical_candle(coin_symbol, candle)
+            fetched_count = len(candles_data)
 
             # Load all data to Redis (including existing + new)
-            self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
+            redis_loaded = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
 
-            print(f"[OK] +{len(candles_data)} candles")
+            print(f"[OK] fetched={fetched_count} loaded_to_redis={redis_loaded}")
             loaded_count += 1
 
             # Rate limiting
@@ -407,6 +410,8 @@ class TradingController:
                 'source': record['source'],
             }
             self.redis_manager.append_price_history(coin_symbol, price_data)
+
+        return len(records)
 
     def start_workers(self):
         """
