@@ -20,6 +20,55 @@ source "$DD_HELPER_DIR/constants.sh"
 
 # Build full path from constants
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
+BFG_CLEANUP_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/scripts/git/cleanup_repo_with_bfg.sh"
+GIT_TIME_TRAVEL_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/scripts/git/git_time_travel.sh"
+
+# Git Management Submenu
+show_git_management_menu() {
+    while true; do
+        clear
+        echo ""
+        echo -e "\033[36m==================== Git Management ====================\033[0m"
+        echo "  1. Get the latest git version (backup + commit + pull)"
+        echo "  2. Cleanup Git repository with BFG (remove large files)"
+        echo "  3. Git time travel"
+        echo "  4. Back to main menu"
+        echo -e "\033[36m========================================================\033[0m"
+        read -p "Select an option (1-4): " choice
+
+        case "$choice" in
+            1)
+                get_git
+                read -p "Press Enter to return to Git Management menu..."
+                ;;
+            2)
+                echo "Launching BFG Repo-Cleaner..."
+                if [ -f "$BFG_CLEANUP_SCRIPT_PATH" ]; then
+                    bash "$BFG_CLEANUP_SCRIPT_PATH"
+                else
+                    echo -e "\033[31mError: BFG cleanup script not found at $BFG_CLEANUP_SCRIPT_PATH\033[0m"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                echo "Launching Git Time Travel..."
+                if [ -f "$GIT_TIME_TRAVEL_SCRIPT_PATH" ]; then
+                    bash "$GIT_TIME_TRAVEL_SCRIPT_PATH"
+                else
+                    echo -e "\033[33mWarning: Git time travel script not found at $GIT_TIME_TRAVEL_SCRIPT_PATH\033[0m"
+                fi
+                read -p "Press Enter to return to Git Management menu..."
+                ;;
+            4)
+                return 0
+                ;;
+            *)
+                echo -e "\033[31mInvalid option. Please try again.\033[0m"
+                sleep 1
+                ;;
+        esac
+    done
+}
 
 # Git Functions
 get_git() {
