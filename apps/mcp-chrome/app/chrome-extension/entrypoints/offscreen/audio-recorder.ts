@@ -27,6 +27,7 @@ let recordingConfig: {
     silenceDuration: number;
     maxDuration: number;
   };
+  sessionMetadata?: Record<string, string | number | boolean>;
 } | null = null;
 
 // Recording state
@@ -284,6 +285,9 @@ async function connectWebSockets() {
         if (server.authToken) {
           ws.send(JSON.stringify({ type: 'auth', token: server.authToken }));
         }
+        if (recordingConfig?.sessionMetadata && Object.keys(recordingConfig.sessionMetadata).length > 0) {
+          ws.send(JSON.stringify({ type: 'metadata', data: recordingConfig.sessionMetadata }));
+        }
       };
 
       ws.onerror = (error) => {
@@ -319,6 +323,12 @@ async function sendViaHttp(server: any, chunk: Blob, isFinalFile: boolean) {
   formData.append('chunkIndex', recordingState.chunkCount.toString());
   formData.append('timestamp', Date.now().toString());
   formData.append('isFinal', isFinalFile.toString());
+  if (recordingConfig?.sessionMetadata) {
+    for (const [key, value] of Object.entries(recordingConfig.sessionMetadata)) {
+      if (value === undefined || value === null) continue;
+      formData.append(key, String(value));
+    }
+  }
 
   const headers: any = {};
   if (server.authToken) {

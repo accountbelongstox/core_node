@@ -1,7 +1,7 @@
 <template>
   <div class="audio-panel-container">
     <div class="panel-header">
-      <h3 class="panel-title">Audio Recording</h3>
+      <h3 class="panel-title">{{ getMessage('audioRecordingLabel') }}</h3>
       <button class="collapse-button" @click="collapsed = !collapsed">
         {{ collapsed ? '▼' : '▲' }}
       </button>
@@ -11,7 +11,7 @@
       <!-- Recording Status -->
       <div class="status-section">
         <div class="status-row">
-          <span class="status-label">Recording Status:</span>
+          <span class="status-label">{{ getMessage('recordingStatusLabel') }}</span>
           <div class="status-indicator">
             <span :class="['status-dot', getRecordingStatusClass()]"></span>
             <span class="status-text">{{ getRecordingStatusText() }}</span>
@@ -19,11 +19,11 @@
         </div>
         <div v-if="recordingInfo.isRecording" class="recording-info">
           <div class="info-row">
-            <span class="info-label">Duration:</span>
+            <span class="info-label">{{ getMessage('durationLabel') }}</span>
             <span class="info-value">{{ formatDuration(recordingInfo.duration) }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Chunk Count:</span>
+            <span class="info-label">{{ getMessage('chunkCountLabel') }}</span>
             <span class="info-value">{{ recordingInfo.chunkCount }}</span>
           </div>
         </div>
@@ -31,7 +31,7 @@
 
       <!-- API Server Configuration -->
       <div class="config-section">
-        <h4 class="section-title">API Server Configuration</h4>
+        <h4 class="section-title">{{ getMessage('apiServerConfigLabel') }}</h4>
 
         <div class="server-list">
           <div
@@ -49,7 +49,7 @@
               <input
                 v-model="server.name"
                 @blur="saveConfig"
-                placeholder="Server Name"
+                :placeholder="getMessage('serverNamePlaceholder')"
                 class="server-name-input"
               />
               <button @click="removeServer(index)" class="remove-button">
@@ -59,41 +59,41 @@
 
             <div v-if="server.enabled" class="server-config">
               <div class="config-row">
-                <label class="config-label">URL:</label>
+                <label class="config-label">{{ getMessage('urlLabel') }}</label>
                 <input
                   v-model="server.url"
                   @blur="saveConfig"
-                  placeholder="http://localhost:8080"
+                  :placeholder="getMessage('urlPlaceholder')"
                   class="config-input"
                 />
               </div>
 
               <div class="config-row">
-                <label class="config-label">Auth Token:</label>
+                <label class="config-label">{{ getMessage('authTokenLabel') }}</label>
                 <input
                   v-model="server.authToken"
                   @blur="saveConfig"
                   type="password"
-                  placeholder="Optional"
+                  :placeholder="getMessage('optionalPlaceholder')"
                   class="config-input"
                 />
               </div>
 
               <div class="config-row">
-                <label class="config-label">Streaming Mode:</label>
+                <label class="config-label">{{ getMessage('streamingModeLabel') }}</label>
                 <select
                   v-model="server.streamingMode"
                   @change="saveConfig"
                   class="config-select"
                 >
-                  <option value="realtime">Realtime (WebSocket)</option>
-                  <option value="chunks">Chunked Upload (HTTP)</option>
-                  <option value="file">Complete File Upload</option>
+                  <option value="realtime">{{ getMessage('realtimeWebsocketOption') }}</option>
+                  <option value="chunks">{{ getMessage('chunkedUploadOption') }}</option>
+                  <option value="file">{{ getMessage('completeFileUploadOption') }}</option>
                 </select>
               </div>
 
               <div v-if="server.streamingMode === 'chunks'" class="config-row">
-                <label class="config-label">Chunk Interval (ms):</label>
+                <label class="config-label">{{ getMessage('chunkIntervalLabel') }}</label>
                 <input
                   v-model.number="server.chunkInterval"
                   @blur="saveConfig"
@@ -108,13 +108,13 @@
         </div>
 
         <button @click="addServer" class="add-server-button">
-          + Add API Server
+          {{ getMessage('addApiServerButton') }}
         </button>
       </div>
 
       <!-- Recording Settings -->
       <div class="config-section">
-        <h4 class="section-title">Recording Settings</h4>
+        <h4 class="section-title">{{ getMessage('recordingSettingsLabel') }}</h4>
 
         <div class="setting-row">
           <label class="setting-label">
@@ -123,7 +123,7 @@
               v-model="recordingSettings.includeMicrophone"
               @change="saveConfig"
             />
-            Include Microphone
+            {{ getMessage('includeMicrophoneLabel') }}
           </label>
         </div>
 
@@ -134,7 +134,7 @@
               v-model="recordingSettings.saveLocal"
               @change="saveConfig"
             />
-            Save Recording Locally
+            {{ getMessage('saveLocallyLabel') }}
           </label>
         </div>
 
@@ -145,12 +145,12 @@
               v-model="recordingSettings.enableAutoStop"
               @change="saveConfig"
             />
-            Auto-stop on Silence
+            {{ getMessage('autoStopSilenceLabel') }}
           </label>
         </div>
 
         <div v-if="recordingSettings.enableAutoStop" class="setting-sub">
-          <label class="config-label">Silence Duration (seconds):</label>
+          <label class="config-label">{{ getMessage('silenceDurationLabel') }}</label>
           <input
             v-model.number="recordingSettings.silenceDuration"
             @blur="saveConfig"
@@ -162,20 +162,38 @@
         </div>
 
         <div class="setting-row">
-          <label class="config-label">Max Recording Duration:</label>
+          <label class="config-label">{{ getMessage('maxDurationLabel') }}</label>
           <select
             v-model.number="recordingSettings.maxDuration"
             @change="saveConfig"
             class="config-select"
           >
-            <option :value="60">1 Minute</option>
-            <option :value="300">5 Minutes</option>
-            <option :value="600">10 Minutes</option>
-            <option :value="1800">30 Minutes</option>
-            <option :value="3600">1 Hour</option>
-            <option :value="0">No Limit</option>
+            <option :value="60">{{ getMessage('oneMinuteOption') }}</option>
+            <option :value="300">{{ getMessage('fiveMinutesOption') }}</option>
+            <option :value="600">{{ getMessage('tenMinutesOption') }}</option>
+            <option :value="1800">{{ getMessage('thirtyMinutesOption') }}</option>
+            <option :value="3600">{{ getMessage('oneHourOption') }}</option>
+            <option :value="0">{{ getMessage('noLimitOption') }}</option>
           </select>
         </div>
+      </div>
+
+      <!-- Session Metadata -->
+      <div class="config-section">
+        <h4 class="section-title">{{ getMessage('sessionMetadataLabel') }}</h4>
+        <textarea
+          v-model="sessionMetadataText"
+          @blur="saveConfig"
+          class="metadata-textarea"
+          placeholder='{"word":"example","type":"word","source":"chrome_extension"}'
+          rows="4"
+        ></textarea>
+        <p class="metadata-helper">
+          {{ getMessage('sessionMetadataHelper') }}
+        </p>
+        <p v-if="sessionMetadataError" class="metadata-error">
+          {{ sessionMetadataError }}
+        </p>
       </div>
 
       <!-- Quick Actions -->
@@ -185,14 +203,14 @@
           :disabled="recordingInfo.isRecording"
           class="action-button primary"
         >
-          🎙️ Start Recording
+          🎙️ {{ getMessage('startRecordingButton') }}
         </button>
         <button
           @click="stopRecording"
           :disabled="!recordingInfo.isRecording"
           class="action-button danger"
         >
-          ⏹️ Stop Recording
+          ⏹️ {{ getMessage('stopRecordingButton') }}
         </button>
       </div>
 
@@ -205,15 +223,14 @@
               v-model="backgroundStreaming.enabled"
               @change="toggleBackgroundStreaming"
             />
-            Enable Background Audio Streaming
+            {{ getMessage('enableBackgroundStreamingLabel') }}
           </label>
           <span v-if="backgroundStreaming.enabled" class="streaming-badge">
-            ACTIVE
+            {{ getMessage('activeStatus') }}
           </span>
         </div>
         <p class="background-description">
-          When enabled, audio will be continuously captured and streamed to configured API servers,
-          even when this popup is closed.
+          {{ getMessage('backgroundStreamingDescription') }}
         </p>
       </div>
     </div>
@@ -222,6 +239,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
+import { getMessage } from '../../../utils/i18n';
 
 interface ApiServer {
   id: string;
@@ -252,6 +270,9 @@ interface BackgroundStreaming {
 }
 
 const collapsed = ref(false);
+const sessionMetadataText = ref('');
+const sessionMetadata = ref<Record<string, any>>({});
+const sessionMetadataError = ref('');
 const apiServers = ref<ApiServer[]>([]);
 const recordingSettings = ref<RecordingSettings>({
   includeMicrophone: true,
@@ -271,12 +292,38 @@ const backgroundStreaming = ref<BackgroundStreaming>({
   enabled: false,
 });
 
+const updateSessionMetadata = (alertOnError = false) => {
+  const raw = sessionMetadataText.value.trim();
+  if (!raw) {
+    sessionMetadata.value = {};
+    sessionMetadataError.value = '';
+    return true;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Metadata must be a JSON object');
+    }
+    sessionMetadata.value = parsed;
+    sessionMetadataError.value = '';
+    return true;
+  } catch (error: any) {
+    const message = error?.message || 'Invalid JSON';
+    sessionMetadataError.value = message;
+    if (alertOnError) {
+      alert(getMessage('invalidJsonError', [message]));
+    }
+    return false;
+  }
+};
+
 const getRecordingStatusClass = () => {
   return recordingInfo.value.isRecording ? 'recording' : 'idle';
 };
 
 const getRecordingStatusText = () => {
-  return recordingInfo.value.isRecording ? 'Recording' : 'Idle';
+  return recordingInfo.value.isRecording ? getMessage('recordingStatus') : getMessage('idleStatus');
 };
 
 const formatDuration = (seconds: number) => {
@@ -288,7 +335,7 @@ const formatDuration = (seconds: number) => {
 const addServer = () => {
   const newServer: ApiServer = {
     id: `server_${Date.now()}`,
-    name: `Server ${apiServers.value.length + 1}`,
+    name: getMessage('defaultServerName', [(apiServers.value.length + 1).toString()]),
     url: '',
     authToken: '',
     streamingMode: 'realtime',
@@ -311,10 +358,13 @@ const toggleServer = (index: number) => {
 
 const saveConfig = async () => {
   try {
+    updateSessionMetadata(false);
     const config = {
       apiServers: apiServers.value,
       recordingSettings: recordingSettings.value,
       backgroundStreaming: backgroundStreaming.value,
+      sessionMetadata: sessionMetadata.value,
+      sessionMetadataText: sessionMetadataText.value,
     };
     await chrome.storage.local.set({ audioRecordingConfig: config });
     console.log('Audio recording config saved');
@@ -331,6 +381,11 @@ const loadConfig = async () => {
       apiServers.value = config.apiServers || [];
       recordingSettings.value = config.recordingSettings || recordingSettings.value;
       backgroundStreaming.value = config.backgroundStreaming || backgroundStreaming.value;
+      sessionMetadata.value = config.sessionMetadata || {};
+      sessionMetadataText.value =
+        config.sessionMetadataText ||
+        (Object.keys(sessionMetadata.value).length ? JSON.stringify(sessionMetadata.value, null, 2) : '');
+      sessionMetadataError.value = '';
     }
   } catch (error) {
     console.error('Failed to load audio recording config:', error);
@@ -339,11 +394,17 @@ const loadConfig = async () => {
 
 const startRecording = async () => {
   try {
+    const metadataValid = updateSessionMetadata(true);
+    if (!metadataValid) {
+      return;
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: 'audio_start_recording',
       config: {
         apiServers: apiServers.value.filter(s => s.enabled),
         recordingSettings: recordingSettings.value,
+        sessionMetadata: sessionMetadata.value,
       },
     });
 
@@ -352,11 +413,11 @@ const startRecording = async () => {
       startDurationTimer();
     } else {
       console.error('Failed to start recording:', response?.error);
-      alert('Failed to start recording: ' + (response?.error || 'Unknown error'));
+      alert(getMessage('startRecordingError', [response?.error || 'Unknown error']));
     }
   } catch (error) {
     console.error('Error starting recording:', error);
-    alert('Error starting recording: ' + error);
+    alert(getMessage('recordingGeneralError', [String(error)]));
   }
 };
 
@@ -381,6 +442,11 @@ const stopRecording = async () => {
 
 const toggleBackgroundStreaming = async () => {
   try {
+    if (backgroundStreaming.value.enabled && !updateSessionMetadata(true)) {
+      backgroundStreaming.value.enabled = false;
+      return;
+    }
+
     await saveConfig();
 
     const response = await chrome.runtime.sendMessage({
@@ -389,6 +455,7 @@ const toggleBackgroundStreaming = async () => {
       config: {
         apiServers: apiServers.value.filter(s => s.enabled),
         recordingSettings: recordingSettings.value,
+        sessionMetadata: sessionMetadata.value,
       },
     });
 
@@ -765,6 +832,29 @@ onMounted(async () => {
   border: 1px solid #fde68a;
   border-radius: 8px;
   padding: 16px;
+}
+
+.metadata-textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  resize: vertical;
+}
+
+.metadata-helper {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metadata-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .background-header {

@@ -544,4 +544,71 @@ await callTool('chrome_bookmark_add', {
 });
 ```
 
+---
+
+## 🔊 音频录制
+
+### `chrome_audio_start`
+
+开始从当前标签页录音，并可选叠加麦克风输入。
+
+**参数**：
+
+- `tabId`（可选，number）：目标标签页，不填默认使用当前活动页
+- `includeMicrophone`（可选，boolean，默认 true）：是否录制麦克风
+- `saveLocal`（可选，boolean，默认 false）：录制结束后自动下载 WebM
+- `maxDuration`（可选，number，秒，默认 0 表示无限制）
+- `autoStopOnSilence`（可选，boolean，默认 false）：在静音后自动停止
+- `silenceDuration`（可选，number，秒，默认 30）
+- `apiServers`（可选，array）：覆盖弹窗中保存的服务器列表。每项包含：
+  - `id`、`name`、`url`、`streamingMode`（`realtime`/`chunks`/`file`）
+  - `authToken`（可选）：作为 `Authorization: Bearer xxx` 发送
+  - `chunkInterval`（可选，ms，默认 1000），仅对 `chunks` 模式生效
+  - `enabled`（可选，默认 true）
+- `sessionMetadata`（可选，object）：自定义键值对，会追加到每一次 HTTP 上传并在 WebSocket 开始时以 `{ type: 'metadata', data: {...} }` 发送
+
+**示例（Laravel AppQyV1 上传）**：
+
+```jsonc
+{
+  "apiServers": [
+    {
+      "id": "qyappv1",
+      "name": "Laravel Upload",
+      "url": "https://dict.local/api/dict/v1/word/serendipity/audio",
+      "authToken": "YOUR_TOKEN",
+      "streamingMode": "file",
+      "enabled": true
+    }
+  ],
+  "includeMicrophone": true,
+  "sessionMetadata": {
+    "word": "serendipity",
+    "type": "word",
+    "quality": "high",
+    "source": "chrome_extension"
+  }
+}
+```
+
+### `chrome_audio_stop`
+
+停止当前录音会话。
+
+- `returnData`（可选，boolean，默认 false）：为 true 时返回 `{ finalDuration, totalChunks }`
+
+### `chrome_audio_status`
+
+获取录音状态（是否录音、持续时间、chunk 数、后台推流状态）。
+
+### `chrome_audio_duration`
+
+仅返回录音持续时间。
+
+**上传说明**
+
+- 每次 HTTP 请求都会自动附带 `audio`、`chunkIndex`、`timestamp`、`isFinal` 以及 `sessionMetadata` 中的所有字段。
+- `streamingMode: 'chunks'` 会按照 `chunkInterval` 间隔上传小块，`streamingMode: 'file'` 会在结束时上传整体文件。
+- WebSocket 模式会在推送音频数据前发送一次 metadata JSON。
+
 此 API 提供全面的浏览器自动化功能，具有 AI 增强的内容分析和语义搜索特性。
