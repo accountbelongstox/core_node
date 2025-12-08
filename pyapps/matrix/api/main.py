@@ -356,14 +356,14 @@ def _register_device_routes(rpc_server):
         for device_info in all_devices:
             devices_list.append({
                 "serial": device_info.serial,
-                "ip": device_info.ip,
-                "connection_type": device_info.connection_type.value,
+                "ip": device_info.ip_address,
+                "connection_type": device_info.device_type.value,
                 "state": device_info.state.value,
                 "is_root": device_info.is_root,
                 "model": device_info.model,
                 "android_version": device_info.android_version,
                 "last_seen": device_info.last_seen,
-                "connected_at": device_info.connected_at,
+                "connected_at": device_info.first_seen,
             })
 
         stats = device_table.get_stats()
@@ -785,6 +785,104 @@ def _register_group_routes(rpc_server):
     rpc_server.route('group.batch_screen_control', batch_screen_control, sync=False, description='Batch screen control')
     rpc_server.route('group.tree', get_tree, sync=True, description='Get group tree')
     rpc_server.route('group.tree_update', update_tree, sync=True, description='Update group tree')
+
+    # Group management and sync routes
+    async def create_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Create a new device group with master"""
+        group_id = data.get('groupId')
+        host_serial = data.get('hostSerial')
+
+        if not group_id or not host_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and hostSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.create_group(group_id=group_id, host_serial=host_serial)
+
+        if not success:
+            return {'error': {'code': 'CREATE_GROUP_FAILED', 'message': 'Failed to create group'}}
+
+        return {"success": True, "groupId": group_id, "hostSerial": host_serial}
+
+    async def add_slave_to_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Add slave device to group"""
+        group_id = data.get('groupId')
+        slave_serial = data.get('slaveSerial')
+
+        if not group_id or not slave_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and slaveSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.add_slave(group_id=group_id, slave_serial=slave_serial)
+
+        if not success:
+            return {'error': {'code': 'ADD_SLAVE_FAILED', 'message': 'Failed to add slave to group'}}
+
+        return {"success": True, "groupId": group_id, "slaveSerial": slave_serial}
+
+    async def remove_slave_from_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Remove slave device from group"""
+        group_id = data.get('groupId')
+        slave_serial = data.get('slaveSerial')
+
+        if not group_id or not slave_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and slaveSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.remove_slave(group_id=group_id, slave_serial=slave_serial)
+
+        if not success:
+            return {'error': {'code': 'REMOVE_SLAVE_FAILED', 'message': 'Failed to remove slave from group'}}
+
+        return {"success": True, "groupId": group_id, "slaveSerial": slave_serial}
+
+    async def enable_sync(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Enable Host/Slave input synchronization for a group"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.enable_group(group_id=group_id)
+
+        if not success:
+            return {'error': {'code': 'ENABLE_SYNC_FAILED', 'message': 'Failed to enable sync'}}
+
+        return {"success": True, "groupId": group_id, "syncEnabled": True}
+
+    async def disable_sync(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Disable Host/Slave input synchronization for a group"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.disable_group(group_id=group_id)
+
+        if not success:
+            return {'error': {'code': 'DISABLE_SYNC_FAILED', 'message': 'Failed to disable sync'}}
+
+        return {"success": True, "groupId": group_id, "syncEnabled": False}
+
+    async def get_group_state(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get group state including master, slaves, and sync status"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        state = await group_service.get_state(group_id=group_id)
+
+        return {"success": True, **state}
+
+    rpc_server.route('group.create', create_group, sync=True, description='Create device group')
+    rpc_server.route('group.add_slave', add_slave_to_group, sync=True, description='Add slave to group')
+    rpc_server.route('group.remove_slave', remove_slave_from_group, sync=True, description='Remove slave from group')
+    rpc_server.route('group.enable_sync', enable_sync, sync=True, description='Enable input synchronization')
+    rpc_server.route('group.disable_sync', disable_sync, sync=True, description='Disable input synchronization')
+    rpc_server.route('group.get_state', get_group_state, sync=True, description='Get group state')
 
 
 # ============================================================
