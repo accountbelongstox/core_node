@@ -26,6 +26,11 @@ from pyapps.matrix.adb_device_manager import ADBHeartbeatThread
 _adb_heartbeat_thread = None
 
 
+def get_adb_heartbeat_thread():
+    """Get the global ADB heartbeat thread instance"""
+    return _adb_heartbeat_thread
+
+
 def matrix_main_entry():
     """
     Matrix main entry point (called after native_ui initialization)
