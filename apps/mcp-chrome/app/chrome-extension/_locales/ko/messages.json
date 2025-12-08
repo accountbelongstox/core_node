@@ -442,5 +442,193 @@
   "pagesUnit": {
     "message": "페이지",
     "description": "페이지 수 단위"
+  },
+  "audioRecordingLabel": {
+    "message": "오디오 녹음",
+    "description": "오디오 녹음 패널 제목"
+  },
+  "recordingStatusLabel": {
+    "message": "녹음 상태:",
+    "description": "녹음 상태 레이블"
+  },
+  "recordingStatus": {
+    "message": "녹음 중",
+    "description": "녹음 활성 상태"
+  },
+  "idleStatus": {
+    "message": "대기",
+    "description": "녹음 대기 상태"
+  },
+  "durationLabel": {
+    "message": "재생 시간:",
+    "description": "녹음 재생 시간 레이블"
+  },
+  "chunkCountLabel": {
+    "message": "청크 수:",
+    "description": "녹음 청크 수 레이블"
+  },
+  "apiServerConfigLabel": {
+    "message": "API 서버 구성",
+    "description": "API 서버 구성 섹션 제목"
+  },
+  "serverNamePlaceholder": {
+    "message": "서버 이름",
+    "description": "서버 이름 입력 플레이스홀더"
+  },
+  "urlLabel": {
+    "message": "URL:",
+    "description": "URL 입력 레이블"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL 입력 플레이스홀더"
+  },
+  "authTokenLabel": {
+    "message": "인증 토큰:",
+    "description": "인증 토큰 입력 레이블"
+  },
+  "optionalPlaceholder": {
+    "message": "선택 사항",
+    "description": "선택 필드 플레이스홀더"
+  },
+  "streamingModeLabel": {
+    "message": "스트리밍 모드:",
+    "description": "스트리밍 모드 선택 레이블"
+  },
+  "realtimeWebsocketOption": {
+    "message": "실시간 (WebSocket)",
+    "description": "실시간 WebSocket 스트리밍 옵션"
+  },
+  "chunkedUploadOption": {
+    "message": "청크 업로드 (HTTP)",
+    "description": "청크 HTTP 업로드 옵션"
+  },
+  "completeFileUploadOption": {
+    "message": "전체 파일 업로드",
+    "description": "전체 파일 업로드 옵션"
+  },
+  "chunkIntervalLabel": {
+    "message": "청크 간격 (ms):",
+    "description": "청크 간격 입력 레이블"
+  },
+  "addApiServerButton": {
+    "message": "+ API 서버 추가",
+    "description": "API 서버 추가 버튼 텍스트"
+  },
+  "recordingSettingsLabel": {
+    "message": "녹음 설정",
+    "description": "녹음 설정 섹션 제목"
+  },
+  "includeMicrophoneLabel": {
+    "message": "마이크 포함",
+    "description": "마이크 포함 체크박스 레이블"
+  },
+  "saveLocallyLabel": {
+    "message": "로컬에 녹음 저장",
+    "description": "로컬에 녹음 저장 체크박스 레이블"
+  },
+  "autoStopSilenceLabel": {
+    "message": "무음 시 자동 정지",
+    "description": "무음 시 자동 정지 체크박스 레이블"
+  },
+  "silenceDurationLabel": {
+    "message": "무음 지속 시간 (초):",
+    "description": "무음 지속 시간 입력 레이블"
+  },
+  "maxDurationLabel": {
+    "message": "최대 녹음 시간:",
+    "description": "최대 녹음 시간 선택 레이블"
+  },
+  "oneMinuteOption": {
+    "message": "1분",
+    "description": "1분 지속 시간 옵션"
+  },
+  "fiveMinutesOption": {
+    "message": "5분",
+    "description": "5분 지속 시간 옵션"
+  },
+  "tenMinutesOption": {
+    "message": "10분",
+    "description": "10분 지속 시간 옵션"
+  },
+  "thirtyMinutesOption": {
+    "message": "30분",
+    "description": "30분 지속 시간 옵션"
+  },
+  "oneHourOption": {
+    "message": "1시간",
+    "description": "1시간 지속 시간 옵션"
+  },
+  "noLimitOption": {
+    "message": "제한 없음",
+    "description": "제한 없음 지속 시간 옵션"
+  },
+  "sessionMetadataLabel": {
+    "message": "세션 메타데이터 (JSON)",
+    "description": "세션 메타데이터 섹션 제목"
+  },
+  "sessionMetadataHelper": {
+    "message": "여기에 정의된 키/값 쌍은 각 HTTP 업로드에 추가되고 WebSocket을 통해 메타데이터 페이로드로 한 번 전송됩니다.",
+    "description": "세션 메타데이터 도움말 텍스트"
+  },
+  "startRecordingButton": {
+    "message": "녹음 시작",
+    "description": "녹음 시작 버튼 텍스트"
+  },
+  "stopRecordingButton": {
+    "message": "녹음 정지",
+    "description": "녹음 정지 버튼 텍스트"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "백그라운드 오디오 스트리밍 활성화",
+    "description": "백그라운드 오디오 스트리밍 활성화 체크박스 레이블"
+  },
+  "activeStatus": {
+    "message": "활성",
+    "description": "활성 상태 배지"
+  },
+  "backgroundStreamingDescription": {
+    "message": "활성화하면 이 팝업이 닫혀 있어도 오디오가 계속 캡처되고 구성된 API 서버로 스트리밍됩니다.",
+    "description": "백그라운드 스트리밍 설명 텍스트"
+  },
+  "defaultServerName": {
+    "message": "서버 $INDEX$",
+    "description": "인덱스가 포함된 기본 서버 이름",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "세션 메타데이터 JSON이 유효하지 않습니다: $ERROR$",
+    "description": "잘못된 JSON 오류 메시지",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "예상치 못한 토큰"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "녹음 시작 실패: $ERROR$",
+    "description": "녹음 시작 오류 메시지",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "마이크 권한 없음"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "녹음 시작 중 오류 발생: $ERROR$",
+    "description": "일반 녹음 오류 메시지",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "알 수 없는 오류"
+      }
+    }
   }
 }

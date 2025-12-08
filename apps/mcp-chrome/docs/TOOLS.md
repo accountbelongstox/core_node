@@ -544,4 +544,73 @@ await callTool('chrome_bookmark_add', {
 });
 ```
 
+---
+
+## 🔊 Audio Recording
+
+### `chrome_audio_start`
+
+Start recording audio from the current tab and optionally mix in the microphone.
+
+**Parameters**:
+
+- `tabId` (number, optional): Explicit target tab. Defaults to the active tab.
+- `includeMicrophone` (boolean, optional, default: true)
+- `saveLocal` (boolean, optional, default: false): Download WebM locally when finished
+- `maxDuration` (number, optional, seconds, default: 0 for unlimited)
+- `autoStopOnSilence` (boolean, optional, default: false)
+- `silenceDuration` (number, optional, seconds, default: 30)
+- `apiServers` (array, optional): Override the popup configuration. Fields per server:
+  - `id`, `name`, `url`, `streamingMode` (`'realtime' | 'chunks' | 'file'`)
+  - `authToken` (string, optional): Added as `Authorization: Bearer <token>`
+  - `chunkInterval` (number, ms, default: 1000) for `chunks`
+  - `enabled` (boolean, default: true)
+- `sessionMetadata` (object, optional): Arbitrary key/value pairs appended to every HTTP upload and sent once over WebSocket (`{ "type": "metadata", "data": {...} }`)
+
+**Example (Laravel AppQyV1 upload)**:
+
+```jsonc
+{
+  "apiServers": [
+    {
+      "id": "qyappv1",
+      "name": "Laravel Upload",
+      "url": "https://dict.local/api/dict/v1/word/serendipity/audio",
+      "authToken": "YOUR_TOKEN",
+      "streamingMode": "file",
+      "enabled": true
+    }
+  ],
+  "includeMicrophone": true,
+  "sessionMetadata": {
+    "word": "serendipity",
+    "type": "word",
+    "quality": "high",
+    "source": "chrome_extension"
+  }
+}
+```
+
+### `chrome_audio_stop`
+
+Stop the current recording session.
+
+**Parameters**:
+
+- `returnData` (boolean, optional, default: false): Include `{ finalDuration, totalChunks }` in the response
+
+### `chrome_audio_status`
+
+Get the current recording state (is recording, duration, chunk count, background streaming flag).
+
+### `chrome_audio_duration`
+
+Return only the elapsed recording duration.
+
+**Upload & Streaming Notes**
+
+- For HTTP uploads the extension automatically appends `audio`, `chunkIndex`, `timestamp`, `isFinal`, and all `sessionMetadata` entries.
+- `streamingMode: 'chunks'` posts incremental blobs at `chunkInterval` ms; `streamingMode: 'file'` posts a single blob when recording stops.
+- WebSocket endpoints receive a metadata JSON message before binary audio frames begin.
+
 This API provides comprehensive browser automation capabilities with AI-enhanced content analysis and semantic search features.
