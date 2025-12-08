@@ -442,5 +442,193 @@
   "pagesUnit": {
     "message": "頁面",
     "description": "頁面計數單位"
+  },
+  "audioRecordingLabel": {
+    "message": "音訊錄製",
+    "description": "音訊錄製面板標題"
+  },
+  "recordingStatusLabel": {
+    "message": "錄製狀態：",
+    "description": "錄製狀態標籤"
+  },
+  "recordingStatus": {
+    "message": "錄製中",
+    "description": "錄製活動狀態"
+  },
+  "idleStatus": {
+    "message": "閒置",
+    "description": "錄製閒置狀態"
+  },
+  "durationLabel": {
+    "message": "時長：",
+    "description": "錄製時長標籤"
+  },
+  "chunkCountLabel": {
+    "message": "區塊計數：",
+    "description": "錄製區塊計數標籤"
+  },
+  "apiServerConfigLabel": {
+    "message": "API 伺服器設定",
+    "description": "API 伺服器設定部分標題"
+  },
+  "serverNamePlaceholder": {
+    "message": "伺服器名稱",
+    "description": "伺服器名稱輸入佔位符"
+  },
+  "urlLabel": {
+    "message": "URL：",
+    "description": "URL 輸入標籤"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL 輸入佔位符"
+  },
+  "authTokenLabel": {
+    "message": "認證權杖：",
+    "description": "認證權杖輸入標籤"
+  },
+  "optionalPlaceholder": {
+    "message": "選填",
+    "description": "選填欄位佔位符"
+  },
+  "streamingModeLabel": {
+    "message": "串流模式：",
+    "description": "串流模式選擇標籤"
+  },
+  "realtimeWebsocketOption": {
+    "message": "即時 (WebSocket)",
+    "description": "即時 WebSocket 串流選項"
+  },
+  "chunkedUploadOption": {
+    "message": "分塊上傳 (HTTP)",
+    "description": "分塊 HTTP 上傳選項"
+  },
+  "completeFileUploadOption": {
+    "message": "完整檔案上傳",
+    "description": "完整檔案上傳選項"
+  },
+  "chunkIntervalLabel": {
+    "message": "區塊間隔（毫秒）：",
+    "description": "區塊間隔輸入標籤"
+  },
+  "addApiServerButton": {
+    "message": "+ 新增 API 伺服器",
+    "description": "新增 API 伺服器按鈕文字"
+  },
+  "recordingSettingsLabel": {
+    "message": "錄製設定",
+    "description": "錄製設定部分標題"
+  },
+  "includeMicrophoneLabel": {
+    "message": "包含麥克風",
+    "description": "包含麥克風核取方塊標籤"
+  },
+  "saveLocallyLabel": {
+    "message": "本地儲存錄製",
+    "description": "本地儲存錄製核取方塊標籤"
+  },
+  "autoStopSilenceLabel": {
+    "message": "靜音時自動停止",
+    "description": "靜音時自動停止核取方塊標籤"
+  },
+  "silenceDurationLabel": {
+    "message": "靜音時長（秒）：",
+    "description": "靜音時長輸入標籤"
+  },
+  "maxDurationLabel": {
+    "message": "最大錄製時長：",
+    "description": "最大錄製時長選擇標籤"
+  },
+  "oneMinuteOption": {
+    "message": "1 分鐘",
+    "description": "1 分鐘時長選項"
+  },
+  "fiveMinutesOption": {
+    "message": "5 分鐘",
+    "description": "5 分鐘時長選項"
+  },
+  "tenMinutesOption": {
+    "message": "10 分鐘",
+    "description": "10 分鐘時長選項"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 分鐘",
+    "description": "30 分鐘時長選項"
+  },
+  "oneHourOption": {
+    "message": "1 小時",
+    "description": "1 小時時長選項"
+  },
+  "noLimitOption": {
+    "message": "無限制",
+    "description": "無限制時長選項"
+  },
+  "sessionMetadataLabel": {
+    "message": "工作階段後設資料（JSON）",
+    "description": "工作階段後設資料部分標題"
+  },
+  "sessionMetadataHelper": {
+    "message": "此處定義的鍵/值對將附加到每次 HTTP 上傳，並透過 WebSocket 作為後設資料載荷傳送一次。",
+    "description": "工作階段後設資料說明文字"
+  },
+  "startRecordingButton": {
+    "message": "開始錄製",
+    "description": "開始錄製按鈕文字"
+  },
+  "stopRecordingButton": {
+    "message": "停止錄製",
+    "description": "停止錄製按鈕文字"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "啟用背景音訊串流",
+    "description": "啟用背景音訊串流核取方塊標籤"
+  },
+  "activeStatus": {
+    "message": "活動中",
+    "description": "活動狀態徽章"
+  },
+  "backgroundStreamingDescription": {
+    "message": "啟用後，即使關閉此彈出視窗，音訊也會持續擷取並串流傳輸到設定的 API 伺服器。",
+    "description": "背景串流描述文字"
+  },
+  "defaultServerName": {
+    "message": "伺服器 $INDEX$",
+    "description": "預設伺服器名稱（含索引）",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "工作階段後設資料 JSON 無效：$ERROR$",
+    "description": "無效 JSON 錯誤訊息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "意外的標記"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "啟動錄製失敗：$ERROR$",
+    "description": "啟動錄製錯誤訊息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "無麥克風權限"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "啟動錄製時發生錯誤：$ERROR$",
+    "description": "一般錄製錯誤訊息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "未知錯誤"
+      }
+    }
   }
 }
