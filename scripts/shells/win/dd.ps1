@@ -668,10 +668,11 @@ function Show-GitManagementMenu {
         Write-Host ""
         Write-ColorMessage -Message "==================== Git Management ====================" -Type "Info"
         Write-Host "  1. Get the latest git version (backup + commit + pull)"
-        Write-Host "  2. Git time travel"
-        Write-Host "  3. Back"
+        Write-Host "  2. Cleanup Git repository with BFG (remove large files)"
+        Write-Host "  3. Git time travel"
+        Write-Host "  4. Back"
         Write-ColorMessage -Message "========================================================" -Type "Info"
-        $choice = Read-Host "Select an option (1-3)"
+        $choice = Read-Host "Select an option (1-4)"
 
         switch ($choice) {
             "1" {
@@ -679,12 +680,26 @@ function Show-GitManagementMenu {
                 Read-Host "Press Enter to return to Git Management menu"
             }
             "2" {
-                $gitTimeTravelScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_time_travel.ps1"
-                Write-ColorMessage -Message "Launching Git Time Travel..." -Type "Info"
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $gitTimeTravelScript
+                $bfgCleanupScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\cleanup_repo_with_bfg.ps1"
+                Write-ColorMessage -Message "Launching BFG Repo-Cleaner..." -Type "Info"
+                if (Test-Path $bfgCleanupScript) {
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $bfgCleanupScript
+                } else {
+                    Write-ColorMessage -Message "Error: BFG cleanup script not found at $bfgCleanupScript" -Type "Error"
+                }
                 Read-Host "Press Enter to return to Git Management menu"
             }
             "3" {
+                $gitTimeTravelScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_time_travel.ps1"
+                Write-ColorMessage -Message "Launching Git Time Travel..." -Type "Info"
+                if (Test-Path $gitTimeTravelScript) {
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $gitTimeTravelScript
+                } else {
+                    Write-ColorMessage -Message "Warning: Git time travel script not found at $gitTimeTravelScript" -Type "Warning"
+                }
+                Read-Host "Press Enter to return to Git Management menu"
+            }
+            "4" {
                 return
             }
             default {
