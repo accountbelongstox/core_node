@@ -24,11 +24,17 @@ from pyapps.matrix.adb_device_manager import ADBHeartbeatThread
 
 
 _adb_heartbeat_thread = None
+_rpc_server = None  # Global RPC server instance
 
 
 def get_adb_heartbeat_thread():
     """Get the global ADB heartbeat thread instance"""
     return _adb_heartbeat_thread
+
+
+def get_rpc_server():
+    """Get the global RPC server instance"""
+    return _rpc_server
 
 
 def matrix_main_entry():
@@ -79,31 +85,16 @@ def matrix_main_entry():
         name="adb_heartbeat"
     )
 
-    ColorPrint.green("[Matrix] ADB Device Manager initialized")
+    ColorPrint.blue("[Matrix] ADB Device Manager initialized")
 
-
-def rpc_init_callback(rpc_server):
-    """
-    RPC v2 initialization callback
-
-    This function is called by pylauncher after RPC v2 server is created.
-    It registers all Matrix routes to the RPC v2 server instance.
-
-    Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
-    """
-    from pyapps.matrix.api.main import register_all_routes
+    # Initialize Device Push Service (now that ADB heartbeat is running)
     from pyapps.matrix.adb_device_manager.device_push_service import init_device_push_service, stop_device_push_service
 
-    # Register all Matrix RPC v2 routes
-    register_all_routes(rpc_server)
-
-    # Initialize device push service (broadcasts device list to WebSocket clients)
-    if _adb_heartbeat_thread:
+    if _rpc_server and _adb_heartbeat_thread:
         ColorPrint.blue("[Matrix] Starting Device Push Service...")
         device_push_service = init_device_push_service(
             adb_heartbeat_thread=_adb_heartbeat_thread,
-            rpc_server=rpc_server,
+            rpc_server=_rpc_server,
             push_interval=10.0  # Push device list every 10 seconds
         )
         ColorPrint.green(f"[Matrix] Device Push Service started (interval: 10.0s)")
@@ -120,7 +111,33 @@ def rpc_init_callback(rpc_server):
             name="device_push_service"
         )
     else:
-        ColorPrint.yellow("[Matrix] Warning: ADB heartbeat thread not available, device push service not started")
+        if not _rpc_server:
+            ColorPrint.yellow("[Matrix] Warning: RPC server not available, device push service not started")
+        elif not _adb_heartbeat_thread:
+            ColorPrint.yellow("[Matrix] Warning: ADB heartbeat not running, device push service not started")
+
+
+def rpc_init_callback(rpc_server):
+    """
+    RPC v2 initialization callback
+
+    This function is called by pylauncher after RPC v2 server is created.
+    It registers all Matrix routes to the RPC v2 server instance.
+    The Device Push Service will be initialized later in matrix_main_entry()
+    after ADB heartbeat is running.
+
+    Args:
+        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+    """
+    global _rpc_server
+
+    # Save RPC server instance for later use in matrix_main_entry
+    _rpc_server = rpc_server
+
+    from pyapps.matrix.api.main import register_all_routes
+
+    # Register all Matrix RPC v2 routes
+    register_all_routes(rpc_server)
 
 
 def start():

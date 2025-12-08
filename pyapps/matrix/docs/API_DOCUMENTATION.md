@@ -239,8 +239,8 @@ def start_rpc_v2(config):
 - `control.key` - 按键事件（自动同步到 slaves）⭐
 - `control.text` - 文本输入（自动同步到 slaves）⭐
 - `control.swipe` - 滑动手势（自动同步到 slaves）⭐
-- `control.systemkey` - 系统按键
-- `control.clipboard_set` - 设置剪贴板
+- `control.systemkey` - 系统按键（自动同步到 slaves）⭐
+- `control.clipboard_set` - 设置剪贴板（自动同步到 slaves）⭐
 - `control.clipboard_get` - 获取剪贴板
 
 ### 9. Video Stream (3)
@@ -750,6 +750,8 @@ Matrix 支持 Host/Slave 设备组管理和实时输入同步。当启用同步�
 #### `control.touch`
 发送触摸事件
 
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播，自动坐标映射）
+
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
 - `action` (string, 必需) - 动作 (down/up/move)
@@ -760,24 +762,121 @@ Matrix 支持 Host/Slave 设备组管理和实时输入同步。当启用同步�
 - `screenWidth` (int, 必需) - 屏幕宽度
 - `screenHeight` (int, 必需) - 屏幕高度
 
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-001",
+  "route": "control.touch",
+  "data": {
+    "serial": "ABC123",
+    "action": "down",
+    "x": 500,
+    "y": 1000,
+    "screenWidth": 1080,
+    "screenHeight": 1920
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-001",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2", "device3"]
+  }
+}
+```
+
+---
+
 #### `control.key`
 发送按键事件
+
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
 
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
 - `action` (string, 必需) - 动作 (down/up)
-- `keyCode` (int, 必需) - 按键码
+- `keyCode` (int, 必需) - 按键码（Android KeyEvent keycodes）
 - `metaState` (int, 可选, 默认: 0) - Meta 状态
+
+**支持的特殊按键码:**
+- `278` - KEYCODE_COPY (复制)
+- `277` - KEYCODE_CUT (剪切)
+- `279` - KEYCODE_PASTE (粘贴)
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-002",
+  "route": "control.key",
+  "data": {
+    "serial": "ABC123",
+    "action": "down",
+    "keyCode": 4
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-002",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2"]
+  }
+}
+```
+
+---
 
 #### `control.text`
 发送文本输入
 
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
+
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
-- `text` (string, 必需) - 文本内容
+- `text` (string, 必需) - 文本内容（支持 Unicode、中文、emoji）
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-003",
+  "route": "control.text",
+  "data": {
+    "serial": "ABC123",
+    "text": "Hello 世界 👋"
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-003",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2", "device3"]
+  }
+}
+```
+
+---
 
 #### `control.swipe`
 发送滑动手势
+
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播，自动坐标映射）
 
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
@@ -789,25 +888,165 @@ Matrix 支持 Host/Slave 设备组管理和实时输入同步。当启用同步�
 - `screenWidth` (int, 必需) - 屏幕宽度
 - `screenHeight` (int, 必需) - 屏幕高度
 
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-004",
+  "route": "control.swipe",
+  "data": {
+    "serial": "ABC123",
+    "startX": 500,
+    "startY": 1500,
+    "endX": 500,
+    "endY": 500,
+    "duration": 300,
+    "screenWidth": 1080,
+    "screenHeight": 1920
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-004",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2"]
+  }
+}
+```
+
+---
+
 #### `control.systemkey`
 发送系统按键
 
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
+
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
-- `action` (string, 必需) - 操作 (home/back/recent/power/volume_up/volume_down)
+- `action` (string, 必需) - 操作
+
+**支持的操作:**
+- `home` - Home 键 (KEYCODE_HOME = 3)
+- `back` - Back 键 (KEYCODE_BACK = 4)
+- `recent` - Recent/App Switch 键 (KEYCODE_APP_SWITCH = 187)
+- `menu` - Menu 键 (KEYCODE_MENU = 82) ← 新增
+- `power` - 电源键 (KEYCODE_POWER = 26)
+- `volume_up` - 音量+ (KEYCODE_VOLUME_UP = 24)
+- `volume_down` - 音量- (KEYCODE_VOLUME_DOWN = 25)
+- `notification` - 展开通知栏 (cmd statusbar expand-notifications) ← 新增
+- `notification_close` - 收起通知栏 (cmd statusbar collapse) ← 新增
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-005",
+  "route": "control.systemkey",
+  "data": {
+    "serial": "ABC123",
+    "action": "home"
+  }
+}
+```
+
+**展开通知栏示例:**
+```json
+{
+  "type": "request",
+  "id": "req-006",
+  "route": "control.systemkey",
+  "data": {
+    "serial": "ABC123",
+    "action": "notification"
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-005",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2", "device3"]
+  }
+}
+```
+
+---
 
 #### `control.clipboard_set`
 设置设备剪贴板
 
+**自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
+
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
-- `text` (string, 必需) - 剪贴板文本
+- `text` (string, 必需) - 剪贴板文本（支持 Unicode、特殊字符自动转义）
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-007",
+  "route": "control.clipboard_set",
+  "data": {
+    "serial": "ABC123",
+    "text": "Copied text with \"quotes\" and 'special' chars"
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-007",
+  "data": {
+    "success": true,
+    "broadcasted_to": ["device2"]
+  }
+}
+```
+
+---
 
 #### `control.clipboard_get`
 获取设备剪贴板
 
+**自动广播**: ⚠️ 无需广播（读取操作）
+
 **请求参数:**
 - `serial` (string, 必需) - 设备序列号
+
+**请求示例:**
+```json
+{
+  "type": "request",
+  "id": "req-008",
+  "route": "control.clipboard_get",
+  "data": {
+    "serial": "ABC123"
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "type": "response",
+  "id": "req-008",
+  "data": {
+    "text": "Current clipboard content"
+  }
+}
+```
 
 ---
 
