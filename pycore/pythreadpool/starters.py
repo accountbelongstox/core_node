@@ -119,6 +119,7 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     # Extract router and static mount configurations
     fastapi_routers = config.get('fastapi_routers', [])
     static_mounts = config.get('static_mounts', [])
+    init_callback = config.get('init_callback')  # Optional callback to register routes
 
     ColorPrint.blue(f"[rpc_v2] Starting RPC v2 Server on {host}:{port}...")
     if fastapi_routers:
@@ -136,6 +137,12 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
         static_mounts=static_mounts
     )
     instance.start()
+
+    # Call init callback if provided (for registering RPC v2 routes)
+    if init_callback and callable(init_callback):
+        ColorPrint.blue(f"[rpc_v2] Calling initialization callback...")
+        init_callback(instance.server)
+        ColorPrint.green(f"[rpc_v2] Initialization callback completed")
 
     # Register shutdown handler
     def stop_rpc_v2():
