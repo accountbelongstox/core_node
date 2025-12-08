@@ -17,8 +17,8 @@ export interface GlobalConfig {
   codec: 'h264' | 'h265' | 'av1';
   control: boolean;
   locked_video_orientation: number;
-  video_stream_mode: 'h264' | 'yuv'; // 视频流模式
-  hwaccel?: 'cuda' | 'qsv' | 'dxva2' | 'vaapi' | 'auto'; // 硬件加速
+  video_stream_mode: 'h264' | 'yuv'; // Video stream mode
+  hwaccel?: 'cuda' | 'qsv' | 'dxva2' | 'vaapi' | 'auto'; // Hardware acceleration
 }
 
 export interface DeviceConfig {
