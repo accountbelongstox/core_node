@@ -209,6 +209,7 @@ configure_npm_settings() {
         echo "Configuring pnpm global directories..."
         pnpm config set global-dir "$pnpm_global_dir"
         pnpm config set global-bin-dir "$pnpm_global_bin"
+        pnpm config set enable-pre-post-scripts true
 
         # Ensure directories exist
         mkdir -p "$pnpm_global_dir"
@@ -222,6 +223,24 @@ configure_npm_settings() {
             echo "Region is Global, using default pnpm registry..."
             pnpm config set registry https://registry.npmjs.org/
         fi
+
+        # Create or update .pnpmrc file
+        local user_home="$HOME"
+        local pnpmrc_path="$user_home/.pnpmrc"
+
+        echo "Creating/updating .pnpmrc file..."
+        if [ "$SELECTED_REGION" = "China" ]; then
+            cat > "$pnpmrc_path" <<EOF
+registry=https://repo.huaweicloud.com/repository/npm/
+enable-pre-post-scripts=true
+EOF
+        else
+            cat > "$pnpmrc_path" <<EOF
+registry=https://registry.npmjs.org/
+enable-pre-post-scripts=true
+EOF
+        fi
+        echo ".pnpmrc created at: $pnpmrc_path"
 
         echo "pnpm configuration completed:"
         pnpm config list
@@ -551,33 +570,148 @@ setup_environment() {
     return 0
 }
 
+verify_and_fix_all_configs() {
+    echo "=================================================="
+    echo "Verifying and fixing all Node.js configurations..."
+    echo "=================================================="
+
+    echo "[1/4] Checking npm configuration..."
+    if [ -f "$NODE_BIN_DIR/npm" ]; then
+        local npm_bin="$NODE_BIN_DIR/npm"
+        if [ "$SELECTED_REGION" = "China" ]; then
+            echo "Setting npm China mirrors..."
+            "$npm_bin" config set registry https://registry.npmmirror.com
+            "$npm_bin" config set disturl https://npmmirror.com/dist
+            "$npm_bin" config set electron_mirror https://npmmirror.com/mirrors/electron/
+            "$npm_bin" config set sass_binary_site https://npmmirror.com/mirrors/node-sass
+            "$npm_bin" config set phantomjs_cdnurl https://npmmirror.com/mirrors/phantomjs
+            echo "npm China mirrors configured"
+        else
+            echo "Using default npm registry (Global region)"
+        fi
+    else
+        echo "npm not found, skipping npm configuration"
+    fi
+
+    echo ""
+    echo "[2/4] Checking pnpm installation..."
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "Installing pnpm..."
+        if [ -f "$NODE_BIN_DIR/npm" ]; then
+            "$NODE_BIN_DIR/npm" install -g pnpm
+
+            # Create symlink if needed
+            local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+            if [ -f "$pnpm_path" ]; then
+                $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
+                echo "Created pnpm symlink"
+            fi
+        fi
+    else
+        echo "pnpm already installed"
+    fi
+
+    echo ""
+    echo "[3/4] Checking pnpm configuration..."
+    if command -v pnpm >/dev/null 2>&1; then
+        local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
+        local pnpm_global_bin="$pnpm_global_dir/bin"
+
+        echo "Setting pnpm global-dir: $pnpm_global_dir"
+        pnpm config set global-dir "$pnpm_global_dir"
+
+        echo "Setting pnpm global-bin-dir: $pnpm_global_bin"
+        pnpm config set global-bin-dir "$pnpm_global_bin"
+
+        echo "Setting pnpm enable-pre-post-scripts: true"
+        pnpm config set enable-pre-post-scripts true
+
+        # Ensure directories exist
+        mkdir -p "$pnpm_global_dir"
+        mkdir -p "$pnpm_global_bin"
+
+        # Configure registry
+        if [ "$SELECTED_REGION" = "China" ]; then
+            echo "Setting pnpm China mirror..."
+            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
+        else
+            echo "Setting pnpm default registry..."
+            pnpm config set registry https://registry.npmjs.org/
+        fi
+
+        # Create or update .pnpmrc file
+        local user_home="$HOME"
+        local pnpmrc_path="$user_home/.pnpmrc"
+
+        echo "Creating/updating .pnpmrc file at: $pnpmrc_path"
+        if [ "$SELECTED_REGION" = "China" ]; then
+            cat > "$pnpmrc_path" <<EOF
+registry=https://repo.huaweicloud.com/repository/npm/
+enable-pre-post-scripts=true
+EOF
+        else
+            cat > "$pnpmrc_path" <<EOF
+registry=https://registry.npmjs.org/
+enable-pre-post-scripts=true
+EOF
+        fi
+
+        echo "pnpm configuration verified and fixed"
+    else
+        echo "pnpm not found, skipping pnpm configuration"
+    fi
+
+    echo ""
+    echo "[4/4] Checking yarn installation..."
+    if ! command -v yarn >/dev/null 2>&1; then
+        echo "Installing yarn..."
+        if [ -f "$NODE_BIN_DIR/npm" ]; then
+            "$NODE_BIN_DIR/npm" install -g yarn
+            echo "yarn installed"
+        fi
+    else
+        echo "yarn already installed"
+    fi
+
+    echo ""
+    echo "=================================================="
+    echo "All configurations verified and fixed"
+    echo "=================================================="
+    return 0
+}
+
 verify_installation() {
     echo "Verifying installation..."
-    
+
     # Check binaries in install directory
     local node_bin="$NODE_BIN_DIR/node"
     local npm_bin="$NODE_BIN_DIR/npm"
-    
+
     if [ ! -f "$node_bin" ] || [ ! -f "$npm_bin" ]; then
         echo "Error: Node.js binaries not found in installation directory"
         return 1
     fi
-    
+
     # Check symlinks
     if [ ! -L /usr/local/bin/node ] || [ ! -L /usr/local/bin/npm ]; then
         echo "Error: Symlinks verification failed"
         return 1
     fi
-    
+
     echo "Node.js version: $($node_bin -v)"
     echo "npm version: $($npm_bin -v)"
     if [ -f "$NODE_BIN_DIR/npx" ]; then
         echo "npx version: $($NODE_BIN_DIR/npx -v)"
     fi
-    
-    # Configure npm settings
-    configure_npm_settings
-    
+
+    # Show pnpm configuration if available
+    if command -v pnpm >/dev/null 2>&1; then
+        echo ""
+        echo "pnpm version: $(pnpm --version)"
+        echo "pnpm configuration:"
+        pnpm config list
+    fi
+
     return 0
 }
 
@@ -647,6 +781,10 @@ if ! setup_environment; then
     exit 1
 fi
 
+echo ""
+verify_and_fix_all_configs
+
+echo ""
 if ! verify_installation; then
     echo "Installation verification failed"
     exit 1
