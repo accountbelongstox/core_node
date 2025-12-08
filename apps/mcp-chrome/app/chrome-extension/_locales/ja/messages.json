@@ -334,5 +334,152 @@
   },
   "pagesUnit": {
     "message": "ページ"
+  },
+  "audioRecordingLabel": {
+    "message": "オーディオ録音"
+  },
+  "recordingStatusLabel": {
+    "message": "録音ステータス："
+  },
+  "recordingStatus": {
+    "message": "録音中"
+  },
+  "idleStatus": {
+    "message": "待機中"
+  },
+  "durationLabel": {
+    "message": "時間："
+  },
+  "chunkCountLabel": {
+    "message": "チャンク数："
+  },
+  "apiServerConfigLabel": {
+    "message": "APIサーバー設定"
+  },
+  "serverNamePlaceholder": {
+    "message": "サーバー名"
+  },
+  "urlLabel": {
+    "message": "URL："
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080"
+  },
+  "authTokenLabel": {
+    "message": "認証トークン："
+  },
+  "optionalPlaceholder": {
+    "message": "オプション"
+  },
+  "streamingModeLabel": {
+    "message": "ストリーミングモード："
+  },
+  "realtimeWebsocketOption": {
+    "message": "リアルタイム（WebSocket）"
+  },
+  "chunkedUploadOption": {
+    "message": "チャンクアップロード（HTTP）"
+  },
+  "completeFileUploadOption": {
+    "message": "完全ファイルアップロード"
+  },
+  "chunkIntervalLabel": {
+    "message": "チャンク間隔（ミリ秒）："
+  },
+  "addApiServerButton": {
+    "message": "+ APIサーバーを追加"
+  },
+  "recordingSettingsLabel": {
+    "message": "録音設定"
+  },
+  "includeMicrophoneLabel": {
+    "message": "マイクを含む"
+  },
+  "saveLocallyLabel": {
+    "message": "ローカルに保存"
+  },
+  "autoStopSilenceLabel": {
+    "message": "無音時に自動停止"
+  },
+  "silenceDurationLabel": {
+    "message": "無音持続時間（秒）："
+  },
+  "maxDurationLabel": {
+    "message": "最大録音時間："
+  },
+  "oneMinuteOption": {
+    "message": "1分"
+  },
+  "fiveMinutesOption": {
+    "message": "5分"
+  },
+  "tenMinutesOption": {
+    "message": "10分"
+  },
+  "thirtyMinutesOption": {
+    "message": "30分"
+  },
+  "oneHourOption": {
+    "message": "1時間"
+  },
+  "noLimitOption": {
+    "message": "制限なし"
+  },
+  "sessionMetadataLabel": {
+    "message": "セッションメタデータ（JSON）"
+  },
+  "sessionMetadataHelper": {
+    "message": "ここで定義されたキー/値のペアは、各HTTP アップロードに追加され、WebSocket経由でメタデータペイロードとして1回送信されます。"
+  },
+  "startRecordingButton": {
+    "message": "録音開始"
+  },
+  "stopRecordingButton": {
+    "message": "録音停止"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "バックグラウンドオーディオストリーミングを有効にする"
+  },
+  "activeStatus": {
+    "message": "アクティブ"
+  },
+  "backgroundStreamingDescription": {
+    "message": "有効にすると、このポップアップが閉じられていても、オーディオが継続的にキャプチャされ、設定されたAPIサーバーにストリーミングされます。"
+  },
+  "defaultServerName": {
+    "message": "サーバー$INDEX$",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "セッションメタデータJSONが無効です：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "予期しないトークン"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "録音の開始に失敗しました：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "マイクの権限がありません"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "録音の開始中にエラーが発生しました：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "不明なエラー"
+      }
+    }
   }
 }

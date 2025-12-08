@@ -23,6 +23,7 @@
 | **HTTP Streaming** | Chunked upload with FormData | `fetch` with FormData |
 | **Local Save** | Download recording as WebM file | MediaRecorder + Blob |
 | **Background Recording** | Continue recording when popup closed | Offscreen document |
+| **Session Metadata Bridge** | Append arbitrary key/value pairs to each upload/WebSocket stream | Popup metadata panel + MCP params |
 
 **Status:** ⭐ **RECOMMENDED FOR INTEGRATION**
 
@@ -208,30 +209,30 @@
 
 ### Phase 1: Audio Recording
 
-- [ ] **Extension Side**
-  - [ ] Create `entrypoints/offscreen/audio-recorder.html`
-  - [ ] Port `offscreen.js` to TypeScript
-  - [ ] Add audio tool handlers in `background/tools/audio.ts`
-  - [ ] Register offscreen document in manifest
-  - [ ] Add WebSocket client for streaming
+- [x] **Extension Side**
+  - [x] Create `entrypoints/offscreen/audio-recorder.html`
+  - [x] Port `offscreen.js` to TypeScript
+  - [x] Add audio tool handlers in `background/tools/audio.ts`
+  - [x] Register offscreen document in manifest
+  - [x] Add WebSocket client for streaming + session metadata panel
 
-- [ ] **Server Side**
-  - [ ] Add audio tool schemas to `packages/shared/src/tools.ts`
-  - [ ] Create WebSocket endpoint for audio streaming
-  - [ ] Add HTTP endpoint for chunked upload
-  - [ ] Handle audio chunk forwarding to MCP clients
+- [x] **Server Side**
+  - [x] Add audio tool schemas to `packages/shared/src/tools.ts`
+  - [x] Create WebSocket endpoint for audio streaming
+  - [x] Add HTTP endpoint for chunked upload
+  - [x] Handle audio chunk forwarding to MCP clients
 
-- [ ] **Documentation**
-  - [ ] Update `docs/TOOLS.md` with audio tools
-  - [ ] Add audio recording examples
-  - [ ] Document streaming configuration
+- [x] **Documentation**
+  - [x] Update `docs/TOOLS.md` with audio tools & metadata notes
+  - [x] Add audio recording + AppQyV1 examples
+  - [x] Document streaming configuration in architecture/troubleshooting guides
 
-- [ ] **Testing**
-  - [ ] Test tab audio capture
-  - [ ] Test microphone input
-  - [ ] Test WebSocket streaming
-  - [ ] Test HTTP chunked upload
-  - [ ] Test local file save
+- [x] **Testing**
+  - [x] Test tab audio capture
+  - [x] Test microphone input
+  - [x] Test WebSocket streaming
+  - [x] Test HTTP chunked upload
+  - [x] Test local file save
 
 ### Phase 2: Enhanced Console Logging
 
@@ -277,6 +278,15 @@ User: "Record my screen walkthrough with narration"
 → User performs actions
 → chrome_audio_stop
 → Download recording
+```
+
+### 4. Laravel AppQyV1 Upload
+```
+User: "Attach a fresh pronunciation for 'serendipity' to the dictionary"
+→ chrome_audio_start with sessionMetadata { "word": "serendipity", "type": "word", "quality": "high", "source": "chrome_extension" }
+→ HTTP upload sends metadata + WebM to /api/dict/v1/word/serendipity/audio
+→ Laravel converts to MP3 and stores via AppQyV1 storage manager
+→ chrome_audio_stop once upload is acknowledged
 ```
 
 ### 4. Real-time Audio Analysis

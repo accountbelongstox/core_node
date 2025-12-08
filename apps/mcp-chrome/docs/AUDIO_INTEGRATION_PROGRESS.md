@@ -136,6 +136,19 @@ Schema features:
 - Audio tools registered automatically via shared `TOOL_SCHEMAS`
 - Translated comments to English
 
+### 10) Session Metadata Bridge
+**Files:** 
+- `app/chrome-extension/entrypoints/popup/components/AudioRecordingPanel.vue`
+- `app/chrome-extension/entrypoints/background/tools/audio.ts`
+- `app/chrome-extension/entrypoints/offscreen/audio-recorder.ts`
+
+Highlights:
+- Popup now exposes a JSON metadata panel that persists per session.
+- Background handlers merge `sessionMetadata` from UI or direct MCP calls and forward it to the offscreen recorder.
+- HTTP uploads automatically append these metadata fields alongside built-in `chunkIndex`, `timestamp`, and `isFinal`.
+- WebSocket servers receive a `{"type":"metadata","data":{...}}` envelope before binary streaming begins.
+- Enables structured integrations with downstream services (e.g., Laravel AppQyV1) without hardcoding server-specific logic.
+
 ---
 
 ## Architecture Overview
@@ -188,6 +201,59 @@ Configure server, enable background streaming, stream audio to transcription ser
 
 4) Continuous background monitoring  
 Enable "Background Audio Streaming" in the panel to capture and stream continuously, even with the popup closed.
+
+---
+
+## Laravel AppQyV1 Integration Guide
+
+The session metadata bridge makes it straightforward to push recordings into `laravel_main`'s `AppQyV1` module.
+
+### Flow
+1. Configure an API server entry that targets your Laravel host:
+   - `streamingMode: 'file'` to send a single blob after recording ends (recommended for `/api/dict/v1/word/{word}/audio`).
+   - `streamingMode: 'chunks'` if you prefer incremental uploads and will merge on the backend.
+2. Provide structured `sessionMetadata`. Suggested keys mirror `AppQyV1WordDataSubmissionController`:
+
+| Key | Description | Example |
+|-----|-------------|---------|
+| `word` | Dictionary entry, also baked into the upload URL | `serendipity` |
+| `type` | `word` or `sentence` audio | `word` |
+| `quality` | `low`/`medium`/`high` flag reused by Laravel | `high` |
+| `source` | Free-form provenance tag | `chrome_extension` |
+
+Metadata is appended to every multipart POST alongside built-in fields (`audio`, `chunkIndex`, `timestamp`, `isFinal`). WebSocket servers receive the same metadata once via `{ type: 'metadata', data: {...} }`.
+
+### Example MCP Call
+```jsonc
+{
+  "tool": "chrome_audio_start",
+  "arguments": {
+    "apiServers": [
+      {
+        "id": "qyappv1",
+        "name": "Laravel Dict Upload",
+        "url": "https://dict.local/api/dict/v1/word/serendipity/audio",
+        "authToken": "YOUR_TOKEN",
+        "streamingMode": "file",
+        "enabled": true
+      }
+    ],
+    "includeMicrophone": true,
+    "sessionMetadata": {
+      "word": "serendipity",
+      "type": "word",
+      "quality": "high",
+      "source": "chrome_extension"
+    }
+  }
+}
+```
+
+### Backend Checklist
+- Convert the uploaded WebM/Opus to MP3 or WAV before invoking the existing `submitAudio` controller (FFmpeg works well: `ffmpeg -i input.webm -ar 44100 -ac 2 output.mp3`).
+- Use `chunkIndex` + `isFinal` if you accept chunked uploads to detect when to assemble/output.
+- Reuse `AppQyV1ExternalStorageManager` paths so CDN links and markers stay accurate.
+- Persist `source`/`quality` inside your Laravel logs to keep uploads auditable.
 
 ---
 
@@ -263,12 +329,12 @@ Enable "Background Audio Streaming" in the panel to capture and stream continuou
 
 ---
 
-## Future Documentation Tasks
+## Documentation Updates (Completed)
 
-- [ ] Update `TOOLS.md` with audio tools documentation
-- [ ] Add audio recording usage examples
-- [ ] Update `ARCHITECTURE.md` with audio architecture
-- [ ] Add troubleshooting guide for audio issues
+- [x] Update `TOOLS.md`/`TOOLS_zh.md` with audio tool parameters + metadata fields
+- [x] Add audio recording + AppQyV1 usage examples
+- [x] Update `ARCHITECTURE.md`/`ARCHITECTURE_zh.md` with audio streaming pipeline
+- [x] Add troubleshooting entries for audio capture/streaming
 
 ---
 

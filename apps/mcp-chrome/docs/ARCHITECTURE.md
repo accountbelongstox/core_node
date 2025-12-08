@@ -182,6 +182,34 @@ graph TB
       │                   │◄─────────────────────┤                   │
 ```
 
+---
+
+## 🔊 Audio Streaming Architecture
+
+```
+┌────────────────────┐     ┌─────────────────────────┐     ┌────────────────────┐
+│ Popup / MCP Tools  │ --> │ Background Tool Handler │ --> │ Offscreen Recorder │
+│ - API servers      │     │ - Config merge         │     │ - Tab/mic capture   │
+│ - Session metadata │     │ - Offscreen lifecycle  │     │ - Web Audio mixing  │
+└────────────────────┘     └────────────┬────────────┘     └─────────┬──────────┘
+                                        │                            │
+                                        │                            │
+                                        ▼                            ▼
+                             ┌───────────────────┐         ┌────────────────────┐
+                             │ WebSocket Servers │         │ HTTP Chunk/File API│
+                             │ - Metadata frame  │         │ - FormData payload │
+                             │ - Binary frames   │         │ - chunkIndex/isFinal│
+                             └───────────────────┘         └────────────────────┘
+```
+
+1. **Config capture** – The popup persists API endpoints and a JSON metadata blob. MCP tool calls can override both at runtime.
+2. **Background merge** – `handleAudioStart` normalizes server arrays, injects metadata, provisions the offscreen document, and fetches a tab capture stream ID.
+3. **Offscreen recorder** – Mixes tab + microphone audio, performs silence detection, and streams MediaRecorder chunks via WebSocket or HTTP.
+4. **Metadata propagation** – Every HTTP request includes `audio`, `chunkIndex`, `timestamp`, `isFinal`, plus all metadata fields (e.g., `word`, `type`, `quality`, `source`). WebSocket servers receive `{ type: 'metadata', data: {...} }` before binary frames start.
+5. **Backend integration** – Services like Laravel AppQyV1 can consume the appended metadata to run FFmpeg conversions and store assets through existing storage managers.
+
+---
+
 ## 🧠 AI Integration
 
 ### Semantic Similarity Engine
