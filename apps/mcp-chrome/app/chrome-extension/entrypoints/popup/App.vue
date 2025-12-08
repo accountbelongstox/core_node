@@ -5,6 +5,10 @@
         <h1 class="header-title">Chrome MCP Server</h1>
       </div>
     </div>
+
+    <!-- Language Selector -->
+    <LanguageSelector />
+
     <div class="content">
       <div class="section">
         <h2 class="section-title">{{ getMessage('nativeServerConfigLabel') }}</h2>
@@ -278,6 +282,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue';
 import ProgressIndicator from './components/ProgressIndicator.vue';
 import ModelCacheManagement from './components/ModelCacheManagement.vue';
 import AudioRecordingPanel from './components/AudioRecordingPanel.vue';
+import LanguageSelector from './components/LanguageSelector.vue';
 import {
   DocumentIcon,
   DatabaseIcon,
