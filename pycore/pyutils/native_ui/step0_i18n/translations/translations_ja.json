@@ -35,6 +35,7 @@
       "hide": "ウィンドウを隠す",
       "maximize": "最大化",
       "minimize": "最小化",
+      "restore": "復元",
       "restart": "再起動",
       "exit": "終了"
     }
