@@ -771,28 +771,40 @@ class TkinterStartupThread(threading.Thread):
 
         IMPORTANT: Does not use root.after() to avoid "main thread is not in main loop" error.
         Instead, sets a flag that is checked by _process_logs() which runs in the Tkinter thread.
+
+        ALSO: If tray is running, stop it immediately (since _process_logs() won't run in tray mode).
         """
         ColorPrint.print_info("[TkinterStartupThread] Close request received from external thread")
         self._close_requested.set()
+
+        # CRITICAL FIX: If tray is running, stop it immediately
+        # This fixes the bug where program hangs on exit when tray is running
+        if self.tray:
+            ColorPrint.print_warn("[TkinterStartupThread] Stopping tray immediately...")
+            self.tray.stop()
 
     def stop(self):
         """
         Stop thread (window and tray if running)
 
         This will:
-        1. Close debug window if still open
-        2. Stop tray if it's running
-        3. Terminate thread
+        1. Set stop event flag (prevents entering tray mode after window closes)
+        2. Close debug window if still open
+        3. Stop tray if it's running
+        4. Terminate thread
         """
-        # Signal stop event
+        ColorPrint.print_info("[TkinterStartupThread] Stop requested")
+
+        # Signal stop event (prevents entering tray mode after window closes)
         self._stop_event.set()
+
+        # Stop tray if running (must be done BEFORE request_close to avoid race condition)
+        if self.tray:
+            ColorPrint.print_info("[TkinterStartupThread] Stopping tray...")
+            self.tray.stop()
 
         # Close window if still running
         self.request_close()
-
-        # Stop tray if running
-        if self.tray:
-            self.tray.stop()
 
     def is_running(self) -> bool:
         """Check if window is running"""

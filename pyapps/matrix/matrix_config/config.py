@@ -105,6 +105,11 @@ class Config:
     DEFAULT_MAX_FPS = 60            # Max frame rate
     DEFAULT_CODEC = "h264"          # Video codec
 
+    # Video Stream Mode:
+    # - "h264": H.264 direct transmission (recommended, low bandwidth)
+    # - "yuv": YUV420P decoded stream (experimental, high bandwidth)
+    DEFAULT_VIDEO_STREAM_MODE = "h264"
+
     # ==================== WebSocket Configuration ====================
     WS_BASE_PATH = "/ws"
     WS_VIDEO_PATH = "/ws/video/{serial}"      # Video stream
@@ -141,7 +146,44 @@ class Config:
         "codec": DEFAULT_CODEC,
         "control": True,
         "locked_video_orientation": -1,  # -1 = auto
+        "video_stream_mode": DEFAULT_VIDEO_STREAM_MODE,  # "h264" or "yuv"
     }
+
+    # ==================== Configuration File Storage ====================
+    @staticmethod
+    def get_config_dir() -> Path:
+        """
+        Get configuration directory based on platform
+
+        Returns:
+            Configuration directory path
+            - Windows: %USERPROFILE%/.core_node/scrcpy/config
+            - Linux: /var/_core_node/scrcpy/config
+        """
+        system = platform.system()
+
+        if system == "Windows":
+            # Windows: User data directory
+            user_home = Path.home()
+            config_dir = user_home / ".core_node" / "scrcpy" / "config"
+        else:
+            # Linux/Unix: System directory
+            config_dir = Path("/var/_core_node/scrcpy/config")
+
+        # Ensure directory exists
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        return config_dir
+
+    @classmethod
+    def get_config_file_path(cls) -> Path:
+        """
+        Get configuration file path
+
+        Returns:
+            Full path to settings.json
+        """
+        return cls.get_config_dir() / "settings.json"
 
     # ==================== CORS Configuration ====================
     # Matrix frontend runs on FRONTEND_PORT (dev: 38007 Vite, prod: 48000 RPC v2)
