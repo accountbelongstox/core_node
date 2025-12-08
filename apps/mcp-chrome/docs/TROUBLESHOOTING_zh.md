@@ -58,3 +58,34 @@ C:\Users\admin\AppData\Local\nvm\v20.19.2\node_modules\mcp-chrome-bridge\dist\lo
 #### 效果问题
 
 不同的agent，不同的模型使用工具的效果是不一样的，这些都需要你自行尝试，我更推荐用聪明的agent，比如augment，claude code等等...
+
+---
+
+## 🔊 音频录制排障
+
+### 刚开始就失败 / 录音立即结束
+
+- 确认当前标签页不是 `chrome://` 或扩展页面，这些页面无法录音。
+- 弹窗中至少需要一个启用的 API 服务器；使用 MCP 工具时务必传入 `apiServers`。
+- 如果之前禁用了麦克风权限，请在 Chrome → 设置 → 隐私和安全性 → 网站设置 → 麦克风 中重新开启。
+
+### Laravel/AppQyV1 拒绝上传
+
+- 扩展输出 WebM/Opus，需先用 FFmpeg 转码成 mp3/wav/ogg 再交给 `AppQyV1WordDataSubmissionController`。
+  ```bash
+  ffmpeg -i chunk.webm -ar 44100 -ac 2 output.mp3
+  ```
+- HTTP 请求会附带 `chunkIndex`、`timestamp`、`isFinal` 以及所有 `sessionMetadata` 字段（例如 `word`、`type`、`quality`、`source`），请确保后端读取这些字段。
+- 若使用 chunk 模式，请依据 `chunkIndex` 组装，在 `isFinal=true` 时再触发转码。
+
+### 服务器缺少元数据
+
+- 弹窗的 Session Metadata 输入框必须填写合法 JSON，最新版本会提示错误信息。
+- 通过 MCP 工具调度时记得在 `chrome_audio_start` 里传入 `sessionMetadata` 对象。
+- WebSocket 服务端需先消费首个文本帧 `{ "type": "metadata", "data": {...} }`，之后才是二进制音频。
+
+### WebSocket 只有 metadata，没有音频帧
+
+- 确认 URL 为 `ws://` 或 `wss://`。传入 `http://` 时扩展会尝试替换，但仍可能被代理阻断。
+- 打开扩展后台页关注 `[Audio Offscreen]` 日志，确认是否真正开始推流。
+- 如需缩短延迟，可将 `chunkInterval` 调小（默认 1000ms）。

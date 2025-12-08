@@ -442,5 +442,193 @@
   "pagesUnit": {
     "message": "pages",
     "description": "Pages count unit"
+  },
+  "audioRecordingLabel": {
+    "message": "Audio Recording",
+    "description": "Audio recording panel title"
+  },
+  "recordingStatusLabel": {
+    "message": "Recording Status:",
+    "description": "Recording status label"
+  },
+  "recordingStatus": {
+    "message": "Recording",
+    "description": "Recording active status"
+  },
+  "idleStatus": {
+    "message": "Idle",
+    "description": "Recording idle status"
+  },
+  "durationLabel": {
+    "message": "Duration:",
+    "description": "Recording duration label"
+  },
+  "chunkCountLabel": {
+    "message": "Chunk Count:",
+    "description": "Recording chunk count label"
+  },
+  "apiServerConfigLabel": {
+    "message": "API Server Configuration",
+    "description": "API server configuration section title"
+  },
+  "serverNamePlaceholder": {
+    "message": "Server Name",
+    "description": "Server name input placeholder"
+  },
+  "urlLabel": {
+    "message": "URL:",
+    "description": "URL input label"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL input placeholder"
+  },
+  "authTokenLabel": {
+    "message": "Auth Token:",
+    "description": "Auth token input label"
+  },
+  "optionalPlaceholder": {
+    "message": "Optional",
+    "description": "Optional field placeholder"
+  },
+  "streamingModeLabel": {
+    "message": "Streaming Mode:",
+    "description": "Streaming mode select label"
+  },
+  "realtimeWebsocketOption": {
+    "message": "Realtime (WebSocket)",
+    "description": "Realtime WebSocket streaming option"
+  },
+  "chunkedUploadOption": {
+    "message": "Chunked Upload (HTTP)",
+    "description": "Chunked HTTP upload option"
+  },
+  "completeFileUploadOption": {
+    "message": "Complete File Upload",
+    "description": "Complete file upload option"
+  },
+  "chunkIntervalLabel": {
+    "message": "Chunk Interval (ms):",
+    "description": "Chunk interval input label"
+  },
+  "addApiServerButton": {
+    "message": "+ Add API Server",
+    "description": "Add API server button text"
+  },
+  "recordingSettingsLabel": {
+    "message": "Recording Settings",
+    "description": "Recording settings section title"
+  },
+  "includeMicrophoneLabel": {
+    "message": "Include Microphone",
+    "description": "Include microphone checkbox label"
+  },
+  "saveLocallyLabel": {
+    "message": "Save Recording Locally",
+    "description": "Save recording locally checkbox label"
+  },
+  "autoStopSilenceLabel": {
+    "message": "Auto-stop on Silence",
+    "description": "Auto-stop on silence checkbox label"
+  },
+  "silenceDurationLabel": {
+    "message": "Silence Duration (seconds):",
+    "description": "Silence duration input label"
+  },
+  "maxDurationLabel": {
+    "message": "Max Recording Duration:",
+    "description": "Max recording duration select label"
+  },
+  "oneMinuteOption": {
+    "message": "1 Minute",
+    "description": "1 minute duration option"
+  },
+  "fiveMinutesOption": {
+    "message": "5 Minutes",
+    "description": "5 minutes duration option"
+  },
+  "tenMinutesOption": {
+    "message": "10 Minutes",
+    "description": "10 minutes duration option"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 Minutes",
+    "description": "30 minutes duration option"
+  },
+  "oneHourOption": {
+    "message": "1 Hour",
+    "description": "1 hour duration option"
+  },
+  "noLimitOption": {
+    "message": "No Limit",
+    "description": "No limit duration option"
+  },
+  "sessionMetadataLabel": {
+    "message": "Session Metadata (JSON)",
+    "description": "Session metadata section title"
+  },
+  "sessionMetadataHelper": {
+    "message": "Key/value pairs defined here are appended to each HTTP upload and sent once over WebSocket as metadata payloads.",
+    "description": "Session metadata helper text"
+  },
+  "startRecordingButton": {
+    "message": "Start Recording",
+    "description": "Start recording button text"
+  },
+  "stopRecordingButton": {
+    "message": "Stop Recording",
+    "description": "Stop recording button text"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "Enable Background Audio Streaming",
+    "description": "Enable background audio streaming checkbox label"
+  },
+  "activeStatus": {
+    "message": "ACTIVE",
+    "description": "Active status badge"
+  },
+  "backgroundStreamingDescription": {
+    "message": "When enabled, audio will be continuously captured and streamed to configured API servers, even when this popup is closed.",
+    "description": "Background streaming description text"
+  },
+  "defaultServerName": {
+    "message": "Server $INDEX$",
+    "description": "Default server name with index",
+    "placeholders": {
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "invalidJsonError": {
+    "message": "Session metadata JSON is invalid: $ERROR$",
+    "description": "Invalid JSON error message",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "startRecordingError": {
+    "message": "Failed to start recording: $ERROR$",
+    "description": "Start recording error message",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "No microphone permission"
+      }
+    }
+  },
+  "recordingGeneralError": {
+    "message": "Error starting recording: $ERROR$",
+    "description": "General recording error message",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Unknown error"
+      }
+    }
   }
 }
