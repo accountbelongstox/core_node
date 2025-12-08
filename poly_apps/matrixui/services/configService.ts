@@ -241,4 +241,5 @@ class ConfigService {
 }
 
 // 单例
-export const configSe
+export const configService = new ConfigService();
+
