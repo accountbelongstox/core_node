@@ -93,9 +93,34 @@ def rpc_init_callback(rpc_server):
         rpc_server: RPC v2 server instance (FastAPIRPCServer)
     """
     from pyapps.matrix.api.main import register_all_routes
+    from pyapps.matrix.adb_device_manager.device_push_service import init_device_push_service, stop_device_push_service
 
     # Register all Matrix RPC v2 routes
     register_all_routes(rpc_server)
+
+    # Initialize device push service (broadcasts device list to WebSocket clients)
+    if _adb_heartbeat_thread:
+        ColorPrint.blue("[Matrix] Starting Device Push Service...")
+        device_push_service = init_device_push_service(
+            adb_heartbeat_thread=_adb_heartbeat_thread,
+            rpc_server=rpc_server,
+            push_interval=10.0  # Push device list every 10 seconds
+        )
+        ColorPrint.green(f"[Matrix] Device Push Service started (interval: 10.0s)")
+
+        # Register shutdown handler for device push service
+        def stop_device_push():
+            ColorPrint.blue("[Matrix] Stopping Device Push Service...")
+            stop_device_push_service()
+            ColorPrint.green("[Matrix] Device Push Service stopped")
+
+        THREAD_BUS.register_shutdown_handler(
+            handler=stop_device_push,
+            priority=85,  # Stop before ADB heartbeat (priority 90)
+            name="device_push_service"
+        )
+    else:
+        ColorPrint.yellow("[Matrix] Warning: ADB heartbeat thread not available, device push service not started")
 
 
 def start():
