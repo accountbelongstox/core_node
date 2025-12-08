@@ -341,11 +341,63 @@ def _register_device_routes(rpc_server):
             "results": results
         }
 
+    async def adb_device_list(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get ADB device manager device list (auto-discovered devices)"""
+        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+
+        adb_thread = get_adb_heartbeat_thread()
+        if not adb_thread:
+            return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
+
+        device_table = adb_thread.get_device_table()
+        all_devices = device_table.get_all_devices()
+
+        devices_list = []
+        for device_info in all_devices:
+            devices_list.append({
+                "serial": device_info.serial,
+                "ip": device_info.ip,
+                "connection_type": device_info.connection_type.value,
+                "state": device_info.state.value,
+                "is_root": device_info.is_root,
+                "model": device_info.model,
+                "android_version": device_info.android_version,
+                "last_seen": device_info.last_seen,
+                "connected_at": device_info.connected_at,
+            })
+
+        stats = device_table.get_stats()
+
+        return {
+            "devices": devices_list,
+            "count": len(devices_list),
+            "stats": stats
+        }
+
+    async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get ADB device manager statistics"""
+        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+
+        adb_thread = get_adb_heartbeat_thread()
+        if not adb_thread:
+            return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
+
+        device_table = adb_thread.get_device_table()
+        stats = device_table.get_stats()
+
+        return {
+            "stats": stats,
+            "heartbeat_running": adb_thread.is_running(),
+            "total_ticks": adb_thread.get_total_ticks() if hasattr(adb_thread, 'get_total_ticks') else 0,
+        }
+
     rpc_server.route('device.list', list_devices, sync=True, description='List all ADB devices')
     rpc_server.route('device.info', get_device_info, sync=False, description='Get device detailed information')
     rpc_server.route('device.connect', connect_device, sync=False, description='Connect device')
     rpc_server.route('device.disconnect', disconnect_device, sync=False, description='Disconnect device')
     rpc_server.route('device.batch_configure', batch_configure, sync=True, description='Batch configure devices')
+    rpc_server.route('adb.device.list', adb_device_list, sync=True, description='Get auto-discovered ADB devices')
+    rpc_server.route('adb.device.stats', adb_device_stats, sync=True, description='Get ADB device manager statistics')
 
 
 # ============================================================
