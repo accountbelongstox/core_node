@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix Application - Simplified with Native UI Integration
+Matrix Application - RPC v2 WebSocket Edition
 
-Single entry point for Matrix application using integrated native_ui.
-All services managed by native_ui: frontend compilation/dev server, RPC v2, and UI.
-
-Architecture:
-- native_ui: Handles everything (frontend, RPC v2, PySide6 UI, tray, callbacks)
-- Matrix: Only provides configuration and event handlers
+Simplified entry point that only organizes configuration variables.
+All API routes are managed by api/main.py and registered via pylauncher.
 
 Usage:
     python pymain.py app=matrix
@@ -21,9 +17,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
 from pyapps.matrix.matrix_config import Config
+from pyapps.matrix.adb_device_manager import ADBHeartbeatThread
+
+
+_adb_heartbeat_thread = None
 
 
 def matrix_main_entry():
@@ -32,6 +32,8 @@ def matrix_main_entry():
 
     Used to register event handlers and perform application-specific initialization.
     """
+    global _adb_heartbeat_thread
+
     from pyapps.matrix.controller.event_handlers import register_matrix_event_handlers
 
     # Register Matrix event handlers
@@ -42,24 +44,60 @@ def matrix_main_entry():
         frontend_mode=Config.FRONTEND_MODE
     )
 
+    ColorPrint.green("[Matrix] Event handlers registered successfully")
+
+    # Start ADB Device Management Heartbeat
+    ColorPrint.blue("[Matrix] Starting ADB Device Management Heartbeat...")
+    _adb_heartbeat_thread = ADBHeartbeatThread(
+        adb_path="adb",
+        tick_interval=1.0,
+        network_scan_interval=30.0,
+        usb_scan_interval=5.0,
+        cleanup_interval=60.0,
+        heartbeat_interval=10.0,
+        daemon=True
+    )
+    _adb_heartbeat_thread.start()
+    ColorPrint.green("[Matrix] ADB Heartbeat Thread started")
+
+    # Register shutdown handler for ADB heartbeat
+    def stop_adb_heartbeat():
+        ColorPrint.blue("[Matrix] Stopping ADB Heartbeat Thread...")
+        if _adb_heartbeat_thread and _adb_heartbeat_thread.is_running():
+            _adb_heartbeat_thread.stop()
+            _adb_heartbeat_thread.join(timeout=5.0)
+            ColorPrint.green("[Matrix] ADB Heartbeat Thread stopped")
+
+    THREAD_BUS.register_shutdown_handler(
+        handler=stop_adb_heartbeat,
+        priority=90,
+        name="adb_heartbeat"
+    )
+
+    ColorPrint.green("[Matrix] ADB Device Manager initialized")
+
+
+def rpc_init_callback(rpc_server):
+    """
+    RPC v2 initialization callback
+
+    This function is called by pylauncher after RPC v2 server is created.
+    It registers all Matrix routes to the RPC v2 server instance.
+
+    Args:
+        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+    """
+    from pyapps.matrix.api.main import register_all_routes
+
+    # Register all Matrix RPC v2 routes
+    register_all_routes(rpc_server)
+
 
 def start():
     """Unified startup entry point"""
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" MATRIX APPLICATION - Native UI Integrated")
+    ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
     ColorPrint.blue("=" * 70)
-
-    # Import Matrix API routers
-    from pyapps.matrix.api import (
-        health_router,
-        device_router,
-        screen_router,
-        file_router,
-        recording_router,
-        group_router,
-        config_router,
-        unified_ws_router
-    )
 
     # Resource paths
     resources_dir = Path(__file__).parent / "resources"
@@ -93,16 +131,8 @@ def start():
         rpc_port=Config.WEB_PORT,
         rpc_host=Config.WEB_HOST,
         rpc_debug=True,
-        rpc_routers=[
-            health_router,
-            device_router,
-            screen_router,
-            file_router,
-            recording_router,
-            group_router,
-            config_router,
-            unified_ws_router
-        ],
+        rpc_routers=[],  # No FastAPI routers - using RPC v2 WebSocket routes
+        rpc_init_callback=rpc_init_callback,  # Callback to register Matrix routes
         rpc_allow_origins=["*"],
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
 
@@ -131,8 +161,8 @@ def start():
     ColorPrint.blue(f"  - Frontend mode: {Config.FRONTEND_MODE}")
     ColorPrint.blue(f"  - Frontend port: {Config.FRONTEND_PORT}")
     ColorPrint.blue(f"  - Backend port: {Config.WEB_PORT}")
-    ColorPrint.blue(f"  - Frontend dir: {frontend_app_dir}")
-    ColorPrint.blue(f"  - Frontend framework: vite (React)")
+    ColorPrint.blue(f"  - Backend protocol: RPC v2 WebSocket")
+    ColorPrint.blue(f"  - WebSocket endpoint: ws://localhost:{Config.WEB_PORT}/rpc/ws")
 
     # One-click launch (native_ui handles everything)
     ColorPrint.green("[Matrix] Launching application...")

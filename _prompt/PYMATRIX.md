@@ -32,3 +32,14 @@ printer，查看另一个debug的逻辑，修正，同是现在启动的debug窗
 的多语言是否一致，之后使用thread bus和多语言的全局对象（注意多语言只有一个全局对象，启动即创建，可以在子app中调用扩展key
 val），不要处处去new，因为这样没法全局生效。查看其中是一致，之后扩展现在的debug窗口上的多语言选择，使tray等窗口标题等(非webview)能实
 时切换语言。同时代码中禁止硬编码、而是直接使用多语言。
+
+修改为完全使用websockt的连接方式，之后，更新 pyapps\matrix\docs 其中的所有文件，同时合并文档，对过期或进多余的文档进行删除，现在主要保留端点文档。
+
+请整合原来的所有路由为rpc v2，并由一个专门的文件管理main中只负责引入和组织变量，同时通过 pycore\pylauncher\launcher.py 其中传递变量启动 rpc v2.
+
+管理工具依然放在原来的文件夹中 pyapps\matrix\api 中替换原来的，根目录只有一个文件 main。
+
+找到这个项目是如何利用scrcpy 连接多台设备的，特是当有多个设备时，如果使用无线连接的，因为安卓在无线模式下需要手机pair,而该系统 可以直接连接，你需要查找到实际 代码，才能给出技术方案，推导根据该项目手机端做了什么适配，比如是否开启OTG，是否root等。
+不用关闭c++部份，你只需要关注项目是如何 调用 scrcpy来完成上面的工作的，如果 你对 scrcpy 不哆了解，则调用MCP查询官方文档 https://github.com/Genymobile/scrcpy?tab=readme-ov-file
+
+pyapps\matrix\docs\SCRCPY扫描到的代码逻辑.md 根据以上，扩展现在的接口， 先写出， 1:心跳系统根据局域网，得到可用的所有root设备，并自动设置为可用5555连接。2：心跳系统排查局域网是否添加了新设备（跳过稳定连接的），3：要维护一个设备表，添加，断开时要更新，4：心跳系统查看当前新接入的usb adb设备，并立即 设置允许  无线连接。之后转为无线连接。 注意，不要直接在 pycore\pythreadpool 进行硬编码，该类不引入任何子app类，而是在 pycore\pylauncher\launcher.py 其中注入心跳函数，供 pythreadpool 每次引用。 需要扩展的是 python .\pymain.py app=matrix 查看文档 development-guides\PYTHON_PYCORE.md
