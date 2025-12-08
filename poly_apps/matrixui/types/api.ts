@@ -22,10 +22,16 @@ export interface APIInfo {
 
 export interface DeviceInfo {
   serial: string;
-  status: 'device' | 'offline' | 'unauthorized';
+  status?: 'device' | 'offline' | 'unauthorized'; // Legacy field
+  state?: 'unknown' | 'usb_connected' | 'wifi_connected' | 'configuring' | 'disconnected' | 'error'; // New field from API
   model: string;
-  manufacturer: string | null;
-  android_version: string | null;
+  manufacturer?: string | null;
+  android_version?: string | null;
+  ip?: string;
+  connection_type?: 'usb' | 'wifi';
+  is_root?: boolean;
+  last_seen?: number;
+  connected_at?: number;
 }
 
 export interface DeviceDetail {

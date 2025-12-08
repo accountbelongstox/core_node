@@ -11,11 +11,12 @@ if str(PROJECT_ROOT) not in sys.path:
 import asyncio
 import struct
 from typing import Optional, Dict
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.device_manager import DeviceManager
 from pyapps.matrix.matrix_config import Config
+from .video_decoder_service import VideoDecoderService
 
 
 class VideoStreamService:
@@ -49,12 +50,109 @@ class VideoStreamService:
         self.paused: Dict[str, bool] = {}
         self.frame_stats: Dict[str, Dict] = {}
 
+        # Track active WebSocket connections for hot-reload
+        # Key: serial, Value: WebSocket instance
+        self.active_websockets: Dict[str, WebSocket] = {}
+
+        # Register THREAD_BUS listener for config changes
+        THREAD_BUS.on("config.video_stream_mode.changed", self._handle_video_mode_change)
+        ColorPrint.blue("[VideoStreamService] Registered config change listener on THREAD_BUS")
+
     @classmethod
     def instance(cls) -> 'VideoStreamService':
         """Get singleton instance"""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    def _handle_video_mode_change(self, event_data: Dict):
+        """
+        Handle video stream mode change event from THREAD_BUS
+
+        When video stream mode changes (h264 <-> yuv):
+        1. Close all active WebSocket connections
+        2. Frontend will automatically reconnect with new mode
+
+        Args:
+            event_data: Event data containing:
+                - scope: "global" or "device"
+                - old_mode: Previous mode ("h264" or "yuv")
+                - new_mode: New mode ("h264" or "yuv")
+                - device_name: (if scope="device") Device name
+                - config: Updated configuration
+        """
+        scope = event_data.get("scope")
+        old_mode = event_data.get("old_mode")
+        new_mode = event_data.get("new_mode")
+
+        ColorPrint.yellow("=" * 70)
+        ColorPrint.yellow(f"[VideoStreamService] Video mode change detected")
+        ColorPrint.yellow(f"  - Scope: {scope}")
+        ColorPrint.yellow(f"  - Old mode: {old_mode}")
+        ColorPrint.yellow(f"  - New mode: {new_mode}")
+        ColorPrint.yellow("=" * 70)
+
+        if scope == "global":
+            # Global change - close all WebSocket connections
+            ColorPrint.yellow(f"[VideoStreamService] Closing all active WebSocket connections for mode switch...")
+            serials_to_close = list(self.active_websockets.keys())
+
+            for serial in serials_to_close:
+                websocket = self.active_websockets.get(serial)
+                if websocket:
+                    try:
+                        # Create task to close WebSocket asynchronously
+                        asyncio.create_task(self._close_websocket_for_reload(serial, websocket, new_mode))
+                    except Exception as e:
+                        ColorPrint.red(f"[VideoStreamService] Error closing WebSocket for {serial}: {e}")
+
+        elif scope == "device":
+            # Device-specific change - close only that device's WebSocket
+            device_name = event_data.get("device_name")
+            if device_name and device_name in self.active_websockets:
+                websocket = self.active_websockets[device_name]
+                ColorPrint.yellow(f"[VideoStreamService] Closing WebSocket for device {device_name}...")
+                try:
+                    asyncio.create_task(self._close_websocket_for_reload(device_name, websocket, new_mode))
+                except Exception as e:
+                    ColorPrint.red(f"[VideoStreamService] Error closing WebSocket for {device_name}: {e}")
+
+        ColorPrint.green("[VideoStreamService] Video mode change handled. Frontend will reconnect with new mode.")
+
+    async def _close_websocket_for_reload(self, serial: str, websocket: WebSocket, new_mode: str):
+        """
+        Close WebSocket connection gracefully and notify client
+
+        Args:
+            serial: Device serial number
+            websocket: WebSocket to close
+            new_mode: New video stream mode
+        """
+        try:
+            # Send notification to client before closing
+            await websocket.send_json({
+                "type": "video.mode_changed",
+                "data": {
+                    "serial": serial,
+                    "new_mode": new_mode,
+                    "message": f"Video stream mode changed to {new_mode}. Reconnecting..."
+                }
+            })
+
+            # Close WebSocket with reason code
+            await websocket.close(code=1012, reason=f"Video mode changed to {new_mode}")
+
+            # Remove from active connections
+            if serial in self.active_websockets:
+                del self.active_websockets[serial]
+
+            ColorPrint.green(f"[VideoStreamService] ✓ Closed WebSocket for {serial}, client will reconnect")
+
+        except Exception as e:
+            ColorPrint.red(f"[VideoStreamService] Error during graceful close for {serial}: {e}")
+            # Force remove from tracking
+            if serial in self.active_websockets:
+                del self.active_websockets[serial]
 
     async def stream_to_websocket(self, serial: str, websocket: WebSocket):
         """
@@ -74,95 +172,133 @@ class VideoStreamService:
             serial: Device serial number
             websocket: WebSocket connection
         """
-        # Mark as not paused
-        self.paused[serial] = False
+        ColorPrint.blue("=" * 70)
+        ColorPrint.blue(f"[VideoStreamService] H.264 Stream Request")
+        ColorPrint.blue(f"  - Serial: {serial}")
+        ColorPrint.blue(f"  - Protocol: scrcpy_web_test compatible")
+        ColorPrint.blue("=" * 70)
 
-        # Initialize frame stats
-        self.frame_stats[serial] = {
-            'frame_count': 0,
-            'bytes_sent': 0,
-            'start_time': asyncio.get_event_loop().time()
-        }
+        # Track active WebSocket for hot-reload
+        self.active_websockets[serial] = websocket
+        ColorPrint.blue(f"[VideoStreamService] Tracking WebSocket for {serial} (active: {len(self.active_websockets)})")
 
-        # Get device from centralized DeviceManager
-        device = self.device_manager.get_device(serial)
-        if not device:
-            error_msg = {
-                "type": "video.error",
+        try:
+            # Mark as not paused
+            self.paused[serial] = False
+
+            # Initialize frame stats
+            self.frame_stats[serial] = {
+                'frame_count': 0,
+                'bytes_sent': 0,
+                'start_time': asyncio.get_event_loop().time()
+            }
+
+            # Get device from centralized DeviceManager
+            ColorPrint.blue(f"[VideoStreamService] Step 1: Getting device {serial}...")
+            device = self.device_manager.get_device(serial)
+            if not device:
+                error_msg = {
+                    "type": "video.error",
+                    "timestamp": 0,
+                    "data": {"error": f"Device {serial} not found"}
+                }
+                await websocket.send_json(error_msg)
+                ColorPrint.red(f"[VideoStreamService] ✗ Device {serial} not found in DeviceManager")
+                return
+
+            ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} found")
+
+            # Verify device is connected
+            ColorPrint.blue(f"[VideoStreamService] Step 2: Verifying device connection...")
+            if not device.is_connected():
+                error_msg = {
+                    "type": "video.error",
+                    "timestamp": 0,
+                    "data": {"error": f"Device {serial} not connected. Check scrcpy-server."}
+                }
+                await websocket.send_json(error_msg)
+                ColorPrint.red(f"[VideoStreamService] ✗ Device {serial} not connected")
+                ColorPrint.red(f"  - Video socket: {device._video_socket}")
+                ColorPrint.red(f"  - Control socket: {device._control_socket}")
+                return
+
+            ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} is connected")
+            ColorPrint.blue(f"  - Video socket: {device._video_socket}")
+
+            # Get device info
+            device_info = device.get_device_info()
+
+            # Send video init message
+            init_message = {
+                "type": "video.init",
                 "timestamp": 0,
-                "data": {"error": f"Device {serial} not found"}
+                "data": {
+                    "serial": serial,
+                    "codec": "h264",
+                    "width": device_info.resolution.width,
+                    "height": device_info.resolution.height,
+                    "fps": device.params.max_fps,
+                    "bitrate": device.params.bit_rate
+                }
             }
-            await websocket.send_json(error_msg)
-            ColorPrint.red(f"[VideoStreamService] Device {serial} not found")
-            return
+            await websocket.send_json(init_message)
+            ColorPrint.blue(f"[VideoStreamService] Sent init message: {device_info.resolution.width}x{device_info.resolution.height}")
 
-        # Verify device is connected
-        if not device.is_connected():
-            error_msg = {
-                "type": "video.error",
-                "timestamp": 0,
-                "data": {"error": f"Device {serial} not connected. Check scrcpy-server."}
-            }
-            await websocket.send_json(error_msg)
-            ColorPrint.red(f"[VideoStreamService] Device {serial} not connected")
-            return
+            # Streaming loop - read frames from device
+            ColorPrint.blue(f"[VideoStreamService] Step 4: Starting H.264 streaming loop...")
+            ColorPrint.green(f"[VideoStreamService] ✓ H.264 streaming loop started")
 
-        ColorPrint.green(f"[VideoStreamService] Starting H.264 stream for {serial}")
+            loop = asyncio.get_event_loop()
+            stats = self.frame_stats[serial]
+            first_frame = True
 
-        # Get device info
-        device_info = device.get_device_info()
+            while True:
+                # Check if paused
+                if self.paused.get(serial, False):
+                    await asyncio.sleep(0.1)
+                    continue
 
-        # Send video init message
-        init_message = {
-            "type": "video.init",
-            "timestamp": 0,
-            "data": {
-                "serial": serial,
-                "codec": "h264",
-                "width": device_info.resolution.width,
-                "height": device_info.resolution.height,
-                "fps": device.params.max_fps,
-                "bitrate": device.params.bit_rate
-            }
-        }
-        await websocket.send_json(init_message)
-        ColorPrint.blue(f"[VideoStreamService] Sent init message: {device_info.resolution.width}x{device_info.resolution.height}")
+                # Read video frame (blocking call, run in executor)
+                # Returns dict: {'data': bytes, 'pts': int, 'size': int, 'is_config': bool, 'is_keyframe': bool}
+                frame = await loop.run_in_executor(None, device.read_video_frame)
 
-        # Streaming loop - read frames from device
-        loop = asyncio.get_event_loop()
-        stats = self.frame_stats[serial]
+                if not frame:
+                    ColorPrint.yellow(f"[VideoStreamService] Video stream ended for {serial}")
+                    break
 
-        while True:
-            # Check if paused
-            if self.paused.get(serial, False):
-                await asyncio.sleep(0.1)
-                continue
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First H.264 frame received:")
+                    ColorPrint.green(f"  - Size: {len(frame['data'])} bytes")
+                    ColorPrint.green(f"  - PTS: {frame['pts']}")
+                    ColorPrint.green(f"  - Is config: {frame.get('is_config', False)}")
+                    ColorPrint.green(f"  - Is keyframe: {frame.get('is_keyframe', False)}")
 
-            # Read video frame (blocking call, run in executor)
-            # Returns dict: {'data': bytes, 'pts': int, 'size': int, 'is_config': bool, 'is_keyframe': bool}
-            frame = await loop.run_in_executor(None, device.read_video_frame)
+                # Extract frame data
+                frame_data = frame['data']
+                stats['frame_count'] += 1
+                stats['bytes_sent'] += len(frame_data)
 
-            if not frame:
-                ColorPrint.yellow(f"[VideoStreamService] Video stream ended for {serial}")
-                break
+                # Pack frame with custom protocol (scrcpy_web_test compatible)
+                payload = self._pack_frame(serial, frame)
 
-            # Extract frame data
-            frame_data = frame['data']
-            stats['frame_count'] += 1
-            stats['bytes_sent'] += len(frame_data)
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First frame packed:")
+                    ColorPrint.green(f"  - Total payload size: {len(payload)} bytes")
+                    ColorPrint.green(f"  - Protocol: [serial_len][serial][pts][size][H.264 data]")
 
-            # Pack frame with custom protocol
-            payload = self._pack_frame(serial, frame)
+                # Send binary frame to WebSocket
+                await websocket.send_bytes(payload)
 
-            # Send binary frame to WebSocket
-            await websocket.send_bytes(payload)
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First H.264 frame sent to WebSocket")
+                    first_frame = False
 
-            # Send metadata every 60 frames (~1 second at 60fps)
-            if stats['frame_count'] % 60 == 0:
-                elapsed = loop.time() - stats['start_time']
-                fps = stats['frame_count'] / elapsed if elapsed > 0 else 0
+                # Send metadata every 60 frames (~1 second at 60fps)
+                if stats['frame_count'] % 60 == 0:
+                    elapsed = loop.time() - stats['start_time']
+                    fps = stats['frame_count'] / elapsed if elapsed > 0 else 0
 
-                metadata = {
+                    metadata = {
                     "type": "video.metadata",
                     "timestamp": int(elapsed * 1000),
                     "data": {
@@ -171,23 +307,29 @@ class VideoStreamService:
                         "bytes": stats['bytes_sent'],
                         "mbps": round(stats['bytes_sent'] * 8 / elapsed / 1_000_000, 2) if elapsed > 0 else 0
                     }
-                }
-                await websocket.send_json(metadata)
+                    }
+                    await websocket.send_json(metadata)
 
-            # Log progress every 300 frames (~5 seconds)
-            if stats['frame_count'] % 300 == 0:
-                mb_sent = stats['bytes_sent'] / (1024 * 1024)
-                ColorPrint.blue(f"[VideoStreamService] {serial}: {stats['frame_count']} frames, {mb_sent:.2f} MB sent")
+                # Log progress every 300 frames (~5 seconds)
+                if stats['frame_count'] % 300 == 0:
+                    mb_sent = stats['bytes_sent'] / (1024 * 1024)
+                    ColorPrint.blue(f"[VideoStreamService] {serial}: {stats['frame_count']} frames, {mb_sent:.2f} MB sent")
 
-        # Stream ended
-        ColorPrint.blue(f"[VideoStreamService] Stream ended for {serial}")
-        ColorPrint.blue(f"[Stats] Frames: {stats['frame_count']}, Data: {stats['bytes_sent'] / (1024 * 1024):.2f} MB")
+                # Stream ended
+                    ColorPrint.blue(f"[VideoStreamService] Stream ended for {serial}")
+                    ColorPrint.blue(f"[Stats] Frames: {stats['frame_count']}, Data: {stats['bytes_sent'] / (1024 * 1024):.2f} MB")
 
-        # Cleanup
-        if serial in self.paused:
-            del self.paused[serial]
-        if serial in self.frame_stats:
-            del self.frame_stats[serial]
+        finally:
+                # Cleanup: Remove from active WebSockets
+                    if serial in self.active_websockets:
+                    del self.active_websockets[serial]
+                    ColorPrint.blue(f"[VideoStreamService] Removed {serial} from active WebSockets (remaining: {len(self.active_websockets)})")
+
+            # Cleanup frame stats
+            if serial in self.paused:
+                del self.paused[serial]
+            if serial in self.frame_stats:
+                del self.frame_stats[serial]
 
     def _pack_frame(self, serial: str, frame: Dict) -> bytes:
         """
@@ -277,3 +419,301 @@ class VideoStreamService:
                 pass
             del self.streams[serial]
         ColorPrint.blue(f"[VideoStreamService] Stream stopped for {serial}")
+
+    # ========== YUV Streaming Methods ==========
+
+    async def stream_yuv_to_websocket(
+        self,
+        serial: str,
+        websocket: WebSocket,
+        hwaccel: Optional[str] = None
+    ):
+        """
+        Stream YUV420P video to WebSocket (WebGL-optimized)
+
+        基于 QtScrcpy OpenGL 实现的 YUV 推流方案
+        - 后端 FFmpeg 解码 H.264 → YUV420P
+        - WebSocket 推送 YUV 数据
+        - 前端 WebGL 着色器渲染（GPU 加速）
+
+        Flow:
+            1. 读取 H.264 帧
+            2. FFmpeg 解码到 YUV420P
+            3. 打包 YUV 数据
+            4. WebSocket 发送
+
+        Args:
+            serial: 设备序列号
+            websocket: WebSocket 连接
+            hwaccel: 硬件加速类型 ('cuda', 'qsv', 'dxva2', 'vaapi', None)
+        """
+        ColorPrint.blue("=" * 70)
+        ColorPrint.blue(f"[VideoStreamService] YUV Stream Request")
+        ColorPrint.blue(f"  - Serial: {serial}")
+        ColorPrint.blue(f"  - Hardware Acceleration: {hwaccel or 'software'}")
+        ColorPrint.blue("=" * 70)
+
+        # Track active WebSocket for hot-reload
+        self.active_websockets[serial] = websocket
+        ColorPrint.blue(f"[VideoStreamService] Tracking WebSocket for {serial} (active: {len(self.active_websockets)})")
+
+        try:
+            # Mark as not paused
+            self.paused[serial] = False
+
+            # Initialize frame stats
+            self.frame_stats[serial] = {
+                'frame_count': 0,
+                'bytes_sent': 0,
+                'start_time': asyncio.get_event_loop().time()
+            }
+
+        # Get device
+        ColorPrint.blue(f"[VideoStreamService] Step 1: Getting device {serial}...")
+        device = self.device_manager.get_device(serial)
+        if not device:
+            error_msg = {
+                "type": "video.error",
+                "timestamp": 0,
+                "data": {"error": f"Device {serial} not found"}
+            }
+            await websocket.send_json(error_msg)
+            ColorPrint.red(f"[VideoStreamService] ✗ Device {serial} not found in DeviceManager")
+            return
+
+        ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} found")
+
+        # Verify device is connected
+        ColorPrint.blue(f"[VideoStreamService] Step 2: Verifying device connection...")
+        if not device.is_connected():
+            error_msg = {
+                "type": "video.error",
+                "timestamp": 0,
+                "data": {"error": f"Device {serial} not connected"}
+            }
+            await websocket.send_json(error_msg)
+            ColorPrint.red(f"[VideoStreamService] ✗ Device {serial} not connected")
+            ColorPrint.red(f"  - Video socket: {device._video_socket}")
+            ColorPrint.red(f"  - Control socket: {device._control_socket}")
+            return
+
+        ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} is connected")
+        ColorPrint.blue(f"  - Video socket: {device._video_socket}")
+
+        # Get device info
+        ColorPrint.blue(f"[VideoStreamService] Step 3: Getting device info...")
+        device_info = device.get_device_info()
+        ColorPrint.green(f"[VideoStreamService] ✓ Device info:")
+        ColorPrint.green(f"  - Resolution: {device_info.resolution.width}x{device_info.resolution.height}")
+        ColorPrint.green(f"  - Max FPS: {device.params.max_fps}")
+        ColorPrint.green(f"  - Bit Rate: {device.params.bit_rate}")
+
+        # Send video init message
+        ColorPrint.blue(f"[VideoStreamService] Step 4: Sending init message to WebSocket...")
+        init_message = {
+            "type": "video.init",
+            "timestamp": 0,
+            "data": {
+                "serial": serial,
+                "codec": "yuv420p",
+                "format": "yuv",
+                "width": device_info.resolution.width,
+                "height": device_info.resolution.height,
+                "fps": device.params.max_fps,
+                "hwaccel": hwaccel or "software"
+            }
+        }
+        await websocket.send_json(init_message)
+        ColorPrint.green(f"[VideoStreamService] ✓ Sent YUV init message")
+
+        # Create decoder
+        ColorPrint.blue(f"[VideoStreamService] Step 5: Creating FFmpeg decoder...")
+        decoder = VideoDecoderService.instance()
+        try:
+            decoder.create_decoder(serial, hwaccel=hwaccel)
+            ColorPrint.green(f"[VideoStreamService] ✓ FFmpeg decoder created successfully")
+        except Exception as e:
+            ColorPrint.red(f"[VideoStreamService] ✗ Failed to create decoder: {e}")
+            import traceback
+            traceback.print_exc()
+            error_msg = {
+                "type": "video.error",
+                "timestamp": 0,
+                "data": {"error": f"Failed to create FFmpeg decoder: {str(e)}"}
+            }
+            await websocket.send_json(error_msg)
+            return
+
+        # Streaming loop
+        ColorPrint.blue(f"[VideoStreamService] Step 6: Starting video streaming loop...")
+        ColorPrint.green(f"[VideoStreamService] ✓ YUV streaming loop started")
+
+        loop = asyncio.get_event_loop()
+        stats = self.frame_stats[serial]
+
+        try:
+            first_frame = True
+            while True:
+                # Check if paused
+                if self.paused.get(serial, False):
+                    await asyncio.sleep(0.1)
+                    continue
+
+                # Read H.264 frame
+                h264_frame = await loop.run_in_executor(None, device.read_video_frame)
+
+                if not h264_frame:
+                    ColorPrint.yellow(f"[VideoStreamService] YUV stream ended for {serial}")
+                    break
+
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First H.264 frame received:")
+                    ColorPrint.green(f"  - Size: {len(h264_frame['data'])} bytes")
+                    ColorPrint.green(f"  - PTS: {h264_frame['pts']}")
+                    ColorPrint.green(f"  - Is config: {h264_frame.get('is_config', False)}")
+                    ColorPrint.green(f"  - Is keyframe: {h264_frame.get('is_keyframe', False)}")
+
+                # Decode to YUV
+                yuv_frame = await loop.run_in_executor(
+                    None,
+                    decoder.decode_frame,
+                    serial,
+                    h264_frame['data']
+                )
+
+                if not yuv_frame:
+                    # Decode failed, skip frame
+                    if first_frame:
+                        ColorPrint.yellow(f"[VideoStreamService] ⚠ First frame decode failed, skipping...")
+                    continue
+
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First frame decoded to YUV:")
+                    ColorPrint.green(f"  - Resolution: {yuv_frame['width']}x{yuv_frame['height']}")
+                    ColorPrint.green(f"  - Y plane: {len(yuv_frame['y_plane'])} bytes")
+                    ColorPrint.green(f"  - U plane: {len(yuv_frame['u_plane'])} bytes")
+                    ColorPrint.green(f"  - V plane: {len(yuv_frame['v_plane'])} bytes")
+                    ColorPrint.green(f"  - Format: {yuv_frame['format']}")
+
+                stats['frame_count'] += 1
+                yuv_size = len(yuv_frame['y_plane']) + len(yuv_frame['u_plane']) + len(yuv_frame['v_plane'])
+                stats['bytes_sent'] += yuv_size
+
+                # Pack YUV frame
+                payload = self._pack_yuv_frame(serial, yuv_frame)
+
+                if first_frame:
+                    serial_bytes_len = len(serial.encode('utf-8'))
+                    ColorPrint.green(f"[VideoStreamService] ✓ First frame packed:")
+                    ColorPrint.green(f"  - Total payload size: {len(payload)} bytes")
+                    ColorPrint.green(f"  - Breakdown:")
+                    ColorPrint.green(f"    • serial_len: 1 byte")
+                    ColorPrint.green(f"    • serial: {serial_bytes_len} bytes")
+                    ColorPrint.green(f"    • header (pts+dims+sizes): 24 bytes")
+                    ColorPrint.green(f"    • Y data: {len(yuv_frame['y_plane'])} bytes")
+                    ColorPrint.green(f"    • U data: {len(yuv_frame['u_plane'])} bytes")
+                    ColorPrint.green(f"    • V data: {len(yuv_frame['v_plane'])} bytes")
+                    ColorPrint.green(f"  - Expected total: {1 + serial_bytes_len + 24 + yuv_size} bytes")
+
+                # Send to WebSocket
+                await websocket.send_bytes(payload)
+
+                if first_frame:
+                    ColorPrint.green(f"[VideoStreamService] ✓ First frame sent to WebSocket")
+                    first_frame = False
+
+                # Send metadata every 60 frames
+                if stats['frame_count'] % 60 == 0:
+                    elapsed = loop.time() - stats['start_time']
+                    fps = stats['frame_count'] / elapsed if elapsed > 0 else 0
+
+                    metadata = {
+                        "type": "video.metadata",
+                        "timestamp": int(elapsed * 1000),
+                        "data": {
+                            "fps": round(fps, 2),
+                            "frames": stats['frame_count'],
+                            "bytes": stats['bytes_sent'],
+                            "mbps": round(stats['bytes_sent'] * 8 / elapsed / 1_000_000, 2) if elapsed > 0 else 0,
+                            "format": "yuv420p"
+                        }
+                    }
+                    await websocket.send_json(metadata)
+
+                # Log progress every 300 frames
+                if stats['frame_count'] % 300 == 0:
+                    mb_sent = stats['bytes_sent'] / (1024 * 1024)
+                    ColorPrint.blue(f"[VideoStreamService] YUV {serial}: {stats['frame_count']} frames, {mb_sent:.2f} MB")
+
+        finally:
+            # Cleanup decoder
+            decoder.close_decoder(serial)
+
+            # Remove from active WebSockets
+            if serial in self.active_websockets:
+                del self.active_websockets[serial]
+                ColorPrint.blue(f"[VideoStreamService] Removed {serial} from active WebSockets (remaining: {len(self.active_websockets)})")
+
+            # Stream ended
+            ColorPrint.blue(f"[VideoStreamService] YUV stream ended for {serial}")
+            ColorPrint.blue(f"[Stats] Frames: {stats['frame_count']}, Data: {stats['bytes_sent'] / (1024 * 1024):.2f} MB")
+
+            # Cleanup
+            if serial in self.paused:
+                del self.paused[serial]
+            if serial in self.frame_stats:
+                del self.frame_stats[serial]
+
+    def _pack_yuv_frame(self, serial: str, yuv_frame: Dict) -> bytes:
+        """
+        Pack YUV frame with custom binary protocol
+
+        Protocol Format:
+            [serial_len (1 byte)]
+            [serial (N bytes)]
+            [pts (8 bytes)]
+            [width (2 bytes)]
+            [height (2 bytes)]
+            [y_size (4 bytes)]
+            [u_size (4 bytes)]
+            [v_size (4 bytes)]
+            [Y plane data]
+            [U plane data]
+            [V plane data]
+
+        Args:
+            serial: Device serial number
+            yuv_frame: YUV frame dict from decoder
+
+        Returns:
+            Packed binary frame
+        """
+        # Encode serial
+        serial_bytes = serial.encode('utf-8')
+        if len(serial_bytes) > 255:
+            serial_bytes = serial_bytes[:255]
+
+        # Pack header (WITHOUT serial_len, it goes before serial)
+        # Format: pts(8) + width(2) + height(2) + y_size(4) + u_size(4) + v_size(4)
+        header = struct.pack(
+            ">QHHiii",
+            yuv_frame['pts'],                 # pts (8 bytes, unsigned)
+            yuv_frame['width'],               # width (2 bytes, unsigned)
+            yuv_frame['height'],              # height (2 bytes, unsigned)
+            len(yuv_frame['y_plane']),        # y_size (4 bytes, signed)
+            len(yuv_frame['u_plane']),        # u_size (4 bytes, signed)
+            len(yuv_frame['v_plane'])         # v_size (4 bytes, signed)
+        )
+
+        # CRITICAL: serial_len must come BEFORE serial, not inside header
+        # Combine all parts in correct order
+        payload = (
+            bytes([len(serial_bytes)]) +      # serial_len (1 byte) - MUST BE FIRST
+            serial_bytes +                     # serial (N bytes)
+            header +                           # pts + dimensions + sizes
+            yuv_frame['y_plane'] +
+            yuv_frame['u_plane'] +
+            yuv_frame['v_plane']
+        )
+
+        return payload
