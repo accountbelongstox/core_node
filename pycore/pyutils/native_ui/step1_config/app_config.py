@@ -216,6 +216,22 @@ class NativeUIConfig:
     rpc_allow_origins: List[str] = field(default_factory=lambda: ["*"])
     """CORS allowed origins list"""
 
+    rpc_init_callback: Optional[Callable] = None
+    """
+    Optional callback function to initialize RPC v2 routes
+
+    Called after RPC v2 server is created, before it starts accepting connections.
+    Signature: def callback(rpc_server) -> None
+
+    Example:
+        def init_routes(rpc_server):
+            rpc_server.route('my.route', my_handler)
+
+        config = NativeUIConfig(
+            rpc_init_callback=init_routes
+        )
+    """
+
     rpc_auto_mount_frontend: bool = True
     """
     Auto-mount frontend static files (from frontend_thread)
