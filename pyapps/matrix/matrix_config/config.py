@@ -33,7 +33,7 @@ class Config:
         Get ADB executable path
 
         Priority:
-        1. Local resources/adb/{platform}/adb
+        1. User data directory (from scrcpy_init.py)
         2. System PATH adb
         3. Return "adb" (fallback)
 
@@ -41,22 +41,19 @@ class Config:
             ADB executable path
         """
         import shutil
+        from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
 
-        system = platform.system()
-        adb_exe = "adb.exe" if system == 'Windows' else "adb"
-
-        # 1. Check local ADB
-        if system == 'Windows':
-            adb_path = Config.RESOURCES_DIR / "adb" / "windows" / adb_exe
-        elif system == 'Darwin':  # macOS
-            adb_path = Config.RESOURCES_DIR / "adb" / "macos" / adb_exe
-        else:  # Linux
-            adb_path = Config.RESOURCES_DIR / "adb" / "linux" / adb_exe
-
-        if adb_path.exists():
-            return str(adb_path)
+        # 1. Try to get from user data directory (auto-extracts if needed)
+        try:
+            adb_path = get_init_adb_path()
+            if adb_path and adb_path.exists():
+                return str(adb_path)
+        except Exception as e:
+            print(f"[Config] Warning: Failed to get ADB from scrcpy_init: {e}")
 
         # 2. Check system PATH
+        system = platform.system()
+        adb_exe = "adb.exe" if system == 'Windows' else "adb"
         adb_in_path = shutil.which(adb_exe)
         if adb_in_path:
             return adb_in_path
