@@ -15,6 +15,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 const ScriptLibrary = lazy(() => import('./components/ScriptLibrary').then(m => ({ default: m.ScriptLibrary })));
 const FileManager = lazy(() => import('./components/FileManager').then(m => ({ default: m.FileManager })));
 const MediaGallery = lazy(() => import('./components/MediaGallery').then(m => ({ default: m.MediaGallery })));
+const TestPage = lazy(() => import('./components/TestPage').then(m => ({ default: m.TestPage })));
 import { Device, DeviceGroup, DeviceLog, BatchActionType, StreamConfig } from './types';
 import { I18nProvider, useI18n } from './services/i18n';
 import { wsService } from './services/websocket';
@@ -40,13 +41,60 @@ const MatrixApp: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   
+  // Initialize state based on URL hash
+  const getInitialView = () => {
+    const hash = window.location.hash.slice(1);
+    return hash === 'test' || hash === 'files' || hash === 'media' ? hash : null;
+  };
+
   // Modal/Panel State
   const [showSettings, setShowSettings] = useState(false);
   const [showScripts, setShowScripts] = useState(false);
-  const [showFileManager, setShowFileManager] = useState(false);
-  const [showMediaGallery, setShowMediaGallery] = useState(false); // New State
+  const [showFileManager, setShowFileManager] = useState(() => getInitialView() === 'files');
+  const [showMediaGallery, setShowMediaGallery] = useState(() => getInitialView() === 'media');
+  const [showTestPage, setShowTestPage] = useState(() => getInitialView() === 'test');
   const [fileManagerTarget, setFileManagerTarget] = useState<string | null>(null);
-  const [deviceConfigTarget, setDeviceConfigTarget] = useState<Device | null>(null); // New State
+  const [deviceConfigTarget, setDeviceConfigTarget] = useState<Device | null>(null);
+
+  // Check URL hash for direct navigation and handle changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'test') {
+        setShowTestPage(true);
+        setShowFileManager(false);
+        setShowMediaGallery(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === 'files') {
+        setShowFileManager(true);
+        setShowTestPage(false);
+        setShowMediaGallery(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === 'media') {
+        setShowMediaGallery(true);
+        setShowTestPage(false);
+        setShowFileManager(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === '' || hash === 'matrix') {
+        setShowTestPage(false);
+        setShowFileManager(false);
+        setShowMediaGallery(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      }
+    };
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Also check on mount in case hash was set before component mounted
+    handleHashChange();
+    
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Data State
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -162,14 +210,21 @@ const MatrixApp: React.FC = () => {
     setShowScripts(false);
     setShowMediaGallery(false);
     setShowSettings(false);
+    setShowTestPage(false);
 
     if (view === 'files') {
       setFileManagerTarget(null); 
       setShowFileManager(true);
+      window.location.hash = 'files';
     } else if (view === 'matrix') {
        // Just close others
+       window.location.hash = '';
     } else if (view === 'media') {
        setShowMediaGallery(true);
+       window.location.hash = 'media';
+    } else if (view === 'test') {
+       setShowTestPage(true);
+       window.location.hash = 'test';
     }
   };
 
@@ -367,7 +422,11 @@ const MatrixApp: React.FC = () => {
          
          {/* Main Content Area */}
          <main className="flex-1 overflow-hidden relative flex flex-col transition-all duration-300 bg-gradient-to-br from-white/[0.02] to-transparent pb-32">
-             {showFileManager ? (
+             {showTestPage ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
+                  <TestPage />
+                </Suspense>
+             ) : showFileManager ? (
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
                   <FileManager 
                      targetDeviceSerial={fileManagerTarget} 
