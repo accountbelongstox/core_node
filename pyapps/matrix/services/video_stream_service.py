@@ -320,10 +320,10 @@ class VideoStreamService:
                     ColorPrint.blue(f"[Stats] Frames: {stats['frame_count']}, Data: {stats['bytes_sent'] / (1024 * 1024):.2f} MB")
 
         finally:
-                # Cleanup: Remove from active WebSockets
-                    if serial in self.active_websockets:
-                    del self.active_websockets[serial]
-                    ColorPrint.blue(f"[VideoStreamService] Removed {serial} from active WebSockets (remaining: {len(self.active_websockets)})")
+            # Cleanup: Remove from active WebSockets
+            if serial in self.active_websockets:
+                del self.active_websockets[serial]
+                ColorPrint.blue(f"[VideoStreamService] Removed {serial} from active WebSockets (remaining: {len(self.active_websockets)})")
 
             # Cleanup frame stats
             if serial in self.paused:
