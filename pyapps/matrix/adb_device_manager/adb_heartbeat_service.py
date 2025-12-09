@@ -15,6 +15,7 @@ from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
 from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInfo, DeviceState, DeviceType
 from pyapps.matrix.adb_device_manager.network_scanner import NetworkScanner
 from pyapps.matrix.adb_device_manager.usb_monitor import USBMonitor
+from pyapps.matrix.services.device_id_manager import DeviceIDManager
 
 
 class ADBHeartbeatService:
@@ -163,14 +164,24 @@ class ADBHeartbeatService:
                     android_version=device_info.get('android_version')
                 )
 
-                self.device_table.add_device(device)
-                ColorPrint.green(f"[ADBService] Added device: {serial} (root={is_root})")
+                added = self.device_table.add_device(device)
+                if added:
+                    # Register device with DeviceIDManager
+                    device_id_manager = DeviceIDManager.instance()
+                    device_id = device_id_manager.register_device(serial)
+                    ColorPrint.green(f"[ADBService] Added device: {serial} -> {device_id} (root={is_root})")
 
     def _usb_scan_task(self):
         """USB scan task"""
         ColorPrint.blue("[ADBService] Running USB scan task...")
 
         results = self.usb_monitor.process_usb_devices()
+
+        # Register all devices with DeviceIDManager
+        device_id_manager = DeviceIDManager.instance()
+        all_devices = self.device_table.get_all_devices()
+        for device in all_devices:
+            device_id_manager.register_device(device.serial)
 
         if not results:
             return
@@ -218,9 +229,14 @@ class ADBHeartbeatService:
         device_table = self.device_table
         all_devices = device_table.get_all_devices()
 
+        # Register all devices with DeviceIDManager and include deviceId in response
+        device_id_manager = DeviceIDManager.instance()
+
         devices_list = []
         for device_info in all_devices:
+            device_id = device_id_manager.register_device(device_info.serial)
             devices_list.append({
+                "deviceId": device_id,  # Primary ID for frontend use
                 "serial": device_info.serial,
                 "ip": device_info.ip_address,
                 "connection_type": device_info.device_type.value,

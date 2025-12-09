@@ -144,10 +144,19 @@ def rpc_init_callback(rpc_server):
     # Register video WebSocket routes (direct FastAPI routes, not RPC)
     ColorPrint.blue("[Matrix] Registering video WebSocket routes...")
     fastapi_app = rpc_server.app  # Get underlying FastAPI app
+
+    ColorPrint.yellow(f"[Matrix] FastAPI app type: {type(fastapi_app)}")
+    ColorPrint.yellow(f"[Matrix] Video router type: {type(video_router)}")
+    ColorPrint.yellow(f"[Matrix] Video router routes: {[r.path for r in video_router.routes]}")
+
     fastapi_app.include_router(video_router)
+
+    ColorPrint.yellow(f"[Matrix] After include_router, total routes: {len(fastapi_app.routes)}")
+    ColorPrint.yellow(f"[Matrix] All route paths: {[r.path for r in fastapi_app.routes]}")
+
     ColorPrint.green("[Matrix] ✓ Video WebSocket routes registered:")
-    ColorPrint.green("  - ws://localhost:48000/video/{serial} (H.264)")
-    ColorPrint.green("  - ws://localhost:48000/video/yuv/{serial} (YUV420P)")
+    ColorPrint.green("  - ws://localhost:48000/video/{device_id} (H.264)")
+    ColorPrint.green("  - ws://localhost:48000/video/yuv/{device_id} (YUV420P)")
 
     ColorPrint.blue("[Matrix] RPC v2 routes registered successfully")
 

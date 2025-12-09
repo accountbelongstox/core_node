@@ -99,6 +99,9 @@ class ScrcpyDevice(AndroidDevice):
 
         Reference: scrcpy develop.md lines 309-319, adb_tunnel.c
         """
+        # Cleanup old reverse tunnels first
+        self._cleanup_old_tunnels()
+
         scid = random.randint(0, 0x7FFFFFFF)  # 31-bit random number
 
         # Find free port for the tunnel
@@ -146,9 +149,13 @@ class ScrcpyDevice(AndroidDevice):
 
         # Accept video socket (first socket)
         print(f"[ScrcpyDevice] Accepting video socket...")
-        self._video_socket, _ = listen_socket.accept()
-        self._video_socket.settimeout(10.0)
-        print(f"[ScrcpyDevice] ✓ Video socket connected")
+        try:
+            self._video_socket, _ = listen_socket.accept()
+            self._video_socket.settimeout(10.0)
+            print(f"[ScrcpyDevice] ✓ Video socket connected")
+        except socket.timeout:
+            listen_socket.close()
+            raise RuntimeError(f"Timeout waiting for video socket connection from {self.serial}")
 
         # NOTE: In REVERSE mode, NO dummy byte is sent
         # Dummy byte is only sent in FORWARD mode
@@ -157,23 +164,33 @@ class ScrcpyDevice(AndroidDevice):
         # Accept control socket if enabled
         if self.params.control:
             print(f"[ScrcpyDevice] Accepting control socket...")
-            self._control_socket, _ = listen_socket.accept()
-            self._control_socket.settimeout(10.0)
-            print(f"[ScrcpyDevice] ✓ Control socket connected")
+            try:
+                self._control_socket, _ = listen_socket.accept()
+                self._control_socket.settimeout(10.0)
+                print(f"[ScrcpyDevice] ✓ Control socket connected")
+            except socket.timeout:
+                listen_socket.close()
+                raise RuntimeError(f"Timeout waiting for control socket connection from {self.serial}")
 
         listen_socket.close()
 
         # 7. NOW read device metadata (server can send it now)
         # Sent by connection.sendDeviceMeta() in Server.java line 107
         print(f"[ScrcpyDevice] Reading device metadata from first socket...")
-        self._read_device_metadata()
-        print(f"[ScrcpyDevice] ✓ Device: {self.info.model}")
+        try:
+            self._read_device_metadata()
+            print(f"[ScrcpyDevice] ✓ Device: {self.info.model}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to read device metadata from {self.serial}: {e}")
 
         # 8. Read codec metadata from video socket (12 bytes: codec_id + width + height)
         # Sent by videoStreamer.writeVideoHeader() after encoding starts
         print(f"[ScrcpyDevice] Reading video codec metadata...")
-        self._read_video_codec_metadata()
-        print(f"[ScrcpyDevice] ✓ Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+        try:
+            self._read_video_codec_metadata()
+            print(f"[ScrcpyDevice] ✓ Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to read video codec metadata from {self.serial}: {e}")
 
         # After the initial handshake, switch sockets back to blocking mode so
         # long-running streams are not interrupted by read timeouts.
@@ -305,6 +322,37 @@ class ScrcpyDevice(AndroidDevice):
     # ========================================================================
     # Private Helper Methods
     # ========================================================================
+
+    def _cleanup_old_tunnels(self):
+        """Remove all old reverse tunnels and kill old scrcpy-server processes"""
+        # Remove reverse tunnels with timeout
+        cmd = [
+            self.adb_path,
+            "-s", self.serial,
+            "reverse",
+            "--remove-all"
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=5)
+            print(f"[ScrcpyDevice] ✓ Cleaned up old reverse tunnels for {self.serial}")
+        except subprocess.TimeoutExpired:
+            print(f"[ScrcpyDevice] ⚠ Timeout cleaning reverse tunnels for {self.serial}")
+
+        # Kill old scrcpy-server processes with timeout
+        cmd = [
+            self.adb_path,
+            "-s", self.serial,
+            "shell",
+            "pkill -f com.genymobile.scrcpy.Server"
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=5)
+            print(f"[ScrcpyDevice] ✓ Killed old scrcpy-server processes on {self.serial}")
+        except subprocess.TimeoutExpired:
+            print(f"[ScrcpyDevice] ⚠ Timeout killing old processes for {self.serial}")
+
+        # Give device time to cleanup
+        time.sleep(0.5)
 
     def _find_free_port(self) -> int:
         """Find an available local port"""
