@@ -1,0 +1,476 @@
+CORPORATE BROCHURE
+Capital Management Group co., LTD
+2nd floor of YEIG building, T2 Kamphengmeuang Road,
+Phonthan Village, Xaysettha District, Vientiane, Laos
++856 2051 571 8000 capitalmgcltd@gmail.com
+CMG 
+资本管理集团有限公司
+⽼挝，万象市，朋坦村，
+T2
+路，能投办公楼，
+2
+楼办公室
++856 2051 571 8000 capitalmgcltd@gmail.com
+PROFILE COMPANY 
+CMG
+资本管理集团公司简介
+公司概况
+成⽴时间：
+2025
+年
+ 
+总部地点：⽼挝万象市
+ 
+核⼼业务：资产管理、战略投
+资、财务规划、多领域产业运营
+ 
+使命：以资本赋能产业，推动区域经济升
+级，打造东南亚战略性投资标杆
+INTRODUCTION OF THE CHAIRMAN
+董事⻓介绍
+郭先⽣
+职务：
+CMG
+资本管理集团董事⻓、董事会成员
+ 
+从业经验：
+15
+年以上跨⾏业
+投资管理经验，主导项⽬涵盖保险、健⾝、教
+ 
+育培训、⽂娱及安保领域。
+核⼼理念：以
+“
+产业协同
++
+资本驱动
+”
+模式，聚焦⾼增⻓潜⼒赛道，构建全产
+业链⽣态。
+ 
+代表项⽬：
+ 1.
+⽼挝
+CMG
+国际射击场（国防与⽂旅综合体）
+ 2.
+中
+⽼国际安保集团（东南亚⾼端安保服务）
+ 3.
+⽼挝维瑟特稀⼟全产业链项⽬
+（资源开发与加⼯）
+COMPANY ORGANIZATIONAL CHART
+公司组织结构图
+国际射击场
+⽼挝国防部
+⽼挝
+CMG
+国际射击场
+（国防与⽂旅综合体）
+LAOS CMG INTERNATIONAL SHOOTING RANGE
+(NATIONAL DEFENSE AND CULTURAL TOURISM COMPLEX
+）
+INTERNATIONAL SHOOTING RANGE AND ENTERTAINMENT COMPLEX
+国际射击场及娱乐综合体
+射击赛事及训练区
+军备试验及训练区综合服务区
+国防教育拓展区
+射击赛事及训练区是为射击运动开展赛事活
+动与⽇常训练的专业区域。设有多种类型的
+射击场地，如⻜碟场地、步枪射击场、⼿枪
+射击场等，配备专业的靶位、抛靶系统、电
+⼦计分设备，可精准模拟不同⽐赛场景，满
+⾜各类射击项⽬的训练和竞赛需求
+.
+军备试验及训练区配备功能有武器测试区、
+重型装备停放区、军事体能训练场、班排作
+战训练场、军⽤
+800
+⽶训练场、机动装备性
+能训练场、后勤保障区等。
+国防教育拓展区是集国防教育、军事体验和
+⼾外拓展功能于⼀体的综合系场所，设计理
+念在于通过模拟化的军事体验，培养全⺠国
+防军事素养、爱国主义精神和历史使命感。
+综合服务区主要起着接待和服务配套功能，
+配套有⼊⼝接待服务中⼼、社会⻋辆停⻋场、
+电瓶⻋停⻋场等。
+• 
+⽼挝经济的发展和国防建设的需求• 
+国际射击训练的需求也越来越多• 
+⼤量的旅游及投资者，⾼管⼈员安全需求增加• 
+标准化综合性射击场需求
+⽼挝
+CMG
+国际射击场项⽬是⼀项位于万象市的⾼端射击娱乐与专业训练综合体，旨在打
+造集军事专业训练、军⽅接待、休闲放松于⼀体的⼀站式服务场所。
+第⼀期开发⾯积：
+270
+公顷
+区位：万象市近郊，占地
+3000
+亩
+INTERNATIONAL SHOOTING RANGE AND ENTERTAINMENT COMPLEX
+国际射击场及娱乐综合体
+SHOOTING COMPETITION AND TRAINING AREA
+射击赛事及训练区
+01.
+室内设计场馆
+室内射击场馆主要含有射击区、设备控制
+ 
+区、休
+息与观摩区、枪械与弹药管理区、辅助功能
+ 
+区等。
+根据不同射击项⽬和受众需求，可以设置多
+ 
+种类型
+靶道，配备先进的射击设备、报靶系统及相
+ 
+关配套
+设施，满⾜训练、⽐赛、体验等多种功能。
+02.
+射击训练及⽐赛专⽤场地
+射击⽐赛及训练专⽤场地，规划包含⻓度包
+含
+10
+⽶、
+25
+⽶、
+50
+⽶、
+100
+⽶、
+200
+⽶，可满⾜各种
+射击训练及⽐赛的需要。
+03.
+⻜碟场地
+施区。竞赛区设置国际标准靶位（如多向、双向、
+ 
+双
+多向⻜碟靶位）；辅助设施区包含运动员休息区、
+ 
+裁
+判区、观众区、枪弹库、设备维护室等。
+ 
+既可以满⾜
+专业赛事、国家队集训需求，也可为射
+ 
+击爱好者提供
+模拟实战的训练环境，是集竞技、训
+ 
+练、体验于⼀体
+的专业射击场地。
+04.IPSC
+竞技射击专⽤场地
+⻜碟场地可划分为竞赛区、训练区、辅助设
+ IPSC
+⼀⽅⾯指国际实⽤射击联盟这⼀国际
+组织，另⼀⽅⾯则指其所倡导的实⽤射击运动，是
+⼀种以防卫射击技巧为基础发展的射击运动。
+IPSC 
+竞技射击专⽤场地主要涵盖模拟实战场景区、
+安全管控区、观赛与候赛区、枪械弹药管理中⼼、
+综合保障区等核⼼区域。
+NATIONAL DEFENSE EDUCATION EXPANSION AREA
+国防教育拓展区
+01.
+军事展⽰场
+02.
+真⼈
+CS
+野战场
+03. 
+真⼈
+CS
+对抗场
+04.
+军训营地
+NATIONAL DEFENSE EDUCATION EXPANSION AREA
+国防教育拓展区
+01. 400m
+障碍跑道
+02.
+⼾外拓展场
+03. 
+演习场
+04.
+⼭地越野训练场
+ARMS TESTING AND TRAINING AREA
+军备试验及训练区
+军备试验及训练区配备功能有武器测试区、重型装备停放区、
+军事体能训练场、班排作战训练场、军⽤
+800
+⽶训练场、机动
+装备性能训练场、后勤保障区等。
+COMPREHENSIVE SERVICE AREA
+综合服务区
+主题娱乐综合体
+⾼端配套
+18
+洞⾼尔夫球场、直升机观光平台
+奢侈品免税店、⽶其林联名餐厅
+东南亚冒险⾕
+”
+主题公园
+VR
+军事模拟、真⼈
+CS
+、实景逃⽣挑战
+⽼挝⽂化沉浸式剧场（湄公河主题实景秀）
+别墅度假区
+200
+栋私密庄园（现代禅意设计，配备私
+⼈靶场及泳池）
+会员制俱乐部（政商名流专属社交圈层）
+COMPREHENSIVE SERVICE AREA
+综合服务区
+军⼈俱乐部
+军⼈俱乐部是围绕部队中⼼任务和基层实际，以业余活动⽅式
+开展⾼尚健康、丰富多彩的⽂化和体育活动，普及军事和科学
+ 
+⽂
+化知识的重要场所。其主要⽬的是通过寓教于乐的⽅式，促
+ 
+进部
+队的社会主义精神⽂明建设，培养新时代⾰命军⼈，提⾼
+ 
+部队战
+⽃⼒。军⼈俱乐部根据部队条件和官兵需要开展⼯作，
+ 
+包括群众
+性⽂化娱乐活动、业余⽂学艺术创作、⽂艺影视评论、
+ 
+图书阅览
+活动、体育活动等，管理⽂体器材和活动场所
+ 
+COMPREHENSIVE SERVICE AREA
+综合服务区
+欢乐⾕和影城
+冒险岛乐园、⽕⼭湾或⽔上乐园，
+VR
+，影城主题公园，提供沉
+浸式虚拟现实体验。- 
+包括动作、冒险、恐怖和体育类
+VR
+游戏，如《
+Overkill
+》
+《
+Zombie Jail
+》等。- 
+适合家庭和⻘少年游客，提供单⼈及多⼈合作模式。
+COMPREHENSIVE SERVICE AREA
+综合服务区
+商业区
+东南亚⻛情的旅游商贸街，涵盖特⾊街区、⽂化体验和商贸活
+动：- 
+涵盖东盟⼗国（越南、柬埔寨、泰国等）特⾊商品、美⻝及
+旅游推⼴。- 
+集商贸、购物、美⻝、观光于⼀体，设有东南亚商品展、美
+⻝节等。- 
+可举办各
+“
+购物或展销会
+”
+，
+“
+⻛情东南亚美⻝啤酒嘉年华
+”- 
+亮点，夜市⽂化浓厚，适合体验东南亚夜⽣活与购物。- 
+街头艺术，各东南亚舞蹈表演等
+中⽼国际安保集团
+（东南亚⾼端安保服务）
+CHINA-LAOS INTERNATIONAL SECURITY GROUP
+(HIGH-END SECURITY SERVICES IN SOUTHEAST ASIA)
+当今的国际环境多变，全球经济不稳定因素加剧，俄乌，中东，⾮洲，东南亚，南
+美等等。安全，再次成了经济发展的奠基⽯。⼈是社会发展的核⼼要素，以⼈为本，
+各领域核⼼⼈员的安全将是社会经济发展的基本⾯。
+我们在
+2006
+年成⽴了九命保镖学院，是擅⻓国际先进政要保护体系的培训机构，并
+结合俄罗斯、英国、以⾊列等国家先进保护战术理念及技术，制定出完善的培训体系，
+主要针对军警、安保机构等相关单位进⾏⾼压下武器应⽤、城市近距离作战、近距离
+格⽃、要员⾮武装保护及武装保护、⾼危地区武装保护、
+VIP
+⼈质解救、⼤众安全体
+系等科⽬的培训。
+The current international environment is constantly changing, and global economic instability is intensifying,
+including Russia, Ukraine, the Middle East, Africa, Southeast Asia, South America, and so on. Security has once
+again become the cornerstone of economic development. Human beings are the core element of social
+development. Putting people erst and ensuring the safety of core personnel in various eelds will be the
+fundamental aspect of socio-economic development.
+We established the Nine Life Bodyguard Academy in 2006, which is a training institution specializing in
+international advanced political protection systems. Combining advanced protection tactical concepts and
+technologies from countries such as Russia, the United Kingdom, and Israel, we have developed a
+comprehensive training system, mainly targeting military and police forces, security agencies, and other related
+units for high-pressure weapon applications, urban close combat, close range combat, unarmed and armed
+protection of key personnel, armed protection in high-risk areas, VIP hostage rescue, and public safety systems.
+CHINA-LAOS INTERNATIONAL SECURITY GROUP
+中⽼国际安保集团
+INTRODUCTION OF INSTRUCTOR
+教官介绍
+李旭
+ 
+（中国第⼀保镖）
+李旭先⽣
+1990
+,
+年进⼊保镖⾏业
+ 
+从事保护及保镖教学⼯作
+30
+余年
+,
+有着丰富的实战经验
+,
+⾜迹
+70
+多国交流学习保
+护战术。
+2005
+年成⽴九命保镖学院。
+中国参加世界级保镖冠军⼤赛的第⼀⼈。
+多次成为国际保镖⼤赛和欧洲保镖⼤赛带队教官。
+国内第⼀个著书推⼴国际保镖理念和技术的⼈。
+国内第⼀个持有国际认证的保护专家资质的保镖。
+担任
+IBF
+国际保镖联合会中国区总负责⼈、
+IBSA
+国际保镖射击协会中国区总负责⼈、
+IBF
+国际保镖联合会中国
+区赛事⽅代表等
+,
+著书
+:
+《中国第⼀保镖》、《做⾃⼰的保镖》、《安全保卫战》、《我的安全我做主》。
+个⼈愿景
+:
+如何提供职业化的保护服务
+,
+将国外的先进理念及技术与国内的⼯作特点相结合
+,
+研究出⼀整套适合
+国内从事这⼀⾏业的⼯作⽅法
+,
+致⼒于在中国推⼴国际先进的保护战术及理念
+,
+帮助从业⼈员逐步理清职业思
+路⾛向正规化
+,
+与时俱进与国际同⾏业接轨
+, 
+并且努⼒推⼴做最好的保镖是⾃⼰的普通⺠众个⼈安全、
+ 
+家庭安
+全的理念
+,
+帮助普通⺠众提⾼个⼈防护的技能。
+CHINA-LAOS INTERNATIONAL SECURITY GROUP
+中⽼国际安保集团
+市场定位
+东南亚⾼端安全服务领导者
+核⼼竞争⼒
+九命保镖学院体系（全球
+Top1%
+精英认
+证）
++
+中⽼边境快速响应⽹络。
+CHINA-LAOS INTERNATIONAL SECURITY GROUP
+中⽼国际安保集团
+服务板块
+政要保护：国家级峰会、外交⼈员及家属全程护卫。
+ 
+商
+业安全：中资企业⾼管、跨境投资团队⻛险管控。
+ 
+战术
+培训：为⽼挝军⽅及警⽅提供国际标准化战术课程
+（
+IBF/IBSA
+认证）。
+市场定位
+安保服务（⼈均创收
+20
+万元
+/
+年）
+武装押运（单项⽬利润
+30
+万元起）
+政府合作培训（年培训
+2000
+⼈次）
+⽼挝维瑟特稀⼟全产业链项⽬
+（资源开发与加⼯）
+THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+(RESOURCE DEVELOPMENT AND PROCESSING)
+THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+⽼挝维瑟特稀⼟全产业链项⽬
+开矿地
+⼯⼚基本介绍⼯⼚⼯⼚能⼒，设备
+THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+⽼挝维瑟特稀⼟全产业链项⽬
+定位
+东南亚稀缺资源战略开发
+核⼼资产
+矿权
+华潘省
+50
+平⽅公⾥稀⼟矿勘探权，政府⽀持函及采矿许可完备。
+加⼯能⼒
+年处理
+5000
+吨独居⽯精矿，产出
+6300
+吨固态氯化稀⼟及
+11000m³
+液态氯化稀⼟。
+稀⼟氧化物（
+La₂ O₃ 
+、
+Nd₂ O₃ 
+等）年产
+3000
+吨，纯度达国际标准。
+技术优势
+中⽼双基地联动（⽼挝⼯⼚），全封闭萃取分离技术，环保达标。
+政策背书
+获⽼挝计划与投资部、能源矿产部联合批复，列为国家级战略资源项⽬。
+THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+⽼挝维瑟特稀⼟全产业链项⽬
+地址
+⽼挝威赛稀⼟开采加⼯⼚
+(LAO VISET RARE MINING PROCESSED
+FACTORY) 
+位于万象市赛塔尼县孔萨安村公⾥，⾮矿产特许区内，⼯⼚
+⾯积
+7.2
+公顷
+THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+⽼挝维瑟特稀⼟全产业链项⽬
+⼯⼚产量及设备
+⽼挝威赛稀⼟开采加⼯⼚
+(LAO VISET RARE MINING PROCESSED
+FACTORY) 
+位于万象市赛塔尼县孔萨安村公⾥，⾮矿产特许区内，⼯⼚
+⾯积
+7.2
+公顷
+CORPORATE BROCHURE
+Capital Management Group co., LTD
+2nd floor of YEIG building, T2 Kamphengmeuang Road,
+Phonthan Village, Xaysettha District, Vientiane, Laos
++856 2051 571 8000 capitalmgcltd@gmail.com
+CMG 
+资本管理集团有限公司
+⽼挝，万象市，朋坦村，
+T2
+路，能投办公楼，
+2
+楼办公室
++856 2051 571 8000 capitalmgcltd@gmail.com

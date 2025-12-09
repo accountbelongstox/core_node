@@ -121,7 +121,7 @@ export function useVideoStream({
 
       // Connect device via RPC BEFORE opening video WebSocket (device connection takes 30s)
       console.log(`[useVideoStream] Connecting device ${deviceId} via RPC...`);
-      const connectResult = await wsService.request('device.connect', { deviceId });
+      const connectResult = await wsService.callRpc('device.connect', { deviceId });
       if (!connectResult.success) {
         const error = new Error(`Failed to connect device: ${connectResult.error || 'Unknown error'}`);
         console.error(`[useVideoStream] ${error.message}`);
@@ -186,8 +186,11 @@ export function useVideoStream({
         
         // Handle binary YUV/H.264 data
         if (event.data instanceof ArrayBuffer) {
+          console.log(`[useVideoStream] ========== BINARY FRAME RECEIVED ==========`);
           console.log(`[useVideoStream] Binary frame received for ${deviceId}, size: ${event.data.byteLength} bytes`);
-          
+          console.log(`[useVideoStream] Current streamType: ${targetStreamType}`);
+          console.log(`[useVideoStream] Renderer ready: ${rendererRef.current ? 'YES' : 'NO'}`);
+
           if (targetStreamType === 'yuv') {
             if (!rendererRef.current) {
               console.warn(`[useVideoStream] No WebGL renderer for ${deviceId}, cannot render frame`);
@@ -196,27 +199,29 @@ export function useVideoStream({
             
             try {
               const data = new Uint8Array(event.data);
+              console.log(`[useVideoStream] ========== PARSING YUV FRAME ==========`);
               console.log(`[useVideoStream] Parsing YUV frame for ${deviceId}, total size: ${data.length} bytes`);
-              
+              console.log(`[useVideoStream] First 16 bytes (hex):`, Array.from(data.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+
               // Parse YUV frame protocol according to API_DOCUMENTATION.md:
               // [serial_len(1)][serial(N)][pts(8)][width(2)][height(2)][y_size(4)][u_size(4)][v_size(4)][Y data][U data][V data]
               // Note: frameSerial from backend is the actual device serial, not deviceId
-              
+
               let offset = 0;
-              
+
               // Read serial length (backend sends actual serial in frame, not deviceId)
               const serialLen = data[offset++];
-              console.log(`[useVideoStream] Frame serial length: ${serialLen}, offset: ${offset}`);
-              
+              console.log(`[useVideoStream] [STEP 1] Frame serial length: ${serialLen}, offset now: ${offset}`);
+
               if (serialLen === 0 || offset + serialLen > data.length) {
-                console.warn(`[useVideoStream] Invalid serial length for ${deviceId}: ${serialLen}, data length: ${data.length}`);
+                console.error(`[useVideoStream] ✗ INVALID SERIAL LENGTH: ${serialLen}, data length: ${data.length}`);
                 return;
               }
-              
+
               // Extract serial (backend sends actual serial, we can log it but don't need to verify against deviceId)
               const frameSerial = new TextDecoder().decode(data.slice(offset, offset + serialLen));
               offset += serialLen;
-              console.log(`[useVideoStream] Frame serial: ${frameSerial} (deviceId: ${deviceId})`);
+              console.log(`[useVideoStream] [STEP 2] Frame serial: "${frameSerial}" (deviceId: ${deviceId}), offset now: ${offset}`);
               
               // Note: We don't verify frameSerial against deviceId because:
               // - deviceId is a frontend abstraction (e.g., "device_1")
@@ -225,58 +230,62 @@ export function useVideoStream({
               
               // Parse frame header (big-endian as per protocol)
               // Protocol: [pts(8)][width(2)][height(2)][y_size(4)][u_size(4)][v_size(4)]
-              const view = new DataView(event.data, offset);
-              const pts = view.getBigUint64(0, false); // big-endian (false = big-endian)
-              const width = view.getUint16(8, false); // big-endian
-              const height = view.getUint16(10, false); // big-endian
-              const ySize = view.getInt32(12, false); // big-endian (signed as per backend)
-              const uSize = view.getInt32(16, false); // big-endian (signed as per backend)
-              const vSize = view.getInt32(20, false); // big-endian (signed as per backend)
+              // Use absolute offset like scrcpy_webgl_test for correctness
+              console.log(`[useVideoStream] [STEP 3] Parsing header starting at offset: ${offset}`);
+              const view = new DataView(event.data);
+              const pts = view.getBigUint64(offset); offset += 8;
+              const width = view.getUint16(offset); offset += 2;
+              const height = view.getUint16(offset); offset += 2;
+              const ySize = view.getInt32(offset); offset += 4;
+              const uSize = view.getInt32(offset); offset += 4;
+              const vSize = view.getInt32(offset); offset += 4;
 
-              console.log(`[useVideoStream] Frame header for ${deviceId}: width=${width}, height=${height}, ySize=${ySize}, uSize=${uSize}, vSize=${vSize}, pts=${pts}`);
-
-              offset += 24; // Header size: 8 + 2 + 2 + 4 + 4 + 4 = 24 bytes
-
-              // Calculate strides (linesize) - YUV420P format
-              // For YUV420P: Y plane is full resolution, U/V planes are half resolution
-              // ySize should be yStride * height, uSize should be uStride * (height/2), etc.
-              const yStride = Math.floor(ySize / height);
-              const uStride = Math.floor(uSize / (height / 2));
-              const vStride = Math.floor(vSize / (height / 2));
-
-              console.log(`[useVideoStream] Calculated strides for ${deviceId}: yStride=${yStride}, uStride=${uStride}, vStride=${vStride}`);
-              console.log(`[useVideoStream] Expected strides: Y=${width}, U=${width/2}, V=${width/2}`);
+              console.log(`[useVideoStream] [STEP 4] Header parsed, offset now: ${offset}`);
+              console.log(`[useVideoStream] Frame dimensions: ${width}x${height}`);
+              console.log(`[useVideoStream] Plane sizes: Y=${ySize}, U=${uSize}, V=${vSize}, Total=${ySize+uSize+vSize}`);
+              console.log(`[useVideoStream] PTS: ${pts}`);
 
               // Verify data sizes
               const expectedTotalSize = ySize + uSize + vSize;
+              const remainingBytes = data.length - offset;
+              console.log(`[useVideoStream] [STEP 5] Data verification:`);
+              console.log(`  - Current offset: ${offset}`);
+              console.log(`  - Expected YUV data: ${expectedTotalSize} bytes`);
+              console.log(`  - Remaining in buffer: ${remainingBytes} bytes`);
+              console.log(`  - Match: ${remainingBytes >= expectedTotalSize ? 'YES ✓' : 'NO ✗'}`);
+
               if (offset + expectedTotalSize > data.length) {
-                console.warn(`[useVideoStream] Invalid frame data size for ${deviceId}: expected ${offset + expectedTotalSize}, got ${data.length}`);
+                console.error(`[useVideoStream] ✗ INVALID FRAME: Need ${offset + expectedTotalSize} bytes, have ${data.length}`);
                 return;
               }
 
-              // Extract YUV planes
-              const yPlane = new Uint8Array(data.buffer, data.byteOffset + offset, ySize);
-              offset += ySize;
-              const uPlane = new Uint8Array(data.buffer, data.byteOffset + offset, uSize);
-              offset += uSize;
-              const vPlane = new Uint8Array(data.buffer, data.byteOffset + offset, vSize);
+              // Extract YUV planes using slice (create copies) like scrcpy_webgl_test
+              console.log(`[useVideoStream] [STEP 6] Extracting YUV planes...`);
+              const yPlane = data.slice(offset, offset + ySize); offset += ySize;
+              const uPlane = data.slice(offset, offset + uSize); offset += uSize;
+              const vPlane = data.slice(offset, offset + vSize);
 
-              console.log(`[useVideoStream] Extracted YUV planes for ${deviceId}: Y=${yPlane.length}, U=${uPlane.length}, V=${vPlane.length}`);
+              console.log(`[useVideoStream] [STEP 7] Planes extracted:`);
+              console.log(`  - Y: ${yPlane.length} bytes (expected: ${ySize})`);
+              console.log(`  - U: ${uPlane.length} bytes (expected: ${uSize})`);
+              console.log(`  - V: ${vPlane.length} bytes (expected: ${vSize})`);
+              console.log(`  - Y sample (first 8 bytes): ${Array.from(yPlane.slice(0, 8)).join(', ')}`);
 
-              // Render frame WITH stride information (critical for correct rendering)
+              // Render frame WITHOUT stride information (backend sends tightly-packed data)
+              // Backend already stripped linesize padding, so data is tightly packed
+              console.log(`[useVideoStream] [STEP 8] Calling renderFrame(width=${width}, height=${height})...`);
               try {
                 rendererRef.current.renderFrame(
                   yPlane,
                   uPlane,
                   vPlane,
                   width,
-                  height,
-                  yStride, // Y linesize
-                  uStride, // U linesize
-                  vStride  // V linesize
+                  height
+                  // No stride parameters - data is tightly packed
                 );
-                console.log(`[useVideoStream] ✓ Frame rendered for ${deviceId} (${width}x${height}, strides: ${yStride}/${uStride}/${vStride})`);
+                console.log(`[useVideoStream] ========== ✓ FRAME RENDERED SUCCESSFULLY ==========`);
               } catch (renderError) {
+                console.error(`[useVideoStream] ========== ✗ RENDER ERROR ==========`);
                 console.error(`[useVideoStream] Render error for ${deviceId}:`, renderError);
                 console.error(`[useVideoStream] Render error details:`, renderError instanceof Error ? renderError.stack : renderError);
               }
@@ -313,6 +322,14 @@ export function useVideoStream({
             else if (message.type === 'video.metadata') {
               const metaMsg = message as VideoMetadataMessage;
               console.log(`[useVideoStream] Metadata for ${deviceId}:`, metaMsg.data);
+            }
+            // Handle stream paused acknowledgment
+            else if (message.type === 'stream.paused') {
+              console.log(`[useVideoStream] ✓ Stream paused for ${deviceId}`);
+            }
+            // Handle stream resumed acknowledgment
+            else if (message.type === 'stream.resumed') {
+              console.log(`[useVideoStream] ✓ Stream resumed for ${deviceId}`);
             }
             // Handle mode change message (from backend THREAD_BUS notification)
             else if (message.type === 'video.mode_changed') {
@@ -455,6 +472,39 @@ export function useVideoStream({
     };
   }, [deviceId, enabled, connectInternal]);
 
+  // Handle page visibility changes to pause/resume stream
+  useEffect(() => {
+    if (!enabled || !wsRef.current) return;
+
+    const handleVisibilityChange = () => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+      if (document.hidden) {
+        // Page is hidden, pause stream
+        console.log(`[useVideoStream] Page hidden, pausing stream for ${deviceId}`);
+        try {
+          wsRef.current.send(JSON.stringify({ command: 'pause' }));
+        } catch (error) {
+          console.error(`[useVideoStream] Failed to send pause command for ${deviceId}:`, error);
+        }
+      } else {
+        // Page is visible, resume stream
+        console.log(`[useVideoStream] Page visible, resuming stream for ${deviceId}`);
+        try {
+          wsRef.current.send(JSON.stringify({ command: 'resume' }));
+        } catch (error) {
+          console.error(`[useVideoStream] Failed to send resume command for ${deviceId}:`, error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [enabled, deviceId]);
+
   // Auto-connect when enabled (only once per mount/enable change)
   useEffect(() => {
     if (!enabled) {
@@ -468,12 +518,12 @@ export function useVideoStream({
       setIsConnecting(false);
       return;
     }
-    
+
     // Only connect if not already connecting or connected
     if (!connectionStateRef.current.isConnecting && !connectionStateRef.current.isConnected) {
       connect();
     }
-    
+
     return () => {
       if (wsRef.current) {
         wsRef.current.close();

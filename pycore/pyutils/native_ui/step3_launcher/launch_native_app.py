@@ -519,6 +519,35 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     from pycore.pyfoundations.third_party import get_third_package_pyside6
     get_third_package_pyside6()  # Ensure PySide6 is installed
 
+    # CRITICAL: Configure QtWebEngine BEFORE importing PySide6 modules
+    # This must be done before QApplication is created
+    if config.webengine_enable_config:
+        ColorPrint.blue("=" * 80)
+        ColorPrint.blue("[NativeLauncher] CRITICAL: Configuring QtWebEngine BEFORE QApplication...")
+        ColorPrint.blue("=" * 80)
+
+        from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import (
+            configure_webengine_all_tiers
+        )
+
+        # Apply all tiers of WebEngine configuration with config options
+        results = configure_webengine_all_tiers(
+            env_flags=config.webengine_chromium_flags,
+            qputenv_flags=config.webengine_chromium_flags,
+            enable_webcodecs=config.webengine_enable_webcodecs,
+            enable_hardware_acceleration=config.webengine_enable_hardware_acceleration,
+            disable_gpu_sandbox=config.webengine_disable_gpu_sandbox,
+            enable_remote_debugging=config.webengine_enable_remote_debugging,
+            remote_debugging_port=config.webengine_remote_debugging_port,
+            print_diagnostics=config.webengine_print_diagnostics
+        )
+
+        ColorPrint.blue("=" * 80)
+        ColorPrint.blue("[NativeLauncher] QtWebEngine configuration completed")
+        ColorPrint.blue("=" * 80)
+    else:
+        ColorPrint.yellow("[NativeLauncher] QtWebEngine configuration DISABLED (webengine_enable_config=False)")
+
     from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
         PySide6Framework,
         PySide6UIConfig,
@@ -560,14 +589,24 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
-        app_id=config.app_id,  # ← 添加 app_id
+        app_id=config.app_id,
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,
         frameless=config.frameless,
         icon_path=config.icon_path,
         enable_tray=config.enable_tray,
-        tray_menu_items=pyside6_tray_items
+        tray_menu_items=pyside6_tray_items,
+        # QtWebEngine configuration
+        enable_dev_tools=config.webengine_enable_remote_debugging,  # Fixed: was webengine_enable_dev_tools
+        webengine_enable_config=config.webengine_enable_config,
+        webengine_chromium_flags=config.webengine_chromium_flags,
+        webengine_disable_gpu_sandbox=config.webengine_disable_gpu_sandbox,
+        webengine_enable_webcodecs=config.webengine_enable_webcodecs,
+        webengine_enable_hardware_acceleration=config.webengine_enable_hardware_acceleration,
+        webengine_enable_remote_debugging=config.webengine_enable_remote_debugging,
+        webengine_remote_debugging_port=config.webengine_remote_debugging_port,
+        webengine_print_diagnostics=config.webengine_print_diagnostics
     )
 
     # Wire callbacks from callback_manager

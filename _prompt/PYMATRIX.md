@@ -85,7 +85,41 @@ websockt会间歇性的关闭的原因是什么，你先找后端的问题，同
 
 
 
+[VideoStreamService] ✓ YUV decoder created for 192.168.50.44:5555
+  DEBUG:    > HTTP/1.1 101 Switching Protocols
+  DEBUG:    > Upgrade: websocket
+  DEBUG:    > Connection: Upgrade
+  DEBUG:    > Sec-WebSocket-Accept: I+vhegDD4xi451skPELDs6Bs92g=
+  DEBUG:    > Sec-WebSocket-Extensions: permessage-deflate
+  DEBUG:    > date: Tue, 09 Dec 2025 10:39:25 GMT
+  DEBUG:    > server: uvicorn
+  INFO:     connection open
+  DEBUG:    = connection is OPEN
+  DEBUG:    > TEXT '{"type":"video.init","timestamp":0,"data":{"ser...0000,"hwaccel":"auto"}}' [177 bytes]
+  [VideoStreamService] Sent YUV init message to client
+  [VideoDecoder] Decoding first frame (32 bytes)...
+  [VideoDecoder] ⚠ First frame decode returned no frames
+  [ADBService] Running USB scan task...
+  [Heartbeat] Tick #40, Time: 2025-12-09 17:39:26
+  DEBUG:    > TEXT '{"type":"event","event":"adb.devices.update","d...mp":1765276766.0348842}' [628 bytes]
+  [Broadcast] Sent adb.devices.update to client 268c6d54
+  [VideoDecoder] ✗ Decode error for 192.168.50.44:5555: [Errno 1094995529] Invalid data found when processing input:
+  'avcodec_send_packet()'
+  [VideoDecoder] ✗ Decode error for 192.168.50.44:5555: [Errno 1094995529] Invalid data found when processing input:
+  'avcodec_send_packet()'
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 7b 79 79 79 77 79  pyapps\scrcpy_webgl_test
+  现在这个是正确的， pyapps\scrcpy_webgl_test\解决过程.md 。根据这个的过程，了最后的代码，一一对比 pyapps\matrix
+  修正其中。pyapps\scrcpy_webgl_test\BUGFIX_REPORT.md   要修正的是 pyapps\matrix 这个。
+  
+注意总的websockt连接，当总的websockt连接断开时，说明前端有可能
+  关闭浏览器，此时才处理视频流有必要处理的相关。理次核对所有逻辑。
 
+ 现在查看，当多设备的时候，有没有处理好多设备的所有视频流，以及视频流切换。同时目前视频流没有切换到大屏区。
 
-
-
+现在修改UI，1：选中小窗口时不再是点击屏幕（因为此时实际上是相当于操作手机），而是点击手机的顶部或底部栏，或者
+是由手机外部按住拖动，2：目前双击打开大屏还是之前的旧在的页面，查看是还有冒泡事件，以及你是否找到了这个页，现在
+改为点击 手机内部右侧面弹出的小菜单中的大屏，改变布局（注意不要重载元素），3：手机的选中复选框也移到顶部区域、或
+者底部区

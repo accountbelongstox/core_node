@@ -45,6 +45,9 @@ class VideoStreamService:
         # WebSocket client management (multiple clients per device)
         self.stream_clients: Dict[str, Set[WebSocket]] = {}
 
+        # Client pause state management
+        self.paused_clients: Dict[str, Set[WebSocket]] = {}
+
         # Config frame cache (one per device) - Critical for H.264 decoding
         # When new clients join, they need SPS/PPS config frame to start decoding
         self.cached_config_frames: Dict[str, Dict] = {}
@@ -209,6 +212,63 @@ class VideoStreamService:
                 if serial in self.active_streams:
                     del self.active_streams[serial]
 
+        # Clean up paused state
+        if serial in self.paused_clients:
+            self.paused_clients[serial].discard(websocket)
+            if len(self.paused_clients[serial]) == 0:
+                del self.paused_clients[serial]
+
+    async def pause_stream(self, serial: str, websocket: WebSocket):
+        """
+        Pause video stream for specific client
+        Client stays connected but doesn't receive frames
+        """
+        ColorPrint.yellow(f"[VideoStreamService] Pausing stream for client on {serial}")
+
+        # Add to paused set
+        if serial not in self.paused_clients:
+            self.paused_clients[serial] = set()
+        self.paused_clients[serial].add(websocket)
+
+        ColorPrint.green(f"[VideoStreamService] Stream paused for client on {serial}, total paused: {len(self.paused_clients[serial])}")
+
+        # Send pause acknowledgment
+        await websocket.send_json({"type": "stream.paused", "serial": serial})
+
+    async def resume_stream(self, serial: str, websocket: WebSocket):
+        """
+        Resume video stream for specific client
+        Client will start receiving frames again
+        """
+        ColorPrint.yellow(f"[VideoStreamService] Resuming stream for client on {serial}")
+
+        # Remove from paused set
+        if serial in self.paused_clients:
+            self.paused_clients[serial].discard(websocket)
+            if len(self.paused_clients[serial]) == 0:
+                del self.paused_clients[serial]
+
+        ColorPrint.green(f"[VideoStreamService] Stream resumed for client on {serial}")
+
+        # Flush decoder to reset state (for YUV mode)
+        # This prevents decode errors after resume
+        try:
+            from pyapps.matrix.services.video_decoder_service import VideoDecoderService
+            decoder_service = VideoDecoderService.instance()
+            decoder_service.flush_decoder(serial)
+        except Exception as e:
+            ColorPrint.yellow(f"[VideoStreamService] Could not flush decoder: {e}")
+
+        # Send resume acknowledgment
+        await websocket.send_json({"type": "stream.resumed", "serial": serial})
+
+        # Send cached config frame immediately if available (for H.264 mode)
+        if serial in self.cached_config_frames:
+            config_frame = self.cached_config_frames[serial]
+            ColorPrint.green(f"[VideoStreamService] Sending cached config frame to resumed client for {serial}")
+            payload = self._pack_frame(serial, config_frame)
+            await websocket.send_bytes(payload)
+
     async def _stream_video_loop(self, serial: str, device, stop_event: asyncio.Event):
         """
         Background streaming task (scrcpy_web_test pattern)
@@ -299,26 +359,34 @@ class VideoStreamService:
             ColorPrint.blue(f"[VideoStreamService] Cleaned up cached config frame for {serial}")
 
     async def _broadcast_frame(self, serial: str, frame: Dict):
-        """Broadcast binary frame to all subscribed clients"""
+        """Broadcast binary frame to all subscribed clients (skip paused clients)"""
         clients = self.stream_clients.get(serial)
         if not clients:
             return
+
+        # Get paused clients set for this serial
+        paused = self.paused_clients.get(serial, set())
 
         # Pack frame with custom protocol
         payload = self._pack_frame(serial, frame)
 
-        # Broadcast to all clients
+        # Broadcast to all active (non-paused) clients
         for ws in list(clients):
-            await ws.send_bytes(payload)
+            if ws not in paused:
+                await ws.send_bytes(payload)
 
     async def _broadcast_json(self, serial: str, message: Dict):
-        """Broadcast JSON message to all subscribed clients"""
+        """Broadcast JSON message to all subscribed clients (skip paused clients)"""
         clients = self.stream_clients.get(serial)
         if not clients:
             return
 
+        # Get paused clients set for this serial
+        paused = self.paused_clients.get(serial, set())
+
         for ws in list(clients):
-            await ws.send_json(message)
+            if ws not in paused:
+                await ws.send_json(message)
 
     def _pack_frame(self, serial: str, frame: Dict) -> bytes:
         """
@@ -346,3 +414,252 @@ class VideoStreamService:
         # Combine
         payload = prefix + frame['data']
         return payload
+
+    async def stream_yuv_to_websocket(
+        self,
+        serial: str,
+        websocket: WebSocket,
+        hwaccel: Optional[str] = None
+    ):
+        """
+        Stream YUV420P decoded video to WebSocket
+
+        This method:
+        1. Connects the device and starts scrcpy-server
+        2. Reads H.264 frames from device
+        3. Decodes H.264 to YUV420P using VideoDecoderService
+        4. Sends YUV data to WebSocket client
+
+        Args:
+            serial: Device serial number
+            websocket: WebSocket client connection
+            hwaccel: Hardware acceleration type (cuda/qsv/dxva2/vaapi/auto)
+        """
+        ColorPrint.blue(f"[VideoStreamService] Starting YUV stream for {serial} (hwaccel={hwaccel})")
+
+        # Register client for pause/resume support
+        if serial not in self.stream_clients:
+            self.stream_clients[serial] = set()
+        self.stream_clients[serial].add(websocket)
+        ColorPrint.green(f"[VideoStreamService] Client registered for YUV stream {serial}, total clients: {len(self.stream_clients[serial])}")
+
+        # Get or create device
+        device = self.device_manager.get_device(serial)
+        if not device:
+            ColorPrint.red(f"[VideoStreamService] Device {serial} not found")
+            # Cleanup client registration
+            self.stream_clients[serial].discard(websocket)
+            if len(self.stream_clients[serial]) == 0:
+                del self.stream_clients[serial]
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Device {serial} not found"
+            })
+            return
+
+        # Connect device if not connected
+        if not device.is_connected():
+            ColorPrint.yellow(f"[VideoStreamService] Device {serial} not connected, starting scrcpy-server...")
+
+            # Get config from ConfigService
+            config_service = ConfigService.instance()
+            global_config = await config_service.get_global()
+
+            # Create ServerParams
+            params = ServerParams(
+                max_size=global_config.get('max_size', 720),
+                bit_rate=global_config.get('bit_rate', 8000000),
+                max_fps=global_config.get('max_fps', 60),
+                codec=VideoCodec.H264,  # Always use H.264 for decoding
+                control=global_config.get('control', True),
+                locked_video_orientation=global_config.get('locked_video_orientation', -1)
+            )
+
+            # Start scrcpy server
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: device.start_server(
+                        jar_path=self.scrcpy_server_jar,
+                        params=params
+                    )
+                )
+                ColorPrint.green(f"[VideoStreamService] ✓ ScrcpyDevice started for {serial}")
+            except Exception as e:
+                ColorPrint.red(f"[VideoStreamService] Failed to start device: {e}")
+                # Cleanup client registration on error
+                if serial in self.stream_clients:
+                    self.stream_clients[serial].discard(websocket)
+                    if len(self.stream_clients[serial]) == 0:
+                        del self.stream_clients[serial]
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Failed to start device: {str(e)}"
+                })
+                return
+
+        # Get device info
+        device_info = device.get_device_info()
+
+        # Create YUV decoder
+        decoder_service = VideoDecoderService.instance()
+        try:
+            decoder_service.create_decoder(serial, hwaccel=hwaccel)
+            ColorPrint.green(f"[VideoStreamService] ✓ YUV decoder created for {serial}")
+        except Exception as e:
+            ColorPrint.red(f"[VideoStreamService] Failed to create decoder: {e}")
+            # Cleanup client registration on error
+            if serial in self.stream_clients:
+                self.stream_clients[serial].discard(websocket)
+                if len(self.stream_clients[serial]) == 0:
+                    del self.stream_clients[serial]
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Failed to create YUV decoder: {str(e)}"
+            })
+            return
+
+        # Send init message
+        init_message = {
+            "type": "video.init",
+            "timestamp": 0,
+            "data": {
+                "serial": serial,
+                "codec": "h264",  # Source codec
+                "format": "yuv420p",  # Output format
+                "width": device_info.resolution.width,
+                "height": device_info.resolution.height,
+                "fps": device.params.max_fps,
+                "bitrate": device.params.bit_rate,
+                "hwaccel": hwaccel or "software"
+            }
+        }
+        await websocket.send_json(init_message)
+        ColorPrint.green(f"[VideoStreamService] Sent YUV init message to client")
+
+        # Stream loop
+        loop = asyncio.get_event_loop()
+        frame_count = 0
+        decoded_count = 0
+        bytes_sent = 0
+        start_time = loop.time()
+
+        try:
+            while True:
+                # Read H.264 frame from device (blocking, run in executor)
+                h264_frame = await loop.run_in_executor(None, device.read_video_frame)
+
+                if not h264_frame:
+                    ColorPrint.yellow(f"[VideoStreamService] Video stream ended for {serial}")
+                    break
+
+                frame_count += 1
+
+                # Decode H.264 to YUV420P
+                try:
+                    yuv_frame = decoder_service.decode_frame(serial, h264_frame['data'])
+
+                    if yuv_frame:
+                        decoded_count += 1
+
+                        # Pack YUV data
+                        # Format: [serial_len(1)][serial(N)][pts(8)][width(2)][height(2)][y_size(4)][u_size(4)][v_size(4)][y_data][u_data][v_data]
+                        serial_bytes = serial.encode('utf-8')[:255]
+
+                        # Pack header with proper format matching frontend expectations
+                        header = bytes([len(serial_bytes)]) + serial_bytes
+
+                        # Add pts, width, height, and plane sizes (big-endian)
+                        header += struct.pack(
+                            ">QHHIII",
+                            yuv_frame.get('pts', 0),  # pts: 8 bytes
+                            yuv_frame['width'],  # width: 2 bytes
+                            yuv_frame['height'],  # height: 2 bytes
+                            len(yuv_frame['y_plane']),  # y_size: 4 bytes
+                            len(yuv_frame['u_plane']),  # u_size: 4 bytes
+                            len(yuv_frame['v_plane'])  # v_size: 4 bytes
+                        )
+
+                        # Combine all data
+                        payload = (
+                            header +
+                            yuv_frame['y_plane'] +
+                            yuv_frame['u_plane'] +
+                            yuv_frame['v_plane']
+                        )
+
+                        # Send to WebSocket (check if paused)
+                        paused = self.paused_clients.get(serial, set())
+                        if websocket not in paused:
+                            await websocket.send_bytes(payload)
+                            bytes_sent += len(payload)
+
+                        # Log progress every 60 frames
+                        if decoded_count % 60 == 0:
+                            elapsed = loop.time() - start_time
+                            fps = decoded_count / elapsed if elapsed > 0 else 0
+                            mbps = bytes_sent * 8 / elapsed / 1_000_000 if elapsed > 0 else 0
+
+                            ColorPrint.blue(
+                                f"[VideoStreamService] {serial} YUV: "
+                                f"{decoded_count} frames @ {fps:.1f} fps, "
+                                f"{mbps:.1f} Mbps"
+                            )
+
+                            # Send metadata (check if paused)
+                            if websocket not in paused:
+                                metadata = {
+                                    "type": "video.metadata",
+                                    "timestamp": int(elapsed * 1000),
+                                    "data": {
+                                        "fps": round(fps, 2),
+                                        "frames": decoded_count,
+                                        "bytes": bytes_sent,
+                                        "mbps": round(mbps, 2),
+                                        "format": "yuv420p"
+                                    }
+                                }
+                                await websocket.send_json(metadata)
+
+                except Exception as decode_error:
+                    if frame_count <= 5:  # Log first few decode errors
+                        ColorPrint.yellow(f"[VideoStreamService] Decode error frame {frame_count}: {decode_error}")
+                    continue
+
+        except WebSocketDisconnect:
+            ColorPrint.blue(f"[VideoStreamService] WebSocket disconnected for {serial}")
+        except Exception as e:
+            ColorPrint.red(f"[VideoStreamService] YUV streaming error: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            ColorPrint.blue(f"[VideoStreamService] YUV stream ended for {serial}")
+            ColorPrint.blue(
+                f"[Stats] H.264 frames: {frame_count}, "
+                f"Decoded: {decoded_count}, "
+                f"Data sent: {bytes_sent / (1024 * 1024):.2f} MB"
+            )
+
+            # CRITICAL: Clean up resources when WebSocket disconnects
+            # 1. Remove client from subscription list
+            if serial in self.stream_clients:
+                self.stream_clients[serial].discard(websocket)
+                ColorPrint.yellow(f"[VideoStreamService] Client unsubscribed from YUV {serial}, remaining: {len(self.stream_clients[serial])}")
+                if len(self.stream_clients[serial]) == 0:
+                    del self.stream_clients[serial]
+                    ColorPrint.blue(f"[VideoStreamService] No more clients for YUV {serial}")
+
+            # 2. Clean up paused state
+            if serial in self.paused_clients:
+                self.paused_clients[serial].discard(websocket)
+                if len(self.paused_clients[serial]) == 0:
+                    del self.paused_clients[serial]
+
+            # 3. Close decoder (only if no more clients for this serial)
+            if serial not in self.stream_clients:
+                decoder_service = VideoDecoderService.instance()
+                try:
+                    decoder_service.close_decoder(serial)
+                    ColorPrint.green(f"[VideoStreamService] ✓ Decoder closed for {serial}")
+                except Exception as e:
+                    ColorPrint.yellow(f"[VideoStreamService] Error closing decoder for {serial}: {e}")
