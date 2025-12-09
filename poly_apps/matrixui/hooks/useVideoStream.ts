@@ -58,7 +58,12 @@ export function useVideoStream({
   const [streamInfo, setStreamInfo] = useState<{ width: number; height: number; fps: number; format: string } | null>(null);
   
   // Use refs to track connection state without causing re-renders
-  const connectionStateRef = useRef({ isConnecting: false, isConnected: false, deviceConnected: false });
+  const connectionStateRef = useRef({ 
+    isConnecting: false, 
+    isConnected: false, 
+    deviceConnected: false,
+    errorCount: 0 
+  });
   const onErrorRef = useRef(onError);
   const onInitRef = useRef(onInit);
   
@@ -326,10 +331,14 @@ export function useVideoStream({
             // Handle stream paused acknowledgment
             else if (message.type === 'stream.paused') {
               console.log(`[useVideoStream] ✓ Stream paused for ${deviceId}`);
+              // Reset error count on successful pause/resume cycle
+              connectionStateRef.current.errorCount = 0;
             }
             // Handle stream resumed acknowledgment
             else if (message.type === 'stream.resumed') {
               console.log(`[useVideoStream] ✓ Stream resumed for ${deviceId}`);
+              // Reset error count on successful pause/resume cycle
+              connectionStateRef.current.errorCount = 0;
             }
             // Handle mode change message (from backend THREAD_BUS notification)
             else if (message.type === 'video.mode_changed') {
@@ -346,6 +355,44 @@ export function useVideoStream({
               const error = new Error(errorMsg);
               console.error(`[useVideoStream] ✗ Stream error for ${deviceId}:`, errorMsg);
               console.error(`[useVideoStream] Full error message:`, message);
+              
+              // Track error count for recovery
+              connectionStateRef.current.errorCount = (connectionStateRef.current.errorCount || 0) + 1;
+
+              // Auto-recovery for decode-related errors
+              const isDecodeError = errorMsg.includes('decode') || 
+                                   errorMsg.includes('Invalid data') || 
+                                   errorMsg.includes('decoder');
+              
+              if (isDecodeError && connectionStateRef.current.errorCount <= 3) {
+                console.log(`[useVideoStream] Attempting to recover from decode error for ${deviceId} (attempt ${connectionStateRef.current.errorCount}/3)...`);
+                
+                // Send pause then resume to trigger keyframe resend
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  try {
+                    // First pause
+                    wsRef.current.send(JSON.stringify({ command: 'pause' }));
+                    console.log(`[useVideoStream] Sent pause command for recovery`);
+                    
+                    // Then resume after a short delay to allow backend to flush and resend keyframe
+                    setTimeout(() => {
+                      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({ command: 'resume' }));
+                        console.log(`[useVideoStream] Sent resume command for recovery`);
+                      } else {
+                        console.warn(`[useVideoStream] WebSocket not open during recovery resume for ${deviceId}`);
+                      }
+                    }, 200); // 200ms delay to allow backend to process
+                  } catch (e) {
+                    console.error(`[useVideoStream] Failed to send recovery commands for ${deviceId}:`, e);
+                  }
+                } else {
+                  console.warn(`[useVideoStream] WebSocket not available for recovery for ${deviceId}`);
+                }
+              } else if (isDecodeError && connectionStateRef.current.errorCount > 3) {
+                console.error(`[useVideoStream] Max recovery attempts reached for ${deviceId}, giving up`);
+              }
+
               connectionStateRef.current.isConnected = false;
               setIsConnected(false);
               onErrorRef.current?.(error);
@@ -474,26 +521,39 @@ export function useVideoStream({
 
   // Handle page visibility changes to pause/resume stream
   useEffect(() => {
-    if (!enabled || !wsRef.current) return;
+    if (!enabled) return;
 
     const handleVisibilityChange = () => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      // Enhanced connection state check
+      if (!wsRef.current) {
+        console.warn(`[useVideoStream] WebSocket not available for ${deviceId}, skipping pause/resume`);
+        return;
+      }
+
+      if (wsRef.current.readyState !== WebSocket.OPEN) {
+        console.warn(`[useVideoStream] WebSocket not open for ${deviceId} (state: ${wsRef.current.readyState}), skipping pause/resume`);
+        return;
+      }
 
       if (document.hidden) {
         // Page is hidden, pause stream
         console.log(`[useVideoStream] Page hidden, pausing stream for ${deviceId}`);
         try {
           wsRef.current.send(JSON.stringify({ command: 'pause' }));
+          console.log(`[useVideoStream] ✓ Pause command sent for ${deviceId}`);
         } catch (error) {
-          console.error(`[useVideoStream] Failed to send pause command for ${deviceId}:`, error);
+          console.error(`[useVideoStream] ✗ Failed to send pause command for ${deviceId}:`, error);
+          console.error(`[useVideoStream] WebSocket state: ${wsRef.current.readyState}, URL: ${wsRef.current.url}`);
         }
       } else {
         // Page is visible, resume stream
         console.log(`[useVideoStream] Page visible, resuming stream for ${deviceId}`);
         try {
           wsRef.current.send(JSON.stringify({ command: 'resume' }));
+          console.log(`[useVideoStream] ✓ Resume command sent for ${deviceId}`);
         } catch (error) {
-          console.error(`[useVideoStream] Failed to send resume command for ${deviceId}:`, error);
+          console.error(`[useVideoStream] ✗ Failed to send resume command for ${deviceId}:`, error);
+          console.error(`[useVideoStream] WebSocket state: ${wsRef.current.readyState}, URL: ${wsRef.current.url}`);
         }
       }
     };

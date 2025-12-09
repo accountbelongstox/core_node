@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Target, Shield, MapPin, ArrowRight, Sun, Crown, ChevronRight, Crosshair, LandPlot, Cloud, CloudSun, CloudRain, Phone, Bell, Hotel, Clapperboard, ChevronUp, Pickaxe, Calendar, Clock, Flag, Building2 } from 'lucide-react';
+import { Target, Shield, MapPin, ArrowRight, Sun, Crown, ChevronRight, Crosshair, LandPlot, Cloud, CloudSun, CloudRain, Phone, Bell, Hotel, Clapperboard, ChevronUp, Pickaxe, Calendar, Clock, Flag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../App';
 import { getMockWeather, getTimeInfo, WeatherInfo, TimeInfo } from '../utils/weather';
@@ -71,46 +71,46 @@ const Home: React.FC = () => {
               {/* Decorative Background Elements */}
               <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-600/10 dark:to-transparent rounded-full blur-3xl -mr-12 -mt-12 pointer-events-none opacity-60 dark:opacity-20"></div>
               <div className="absolute right-4 top-4 opacity-5 dark:opacity-[0.03] pointer-events-none">
-                  <Crown size={100} />
+                  <Crown size={80} />
               </div>
 
               <div className="relative z-10">
                   {/* Top Row: Context */}
                   <div className="flex justify-between items-start mb-5">
                       <div className="flex flex-col">
-                          <span className="text-sm font-bold tracking-[0.2em] text-stone-400 dark:text-stone-500 uppercase mb-1">{greeting}</span>
+                          <span className="text-[9px] font-bold tracking-[0.2em] text-stone-400 dark:text-stone-500 uppercase mb-1">{greeting}</span>an>
                           <div className="flex items-center gap-2 text-stone-600 dark:text-gray-300">
-                             {weather && getWeatherIcon(weather.icon, 18)}
-                             <span className="text-base font-medium font-serif">{weather?.temperature}°C Vientiane</span>
+                             {weather && getWeatherIcon(weather.icon, 14)}
+                             <span className="text-xs font-medium font-serif">{weather?.temperature}°C Vientiane</span>
                           </div>
                       </div>
                       {timeInfo && (
                           <div className="text-right">
-                              <span className="block text-2xl font-serif font-medium text-stone-900 dark:text-white leading-none tracking-tight">{timeInfo.time}</span>
-                              <span className="text-xs text-stone-400 dark:text-stone-600 uppercase tracking-wider font-bold">{timeInfo.date}</span>
+                              <span className="block text-xl font-serif font-medium text-stone-900 dark:text-white leading-none tracking-tight">{timeInfo.time}</span>
+                              <span className="text-[9px] text-stone-400 dark:text-stone-600 uppercase tracking-wider font-bold">{timeInfo.date}</span>an>
                           </div>
                       )}
                   </div>
 
                   {/* Middle: Headline - Editorial Style */}
                   <div className="mb-6">
-                      <h1 className="text-4xl md:text-5xl font-serif font-medium text-stone-900 dark:text-white leading-[1.1] mb-2 tracking-tight">
+                      <h1 className="text-3xl md:text-4xl font-serif font-medium text-stone-900 dark:text-white leading-[1.1] mb-2 tracking-tight">
                         {t('home.welcome.title')}
                       </h1>
                       <div className="h-0.5 w-12 bg-yellow-500 mb-2"></div>
-                      <p className="text-stone-500 dark:text-gray-400 text-sm font-light leading-relaxed italic font-serif">
+                      <p className="text-stone-500 dark:text-gray-400 text-xs font-light leading-relaxed italic font-serif">
                         {t('home.welcome.subtitle')}
                       </p>
                   </div>
 
                   {/* Bottom: Action - Redesigned Button */}
                   <div className="flex items-center justify-between border-t border-stone-100 dark:border-white/5 pt-4">
-                      <span className="text-xs font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">Elite Access Only</span>
+                      <span className="text-[9px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">Elite Access Only</span>an>
                       <button
                           onClick={openLogin}
-                          className="flex items-center gap-2 bg-white dark:bg-white text-stone-900 dark:text-black px-6 py-2.5 rounded-full font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg border border-stone-200 dark:border-stone-300"
+                          className="flex items-center gap-2 bg-white dark:bg-white text-stone-900 dark:text-black px-5 py-2 rounded-full font-bold text-[11px] hover:scale-105 active:scale-95 transition-all shadow-lg border border-stone-200 dark:border-stone-300"0"
                       >
-                          {t('auth.login')} <ArrowRight size={16} />
+                          {t('auth.login')} <ArrowRight size={12} />
                       </button>
                   </div>
               </div>
@@ -212,41 +212,32 @@ const Home: React.FC = () => {
             },
           ].map((item, idx) => {
             const IconComponent = item.icon;
-            const isFirstThree = idx < 3; // 预订酒店、预约靶场、开球时间
             const colorClasses = {
               orange: {
                 bg: 'from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20',
                 icon: 'text-orange-600 dark:text-orange-400',
-                iconBright: 'text-orange-500 dark:text-orange-400',
                 border: 'border-orange-100 dark:border-orange-500/30',
-                borderWhite: 'border-white dark:border-white',
                 iconBg: 'bg-orange-100 dark:bg-orange-900/40',
                 gradient: 'from-orange-500 to-amber-500'
               },
               red: {
                 bg: 'from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20',
                 icon: 'text-red-600 dark:text-red-400',
-                iconBright: 'text-red-500 dark:text-red-400',
                 border: 'border-red-100 dark:border-red-500/30',
-                borderWhite: 'border-white dark:border-white',
                 iconBg: 'bg-red-100 dark:bg-red-900/40',
                 gradient: 'from-red-500 to-rose-500'
               },
               emerald: {
                 bg: 'from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20',
                 icon: 'text-emerald-600 dark:text-emerald-400',
-                iconBright: 'text-emerald-500 dark:text-emerald-400',
                 border: 'border-emerald-100 dark:border-emerald-500/30',
-                borderWhite: 'border-white dark:border-white',
                 iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
                 gradient: 'from-emerald-500 to-teal-500'
               },
               blue: {
                 bg: 'from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/20',
                 icon: 'text-blue-600 dark:text-blue-400',
-                iconBright: 'text-blue-500 dark:text-blue-400',
                 border: 'border-blue-100 dark:border-blue-500/30',
-                borderWhite: 'border-white dark:border-white',
                 iconBg: 'bg-blue-100 dark:bg-blue-900/40',
                 gradient: 'from-blue-500 to-cyan-500'
               }
@@ -257,19 +248,19 @@ const Home: React.FC = () => {
               <button
                 key={idx}
                 onClick={item.action}
-                className={`flex-none h-[40px] px-4 py-2 rounded-2xl flex items-center gap-2.5 font-bold text-xs transition-all duration-300 relative overflow-hidden group border ${isFirstThree ? colors.borderWhite : colors.border} bg-gradient-to-br ${colors.bg} hover:shadow-lg hover:scale-105`}
+                className={`flex-none h-[40px] px-4 py-2 rounded-2xl flex items-center gap-2.5 font-bold text-xs transition-all duration-300 relative overflow-hidden group border ${colors.border} bg-gradient-to-br ${colors.bg} hover:shadow-lg hover:scale-105`}
               >
                 {/* Icon */}
                 <div className={`p-1.5 rounded-lg ${colors.iconBg} backdrop-blur-sm group-hover:scale-110 transition-all shadow-sm`}>
                   <IconComponent 
                     size={14} 
                     strokeWidth={2.5}
-                    className={isFirstThree ? colors.iconBright : colors.icon}
+                    className={colors.icon}
                   />
                 </div>
                 
                 {/* Text */}
-                <span className={`${isFirstThree ? 'text-white dark:text-white' : colors.icon} font-bold whitespace-nowrap`}>
+                <span className={`${colors.icon} font-bold whitespace-nowrap`}>
                   {t(item.labelKey)}
                 </span>
                 
@@ -471,24 +462,29 @@ const Home: React.FC = () => {
         </Link>
 
         {/* Large Tile: Company Profile */}
-        <div className="col-span-2 bg-white dark:bg-zinc-900/60 backdrop-blur-xl rounded-3xl p-8 relative overflow-hidden shadow-sm dark:shadow-none min-h-[220px] flex flex-col justify-between border border-stone-100 dark:border-white/5 mt-2 mb-10 group">
-            {/* Background Image */}
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1200&auto=format&fit=crop')] bg-cover bg-center opacity-20 dark:opacity-15 group-hover:opacity-30 dark:group-hover:opacity-20 transition-opacity duration-500"></div>
-            <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-white/40 to-stone-50/60 dark:from-black/70 dark:via-black/60 dark:to-zinc-900/70"></div>
-            
+        <div className="col-span-2 bg-white dark:bg-zinc-900/60 backdrop-blur-xl rounded-3xl p-8 relative overflow-hidden shadow-sm dark:shadow-none min-h-[220px] flex flex-col justify-between border border-stone-100 dark:border-white/5 mt-2 mb-10">
+            <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-10 pointer-events-none">
+                <Crown size={140} className="text-stone-900 dark:text-white" />
+            </div>
+            <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-10 pointer-events-none z-0">
+                <Building2 size={140} className="text-stone-900 dark:text-white" />
+            </div>
+            <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-10 pointer-events-none z-0">
+                <Building2 size={140} className="text-stone-900 dark:text-white" />
+            </div>
             <div className="relative z-10">
                 <p className="text-stone-400 dark:text-yellow-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-4">{t('home.corporate.profile')}</p>
                 <h2 className="text-3xl font-serif font-bold leading-tight max-w-[90%] text-stone-900 dark:text-white">{t('home.corporate.title')}</h2>
             </div>
-            <div className="flex justify-between items-end relative z-10">
+                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
                 <div className="text-xs text-stone-500 dark:text-gray-400 font-medium font-serif italic">
-                    {t('home.corporate.established')}
-                </div>
+                    {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
+                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
                 <button 
-                  onClick={() => navigate('/about')}
-                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
+                    {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
+                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
                 >
-                    {t('home.corporate.viewProfile')}
+                    {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
                 </button>
             </div>
         </div>

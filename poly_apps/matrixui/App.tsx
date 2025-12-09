@@ -57,6 +57,7 @@ const MatrixApp: React.FC = () => {
   const [showTestPage, setShowTestPage] = useState(() => getInitialView() === 'test');
   const [showSystemHealth, setShowSystemHealth] = useState(() => getInitialView() === 'health');
   const [fileManagerTarget, setFileManagerTarget] = useState<string | null>(null);
+  const [fileManagerDeviceId, setFileManagerDeviceId] = useState<string | null>(null);
   const [deviceConfigTarget, setDeviceConfigTarget] = useState<Device | null>(null);
 
   // Check URL hash for direct navigation and handle changes
@@ -215,6 +216,7 @@ const MatrixApp: React.FC = () => {
   const handleDeviceQuickAction = (device: Device, action: string) => {
     if (action === 'files') {
       setFileManagerTarget(device.serial);
+      setFileManagerDeviceId(device.deviceId);
       setShowFileManager(true);
       setShowScripts(false);
       setShowSettings(false);
@@ -558,7 +560,12 @@ const MatrixApp: React.FC = () => {
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
                   <FileManager
                      targetDeviceSerial={fileManagerTarget}
-                     onClose={() => setShowFileManager(false)}
+                     targetDeviceId={fileManagerDeviceId}
+                     onClose={() => {
+                       setShowFileManager(false);
+                       setFileManagerTarget(null);
+                       setFileManagerDeviceId(null);
+                     }}
                   />
                 </Suspense>
              ) : showMediaGallery ? (
