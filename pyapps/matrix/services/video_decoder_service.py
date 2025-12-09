@@ -222,11 +222,16 @@ class VideoDecoderService:
                             state['waiting_for_keyframe'] = False
                             state['error_count'] = 0
                     except Exception as decode_err:
-                        # If decode fails and we're not waiting for keyframe yet, start waiting
-                        if not state['waiting_for_keyframe']:
+                        # If decode fails, only enable keyframe waiting if sync is enabled
+                        if self.enable_keyframe_sync and not state['waiting_for_keyframe']:
                             ColorPrint.yellow(f"[VideoDecoder] Decode failed, will wait for next keyframe: {decode_err}")
                             state['waiting_for_keyframe'] = True
                             state['keyframe_wait_start'] = time.time()
+                        elif not self.enable_keyframe_sync:
+                            # Keyframe sync disabled, just log occasional errors
+                            state['error_count'] += 1
+                            if state['error_count'] % 10 == 1:  # Log first and every 10th error
+                                ColorPrint.yellow(f"[VideoDecoder] Decode failed (#{state['error_count']}), continuing without keyframe sync: {decode_err}")
                         continue
 
                 if not all_frames:
