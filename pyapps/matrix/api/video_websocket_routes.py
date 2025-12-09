@@ -129,6 +129,18 @@ async def h264_video_stream(websocket: WebSocket, device_id: str):
                     # Error already sent by start_stream
                     ColorPrint.red(f"[VideoWebSocket] Failed to start stream for {cmd_serial}")
                     break
+            elif command == 'pause':
+                # Pause stream for this client (keep connection, stop sending frames)
+                if streaming_serial:
+                    await video_service.pause_stream(streaming_serial, websocket)
+                else:
+                    ColorPrint.yellow(f"[VideoWebSocket] Cannot pause - no active stream")
+            elif command == 'resume':
+                # Resume stream for this client
+                if streaming_serial:
+                    await video_service.resume_stream(streaming_serial, websocket)
+                else:
+                    ColorPrint.yellow(f"[VideoWebSocket] Cannot resume - no active stream")
             elif command == 'stop_stream':
                 ColorPrint.yellow(f"[VideoWebSocket] Stop command received")
                 break
@@ -161,6 +173,7 @@ async def yuv_video_stream(
     YUV420P video streaming endpoint (WebGL-optimized)
 
     WebSocket endpoint for YUV streaming with backend FFmpeg decoding.
+    Supports pause/resume for efficient page switching.
 
     Args:
         websocket: WebSocket connection
@@ -175,6 +188,7 @@ async def yuv_video_stream(
         - Initialization: JSON message with video info
         - Frames: Binary YUV data with custom protocol
         - Metadata: JSON message every 60 frames
+        - Control: JSON {"command": "pause"} or {"command": "resume"}
 
     Example:
         ws://localhost:48000/video/yuv/device_1
@@ -202,7 +216,51 @@ async def yuv_video_stream(
     ColorPrint.green(f"[VideoWebSocket] ✓ YUV WebSocket accepted for {device_id} ({serial})")
 
     video_service = VideoStreamService.instance()
-    await video_service.stream_yuv_to_websocket(serial, websocket, hwaccel=hwaccel)
+
+    # Create streaming task
+    import asyncio
+    streaming_task = asyncio.create_task(
+        video_service.stream_yuv_to_websocket(serial, websocket, hwaccel=hwaccel)
+    )
+
+    try:
+        # Listen for control messages (pause/resume)
+        while True:
+            try:
+                # Receive with timeout to check if streaming task is done
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+                data = json.loads(message)
+                command = data.get('command')
+
+                ColorPrint.blue(f"[VideoWebSocket] Received YUV control command: {command}")
+
+                if command == 'pause':
+                    await video_service.pause_stream(serial, websocket)
+                elif command == 'resume':
+                    await video_service.resume_stream(serial, websocket)
+                elif command == 'stop':
+                    ColorPrint.yellow(f"[VideoWebSocket] Stop command received for YUV stream")
+                    break
+                else:
+                    ColorPrint.yellow(f"[VideoWebSocket] Unknown command: {command}")
+
+            except asyncio.TimeoutError:
+                # No message received, check if streaming task is still running
+                if streaming_task.done():
+                    break
+                continue
+
+    except WebSocketDisconnect:
+        ColorPrint.blue(f"[VideoWebSocket] YUV Client disconnected for {device_id}")
+    finally:
+        # Cancel streaming task if still running
+        if not streaming_task.done():
+            streaming_task.cancel()
+            try:
+                await streaming_task
+            except asyncio.CancelledError:
+                pass
+        ColorPrint.blue(f"[VideoWebSocket] YUV stream cleanup completed for {device_id}")
 
 
 # Export router

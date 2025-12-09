@@ -118,9 +118,9 @@ class Config:
     DEFAULT_CODEC = "h264"          # Video codec
 
     # Video Stream Mode:
-    # - "h264": H.264 direct transmission (recommended, low bandwidth)
-    # - "yuv": YUV420P decoded stream (experimental, high bandwidth)
-    DEFAULT_VIDEO_STREAM_MODE = "h264"
+    # - "h264": H.264 direct transmission (requires WebCodecs API with proprietary codecs)
+    # - "yuv": YUV420P decoded stream (works on all browsers, compatible with Qt WebEngine)
+    DEFAULT_VIDEO_STREAM_MODE = "yuv"  # Changed from "h264" to "yuv" for Qt WebEngine compatibility
 
     # ==================== WebSocket Configuration ====================
     WS_BASE_PATH = "/ws"

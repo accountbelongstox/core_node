@@ -111,6 +111,10 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
         if (msg.type === 'stream_started') {
           console.log(`[H264Stream] Stream started for ${deviceId}`);
           setIsConnected(true);
+        } else if (msg.type === 'stream.paused') {
+          console.log(`[H264Stream] ✓ Stream paused for ${deviceId}`);
+        } else if (msg.type === 'stream.resumed') {
+          console.log(`[H264Stream] ✓ Stream resumed for ${deviceId}`);
         }
       }
     };
@@ -141,6 +145,39 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
       setIsConnected(false);
     };
   }, [enabled, deviceId, browserSupport]);
+
+  // Handle page visibility changes to pause/resume stream
+  useEffect(() => {
+    if (!enabled || !wsRef.current) return;
+
+    const handleVisibilityChange = () => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+      if (document.hidden) {
+        // Page is hidden, pause stream
+        console.log(`[H264Stream] Page hidden, pausing stream for ${deviceId}`);
+        try {
+          wsRef.current.send(JSON.stringify({ command: 'pause' }));
+        } catch (error) {
+          console.error(`[H264Stream] Failed to send pause command for ${deviceId}:`, error);
+        }
+      } else {
+        // Page is visible, resume stream
+        console.log(`[H264Stream] Page visible, resuming stream for ${deviceId}`);
+        try {
+          wsRef.current.send(JSON.stringify({ command: 'resume' }));
+        } catch (error) {
+          console.error(`[H264Stream] Failed to send resume command for ${deviceId}:`, error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [enabled, deviceId]);
 
   function handleFrame(buffer: ArrayBuffer) {
     const data = new Uint8Array(buffer);
@@ -362,7 +399,7 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
 
   return (
     <div className="w-full h-full relative">
-      <canvas ref={canvasRef} className="w-full h-full object-contain" style={{ display: 'block' }} />
+      <canvas ref={canvasRef} className="w-full h-full object-cover" style={{ display: 'block' }} />
       {isConnected && (
         <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-[9px] font-mono text-blue-400">
           H.264 CONNECTED
