@@ -1,15 +1,20 @@
 /**
- * Configuration Service - Manages frontend config cache and backend synchronization
+ * Configuration Service - Manages frontend config data structure and backend synchronization
  * 
  * Features:
- * - Frontend config cache (localStorage)
+ * - Frontend config data structure (matches backend)
  * - Backend config sync (RPC v2)
  * - Real-time config change notifications
  * - Video stream mode switching (H.264/YUV)
+ * 
+ * Note: Config is always fetched from backend, no local storage cache
  */
 
 import { wsService } from './websocket';
 
+/**
+ * Global configuration structure (matches backend)
+ */
 export interface GlobalConfig {
   max_size: number;
   bit_rate: number;
@@ -21,16 +26,9 @@ export interface GlobalConfig {
   hwaccel?: 'cuda' | 'qsv' | 'dxva2' | 'vaapi' | 'auto'; // Hardware acceleration
 }
 
-export interface DeviceConfig {
-  deviceName: string;
-  config: Partial<GlobalConfig>;
-}
-
-export interface FullConfig {
-  global: GlobalConfig;
-  devices: Record<string, Partial<GlobalConfig>>;
-}
-
+/**
+ * Default configuration (used as fallback)
+ */
 const DEFAULT_CONFIG: GlobalConfig = {
   max_size: 720,
   bit_rate: 8000000,
@@ -42,92 +40,149 @@ const DEFAULT_CONFIG: GlobalConfig = {
   hwaccel: 'auto'
 };
 
-const CONFIG_STORAGE_KEY = 'matrix_global_config';
+/**
+ * Device-specific configuration
+ */
+export interface DeviceConfig {
+  deviceName: string;
+  config: Partial<GlobalConfig>;
+}
+
+/**
+ * Full configuration (global + all devices)
+ */
+export interface FullConfig {
+  global: GlobalConfig;
+  devices: Record<string, Partial<GlobalConfig>>;
+}
+
 const CONFIG_CHANGE_EVENT = 'config:changed';
 
 class ConfigService {
   private config: GlobalConfig = DEFAULT_CONFIG;
   private listeners: Set<(config: GlobalConfig) => void> = new Set();
   private initialized: boolean = false;
+  private rpcConnected: boolean = false;
 
   /**
-   * 初始化配置服务
-   * 1. 从 localStorage 加载缓存
-   * 2. 从后端获取最新配置
-   * 3. 合并并应用
+   * Initialize configuration service
+   * Uses default config initially, then fetches from backend when RPC is connected
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // 1. 从 localStorage 加载缓存
-    const cached = this.loadFromCache();
-    if (cached) {
-      this.config = { ...DEFAULT_CONFIG, ...cached };
-      console.log('[ConfigService] Loaded config from cache:', this.config);
-    }
-
-    // 2. 从后端获取最新配置
-    try {
-      if (wsService.isRpcConnected()) {
-        const result = await wsService.callRpc('config.global', {});
-        if (result && result.global) {
-          this.config = { ...DEFAULT_CONFIG, ...result.global };
-          this.saveToCache(this.config);
-          console.log('[ConfigService] Loaded config from backend:', this.config);
-        }
-      }
-    } catch (error) {
-      console.warn('[ConfigService] Failed to load config from backend, using cache:', error);
-    }
-
-    this.initialized = true;
+    // Start with default config
+    this.config = { ...DEFAULT_CONFIG };
     this.notifyListeners();
+    this.initialized = true;
+
+    // Try to load from backend if RPC is already connected
+    if (wsService.isRpcConnected()) {
+      await this.refresh();
+    } else {
+      console.log('[ConfigService] Using default config, will load from backend when RPC connects');
+    }
   }
 
   /**
-   * 获取当前配置
+   * Called when RPC connection is established
+   */
+  async onRpcConnected(): Promise<void> {
+    if (this.rpcConnected) return;
+    
+    this.rpcConnected = true;
+    console.log('[ConfigService] RPC connected, loading config from backend...');
+    
+    try {
+      await this.refresh();
+    } catch (error) {
+      console.error('[ConfigService] Failed to load config after RPC connection:', error);
+    }
+  }
+
+  /**
+   * Called when RPC connection is lost
+   */
+  onRpcDisconnected(): void {
+    this.rpcConnected = false;
+    console.log('[ConfigService] RPC disconnected');
+  }
+
+  /**
+   * Refresh configuration from backend
+   */
+  async refresh(): Promise<void> {
+    try {
+      if (wsService.isRpcConnected()) {
+        const result = await wsService.callRpc('config.global', {});
+        // Backend returns: { "success": true, "config": {...} }
+        if (result && result.config) {
+          this.config = { ...DEFAULT_CONFIG, ...result.config };
+          console.log('[ConfigService] Loaded config from backend:', this.config);
+          this.notifyListeners();
+        } else if (result && result.global) {
+          // Fallback for old format
+          this.config = { ...DEFAULT_CONFIG, ...result.global };
+          console.log('[ConfigService] Loaded config from backend (old format):', this.config);
+          this.notifyListeners();
+        } else {
+          console.warn('[ConfigService] Backend returned empty config, using default');
+          this.config = { ...DEFAULT_CONFIG };
+          this.notifyListeners();
+        }
+      } else {
+        console.warn('[ConfigService] RPC not connected, cannot load config');
+        // Use default config
+        this.config = { ...DEFAULT_CONFIG };
+        this.notifyListeners();
+      }
+    } catch (error) {
+      console.error('[ConfigService] Failed to load config from backend:', error);
+      // Use default config on error
+      this.config = { ...DEFAULT_CONFIG };
+      this.notifyListeners();
+    }
+  }
+
+  /**
+   * Get current configuration
+   * Always returns a config (default if not loaded from backend)
    */
   getConfig(): GlobalConfig {
     return { ...this.config };
   }
 
   /**
-   * 更新全局配置
-   * 1. 更新本地缓存
-   * 2. 立即同步到后端
-   * 3. 通知所有监听器
+   * Update global configuration
+   * 1. Immediately sync to backend
+   * 2. Refresh from backend to get updated config
+   * 3. Notify all listeners
    */
   async updateConfig(updates: Partial<GlobalConfig>): Promise<void> {
-    const oldConfig = { ...this.config };
-    this.config = { ...this.config, ...updates };
-    
-    // 保存到缓存
-    this.saveToCache(this.config);
-    
-    // 同步到后端
+    // Sync to backend
     try {
       if (wsService.isRpcConnected()) {
         await wsService.callRpc('config.global_update', updates);
         console.log('[ConfigService] Config updated and synced to backend:', updates);
+        
+        // Refresh from backend to get the updated config
+        await this.refresh();
+        
+        // Dispatch custom event
+        if (this.config) {
+          window.dispatchEvent(new CustomEvent(CONFIG_CHANGE_EVENT, { detail: this.config }));
+        }
       } else {
-        console.warn('[ConfigService] RPC not connected, config saved to cache only');
+        throw new Error('RPC not connected');
       }
     } catch (error) {
       console.error('[ConfigService] Failed to sync config to backend:', error);
-      // 回滚配置
-      this.config = oldConfig;
       throw error;
     }
-
-    // 通知监听器
-    this.notifyListeners();
-    
-    // 触发自定义事件
-    window.dispatchEvent(new CustomEvent(CONFIG_CHANGE_EVENT, { detail: this.config }));
   }
 
   /**
-   * 获取设备特定配置
+   * Get device-specific configuration
    */
   async getDeviceConfig(deviceName: string): Promise<Partial<GlobalConfig> | null> {
     try {
@@ -142,7 +197,7 @@ class ConfigService {
   }
 
   /**
-   * 更新设备特定配置
+   * Update device-specific configuration
    */
   async updateDeviceConfig(deviceName: string, config: Partial<GlobalConfig>): Promise<void> {
     try {
@@ -157,7 +212,7 @@ class ConfigService {
   }
 
   /**
-   * 删除设备配置（恢复为全局配置）
+   * Delete device configuration (revert to global config)
    */
   async deleteDeviceConfig(deviceName: string): Promise<void> {
     try {
@@ -172,7 +227,7 @@ class ConfigService {
   }
 
   /**
-   * 获取完整配置（全局 + 所有设备）
+   * Get full configuration (global + all devices)
    */
   async getFullConfig(): Promise<FullConfig> {
     try {
@@ -187,47 +242,21 @@ class ConfigService {
   }
 
   /**
-   * 订阅配置变更
+   * Subscribe to configuration changes
    */
   subscribe(listener: (config: GlobalConfig) => void): () => void {
     this.listeners.add(listener);
-    // 立即调用一次
+    // Call immediately once with current config
     listener(this.config);
     
-    // 返回取消订阅函数
+    // Return unsubscribe function
     return () => {
       this.listeners.delete(listener);
     };
   }
 
   /**
-   * 从 localStorage 加载配置
-   */
-  private loadFromCache(): Partial<GlobalConfig> | null {
-    try {
-      const cached = localStorage.getItem(CONFIG_STORAGE_KEY);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (error) {
-      console.warn('[ConfigService] Failed to load config from cache:', error);
-    }
-    return null;
-  }
-
-  /**
-   * 保存配置到 localStorage
-   */
-  private saveToCache(config: GlobalConfig): void {
-    try {
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-    } catch (error) {
-      console.warn('[ConfigService] Failed to save config to cache:', error);
-    }
-  }
-
-  /**
-   * 通知所有监听器
+   * Notify all listeners
    */
   private notifyListeners(): void {
     this.listeners.forEach(listener => {
@@ -240,6 +269,6 @@ class ConfigService {
   }
 }
 
-// 单例
+// Singleton instance
 export const configService = new ConfigService();
 

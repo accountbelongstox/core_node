@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore import ColorPrint
 from pyapps.matrix.matrix_config import Config
 
 
@@ -65,8 +65,9 @@ class ConfigService:
                 if "global" not in data or "devices" not in data:
                     raise ValueError("Invalid configuration structure")
                 return data
-            except Exception:
+            except (json.JSONDecodeError, ValueError, IOError) as e:
                 # Fall back to defaults if the file is corrupted
+                ColorPrint.yellow(f"[ConfigService] Failed to load config file: {e}, using defaults")
                 return self._default_config()
         return self._default_config()
 
@@ -121,19 +122,12 @@ class ConfigService:
             await self._write_locked()
             new_config = deepcopy(self._data["global"])
 
-        # Emit THREAD_BUS event for real-time updates
-        # Check if video_stream_mode changed
+        # Log video_stream_mode changes
         if "video_stream_mode" in updates:
             old_mode = old_config.get("video_stream_mode")
             new_mode = new_config.get("video_stream_mode")
             if old_mode != new_mode:
                 ColorPrint.green(f"[ConfigService] Video stream mode changed: {old_mode} -> {new_mode}")
-                THREAD_BUS.emit("config.video_stream_mode.changed", {
-                    "scope": "global",
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "config": new_config
-                })
 
         return new_config
 
@@ -155,20 +149,12 @@ class ConfigService:
             await self._write_locked()
             new_device_config = deepcopy(self._data["devices"][key])
 
-        # Emit THREAD_BUS event for real-time updates
-        # Check if video_stream_mode changed
+        # Log video_stream_mode changes
         if "video_stream_mode" in updates:
             old_mode = old_device_config.get("video_stream_mode")
             new_mode = new_device_config.get("video_stream_mode")
             if old_mode != new_mode:
                 ColorPrint.green(f"[ConfigService] Device {device_name} video stream mode changed: {old_mode} -> {new_mode}")
-                THREAD_BUS.emit("config.video_stream_mode.changed", {
-                    "scope": "device",
-                    "device_name": device_name,
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "config": new_device_config
-                })
 
         return new_device_config
 

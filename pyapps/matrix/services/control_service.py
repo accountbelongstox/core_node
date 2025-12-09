@@ -313,12 +313,12 @@ class ControlService:
 
             # Broadcast to slave devices if this is a master
             async def _send_text_to_slave(slave_serial: str, data: dict) -> bool:
-                try:
-                    cmd = f'input text "{data["text"]}"'
-                    ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
-                    return True
-                except Exception:
+                cmd = f'input text "{data["text"]}"'
+                result = ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
+                if not result[0]:
+                    print(f"[ControlService] Failed to send text to slave {slave_serial}: {result[1]}")
                     return False
+                return True
 
             broadcasted = await self._broadcast_if_master(
                 serial=serial,
@@ -368,12 +368,12 @@ class ControlService:
 
             # Broadcast to slave devices if this is a master
             async def _send_swipe_to_slave(slave_serial: str, data: dict) -> bool:
-                try:
-                    cmd = f'input swipe {data["x1"]} {data["y1"]} {data["x2"]} {data["y2"]} {data.get("duration", 300)}'
-                    ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
-                    return True
-                except Exception:
+                cmd = f'input swipe {data["x1"]} {data["y1"]} {data["x2"]} {data["y2"]} {data.get("duration", 300)}'
+                result = ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
+                if not result[0]:
+                    print(f"[ControlService] Failed to send swipe to slave {slave_serial}: {result[1]}")
                     return False
+                return True
 
             broadcasted = await self._broadcast_if_master(
                 serial=serial,
@@ -433,11 +433,11 @@ class ControlService:
 
                 # Broadcast to slaves
                 async def _expand_notification_slave(slave_serial: str, data: dict) -> bool:
-                    try:
-                        ADBManager.execute_shell(slave_serial, command, self.adb_path)
-                        return True
-                    except Exception:
+                    result = ADBManager.execute_shell(slave_serial, command, self.adb_path)
+                    if not result[0]:
+                        print(f"[ControlService] Failed to expand notification on slave {slave_serial}: {result[1]}")
                         return False
+                    return True
 
                 await self._broadcast_if_master(
                     serial=serial,
