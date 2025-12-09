@@ -9,6 +9,9 @@ import { DeviceInfo } from '../types/api';
 import { wsService } from '../services/websocket';
 import { useI18n } from '../services/i18n';
 import { DeviceVideoStream } from './DeviceVideoStream';
+import { ShellDialog } from './ShellDialog';
+import { useNotifications } from './Notification';
+import { useConfirmDialog } from './ConfirmDialog';
 
 interface DeviceDashboardProps {
   selectedIds: Set<string>;
@@ -42,6 +45,11 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
 
   // Zoomed device state (for layout change, NOT unmounting)
   const [zoomedDeviceId, setZoomedDeviceId] = useState<string | null>(null);
+
+  // Dialog and notification state
+  const [activeShellDialog, setActiveShellDialog] = useState<{ deviceId: string; deviceName?: string } | null>(null);
+  const { notifications, showNotification, NotificationContainer } = useNotifications();
+  const { showConfirmDialog, ConfirmDialogComponent } = useConfirmDialog();
 
   // ESC key to exit zoom
   useEffect(() => {
@@ -527,13 +535,103 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
               {/* Enhanced Sidebar Tools Slide-out */}
               <div className="absolute right-0 top-12 bottom-12 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
                  {[
-                   { icon: 'ph-arrows-out', title: '大屏', action: () => { setZoomedDeviceId(zoomedDeviceId === device.deviceId ? null : device.deviceId); addLog('info', `Toggled zoom for ${device.name || device.serial}`); }, color: 'text-[#ffd60a] border-[#ffd60a]/30 hover:bg-[#ffd60a]/20' },
-                   { icon: 'ph-eye', title: 'View', action: () => onOpenDevice(device), color: 'text-[#00f2ff] border-[#00f2ff]/30 hover:bg-[#00f2ff]/20' },
-                   { icon: 'ph-terminal-window', title: 'Shell', action: () => {}, color: 'text-[#05ffa1] border-[#05ffa1]/30 hover:bg-[#05ffa1]/20' },
-                   { icon: 'ph-folder-open', title: 'Files', action: () => onQuickAction?.(device, 'files'), color: 'text-[#bd00ff] border-[#bd00ff]/30 hover:bg-[#bd00ff]/20' },
-                   { icon: 'ph-camera', title: t('control.actions.snap'), action: () => {}, color: 'text-white border-white/30 hover:bg-white/20' },
-                   { icon: 'ph-gear', title: 'Config', action: () => onQuickAction?.(device, 'config'), color: 'text-slate-300 border-white/20 hover:bg-white/10' },
-                   { icon: 'ph-power', title: 'Reboot', action: () => {}, color: 'text-[#ff2a6d] border-[#ff2a6d]/30 hover:bg-[#ff2a6d]/20' },
+                   { 
+                     icon: 'ph-arrows-out', 
+                     title: '大屏', 
+                     action: () => { 
+                       setZoomedDeviceId(zoomedDeviceId === device.deviceId ? null : device.deviceId); 
+                       addLog('info', `Toggled zoom for ${device.name || device.serial}`); 
+                     }, 
+                     color: 'text-[#ffd60a] border-[#ffd60a]/30 hover:bg-[#ffd60a]/20' 
+                   },
+                   { 
+                     icon: 'ph-eye', 
+                     title: 'View', 
+                     action: () => onOpenDevice(device), 
+                     color: 'text-[#00f2ff] border-[#00f2ff]/30 hover:bg-[#00f2ff]/20' 
+                   },
+                   { 
+                     icon: 'ph-terminal-window', 
+                     title: 'Shell', 
+                     action: async () => {
+                       setActiveShellDialog({ deviceId: device.deviceId, deviceName: device.name || device.serial });
+                     }, 
+                     color: 'text-[#05ffa1] border-[#05ffa1]/30 hover:bg-[#05ffa1]/20' 
+                   },
+                   { 
+                     icon: 'ph-folder-open', 
+                     title: 'Files', 
+                     action: () => onQuickAction?.(device, 'files'), 
+                     color: 'text-[#bd00ff] border-[#bd00ff]/30 hover:bg-[#bd00ff]/20' 
+                   },
+                   { 
+                     icon: 'ph-camera', 
+                     title: t('control.actions.snap'), 
+                     action: async () => {
+                       try {
+                         if (!wsService.isRpcConnected()) {
+                           await wsService.connectRpc();
+                         }
+                         showNotification('info', 'Capturing screenshot...', 2000);
+                         const result = await wsService.callRpcV2('screenshot.capture', {
+                           deviceId: device.deviceId,
+                           format: 'png'
+                         });
+                         if (result && result.success) {
+                           showNotification('success', `Screenshot saved: ${result.filePath || 'Success'}`);
+                           addLog('success', `Screenshot captured for ${device.name || device.serial}`);
+                         } else {
+                           throw new Error(result?.error?.message || 'Screenshot failed');
+                         }
+                       } catch (error) {
+                         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                         showNotification('error', `Screenshot failed: ${errorMsg}`);
+                         addLog('error', `Screenshot failed for ${device.name || device.serial}: ${errorMsg}`);
+                       }
+                     }, 
+                     color: 'text-white border-white/30 hover:bg-white/20' 
+                   },
+                   { 
+                     icon: 'ph-gear', 
+                     title: 'Config', 
+                     action: () => onQuickAction?.(device, 'config'), 
+                     color: 'text-slate-300 border-white/20 hover:bg-white/10' 
+                   },
+                   { 
+                     icon: 'ph-power', 
+                     title: 'Reboot', 
+                     action: async () => {
+                       const confirmed = await showConfirmDialog({
+                         title: 'Reboot Device',
+                         message: `Are you sure you want to reboot ${device.name || device.serial}? This action cannot be undone.`,
+                         confirmText: 'Reboot',
+                         cancelText: 'Cancel',
+                         type: 'danger'
+                       });
+                       if (confirmed) {
+                         try {
+                           if (!wsService.isRpcConnected()) {
+                             await wsService.connectRpc();
+                           }
+                           showNotification('info', 'Sending reboot command...', 2000);
+                           const result = await wsService.callRpcV2('control.reboot', {
+                             deviceId: device.deviceId
+                           });
+                           if (result && result.success) {
+                             showNotification('success', 'Reboot command sent successfully');
+                             addLog('success', `Reboot command sent to ${device.name || device.serial}`);
+                           } else {
+                             throw new Error(result?.error?.message || 'Reboot failed');
+                           }
+                         } catch (error) {
+                           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                           showNotification('error', `Reboot failed: ${errorMsg}`);
+                           addLog('error', `Reboot failed for ${device.name || device.serial}: ${errorMsg}`);
+                         }
+                       }
+                     }, 
+                     color: 'text-[#ff2a6d] border-[#ff2a6d]/30 hover:bg-[#ff2a6d]/20' 
+                   },
                  ].map((tool, i) => (
                    <button 
                      key={i}
@@ -583,6 +681,21 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Shell Dialog */}
+      {activeShellDialog && (
+        <ShellDialog
+          deviceId={activeShellDialog.deviceId}
+          deviceName={activeShellDialog.deviceName}
+          onClose={() => setActiveShellDialog(null)}
+        />
+      )}
+
+      {/* Notification Container */}
+      <NotificationContainer />
+
+      {/* Confirm Dialog */}
+      {ConfirmDialogComponent}
 
     </div>
   );
