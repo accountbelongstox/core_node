@@ -5,15 +5,44 @@
 **Protocol:** RPC v2 WebSocket
 **Endpoint:** `ws://localhost:48000/rpc/ws`
 
+---
+
+## ⚠️ 视频WebSocket路径 - 重要提示
+
+**视频流WebSocket是直接端点，不是RPC！路径没有 `/ws/` 前缀！**
+
+- ✅ **正确**: `ws://localhost:48000/video/{device_id}`
+- ❌ **错误**: `ws://localhost:48000/ws/video/{device_id}`
+
+**{device_id} 参数说明:**
+- **必须使用**: 从 `device.list` API 返回的 `deviceId` 字段（不是 `serial` 字段）
+- **deviceId 格式**: 由后端 `DeviceIDManager` 自动生成（如 `device_1`, `device_2` 等）
+- **后端会自动解析**: `device_id` → `serial`（内部映射，前端无需关心）
+
+**⚠️ 重要**: 
+- ✅ 使用 `device.list` 返回的 `deviceId` 字段
+- ❌ 不要使用 `serial` 字段（后端会通过 DeviceIDManager 自动映射）
+- URL 编码：如果 deviceId 包含特殊字符，浏览器会自动编码（如 `:` → `%3A`）
+
+---
+
 **视频流方案（双模式支持）:**
 - ✅ **H.264 直传模式** - 推荐（已验证，基于scrcpy_web_test）
-  - WebSocket端点: `ws://localhost:48000/video/{serial}`
+  - WebSocket端点: `ws://localhost:48000/video/{device_id}`
+  - **⚠️ 注意路径**: 是 `/video/` 不是 `/ws/video/`！
+  - **deviceId**: 从 `device.list` 返回的 `deviceId` 字段（如 `device_1`）
+  - **连接流程** (scrcpy_web_test模式):
+    1. 建立WebSocket连接
+    2. 连接成功后发送 `{"command": "start_stream", "serial": "{device_id}"}` 命令
+    3. 后端开始推送H.264帧数据
   - 直接传输H.264数据，前端WebCodecs解码
   - 低延迟（~30-50ms），低带宽（0.5-2 Mbps）
   - 浏览器兼容性：Chrome/Edge 94+
 
 - ⚠️ **YUV 解码模式** - 实验性（需要PyAV）
-  - WebSocket端点: `ws://localhost:48000/video/yuv/{serial}`
+  - WebSocket端点: `ws://localhost:48000/video/yuv/{device_id}`
+  - **⚠️ 注意路径**: 是 `/video/yuv/` 不是 `/ws/video/yuv/`！
+  - **deviceId**: 从 `device.list` 返回的 `deviceId` 字段（如 `device_1`）
   - 后端FFmpeg解码H.264→YUV，前端WebGL渲染
   - 低延迟（~40-60ms），高带宽（~90 Mbps，仅限局域网）
   - 浏览器兼容性：所有支持WebGL的浏览器
@@ -325,7 +354,8 @@ def start_rpc_v2(config):
 {
   "devices": [
     {
-      "serial": "ABC123",
+      "deviceId": "device_1",  // 后端自动生成的设备ID（用于所有API调用）
+      "serial": "ABC123",       // 设备序列号（USB）或 IP:端口（WiFi），仅作参考
       "status": "device",
       "model": "SM-G950F",
       "manufacturer": "samsung"
@@ -335,17 +365,23 @@ def start_rpc_v2(config):
 }
 ```
 
+**⚠️ 重要说明:**
+- ✅ **使用 `deviceId`**: 所有后续 API 调用（包括视频流）必须使用 `deviceId` 字段
+- ❌ **不要使用 `serial`**: `serial` 字段仅作参考，后端会通过 DeviceIDManager 自动映射
+- **deviceId 格式**: 由后端自动生成（如 `device_1`, `device_2` 等），每次 `device.list` 调用时保持一致
+
 #### `device.info`
 获取设备详细信息
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 **响应:**
 ```json
 {
   "device": {
-    "serial": "ABC123",
+    "deviceId": "device_1",  // 设备ID（用于所有API调用）
+    "serial": "ABC123",       // 设备序列号（参考用）
     "model": "SM-G950F",
     "manufacturer": "samsung",
     "android_version": "9.0",
@@ -363,7 +399,7 @@ def start_rpc_v2(config):
 连接设备进行镜像
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `max_size` (int, 可选, 默认: 720) - 最大分辨率
 - `bit_rate` (int, 可选, 默认: 8000000) - 比特率
 - `max_fps` (int, 可选, 默认: 60) - 最大帧率
@@ -376,7 +412,7 @@ def start_rpc_v2(config):
 断开设备连接
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 #### `device.batch_configure`
 批量配置多个设备
@@ -396,46 +432,46 @@ def start_rpc_v2(config):
 控制屏幕电源
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `action` (string, 必需) - 操作 (on/off/toggle)
 
 #### `screen.brightness.set`
 设置屏幕亮度
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `level` (int, 必需) - 亮度级别 (0-255)
 
 #### `screen.brightness.get`
 获取当前屏幕亮度
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 #### `screen.rotation.set`
 设置屏幕旋转
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `rotation` (int, 必需) - 旋转角度 (0/90/180/270)
 
 #### `screen.rotation.get`
 获取当前屏幕旋转
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 #### `screen.rotation.auto_enable`
 启用自动旋转
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 #### `screen.rotation.auto_disable`
 禁用自动旋转
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 ---
 
@@ -445,14 +481,14 @@ def start_rpc_v2(config):
 列出已安装的包
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `filter` (string, 可选) - 过滤模式 (例如: "com.example")
 
 #### `file.apk_uninstall`
 卸载 APK
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `packageName` (string, 必需) - 包名
 
 #### `file.transfer_status`
@@ -469,7 +505,7 @@ def start_rpc_v2(config):
 开始屏幕录制
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `quality` (string, 可选, 默认: "high") - 质量 (high/medium/low)
 - `maxDuration` (int, 可选, 默认: 1800) - 最大时长（秒）
 
@@ -477,13 +513,13 @@ def start_rpc_v2(config):
 停止屏幕录制
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 #### `recording.status`
 获取录制状态
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 **响应:**
 ```json
@@ -501,7 +537,7 @@ def start_rpc_v2(config):
 捕获截图
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `format` (string, 可选, 默认: "png") - 格式 (png/jpg)
 
 ---
@@ -1048,7 +1084,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播，自动坐标映射）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `action` (string, 必需) - 动作 (down/up/move)
 - `pointerId` (int, 可选, 默认: 0) - 指针 ID
 - `x` (int, 必需) - X 坐标
@@ -1064,7 +1100,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-001",
   "route": "control.touch",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "action": "down",
     "x": 500,
     "y": 1000,
@@ -1094,7 +1130,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `action` (string, 必需) - 动作 (down/up)
 - `keyCode` (int, 必需) - 按键码（Android KeyEvent keycodes）
 - `metaState` (int, 可选, 默认: 0) - Meta 状态
@@ -1111,7 +1147,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-002",
   "route": "control.key",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "action": "down",
     "keyCode": 4
   }
@@ -1138,7 +1174,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `text` (string, 必需) - 文本内容（支持 Unicode、中文、emoji）
 
 **请求示例:**
@@ -1148,7 +1184,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-003",
   "route": "control.text",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "text": "Hello 世界 👋"
   }
 }
@@ -1174,7 +1210,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播，自动坐标映射）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `startX` (int, 必需) - 起始 X 坐标
 - `startY` (int, 必需) - 起始 Y 坐标
 - `endX` (int, 必需) - 结束 X 坐标
@@ -1190,7 +1226,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-004",
   "route": "control.swipe",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "startX": 500,
     "startY": 1500,
     "endX": 500,
@@ -1222,7 +1258,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `action` (string, 必需) - 操作
 
 **支持的操作:**
@@ -1243,7 +1279,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-005",
   "route": "control.systemkey",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "action": "home"
   }
 }
@@ -1256,7 +1292,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-006",
   "route": "control.systemkey",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "action": "notification"
   }
 }
@@ -1282,7 +1318,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ✅ 如果设备是 master，自动同步到所有 slave 设备（并发广播）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `text` (string, 必需) - 剪贴板文本（支持 Unicode、特殊字符自动转义）
 
 **请求示例:**
@@ -1292,7 +1328,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-007",
   "route": "control.clipboard_set",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "text": "Copied text with \"quotes\" and 'special' chars"
   }
 }
@@ -1318,7 +1354,7 @@ console.log('Device configs:', fullConfig.devices);
 **自动广播**: ⚠️ 无需广播（读取操作）
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 **请求示例:**
 ```json
@@ -1327,7 +1363,7 @@ console.log('Device configs:', fullConfig.devices);
   "id": "req-008",
   "route": "control.clipboard_get",
   "data": {
-    "serial": "ABC123"
+    "deviceId": "ABC123"
   }
 }
 ```
@@ -1352,7 +1388,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
 | 特性 | H.264 直传模式 ✅ | YUV 解码模式 ⚠️ |
 |------|-----------------|----------------|
 | **推荐度** | **推荐（已验证）** | 实验性 |
-| **端点** | `ws://localhost:48000/video/{serial}` | `ws://localhost:48000/video/yuv/{serial}` |
+| **端点** | `ws://localhost:48000/video/{device_id}` | `ws://localhost:48000/video/yuv/{device_id}` |
 | **延迟** | ~30-50ms | ~40-60ms |
 | **带宽** | 0.5-2 Mbps | ~90 Mbps |
 | **前端复杂度** | 中等（WebCodecs） | 低（WebGL） |
@@ -1366,7 +1402,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
 调整视频流质量
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 - `max_size` (int, 可选) - 最大分辨率
 - `bit_rate` (int, 可选) - 比特率
 - `max_fps` (int, 可选) - 最大帧率
@@ -1378,7 +1414,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
   "id": "req-video-001",
   "route": "video.quality",
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "max_size": 720,
     "bit_rate": 2000000,
     "max_fps": 30
@@ -1404,7 +1440,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
 暂停视频流
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 **请求示例:**
 ```json
@@ -1413,7 +1449,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
   "id": "req-video-002",
   "route": "video.pause",
   "data": {
-    "serial": "ABC123"
+    "deviceId": "ABC123"
   }
 }
 ```
@@ -1436,7 +1472,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
 恢复视频流
 
 **请求参数:**
-- `serial` (string, 必需) - 设备序列号
+- `deviceId` (string, 必需) - 设备ID（如 device_1）
 
 **请求示例:**
 ```json
@@ -1445,7 +1481,7 @@ Matrix 支持两种视频流模式，根据使用场景选择：
   "id": "req-video-003",
   "route": "video.resume",
   "data": {
-    "serial": "ABC123"
+    "deviceId": "ABC123"
   }
 }
 ```
@@ -1472,13 +1508,43 @@ H.264 直传模式（基于 scrcpy_web_test 验证方案）
 - 协议来自 scrcpy_web_test（已验证可用）
 - 低延迟、低带宽、适合生产环境
 
-**WebSocket 连接**: `ws://localhost:48000/video/{serial}`
+**WebSocket 连接**: `ws://localhost:48000/video/{device_id}`
 
-**协议流程**:
+**⚠️ 重要 - 路径和 deviceId 说明:**
+- **正确路径**: `/video/{device_id}` （不是 `/ws/video/{device_id}`）
+- **{device_id} 参数**: 
+  - ✅ **必须使用** `device.list` API 返回的 `deviceId` 字段（如 `device_1`, `device_2`）
+  - ❌ **不要使用** `serial` 字段（后端会通过 DeviceIDManager 自动映射）
+  - 后端会自动将 `device_id` 解析为对应的 `serial`（内部处理，前端无需关心）
+
+**连接示例:**
+```javascript
+// 1. 先获取设备列表
+const devices = await rpcClient.request('device.list', {});
+// 返回: { devices: [{ deviceId: 'device_1', serial: 'ABC123', ... }, ...] }
+
+// 2. 使用 deviceId 连接视频流
+const deviceId = devices.devices[0].deviceId; // 'device_1'
+const ws = new WebSocket(`ws://localhost:48000/video/${deviceId}`);
+ws.binaryType = 'arraybuffer';
+
+// 3. 连接成功后发送 start_stream 命令（scrcpy_web_test 模式）
+ws.onopen = () => {
+  console.log('WebSocket connected');
+  // 必须发送 start_stream 命令才开始推流
+  ws.send(JSON.stringify({
+    command: 'start_stream',
+    serial: deviceId
+  }));
+};
+```
+
+**协议流程** (scrcpy_web_test 模式):
 1. 客户端连接 WebSocket
-2. 后端接受连接
-3. 开始推送二进制 H.264 帧
-4. 每 60 帧推送一次元数据 (JSON)
+2. 后端接受连接，进入命令等待状态
+3. **客户端发送 `start_stream` 命令**（必需）
+4. 后端开始推送二进制 H.264 帧
+5. 每 60 帧推送一次元数据 (JSON)
 
 **H.264 帧协议** (Binary):
 ```
@@ -1549,7 +1615,7 @@ function initDecoder(width: number, height: number) {
 }
 
 // 2. 连接 WebSocket
-const ws = new WebSocket('ws://localhost:48000/video/ABC123');
+const ws = new WebSocket('ws://localhost:48000/video/device_1');
 ws.binaryType = 'arraybuffer';
 
 ws.onmessage = (event) => {
@@ -1637,7 +1703,14 @@ YUV420P 推流（WebGL 优化，低延迟）
 pip install av
 ```
 
-**WebSocket 连接**: `ws://localhost:48000/video/yuv/{serial}`
+**WebSocket 连接**: `ws://localhost:48000/video/yuv/{device_id}`
+
+**⚠️ 重要 - 路径和 deviceId 说明:**
+- **正确路径**: `/video/yuv/{device_id}` （不是 `/ws/video/yuv/{device_id}`）
+- **{device_id} 参数**:
+  - ✅ **必须使用** `device.list` API 返回的 `deviceId` 字段（如 `device_1`, `device_2`）
+  - ❌ **不要使用** `serial` 字段（后端会通过 DeviceIDManager 自动映射）
+  - 后端会自动将 `device_id` 解析为对应的 `serial`（内部处理，前端无需关心）
 
 **可选参数**:
 - `hwaccel` (query parameter): 硬件加速类型
@@ -1649,11 +1722,14 @@ pip install av
 
 **连接示例**:
 ```javascript
-// 软件解码
-const ws = new WebSocket('ws://localhost:48000/video/yuv/ABC123');
+// USB设备 - 软件解码
+const wsUSB = new WebSocket('ws://localhost:48000/video/yuv/device_1');
+
+// WiFi设备 - 软件解码
+const wsWiFi = new WebSocket('ws://localhost:48000/video/yuv/device_1');
 
 // 硬件加速 (NVIDIA CUDA)
-const ws = new WebSocket('ws://localhost:48000/video/yuv/ABC123?hwaccel=cuda');
+const wsGPU = new WebSocket('ws://localhost:48000/video/yuv/device_1?hwaccel=cuda');
 ```
 
 **初始化消息** (JSON):
@@ -1662,7 +1738,7 @@ const ws = new WebSocket('ws://localhost:48000/video/yuv/ABC123?hwaccel=cuda');
   "type": "video.init",
   "timestamp": 0,
   "data": {
-    "serial": "ABC123",
+    "deviceId": "ABC123",
     "codec": "yuv420p",
     "format": "yuv",
     "width": 1080,
@@ -1714,7 +1790,7 @@ const canvas = document.getElementById('video-canvas');
 const renderer = new WebGLYUVRenderer(canvas);
 
 // 2. 连接 WebSocket
-const ws = new WebSocket('ws://localhost:48000/video/yuv/ABC123');
+const ws = new WebSocket('ws://localhost:48000/video/yuv/device_1');
 
 // 3. 接收并渲染 YUV 帧
 ws.onmessage = (event) => {
@@ -1800,8 +1876,8 @@ function supportsWebGL() {
 // 根据支持情况选择推流方式
 const streamType = supportsWebGL() ? 'yuv' : 'h264';
 const wsUrl = streamType === 'yuv'
-  ? `ws://localhost:48000/video/yuv/${serial}`
-  : `ws://localhost:48000/video/${serial}`;
+  ? `ws://localhost:48000/video/yuv/${device_id}`
+  : `ws://localhost:48000/video/${device_id}`;
 ```
 
 ---
@@ -1894,7 +1970,7 @@ const screenshot = await client.request('screenshot.capture', {
 
 | 代码 | 描述 |
 |------|------|
-| `MISSING_SERIAL` | 缺少设备序列号 |
+| `MISSING_DEVICE_ID` | 缺少设备序列号 |
 | `MISSING_GROUP_ID` | 缺少分组 ID |
 | `MISSING_PARAMETERS` | 缺少必需参数 (groupId/hostSerial/slaveSerial) |
 | `MISSING_DEVICE_NAME` | 缺少设备名称 |
