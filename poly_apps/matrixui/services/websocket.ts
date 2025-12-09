@@ -237,6 +237,38 @@ class WebSocketService {
     });
   }
 
+  // RPC v2 format (as per SIDEBAR_TOOLS_API.md) - uses 'data' instead of 'params'
+  public async callRpcV2(route: string, data: any = {}): Promise<any> {
+    if (!this.isConnected || !this.rpcWs || this.rpcWs.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error('WebSocket not connected'));
+    }
+
+    const requestId = `${route}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const payload = {
+      type: 'request',
+      id: requestId,
+      route,
+      data,
+      timestamp: Date.now()
+    };
+
+    return new Promise((resolve, reject) => {
+      this.rpcPending.set(requestId, {
+        resolve,
+        reject,
+        route,
+        timestamp: Date.now()
+      });
+
+      try {
+        this.rpcWs.send(JSON.stringify(payload));
+      } catch (err) {
+        this.rpcPending.delete(requestId);
+        reject(err instanceof Error ? err : new Error('Failed to send request'));
+      }
+    });
+  }
+
   public onRpcEvent(route: string, handler: RpcEventHandler) {
     if (typeof handler !== 'function') {
       throw new Error('Event handler must be a function');
@@ -298,11 +330,21 @@ class WebSocketService {
       const pending = this.rpcPending.get(message.id);
       if (pending) {
         this.rpcPending.delete(message.id);
-        if (message.error) {
+        
+        // Handle error response (RPC v2 format: response.data.error)
+        if (message.data && message.data.error) {
+          const error = message.data.error;
+          pending.reject(new Error(error.message || error.code || 'Unknown error'));
+        } else if (message.error) {
+          // Legacy format
           pending.reject(new Error(message.error));
         } else {
-          pending.resolve(message.result);
+          // RPC v2 format: response.data contains the result
+          // Legacy format: message.result contains the result
+          const result = message.data !== undefined ? message.data : message.result;
+          pending.resolve(result);
         }
+        
         if (message.requires_ack) {
           this.sendRpcAck(message.id);
         }

@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Device, StreamConfig } from '../types';
 import { useI18n } from '../services/i18n';
+import { wsService } from '../services/websocket';
+import { useNotifications } from './Notification';
 
 interface DeviceConfigModalProps {
   device: Device;
@@ -11,6 +13,7 @@ interface DeviceConfigModalProps {
 
 export const DeviceConfigModal: React.FC<DeviceConfigModalProps> = ({ device, onClose, onSave }) => {
   const { t } = useI18n();
+  const { showNotification } = useNotifications();
   const [config, setConfig] = useState<StreamConfig>({
     max_size: 720,
     bit_rate: 4000000,
@@ -18,10 +21,77 @@ export const DeviceConfigModal: React.FC<DeviceConfigModalProps> = ({ device, on
     codec: 'h264',
     locked_video_orientation: -1
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    onSave(device.serial, config);
-    onClose();
+  // Get device name (use name or serial as fallback)
+  const deviceName = device.name || device.serial;
+
+  // Load current config on mount
+  useEffect(() => {
+    loadConfig();
+  }, [deviceName]);
+
+  const loadConfig = async () => {
+    try {
+      setLoading(true);
+      if (!wsService.isRpcConnected()) {
+        await wsService.connectRpc();
+      }
+      const result = await wsService.callRpcV2('config.device', { deviceName });
+      if (result && result.config) {
+        setConfig(prev => ({
+          ...prev,
+          ...result.config,
+          // Ensure all required fields are present
+          max_size: result.config.max_size ?? prev.max_size,
+          bit_rate: result.config.bit_rate ?? prev.bit_rate,
+          max_fps: result.config.max_fps ?? prev.max_fps,
+          codec: result.config.codec ?? prev.codec,
+          locked_video_orientation: result.config.locked_video_orientation ?? prev.locked_video_orientation
+        }));
+      }
+    } catch (error) {
+      console.error('[DeviceConfigModal] Failed to load config:', error);
+      showNotification('warning', `Failed to load config: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      if (!wsService.isRpcConnected()) {
+        await wsService.connectRpc();
+      }
+      
+      const result = await wsService.callRpcV2('config.device_update', {
+        deviceName,
+        config: {
+          max_size: config.max_size,
+          bit_rate: config.bit_rate,
+          max_fps: config.max_fps,
+          // Only include other config fields if they exist
+          ...(config.codec && { codec: config.codec }),
+          ...(config.locked_video_orientation !== undefined && { locked_video_orientation: config.locked_video_orientation })
+        }
+      });
+
+      if (result && result.success) {
+        showNotification('success', 'Configuration saved successfully');
+        onSave(device.serial, config);
+        onClose();
+      } else {
+        throw new Error(result?.error?.message || 'Failed to save config');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      showNotification('error', `Failed to save config: ${errorMsg}`);
+      console.error('[DeviceConfigModal] Failed to save config:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -44,6 +114,17 @@ export const DeviceConfigModal: React.FC<DeviceConfigModalProps> = ({ device, on
 
         {/* Body */}
         <div className="p-6 space-y-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative w-8 h-8">
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
+                </div>
+                <span className="text-xs text-slate-400">Loading configuration...</span>
+              </div>
+            </div>
+          ) : (
+            <>
            
            {/* Resolution */}
            <div className="space-y-2">
@@ -126,6 +207,8 @@ export const DeviceConfigModal: React.FC<DeviceConfigModalProps> = ({ device, on
                  />
               </div>
            </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -138,9 +221,17 @@ export const DeviceConfigModal: React.FC<DeviceConfigModalProps> = ({ device, on
            </button>
            <button 
              onClick={handleSave}
-             className="flex-1 py-2 rounded-lg text-xs font-bold uppercase bg-[#00f2ff] text-black hover:bg-[#00f2ff]/80 shadow-[0_0_15px_rgba(0,242,255,0.3)] transition-all"
+             disabled={loading || saving}
+             className="flex-1 py-2 rounded-lg text-xs font-bold uppercase bg-[#00f2ff] text-black hover:bg-[#00f2ff]/80 shadow-[0_0_15px_rgba(0,242,255,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
            >
-             {t('device_config.save')}
+             {saving ? (
+               <>
+                 <i className="ph ph-circle-notch text-sm animate-spin"></i>
+                 Saving...
+               </>
+             ) : (
+               t('device_config.save')
+             )}
            </button>
         </div>
 
