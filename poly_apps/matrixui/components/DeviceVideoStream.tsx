@@ -88,12 +88,9 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
       <div className="w-full h-full relative">
         <canvas
           ref={canvasRef}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           style={{ display: 'block' }}
         />
-        <div className="absolute top-2 left-2 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded text-[9px] font-mono text-green-400">
-          {streamInfo ? `${streamInfo.width}x${streamInfo.height} @ ${streamInfo.fps}fps (YUV)` : 'YUV CONNECTED'}
-        </div>
       </div>
     );
   }
@@ -101,33 +98,41 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
   // YUV mode connecting state
   return (
     <div className="w-full h-full relative flex flex-col items-center justify-center p-4 pointer-events-none">
-      {/* Background Grid */}
-      <div className="absolute inset-0 opacity-20" style={{ 
-        backgroundImage: 'linear-gradient(rgba(0,242,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.1) 1px, transparent 1px)', 
-        backgroundSize: '20px 20px' 
-      }}></div>
-      
-      {/* Central Spinner */}
-      <div className="relative w-16 h-16 mb-4">
-        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
-        <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <i className="ph-fill ph-lightning text-[#00f2ff] text-xl animate-pulse"></i>
+      {/* Canvas MUST be visible (not display:none) for WebGL to initialize correctly */}
+      {/* Place canvas in background, overlay loading UI on top */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ display: 'block', zIndex: 0 }}
+      />
+
+      {/* Overlay loading UI */}
+      <div className="relative z-10 flex flex-col items-center">
+        {/* Background Grid */}
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: 'linear-gradient(rgba(0,242,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.1) 1px, transparent 1px)',
+          backgroundSize: '20px 20px'
+        }}></div>
+
+        {/* Central Spinner */}
+        <div className="relative w-16 h-16 mb-4">
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
+          <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <i className="ph-fill ph-lightning text-[#00f2ff] text-xl animate-pulse"></i>
+          </div>
+        </div>
+
+        {/* Status Text */}
+        <div className="font-mono text-[9px] text-[#00f2ff] tracking-[2px] mb-2 animate-pulse">
+          {isConnecting ? 'Connecting...' : 'Waiting...'}
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-[#00f2ff] via-[#bd00ff] to-[#00f2ff] w-[60%] animate-[shimmer_1.5s_infinite]"></div>
         </div>
       </div>
-      
-      {/* Status Text */}
-      <div className="font-mono text-[9px] text-[#00f2ff] tracking-[2px] mb-2 animate-pulse">
-        {isConnecting ? 'Connecting...' : 'Waiting...'}
-      </div>
-      
-      {/* Progress Bar */}
-      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-[#00f2ff] via-[#bd00ff] to-[#00f2ff] w-[60%] animate-[shimmer_1.5s_infinite]"></div>
-      </div>
-      
-      {/* Hidden canvas for WebGL initialization */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   );
 };

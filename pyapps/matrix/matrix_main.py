@@ -221,6 +221,15 @@ def start():
         min_display_time=2.0,
         enable_language_selector=True,
 
+        # ========== QtWebEngine Configuration ==========
+        webengine_enable_config=True,  # Enable multi-tier Chromium flags configuration
+        webengine_disable_gpu_sandbox=True,  # Required for Windows hardware acceleration
+        webengine_enable_webcodecs=True,  # Enable WebCodecs API for H.264 video decoding
+        webengine_enable_hardware_acceleration=True,  # Enable GPU hardware acceleration
+        webengine_enable_remote_debugging=True,  # Enable remote debugging (F12 dev tools)
+        webengine_remote_debugging_port=9222,  # Dev tools at http://localhost:9222
+        webengine_print_diagnostics=True,  # Print detailed diagnostic info on startup
+
         # ========== Advanced Options ==========
         force=False,
     )

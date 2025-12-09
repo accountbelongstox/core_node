@@ -6,6 +6,10 @@ interface BrowserSupport {
   canvas2d: boolean;
   webgl: boolean;
   webgl2: boolean;
+  webglVersion?: string;
+  webglVendor?: string;
+  webglRenderer?: string;
+  webgl2UnpackRowLength?: boolean;
   userAgent: string;
   platform: string;
   language: string;
@@ -64,6 +68,13 @@ export const SystemHealth: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
         support.webgl = !!gl;
 
+        if (gl) {
+          // Get WebGL info
+          support.webglVersion = gl.getParameter(gl.VERSION);
+          support.webglVendor = gl.getParameter(gl.VENDOR);
+          support.webglRenderer = gl.getParameter(gl.RENDERER);
+        }
+
         // Clean up WebGL context immediately
         if (gl) {
           const loseContext = gl.getExtension('WEBGL_lose_context');
@@ -80,6 +91,24 @@ export const SystemHealth: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         const canvas = document.createElement('canvas');
         const gl2 = canvas.getContext('webgl2');
         support.webgl2 = !!gl2;
+
+        if (gl2) {
+          // Get WebGL2 info
+          support.webglVersion = gl2.getParameter(gl2.VERSION);
+          support.webglVendor = gl2.getParameter(gl2.VENDOR);
+          support.webglRenderer = gl2.getParameter(gl2.RENDERER);
+
+          // Check if UNPACK_ROW_LENGTH is supported (critical for YUV rendering)
+          try {
+            const UNPACK_ROW_LENGTH = 0x0CF2;
+            gl2.pixelStorei(UNPACK_ROW_LENGTH, 0);
+            support.webgl2UnpackRowLength = true;
+            console.log('[SystemHealth] ✓ WebGL2 UNPACK_ROW_LENGTH supported');
+          } catch (e) {
+            support.webgl2UnpackRowLength = false;
+            console.error('[SystemHealth] ✗ WebGL2 UNPACK_ROW_LENGTH NOT supported:', e);
+          }
+        }
 
         // Clean up WebGL2 context immediately
         if (gl2) {
@@ -246,6 +275,46 @@ export const SystemHealth: React.FC<{ onClose: () => void }> = ({ onClose }) => 
             <StatusBadge status={stats.browser.webgl} label="WebGL" />
             <StatusBadge status={stats.browser.webgl2} label="WebGL 2" />
           </div>
+
+          {/* WebGL Details */}
+          {(stats.browser.webglVersion || stats.browser.webgl2UnpackRowLength !== undefined) && (
+            <div className="mb-4 bg-black/40 rounded p-3 space-y-2 text-xs font-mono border border-[#00f2ff]/20">
+              <div className="text-[#00f2ff] font-bold mb-2">WebGL Information</div>
+              {stats.browser.webglVersion && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Version:</span>
+                  <span className="text-white">{stats.browser.webglVersion}</span>
+                </div>
+              )}
+              {stats.browser.webglVendor && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Vendor:</span>
+                  <span className="text-white">{stats.browser.webglVendor}</span>
+                </div>
+              )}
+              {stats.browser.webglRenderer && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Renderer:</span>
+                  <span className="text-white truncate ml-2" title={stats.browser.webglRenderer}>
+                    {stats.browser.webglRenderer}
+                  </span>
+                </div>
+              )}
+              {stats.browser.webgl2UnpackRowLength !== undefined && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">UNPACK_ROW_LENGTH:</span>
+                  <div className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                    stats.browser.webgl2UnpackRowLength
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {stats.browser.webgl2UnpackRowLength ? 'SUPPORTED' : 'NOT SUPPORTED'}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2 text-xs font-mono">
             <div>
               <div className="text-slate-500 mb-1">User Agent:</div>

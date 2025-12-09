@@ -143,20 +143,31 @@ class VideoDecoderService:
 
         try:
             with lock:
-                # 创建 AVPacket
-                packet = av.Packet(h264_data)
+                # Use parse method to convert raw H.264 data into correct packets
+                # parse() handles NAL units and returns complete packets
+                packets = codec.parse(h264_data)
 
-                # 发送到解码器
-                codec.decode(packet)
+                if not packets:
+                    # Parser may buffer data, waiting for more data
+                    return None
 
-                # 接收解码后的帧
-                frames = list(codec.decode(packet))
-                if not frames:
+                # Decode all packets
+                all_frames = []
+                for packet in packets:
+                    frames = codec.decode(packet)
+                    all_frames.extend(frames)
+
+                if not all_frames:
+                    # Decoder may buffer frames, waiting for subsequent data
                     if is_first_frame:
                         print(f"[VideoDecoder] ⚠ First frame decode returned no frames")
                     return None
 
-                frame = frames[0]
+                # Use the first decoded frame
+                frame = all_frames[0]
+
+                if len(all_frames) > 1:
+                    print(f"[VideoDecoder] Got {len(all_frames)} frames from {len(packets)} packets")
 
                 if is_first_frame:
                     print(f"[VideoDecoder] ✓ First frame decoded:")
@@ -164,32 +175,78 @@ class VideoDecoderService:
                     print(f"  - Format: {frame.format.name}")
                     print(f"  - Planes: {len(frame.planes)}")
 
-                # 确保格式为 yuv420p
+                # Ensure format is yuv420p
                 if frame.format.name != 'yuv420p':
                     if is_first_frame:
                         print(f"[VideoDecoder] Converting {frame.format.name} → yuv420p")
                     frame = frame.reformat(format='yuv420p')
 
-                # 提取 YUV 平面数据
-                y_plane = bytes(frame.planes[0])
-                u_plane = bytes(frame.planes[1])
-                v_plane = bytes(frame.planes[2])
+                # Extract YUV plane data (strip linesize padding)
+                # WebGL 1.0 doesn't support UNPACK_ROW_LENGTH, must use tightly-packed data
+                width = frame.width
+                height = frame.height
+
+                y_linesize = frame.planes[0].line_size
+                u_linesize = frame.planes[1].line_size
+                v_linesize = frame.planes[2].line_size
+
+                # Get raw plane data (with padding)
+                y_plane_raw = bytes(frame.planes[0])
+                u_plane_raw = bytes(frame.planes[1])
+                v_plane_raw = bytes(frame.planes[2])
 
                 if is_first_frame:
-                    print(f"[VideoDecoder] ✓ YUV planes extracted:")
-                    print(f"  - Y: {len(y_plane)} bytes (linesize: {frame.planes[0].line_size})")
-                    print(f"  - U: {len(u_plane)} bytes (linesize: {frame.planes[1].line_size})")
-                    print(f"  - V: {len(v_plane)} bytes (linesize: {frame.planes[2].line_size})")
+                    print(f"[VideoDecoder] [OK] YUV planes extracted (with padding):")
+                    print(f"  - Y: {len(y_plane_raw)} bytes (width={width}, linesize={y_linesize})")
+                    print(f"  - U: {len(u_plane_raw)} bytes (width={width//2}, linesize={u_linesize})")
+                    print(f"  - V: {len(v_plane_raw)} bytes (width={width//2}, linesize={v_linesize})")
+
+                # Strip Y plane padding
+                if y_linesize == width:
+                    y_plane = y_plane_raw[:width * height]
+                else:
+                    # Extract row by row, skipping padding
+                    y_plane = bytearray()
+                    for row in range(height):
+                        start = row * y_linesize
+                        y_plane.extend(y_plane_raw[start:start + width])
+                    y_plane = bytes(y_plane)
+
+                # Strip U plane padding
+                if u_linesize == width // 2:
+                    u_plane = u_plane_raw[:(width // 2) * (height // 2)]
+                else:
+                    u_plane = bytearray()
+                    for row in range(height // 2):
+                        start = row * u_linesize
+                        u_plane.extend(u_plane_raw[start:start + (width // 2)])
+                    u_plane = bytes(u_plane)
+
+                # Strip V plane padding
+                if v_linesize == width // 2:
+                    v_plane = v_plane_raw[:(width // 2) * (height // 2)]
+                else:
+                    v_plane = bytearray()
+                    for row in range(height // 2):
+                        start = row * v_linesize
+                        v_plane.extend(v_plane_raw[start:start + (width // 2)])
+                    v_plane = bytes(v_plane)
+
+                if is_first_frame:
+                    print(f"[VideoDecoder] [OK] Padding stripped:")
+                    print(f"  - Y: {len(y_plane)} bytes (expected: {width * height})")
+                    print(f"  - U: {len(u_plane)} bytes (expected: {(width//2) * (height//2)})")
+                    print(f"  - V: {len(v_plane)} bytes (expected: {(width//2) * (height//2)})")
 
                 return {
-                    'width': frame.width,
-                    'height': frame.height,
+                    'width': width,
+                    'height': height,
                     'y_plane': y_plane,
                     'u_plane': u_plane,
                     'v_plane': v_plane,
-                    'y_linesize': frame.planes[0].line_size,
-                    'u_linesize': frame.planes[1].line_size,
-                    'v_linesize': frame.planes[2].line_size,
+                    'y_linesize': width,        # Return packed linesize (equals width)
+                    'u_linesize': width // 2,   # Return packed linesize (equals u_width)
+                    'v_linesize': width // 2,   # Return packed linesize (equals v_width)
                     'pts': frame.pts or 0,
                     'format': 'yuv420p'
                 }
@@ -201,8 +258,22 @@ class VideoDecoderService:
                 traceback.print_exc()
             return None
 
+    def flush_decoder(self, serial: str):
+        """Flush decoder to reset internal state"""
+        if serial in self.decoders:
+            try:
+                codec = self.decoders[serial]
+                # Flush decoder by sending None
+                list(codec.decode(None))
+                # Re-open to reset state
+                codec.close()
+                codec.open()
+                ColorPrint.green(f"[VideoDecoder] Decoder flushed and reset for {serial}")
+            except Exception as e:
+                ColorPrint.yellow(f"[VideoDecoder] Error flushing decoder for {serial}: {e}")
+
     def close_decoder(self, serial: str):
-        """关闭解码器"""
+        """Close decoder"""
         if serial in self.decoders:
             try:
                 codec = self.decoders[serial]
@@ -219,6 +290,6 @@ class VideoDecoderService:
             print(f"[VideoDecoder] Decoder closed for {serial}")
 
     def close_all(self):
-        """关闭所有解码器"""
+        """Close all decoders"""
         for serial in list(self.decoders.keys()):
             self.close_decoder(serial)
