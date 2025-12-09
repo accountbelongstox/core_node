@@ -138,6 +138,20 @@ def launch_native_app(config: NativeUIConfig) -> None:
     if config.frontend_enabled:
         frontend_thread = _start_frontend(config)
 
+        # Register frontend shutdown handler to THREAD_BUS
+        if frontend_thread:
+            def stop_frontend():
+                ColorPrint.blue("[frontend] Stopping frontend thread...")
+                frontend_thread.stop()
+
+            THREAD_BUS.register_shutdown_handler(
+                handler=stop_frontend,
+                priority=30,  # Stop before RPC v2 (priority 50)
+                name="frontend"
+            )
+            if config.debug:
+                ColorPrint.blue("[frontend] Registered shutdown handler (priority=30)")
+
         # Update final_url if frontend is in dev mode
         if frontend_thread and config.frontend_mode == "dev":
             final_url = f"http://localhost:{config.frontend_port}"
@@ -162,38 +176,42 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
     def handle_app_close(event_data):
         """
-        Handle app.close event - stop all services in proper order
+        Handle app.close event - trigger THREAD_BUS shutdown
 
         Triggered by:
         - Window close (main_window.py closeEvent)
         - Tray exit action
         - Ctrl+C / KeyboardInterrupt
+
+        IMPORTANT: Don't manually stop services here!
+        Let THREAD_BUS.request_shutdown() handle service shutdown via shutdown stack.
+        This ensures proper shutdown order (RPC v2 → Heartbeat → etc.)
         """
-        ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
-
-        # Stop frontend thread first (may have running dev server)
-        if frontend_thread:
-            ColorPrint.blue("[NativeLauncher] Stopping frontend thread...")
-            frontend_thread.stop()
-
-        # Stop RPC v2 server
-        if rpc_service:
-            ColorPrint.blue("[NativeLauncher] Stopping RPC v2 server...")
-            rpc_service.stop()
+        source = event_data.get('source', 'unknown')
+        ColorPrint.yellow(f"[NativeLauncher] Handling app.close event (source: {source})")
 
         # CRITICAL FIX: Stop startup thread (if it exists and is running)
-        # This ensures the TkinterStartupThread tray is stopped properly on exit
+        # This must be done manually as it's not registered in shutdown stack
         if startup_thread_ref and startup_thread_ref.get('thread'):
             thread = startup_thread_ref['thread']
             if thread and thread.is_alive():
                 ColorPrint.blue("[NativeLauncher] Stopping startup thread (debug window/tray)...")
                 thread.request_close()
 
-        ColorPrint.green("[NativeLauncher] All services stopped")
+        # Trigger THREAD_BUS shutdown to stop all services in proper order
+        # Don't manually stop services - let shutdown stack handle it
+        if not THREAD_BUS.is_shutdown_requested():
+            ColorPrint.blue("[NativeLauncher] Triggering THREAD_BUS shutdown...")
+            THREAD_BUS.request_shutdown(
+                reason=f"app.close event (source: {source})",
+                execute_handlers=True
+            )
+        else:
+            ColorPrint.yellow("[NativeLauncher] Shutdown already requested, skipping")
 
     # Register with high priority to ensure cleanup happens early
     THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
-    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
+    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for THREAD_BUS shutdown")
 
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
