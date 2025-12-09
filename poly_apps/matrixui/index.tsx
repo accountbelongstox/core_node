@@ -10,7 +10,8 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  <React.StrictMode>
+  // TEMPORARY: Disable StrictMode to avoid WebSocket cleanup issues during development
+  // <React.StrictMode>
     <App />
-  </React.StrictMode>
+  // </React.StrictMode>
 );

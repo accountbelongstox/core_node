@@ -28,7 +28,8 @@ export interface Unit {
 }
 
 export interface Device {
-  serial: string;
+  deviceId: string; // Primary ID for API calls (e.g., "device_1", "device_2")
+  serial: string; // Device serial number (USB) or IP:port (WiFi) - for display only
   model: string;
   version: string;
   status: 'online' | 'offline' | 'busy';

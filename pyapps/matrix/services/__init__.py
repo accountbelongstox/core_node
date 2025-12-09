@@ -13,6 +13,7 @@ from .file_service import FileService
 from .logging_service import LoggingService
 from .screen_service import ScreenService
 from .recording_service import RecordingService
+from .device_id_manager import DeviceIDManager
 
 __all__ = [
     'ConfigService',
@@ -24,4 +25,5 @@ __all__ = [
     'LoggingService',
     'ScreenService',
     'RecordingService',
+    'DeviceIDManager',
 ]

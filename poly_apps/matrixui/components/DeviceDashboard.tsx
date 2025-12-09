@@ -45,14 +45,14 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   // Stable error handler for video streams (use ref to avoid recreating)
   const handleVideoStreamErrorRef = useRef<Map<string, (error: Error) => void>>(new Map());
   
-  const getVideoStreamErrorHandler = useCallback((serial: string) => {
-    if (!handleVideoStreamErrorRef.current.has(serial)) {
-      handleVideoStreamErrorRef.current.set(serial, (error: Error) => {
-        console.error(`[DeviceVideoStream] Error for ${serial}:`, error);
-        addLogRef.current('error', `Video stream error for ${serial}: ${error.message}`);
+  const getVideoStreamErrorHandler = useCallback((deviceId: string) => {
+    if (!handleVideoStreamErrorRef.current.has(deviceId)) {
+      handleVideoStreamErrorRef.current.set(deviceId, (error: Error) => {
+        console.error(`[DeviceVideoStream] Error for ${deviceId}:`, error);
+        addLogRef.current('error', `Video stream error for ${deviceId}: ${error.message}`);
       });
     }
-    return handleVideoStreamErrorRef.current.get(serial)!;
+    return handleVideoStreamErrorRef.current.get(deviceId)!;
   }, []);
   
   // Selection Box State
@@ -91,7 +91,15 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
     // Listen for device updates via RPC events
     wsService.onRpcEvent('adb.devices.update', (data: any) => {
       if (data && data.devices) {
-        setWsDevices(data.devices);
+        console.log('[DeviceDashboard] Received adb.devices.update event:', data);
+        // Ensure all devices have deviceId
+        const devicesWithId = data.devices.map((d: any) => {
+          if (!d.deviceId) {
+            console.warn('[DeviceDashboard] Device missing deviceId in event, serial:', d.serial);
+          }
+          return d;
+        });
+        setWsDevices(devicesWithId);
         addLog('info', `Device list updated: ${data.devices.length} devices`);
       }
     });
@@ -108,39 +116,55 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   }, []);
 
   const mappedDevices: Device[] = useMemo(() => {
-    return wsDevices.map(d => {
-      // Determine device status based on state or legacy status field
-      let deviceStatus: 'online' | 'offline' | 'busy' = 'offline';
-      
-      if (d.state) {
-        // Use new state field
-        if (d.state === 'wifi_connected' || d.state === 'usb_connected') {
-          deviceStatus = 'online';
-        } else if (d.state === 'configuring') {
-          deviceStatus = 'busy';
-        } else {
-          deviceStatus = 'offline';
+    return wsDevices
+      .filter(d => {
+        // Filter out devices without deviceId (should not happen, but safety check)
+        if (!d.deviceId) {
+          console.warn('[DeviceDashboard] Device missing deviceId, skipping:', d);
+          return false;
         }
-      } else if (d.status) {
-        // Fallback to legacy status field
-        deviceStatus = d.status === 'device' ? 'online' : 'offline';
-      }
-      
-      return {
-        serial: d.serial,
-        model: d.model || 'Unknown',
-        version: d.android_version || 'unknown',
-        status: deviceStatus,
-        battery: 85, // TODO: Get from device info
-        resolution: '1080x2400', // TODO: Get from device info
-        groupId: 'root',
-        tags: [],
-        ip: d.ip || d.serial || '192.168.1.x',
-        ping: 25, // TODO: Get from device info
-        name: d.model || d.serial,
-        manufacturer: d.manufacturer || 'Unknown'
-      };
-    });
+        return true;
+      })
+      .map(d => {
+        // Determine device status based on state or legacy status field
+        let deviceStatus: 'online' | 'offline' | 'busy' = 'offline';
+        
+        if (d.state) {
+          // Use new state field
+          if (d.state === 'wifi_connected' || d.state === 'usb_connected') {
+            deviceStatus = 'online';
+          } else if (d.state === 'configuring') {
+            deviceStatus = 'busy';
+          } else {
+            deviceStatus = 'offline';
+          }
+        } else if (d.status) {
+          // Fallback to legacy status field
+          deviceStatus = d.status === 'device' ? 'online' : 'offline'; 
+        }
+        
+        // Validate deviceId format - must be "device_N" format, not serial
+        if (!d.deviceId || (!d.deviceId.startsWith('device_') && d.deviceId.includes(':'))) {
+          console.error(`[DeviceDashboard] Invalid deviceId format: ${d.deviceId}. Expected "device_1" format, got what looks like serial: ${d.serial}`);
+          // Fallback: skip this device or use serial as deviceId (will cause error but at least we log it)
+        }
+        
+        return {
+          deviceId: d.deviceId, // MUST use deviceId from API (required for video streaming) - format: "device_1", "device_2", etc.
+          serial: d.serial,
+          model: d.model || 'Unknown',
+          version: d.android_version || 'unknown',
+          status: deviceStatus,
+          battery: 85, // TODO: Get from device info
+          resolution: '1080x2400', // TODO: Get from device info
+          groupId: 'root',
+          tags: [],
+          ip: d.ip || d.serial || '192.168.1.x',
+          ping: 25, // TODO: Get from device info
+          name: d.model || d.serial,
+          manufacturer: d.manufacturer || 'Unknown'
+        };
+      });
   }, [wsDevices]);
 
   const filtered = useMemo(() => {
@@ -378,11 +402,11 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                 onDoubleClick={(e) => handleDeviceInteraction(e, device.serial, 'double')}
               >
                 {device.status === 'online' ? (
-                  <DeviceVideoStream 
-                    key={device.serial} // Key to ensure component remounts when serial changes
-                    serial={device.serial}
-                    enabled={videoStreamEnabledRef.current.get(device.serial) ?? true}
-                    onError={getVideoStreamErrorHandler(device.serial)}
+                  <DeviceVideoStream
+                    key={`video-${device.serial}`} // CRITICAL: Use serial (stable identifier) to prevent unmount on device info updates
+                    deviceId={device.deviceId}
+                    enabled={videoStreamEnabledRef.current.get(device.deviceId) ?? true}
+                    onError={getVideoStreamErrorHandler(device.deviceId)}
                   />
                 ) : (
                   <div className="flex flex-col items-center text-slate-700 pointer-events-none">

@@ -16,6 +16,7 @@ import time
 import threading
 from typing import Optional, TYPE_CHECKING
 from pycore import ColorPrint
+from pyapps.matrix.services.device_id_manager import DeviceIDManager
 
 if TYPE_CHECKING:
     from pyapps.matrix.adb_device_manager.adb_heartbeat_thread import ADBHeartbeatThread
@@ -74,10 +75,15 @@ class DevicePushService(threading.Thread):
                 device_table = self.adb_heartbeat_thread.get_device_table()
                 all_devices = device_table.get_all_devices()
 
+                # Register all devices with DeviceIDManager and include deviceId in response
+                device_id_manager = DeviceIDManager.instance()
+
                 # Build device list payload
                 devices_list = []
                 for device_info in all_devices:
+                    device_id = device_id_manager.register_device(device_info.serial)
                     devices_list.append({
+                        "deviceId": device_id,  # Primary ID for frontend use
                         "serial": device_info.serial,
                         "ip": device_info.ip_address,
                         "connection_type": device_info.device_type.value,
