@@ -342,6 +342,9 @@ execute_command() {
         build_android_apk)
             build_android_apk
             ;;
+        capacitor_assets_generate)
+            generate_capacitor_assets
+            ;;
         *)
             print_color "$COLOR_YELLOW" "[WARNING] Unknown command: $cmd"
             ;;
@@ -577,6 +580,31 @@ show_preview(resource_data, port=8899)
     fi
 }
 
+generate_capacitor_assets() {
+    print_section "Generating Capacitor Assets"
+
+    local project_root=$(get_var_value "$KEY_PROJECT_ROOT")
+    local run_assets=$(get_var_value "RUN_CAPACITOR_ASSETS")
+
+    if [ "$run_assets" != "true" ]; then
+        print_color "$COLOR_YELLOW" "[Skip] Capacitor assets generation skipped (no valid icon provided)"
+        return
+    fi
+
+    cd "$project_root"
+
+    print_color "$COLOR_CYAN" "[Assets] Generating Android resources using Capacitor official tool..."
+    print_command "npx @capacitor/assets generate --android"
+
+    if npx @capacitor/assets generate --android; then
+        print_color "$COLOR_GREEN" "[Success] Capacitor assets generated successfully"
+        print_color "$COLOR_GRAY" "[Info] All Android icon densities have been auto-generated"
+    else
+        print_color "$COLOR_RED" "[ERROR] Capacitor assets generation failed"
+        print_color "$COLOR_YELLOW" "[INFO] Make sure @capacitor/assets is installed: pnpm add -D @capacitor/assets"
+    fi
+}
+
 start_dev_server() {
     print_header "Starting Development Server"
 
@@ -612,12 +640,54 @@ build_android_apk() {
 
     cd "$android_path"
 
+    # First attempt
     print_command "./gradlew assembleDebug"
     if ./gradlew assembleDebug; then
         print_color "$COLOR_GREEN" "[Success] Android build completed"
-        print_color "$COLOR_CYAN" "[Output] APK location: android/app/build/outputs/apk/debug/"
     else
         print_color "$COLOR_RED" "[ERROR] Android build failed"
+        print_color "$COLOR_YELLOW" "[INFO] Attempting to clean Gradle cache and retry..."
+
+        # Clean Gradle cache
+        echo ""
+        print_color "$COLOR_CYAN" "[Gradle] Cleaning build directory..."
+        print_command "./gradlew clean"
+        ./gradlew clean
+
+        # Clean Gradle user cache (common location for corrupted files)
+        local gradle_cache_dir="$HOME/.gradle/caches"
+        if [ -d "$gradle_cache_dir" ]; then
+            print_color "$COLOR_CYAN" "[Gradle] Clearing Gradle caches at: $gradle_cache_dir"
+            rm -rf "$gradle_cache_dir"/* 2>/dev/null
+            if [ $? -eq 0 ]; then
+                print_color "$COLOR_GREEN" "[Gradle] Cache cleared successfully"
+            else
+                print_color "$COLOR_YELLOW" "[Gradle] Warning: Could not fully clear cache (some files may be in use)"
+            fi
+        fi
+
+        # Retry build
+        echo ""
+        print_color "$COLOR_CYAN" "[Gradle] Retrying build..."
+        print_command "./gradlew assembleDebug"
+        if ./gradlew assembleDebug; then
+            print_color "$COLOR_GREEN" "[Success] Android APK built successfully after retry"
+        else
+            print_color "$COLOR_RED" "[ERROR] Android build failed after cache cleanup"
+            print_color "$COLOR_YELLOW" "[SOLUTION] Try manually running:"
+            print_color "$COLOR_GRAY" "  cd android"
+            print_color "$COLOR_GRAY" "  ./gradlew clean build --refresh-dependencies"
+        fi
+    fi
+
+    # Show APK location if exists
+    local apk_path="app/build/outputs/apk/debug/app-debug.apk"
+    if [ -f "$apk_path" ]; then
+        local full_path=$(readlink -f "$apk_path")
+        echo ""
+        print_color "$COLOR_GREEN" "[APK] $full_path"
+    else
+        print_color "$COLOR_CYAN" "[Output] APK location: android/app/build/outputs/apk/debug/"
     fi
 }
 

@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from typing import Optional, Dict
 import threading
 
+from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_av
 
 # Lazy-load av to follow third_party conventions
@@ -33,6 +34,12 @@ class VideoDecoderService:
     def __init__(self):
         self.decoders: Dict[str, av.CodecContext] = {}
         self.decode_locks: Dict[str, threading.Lock] = {}
+        # Track decoder state to suppress repeated errors and wait for keyframes
+        self.decoder_states: Dict[str, Dict] = {}
+        # TEMPORARY: Disable keyframe waiting if it causes issues
+        # Set to True to enable keyframe synchronization (more reliable but slower startup)
+        # Set to False for immediate decode (faster but may have initial errors)
+        self.enable_keyframe_sync = False  # Disabled by default until keyframe detection is fixed
 
     @classmethod
     def instance(cls) -> 'VideoDecoderService':
@@ -63,36 +70,36 @@ class VideoDecoderService:
             av.CodecContext
         """
         if serial in self.decoders:
-            print(f"[VideoDecoder] Reusing existing decoder for {serial}")
+            ColorPrint.blue(f"[VideoDecoder] Reusing existing decoder for {serial}")
             return self.decoders[serial]
 
         try:
-            print(f"[VideoDecoder] Creating H.264 decoder for {serial}...")
+            ColorPrint.blue(f"[VideoDecoder] Creating H.264 decoder for {serial}...")
             codec = av.CodecContext.create('h264', 'r')
-            print(f"[VideoDecoder] ✓ Codec context created")
+            ColorPrint.green(f"[VideoDecoder] ✓ Codec context created")
 
             # 多线程解码
             codec.thread_type = 'AUTO'
             codec.thread_count = 0  # 自动选择线程数
-            print(f"[VideoDecoder] ✓ Multi-threading enabled (AUTO)")
+            ColorPrint.green(f"[VideoDecoder] ✓ Multi-threading enabled (AUTO)")
 
             # 硬件加速
             if hwaccel:
                 try:
                     codec.options = {'hwaccel': hwaccel}
-                    print(f"[VideoDecoder] ✓ Hardware acceleration enabled: {hwaccel}")
+                    ColorPrint.green(f"[VideoDecoder] ✓ Hardware acceleration enabled: {hwaccel}")
                 except Exception as e:
-                    print(f"[VideoDecoder] ✗ Hardware acceleration {hwaccel} failed: {e}")
-                    print("[VideoDecoder] ⚠ Falling back to software decoding")
+                    ColorPrint.yellow(f"[VideoDecoder] ✗ Hardware acceleration {hwaccel} failed: {e}")
+                    ColorPrint.yellow("[VideoDecoder] ⚠ Falling back to software decoding")
 
             self.decoders[serial] = codec
             self.decode_locks[serial] = threading.Lock()
 
-            print(f"[VideoDecoder] ✓ Decoder created successfully for {serial}")
+            ColorPrint.green(f"[VideoDecoder] ✓ Decoder created successfully for {serial}")
             return codec
 
         except Exception as e:
-            print(f"[VideoDecoder] ✗ Failed to create decoder: {e}")
+            ColorPrint.red(f"[VideoDecoder] ✗ Failed to create decoder: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -135,11 +142,25 @@ class VideoDecoderService:
         codec = self.decoders[serial]
         lock = self.decode_locks[serial]
 
+        # Initialize decoder state tracking for this device
+        if serial not in self.decoder_states:
+            import time
+            self.decoder_states[serial] = {
+                'error_count': 0,
+                'last_error_time': 0,
+                'waiting_for_keyframe': self.enable_keyframe_sync,  # Only wait if sync is enabled
+                'successful_decodes': 0,
+                'first_frame_decoded': False,
+                'keyframe_wait_start': time.time()  # Track when we started waiting
+            }
+
+        state = self.decoder_states[serial]
+
         # Track first frame decode
-        is_first_frame = not hasattr(self, '_first_frame_decoded')
+        is_first_frame = not state['first_frame_decoded']
         if is_first_frame:
-            self._first_frame_decoded = True
-            print(f"[VideoDecoder] Decoding first frame ({len(h264_data)} bytes)...")
+            state['first_frame_decoded'] = True
+            ColorPrint.blue(f"[VideoDecoder] Decoding first frame ({len(h264_data)} bytes)...")
 
         try:
             with lock:
@@ -153,32 +174,83 @@ class VideoDecoderService:
 
                 # Decode all packets
                 all_frames = []
+                import time
+                current_time = time.time()
+
+                # Check if we've been waiting for keyframe too long (5 second timeout)
+                # Or if keyframe sync is disabled, skip waiting immediately
+                if state['waiting_for_keyframe']:
+                    if not self.enable_keyframe_sync:
+                        # Keyframe sync disabled, force decode start immediately
+                        state['waiting_for_keyframe'] = False
+                        ColorPrint.blue(f"[VideoDecoder] Keyframe sync disabled, starting decode immediately for {serial}")
+                    else:
+                        wait_duration = current_time - state.get('keyframe_wait_start', current_time)
+                        if wait_duration > 5.0:
+                            ColorPrint.yellow(f"[VideoDecoder] ⚠ Keyframe wait timeout ({wait_duration:.1f}s), forcing decode start for {serial}")
+                            state['waiting_for_keyframe'] = False
+
                 for packet in packets:
-                    frames = codec.decode(packet)
-                    all_frames.extend(frames)
+                    # Try multiple ways to detect keyframe
+                    # PyAV may use different attribute names
+                    is_keyframe = False
+                    if hasattr(packet, 'is_keyframe'):
+                        is_keyframe = packet.is_keyframe
+                    elif hasattr(packet, 'is_key'):
+                        is_keyframe = packet.is_key
+                    elif hasattr(packet, 'key_frame'):
+                        is_keyframe = packet.key_frame
+
+                    # If decoder is waiting for keyframe and this is not one, skip it
+                    # (Only if keyframe sync is enabled)
+                    if self.enable_keyframe_sync and state['waiting_for_keyframe'] and not is_keyframe:
+                        # Suppress frequent warning logging
+                        if current_time - state['last_error_time'] > 2.0:  # Log once every 2 seconds
+                            ColorPrint.yellow(f"[VideoDecoder] ⚠ Waiting for key frame for {serial}, skipping non-keyframe...")
+                            state['last_error_time'] = current_time
+                        continue
+
+                    # Try to decode
+                    try:
+                        frames = codec.decode(packet)
+                        all_frames.extend(frames)
+
+                        # If we successfully decoded from this packet, mark as synchronized
+                        if frames:
+                            if state['waiting_for_keyframe']:
+                                ColorPrint.green(f"[VideoDecoder] ✓ Key frame received and decoded for {serial}, decoder synchronized")
+                            state['waiting_for_keyframe'] = False
+                            state['error_count'] = 0
+                    except Exception as decode_err:
+                        # If decode fails and we're not waiting for keyframe yet, start waiting
+                        if not state['waiting_for_keyframe']:
+                            ColorPrint.yellow(f"[VideoDecoder] Decode failed, will wait for next keyframe: {decode_err}")
+                            state['waiting_for_keyframe'] = True
+                            state['keyframe_wait_start'] = time.time()
+                        continue
 
                 if not all_frames:
                     # Decoder may buffer frames, waiting for subsequent data
                     if is_first_frame:
-                        print(f"[VideoDecoder] ⚠ First frame decode returned no frames")
+                        ColorPrint.yellow(f"[VideoDecoder] ⚠ First frame decode returned no frames")
                     return None
 
                 # Use the first decoded frame
                 frame = all_frames[0]
 
                 if len(all_frames) > 1:
-                    print(f"[VideoDecoder] Got {len(all_frames)} frames from {len(packets)} packets")
+                    ColorPrint.blue(f"[VideoDecoder] Got {len(all_frames)} frames from {len(packets)} packets")
 
                 if is_first_frame:
-                    print(f"[VideoDecoder] ✓ First frame decoded:")
-                    print(f"  - Size: {frame.width}x{frame.height}")
-                    print(f"  - Format: {frame.format.name}")
-                    print(f"  - Planes: {len(frame.planes)}")
+                    ColorPrint.green(f"[VideoDecoder] ✓ First frame decoded:")
+                    ColorPrint.green(f"  - Size: {frame.width}x{frame.height}")
+                    ColorPrint.green(f"  - Format: {frame.format.name}")
+                    ColorPrint.green(f"  - Planes: {len(frame.planes)}")
 
                 # Ensure format is yuv420p
                 if frame.format.name != 'yuv420p':
                     if is_first_frame:
-                        print(f"[VideoDecoder] Converting {frame.format.name} → yuv420p")
+                        ColorPrint.blue(f"[VideoDecoder] Converting {frame.format.name} → yuv420p")
                     frame = frame.reformat(format='yuv420p')
 
                 # Extract YUV plane data (strip linesize padding)
@@ -196,10 +268,10 @@ class VideoDecoderService:
                 v_plane_raw = bytes(frame.planes[2])
 
                 if is_first_frame:
-                    print(f"[VideoDecoder] [OK] YUV planes extracted (with padding):")
-                    print(f"  - Y: {len(y_plane_raw)} bytes (width={width}, linesize={y_linesize})")
-                    print(f"  - U: {len(u_plane_raw)} bytes (width={width//2}, linesize={u_linesize})")
-                    print(f"  - V: {len(v_plane_raw)} bytes (width={width//2}, linesize={v_linesize})")
+                    ColorPrint.green(f"[VideoDecoder] [OK] YUV planes extracted (with padding):")
+                    ColorPrint.green(f"  - Y: {len(y_plane_raw)} bytes (width={width}, linesize={y_linesize})")
+                    ColorPrint.green(f"  - U: {len(u_plane_raw)} bytes (width={width//2}, linesize={u_linesize})")
+                    ColorPrint.green(f"  - V: {len(v_plane_raw)} bytes (width={width//2}, linesize={v_linesize})")
 
                 # Strip Y plane padding
                 if y_linesize == width:
@@ -233,10 +305,13 @@ class VideoDecoderService:
                     v_plane = bytes(v_plane)
 
                 if is_first_frame:
-                    print(f"[VideoDecoder] [OK] Padding stripped:")
-                    print(f"  - Y: {len(y_plane)} bytes (expected: {width * height})")
-                    print(f"  - U: {len(u_plane)} bytes (expected: {(width//2) * (height//2)})")
-                    print(f"  - V: {len(v_plane)} bytes (expected: {(width//2) * (height//2)})")
+                    ColorPrint.green(f"[VideoDecoder] [OK] Padding stripped:")
+                    ColorPrint.green(f"  - Y: {len(y_plane)} bytes (expected: {width * height})")
+                    ColorPrint.green(f"  - U: {len(u_plane)} bytes (expected: {(width//2) * (height//2)})")
+                    ColorPrint.green(f"  - V: {len(v_plane)} bytes (expected: {(width//2) * (height//2)})")
+
+                # Update successful decode counter
+                state['successful_decodes'] += 1
 
                 return {
                     'width': width,
@@ -252,10 +327,32 @@ class VideoDecoderService:
                 }
 
         except Exception as e:
-            print(f"[VideoDecoder] ✗ Decode error for {serial}: {e}")
-            if is_first_frame:
-                import traceback
-                traceback.print_exc()
+            state['error_count'] += 1
+
+            # Improved error logging - only log first error, every 5th/50th error
+            # This prevents log spam while still providing visibility
+            should_log = (
+                state['error_count'] == 1 or
+                (state['error_count'] <= 30 and state['error_count'] % 5 == 0) or
+                (state['error_count'] > 30 and state['error_count'] % 50 == 0)
+            )
+
+            if should_log:
+                # Check if enough time has passed since last error log (rate limiting)
+                import time
+                current_time = time.time()
+                if current_time - state['last_error_time'] > 1.0:  # Max 1 log per second
+                    ColorPrint.red(f"[VideoDecoder] ✗ Decode error for {serial} (#{state['error_count']}, success: {state['successful_decodes']}): {e}")
+                    state['last_error_time'] = current_time
+
+                    # Only print stack trace for first error
+                    if state['error_count'] == 1:
+                        import traceback
+                        traceback.print_exc()
+
+            # Mark decoder as waiting for keyframe after errors
+            state['waiting_for_keyframe'] = True
+
             return None
 
     def flush_decoder(self, serial: str):
@@ -269,6 +366,23 @@ class VideoDecoderService:
                 codec.close()
                 codec.open()
                 ColorPrint.green(f"[VideoDecoder] Decoder flushed and reset for {serial}")
+
+                # Reset decoder state tracking
+                if serial in self.decoder_states:
+                    import time
+                    self.decoder_states[serial] = {
+                        'error_count': 0,
+                        'last_error_time': 0,
+                        'waiting_for_keyframe': self.enable_keyframe_sync,  # Only wait if sync is enabled
+                        'successful_decodes': 0,
+                        'first_frame_decoded': False,
+                        'keyframe_wait_start': time.time()
+                    }
+                    if self.enable_keyframe_sync:
+                        ColorPrint.blue(f"[VideoDecoder] Decoder state reset for {serial}, waiting for keyframe")
+                    else:
+                        ColorPrint.blue(f"[VideoDecoder] Decoder state reset for {serial}, keyframe sync disabled")
+
             except Exception as e:
                 ColorPrint.yellow(f"[VideoDecoder] Error flushing decoder for {serial}: {e}")
 
@@ -287,7 +401,11 @@ class VideoDecoderService:
             if serial in self.decode_locks:
                 del self.decode_locks[serial]
 
-            print(f"[VideoDecoder] Decoder closed for {serial}")
+            # Clean up decoder state tracking
+            if serial in self.decoder_states:
+                del self.decoder_states[serial]
+
+            ColorPrint.blue(f"[VideoDecoder] Decoder closed for {serial}")
 
     def close_all(self):
         """Close all decoders"""

@@ -26,6 +26,7 @@ from init_build_config import (
 from resource_scanner import ResourceScanner
 from web_preview_server import show_preview
 from resource_replacer import ResourceReplacer
+from capacitor_resource_manager import CapacitorResourceManager
 
 
 class BuildController:
@@ -98,6 +99,7 @@ class BuildController:
         all_packages = {
             "@capacitor/core": "latest",
             "@capacitor/cli": "latest",
+            "@capacitor/assets": "latest",
             "@capacitor/android": "latest",
             "@capacitor/ios": "latest",
             "@capacitor/camera": "latest",
@@ -229,14 +231,35 @@ class BuildController:
             str(self.project_root)
         )
 
-        # Command 3: Add Android platform
+        # Command 3: Prepare Capacitor resources (icon, splash)
+        print("\n[Python] Preparing resources for Capacitor...")
+        cap_manager = CapacitorResourceManager(str(self.project_root), str(self.assets_path))
+        cap_results = cap_manager.prepare_for_capacitor_assets(
+            app_name=config_info.get("app_name", ""),
+            display_name_en=config_info.get("display_name_english", ""),
+            display_name_cn=config_info.get("display_name_chinese", ""),
+            package_id=config_info.get("package_id", "")
+        )
+
+        # Set flag for shell to run capacitor-assets
+        self.var_system.set_var("RUN_CAPACITOR_ASSETS", "true" if cap_results["icon"].get("success") else "false")
+
+        # Command 4: Add Android platform
         self.var_system.add_command(
             "add_android_platform",
             "Add Android platform to Capacitor",
             str(self.project_root)
         )
 
-        print("[Python] Capacitor installation prepared")
+        # Command 5: Generate Capacitor assets (if icon was prepared)
+        if cap_results["icon"].get("success"):
+            self.var_system.add_command(
+                "capacitor_assets_generate",
+                "Generate Android resources using Capacitor official tool",
+                str(self.project_root)
+            )
+
+        print("\n[Python] Capacitor installation prepared")
         print(f"[Python] App Name: {config_info.get('app_name', '')}")
         print(f"[Python] Display Name (EN): {config_info.get('display_name_english', '')}")
         print(f"[Python] Display Name (CN): {config_info.get('display_name_chinese', '')}")
@@ -334,16 +357,29 @@ class BuildController:
         self.var_system.set_var("ICON_PATH", str(icon_path) if icon_path else "")
         self.var_system.set_var("SPLASH_PATH", str(splash_path) if splash_path else "")
 
-        # Scan Android resources (before replacement)
+        # Step 1: Prepare resources for Capacitor's official tool
+        print("\n[Python] Preparing resources for Capacitor...")
+        cap_manager = CapacitorResourceManager(str(self.project_root), str(self.assets_path))
+        cap_results = cap_manager.prepare_for_capacitor_assets(
+            app_name=config_info.get("app_name", ""),
+            display_name_en=config_info.get("display_name_english", ""),
+            display_name_cn=config_info.get("display_name_chinese", ""),
+            package_id=config_info.get("package_id", "")
+        )
+
+        # Set flag for shell to run capacitor-assets
+        self.var_system.set_var("RUN_CAPACITOR_ASSETS", "true" if cap_results["icon"].get("success") else "false")
+
+        # Step 2: Scan Android resources (before custom replacement)
         print("\n[Python] Scanning Android resources...")
         scanner = ResourceScanner(str(self.android_path))
 
-        # Replace resources with custom images from assets
-        print("\n[Python] Replacing Android resources with custom images...")
+        # Step 3: Custom replacement (additional optimization)
+        print("\n[Python] Applying custom resource replacements...")
         replacer = ResourceReplacer(str(self.android_path), str(self.assets_path))
         replace_stats = replacer.replace_resources()
 
-        # Re-scan after replacement to show updated resources
+        # Step 4: Re-scan after replacement to show updated resources
         print("\n[Python] Re-scanning resources after replacement...")
         scanner = ResourceScanner(str(self.android_path))
         resource_data = scanner.get_full_report()
