@@ -543,8 +543,9 @@ class WebPreviewServer:
         ResourcePreviewHandler.resource_data = self.resource_data
         ResourcePreviewHandler.server_should_stop = False
 
-        # Create server
+        # Create server with timeout to prevent blocking forever
         self.server = HTTPServer(('127.0.0.1', self.port), ResourcePreviewHandler)
+        self.server.timeout = 1.0  # 1 second timeout for handle_request
 
         # Start server in thread
         self.server_thread = threading.Thread(target=self._run_server, daemon=True)
@@ -563,7 +564,11 @@ class WebPreviewServer:
     def _run_server(self):
         """Run server loop"""
         while not ResourcePreviewHandler.server_should_stop:
-            self.server.handle_request()
+            try:
+                self.server.handle_request()
+            except:
+                # Socket may be closed, exit gracefully
+                break
 
     def wait_for_user(self) -> bool:
         """
@@ -601,7 +606,19 @@ class WebPreviewServer:
         """Stop the web server"""
         if self.server:
             print("[Web] Shutting down preview server...")
-            self.server.shutdown()
+            # Set stop flag first
+            ResourcePreviewHandler.server_should_stop = True
+
+            # Close the server socket (this will interrupt handle_request)
+            try:
+                self.server.server_close()
+            except:
+                pass
+
+            # Wait for thread to finish (with timeout)
+            if self.server_thread and self.server_thread.is_alive():
+                self.server_thread.join(timeout=2.0)
+
             self.server = None
 
 
@@ -634,22 +651,31 @@ def show_preview(resource_data: dict, port: int = 8899) -> bool:
             user_input = input("\nContinue? [Y/n]: ").strip().upper()
 
             if user_input in ('Y', 'YES', ''):
-                ResourcePreviewHandler.server_should_stop = True
-                server.stop()
+                # User confirmed - stop server and continue
                 print("[Web] Continuing with build...")
+                server.stop()
                 return True
             elif user_input in ('N', 'NO'):
-                ResourcePreviewHandler.server_should_stop = True
-                server.stop()
+                # User cancelled - stop server and abort
                 print("[Web] Build cancelled by user")
+                server.stop()
                 return False
+            else:
+                # Invalid input, ask again
+                print("[Web] Invalid input. Please enter 'Y' to continue or 'N' to cancel.")
         except KeyboardInterrupt:
             print("\n[Web] Interrupted by user")
-            ResourcePreviewHandler.server_should_stop = True
             server.stop()
             return False
-        except:
+        except EOFError:
+            # EOF reached (e.g., input redirected)
+            print("\n[Web] No input available, defaulting to continue")
+            server.stop()
+            return True
+        except Exception as e:
+            print(f"[Web] Input error: {e}")
             pass
 
+    # Server was stopped via web interface
     server.stop()
     return True

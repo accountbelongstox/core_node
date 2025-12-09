@@ -22,6 +22,14 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
 }) => {
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
   const [configKey, setConfigKey] = useState(0); // Force re-render when config changes
+  const [isPaused, setIsPaused] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  // Wrap onError to track error state - MUST be defined before useVideoStream
+  const handleError = React.useCallback((error: Error) => {
+    setHasError(true);
+    onError?.(error);
+  }, [onError]);
 
   useEffect(() => {
     // Get initial config
@@ -53,14 +61,32 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
   }, [deviceId]); // ✅ Remove globalConfig?.video_stream_mode from dependencies
 
   // Use YUV stream component (only when mode is YUV)
-  const { canvasRef, isConnected, isConnecting, streamInfo } = useVideoStream({
+  const { canvasRef, isConnected, isConnecting, streamInfo, connect, disconnect } = useVideoStream({
     deviceId,
     enabled: enabled && globalConfig?.video_stream_mode === 'yuv',
     streamType: 'yuv',
     hwaccel: globalConfig?.hwaccel,
-    onError,
+    onError: handleError,
     onInit
   });
+
+  // Reset error state when connection is restored
+  useEffect(() => {
+    if (isConnected) {
+      setHasError(false);
+    }
+  }, [isConnected]);
+
+  // Track page visibility for pause indicator
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPaused(document.hidden);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   if (!enabled) {
     return null;
@@ -91,6 +117,52 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
           className="w-full h-full object-cover"
           style={{ display: 'block' }}
         />
+        
+        {/* Connection Status Indicator */}
+        <div className="absolute top-2 left-2 px-2 py-1 bg-[#05ffa1]/20 border border-[#05ffa1]/50 rounded text-[9px] font-mono text-[#05ffa1] pointer-events-none z-10">
+          ● CONNECTED
+        </div>
+
+        {/* Paused Indicator */}
+        {isPaused && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none z-10">
+            <div className="text-center">
+              <div className="text-white text-sm font-mono mb-2">
+                <i className="ph ph-pause-circle text-xl"></i>
+              </div>
+              <div className="text-white/80 text-xs font-mono">
+                Stream Paused
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Indicator with Reconnect Button */}
+        {hasError && !isPaused && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center pointer-events-auto z-10">
+            <div className="text-center p-4">
+              <div className="text-[#ff2a6d] text-sm font-mono mb-2">
+                <i className="ph ph-warning text-xl"></i>
+              </div>
+              <div className="text-white/90 text-xs font-mono mb-4">
+                Stream Error
+              </div>
+              <button
+                onClick={() => {
+                  setHasError(false);
+                  disconnect();
+                  setTimeout(() => {
+                    connect();
+                  }, 100);
+                }}
+                className="px-4 py-2 bg-[#00f2ff]/20 hover:bg-[#00f2ff]/30 border border-[#00f2ff]/50 text-[#00f2ff] rounded transition-colors text-xs font-mono"
+              >
+                <i className="ph ph-arrow-clockwise mr-2"></i>
+                Reconnect
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
