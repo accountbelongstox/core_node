@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: GlobalConfig = {
   codec: 'h264',
   control: true,
   locked_video_orientation: -1,
-  video_stream_mode: 'h264',
+  video_stream_mode: 'yuv', // Changed from 'h264' to 'yuv' for Qt WebEngine compatibility (no proprietary codec required)
   hwaccel: 'auto'
 };
 

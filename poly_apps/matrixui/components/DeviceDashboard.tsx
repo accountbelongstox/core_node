@@ -36,7 +36,24 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const [loading, setLoading] = useState(true);
   const videoStreamEnabledRef = useRef<Map<string, boolean>>(new Map());
   const addLogRef = useRef(addLog);
-  
+
+  // Store stream info for each device
+  const [deviceStreamInfo, setDeviceStreamInfo] = useState<Map<string, { width: number; height: number; fps: number; format: string }>>(new Map());
+
+  // Zoomed device state (for layout change, NOT unmounting)
+  const [zoomedDeviceId, setZoomedDeviceId] = useState<string | null>(null);
+
+  // ESC key to exit zoom
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && zoomedDeviceId) {
+        setZoomedDeviceId(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [zoomedDeviceId]);
+
   // Update ref when addLog changes
   useEffect(() => {
     addLogRef.current = addLog;
@@ -53,6 +70,15 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
       });
     }
     return handleVideoStreamErrorRef.current.get(deviceId)!;
+  }, []);
+
+  // Handle stream init callback
+  const handleStreamInit = useCallback((deviceId: string, info: { width: number; height: number; fps: number; format: string }) => {
+    setDeviceStreamInfo(prev => {
+      const newMap = new Map(prev);
+      newMap.set(deviceId, info);
+      return newMap;
+    });
   }, []);
   
   // Selection Box State
@@ -295,10 +321,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           addLog('info', `Device ${serial}: Touch Up ${coordsStr}`);
       }
     }
-    else if (type === 'double') {
-        wsService.send('control', 'touch', { serial, action: 'double', x, y, width: rect.width, height: rect.height });
-        addLog('success', `Device ${serial}: Double Click executed`);
-    }
   };
 
   return (
@@ -378,28 +400,77 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
             <div
               key={device.serial}
               ref={el => { if (el) deviceRefs.current.set(device.serial, el); else deviceRefs.current.delete(device.serial); }}
-              onClick={(e) => onSelectDevice(device, e.ctrlKey || e.metaKey)}
-              onDoubleClick={() => onOpenDevice(device)}
               className={`
                 device-card group relative bg-[#0a0c10]
                 border rounded-2xl overflow-hidden transition-all duration-300
-                hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:z-10
-                flex flex-col h-[300px] w-[200px] select-none
-                ${selectedIds.has(device.serial) 
-                  ? 'border-[#00f2ff] shadow-[0_0_0_1px_#00f2ff,0_0_20px_rgba(0,242,255,0.2)]' 
+                flex flex-col select-none
+                ${zoomedDeviceId === device.deviceId
+                  ? 'fixed inset-4 z-50 w-auto h-auto shadow-[0_0_0_100vmax_rgba(0,0,0,0.8)]'
+                  : zoomedDeviceId
+                    ? 'h-[160px] w-[100px] opacity-50'
+                    : 'h-[320px] w-[200px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:z-10'
+                }
+                ${selectedIds.has(device.serial)
+                  ? 'border-[#00f2ff] shadow-[0_0_0_1px_#00f2ff,0_0_20px_rgba(0,242,255,0.2)]'
                   : 'border-white/10 hover:border-white/30'}
-                ${hoveredDevice === device.serial ? 'scale-[1.02]' : ''}
+                ${hoveredDevice === device.serial && !zoomedDeviceId ? 'scale-[1.02]' : ''}
               `}
             >
-              {/* Screen Area (Interactive) */}
-              <div 
-                className="flex-1 bg-black relative flex items-center justify-center overflow-hidden border-b border-white/5 cursor-crosshair"
+              {/* Top Info Bar - Clickable for selection */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectDevice(device, e.ctrlKey || e.metaKey);
+                }}
+                className={`bg-[#0d0f14] border-b border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors ${zoomedDeviceId === device.deviceId ? 'h-16' : 'h-[32px]'}`}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {/* Selection Checkbox */}
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      selectedIds.has(device.serial)
+                        ? 'bg-[#00f2ff] border-[#00f2ff] shadow-[0_0_8px_#00f2ff]'
+                        : 'border-white/30 hover:border-white/50'
+                    }`}
+                  >
+                    {selectedIds.has(device.serial) && (
+                      <i className="ph-bold ph-check text-black text-[10px]"></i>
+                    )}
+                  </div>
+
+                  {zoomedDeviceId === device.deviceId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomedDeviceId(null);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors text-sm"
+                    >
+                      <i className="ph ph-arrow-left"></i>
+                      <span>Back</span>
+                    </button>
+                  )}
+                  <span className={`font-mono text-white/60 truncate ${zoomedDeviceId === device.deviceId ? 'text-sm' : 'text-[9px]'}`}>{device.ip || device.serial}</span>
+                  {device.status === 'online' && (
+                    <span className="w-1.5 h-1.5 bg-[#05ffa1] rounded-full shadow-[0_0_8px_#05ffa1] animate-pulse"></span>
+                  )}
+                  {deviceStreamInfo.get(device.deviceId) && (
+                    <span className={`font-mono text-slate-400 ${zoomedDeviceId === device.deviceId ? 'text-xs' : 'text-[8px]'}`}>
+                      {deviceStreamInfo.get(device.deviceId)!.width}x{deviceStreamInfo.get(device.deviceId)!.height} @ {deviceStreamInfo.get(device.deviceId)!.fps}fps
+                    </span>
+                  )}
+                </div>
+                <span className={`font-mono text-slate-500 ${zoomedDeviceId === device.deviceId ? 'text-xs' : 'text-[8px]'}`}>{device.serial.slice(-6)}</span>
+              </div>
+
+              {/* Screen Area (Interactive) - Video fills this area */}
+              <div
+                className="flex-1 bg-black relative overflow-hidden cursor-crosshair group/video"
                 onMouseEnter={(e) => handleDeviceInteraction(e, device.serial, 'enter')}
                 onMouseLeave={(e) => handleDeviceInteraction(e, device.serial, 'leave')}
                 onMouseDown={(e) => handleDeviceInteraction(e, device.serial, 'down')}
                 onMouseMove={(e) => handleDeviceInteraction(e, device.serial, 'move')}
                 onMouseUp={(e) => handleDeviceInteraction(e, device.serial, 'up')}
-                onDoubleClick={(e) => handleDeviceInteraction(e, device.serial, 'double')}
               >
                 {device.status === 'online' ? (
                   <DeviceVideoStream
@@ -407,23 +478,14 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                     deviceId={device.deviceId}
                     enabled={videoStreamEnabledRef.current.get(device.deviceId) ?? true}
                     onError={getVideoStreamErrorHandler(device.deviceId)}
+                    onInit={(info) => handleStreamInit(device.deviceId, info)}
                   />
                 ) : (
-                  <div className="flex flex-col items-center text-slate-700 pointer-events-none">
+                  <div className="flex flex-col items-center justify-center h-full text-slate-700 pointer-events-none">
                     <i className="ph ph-plugs text-3xl mb-2"></i>
                     <span className="text-[10px] font-mono tracking-widest">{t('dashboard.disconnected')}</span>
                   </div>
                 )}
-                
-                {/* HUD Overlay */}
-                <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <span className="px-1.5 py-0.5 bg-black/80 border border-white/10 backdrop-blur rounded text-[9px] font-mono text-white/80">
-                      {device.serial}
-                    </span>
-                    {device.status === 'online' && <span className="w-2 h-2 bg-[#05ffa1] rounded-full shadow-[0_0_10px_#05ffa1] animate-pulse"></span>}
-                  </div>
-                </div>
                 
                 {/* Interaction Feedback Point */}
                 {activeTouch === device.serial && (
@@ -438,35 +500,34 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                    <div className="absolute inset-0 border border-[#00f2ff]/30 pointer-events-none bg-[#00f2ff]/5"></div>
                 )}
 
-                {/* Selection Check */}
-                {selectedIds.has(device.serial) && (
-                   <div className="absolute top-0 right-0 p-2 pointer-events-none">
-                      <div className="w-5 h-5 bg-[#00f2ff] rounded flex items-center justify-center shadow-[0_0_10px_#00f2ff]">
-                        <i className="ph-bold ph-check text-black text-xs"></i>
-                      </div>
-                   </div>
-                )}
               </div>
 
-              {/* Footer */}
-              <div className="h-[45px] bg-[#0d0f14] flex items-center justify-between px-3 pointer-events-auto">
+              {/* Footer - Bottom Toolbar - Clickable for selection */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectDevice(device, e.ctrlKey || e.metaKey);
+                }}
+                className="h-[40px] bg-[#0d0f14] border-t border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors"
+              >
                 <div className="flex flex-col flex-1 min-w-0">
-                   <span className="text-[11px] font-bold text-slate-200 truncate">{device.name}</span>
+                   <span className="text-[10px] font-bold text-slate-200 truncate">{device.name}</span>
                    <div className="flex items-center gap-1.5">
-                     <span className="text-[9px] font-mono text-slate-500">{device.manufacturer || 'Unknown'}</span>
-                     <span className="text-[8px] text-slate-600">•</span>
-                     <span className="text-[9px] font-mono text-slate-500">Android {device.version}</span>
+                     <span className="text-[8px] font-mono text-slate-500">{device.manufacturer || 'Unknown'}</span>
+                     <span className="text-[7px] text-slate-600">•</span>
+                     <span className="text-[8px] font-mono text-slate-500">Android {device.version}</span>
                    </div>
                 </div>
                 <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded border border-white/5 ml-2">
                    <i className={`ph-fill ph-wifi-high text-[10px] ${device.status === 'online' ? 'text-[#05ffa1]' : 'text-slate-600'}`}></i>
-                   <span className="text-[9px] font-mono text-slate-400">{device.ping}ms</span>
+                   <span className="text-[8px] font-mono text-slate-400">{device.ping}ms</span>
                 </div>
               </div>
 
               {/* Enhanced Sidebar Tools Slide-out */}
-              <div className="absolute right-0 top-10 bottom-14 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
+              <div className="absolute right-0 top-12 bottom-12 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
                  {[
+                   { icon: 'ph-arrows-out', title: '大屏', action: () => { setZoomedDeviceId(zoomedDeviceId === device.deviceId ? null : device.deviceId); addLog('info', `Toggled zoom for ${device.name || device.serial}`); }, color: 'text-[#ffd60a] border-[#ffd60a]/30 hover:bg-[#ffd60a]/20' },
                    { icon: 'ph-eye', title: 'View', action: () => onOpenDevice(device), color: 'text-[#00f2ff] border-[#00f2ff]/30 hover:bg-[#00f2ff]/20' },
                    { icon: 'ph-terminal-window', title: 'Shell', action: () => {}, color: 'text-[#05ffa1] border-[#05ffa1]/30 hover:bg-[#05ffa1]/20' },
                    { icon: 'ph-folder-open', title: 'Files', action: () => onQuickAction?.(device, 'files'), color: 'text-[#bd00ff] border-[#bd00ff]/30 hover:bg-[#bd00ff]/20' },
@@ -522,6 +583,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };

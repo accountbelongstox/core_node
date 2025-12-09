@@ -16,6 +16,10 @@ export class WebGLYUVRenderer {
   private frameWidth: number = 0;
   private frameHeight: number = 0;
 
+  // Qt WebEngine UNPACK_ROW_LENGTH workaround flag
+  private supportsUnpackRowLength: boolean | null = null;  // null = not tested yet
+  private hasLoggedFallback: boolean = false;
+
   // 顶点着色器（与 QtScrcpy 相同）
   private static readonly VERTEX_SHADER = `
     attribute vec3 vertexIn;
@@ -156,11 +160,11 @@ export class WebGLYUVRenderer {
     // 创建 Y 纹理
     this.textureY = this.createTexture(width, height);
 
-    // 创建 U 纹理 (宽高各减半)
-    this.textureU = this.createTexture(Math.ceil(width / 2), Math.ceil(height / 2));
+    // Create U texture (YUV420P: half resolution)
+    this.textureU = this.createTexture(width / 2, height / 2);
 
-    // 创建 V 纹理 (宽高各减半)
-    this.textureV = this.createTexture(Math.ceil(width / 2), Math.ceil(height / 2));
+    // Create V texture (YUV420P: half resolution)
+    this.textureV = this.createTexture(width / 2, height / 2);
   }
 
   private createTexture(width: number, height: number): WebGLTexture {
@@ -186,6 +190,99 @@ export class WebGLYUVRenderer {
   }
 
   /**
+   * Upload texture data with stride support and Qt WebEngine fallback
+   *
+   * Qt WebEngine may not support UNPACK_ROW_LENGTH properly,
+   * so we need a fallback that manually copies row-by-row.
+   */
+  private uploadTextureWithStride(
+    data: Uint8Array,
+    width: number,
+    height: number,
+    stride: number | undefined
+  ): void {
+    const { gl } = this;
+
+    // Fast path: no stride or stride equals width (tightly packed)
+    if (!stride || stride === width) {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D, 0, 0, 0,
+        width, height,
+        gl.LUMINANCE, gl.UNSIGNED_BYTE,
+        data
+      );
+      return;
+    }
+
+    // Test UNPACK_ROW_LENGTH support on first use
+    if (this.supportsUnpackRowLength === null) {
+      try {
+        // Clear any previous errors
+        while (gl.getError() !== gl.NO_ERROR) { /* clear */ }
+
+        // Try using UNPACK_ROW_LENGTH
+        gl.pixelStorei(gl.UNPACK_ROW_LENGTH, stride);
+        const error = gl.getError();
+
+        if (error === gl.NO_ERROR) {
+          this.supportsUnpackRowLength = true;
+          console.log('[WebGLYUVRenderer] ✓ UNPACK_ROW_LENGTH supported');
+        } else {
+          this.supportsUnpackRowLength = false;
+          console.warn('[WebGLYUVRenderer] ✗ UNPACK_ROW_LENGTH not supported (Qt WebEngine limitation), using fallback');
+        }
+      } catch (e) {
+        this.supportsUnpackRowLength = false;
+        console.warn('[WebGLYUVRenderer] ✗ UNPACK_ROW_LENGTH test failed, using fallback:', e);
+      }
+    }
+
+    // Method 1: Use UNPACK_ROW_LENGTH if supported
+    if (this.supportsUnpackRowLength) {
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, stride);
+      gl.texSubImage2D(
+        gl.TEXTURE_2D, 0, 0, 0,
+        width, height,
+        gl.LUMINANCE, gl.UNSIGNED_BYTE,
+        data
+      );
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);  // Reset
+      return;
+    }
+
+    // Method 2: Fallback for Qt WebEngine - manually copy row by row
+    if (!this.hasLoggedFallback) {
+      console.log('[WebGLYUVRenderer] Using row-by-row fallback for stride (Qt WebEngine)');
+      console.log(`[WebGLYUVRenderer] Fallback details: width=${width}, height=${height}, stride=${stride}`);
+      console.log(`[WebGLYUVRenderer] Source data size: ${data.length} bytes`);
+      console.log(`[WebGLYUVRenderer] Expected packed size: ${width * height} bytes`);
+      this.hasLoggedFallback = true;
+    }
+
+    // Create tightly packed buffer
+    const packedData = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++) {
+      const srcOffset = y * stride;
+      const dstOffset = y * width;
+      packedData.set(data.subarray(srcOffset, srcOffset + width), dstOffset);
+    }
+
+    // Log first packed data for debugging
+    if (!this.hasLoggedFallback) {
+      const sample = Array.from(packedData.slice(0, 16)).map(v => v.toString(16).padStart(2, '0')).join(' ');
+      console.log(`[WebGLYUVRenderer] First 16 bytes of packed data: ${sample}`);
+    }
+
+    // Upload packed data
+    gl.texSubImage2D(
+      gl.TEXTURE_2D, 0, 0, 0,
+      width, height,
+      gl.LUMINANCE, gl.UNSIGNED_BYTE,
+      packedData
+    );
+  }
+
+  /**
    * 渲染 YUV 帧
    *
    * @param yPlane - Y 平面数据 (Uint8Array)
@@ -197,6 +294,9 @@ export class WebGLYUVRenderer {
    * @param uStride - U 平面步长（可选）
    * @param vStride - V 平面步长（可选）
    */
+  // Debug logging flag
+  private hasLoggedFirstRender: boolean = false;
+
   public renderFrame(
     yPlane: Uint8Array,
     uPlane: Uint8Array,
@@ -209,70 +309,104 @@ export class WebGLYUVRenderer {
   ): void {
     const { gl } = this;
 
+    const isFirstRender = !this.hasLoggedFirstRender;
+    if (isFirstRender) {
+      console.log('[WebGLYUVRenderer] 🎬 First frame render starting...');
+      console.log(`[WebGLYUVRenderer] Frame dimensions: ${width}x${height}`);
+      console.log(`[WebGLYUVRenderer] Y plane: ${yPlane.length} bytes, stride: ${yStride || 'none'}`);
+      console.log(`[WebGLYUVRenderer] U plane: ${uPlane.length} bytes, stride: ${uStride || 'none'}`);
+      console.log(`[WebGLYUVRenderer] V plane: ${vPlane.length} bytes, stride: ${vStride || 'none'}`);
+      this.hasLoggedFirstRender = true;
+    }
+
     // 初始化纹理（首次或尺寸变化时）
     if (width !== this.frameWidth || height !== this.frameHeight) {
+      if (isFirstRender) {
+        console.log(`[WebGLYUVRenderer] Initializing textures for ${width}x${height}...`);
+      }
       this.initTextures(width, height);
       // 调整 canvas 尺寸
       this.canvas.width = width;
       this.canvas.height = height;
       gl.viewport(0, 0, width, height);
+      if (isFirstRender) {
+        console.log(`[WebGLYUVRenderer] ✓ Canvas resized to ${width}x${height}`);
+        console.log(`[WebGLYUVRenderer] ✓ Viewport set to ${width}x${height}`);
+      }
     }
 
     // 更新 Y 纹理
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.textureY);
-    if (yStride && yStride !== width) {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, yStride);
-    } else {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+    if (isFirstRender) console.log('[WebGLYUVRenderer] Uploading Y texture...');
+    this.uploadTextureWithStride(yPlane, width, height, yStride);
+    if (isFirstRender) {
+      const error = gl.getError();
+      if (error !== gl.NO_ERROR) {
+        console.error(`[WebGLYUVRenderer] ✗ Y texture upload error: ${error}`);
+      } else {
+        console.log('[WebGLYUVRenderer] ✓ Y texture uploaded');
+      }
     }
-    gl.texSubImage2D(
-      gl.TEXTURE_2D, 0, 0, 0,
-      width, height,
-      gl.LUMINANCE, gl.UNSIGNED_BYTE,
-      yPlane
-    );
 
-    // 更新 U 纹理
-    const uWidth = Math.ceil(width / 2);
-    const uHeight = Math.ceil(height / 2);
+    // Update U texture (YUV420P: U plane is half resolution)
+    const uWidth = width / 2;
+    const uHeight = height / 2;
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.textureU);
-    if (uStride && uStride !== uWidth) {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, uStride);
-    } else {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+    if (isFirstRender) console.log(`[WebGLYUVRenderer] Uploading U texture (${uWidth}x${uHeight})...`);
+    this.uploadTextureWithStride(uPlane, uWidth, uHeight, uStride);
+    if (isFirstRender) {
+      const error = gl.getError();
+      if (error !== gl.NO_ERROR) {
+        console.error(`[WebGLYUVRenderer] ✗ U texture upload error: ${error}`);
+      } else {
+        console.log('[WebGLYUVRenderer] ✓ U texture uploaded');
+      }
     }
-    gl.texSubImage2D(
-      gl.TEXTURE_2D, 0, 0, 0,
-      uWidth, uHeight,
-      gl.LUMINANCE, gl.UNSIGNED_BYTE,
-      uPlane
-    );
 
-    // 更新 V 纹理
-    const vWidth = Math.ceil(width / 2);
-    const vHeight = Math.ceil(height / 2);
+    // Update V texture (YUV420P: V plane is half resolution)
+    const vWidth = width / 2;
+    const vHeight = height / 2;
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.textureV);
-    if (vStride && vStride !== vWidth) {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, vStride);
-    } else {
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+    if (isFirstRender) console.log(`[WebGLYUVRenderer] Uploading V texture (${vWidth}x${vHeight})...`);
+    this.uploadTextureWithStride(vPlane, vWidth, vHeight, vStride);
+    if (isFirstRender) {
+      const error = gl.getError();
+      if (error !== gl.NO_ERROR) {
+        console.error(`[WebGLYUVRenderer] ✗ V texture upload error: ${error}`);
+      } else {
+        console.log('[WebGLYUVRenderer] ✓ V texture uploaded');
+      }
     }
-    gl.texSubImage2D(
-      gl.TEXTURE_2D, 0, 0, 0,
-      vWidth, vHeight,
-      gl.LUMINANCE, gl.UNSIGNED_BYTE,
-      vPlane
-    );
 
     // 清除画布
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    if (isFirstRender) console.log('[WebGLYUVRenderer] ✓ Canvas cleared');
 
     // 绘制矩形（渲染 YUV → RGB）
+    if (isFirstRender) {
+      console.log('[WebGLYUVRenderer] Drawing triangle strip...');
+      console.log(`[WebGLYUVRenderer] Shader program: ${this.shaderProgram ? 'valid' : 'null'}`);
+    }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    if (isFirstRender) {
+      const error = gl.getError();
+      if (error !== gl.NO_ERROR) {
+        console.error(`[WebGLYUVRenderer] ✗ Draw error: ${error}`);
+      } else {
+        console.log('[WebGLYUVRenderer] ✓ Draw completed successfully');
+        console.log('[WebGLYUVRenderer] 🎬 First frame render complete!');
+
+        // Sample a pixel to verify it's not black
+        const pixels = new Uint8Array(4);
+        gl.readPixels(width / 2, height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        console.log(`[WebGLYUVRenderer] Center pixel: R=${pixels[0]} G=${pixels[1]} B=${pixels[2]} A=${pixels[3]}`);
+      }
+    }
   }
 
   public destroy(): void {
