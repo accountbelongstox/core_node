@@ -42,7 +42,7 @@ class DeviceService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.scrcpy_server_jar = Config.SCRCPY_SERVER_JAR
+        self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
 
         # Use centralized device manager from pycore
         self.device_manager = DeviceManager.instance()

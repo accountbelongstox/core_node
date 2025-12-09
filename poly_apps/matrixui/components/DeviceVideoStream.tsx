@@ -1,31 +1,63 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useVideoStream } from '../hooks/useVideoStream';
+import { DeviceH264Stream } from './DeviceH264Stream';
+import { configService, GlobalConfig } from '../services/configService';
 
 interface DeviceVideoStreamProps {
-  serial: string;
+  deviceId: string; // Device ID for routing (e.g., "device_1")
   enabled: boolean;
-  streamType?: 'h264' | 'yuv';
-  hwaccel?: 'cuda' | 'qsv' | 'dxva2' | 'vaapi' | 'auto';
   onError?: (error: Error) => void;
   onInit?: (info: { width: number; height: number; fps: number; format: string }) => void;
 }
 
 /**
- * Component for rendering device video stream using WebGL
+ * Component for rendering device video stream (supports both H.264 and YUV modes)
+ * Automatically switches based on global config
  */
-export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({ 
-  serial, 
+export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
+  deviceId,
   enabled,
-  streamType = 'yuv',
-  hwaccel,
   onError,
   onInit
 }) => {
+  const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
+  const [configKey, setConfigKey] = useState(0); // Force re-render when config changes
+
+  useEffect(() => {
+    // Get initial config
+    const config = configService.getConfig();
+    if (config) {
+      setGlobalConfig(config);
+    }
+
+    // Use a ref to track previous mode without causing re-renders
+    let prevMode = config?.video_stream_mode;
+
+    // Subscribe to config changes
+    const unsubscribe = configService.subscribe((config) => {
+      const newMode = config.video_stream_mode;
+
+      // Only force remount if video stream mode actually changed
+      if (prevMode && prevMode !== newMode) {
+        console.log(`[DeviceVideoStream] Video mode changed for ${deviceId}: ${prevMode} -> ${newMode}, remounting...`);
+        setConfigKey(prev => prev + 1); // Force remount by changing key
+      }
+
+      prevMode = newMode;
+      setGlobalConfig(config);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [deviceId]); // ✅ Remove globalConfig?.video_stream_mode from dependencies
+
+  // Use YUV stream component (only when mode is YUV)
   const { canvasRef, isConnected, isConnecting, streamInfo } = useVideoStream({
-    serial,
-    enabled,
-    streamType,
-    hwaccel,
+    deviceId,
+    enabled: enabled && globalConfig?.video_stream_mode === 'yuv',
+    streamType: 'yuv',
+    hwaccel: globalConfig?.hwaccel,
     onError,
     onInit
   });
@@ -34,33 +66,39 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
     return null;
   }
 
-  if (isConnected && streamType === 'yuv') {
+  // Render based on video stream mode
+  // CRITICAL: Use single consistent key to prevent unmount/remount on state changes
+  if (globalConfig?.video_stream_mode === 'h264') {
+    // Render H.264 stream once with consistent key - never unmount on state changes
+    return (
+      <DeviceH264Stream
+        key={`h264-${deviceId}-${configKey}`}
+        deviceId={deviceId}
+        enabled={enabled}
+        onError={onError}
+        onInit={onInit}
+        showAsBackground={false}
+      />
+    );
+  }
+
+  // YUV mode
+  if (isConnected) {
     return (
       <div className="w-full h-full relative">
-        <canvas 
+        <canvas
           ref={canvasRef}
           className="w-full h-full object-contain"
           style={{ display: 'block' }}
         />
         <div className="absolute top-2 left-2 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded text-[9px] font-mono text-green-400">
-          {streamInfo ? `${streamInfo.width}x${streamInfo.height} @ ${streamInfo.fps}fps` : 'VIDEO CONNECTED'}
-        </div>
-      </div>
-    );
-  }
-  
-  if (isConnected && streamType === 'h264') {
-    // TODO: Implement H.264 video element rendering
-    return (
-      <div className="w-full h-full relative flex items-center justify-center bg-black">
-        <div className="text-slate-500 text-xs font-mono">
-          H.264 stream (not yet implemented)
+          {streamInfo ? `${streamInfo.width}x${streamInfo.height} @ ${streamInfo.fps}fps (YUV)` : 'YUV CONNECTED'}
         </div>
       </div>
     );
   }
 
-  // Show "establishing connection" state
+  // YUV mode connecting state
   return (
     <div className="w-full h-full relative flex flex-col items-center justify-center p-4 pointer-events-none">
       {/* Background Grid */}
@@ -80,7 +118,7 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
       
       {/* Status Text */}
       <div className="font-mono text-[9px] text-[#00f2ff] tracking-[2px] mb-2 animate-pulse">
-        {isConnecting ? '建立连接中...' : '等待连接...'}
+        {isConnecting ? 'Connecting...' : 'Waiting...'}
       </div>
       
       {/* Progress Bar */}

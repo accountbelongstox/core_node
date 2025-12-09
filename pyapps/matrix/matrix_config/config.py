@@ -62,8 +62,20 @@ class Config:
         return "adb"
 
     # scrcpy-server configuration (must match scrcpy_source version)
-    SCRCPY_SERVER_JAR = RESOURCES_DIR / "scrcpy-server.jar"
     SCRCPY_SERVER_VERSION = "3.3.3"
+
+    @staticmethod
+    def get_scrcpy_server_jar() -> Path:
+        """
+        Get scrcpy-server.jar path
+
+        Returns:
+            Path to scrcpy-server.jar in project resources
+        """
+        return Config.RESOURCES_DIR / "scrcpy-server.jar"
+
+    # For backward compatibility
+    SCRCPY_SERVER_JAR = RESOURCES_DIR / "scrcpy-server.jar"
 
     # ==================== Web Service Configuration ====================
     WEB_HOST = "0.0.0.0"
