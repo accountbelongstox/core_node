@@ -359,6 +359,9 @@ function Execute-Command {
         "build_android_apk" {
             Build-AndroidApk -Prefix $Prefix
         }
+        "capacitor_assets_generate" {
+            Generate-CapacitorAssets -Prefix $Prefix
+        }
         default {
             Write-ColorText "[WARNING] Unknown command: $cmd" "Yellow"
         }
@@ -636,6 +639,37 @@ show_preview(resource_data, port=8899)
     }
 }
 
+function Generate-CapacitorAssets {
+    param([string]$Prefix)
+
+    Write-Section "Generating Capacitor Assets"
+
+    $projectRoot = Get-VarValue -Key $KEY_PROJECT_ROOT -Prefix $Prefix
+    $runAssets = Get-VarValue -Key "RUN_CAPACITOR_ASSETS" -Prefix $Prefix
+
+    if ($runAssets -ne "true") {
+        Write-ColorText "[Skip] Capacitor assets generation skipped (no valid icon provided)" "Yellow"
+        return
+    }
+
+    Push-Location $projectRoot
+    try {
+        Write-ColorText "[Assets] Generating Android resources using Capacitor official tool..." "Cyan"
+        Print-Command "npx @capacitor/assets generate --android"
+        & npx @capacitor/assets generate --android
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "[ERROR] Capacitor assets generation failed" "Red"
+            Write-ColorText "[INFO] Make sure @capacitor/assets is installed: pnpm add -D @capacitor/assets" "Yellow"
+        } else {
+            Write-ColorText "[Success] Capacitor assets generated successfully" "Green"
+            Write-ColorText "[Info] All Android icon densities have been auto-generated" "DarkGray"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Start-DevServer {
     param([string]$Prefix)
 
@@ -688,13 +722,54 @@ function Build-AndroidApk {
 
     Push-Location $androidPath
     try {
+        # First attempt
         Print-Command ".\gradlew.bat assembleDebug"
         & .\gradlew.bat assembleDebug
 
         if ($LASTEXITCODE -ne 0) {
             Write-ColorText "[ERROR] Android build failed" "Red"
+            Write-ColorText "[INFO] Attempting to clean Gradle cache and retry..." "Yellow"
+
+            # Clean Gradle cache
+            Write-ColorText "`n[Gradle] Cleaning build directory..." "Cyan"
+            Print-Command ".\gradlew.bat clean"
+            & .\gradlew.bat clean
+
+            # Clean Gradle user cache (common location for corrupted files)
+            $gradleCacheDir = "$env:USERPROFILE\.gradle\caches"
+            if (Test-Path $gradleCacheDir) {
+                Write-ColorText "[Gradle] Clearing Gradle caches at: $gradleCacheDir" "Cyan"
+                try {
+                    Remove-Item -Path "$gradleCacheDir\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    Write-ColorText "[Gradle] Cache cleared successfully" "Green"
+                } catch {
+                    Write-ColorText "[Gradle] Warning: Could not fully clear cache (some files may be in use)" "Yellow"
+                }
+            }
+
+            # Retry build
+            Write-ColorText "`n[Gradle] Retrying build..." "Cyan"
+            Print-Command ".\gradlew.bat assembleDebug"
+            & .\gradlew.bat assembleDebug
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorText "[ERROR] Android build failed after cache cleanup" "Red"
+                Write-ColorText "[SOLUTION] Try manually running:" "Yellow"
+                Write-ColorText "  cd android" "DarkGray"
+                Write-ColorText "  .\gradlew.bat clean build --refresh-dependencies" "DarkGray"
+            } else {
+                Write-ColorText "[Success] Android APK built successfully after retry" "Green"
+            }
         } else {
             Write-ColorText "[Success] Android build completed" "Green"
+        }
+
+        # Show APK location if exists
+        $apkPath = "app\build\outputs\apk\debug\app-debug.apk"
+        if (Test-Path $apkPath) {
+            $fullPath = (Get-Item $apkPath).FullName
+            Write-ColorText "`n[APK] $fullPath" "Green"
+        } else {
             Write-ColorText "[Output] APK location: android\app\build\outputs\apk\debug\" "Cyan"
         }
     } finally {
