@@ -277,6 +277,13 @@ class PySide6Framework(QObject):
         # Create Qt application if not exists
         ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
 
+        # CRITICAL: Configure QtWebEngine BEFORE QApplication creation
+        # This enables WebCodecs, WebGL, hardware acceleration for H.264 video streaming
+        ColorPrint.blue("[PySide6Framework] Step 2.1: Configuring QtWebEngine (multi-tier redundant)...")
+        from .webengine_config import configure_webengine_all_tiers
+        webengine_results = configure_webengine_all_tiers()
+        ColorPrint.green(f"[PySide6Framework] QtWebEngine configuration completed: {webengine_results}")
+
         # Suppress Qt CSS warnings for unsupported properties
         os.environ.setdefault('QT_LOGGING_RULES', 'qt.qpa.*.warning=false;*.debug=false')
 

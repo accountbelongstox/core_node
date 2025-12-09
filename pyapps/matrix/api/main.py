@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
+import asyncio
 import psutil
 import platform
 
@@ -33,6 +34,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pycore import ColorPrint
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyutils.device import ADBManager
+from pyapps.matrix.matrix_config import Config
 
 # Import all services
 from pyapps.matrix.services import (
@@ -72,6 +75,7 @@ def register_all_routes(rpc_server):
     _register_group_routes(rpc_server)
     _register_config_routes(rpc_server)
     _register_control_routes(rpc_server)
+    _register_shell_routes(rpc_server)
     _register_video_routes(rpc_server)
 
     ColorPrint.green("=" * 70)
@@ -698,9 +702,152 @@ def _register_file_routes(rpc_server):
 
         return result
 
+    async def list_directory(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """List files in directory"""
+        device_id = data.get('deviceId')
+        path = data.get('path', '/sdcard/')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # List directory contents
+            cmd = f'ls -la "{path}"'
+            output = await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                cmd,
+                adb_path,
+                timeout=10
+            )
+
+            # Parse ls output
+            files = []
+            for line in output.strip().split('\n'):
+                if line and not line.startswith('total'):
+                    parts = line.split()
+                    if len(parts) >= 8:
+                        # Example: drwxrwx--- 4 root sdcard_rw 4096 2024-01-01 12:00 Documents
+                        permissions = parts[0]
+                        is_dir = permissions.startswith('d')
+                        size = parts[3] if not is_dir else 0
+                        name = ' '.join(parts[7:])
+
+                        files.append({
+                            "name": name,
+                            "isDirectory": is_dir,
+                            "size": int(size) if size != 0 else 0,
+                            "permissions": permissions
+                        })
+
+            return {
+                "success": True,
+                "path": path,
+                "files": files,
+                "count": len(files)
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'LIST_DIRECTORY_FAILED', 'message': f'Failed to list directory: {str(e)}'}}
+
+    async def delete_file(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Delete file or directory"""
+        device_id = data.get('deviceId')
+        path = data.get('path')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not path:
+            return {'error': {'code': 'MISSING_PATH', 'message': 'File path required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Delete file/directory
+            cmd = f'rm -rf "{path}"'
+            await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                cmd,
+                adb_path,
+                timeout=10
+            )
+
+            return {"success": True, "message": f"Deleted {path}"}
+
+        except Exception as e:
+            return {'error': {'code': 'DELETE_FAILED', 'message': f'Failed to delete file: {str(e)}'}}
+
+    async def pull_file(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Pull file from device"""
+        device_id = data.get('deviceId')
+        remote_path = data.get('remotePath')
+        local_path = data.get('localPath')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not remote_path:
+            return {'error': {'code': 'MISSING_REMOTE_PATH', 'message': 'Remote path required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+
+            # If no local path specified, use downloads directory
+            if not local_path:
+                downloads_dir = Path('downloads')
+                downloads_dir.mkdir(exist_ok=True)
+                file_name = Path(remote_path).name
+                local_path = str(downloads_dir / file_name)
+
+            # Pull file
+            cmd = [adb_path, "-s", serial, "pull", remote_path, local_path]
+            result = await asyncio.to_thread(
+                ADBManager._run_command,
+                cmd,
+                check=False,
+                timeout=60
+            )
+
+            if result.returncode != 0:
+                return {'error': {'code': 'PULL_FAILED', 'message': f'Failed to pull file: {result.stderr}'}}
+
+            return {
+                "success": True,
+                "remotePath": remote_path,
+                "localPath": local_path,
+                "message": "File pulled successfully"
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'PULL_FAILED', 'message': f'Failed to pull file: {str(e)}'}}
+
     rpc_server.route('file.packages', list_packages, sync=False, description='List installed packages')
     rpc_server.route('file.apk_uninstall', uninstall_apk, sync=False, description='Uninstall APK')
     rpc_server.route('file.transfer_status', transfer_status, sync=False, description='Get file transfer status')
+    rpc_server.route('file.list', list_directory, sync=False, description='List files in directory')
+    rpc_server.route('file.delete', delete_file, sync=False, description='Delete file or directory')
+    rpc_server.route('file.pull', pull_file, sync=False, description='Pull file from device')
 
 
 # ============================================================
@@ -1311,6 +1458,34 @@ def _register_control_routes(rpc_server):
 
         return {"success": True, "text": clipboard_text}
 
+    async def reboot_device(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Reboot device"""
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Execute reboot command
+            await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                "reboot",
+                adb_path,
+                timeout=5
+            )
+
+            return {"success": True, "message": f"Reboot command sent to device {device_id}"}
+        except Exception as e:
+            return {'error': {'code': 'REBOOT_FAILED', 'message': f'Failed to reboot device: {str(e)}'}}
+
     rpc_server.route('control.touch', send_touch, sync=False, description='Send touch event')
     rpc_server.route('control.key', send_key, sync=False, description='Send key event')
     rpc_server.route('control.text', send_text, sync=False, description='Send text input')
@@ -1318,6 +1493,109 @@ def _register_control_routes(rpc_server):
     rpc_server.route('control.systemkey', send_system_key, sync=False, description='Send system key')
     rpc_server.route('control.clipboard_set', set_clipboard, sync=False, description='Set device clipboard')
     rpc_server.route('control.clipboard_get', get_clipboard, sync=False, description='Get device clipboard')
+    rpc_server.route('control.reboot', reboot_device, sync=False, description='Reboot device')
+
+
+# ============================================================
+# Shell/Terminal Routes
+# ============================================================
+
+def _register_shell_routes(rpc_server):
+    """Register shell command execution routes"""
+
+    async def execute_command(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Execute shell command on device"""
+        device_id = data.get('deviceId')
+        command = data.get('command')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not command:
+            return {'error': {'code': 'MISSING_COMMAND', 'message': 'Shell command required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Execute shell command
+            output = await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                command,
+                adb_path,
+                timeout=data.get('timeout', 30)
+            )
+
+            return {
+                "success": True,
+                "command": command,
+                "output": output,
+                "deviceId": device_id
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'COMMAND_FAILED', 'message': f'Command execution failed: {str(e)}'}}
+
+    async def get_device_info_shell(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get device system information via shell commands"""
+        device_id = data.get('deviceId')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+
+            # Gather various system info
+            info = {}
+
+            # CPU info
+            cpu_info = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "cat /proc/cpuinfo | grep 'Hardware'", adb_path, timeout=5
+            )
+            info['cpu'] = cpu_info.strip()
+
+            # Memory info
+            mem_info = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "cat /proc/meminfo | grep MemTotal", adb_path, timeout=5
+            )
+            info['memory'] = mem_info.strip()
+
+            # Battery info
+            battery_level = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "dumpsys battery | grep level", adb_path, timeout=5
+            )
+            info['battery'] = battery_level.strip()
+
+            # Disk usage
+            disk_usage = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "df /sdcard | tail -1", adb_path, timeout=5
+            )
+            info['disk'] = disk_usage.strip()
+
+            return {
+                "success": True,
+                "deviceId": device_id,
+                "systemInfo": info
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'INFO_FAILED', 'message': f'Failed to get device info: {str(e)}'}}
+
+    rpc_server.route('shell.execute', execute_command, sync=False, description='Execute shell command')
+    rpc_server.route('shell.info', get_device_info_shell, sync=False, description='Get device system information')
 
 
 # ============================================================
