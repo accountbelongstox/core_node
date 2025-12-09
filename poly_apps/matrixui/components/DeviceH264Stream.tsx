@@ -77,7 +77,21 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!enabled || !browserSupport?.webcodecs) return;
+    // Wait for browser support check to complete
+    if (!browserSupport) {
+      console.log(`[H264Stream] Waiting for browser support check...`);
+      return;
+    }
+
+    if (!enabled) return;
+
+    // Log support status but continue even if WebCodecs not supported (will show error UI)
+    console.log(`[H264Stream] Browser support: WebCodecs=${browserSupport.webcodecs}, Canvas2D=${browserSupport.canvas2d}, WebGL=${browserSupport.webgl}`);
+
+    if (!browserSupport.webcodecs) {
+      console.error(`[H264Stream] WebCodecs not supported, cannot create stream for ${deviceId}`);
+      return;
+    }
 
     console.log(`[H264Stream] Creating WebSocket for ${deviceId}`);
     const ws = new WebSocket(`ws://localhost:48000/video/${deviceId}`);
@@ -126,7 +140,7 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
       }
       setIsConnected(false);
     };
-  }, [enabled, deviceId]);
+  }, [enabled, deviceId, browserSupport]);
 
   function handleFrame(buffer: ArrayBuffer) {
     const data = new Uint8Array(buffer);
