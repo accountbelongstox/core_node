@@ -18,7 +18,7 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $winCommonDir "WindowsPathFunction.ps1")
 
 $STEP_NUMBER = 4
-$SCRIPT_INDEX = "[Step $STEP_NUMBER]"
+$script:SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
 # Node.js installation configuration
 # Version is defined in GlobalVars.ps1 to prevent multiple definitions
