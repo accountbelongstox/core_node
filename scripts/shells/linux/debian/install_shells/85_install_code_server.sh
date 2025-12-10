@@ -155,121 +155,57 @@ cleanup_code_server() {
     log "  rm -rf ~/.local/share/code-server"
 }
 
-# Function to show service information
-show_service_info() {
-    log "Code-server service information:"
-    echo ""
-
-    if check_service_exists; then
-        log "Service name: ncore-${CODE_SERVER_SERVICE_NAME}.service"
-
-        if check_service_active; then
-            log "Status: ${GREEN}Active (running)${NC}"
-        else
-            log "Status: ${YELLOW}Inactive (stopped)${NC}"
-        fi
-
-        if check_service_enabled; then
-            log "Auto-start: ${GREEN}Enabled${NC}"
-        else
-            log "Auto-start: ${YELLOW}Disabled${NC}"
-        fi
-
-        echo ""
-        log "Service details:"
-        $USE_SUDO systemctl status "ncore-${CODE_SERVER_SERVICE_NAME}.service" --no-pager -l || true
-    else
-        log "Service not found: ncore-${CODE_SERVER_SERVICE_NAME}.service"
-    fi
-}
-
-# Main menu
-show_menu() {
-    clear
-    echo ""
-    echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║          Code Server Management Script             ║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo "  1. Show service information"
-    echo "  2. Cleanup (stop and disable service)"
-    echo "  3. Exit"
-    echo ""
-    echo -e "${YELLOW}Note: This script does NOT install code-server${NC}"
-    echo -e "${YELLOW}      It only manages existing installations${NC}"
-    echo ""
-}
-
 # Main execution
 main() {
     log "Code Server Management Script"
     log "Installation mode: $INSTALL_MODE"
     echo ""
 
-    # Check if installation should be skipped based on mode
+    # Check if code-server service exists
+    if ! check_service_exists; then
+        log "No code-server service found"
+        log "Nothing to manage"
+        exit 0
+    fi
+
+    # Show current service information
+    log "Found code-server service: ncore-${CODE_SERVER_SERVICE_NAME}.service"
+
+    if check_service_active; then
+        log "Status: Active (running)"
+    else
+        log "Status: Inactive (stopped)"
+    fi
+
+    if check_service_enabled; then
+        log "Auto-start: Enabled"
+    else
+        log "Auto-start: Disabled"
+    fi
+    echo ""
+
+    # Automatic cleanup based on installation mode
     if [ "$INSTALL_MODE" != "server" ] && [ "$INSTALL_MODE" != "full" ]; then
         warn "Code Server is only used in 'server' or 'full' mode"
         warn "Current mode: $INSTALL_MODE"
         echo ""
 
-        # Still offer cleanup
-        if check_service_exists; then
-            log "Found existing code-server service"
-            echo ""
-            echo "Do you want to cleanup (stop and disable) the service? (y/N)"
-            read -r response
+        log "Automatically cleaning up code-server service..."
+        cleanup_code_server
+    else
+        log "Installation mode is '$INSTALL_MODE' - code-server is appropriate for this mode"
+        log "Service will remain in current state"
 
-            if [[ "$response" =~ ^[Yy]$ ]]; then
-                cleanup_code_server
-            else
-                log "Cleanup skipped"
-            fi
+        # Only show status, no action needed
+        if check_service_active || check_service_enabled; then
+            log "Code-server service is active/enabled as expected"
         else
-            log "No code-server service found"
+            log "Code-server service is stopped/disabled"
+            log "To start it, run: sudo systemctl start ncore-${CODE_SERVER_SERVICE_NAME}.service"
         fi
-
-        exit 0
     fi
 
-    # Show menu for server/full mode
-    while true; do
-        show_menu
-        read -p "Select an option (1-3): " choice
-
-        case "$choice" in
-            1)
-                echo ""
-                show_service_info
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                echo ""
-                echo "This will stop and disable the code-server service."
-                echo "Files will NOT be deleted."
-                echo ""
-                echo "Continue? (y/N)"
-                read -r confirm
-
-                if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                    cleanup_code_server
-                else
-                    log "Cleanup cancelled"
-                fi
-
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                log "Exiting..."
-                exit 0
-                ;;
-            *)
-                error "Invalid option. Please try again."
-                sleep 1
-                ;;
-        esac
-    done
+    exit 0
 }
 
 # Run main function
