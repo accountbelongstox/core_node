@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix API Test Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: #252526;
+            border-bottom: 2px solid #007acc;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .header h1 {
+            color: #4ec9b0;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #d16969;
+        }
+
+        .status-indicator.connected {
+            background: #6aa81d;
+        }
+
+        .status-text {
+            color: #9cdcfe;
+        }
+
+        .control-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1084d7;
+        }
+
+        button:active {
+            background: #0062a3;
+        }
+
+        button:disabled {
+            background: #4a4a4a;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .button-danger {
+            background: #d16969;
+        }
+
+        .button-danger:hover {
+            background: #e06c6c;
+        }
+
+        .button-success {
+            background: #6aa81d;
+        }
+
+        .button-success:hover {
+            background: #8ac24b;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            background: #1e1e1e;
+            padding: 12px 16px;
+            border-bottom: 1px solid #3e3e42;
+            color: #4ec9b0;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-content {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+            max-height: 500px;
+        }
+
+        .api-section {
+            margin-bottom: 20px;
+        }
+
+        .api-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .api-title {
+            color: #4ec9b0;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .api-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .api-button {
+            padding: 8px 12px;
+            font-size: 12px;
+            text-align: left;
+            background: #2d2d30;
+            border: 1px solid #3e3e42;
+        }
+
+        .api-button:hover {
+            background: #383838;
+            border-color: #007acc;
+        }
+
+        .log-item {
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #1e1e1e;
+            border-left: 3px solid #007acc;
+            border-radius: 2px;
+            font-size: 12px;
+            word-break: break-all;
+            color: #ce9178;
+        }
+
+        .log-item.success {
+            border-left-color: #6aa81d;
+            color: #6aa81d;
+        }
+
+        .log-item.error {
+            border-left-color: #d16969;
+            color: #d16969;
+        }
+
+        .log-item.info {
+            border-left-color: #4ec9b0;
+            color: #4ec9b0;
+        }
+
+        .log-item.event {
+            border-left-color: #c8e6c9;
+            color: #c8e6c9;
+            background: #1b5e20;
+        }
+
+        .json-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 2px;
+            overflow-x: auto;
+            font-size: 11px;
+            color: #ce9178;
+            border: 1px solid #3e3e42;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .json-key {
+            color: #9cdcfe;
+        }
+
+        .json-value {
+            color: #ce9178;
+        }
+
+        .json-number {
+            color: #b5cea8;
+        }
+
+        .json-true {
+            color: #569cd6;
+        }
+
+        .json-false {
+            color: #d16969;
+        }
+
+        .json-null {
+            color: #808080;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #3e3e42;
+            border-top-color: #007acc;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"], input[type="number"] {
+            flex: 1;
+            padding: 6px 8px;
+            background: #3e3e42;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            border-radius: 2px;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #007acc;
+            background: #3e3e42;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .button-group button {
+            flex: 1;
+        }
+
+        .clear-btn {
+            background: #d16969;
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+
+        .device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+        }
+
+        .device-card {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 12px;
+        }
+
+        .device-card.connected {
+            border-left: 3px solid #6aa81d;
+        }
+
+        .device-card.offline {
+            border-left: 3px solid #d16969;
+            opacity: 0.6;
+        }
+
+        .device-name {
+            color: #4ec9b0;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        .device-info {
+            color: #9cdcfe;
+            line-height: 1.4;
+        }
+
+        .divider {
+            border-bottom: 1px solid #3e3e42;
+            margin: 12px 0;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 12px;
+        }
+
+        .metric-label {
+            color: #9cdcfe;
+        }
+
+        .metric-value {
+            color: #b5cea8;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Matrix API Test Console</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span class="status-text" id="statusText">Disconnected</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-text">WebSocket: <span id="wsUrl">ws://localhost:48000/rpc/ws</span></span>
+                </div>
+                <div class="status-item">
+                    <span class="status-text">Client ID: <span id="clientId">-</span></span>
+                </div>
+            </div>
+            <div class="control-bar">
+                <button id="connectBtn" onclick="connectWebSocket()">Connect</button>
+                <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled class="button-danger">Disconnect</button>
+                <button id="clearLogsBtn" onclick="clearLogs()" class="clear-btn">Clear Logs</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Left Panel: API Tests -->
+            <div class="panel">
+                <div class="panel-title">
+                    <span>API Endpoints</span>
+                    <span id="apiCount">0</span>
+                </div>
+                <div class="panel-content">
+                    <!-- ADB Device Manager -->
+                    <div class="api-section">
+                        <div class="api-title">ADB Device Manager</div>
+                        <div class="api-buttons">
+                            <button class="api-button" onclick="testApi('adb.device.list', 'Get auto-discovered devices')">
+                                adb.device.list - Get Devices
+                            </button>
+                            <button class="api-button" onclick="testApi('adb.device.stats', 'Get device manager stats')">
+                                adb.device.stats - Get Stats
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Device Management -->
+                    <div class="api-section">
+                        <div class="api-title">Device Management</div>
+                        <div class="api-buttons">
+                            <button class="api-button" onclick="testApi('device.list', 'List all devices')">
+                                device.list - List All
+                            </button>
+                            <button class="api-button" onclick="testApi('device.info', 'Get device info', {})">
+                                device.info - Get Info
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Event Listeners -->
+                    <div class="api-section">
+                        <div class="api-title">Event Listeners</div>
+                        <div class="api-buttons">
+                            <button class="api-button button-success" onclick="listenToEvent('adb.devices.update')">
+                                Listen: adb.devices.update
+                            </button>
+                            <button class="api-button" id="stopListenBtn" onclick="stopListeningToEvent('adb.devices.update')" disabled>
+                                Stop Listening
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Testing Tools -->
+                    <div class="api-section">
+                        <div class="api-title">Testing Tools</div>
+                        <div class="api-buttons">
+                            <button class="api-button" onclick="testAllApis()">
+                                Test All APIs
+                            </button>
+                            <button class="api-button" onclick="getSystemInfo()">
+                                Get System Info
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Results & Logs -->
+            <div class="panel">
+                <div class="panel-title">
+                    <span>Response & Events</span>
+                    <span id="logCount">0</span>
+                </div>
+                <div class="panel-content" id="logPanel">
+                    <div class="log-item info">[System] Ready. Click Connect to start testing.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Full-width Results Panel -->
+        <div class="panel">
+            <div class="panel-title">Last Response Details</div>
+            <div class="panel-content">
+                <div id="resultPanel">
+                    <div class="log-item info">No response yet. Click any API button to test.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../pycore/pyutils/rpc_v2/client/unified_rpc_client.js"></script>
+    <script>
+        let client = null;
+        let logCount = 0;
+        let isListeningToDevicePush = false;
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            addLog('System initialized. Click "Connect" to establish WebSocket connection.', 'info');
+            updateApiCount();
+        });
+
+        function addLog(message, type = 'info', data = null) {
+            const logPanel = document.getElementById('logPanel');
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+
+            let content = message;
+            if (data) {
+                content += ` [${new Date().toLocaleTimeString()}]`;
+                logItem.innerHTML = `${content}<br><pre style="color: #888; margin-top: 4px; font-size: 11px;">${JSON.stringify(data, null, 2).substring(0, 200)}</pre>`;
+            } else {
+                content += ` [${new Date().toLocaleTimeString()}]`;
+                logItem.textContent = content;
+            }
+
+            logPanel.insertBefore(logItem, logPanel.firstChild);
+            logCount++;
+            document.getElementById('logCount').textContent = logCount;
+
+            // Keep only last 100 logs
+            while (logPanel.children.length > 100) {
+                logPanel.removeChild(logPanel.lastChild);
+                logCount--;
+            }
+        }
+
+        function clearLogs() {
+            const logPanel = document.getElementById('logPanel');
+            logPanel.innerHTML = '<div class="log-item info">[System] Logs cleared.</div>';
+            logCount = 1;
+            document.getElementById('logCount').textContent = logCount;
+        }
+
+        function updateStatusIndicator(connected) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (connected) {
+                indicator.classList.add('connected');
+                statusText.textContent = 'Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                indicator.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function updateApiCount() {
+            const count = document.querySelectorAll('.api-button').length;
+            document.getElementById('apiCount').textContent = count;
+        }
+
+        async function connectWebSocket() {
+            try {
+                const baseUrl = 'http://localhost:48000';
+                client = new FastAPIRpcClient(baseUrl, {
+                    debug: true,
+                    reconnect: true,
+                    reconnectInterval: 3000
+                });
+
+                await client.connect();
+                document.getElementById('clientId').textContent = client.options.clientId;
+                updateStatusIndicator(true);
+                addLog('WebSocket connected successfully', 'success');
+            } catch (error) {
+                updateStatusIndicator(false);
+                addLog(`Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (client && client.ws) {
+                client.ws.close();
+                updateStatusIndicator(false);
+                addLog('WebSocket disconnected', 'info');
+            }
+        }
+
+        async function testApi(route, description, params = {}) {
+            if (!client || !client.connected) {
+                addLog('Not connected. Please click "Connect" first.', 'error');
+                return;
+            }
+
+            try {
+                addLog(`Calling: ${route}...`, 'info');
+                const result = await client.call(route, params);
+                addLog(`✓ ${description}`, 'success', result);
+                displayResult(result);
+            } catch (error) {
+                addLog(`✗ ${route} failed: ${error.message}`, 'error');
+                displayResult({ error: error.message });
+            }
+        }
+
+        function listenToEvent(eventName) {
+            if (!client) {
+                addLog('Not connected. Please click "Connect" first.', 'error');
+                return;
+            }
+
+            client.onEvent(eventName, (data) => {
+                addLog(`Event received: ${eventName}`, 'event', data);
+
+                // Special handling for device push
+                if (eventName === 'adb.devices.update') {
+                    displayDeviceUpdate(data);
+                }
+            });
+
+            isListeningToDevicePush = true;
+            document.getElementById('stopListenBtn').disabled = false;
+            addLog(`Listening to: ${eventName}`, 'success');
+        }
+
+        function stopListeningToEvent(eventName) {
+            if (!client) return;
+
+            client.offEvent(eventName);
+            isListeningToDevicePush = false;
+            document.getElementById('stopListenBtn').disabled = true;
+            addLog(`Stopped listening to: ${eventName}`, 'info');
+        }
+
+        function displayResult(data) {
+            const resultPanel = document.getElementById('resultPanel');
+            resultPanel.innerHTML = `<div class="json-display">${syntaxHighlight(data)}</div>`;
+        }
+
+        function displayDeviceUpdate(data) {
+            const resultPanel = document.getElementById('resultPanel');
+
+            if (data.devices && Array.isArray(data.devices)) {
+                let html = `<div style="margin-bottom: 16px;">
+                    <div class="metric">
+                        <span class="metric-label">Total Devices:</span>
+                        <span class="metric-value">${data.count || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Last Update:</span>
+                        <span class="metric-value">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                </div>
+                <div class="device-list">`;
+
+                data.devices.forEach(device => {
+                    const isConnected = device.state === 'device';
+                    html += `
+                    <div class="device-card ${isConnected ? 'connected' : 'offline'}">
+                        <div class="device-name">${device.serial}</div>
+                        <div class="device-info">
+                            <div>${device.model || 'Unknown'}</div>
+                            <div>Android ${device.android_version || 'N/A'}</div>
+                            <div style="color: ${isConnected ? '#6aa81d' : '#d16969'}; margin-top: 4px;">
+                                ${device.state}
+                            </div>
+                            ${device.ip ? `<div style="margin-top: 4px; color: #888;">IP: ${device.ip}</div>` : ''}
+                            ${device.is_root ? `<div style="color: #ff9800;">✓ Root</div>` : ''}
+                        </div>
+                    </div>`;
+                });
+
+                html += '</div>';
+                resultPanel.innerHTML = html;
+            } else {
+                displayResult(data);
+            }
+        }
+
+        async function testAllApis() {
+            if (!client || !client.connected) {
+                addLog('Not connected. Please click "Connect" first.', 'error');
+                return;
+            }
+
+            const apis = [
+                { route: 'adb.device.list', description: 'ADB Device List' },
+                { route: 'adb.device.stats', description: 'ADB Device Stats' },
+                { route: 'device.list', description: 'Device List' }
+            ];
+
+            addLog('Testing all APIs...', 'info');
+
+            for (const api of apis) {
+                try {
+                    const result = await client.call(api.route, {});
+                    addLog(`✓ ${api.description}`, 'success');
+                } catch (error) {
+                    addLog(`✗ ${api.description}: ${error.message}`, 'error');
+                }
+                // Small delay between calls
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            addLog('API testing completed', 'info');
+        }
+
+        function getSystemInfo() {
+            const info = {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.platform,
+                onLine: navigator.onLine,
+                hardwareConcurrency: navigator.hardwareConcurrency,
+                connection: navigator.connection ? {
+                    effectiveType: navigator.connection.effectiveType,
+                    downlink: navigator.connection.downlink
+                } : 'N/A'
+            };
+
+            displayResult(info);
+            addLog('System info retrieved', 'success', info);
+        }
+
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-value';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-true';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+    </script>
+</body>
+</html>
