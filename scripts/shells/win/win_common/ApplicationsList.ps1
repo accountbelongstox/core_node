@@ -398,9 +398,9 @@ $Global:BasePackages = @{
         DesktopShortcuts   = $null
     }
     Java       = @{
-        PackageId          = "Oracle.JDK.17"
+        PackageId          = "Oracle.JDK.21"
         Exec              = "java.exe"
-        Name              = "Java"
+        Name              = "Java21"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
         Description       = "Java Development Kit - Programming language and runtime"
         InstallType       = "winget"
