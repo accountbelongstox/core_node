@@ -21,7 +21,7 @@ SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
 SCRIPT_INDEX="48"
-INSTALL_MYSQL=""
+START_MYSQL=""
 INSTALL_MODE=""
 MYSQL_CONFIG_FILE=""
 MYSQL_DATA_DIR=""
@@ -39,7 +39,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/repository_manager.sh"
 # Initialize variables
 SCRIPT_INDEX="48"
-INSTALL_MYSQL=$(get_var "INSTALL_MYSQL")
+START_MYSQL=$(get_var "START_MYSQL" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 MYSQL_CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
 # Use compile_dir for database data and logs (auto-selects based on environment)
@@ -48,10 +48,7 @@ MYSQL_LOG_DIR=$(map_web_path "compile_dir" "mysql/logs")
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
 echo "[$SCRIPT_INDEX] MySQL will always be installed"
-
-# Check if MySQL should be started after installation
-START_MYSQL=$(get_var "START_MYSQL" "false")
-echo "[$SCRIPT_INDEX] Start after installation: $START_MYSQL"
+echo "[$SCRIPT_INDEX] START_MYSQL: $START_MYSQL"
 
 # Check repository status before proceeding
 if ! verify_mysql_repo_for_install; then
@@ -318,27 +315,42 @@ if [ "$EUID" -ne 0 ] && [ "$USE_SUDO" = "sudo" ]; then
     exit 1
 fi
 
-# Check INSTALL_MYSQL variable
-if [ "$INSTALL_MYSQL" = "true" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_MYSQL is true - Installing and enabling MySQL..."
-    
-    # Check if MySQL is already installed
-    if check_mysql; then
-        echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
-        # Update stored information
-        store_mysql_info
-    else
-        install_mysql
-        if ! check_mysql; then
-            echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
-            exit 1
-        fi
-        echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+# Main installation logic - MySQL is always installed
+echo "[$SCRIPT_INDEX] ============================================"
+echo "[$SCRIPT_INDEX] Installing MySQL (MariaDB)..."
+echo "[$SCRIPT_INDEX] ============================================"
+
+# Check if MySQL is already installed
+if check_mysql; then
+    echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
+    # Update stored information
+    store_mysql_info
+else
+    install_mysql
+    if ! check_mysql; then
+        echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
+        exit 1
     fi
-    
-    # Disable MySQL services to save memory
+    echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+fi
+
+# Configure service based on START_MYSQL variable
+if [ "$START_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] Disabling MySQL service to save memory..."
+    echo "[$SCRIPT_INDEX] START_MYSQL is true - Enabling and starting MySQL..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    enable_mysql_services
+
+    # Set global variables
+    set_var "MYSQL_AVAILABLE" "true"
+    set_var "MYSQL_ENABLED" "true"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] MySQL is installed and running"
+    echo "[$SCRIPT_INDEX] ============================================"
+else
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] START_MYSQL is false - Disabling MySQL service to save memory..."
     echo "[$SCRIPT_INDEX] ============================================"
     disable_mysql_services
 
@@ -351,42 +363,9 @@ if [ "$INSTALL_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
     echo "[$SCRIPT_INDEX] Use the Service Manager menu to start MySQL when needed"
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] MySQL installation completed"
-    
-elif [ "$INSTALL_MYSQL" = "false" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_MYSQL is false - Disabling MySQL services..."
-    echo "[$SCRIPT_INDEX] Repository cleanup should be handled by 12_update.sh"
-    
-    # Disable MySQL services
-    disable_mysql_services
-    
-    # Check if MySQL is still installed despite repository removal
-    if check_mysql; then
-        echo "[$SCRIPT_INDEX] MySQL is still installed, removing..."
-        $USE_SUDO apt remove -y mariadb-server mariadb-client 2>/dev/null || true
-        $USE_SUDO apt purge -y mariadb-server mariadb-client 2>/dev/null || true
-        echo "[$SCRIPT_INDEX] MySQL removed successfully"
-    else
-        echo "[$SCRIPT_INDEX] MySQL is not installed"
-    fi
-    
-    # Clean up MySQL data directory
-    if [ -d "$MYSQL_DATA_DIR" ]; then
-        echo "[$SCRIPT_INDEX] Cleaning up MySQL data directory..."
-        $USE_SUDO rm -rf "$MYSQL_DATA_DIR"
-    fi
-    
-    # Set global variables
-    set_var "MYSQL_AVAILABLE" "false"
-    set_var "MYSQL_ENABLED" "false"
-    
-    echo "[$SCRIPT_INDEX] MySQL services disabled and cleaned up"
-    
-else
-    echo "[$SCRIPT_INDEX] INSTALL_MYSQL is not set or invalid: $INSTALL_MYSQL"
-    echo "[$SCRIPT_INDEX] Skipping MySQL management"
-    exit 0
 fi
+
+echo "[$SCRIPT_INDEX] MySQL configuration completed"
 
 # Display MySQL installation status
 echo "[$SCRIPT_INDEX] === MySQL Status ==="
