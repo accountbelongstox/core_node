@@ -511,10 +511,13 @@ class BuildController:
         print("[Python] Launching resource preview...")
         print("=" * 60)
 
-        user_continues = show_preview(resource_data, port=8899)
+        show_preview(resource_data, self.var_system, port=8899)
 
-        if not user_continues:
-            print("[Python] Build cancelled by user")
+        # Read user action from file variable (not return value)
+        user_action = self.var_system.get_var("USER_ACTION")
+
+        if user_action != "continue":
+            print(f"[Python] Build cancelled by user (action: {user_action})")
             self.var_system.set_var("ERROR", "user_cancelled")
             return
 
