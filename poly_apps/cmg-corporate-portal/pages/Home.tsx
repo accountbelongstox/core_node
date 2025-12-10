@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Target, Shield, MapPin, ArrowRight, Sun, Crown, ChevronRight, Crosshair, LandPlot, Cloud, CloudSun, CloudRain, Phone, Bell, Hotel, Clapperboard, ChevronUp, Pickaxe, Calendar, Clock, Flag } from 'lucide-react';
+import { Target, Shield, MapPin, ArrowRight, Sun, Crown, ChevronRight, Crosshair, LandPlot, Cloud, CloudSun, CloudRain, Phone, Bell, Hotel, Clapperboard, ChevronUp, Pickaxe, Calendar, Clock, Flag, Building2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../App';
 import { getMockWeather, getTimeInfo, WeatherInfo, TimeInfo } from '../utils/weather';
@@ -78,7 +78,7 @@ const Home: React.FC = () => {
                   {/* Top Row: Context */}
                   <div className="flex justify-between items-start mb-5">
                       <div className="flex flex-col">
-                          <span className="text-[9px] font-bold tracking-[0.2em] text-stone-400 dark:text-stone-500 uppercase mb-1">{greeting}</span>an>
+                          <span className="text-[9px] font-bold tracking-[0.2em] text-stone-400 dark:text-stone-500 uppercase mb-1">{greeting}</span>
                           <div className="flex items-center gap-2 text-stone-600 dark:text-gray-300">
                              {weather && getWeatherIcon(weather.icon, 14)}
                              <span className="text-xs font-medium font-serif">{weather?.temperature}°C Vientiane</span>
@@ -87,7 +87,7 @@ const Home: React.FC = () => {
                       {timeInfo && (
                           <div className="text-right">
                               <span className="block text-xl font-serif font-medium text-stone-900 dark:text-white leading-none tracking-tight">{timeInfo.time}</span>
-                              <span className="text-[9px] text-stone-400 dark:text-stone-600 uppercase tracking-wider font-bold">{timeInfo.date}</span>an>
+                              <span className="text-[9px] text-stone-400 dark:text-stone-600 uppercase tracking-wider font-bold">{timeInfo.date}</span>
                           </div>
                       )}
                   </div>
@@ -105,10 +105,10 @@ const Home: React.FC = () => {
 
                   {/* Bottom: Action - Redesigned Button */}
                   <div className="flex items-center justify-between border-t border-stone-100 dark:border-white/5 pt-4">
-                      <span className="text-[9px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">Elite Access Only</span>an>
+                      <span className="text-[9px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest">Elite Access Only</span>
                       <button
                           onClick={openLogin}
-                          className="flex items-center gap-2 bg-white dark:bg-white text-stone-900 dark:text-black px-5 py-2 rounded-full font-bold text-[11px] hover:scale-105 active:scale-95 transition-all shadow-lg border border-stone-200 dark:border-stone-300"0"
+                          className="flex items-center gap-2 bg-white dark:bg-white text-stone-900 dark:text-black px-5 py-2 rounded-full font-bold text-[11px] hover:scale-105 active:scale-95 transition-all shadow-lg border border-stone-200 dark:border-stone-300"
                       >
                           {t('auth.login')} <ArrowRight size={12} />
                       </button>
@@ -190,82 +190,44 @@ const Home: React.FC = () => {
               icon: Hotel,
               labelKey: "home.quickActions.bookHotel",
               action: () => setHotelDrawerOpen(true),
-              color: 'orange'
             },
             { 
               icon: Crosshair,
               labelKey: "home.quickActions.reserveRange",
               action: () => setShootingDrawerOpen(true),
-              color: 'red'
             },
             { 
               icon: Flag,
               labelKey: "home.quickActions.teeTime",
               action: () => setGolfDrawerOpen(true),
-              color: 'emerald'
             },
             { 
               icon: Shield,
               labelKey: "home.quickActions.bodyguard",
               action: () => navigate('/security'),
-              color: 'blue'
             },
           ].map((item, idx) => {
             const IconComponent = item.icon;
-            const colorClasses = {
-              orange: {
-                bg: 'from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20',
-                icon: 'text-orange-600 dark:text-orange-400',
-                border: 'border-orange-100 dark:border-orange-500/30',
-                iconBg: 'bg-orange-100 dark:bg-orange-900/40',
-                gradient: 'from-orange-500 to-amber-500'
-              },
-              red: {
-                bg: 'from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20',
-                icon: 'text-red-600 dark:text-red-400',
-                border: 'border-red-100 dark:border-red-500/30',
-                iconBg: 'bg-red-100 dark:bg-red-900/40',
-                gradient: 'from-red-500 to-rose-500'
-              },
-              emerald: {
-                bg: 'from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20',
-                icon: 'text-emerald-600 dark:text-emerald-400',
-                border: 'border-emerald-100 dark:border-emerald-500/30',
-                iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
-                gradient: 'from-emerald-500 to-teal-500'
-              },
-              blue: {
-                bg: 'from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/20',
-                icon: 'text-blue-600 dark:text-blue-400',
-                border: 'border-blue-100 dark:border-blue-500/30',
-                iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-                gradient: 'from-blue-500 to-cyan-500'
-              }
-            };
-            const colors = colorClasses[item.color as keyof typeof colorClasses];
             
             return (
               <button
                 key={idx}
                 onClick={item.action}
-                className={`flex-none h-[40px] px-4 py-2 rounded-2xl flex items-center gap-2.5 font-bold text-xs transition-all duration-300 relative overflow-hidden group border ${colors.border} bg-gradient-to-br ${colors.bg} hover:shadow-lg hover:scale-105`}
+                className="flex-none h-[40px] px-4 py-2 rounded-2xl flex items-center gap-2.5 font-bold text-xs transition-all duration-300 relative overflow-hidden group border border-stone-300 dark:border-stone-600 bg-gradient-to-br from-black/20 to-black/10 dark:from-black/40 dark:to-black/20 backdrop-blur-md hover:shadow-lg hover:scale-105"
               >
                 {/* Icon */}
-                <div className={`p-1.5 rounded-lg ${colors.iconBg} backdrop-blur-sm group-hover:scale-110 transition-all shadow-sm`}>
+                <div className="p-1.5 rounded-lg bg-black/20 dark:bg-black/30 backdrop-blur-sm group-hover:scale-110 transition-all shadow-sm">
                   <IconComponent 
                     size={14} 
                     strokeWidth={2.5}
-                    className={colors.icon}
+                    className="text-white"
                   />
                 </div>
                 
                 {/* Text */}
-                <span className={`${colors.icon} font-bold whitespace-nowrap`}>
+                <span className="text-white font-bold whitespace-nowrap">
                   {t(item.labelKey)}
                 </span>
-                
-                {/* Hover Accent */}
-                <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${colors.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-b-2xl`}></div>
               </button>
             );
           })}
@@ -476,13 +438,9 @@ const Home: React.FC = () => {
                 <p className="text-stone-400 dark:text-yellow-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-4">{t('home.corporate.profile')}</p>
                 <h2 className="text-3xl font-serif font-bold leading-tight max-w-[90%] text-stone-900 dark:text-white">{t('home.corporate.title')}</h2>
             </div>
-                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
-                <div className="text-xs text-stone-500 dark:text-gray-400 font-medium font-serif italic">
-                    {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
-                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
+            <div className="relative z-10">
                 <button 
-                    {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
-                  className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
+                    className="bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 backdrop-blur-md rounded-full px-6 py-3 text-xs font-bold flex items-center border border-stone-200 dark:border-white/10 text-stone-900 dark:text-white transition-colors uppercase tracking-wider"
                 >
                     {t('home.corporate.viewProfile')} <ChevronRight size={14} className="ml-1"/>
                 </button>
