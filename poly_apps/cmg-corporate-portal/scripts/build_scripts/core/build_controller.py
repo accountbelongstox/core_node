@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Main Controller for Build System
-Handles all logic and prepares commands for shell execution
+Build Controller for Capacitor/Android Build System
+Handles all business logic and prepares commands for shell execution
 Does NOT execute any shell commands directly
 """
 
@@ -18,11 +18,11 @@ import traceback
 import glob
 from pathlib import Path
 
-# Add build_scripts to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path to access utils and managers
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from file_var_system_new import FileVarSystem
-from init_build_config import (
+from utils.file_var_system_new import FileVarSystem
+from utils.init_build_config import (
     generate_app_name,
     generate_package_id,
     generate_display_name,
@@ -30,11 +30,11 @@ from init_build_config import (
     read_config,
     extract_config_info
 )
-from resource_scanner import ResourceScanner
-from web_preview_server import show_preview
-from resource_replacer import ResourceReplacer
-from capacitor_resource_manager import CapacitorResourceManager
-from key_center import (
+from managers.resource_scanner import ResourceScanner
+from utils.web_preview_server import show_preview
+from managers.resource_replacer import ResourceReplacer
+from managers.capacitor_resource_manager import CapacitorResourceManager
+from utils.key_center import (
     VERSION_CONFIG,
     REQUIRED_CORE_MAJOR_VERSION,
     get_java_requirements,

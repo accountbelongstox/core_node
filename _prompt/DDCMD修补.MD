@@ -38,3 +38,14 @@ Press Enter to continue, or any other key to pause (auto-continue in 3 seconds).
 Auto-continuing in 3
 
 
+所有变量放到   C:\Users\用户名\.core_node\.build_global_vars / /var/_core_node/_build_global_vars/ 中，其中不能有文件夹和子目录，key=filename,val=content.
+
+
+在dd.sh dd.ps1 中的 Git Management   
+都使用py来组织命令，当然最后要回退到shell中来执行，现在 
+windows/liunx都只使用 入口作为调用py,最后命令会到shell中执行，注意不要使用退
+出码、返回值检测任何，而使用文件变量，所有变量放到  
+ C:\Users\用户名\.core_node\.build_global_vars / 
+/var/_core_node/_build_global_vars/ 
+中，其中不能有文件夹和子目录，key=filename,val=content. 
+
