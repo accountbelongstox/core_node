@@ -4,10 +4,14 @@
 File Variable System (Refactored)
 Uses single file per variable instead of JSON
 Format: filename = KEY, content = VALUE
+Stores in global directory:
+  - Windows: C:\\Users\\USERNAME\\.core_node\\.build_global_vars
+  - Linux: /var/_core_node/_build_global_vars/
 """
 
 import os
 import sys
+import platform
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -20,6 +24,7 @@ class FileVarSystem:
     File-based variable system
     Each variable stored as a separate file
     Filename = KEY, Content = VALUE
+    Uses global directory instead of project-local
     """
 
     def __init__(self, app_prefix: str, project_root: str):
@@ -28,18 +33,50 @@ class FileVarSystem:
 
         Args:
             app_prefix: Prefix for variables (e.g., 'CMG_PORTAL')
-            project_root: Root directory of the project
+            project_root: Root directory of the project (kept for compatibility)
         """
         self.app_prefix = app_prefix.upper()
         self.project_root = Path(project_root)
 
-        # Variable storage directory
-        self.var_dir = self.project_root / ".build_vars"
-        self.var_dir.mkdir(exist_ok=True)
+        # Determine global variable directory based on OS
+        self.var_dir = self._get_global_var_dir()
+        self.var_dir.mkdir(parents=True, exist_ok=True)
 
-        # Commands directory
-        self.cmd_dir = self.var_dir / "commands"
-        self.cmd_dir.mkdir(exist_ok=True)
+        # Print global variable directory info
+        print(f"[FileVarSystem] Global variable directory: {self.var_dir}")
+        print(f"[FileVarSystem] App prefix: {self.app_prefix}")
+
+    def _get_global_var_dir(self) -> Path:
+        """
+        Get global variable directory based on operating system
+
+        Returns:
+            Path to global variable directory
+        """
+        system = platform.system()
+
+        if system == "Windows":
+            # Windows: C:\Users\USERNAME\.core_node\.build_global_vars
+            user_home = Path.home()
+            return user_home / ".core_node" / ".build_global_vars"
+        elif system == "Linux":
+            # Linux: /var/_core_node/_build_global_vars/
+            linux_path = Path("/var/_core_node/_build_global_vars")
+
+            # Check if we have write permission
+            if os.access("/var/_core_node", os.W_OK) or os.access("/var", os.W_OK):
+                return linux_path
+            else:
+                # Fallback to user home if no permission
+                print(f"[WARNING] No write permission to /var, using fallback: ~/.core_node/.build_global_vars")
+                return Path.home() / ".core_node" / ".build_global_vars"
+        elif system == "Darwin":
+            # macOS: Similar to Linux, use user home
+            return Path.home() / ".core_node" / ".build_global_vars"
+        else:
+            # Unknown OS: fallback to user home
+            print(f"[WARNING] Unknown OS: {system}, using fallback: ~/.core_node/.build_global_vars")
+            return Path.home() / ".core_node" / ".build_global_vars"
 
     def _get_var_path(self, key: str) -> Path:
         """
@@ -70,7 +107,7 @@ class FileVarSystem:
         else:
             filename = f"{self.app_prefix}_COMMAND_{index}"
 
-        return self.cmd_dir / filename
+        return self.var_dir / filename
 
     def set_var(self, key: str, value: Any) -> None:
         """
@@ -247,8 +284,8 @@ class FileVarSystem:
         # Clear command count
         self.set_var(KEY_COMMAND_COUNT, 0)
 
-        # Remove all command files
-        for cmd_file in self.cmd_dir.glob(f"{self.app_prefix}_COMMAND_*"):
+        # Remove all command files from main directory
+        for cmd_file in self.var_dir.glob(f"{self.app_prefix}_COMMAND_*"):
             if cmd_file.is_file():
                 cmd_file.unlink()
 

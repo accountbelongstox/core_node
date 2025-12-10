@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from utils.common_utils import (
-    ColorMessage, clear_screen, is_admin, get_winenvs_dir, get_linuxenvs_dir, show_menu
+    ColorMessage, clear_screen, is_admin, get_winenvs_dir, get_linuxenvs_dir, show_menu, safe_write_secret
 )
 from utils.secret_manager import resolve_secret_value
 from managers.backup_manager import BackupManager
@@ -121,7 +121,7 @@ class EnvironmentVariableManager:
             secret_file = self.raw_dir / secret_key_name
 
             try:
-                secret_file.write_text(var_value, encoding='utf-8')
+                safe_write_secret(secret_file, var_value)
                 ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
                 saved_count += 1
             except Exception as e:

@@ -22,6 +22,7 @@ class ResourcePreviewHandler(BaseHTTPRequestHandler):
     # Class variable to store resource data
     resource_data = None
     server_should_stop = False
+    user_action = "cancelled"  # Track user action: "continue" or "cancelled"
 
     def log_message(self, format, *args):
         """Override to suppress request logs"""
@@ -105,16 +106,6 @@ class ResourcePreviewHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, f"Error serving image: {str(e)}")
 
-    def handle_shutdown(self):
-        """Handle shutdown request"""
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({'status': 'ok'}).encode('utf-8'))
-
-        # Signal server to stop
-        ResourcePreviewHandler.server_should_stop = True
-
     def handle_continue(self):
         """Handle continue request"""
         self.send_response(200)
@@ -122,7 +113,19 @@ class ResourcePreviewHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps({'status': 'continue'}).encode('utf-8'))
 
-        # Signal server to stop
+        # Signal server to stop and record user action
+        ResourcePreviewHandler.user_action = "continue"
+        ResourcePreviewHandler.server_should_stop = True
+
+    def handle_shutdown(self):
+        """Handle shutdown/cancel request"""
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'status': 'cancelled'}).encode('utf-8'))
+
+        # Signal server to stop and record user action
+        ResourcePreviewHandler.user_action = "cancelled"
         ResourcePreviewHandler.server_should_stop = True
 
     def generate_html(self):
@@ -636,17 +639,22 @@ class WebPreviewServer:
             self.server = None
 
 
-def show_preview(resource_data: dict, port: int = 8899) -> bool:
+def show_preview(resource_data: dict, var_system, port: int = 8899) -> None:
     """
     Show resource preview in web browser
 
     Args:
         resource_data: Resource data from scanner
+        var_system: FileVarSystem instance for setting variables
         port: Port to run server on
 
     Returns:
-        True if user chose to continue, False if cancelled
+        None (uses file variables to communicate user choice)
     """
+    # Reset server state before starting
+    ResourcePreviewHandler.server_should_stop = False
+    ResourcePreviewHandler.user_action = "cancelled"
+
     server = WebPreviewServer(resource_data, port)
     server.start()
 
@@ -660,6 +668,8 @@ def show_preview(resource_data: dict, port: int = 8899) -> bool:
     print("  3. Press 'Y' here to continue, 'N' to cancel")
     print("=" * 60)
 
+    user_action = "cancelled"  # Default to cancelled
+
     while not ResourcePreviewHandler.server_should_stop:
         try:
             user_input = input("\nContinue? [Y/n]: ").strip().upper()
@@ -667,29 +677,50 @@ def show_preview(resource_data: dict, port: int = 8899) -> bool:
             if user_input in ('Y', 'YES', ''):
                 # User confirmed - stop server and continue
                 print("[Web] Continuing with build...")
+                user_action = "continue"
+                ResourcePreviewHandler.user_action = "continue"  # Update class variable
                 server.stop()
-                return True
+                break
             elif user_input in ('N', 'NO'):
                 # User cancelled - stop server and abort
                 print("[Web] Build cancelled by user")
+                user_action = "cancelled"
+                ResourcePreviewHandler.user_action = "cancelled"  # Update class variable
                 server.stop()
-                return False
+                break
             else:
                 # Invalid input, ask again
                 print("[Web] Invalid input. Please enter 'Y' to continue or 'N' to cancel.")
         except KeyboardInterrupt:
             print("\n[Web] Interrupted by user")
+            user_action = "cancelled"
+            ResourcePreviewHandler.user_action = "cancelled"  # Update class variable
             server.stop()
-            return False
+            break
         except EOFError:
             # EOF reached (e.g., input redirected)
             print("\n[Web] No input available, defaulting to continue")
+            user_action = "continue"
+            ResourcePreviewHandler.user_action = "continue"  # Update class variable
             server.stop()
-            return True
+            break
         except Exception as e:
             print(f"[Web] Input error: {e}")
             pass
 
     # Server was stopped via web interface
+    if ResourcePreviewHandler.server_should_stop:
+        # Check which action was taken (continue or cancel)
+        # This is set by the web interface handlers
+        if hasattr(ResourcePreviewHandler, 'user_action'):
+            user_action = ResourcePreviewHandler.user_action
+        else:
+            # Fallback: assume continue if server stopped from web
+            user_action = "continue"
+
     server.stop()
-    return True
+
+    # Set file variable instead of returning
+    var_system.set_var("USER_ACTION", user_action)
+    print(f"[Web] User action recorded: {user_action}")
+    print("[Web] Shutting down preview server...")
