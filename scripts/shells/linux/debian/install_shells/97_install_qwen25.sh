@@ -81,15 +81,37 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: Qwen2.5 requires transformers >= 4.37.0"
 
-    print_info "Uninstalling incompatible torch versions..."
-    echo ""
-    $python_cmd -m pip uninstall -y torch torchvision torchaudio
+    # Check for GPU availability
+    print_info "Checking for GPU availability..."
+    local has_gpu=false
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        if nvidia-smi >/dev/null 2>&1; then
+            has_gpu=true
+            print_success "NVIDIA GPU detected"
+        else
+            print_warning "nvidia-smi found but GPU not accessible"
+        fi
+    else
+        print_info "No NVIDIA GPU detected, will use CPU version"
+    fi
     echo ""
 
-    print_info "Installing compatible torch and dependencies..."
-    echo ""
-    $python_cmd -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-    echo ""
+    # Install torch based on GPU availability
+    if [[ "$has_gpu" == true ]]; then
+        print_info "Uninstalling incompatible torch versions..."
+        echo ""
+        $python_cmd -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+        echo ""
+
+        print_info "Installing GPU-enabled torch and dependencies..."
+        echo ""
+        $python_cmd -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+        echo ""
+    else
+        print_info "Skipping torch installation (CPU-only setup)"
+        print_info "Using transformers with CPU backend"
+        echo ""
+    fi
 
     print_info "Installing transformers and accelerate..."
     echo ""
@@ -97,7 +119,7 @@ install_dependencies() {
     echo ""
 
     print_info "Verifying installation..."
-    local verify_result=$($python_cmd -c "import transformers; import torch; print('[OK] transformers version:', transformers.__version__); print('[OK] torch version:', torch.__version__)" 2>&1)
+    local verify_result=$($python_cmd -c "import transformers; print('[OK] transformers version:', transformers.__version__)" 2>&1)
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
