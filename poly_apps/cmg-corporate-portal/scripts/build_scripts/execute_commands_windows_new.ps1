@@ -18,15 +18,11 @@ $ErrorActionPreference = "Stop"
 # Global variable directory (Windows)
 $GlobalVarDir = Join-Path $env:USERPROFILE ".core_node\.build_global_vars"
 $VarDir = $GlobalVarDir
-$CmdDir = Join-Path $VarDir "commands"
 $AppPrefix = ""  # Will be determined from var files
 
 # Ensure global variable directory exists
 if (-not (Test-Path $VarDir)) {
     New-Item -Path $VarDir -ItemType Directory -Force | Out-Null
-}
-if (-not (Test-Path $CmdDir)) {
-    New-Item -Path $CmdDir -ItemType Directory -Force | Out-Null
 }
 
 Write-Host "[FileVarSystem] Global variable directory: $VarDir" -ForegroundColor Cyan
@@ -180,9 +176,9 @@ function Get-Command {
         [string]$Prefix
     )
 
-    $typeFile = Join-Path $CmdDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_TYPE}"
-    $descFile = Join-Path $CmdDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_DESC}"
-    $workdirFile = Join-Path $CmdDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_WORKDIR}"
+    $typeFile = Join-Path $VarDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_TYPE}"
+    $descFile = Join-Path $VarDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_DESC}"
+    $workdirFile = Join-Path $VarDir "${Prefix}_COMMAND_${Index}_${FIELD_CMD_WORKDIR}"
 
     if (-not (Test-Path $typeFile)) {
         return $null
@@ -353,12 +349,14 @@ function Execute-Command {
             Backup-PackageJson -Prefix $Prefix
         }
         "init_capacitor" {
-            $appName = $parts[1]
-            $packageId = $parts[2]
-            Initialize-Capacitor -AppName $appName -PackageId $packageId -Prefix $Prefix
+            # No parameter parsing - all data read from file variables
+            Initialize-Capacitor -Prefix $Prefix
         }
         "add_android_platform" {
             Add-AndroidPlatform -Prefix $Prefix
+        }
+        "remove_android_platform" {
+            Remove-AndroidPlatform -Prefix $Prefix
         }
         "start_dev_server" {
             Start-DevServer -Prefix $Prefix
@@ -368,6 +366,38 @@ function Execute-Command {
         }
         "sync_capacitor_android" {
             Sync-CapacitorAndroid -Prefix $Prefix
+        }
+        "pnpm_remove" {
+            # Parse command: pnpm_remove|package1 package2 package3
+            $packages = $parts[1]
+            Write-Section "Removing Capacitor Packages"
+            $WorkDir = Get-VarValue -Key $KEY_PROJECT_ROOT -Prefix $Prefix
+            Write-ColorText "[Work Dir] $WorkDir" "Gray"
+            Push-Location $WorkDir
+            try {
+                # Split packages into array and pass to pnpm
+                $packageArray = $packages -split '\s+'
+                Print-Command "pnpm remove $($packageArray -join ' ')"
+                & pnpm remove @packageArray
+            } finally {
+                Pop-Location
+            }
+        }
+        "pnpm_add" {
+            # Parse command: pnpm_add|package1@latest package2@latest
+            $packages = $parts[1]
+            Write-Section "Installing Capacitor Packages"
+            $WorkDir = Get-VarValue -Key $KEY_PROJECT_ROOT -Prefix $Prefix
+            Write-ColorText "[Work Dir] $WorkDir" "Gray"
+            Push-Location $WorkDir
+            try {
+                # Split packages into array and pass to pnpm
+                $packageArray = $packages -split '\s+'
+                Print-Command "pnpm add $($packageArray -join ' ')"
+                & pnpm add @packageArray
+            } finally {
+                Pop-Location
+            }
         }
         "build_android_apk" {
             Build-AndroidApk -Prefix $Prefix
@@ -432,116 +462,126 @@ function Backup-PackageJson {
 }
 
 function Initialize-Capacitor {
-    param(
-        [string]$AppName,
-        [string]$PackageId,
-        [string]$Prefix
-    )
+    param([string]$Prefix)
 
     Write-Section "Initializing Capacitor"
 
+    # Read all variables from file system (no direct parameter passing)
     $projectRoot = Get-VarValue -Key $KEY_PROJECT_ROOT -Prefix $Prefix
-    $capacitorConfigTs = Join-Path $projectRoot "capacitor.config.ts"
-    $capacitorConfigJs = Join-Path $projectRoot "capacitor.config.js"
-
+    $appName = Get-VarValue -Key $KEY_APP_NAME -Prefix $Prefix
+    $packageId = Get-VarValue -Key $KEY_PACKAGE_ID -Prefix $Prefix
     $displayNameEn = Get-VarValue -Key $KEY_DISPLAY_NAME_EN -Prefix $Prefix
     $displayNameCn = Get-VarValue -Key "DISPLAY_NAME_CN" -Prefix $Prefix
     $description = Get-VarValue -Key "DESCRIPTION" -Prefix $Prefix
 
-    Write-ColorText "[Config] App Name (Technical): $AppName" "Cyan"
+    $capacitorConfigTs = Join-Path $projectRoot "capacitor.config.ts"
+    $capacitorConfigJs = Join-Path $projectRoot "capacitor.config.js"
+
+    Write-ColorText "[Config] App Name (Technical): $appName" "Cyan"
     if ($displayNameEn) {
         Write-ColorText "[Config] Display Name (EN): $displayNameEn" "Cyan"
     }
     if ($displayNameCn) {
         Write-ColorText "[Config] Display Name (CN): $displayNameCn" "Cyan"
     }
-    Write-ColorText "[Config] Package ID: $PackageId" "Cyan"
+    Write-ColorText "[Config] Package ID: $packageId" "Cyan"
     if ($description) {
         Write-ColorText "[Config] Description: $description" "DarkGray"
     }
 
-    Push-Location $projectRoot
-    try {
-        Print-Command "npx cap init ""$AppName"" ""$PackageId"""
+    # Check for existing non-JSON config files before running init
+    $existingConfigs = @()
+    if (Test-Path $capacitorConfigTs) {
+        $existingConfigs += "capacitor.config.ts"
+    }
+    if (Test-Path $capacitorConfigJs) {
+        $existingConfigs += "capacitor.config.js"
+    }
 
-        # Capture output to check for errors
-        $output = & npx cap init "$AppName" "$PackageId" 2>&1 | Out-String
+    # If non-JSON config exists, ask user to delete first
+    if ($existingConfigs.Count -gt 0) {
+        Write-Host ""
+        Write-ColorText "[Warning] Found existing Capacitor configuration file(s)" "Yellow"
+        Write-ColorText "[Info] Found: $($existingConfigs -join ', ')" "Cyan"
+        Write-Host ""
+        Write-Host "Capacitor requires a JSON configuration file for initialization."
+        Write-Host "The existing TypeScript/JavaScript config will be removed."
+        Write-Host ""
 
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorText "[ERROR] Capacitor initialization failed" "Red"
-            Write-Host $output
+        # Prompt user (default No)
+        $confirmation = Read-Host "Delete config file(s) and reinitialize? [y/N]"
 
-            # Check if error is about non-JSON config file
-            if ($output -match "non-JSON configuration file" -or $output -match "capacitor.config.ts") {
-                Write-Host ""
-                Write-ColorText "[Warning] Found existing Capacitor configuration file(s)" "Yellow"
+        if ($confirmation -match '^[Yy]$') {
+            Write-Host ""
+            Write-ColorText "[Action] Removing existing configuration files..." "Yellow"
 
-                $existingConfigs = @()
-                if (Test-Path $capacitorConfigTs) {
-                    $existingConfigs += "capacitor.config.ts"
-                }
-                if (Test-Path $capacitorConfigJs) {
-                    $existingConfigs += "capacitor.config.js"
-                }
+            # Remove existing config files
+            foreach ($configFile in $existingConfigs) {
+                $fullPath = Join-Path $projectRoot $configFile
+                try {
+                    # Backup first
+                    $backupPath = "$fullPath.backup"
+                    if (Test-Path $fullPath) {
+                        Print-Command "Copy-Item ""$fullPath"" ""$backupPath"""
+                        Copy-Item $fullPath $backupPath -Force
+                        Write-ColorText "[Backup] Created backup: $configFile.backup" "Green"
 
-                if ($existingConfigs.Count -gt 0) {
-                    Write-ColorText "[Info] Found: $($existingConfigs -join ', ')" "Cyan"
-                    Write-Host ""
-                    Write-Host "Capacitor requires a JSON configuration file for initialization."
-                    Write-Host "The existing TypeScript/JavaScript config will be removed."
-                    Write-Host ""
-
-                    # Prompt user
-                    $confirmation = Read-Host "Delete config file(s) and reinitialize? [Y/n]"
-
-                    if ($confirmation -match '^[Yy]' -or [string]::IsNullOrWhiteSpace($confirmation)) {
-                        Write-Host ""
-                        Write-ColorText "[Action] Removing existing configuration files..." "Yellow"
-
-                        # Remove existing config files
-                        foreach ($configFile in $existingConfigs) {
-                            $fullPath = Join-Path $projectRoot $configFile
-                            try {
-                                # Backup first
-                                $backupPath = "$fullPath.backup"
-                                if (Test-Path $fullPath) {
-                                    Print-Command "Copy-Item ""$fullPath"" ""$backupPath"""
-                                    Copy-Item $fullPath $backupPath -Force
-                                    Write-ColorText "[Backup] Created backup: $configFile.backup" "Green"
-
-                                    Print-Command "Remove-Item ""$fullPath"""
-                                    Remove-Item $fullPath -Force
-                                    Write-ColorText "[Removed] Deleted: $configFile" "Green"
-                                }
-                            } catch {
-                                Write-ColorText "[ERROR] Failed to remove $configFile`: $_" "Red"
-                            }
-                        }
-
-                        Write-Host ""
-                        Write-ColorText "[Capacitor] Retrying initialization..." "Yellow"
-
-                        # Retry initialization
-                        Print-Command "npx cap init ""$AppName"" ""$PackageId"""
-                        & npx cap init "$AppName" "$PackageId"
-
-                        if ($LASTEXITCODE -eq 0) {
-                            Write-ColorText "[Success] Capacitor initialized successfully" "Green"
-                        } else {
-                            Write-ColorText "[ERROR] Capacitor initialization failed again" "Red"
-                        }
-                    } else {
-                        Write-Host ""
-                        Write-ColorText "[Skipped] Capacitor initialization cancelled by user" "Yellow"
-                        Write-ColorText "[Info] You can manually delete the config files and run initialization again" "Cyan"
+                        Print-Command "Remove-Item ""$fullPath"""
+                        Remove-Item $fullPath -Force
+                        Write-ColorText "[Removed] Deleted: $configFile" "Green"
                     }
+                } catch {
+                    Write-ColorText "[ERROR] Failed to remove $configFile`: $_" "Red"
+                    return
                 }
             }
+            Write-Host ""
         } else {
-            Write-ColorText "[Success] Capacitor initialized successfully" "Green"
+            Write-Host ""
+            Write-ColorText "[Skipped] Capacitor initialization cancelled by user" "Yellow"
+            Write-ColorText "[Info] You can manually delete the config files and run initialization again" "Cyan"
+            return
         }
+    }
+
+    # Execute Capacitor init command (no exit code checking)
+    Push-Location $projectRoot
+    try {
+        Print-Command "npx cap init ""$appName"" ""$packageId"""
+        & npx cap init "$appName" "$packageId"
+        Write-Host ""
     } finally {
         Pop-Location
+    }
+}
+
+function Remove-AndroidPlatform {
+    param([string]$Prefix)
+
+    Write-Section "Removing Android Platform"
+
+    $projectRoot = Get-VarValue -Key $KEY_PROJECT_ROOT -Prefix $Prefix
+    $androidPath = Join-Path $projectRoot "android"
+
+    if (-not (Test-Path $androidPath)) {
+        Write-ColorText "[Info] Android folder does not exist. Nothing to remove." "Yellow"
+        return
+    }
+
+    Write-ColorText "[Action] Removing Android platform folder..." "Yellow"
+    Write-ColorText "[Path] $androidPath" "Gray"
+
+    try {
+        # Delete the folder (as recommended by Capacitor community)
+        # Reference: https://forum.ionicframework.com/t/how-to-remove-android-platform/211263
+        Print-Command "Remove-Item ""$androidPath"" -Recurse -Force"
+        Remove-Item -Path $androidPath -Recurse -Force
+        Write-ColorText "[Success] Android folder removed successfully" "Green"
+        Write-ColorText "[Info] You can now run 'npx cap add android' to create a fresh Android project" "Cyan"
+    } catch {
+        Write-ColorText "[ERROR] Failed to remove android directory: $_" "Red"
+        Write-ColorText "[TIP] Close Android Studio and try again" "Yellow"
+        throw
     }
 }
 
@@ -735,20 +775,58 @@ function Build-AndroidApk {
 
     Push-Location $androidPath
     try {
-        # First attempt
-        Print-Command ".\gradlew.bat assembleDebug"
-        & .\gradlew.bat assembleDebug
+        # Auto-fix: Always stop daemon and clear cache before first build
+        Write-ColorText "[Auto-Fix] Preparing clean build environment..." "Cyan"
+
+        # Stop all Gradle daemons
+        Print-Command ".\gradlew.bat --stop"
+        & .\gradlew.bat --stop 2>&1 | Out-Null
+        Start-Sleep -Seconds 3
+
+        # Kill any remaining Java/Gradle processes
+        $javaProcs = Get-Process -Name "java" -ErrorAction SilentlyContinue
+        if ($javaProcs) {
+            $javaProcs | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+
+        # Clear problematic cache directories
+        $gradleCache = "$env:USERPROFILE\.gradle\caches"
+        $cacheTargets = @(
+            "$gradleCache\jars-9",
+            "$gradleCache\transforms-3"
+        )
+
+        foreach ($cacheDir in $cacheTargets) {
+            if (Test-Path $cacheDir) {
+                Write-ColorText "[Auto-Fix] Clearing cache: $(Split-Path -Leaf $cacheDir)" "Gray"
+                Remove-Item -Path "$cacheDir\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        Write-ColorText "[Auto-Fix] Build environment ready" "Green"
+        Write-Host ""
+
+        # First attempt with clean cache
+        Print-Command ".\gradlew.bat assembleDebug --no-daemon"
+        & .\gradlew.bat assembleDebug --no-daemon
 
         if ($LASTEXITCODE -ne 0) {
             Write-ColorText "[ERROR] Android build failed" "Red"
             Write-ColorText "[INFO] Attempting to clean Gradle cache and retry..." "Yellow"
 
-            # Clean Gradle cache
+            # Step 1: Stop all Gradle Daemon processes (official solution)
+            Write-ColorText "`n[Gradle] Stopping all Gradle Daemon processes..." "Cyan"
+            Print-Command ".\gradlew.bat --stop"
+            & .\gradlew.bat --stop
+            Start-Sleep -Seconds 2
+
+            # Step 2: Clean build directory
             Write-ColorText "`n[Gradle] Cleaning build directory..." "Cyan"
             Print-Command ".\gradlew.bat clean"
             & .\gradlew.bat clean
 
-            # Clean Gradle user cache (common location for corrupted files)
+            # Step 3: Clean Gradle user cache (common location for corrupted files)
             $gradleCacheDir = "$env:USERPROFILE\.gradle\caches"
             if (Test-Path $gradleCacheDir) {
                 Write-ColorText "[Gradle] Clearing Gradle caches at: $gradleCacheDir" "Cyan"
@@ -760,7 +838,7 @@ function Build-AndroidApk {
                 }
             }
 
-            # Retry build
+            # Step 4: Retry build
             Write-ColorText "`n[Gradle] Retrying build..." "Cyan"
             Print-Command ".\gradlew.bat assembleDebug"
             & .\gradlew.bat assembleDebug
@@ -769,6 +847,7 @@ function Build-AndroidApk {
                 Write-ColorText "[ERROR] Android build failed after cache cleanup" "Red"
                 Write-ColorText "[SOLUTION] Try manually running:" "Yellow"
                 Write-ColorText "  cd android" "DarkGray"
+                Write-ColorText "  .\gradlew.bat --stop" "DarkGray"
                 Write-ColorText "  .\gradlew.bat clean build --refresh-dependencies" "DarkGray"
             } else {
                 Write-ColorText "[Success] Android APK built successfully after retry" "Green"
@@ -781,7 +860,22 @@ function Build-AndroidApk {
         $apkPath = "app\build\outputs\apk\debug\app-debug.apk"
         if (Test-Path $apkPath) {
             $fullPath = (Get-Item $apkPath).FullName
-            Write-ColorText "`n[APK] $fullPath" "Green"
+            Write-Host ""
+            Write-ColorText "[APK] $fullPath" "Green"
+
+            # Print adb install commands
+            Write-Host ""
+            Write-ColorText "=== ADB Install Commands ===" "Cyan"
+            Write-ColorText "Install APK to device:" "Yellow"
+            Write-Host "  adb install -r `"$fullPath`""
+            Write-Host ""
+            Write-ColorText "Push APK to device storage:" "Yellow"
+            Write-Host "  adb push `"$fullPath`" /sdcard/Download/"
+            Write-Host ""
+            Write-ColorText "Install from device storage:" "Yellow"
+            Write-Host "  adb shell pm install -r /sdcard/Download/app-debug.apk"
+            Write-ColorText "============================" "Cyan"
+            Write-Host ""
         } else {
             Write-ColorText "[Output] APK location: android\app\build\outputs\apk\debug\" "Cyan"
         }
@@ -815,19 +909,11 @@ if ($pythonSuccess -ne "true") {
     exit 1
 }
 
-# Check for errors
-$errorMsg = Get-VarValue -Key $KEY_ERROR -Prefix $AppPrefix
-
-if ($errorMsg) {
-    Write-ColorText "[ERROR] Python reported error: $errorMsg" "Red"
-    exit 1
-}
-
 # Get command count
 $commandCount = Get-CommandCount -Prefix $AppPrefix
 
 if ($commandCount -eq 0) {
-    Write-ColorText "[WARNING] No commands to execute" "Yellow"
+    Write-ColorText "[INFO] No commands to execute (user may have cancelled)" "Cyan"
     exit 0
 }
 
