@@ -678,12 +678,14 @@ def show_preview(resource_data: dict, var_system, port: int = 8899) -> None:
                 # User confirmed - stop server and continue
                 print("[Web] Continuing with build...")
                 user_action = "continue"
+                ResourcePreviewHandler.user_action = "continue"  # Update class variable
                 server.stop()
                 break
             elif user_input in ('N', 'NO'):
                 # User cancelled - stop server and abort
                 print("[Web] Build cancelled by user")
                 user_action = "cancelled"
+                ResourcePreviewHandler.user_action = "cancelled"  # Update class variable
                 server.stop()
                 break
             else:
@@ -692,12 +694,14 @@ def show_preview(resource_data: dict, var_system, port: int = 8899) -> None:
         except KeyboardInterrupt:
             print("\n[Web] Interrupted by user")
             user_action = "cancelled"
+            ResourcePreviewHandler.user_action = "cancelled"  # Update class variable
             server.stop()
             break
         except EOFError:
             # EOF reached (e.g., input redirected)
             print("\n[Web] No input available, defaulting to continue")
             user_action = "continue"
+            ResourcePreviewHandler.user_action = "continue"  # Update class variable
             server.stop()
             break
         except Exception as e:
