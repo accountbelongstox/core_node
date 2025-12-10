@@ -20,7 +20,7 @@ pyapps/matrix/adb_device_manager/
 
 ## 功能特性
 
-### 1. 局域网 Root 设备自动发现
+### 1. 局域网 Root 设备自动发现 
 
 **扫描频率**: 每 30 秒
 
@@ -31,7 +31,7 @@ pyapps/matrix/adb_device_manager/
 - 自动执行 `adb connect IP:5555`
 - 检测设备是否 Root (`su -c id`)
 - 获取设备信息（型号、Android 版本）
-- 添加到设备表
+- 添加到设备表 
 
 **适用场景**: Root 设备已通过 Magisk 模块或 build.prop 永久启用 WiFi ADB
 

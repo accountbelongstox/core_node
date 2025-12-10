@@ -35,6 +35,7 @@
       "hide": "Hide Window",
       "maximize": "Maximize",
       "minimize": "Minimize",
+      "restore": "Restore",
       "restart": "Restart",
       "exit": "Exit"
     }

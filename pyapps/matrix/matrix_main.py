@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix Application - RPC v2 WebSocket Edition
+Matrix Application - RPC v2 WebSocket Edition (Unified Heartbeat)
 
 Simplified entry point that only organizes configuration variables.
 All API routes are managed by api/main.py and registered via pylauncher.
+
+NEW: ADB device management uses callback registration with interval interceptor.
+No more periodic tasks or independent threads.
 
 Usage:
     python pymain.py app=matrix
@@ -19,25 +22,44 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
+from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyheartbeat import get_heartbeat_system
 from pyapps.matrix.matrix_config import Config
-from pyapps.matrix.adb_device_manager import ADBHeartbeatThread
+from pyapps.matrix.adb_device_manager.adb_heartbeat_service import init_adb_heartbeat_service, get_adb_heartbeat_service
 
 
-_adb_heartbeat_thread = None
+_adb_service = None
+_rpc_server = None  # Global RPC server instance
 
 
-def get_adb_heartbeat_thread():
-    """Get the global ADB heartbeat thread instance"""
-    return _adb_heartbeat_thread
+def get_adb_service():
+    """Get the global ADB service instance"""
+    return _adb_service
+
+
+def get_rpc_server():
+    """Get the global RPC server instance"""
+    return _rpc_server
 
 
 def matrix_main_entry():
     """
     Matrix main entry point (called after native_ui initialization)
 
-    Used to register event handlers and perform application-specific initialization.
+    NEW ARCHITECTURE:
+    - No independent threads
+    - No periodic task generation
+    - Direct callback registration to unified heartbeat
+    - Callbacks use tick counter interceptor (30s = skip 29 ticks, run on 30th)
     """
-    global _adb_heartbeat_thread
+    global _adb_service
+
+    # Extend i18n with Matrix app translations (uses global i18n object)
+    # This allows startup window language selector to work with Matrix translations
+    ColorPrint.blue("[Matrix] Extending i18n with Matrix app translations...")
+    app_dir = Path(__file__).parent
+    i18n.extend_translations(app_dir=str(app_dir), app_name="matrix")
+    ColorPrint.green("[Matrix] i18n extended successfully")
 
     from pyapps.matrix.controller.event_handlers import register_matrix_event_handlers
 
@@ -51,35 +73,51 @@ def matrix_main_entry():
 
     ColorPrint.green("[Matrix] Event handlers registered successfully")
 
-    # Start ADB Device Management Heartbeat
-    ColorPrint.blue("[Matrix] Starting ADB Device Management Heartbeat...")
-    _adb_heartbeat_thread = ADBHeartbeatThread(
-        adb_path="adb",
-        tick_interval=1.0,
-        network_scan_interval=30.0,
-        usb_scan_interval=5.0,
-        cleanup_interval=60.0,
-        heartbeat_interval=10.0,
-        daemon=True
-    )
-    _adb_heartbeat_thread.start()
-    ColorPrint.green("[Matrix] ADB Heartbeat Thread started")
+    # Initialize ADB Heartbeat Service (not a thread)
+    ColorPrint.blue("[Matrix] Initializing ADB Heartbeat Service...")
+    _adb_service = init_adb_heartbeat_service(adb_path="adb")
 
-    # Register shutdown handler for ADB heartbeat
-    def stop_adb_heartbeat():
-        ColorPrint.blue("[Matrix] Stopping ADB Heartbeat Thread...")
-        if _adb_heartbeat_thread and _adb_heartbeat_thread.is_running():
-            _adb_heartbeat_thread.stop()
-            _adb_heartbeat_thread.join(timeout=5.0)
-            ColorPrint.green("[Matrix] ADB Heartbeat Thread stopped")
+    # Attach RPC server if available
+    if _rpc_server:
+        _adb_service.set_rpc_server(_rpc_server)
+        ColorPrint.green("[Matrix] RPC server attached to ADB service")
 
-    THREAD_BUS.register_shutdown_handler(
-        handler=stop_adb_heartbeat,
-        priority=90,
-        name="adb_heartbeat"
+    # Register callbacks to unified heartbeat (using tick counter interceptor)
+    # Note: ADBHeartbeatService is NOT a thread - it's driven by heartbeat callbacks
+    heartbeat = get_heartbeat_system()
+
+    heartbeat.register_callback(
+        name='adb_network_scan',
+        callback=lambda: _adb_service._network_scan_task(),
+        interval=30  # 30 seconds (30 ticks)
     )
 
-    ColorPrint.green("[Matrix] ADB Device Manager initialized")
+    heartbeat.register_callback(
+        name='adb_usb_scan',
+        callback=lambda: _adb_service._usb_scan_task(),
+        interval=5  # 5 seconds (5 ticks)
+    )
+
+    heartbeat.register_callback(
+        name='adb_cleanup',
+        callback=lambda: _adb_service._cleanup_task(),
+        interval=60  # 60 seconds (60 ticks)
+    )
+
+    heartbeat.register_callback(
+        name='adb_heartbeat',
+        callback=lambda: _adb_service._heartbeat_task(),
+        interval=10  # 10 seconds (10 ticks)
+    )
+
+    heartbeat.register_callback(
+        name='adb_push_devices',
+        callback=lambda: _adb_service._push_device_updates(),
+        interval=10  # 10 seconds (10 ticks)
+    )
+
+    ColorPrint.green("[Matrix] ADB callbacks registered to unified heartbeat")
+    ColorPrint.blue("[Matrix] ADB Device Manager initialized (callback driven)")
 
 
 def rpc_init_callback(rpc_server):
@@ -92,35 +130,35 @@ def rpc_init_callback(rpc_server):
     Args:
         rpc_server: RPC v2 server instance (FastAPIRPCServer)
     """
+    global _rpc_server
+
+    # Save RPC server instance for later use in matrix_main_entry
+    _rpc_server = rpc_server
+
     from pyapps.matrix.api.main import register_all_routes
-    from pyapps.matrix.adb_device_manager.device_push_service import init_device_push_service, stop_device_push_service
+    from pyapps.matrix.api.video_websocket_routes import router as video_router
 
     # Register all Matrix RPC v2 routes
     register_all_routes(rpc_server)
 
-    # Initialize device push service (broadcasts device list to WebSocket clients)
-    if _adb_heartbeat_thread:
-        ColorPrint.blue("[Matrix] Starting Device Push Service...")
-        device_push_service = init_device_push_service(
-            adb_heartbeat_thread=_adb_heartbeat_thread,
-            rpc_server=rpc_server,
-            push_interval=10.0  # Push device list every 10 seconds
-        )
-        ColorPrint.green(f"[Matrix] Device Push Service started (interval: 10.0s)")
+    # Register video WebSocket routes (direct FastAPI routes, not RPC)
+    ColorPrint.blue("[Matrix] Registering video WebSocket routes...")
+    fastapi_app = rpc_server.app  # Get underlying FastAPI app
 
-        # Register shutdown handler for device push service
-        def stop_device_push():
-            ColorPrint.blue("[Matrix] Stopping Device Push Service...")
-            stop_device_push_service()
-            ColorPrint.green("[Matrix] Device Push Service stopped")
+    ColorPrint.yellow(f"[Matrix] FastAPI app type: {type(fastapi_app)}")
+    ColorPrint.yellow(f"[Matrix] Video router type: {type(video_router)}")
+    ColorPrint.yellow(f"[Matrix] Video router routes: {[r.path for r in video_router.routes]}")
 
-        THREAD_BUS.register_shutdown_handler(
-            handler=stop_device_push,
-            priority=85,  # Stop before ADB heartbeat (priority 90)
-            name="device_push_service"
-        )
-    else:
-        ColorPrint.yellow("[Matrix] Warning: ADB heartbeat thread not available, device push service not started")
+    fastapi_app.include_router(video_router)
+
+    ColorPrint.yellow(f"[Matrix] After include_router, total routes: {len(fastapi_app.routes)}")
+    ColorPrint.yellow(f"[Matrix] All route paths: {[r.path for r in fastapi_app.routes]}")
+
+    ColorPrint.green("[Matrix] ✓ Video WebSocket routes registered:")
+    ColorPrint.green("  - ws://localhost:48000/video/{device_id} (H.264)")
+    ColorPrint.green("  - ws://localhost:48000/video/yuv/{device_id} (YUV420P)")
+
+    ColorPrint.blue("[Matrix] RPC v2 routes registered successfully")
 
 
 def start():
@@ -182,6 +220,15 @@ def start():
         debug_window_height=500,
         min_display_time=2.0,
         enable_language_selector=True,
+
+        # ========== QtWebEngine Configuration ==========
+        webengine_enable_config=True,  # Enable multi-tier Chromium flags configuration
+        webengine_disable_gpu_sandbox=True,  # Required for Windows hardware acceleration
+        webengine_enable_webcodecs=True,  # Enable WebCodecs API for H.264 video decoding
+        webengine_enable_hardware_acceleration=True,  # Enable GPU hardware acceleration
+        webengine_enable_remote_debugging=True,  # Enable remote debugging (F12 dev tools)
+        webengine_remote_debugging_port=9222,  # Dev tools at http://localhost:9222
+        webengine_print_diagnostics=True,  # Print detailed diagnostic info on startup
 
         # ========== Advanced Options ==========
         force=False,

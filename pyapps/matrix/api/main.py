@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
+import asyncio
 import psutil
 import platform
 
@@ -33,6 +34,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pycore import ColorPrint
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyutils.device import ADBManager
+from pyapps.matrix.matrix_config import Config
 
 # Import all services
 from pyapps.matrix.services import (
@@ -44,6 +47,7 @@ from pyapps.matrix.services import (
     ConfigService,
     ControlService,
     VideoStreamService,
+    DeviceIDManager,
 )
 
 
@@ -71,6 +75,7 @@ def register_all_routes(rpc_server):
     _register_group_routes(rpc_server)
     _register_config_routes(rpc_server)
     _register_control_routes(rpc_server)
+    _register_shell_routes(rpc_server)
     _register_video_routes(rpc_server)
 
     ColorPrint.green("=" * 70)
@@ -145,33 +150,25 @@ def _register_heartbeat_routes(rpc_server):
 
     async def get_heartbeat_info(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get heartbeat tick count and last heartbeat time"""
-        try:
-            heartbeat_system = get_heartbeat_system()
+        heartbeat_system = get_heartbeat_system()
 
-            # Get heartbeat pusher stats
-            if heartbeat_system._heartbeat_pusher:
-                pusher_stats = heartbeat_system._heartbeat_pusher.get_stats()
-                total_ticks = pusher_stats['total_ticks']
-                uptime = pusher_stats['uptime']
+        # Get heartbeat pusher stats
+        if heartbeat_system._heartbeat_pusher:
+            pusher_stats = heartbeat_system._heartbeat_pusher.get_stats()
+            total_ticks = pusher_stats['total_ticks']
+            uptime = pusher_stats['uptime']
 
-                return {
-                    "success": True,
-                    "total_ticks": total_ticks,
-                    "uptime_seconds": uptime,
-                    "last_heartbeat_time": datetime.now().isoformat()
-                }
-            else:
-                return {
-                    'error': {
-                        'code': 'HEARTBEAT_NOT_RUNNING',
-                        'message': 'Heartbeat pusher is not running'
-                    }
-                }
-        except Exception as e:
+            return {
+                "success": True,
+                "total_ticks": total_ticks,
+                "uptime_seconds": uptime,
+                "last_heartbeat_time": datetime.now().isoformat()
+            }
+        else:
             return {
                 'error': {
-                    'code': 'HEARTBEAT_ERROR',
-                    'message': f'Failed to get heartbeat info: {str(e)}'
+                    'code': 'HEARTBEAT_NOT_RUNNING',
+                    'message': 'Heartbeat pusher is not running'
                 }
             }
 
@@ -188,12 +185,17 @@ def _register_device_routes(rpc_server):
     async def list_devices(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """List all ADB devices"""
         service = DeviceService.instance()
+        device_id_manager = DeviceIDManager.instance()
         adb_devices = await service.list_devices()
 
         devices_list = []
         for device in adb_devices:
+            # Register device and get device_id
+            device_id = device_id_manager.register_device(device.serial)
+
             device_dict = {
-                "serial": device.serial,
+                "deviceId": device_id,  # Primary ID for frontend use
+                "serial": device.serial,  # Keep for reference
                 "status": device.state.value,
                 "model": device.model if hasattr(device, 'model') else "Unknown",
                 "manufacturer": device.product if hasattr(device, 'product') else None,
@@ -207,9 +209,16 @@ def _register_device_routes(rpc_server):
 
     async def get_device_info(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get device detailed information"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         service = DeviceService.instance()
         device_info = await service.get_device_info(serial)
@@ -219,6 +228,7 @@ def _register_device_routes(rpc_server):
 
         return {
             "device": {
+                "deviceId": device_id,
                 "serial": device_info.serial,
                 "model": device_info.model,
                 "manufacturer": device_info.manufacturer if hasattr(device_info, 'manufacturer') else None,
@@ -234,9 +244,16 @@ def _register_device_routes(rpc_server):
 
     async def connect_device(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Connect device"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         service = DeviceService.instance()
         params = {
@@ -252,28 +269,37 @@ def _register_device_routes(rpc_server):
         success = await service.connect_device(serial, params)
 
         if not success:
-            return {'error': {'code': 'CONNECT_FAILED', 'message': f'Failed to connect device {serial}'}}
+            return {'error': {'code': 'CONNECT_FAILED', 'message': f'Failed to connect device {device_id}'}}
 
         return {
             "success": True,
-            "message": f"Device {serial} connected successfully"
+            "deviceId": device_id,
+            "message": f"Device {device_id} connected successfully"
         }
 
     async def disconnect_device(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Disconnect device"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         service = DeviceService.instance()
         success = await service.disconnect_device(serial)
 
         if not success:
-            return {'error': {'code': 'DISCONNECT_FAILED', 'message': f'Failed to disconnect device {serial}'}}
+            return {'error': {'code': 'DISCONNECT_FAILED', 'message': f'Failed to disconnect device {device_id}'}}
 
         return {
             "success": True,
-            "message": f"Device {serial} disconnected successfully"
+            "deviceId": device_id,
+            "message": f"Device {device_id} disconnected successfully"
         }
 
     async def batch_configure(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
@@ -337,33 +363,40 @@ def _register_device_routes(rpc_server):
             "success": True,
             "total": len(devices),
             "successful": successful,
-            "failed": failed,
+            "failed": failed, 
             "results": results
         }
 
     async def adb_device_list(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager device list (auto-discovered devices)"""
-        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+        from pyapps.matrix.matrix_main import get_adb_service
 
-        adb_thread = get_adb_heartbeat_thread()
-        if not adb_thread:
+        adb_service = get_adb_service()
+        if not adb_service:
             return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
 
-        device_table = adb_thread.get_device_table()
+        device_table = adb_service.get_device_table()
         all_devices = device_table.get_all_devices()
+
+        # Use DeviceIDManager to generate deviceId for each device
+        device_id_manager = DeviceIDManager.instance()
 
         devices_list = []
         for device_info in all_devices:
+            # Register device and get device_id (same as device.list)
+            device_id = device_id_manager.register_device(device_info.serial)
+            
             devices_list.append({
-                "serial": device_info.serial,
-                "ip": device_info.ip,
-                "connection_type": device_info.connection_type.value,
+                "deviceId": device_id,  # Primary ID for frontend use (e.g., "device_1", "device_2")
+                "serial": device_info.serial,  # Keep for reference
+                "ip": device_info.ip_address,
+                "connection_type": device_info.device_type.value,
                 "state": device_info.state.value,
                 "is_root": device_info.is_root,
                 "model": device_info.model,
                 "android_version": device_info.android_version,
                 "last_seen": device_info.last_seen,
-                "connected_at": device_info.connected_at,
+                "connected_at": device_info.first_seen,
             })
 
         stats = device_table.get_stats()
@@ -376,19 +409,24 @@ def _register_device_routes(rpc_server):
 
     async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager statistics"""
-        from pyapps.matrix.matrix_main import get_adb_heartbeat_thread
+        from pyapps.matrix.matrix_main import get_adb_service
+        from pycore.pyheartbeat import get_heartbeat_system
 
-        adb_thread = get_adb_heartbeat_thread()
-        if not adb_thread:
+        adb_service = get_adb_service()
+        if not adb_service:
             return {'error': {'code': 'ADB_MANAGER_NOT_RUNNING', 'message': 'ADB Device Manager not running'}}
 
-        device_table = adb_thread.get_device_table()
-        stats = device_table.get_stats()
+        device_table = adb_service.get_device_table()
+        device_stats = device_table.get_stats()
+
+        # Get complete heartbeat system stats (includes all details)
+        heartbeat = get_heartbeat_system()
+        heartbeat_stats = heartbeat.get_stats()
 
         return {
-            "stats": stats,
-            "heartbeat_running": adb_thread.is_running(),
-            "total_ticks": adb_thread.get_total_ticks() if hasattr(adb_thread, 'get_total_ticks') else 0,
+            "device_stats": device_stats,
+            "heartbeat_stats": heartbeat_stats,
+            "service_running": True
         }
 
     rpc_server.route('device.list', list_devices, sync=True, description='List all ADB devices')
@@ -409,13 +447,20 @@ def _register_screen_routes(rpc_server):
 
     async def control_power(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Control screen power"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         action = data.get('action')
 
-        if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
         if action not in ["on", "off", "toggle"]:
             return {'error': {'code': 'INVALID_ACTION', 'message': 'Action must be on, off, or toggle'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         screen_service = ScreenService.instance()
         result = await screen_service.control_screen_power(serial=serial, action=action)
@@ -427,11 +472,23 @@ def _register_screen_routes(rpc_server):
 
     async def set_brightness(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Set screen brightness"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         level = data.get('level')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if level is None or not (0 <= level <= 255):
             return {'error': {'code': 'INVALID_LEVEL', 'message': 'Brightness level must be 0-255'}}
 
@@ -445,9 +502,16 @@ def _register_screen_routes(rpc_server):
 
     async def get_brightness(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get screen brightness"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         screen_service = ScreenService.instance()
         result = await screen_service.get_screen_brightness(serial=serial)
@@ -459,11 +523,23 @@ def _register_screen_routes(rpc_server):
 
     async def set_rotation(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Set screen rotation"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         rotation = data.get('rotation')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if rotation not in [0, 90, 180, 270]:
             return {'error': {'code': 'INVALID_ROTATION', 'message': 'Rotation must be 0, 90, 180, or 270'}}
 
@@ -477,9 +553,16 @@ def _register_screen_routes(rpc_server):
 
     async def get_rotation(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get screen rotation"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         screen_service = ScreenService.instance()
         result = await screen_service.get_screen_rotation(serial=serial)
@@ -491,9 +574,16 @@ def _register_screen_routes(rpc_server):
 
     async def enable_auto_rotation(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Enable auto-rotation"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         screen_service = ScreenService.instance()
         result = await screen_service.enable_auto_rotation(serial=serial)
@@ -505,9 +595,16 @@ def _register_screen_routes(rpc_server):
 
     async def disable_auto_rotation(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Disable auto-rotation"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         screen_service = ScreenService.instance()
         result = await screen_service.disable_auto_rotation(serial=serial)
@@ -535,11 +632,23 @@ def _register_file_routes(rpc_server):
 
     async def list_packages(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """List installed packages"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         filter_pattern = data.get('filter')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         file_service = FileService.instance()
         result = await file_service.list_installed_packages(device_serial=serial, filter_pattern=filter_pattern)
@@ -551,11 +660,23 @@ def _register_file_routes(rpc_server):
 
     async def uninstall_apk(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Uninstall APK"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         package_name = data.get('packageName')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if not package_name:
             return {'error': {'code': 'MISSING_PACKAGE', 'message': 'Package name required'}}
 
@@ -581,9 +702,152 @@ def _register_file_routes(rpc_server):
 
         return result
 
+    async def list_directory(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """List files in directory"""
+        device_id = data.get('deviceId')
+        path = data.get('path', '/sdcard/')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # List directory contents
+            cmd = f'ls -la "{path}"'
+            output = await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                cmd,
+                adb_path,
+                timeout=10
+            )
+
+            # Parse ls output
+            files = []
+            for line in output.strip().split('\n'):
+                if line and not line.startswith('total'):
+                    parts = line.split()
+                    if len(parts) >= 8:
+                        # Example: drwxrwx--- 4 root sdcard_rw 4096 2024-01-01 12:00 Documents
+                        permissions = parts[0]
+                        is_dir = permissions.startswith('d')
+                        size = parts[3] if not is_dir else 0
+                        name = ' '.join(parts[7:])
+
+                        files.append({
+                            "name": name,
+                            "isDirectory": is_dir,
+                            "size": int(size) if size != 0 else 0,
+                            "permissions": permissions
+                        })
+
+            return {
+                "success": True,
+                "path": path,
+                "files": files,
+                "count": len(files)
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'LIST_DIRECTORY_FAILED', 'message': f'Failed to list directory: {str(e)}'}}
+
+    async def delete_file(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Delete file or directory"""
+        device_id = data.get('deviceId')
+        path = data.get('path')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not path:
+            return {'error': {'code': 'MISSING_PATH', 'message': 'File path required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Delete file/directory
+            cmd = f'rm -rf "{path}"'
+            await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                cmd,
+                adb_path,
+                timeout=10
+            )
+
+            return {"success": True, "message": f"Deleted {path}"}
+
+        except Exception as e:
+            return {'error': {'code': 'DELETE_FAILED', 'message': f'Failed to delete file: {str(e)}'}}
+
+    async def pull_file(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Pull file from device"""
+        device_id = data.get('deviceId')
+        remote_path = data.get('remotePath')
+        local_path = data.get('localPath')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not remote_path:
+            return {'error': {'code': 'MISSING_REMOTE_PATH', 'message': 'Remote path required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+
+            # If no local path specified, use downloads directory
+            if not local_path:
+                downloads_dir = Path('downloads')
+                downloads_dir.mkdir(exist_ok=True)
+                file_name = Path(remote_path).name
+                local_path = str(downloads_dir / file_name)
+
+            # Pull file
+            cmd = [adb_path, "-s", serial, "pull", remote_path, local_path]
+            result = await asyncio.to_thread(
+                ADBManager._run_command,
+                cmd,
+                check=False,
+                timeout=60
+            )
+
+            if result.returncode != 0:
+                return {'error': {'code': 'PULL_FAILED', 'message': f'Failed to pull file: {result.stderr}'}}
+
+            return {
+                "success": True,
+                "remotePath": remote_path,
+                "localPath": local_path,
+                "message": "File pulled successfully"
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'PULL_FAILED', 'message': f'Failed to pull file: {str(e)}'}}
+
     rpc_server.route('file.packages', list_packages, sync=False, description='List installed packages')
     rpc_server.route('file.apk_uninstall', uninstall_apk, sync=False, description='Uninstall APK')
     rpc_server.route('file.transfer_status', transfer_status, sync=False, description='Get file transfer status')
+    rpc_server.route('file.list', list_directory, sync=False, description='List files in directory')
+    rpc_server.route('file.delete', delete_file, sync=False, description='Delete file or directory')
+    rpc_server.route('file.pull', pull_file, sync=False, description='Pull file from device')
 
 
 # ============================================================
@@ -595,9 +859,16 @@ def _register_recording_routes(rpc_server):
 
     async def start_recording(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Start screen recording"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         recording_service = RecordingService.instance()
         result = await recording_service.start_recording(
@@ -613,9 +884,16 @@ def _register_recording_routes(rpc_server):
 
     async def stop_recording(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Stop screen recording"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         recording_service = RecordingService.instance()
         result = await recording_service.stop_recording(serial=serial)
@@ -627,9 +905,16 @@ def _register_recording_routes(rpc_server):
 
     async def recording_status(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get recording status"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         recording_service = RecordingService.instance()
         recording_info = recording_service.get_recording_status(serial)
@@ -642,9 +927,16 @@ def _register_recording_routes(rpc_server):
 
     async def capture_screenshot(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Capture screenshot"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         recording_service = RecordingService.instance()
         result = await recording_service.capture_screenshot(serial=serial, format=data.get('format', 'png'))
@@ -786,6 +1078,104 @@ def _register_group_routes(rpc_server):
     rpc_server.route('group.tree', get_tree, sync=True, description='Get group tree')
     rpc_server.route('group.tree_update', update_tree, sync=True, description='Update group tree')
 
+    # Group management and sync routes
+    async def create_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Create a new device group with master"""
+        group_id = data.get('groupId')
+        host_serial = data.get('hostSerial')
+
+        if not group_id or not host_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and hostSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.create_group(group_id=group_id, host_serial=host_serial)
+
+        if not success:
+            return {'error': {'code': 'CREATE_GROUP_FAILED', 'message': 'Failed to create group'}}
+
+        return {"success": True, "groupId": group_id, "hostSerial": host_serial}
+
+    async def add_slave_to_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Add slave device to group"""
+        group_id = data.get('groupId')
+        slave_serial = data.get('slaveSerial')
+
+        if not group_id or not slave_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and slaveSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.add_slave(group_id=group_id, slave_serial=slave_serial)
+
+        if not success:
+            return {'error': {'code': 'ADD_SLAVE_FAILED', 'message': 'Failed to add slave to group'}}
+
+        return {"success": True, "groupId": group_id, "slaveSerial": slave_serial}
+
+    async def remove_slave_from_group(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Remove slave device from group"""
+        group_id = data.get('groupId')
+        slave_serial = data.get('slaveSerial')
+
+        if not group_id or not slave_serial:
+            return {'error': {'code': 'MISSING_PARAMETERS', 'message': 'groupId and slaveSerial required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.remove_slave(group_id=group_id, slave_serial=slave_serial)
+
+        if not success:
+            return {'error': {'code': 'REMOVE_SLAVE_FAILED', 'message': 'Failed to remove slave from group'}}
+
+        return {"success": True, "groupId": group_id, "slaveSerial": slave_serial}
+
+    async def enable_sync(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Enable Host/Slave input synchronization for a group"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.enable_group(group_id=group_id)
+
+        if not success:
+            return {'error': {'code': 'ENABLE_SYNC_FAILED', 'message': 'Failed to enable sync'}}
+
+        return {"success": True, "groupId": group_id, "syncEnabled": True}
+
+    async def disable_sync(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Disable Host/Slave input synchronization for a group"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        success = await group_service.disable_group(group_id=group_id)
+
+        if not success:
+            return {'error': {'code': 'DISABLE_SYNC_FAILED', 'message': 'Failed to disable sync'}}
+
+        return {"success": True, "groupId": group_id, "syncEnabled": False}
+
+    async def get_group_state(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get group state including master, slaves, and sync status"""
+        group_id = data.get('groupId')
+
+        if not group_id:
+            return {'error': {'code': 'MISSING_GROUP_ID', 'message': 'groupId required'}}
+
+        group_service = GroupService.instance()
+        state = await group_service.get_state(group_id=group_id)
+
+        return {"success": True, **state}
+
+    rpc_server.route('group.create', create_group, sync=True, description='Create device group')
+    rpc_server.route('group.add_slave', add_slave_to_group, sync=True, description='Add slave to group')
+    rpc_server.route('group.remove_slave', remove_slave_from_group, sync=True, description='Remove slave from group')
+    rpc_server.route('group.enable_sync', enable_sync, sync=True, description='Enable input synchronization')
+    rpc_server.route('group.disable_sync', disable_sync, sync=True, description='Disable input synchronization')
+    rpc_server.route('group.get_state', get_group_state, sync=True, description='Get group state')
+
 
 # ============================================================
 # Configuration Routes
@@ -869,9 +1259,16 @@ def _register_control_routes(rpc_server):
 
     async def send_touch(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send touch event"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         touch_data = {
             "action": data.get("action"),
@@ -893,9 +1290,16 @@ def _register_control_routes(rpc_server):
 
     async def send_key(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send key event"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         key_data = {
             "action": data.get("action"),
@@ -913,11 +1317,23 @@ def _register_control_routes(rpc_server):
 
     async def send_text(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send text input"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         text = data.get('text', '')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if not text:
             return {'error': {'code': 'MISSING_TEXT', 'message': 'Text content required'}}
 
@@ -931,9 +1347,16 @@ def _register_control_routes(rpc_server):
 
     async def send_swipe(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send swipe gesture"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         swipe_data = {
             "startX": data.get("startX"),
@@ -955,11 +1378,23 @@ def _register_control_routes(rpc_server):
 
     async def send_system_key(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send system key"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         action = data.get('action')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if not action:
             return {'error': {'code': 'MISSING_ACTION', 'message': 'System key action required'}}
 
@@ -977,11 +1412,23 @@ def _register_control_routes(rpc_server):
 
     async def set_clipboard(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Set device clipboard"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
         text = data.get('text', '')
 
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+
+        # Resolve device_id to serial
+
+        device_id_manager = DeviceIDManager.instance()
+
+        serial = device_id_manager.get_serial(device_id)
+
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
         if not text:
             return {'error': {'code': 'MISSING_TEXT', 'message': 'Clipboard text required'}}
 
@@ -995,14 +1442,49 @@ def _register_control_routes(rpc_server):
 
     async def get_clipboard(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get device clipboard"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         control_service = ControlService.instance()
         clipboard_text = await control_service.get_clipboard(serial)
 
         return {"success": True, "text": clipboard_text}
+
+    async def reboot_device(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Reboot device"""
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Execute reboot command
+            await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                "reboot",
+                adb_path,
+                timeout=5
+            )
+
+            return {"success": True, "message": f"Reboot command sent to device {device_id}"}
+        except Exception as e:
+            return {'error': {'code': 'REBOOT_FAILED', 'message': f'Failed to reboot device: {str(e)}'}}
 
     rpc_server.route('control.touch', send_touch, sync=False, description='Send touch event')
     rpc_server.route('control.key', send_key, sync=False, description='Send key event')
@@ -1011,6 +1493,109 @@ def _register_control_routes(rpc_server):
     rpc_server.route('control.systemkey', send_system_key, sync=False, description='Send system key')
     rpc_server.route('control.clipboard_set', set_clipboard, sync=False, description='Set device clipboard')
     rpc_server.route('control.clipboard_get', get_clipboard, sync=False, description='Get device clipboard')
+    rpc_server.route('control.reboot', reboot_device, sync=False, description='Reboot device')
+
+
+# ============================================================
+# Shell/Terminal Routes
+# ============================================================
+
+def _register_shell_routes(rpc_server):
+    """Register shell command execution routes"""
+
+    async def execute_command(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Execute shell command on device"""
+        device_id = data.get('deviceId')
+        command = data.get('command')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+        if not command:
+            return {'error': {'code': 'MISSING_COMMAND', 'message': 'Shell command required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+            # Execute shell command
+            output = await asyncio.to_thread(
+                ADBManager.execute_shell,
+                serial,
+                command,
+                adb_path,
+                timeout=data.get('timeout', 30)
+            )
+
+            return {
+                "success": True,
+                "command": command,
+                "output": output,
+                "deviceId": device_id
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'COMMAND_FAILED', 'message': f'Command execution failed: {str(e)}'}}
+
+    async def get_device_info_shell(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """Get device system information via shell commands"""
+        device_id = data.get('deviceId')
+
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
+        if not serial:
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+
+        try:
+            adb_path = Config.get_adb_path()
+
+            # Gather various system info
+            info = {}
+
+            # CPU info
+            cpu_info = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "cat /proc/cpuinfo | grep 'Hardware'", adb_path, timeout=5
+            )
+            info['cpu'] = cpu_info.strip()
+
+            # Memory info
+            mem_info = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "cat /proc/meminfo | grep MemTotal", adb_path, timeout=5
+            )
+            info['memory'] = mem_info.strip()
+
+            # Battery info
+            battery_level = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "dumpsys battery | grep level", adb_path, timeout=5
+            )
+            info['battery'] = battery_level.strip()
+
+            # Disk usage
+            disk_usage = await asyncio.to_thread(
+                ADBManager.execute_shell, serial, "df /sdcard | tail -1", adb_path, timeout=5
+            )
+            info['disk'] = disk_usage.strip()
+
+            return {
+                "success": True,
+                "deviceId": device_id,
+                "systemInfo": info
+            }
+
+        except Exception as e:
+            return {'error': {'code': 'INFO_FAILED', 'message': f'Failed to get device info: {str(e)}'}}
+
+    rpc_server.route('shell.execute', execute_command, sync=False, description='Execute shell command')
+    rpc_server.route('shell.info', get_device_info_shell, sync=False, description='Get device system information')
 
 
 # ============================================================
@@ -1022,9 +1607,16 @@ def _register_video_routes(rpc_server):
 
     async def set_quality(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Change video quality"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         quality_params = {}
         if 'max_size' in data:
@@ -1044,9 +1636,16 @@ def _register_video_routes(rpc_server):
 
     async def pause_stream(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Pause video stream"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         video_service = VideoStreamService.instance()
         await video_service.pause(serial)
@@ -1055,9 +1654,16 @@ def _register_video_routes(rpc_server):
 
     async def resume_stream(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Resume video stream"""
-        serial = data.get('serial')
+        device_id = data.get('deviceId')
+        if not device_id:
+            return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
+
+        # Resolve device_id to serial
+        device_id_manager = DeviceIDManager.instance()
+        serial = device_id_manager.get_serial(device_id)
+
         if not serial:
-            return {'error': {'code': 'MISSING_SERIAL', 'message': 'Serial number required'}}
+            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         video_service = VideoStreamService.instance()
         await video_service.resume(serial)

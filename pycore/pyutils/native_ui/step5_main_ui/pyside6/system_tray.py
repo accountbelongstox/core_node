@@ -22,6 +22,16 @@ except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
 
+# Import i18n for multi-language support
+try:
+    from pycore.pyutils.native_ui.step0_i18n import i18n
+    from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
+    HAS_I18N = True
+except ImportError:
+    i18n = None
+    I18nKeys = None
+    HAS_I18N = False
+
 
 @dataclass
 class PySide6TrayMenuItem:
@@ -387,6 +397,110 @@ def create_event_driven_tray_menu(
     # Quit action (always enabled)
     items.append(PySide6TrayMenuItem(
         text=f"Quit {app_name}",
+        callback=lambda: THREAD_BUS.trigger_event('app.close', {'source': 'tray_menu'})
+    ))
+
+    return items
+
+
+def create_i18n_event_driven_tray_menu(
+    app_name: str = "Application",
+    enable_show_hide: bool = True,
+    enable_maximize: bool = True,
+    enable_restart: bool = True
+) -> List[PySide6TrayMenuItem]:
+    """
+    Create event-driven tray menu items with i18n support.
+
+    This function creates menu items that:
+    1. Trigger global events through THREAD_BUS (event-driven architecture)
+    2. Use i18n for multi-language support (automatically updates when language changes)
+
+    Args:
+        app_name: Application name for display
+        enable_show_hide: Enable show/hide window options
+        enable_maximize: Enable maximize/minimize/restore options
+        enable_restart: Enable restart option
+
+    Returns:
+        List of PySide6TrayMenuItem configurations with i18n texts
+
+    Global Events Triggered:
+        - window.show: Show window
+        - window.hide: Hide window
+        - window.maximize: Maximize window
+        - window.minimize: Minimize window
+        - window.restore: Restore window
+        - app.restart: Restart application
+        - app.close: Close application
+
+    Example:
+        menu_items = create_i18n_event_driven_tray_menu(app_name="MyApp")
+        tray.set_menu_items(menu_items)
+
+        # Menu texts will automatically use current i18n language
+        # Change language: i18n.set_language("zh")
+        # Menu needs to be rebuilt after language change
+
+    Note:
+        - Requires both THREAD_BUS and i18n to be available
+        - Falls back to create_event_driven_tray_menu() if i18n not available
+    """
+    if not HAS_THREAD_BUS:
+        raise RuntimeError("THREAD_BUS not available. Cannot create event-driven menu.")
+
+    if not HAS_I18N:
+        # Fallback to non-i18n version
+        return create_event_driven_tray_menu(
+            app_name=app_name,
+            enable_show_hide=enable_show_hide,
+            enable_maximize=enable_maximize,
+            enable_restart=enable_restart
+        )
+
+    items = []
+
+    # Show/Hide actions
+    if enable_show_hide:
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_SHOW),
+            callback=lambda: THREAD_BUS.trigger_event('window.show')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_HIDE),
+            callback=lambda: THREAD_BUS.trigger_event('window.hide')
+        ))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
+
+    # Window state actions
+    if enable_maximize:
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_MAXIMIZE),
+            callback=lambda: THREAD_BUS.trigger_event('window.maximize')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_MINIMIZE),
+            callback=lambda: THREAD_BUS.trigger_event('window.minimize')
+        ))
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_RESTORE),
+            callback=lambda: THREAD_BUS.trigger_event('window.restore')
+        ))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
+
+    # Restart action
+    if enable_restart:
+        items.append(PySide6TrayMenuItem(
+            text=i18n.get(I18nKeys.TRAY_MENU_RESTART),
+            callback=lambda: THREAD_BUS.trigger_event('app.restart')
+        ))
+        items.append(PySide6TrayMenuItem(text="---", separator=True))
+
+    # Quit action (always enabled)
+    # Use app_name in quit text for clarity
+    quit_text = i18n.get(I18nKeys.TRAY_MENU_EXIT)
+    items.append(PySide6TrayMenuItem(
+        text=f"{quit_text} {app_name}",
         callback=lambda: THREAD_BUS.trigger_event('app.close', {'source': 'tray_menu'})
     ))
 
