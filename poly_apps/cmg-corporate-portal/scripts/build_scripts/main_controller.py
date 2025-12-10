@@ -190,6 +190,54 @@ class BuildController:
         # Initialize build config
         config_info = self.initialize_build_config()
 
+        # Print resource file status
+        print("\n" + "-" * 60)
+        print("Resource Files Status")
+        print("-" * 60)
+        app_logo_src = config_info.get("app_logo_src", "logo.png")
+        splash_src = config_info.get("splash_src", "splash.png")
+        logo_path = self.assets_path / app_logo_src
+        splash_path = self.assets_path / splash_src
+
+        print(f"App Logo:   {app_logo_src}")
+        if logo_path.exists():
+            print(f"  Status: \033[92m✓ Found\033[0m")
+        else:
+            print(f"  Status: \033[91m✗ Missing\033[0m")
+        print(f"  Path: {logo_path}")
+
+        print(f"\nSplash:     {splash_src}")
+        if splash_path.exists():
+            print(f"  Status: \033[92m✓ Found\033[0m")
+        else:
+            print(f"  Status: \033[93m⚠ Missing\033[0m")
+        print(f"  Path: {splash_path}")
+        print("-" * 60)
+
+        # Validate resource files exist (variables already defined above)
+        missing_resources = []
+
+        if not logo_path.exists():
+            missing_resources.append(f"app_logo_src: {app_logo_src}")
+        if not splash_path.exists():
+            missing_resources.append(f"splash_src: {splash_src}")
+
+        if missing_resources:
+            print("\n" + "=" * 60)
+            print("\033[93m[WARNING] Missing Resource Files\033[0m")
+            print("=" * 60)
+            print(f"\nThe following configured resources are missing:")
+            for res in missing_resources:
+                print(f"  ⚠ {res}")
+            print(f"\nExpected location: {self.assets_path}")
+            print(f"\nPlease:")
+            print(f"  1. Place the resource files in: {self.assets_path}")
+            print(f"  2. Or update build_config.ini [app_info] section:")
+            print(f"     - app_logo_src = <your_icon_filename.png>")
+            print(f"     - splash_src = <your_splash_filename.png>")
+            print(f"\nNote: Installation will continue, but resource generation may fail")
+            print("=" * 60 + "\n")
+
         # Update package.json with Capacitor packages
         package_stats = self.update_package_json_with_capacitor()
 
@@ -238,7 +286,9 @@ class BuildController:
             app_name=config_info.get("app_name", ""),
             display_name_en=config_info.get("display_name_english", ""),
             display_name_cn=config_info.get("display_name_chinese", ""),
-            package_id=config_info.get("package_id", "")
+            package_id=config_info.get("package_id", ""),
+            app_logo_src=config_info.get("app_logo_src", "logo.png"),
+            splash_src=config_info.get("splash_src", "splash.png")
         )
 
         # Set flag for shell to run capacitor-assets
@@ -319,6 +369,60 @@ class BuildController:
         # Load build config
         config_info = self.initialize_build_config()
 
+        # Print resource file status
+        print("\n" + "-" * 60)
+        print("Resource Files Status")
+        print("-" * 60)
+        app_logo_src = config_info.get("app_logo_src", "logo.png")
+        splash_src = config_info.get("splash_src", "splash.png")
+        logo_path = self.assets_path / app_logo_src
+        splash_path = self.assets_path / splash_src
+
+        print(f"App Logo:   {app_logo_src}")
+        if logo_path.exists():
+            print(f"  Status: \033[92m✓ Found\033[0m")
+        else:
+            print(f"  Status: \033[91m✗ Missing\033[0m")
+        print(f"  Path: {logo_path}")
+
+        print(f"\nSplash:     {splash_src}")
+        if splash_path.exists():
+            print(f"  Status: \033[92m✓ Found\033[0m")
+        else:
+            print(f"  Status: \033[93m⚠ Missing\033[0m")
+        print(f"  Path: {splash_path}")
+        print("-" * 60)
+
+        # Validate resource files exist
+        app_logo_src = config_info.get("app_logo_src", "logo.png")
+        splash_src = config_info.get("splash_src", "splash.png")
+
+        missing_resources = []
+        logo_path = self.assets_path / app_logo_src
+        splash_path = self.assets_path / splash_src
+
+        if not logo_path.exists():
+            missing_resources.append(f"app_logo_src: {app_logo_src}")
+        if not splash_path.exists():
+            missing_resources.append(f"splash_src: {splash_src}")
+
+        if missing_resources:
+            print("\n" + "=" * 60)
+            print("\033[91m[ERROR] Missing Resource Files\033[0m")
+            print("=" * 60)
+            print(f"\nThe following configured resources are missing:")
+            for res in missing_resources:
+                print(f"  ✗ {res}")
+            print(f"\nExpected location: {self.assets_path}")
+            print(f"\nPlease:")
+            print(f"  1. Place the resource files in: {self.assets_path}")
+            print(f"  2. Or update build_config.ini [app_info] section:")
+            print(f"     - app_logo_src = <your_icon_filename.png>")
+            print(f"     - splash_src = <your_splash_filename.png>")
+            print("=" * 60)
+            self.var_system.set_var("ERROR", "missing_resource_files")
+            return
+
         # Set configuration variables
         self.var_system.set_vars({
             "ACTION": "build_android",
@@ -364,7 +468,9 @@ class BuildController:
             app_name=config_info.get("app_name", ""),
             display_name_en=config_info.get("display_name_english", ""),
             display_name_cn=config_info.get("display_name_chinese", ""),
-            package_id=config_info.get("package_id", "")
+            package_id=config_info.get("package_id", ""),
+            app_logo_src=config_info.get("app_logo_src", "logo.png"),
+            splash_src=config_info.get("splash_src", "splash.png")
         )
 
         # Set flag for shell to run capacitor-assets
@@ -376,8 +482,22 @@ class BuildController:
 
         # Step 3: Custom replacement (additional optimization)
         print("\n[Python] Applying custom resource replacements...")
-        replacer = ResourceReplacer(str(self.android_path), str(self.assets_path))
+        replacer = ResourceReplacer(
+            str(self.android_path),
+            str(self.assets_path),
+            app_logo_src=config_info.get("app_logo_src", "logo.png"),
+            splash_src=config_info.get("splash_src", "splash.png")
+        )
         replace_stats = replacer.replace_resources()
+
+        # Step 3.5: Update Android strings.xml with app display names
+        print("\n[Python] Updating Android app names in strings.xml...")
+        replacer.update_android_strings(
+            app_name=config_info.get("app_name", ""),
+            display_name_en=config_info.get("display_name_english", ""),
+            display_name_cn=config_info.get("display_name_chinese", ""),
+            package_id=config_info.get("package_id", "")
+        )
 
         # Step 4: Re-scan after replacement to show updated resources
         print("\n[Python] Re-scanning resources after replacement...")
