@@ -5,7 +5,7 @@ File Variable System (Refactored)
 Uses single file per variable instead of JSON
 Format: filename = KEY, content = VALUE
 Stores in global directory:
-  - Windows: C:\Users\USERNAME\.core_node\.build_global_vars
+  - Windows: C:\\Users\\USERNAME\\.core_node\\.build_global_vars
   - Linux: /var/_core_node/_build_global_vars/
 """
 
@@ -41,10 +41,6 @@ class FileVarSystem:
         # Determine global variable directory based on OS
         self.var_dir = self._get_global_var_dir()
         self.var_dir.mkdir(parents=True, exist_ok=True)
-
-        # Commands directory
-        self.cmd_dir = self.var_dir / "commands"
-        self.cmd_dir.mkdir(parents=True, exist_ok=True)
 
         # Print global variable directory info
         print(f"[FileVarSystem] Global variable directory: {self.var_dir}")
@@ -111,7 +107,7 @@ class FileVarSystem:
         else:
             filename = f"{self.app_prefix}_COMMAND_{index}"
 
-        return self.cmd_dir / filename
+        return self.var_dir / filename
 
     def set_var(self, key: str, value: Any) -> None:
         """
@@ -288,8 +284,8 @@ class FileVarSystem:
         # Clear command count
         self.set_var(KEY_COMMAND_COUNT, 0)
 
-        # Remove all command files
-        for cmd_file in self.cmd_dir.glob(f"{self.app_prefix}_COMMAND_*"):
+        # Remove all command files from main directory
+        for cmd_file in self.var_dir.glob(f"{self.app_prefix}_COMMAND_*"):
             if cmd_file.is_file():
                 cmd_file.unlink()
 
