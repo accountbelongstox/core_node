@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 350px;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        h3 {
+            margin: 0 0 15px 0;
+            color: #3B82F6;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        input[type="text"], select {
+            width: calc(100% - 12px);
+            padding: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        #submit-url-btn {
+            background: #3B82F6;
+        }
+        #submit-url-btn:hover {
+            background: #2563EB;
+        }
+        #start-download-btn {
+            background: #10B981;
+        }
+        #start-download-btn:hover {
+            background: #059669;
+        }
+        #stop-download-btn {
+            background: #EF4444;
+        }
+        #stop-download-btn:hover {
+            background: #DC2626;
+        }
+        #status {
+            padding: 10px;
+            background: #F3F4F6;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #6B7280;
+            margin-top: 10px;
+            min-height: 20px;
+        }
+        .info {
+            font-size: 11px;
+            color: #6B7280;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h3>YouTube Playlist Auto Downloader</h3>
+    <div class="info">Visit ytmultidownloader.com to use this extension</div>
+    
+    <div>
+        <label for="playlist-url-input">Playlist URL:</label>
+        <input type="text" id="playlist-url-input" placeholder="https://www.youtube.com/playlist?list=...">
+    </div>
+    
+    <div>
+        <label for="format-select">Format:</label>
+        <select id="format-select">
+            <option value="Video-only (fastest)⚡">Video-only (fastest)⚡</option>
+            <option value="Audio-only">Audio-only</option>
+            <option value="Muxed">Muxed</option>
+            <option value="Auto Mix (Video + Audio)">Auto Mix (Video + Audio)</option>
+            <option value="Custom Mix">Custom Mix</option>
+        </select>
+    </div>
+    
+    <div>
+        <label for="quality-select">Quality:</label>
+        <select id="quality-select">
+            <option value="1080p">1080p</option>
+            <option value="720p">720p</option>
+            <option value="360p">360p</option>
+            <option value="144p">144p</option>
+        </select>
+    </div>
+    
+    <div>
+        <button id="submit-url-btn">1. Submit Playlist</button>
+        <button id="start-download-btn">2. Start Auto Download</button>
+        <button id="stop-download-btn">Stop Download</button>
+    </div>
+    
+    <div id="status">Ready</div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
