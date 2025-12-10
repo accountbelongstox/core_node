@@ -16,6 +16,30 @@ import xml.etree.ElementTree as ET
 class ResourceReplacer:
     """Replace Android resources with intelligent scaling and cropping"""
 
+    # Language code mapping table
+    LANGUAGE_MAP = {
+        'zh': {'name': 'Chinese Simplified', 'suggested_field': 'display_name_chinese'},
+        'zh-rTW': {'name': 'Chinese Traditional (Taiwan)', 'suggested_field': 'display_name_chinese_traditional'},
+        'zh-rHK': {'name': 'Chinese Traditional (Hong Kong)', 'suggested_field': 'display_name_chinese_hk'},
+        'ja': {'name': 'Japanese', 'suggested_field': 'display_name_japanese'},
+        'ko': {'name': 'Korean', 'suggested_field': 'display_name_korean'},
+        'es': {'name': 'Spanish', 'suggested_field': 'display_name_spanish'},
+        'fr': {'name': 'French', 'suggested_field': 'display_name_french'},
+        'de': {'name': 'German', 'suggested_field': 'display_name_german'},
+        'it': {'name': 'Italian', 'suggested_field': 'display_name_italian'},
+        'pt': {'name': 'Portuguese', 'suggested_field': 'display_name_portuguese'},
+        'ru': {'name': 'Russian', 'suggested_field': 'display_name_russian'},
+        'ar': {'name': 'Arabic', 'suggested_field': 'display_name_arabic'},
+        'th': {'name': 'Thai', 'suggested_field': 'display_name_thai'},
+        'vi': {'name': 'Vietnamese', 'suggested_field': 'display_name_vietnamese'},
+        'id': {'name': 'Indonesian', 'suggested_field': 'display_name_indonesian'},
+        'hi': {'name': 'Hindi', 'suggested_field': 'display_name_hindi'},
+        'tr': {'name': 'Turkish', 'suggested_field': 'display_name_turkish'},
+        'nl': {'name': 'Dutch', 'suggested_field': 'display_name_dutch'},
+        'pl': {'name': 'Polish', 'suggested_field': 'display_name_polish'},
+        'sv': {'name': 'Swedish', 'suggested_field': 'display_name_swedish'},
+    }
+
     def __init__(self, android_path: str, assets_path: str, app_logo_src: str = "logo.png", splash_src: str = "splash.png"):
         """
         Initialize resource replacer
@@ -285,6 +309,9 @@ class ResourceReplacer:
         # Parse language configuration
         language_map = self._parse_language_config(supported_languages, config_info or {})
 
+        # Detect existing language directories
+        self._detect_unconfigured_languages(language_map, supported_languages)
+
         # Update default strings.xml (English)
         self._update_or_create_strings_xml('values', display_name_en, package_id)
 
@@ -298,6 +325,107 @@ class ResourceReplacer:
         print("=" * 60)
 
         return True
+
+    def _detect_unconfigured_languages(self, configured_languages: dict, supported_languages_str: str) -> None:
+        """
+        Detect existing values-* directories that are not configured
+
+        Args:
+            configured_languages: Dictionary of configured language codes
+            supported_languages_str: Original config string
+        """
+        if not self.res_path.exists():
+            return
+
+        # Find all values-* directories
+        existing_lang_dirs = []
+        for item in self.res_path.iterdir():
+            if item.is_dir() and item.name.startswith('values-'):
+                lang_code = item.name.replace('values-', '')
+                existing_lang_dirs.append(lang_code)
+
+        # Check for unconfigured languages
+        unconfigured = []
+        for lang_code in existing_lang_dirs:
+            if lang_code not in configured_languages:
+                unconfigured.append(lang_code)
+
+        if unconfigured:
+            print("\n" + "⚠" * 30)
+            print("\033[93m[WARNING] Unconfigured Language Directories Detected\033[0m")
+            print("⚠" * 30)
+            print(f"\nFound {len(unconfigured)} language director{'y' if len(unconfigured) == 1 else 'ies'} not in configuration:")
+
+            config_examples = []
+            for lang_code in unconfigured:
+                dir_path = f"values-{lang_code}/"
+
+                # Get language info from mapping table
+                lang_info = self.LANGUAGE_MAP.get(lang_code)
+                if lang_info:
+                    lang_name = lang_info['name']
+                    suggested_field = lang_info['suggested_field']
+                    print(f"\n  📁 {dir_path}")
+                    print(f"     Language: {lang_name}")
+                    print(f"     Suggested config: {lang_code}:{suggested_field}")
+                    config_examples.append(f"{lang_code}:{suggested_field}")
+                else:
+                    print(f"\n  📁 {dir_path}")
+                    print(f"     Language: Unknown (code: {lang_code})")
+                    print(f"     Suggested config: {lang_code}:display_name_{lang_code}")
+                    config_examples.append(f"{lang_code}:display_name_{lang_code}")
+
+            print("\n" + "-" * 60)
+            print("To enable these languages, update build_config.ini:")
+            print("-" * 60)
+            print("\n[app_info]")
+
+            # Show current config if exists
+            if supported_languages_str:
+                current_langs = supported_languages_str.split(',')
+                combined = current_langs + config_examples
+                print(f"supported_languages = {','.join(combined)}")
+            else:
+                print(f"supported_languages = {','.join(config_examples)}")
+
+            # Show field definitions
+            print("\n# Add corresponding display name fields:")
+            for lang_code in unconfigured:
+                lang_info = self.LANGUAGE_MAP.get(lang_code)
+                if lang_info:
+                    suggested_field = lang_info['suggested_field']
+                    lang_name = lang_info['name']
+                    print(f"{suggested_field} = Your App Name in {lang_name}")
+                else:
+                    print(f"display_name_{lang_code} = Your App Name in {lang_code}")
+
+            print("\n" + "⚠" * 30 + "\n")
+
+    @classmethod
+    def print_supported_languages(cls) -> None:
+        """
+        Print all supported language codes and their suggested field names
+        """
+        print("\n" + "=" * 60)
+        print("Supported Language Codes")
+        print("=" * 60)
+        print("\nCommon language codes for Android localization:")
+        print("-" * 60)
+
+        for lang_code, info in sorted(cls.LANGUAGE_MAP.items()):
+            print(f"\n{lang_code:12} - {info['name']}")
+            print(f"             Config: {lang_code}:{info['suggested_field']}")
+
+        print("\n" + "=" * 60)
+        print("Usage in build_config.ini:")
+        print("=" * 60)
+        print("""
+[app_info]
+supported_languages = zh:display_name_chinese,ja:display_name_japanese
+display_name_chinese = 您的应用名称
+display_name_japanese = アプリ名
+        """)
+        print("=" * 60 + "\n")
 
     def _parse_language_config(self, supported_languages: str, config_info: dict) -> dict:
         """

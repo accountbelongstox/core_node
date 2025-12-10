@@ -20,3 +20,5 @@ com.getcapacitor.myapp
 
  还需要查看  capacitor 的官方文档。这个创建应该是由python根据规范自动创建，或者如果 capacitor
 支持预处理，也应该预处理，同时根据 build_config.ini 中的扩展语言来自动扩展。
+
+所有代码不要使用退出码、返回值检测，只能使用文件变量交换。 所有变量放到   C:\Users\用户名\.core_node\.build_global_vars / /var/_core_node/_build_global_vars/ 中
