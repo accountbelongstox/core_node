@@ -565,7 +565,11 @@ detect_system_ips() {
 
     SYSTEM_IPS="${ip_addresses[@]}"
 
-    print_success_from_common_functions "Detected IP addresses: $SYSTEM_IPS"
+    print_success_from_common_functions "Detected ${#ip_addresses[@]} IP address(es):"
+    for ip in "${ip_addresses[@]}"; do
+        echo "  - $ip"
+    done
+
     return 0
 }
 

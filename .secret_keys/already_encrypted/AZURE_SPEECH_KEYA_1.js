@@ -19,10 +19,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('I7IPFAT2ZPSxMG8tdJULJmpTCdtUdESd++CsUL5C94Y4Oa1guC9P+w==', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('swxl9UkAkkuz6P3ZCtxB6AYPeOywhDFiJY97cXvuzLlkBv5GgQ6mMXb0ucYxbtmErB3Kite2IJLOO9bQ2itoaSwHgQVKQTAh4udOVnDNji6kVLvVWX1l+hHeW0o4bHSJgCOZPJP3OzdhhdKVy0BXfep627pc9Y1HahElVfmG2bfdK5Ja5K1GiHVLVEN0fOHKXuj6ugzyGLgu3Rram6W+ROAHDvueyp20pvEvT19tSep8y4gfJH8qBIG6zIDSMkCq9DPWVfaVChiMbSmVhPfNZm+ouHekuNLdOyIyTWagM1FWcKj9wnhWvr6Xa7srwd9mKJIpHqVT/JNjHqZAosfrskENdDnRxAZe3r9IyTx+C0LX2Mx+Hz/Zf/nuccSH0Z8EIFIzchDWooCYW1aVgAT9juIoP7XTVVdFunFQX27N3QM+ACrbP47KWzM/5tfw+TX/F6RgfZphEB8S6kkCgkvpIFkZ+QwHmqEWQFuDT43/ulZluGn9CwOYuabQ7y18x3lW', 'base64');
-const PARAMS_KEY = Buffer.from('F2IltbYaqqFzD4C0r9xPIplGt/vx71Kt1KAbV02rcR0=', 'base64');
-const PARAMS_IV = Buffer.from('s/3WRRT7kvgGUAtTbmlovQ==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('m1KfS8I2IxhCQoPWAYDlMqMP3ZXrgiLDZ7Uv5xbP2vJY0RMV6b8ZDQ==', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('XroUZ/EZw4Fw47z2uFMWE+XpEvK8P18wCE3ZkCR5p7EwY30PPHGTZbk03Mo+7s15mHh9yhGJQg0ZpgSD8PCfbbT9qY3R/1E/BmaVgarLvEmpJcPjpO+CDw+ik9i1TYdmP5qoVw0nccaxqRQH8rJIYpRdShC1fEFDDs3OmvRxuG0wGcjOEVBWQqE0OR3jXybQI+spDDRszWZ7SgJBLU0DCnytD6OzEvip98mHpvGKLX0LpJf6Rs8dU1ZvM8wrkOXmhwbUqJgqcoNmtmFUlt4qxqkCwF7esLgVAqtqZLQpuvoutE+xxYhu71lCcPXdBFcR2J+4mPZhhFlBFukK9raKrgAG92spQoGDN+CbjsG5yYCN5Rr2ReWEWkJTheg1qhdkRNM2wx/5NcmWO0N3okEEgVdb5YqkHtE4G5C2rRkj6BMUCcPdWXEsuKbg7QhoymUZhFG1tzpq8HIjYk/WSlcQUKiQCcWBA9GjCft21YYuA07DXBSiamojbA1lw8DUkKsK', 'base64');
+const PARAMS_KEY = Buffer.from('lHK/pC5MJt5/ttTVpeavq5qv45HLWjSwc8JgbWTf/Ho=', 'base64');
+const PARAMS_IV = Buffer.from('6z34u2DC85ov2kC97tRSlg==', 'base64');
 const ORIGINAL_FILENAME = 'AZURE_SPEECH_KEYA_1';
 
 // Function to deobfuscate parameters
