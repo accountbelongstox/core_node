@@ -140,7 +140,8 @@ test_model_load() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local test_script_path="$parent_dir_3/pytools/aitools/qwen25_runner.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local test_script_path="$parent_dir_4/pytools/aitools/qwen25_runner.py"
 
     if [ ! -f "$test_script_path" ]; then
         print_error "Runner script not found at: $test_script_path"
@@ -171,7 +172,8 @@ create_interactive_script() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local test_script_path="$parent_dir_3/pytools/aitools/qwen25_runner.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local test_script_path="$parent_dir_4/pytools/aitools/qwen25_runner.py"
 
     if [ ! -f "$test_script_path" ]; then
         print_error "Runner script not found at: $test_script_path"

@@ -18,6 +18,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 
+# Build pnpm/npm absolute paths from gvar_common.sh variables
+PNPM_ABS_PATH="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+NPM_ABS_PATH="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/npm"
+
 # Legacy service names to clean up
 OLD_SERVICES=(
     "octane-hot-reload"
@@ -120,12 +124,27 @@ cd "$LARAVEL_MAIN_PATH"
 
 if [ ! -d "node_modules/chokidar" ]; then
     echo "⚠ chokidar not found, installing..."
-    if command -v pnpm &> /dev/null; then
+
+    # Check for pnpm using absolute path first (prevents "command not found" on first install)
+    if [ -f "$PNPM_ABS_PATH" ]; then
+        echo "Using pnpm at: $PNPM_ABS_PATH"
+        "$PNPM_ABS_PATH" install --save-dev chokidar
+        echo "✓ chokidar installed via pnpm"
+    elif command -v pnpm &> /dev/null; then
+        echo "Using pnpm from PATH: $(which pnpm)"
         pnpm install --save-dev chokidar
-        echo "✓ chokidar installed"
+        echo "✓ chokidar installed via pnpm"
+    elif [ -f "$NPM_ABS_PATH" ]; then
+        echo "pnpm not found, using npm at: $NPM_ABS_PATH"
+        "$NPM_ABS_PATH" install --save-dev chokidar
+        echo "✓ chokidar installed via npm"
+    elif command -v npm &> /dev/null; then
+        echo "pnpm not found, using npm from PATH: $(which npm)"
+        npm install --save-dev chokidar
+        echo "✓ chokidar installed via npm"
     else
-        echo "✗ pnpm not found. Please install pnpm to enable hot-reload"
-        echo "  Run: npm install -g pnpm"
+        echo "✗ Neither pnpm nor npm found. Please install Node.js first"
+        echo "  Run: bash scripts/shells/linux/debian/install_shells/14_install_node_24.sh"
         echo "  You can still use Octane without hot-reload"
     fi
 else
