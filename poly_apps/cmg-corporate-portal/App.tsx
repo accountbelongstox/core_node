@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, Phone, Mail, MapPin, ArrowRight, Crown, Globe, Moon, Sun, User as UserIcon, LogIn, Apple, Smartphone, Download, Check, X as CloseIcon, Home as HomeIcon, Target, Umbrella, LayoutGrid, Shield, Pickaxe, Bell, Headset, Flag, LandPlot, Building2, FerrisWheel, Calendar, Settings as SettingsIcon } from 'lucide-react';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import Home from './pages/Home';
 import ShootingRange from './pages/ShootingRange';
 import Security from './pages/Security';
@@ -53,7 +54,7 @@ const MobileHeader: React.FC = () => {
     const currentLanguage = languages.find(lang => lang.code === language) || languages[0];
 
     return (
-        <header className="fixed top-0 left-0 right-0 z-40 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-100 dark:border-white/5 px-6 pt-safe-top pb-3 h-[60px] flex items-center justify-between transition-colors">
+        <header className="fixed top-0 left-0 right-0 z-40 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-100 dark:border-white/5 px-6 pt-safe-top pb-3 min-h-[60px] flex items-center justify-between transition-colors">
             <button onClick={() => setCorporateDrawerOpen(true)} className="flex items-center gap-2 group">
                 <div className="w-8 h-8 rounded-full bg-black border border-yellow-600/50 flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
                     <img src={Assets.logo.min} alt="CMG" className="w-full h-full object-cover p-0.5" />
@@ -176,7 +177,7 @@ const AppContent: React.FC = () => {
         <ShootingBookingDrawer />
         <GolfBookingDrawer />
 
-        <main className={`${!['/login', '/register'].includes(location.pathname) ? 'pt-[60px]' : ''} flex-grow animate-fade-in relative z-0`}>
+        <main className={`${!['/login', '/register'].includes(location.pathname) ? 'pt-safe-top' : ''} flex-grow animate-fade-in relative z-0`} style={!['/login', '/register'].includes(location.pathname) ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)' } : undefined}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/shooting" element={<ShootingRange />} />
@@ -384,6 +385,20 @@ const App: React.FC = () => {
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
+    // Initialize StatusBar for Android safe area
+    const initStatusBar = async () => {
+      try {
+        if (await StatusBar.getInfo()) {
+          await StatusBar.setStyle({ style: Style.Dark });
+          await StatusBar.setOverlaysWebView({ overlay: false });
+        }
+      } catch (error) {
+        // StatusBar plugin not available (e.g., in browser)
+        console.log('StatusBar not available');
+      }
+    };
+    initStatusBar();
+
     const savedLang = localStorage.getItem('cmg-lang') as Language;
     // Validate language code
     const validLanguages: Language[] = ['en', 'zh', 'lo', 'ja'];
@@ -415,8 +430,12 @@ const App: React.FC = () => {
     localStorage.setItem('cmg-theme', themeMode);
     if (themeMode === 'dark') {
       document.documentElement.classList.add('dark');
+      // Update StatusBar style based on theme
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
     } else {
       document.documentElement.classList.remove('dark');
+      // Update StatusBar style based on theme
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {});
     }
   }, [themeMode]);
 
