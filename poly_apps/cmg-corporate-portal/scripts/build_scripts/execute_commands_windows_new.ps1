@@ -2,6 +2,7 @@
 # Windows Variable Reader and Command Executor (Refactored)
 # Reads file variables directly (no JSON, no Python)
 # Each variable is a separate file: filename=KEY, content=VALUE
+# Uses global variable directory: C:\Users\USERNAME\.core_node\.build_global_vars
 # ============================================
 
 param(
@@ -14,9 +15,21 @@ $ErrorActionPreference = "Stop"
 # VARIABLE DECLARATIONS
 # ============================================
 
-$VarDir = Join-Path $ProjectRoot ".build_vars"
+# Global variable directory (Windows)
+$GlobalVarDir = Join-Path $env:USERPROFILE ".core_node\.build_global_vars"
+$VarDir = $GlobalVarDir
 $CmdDir = Join-Path $VarDir "commands"
 $AppPrefix = ""  # Will be determined from var files
+
+# Ensure global variable directory exists
+if (-not (Test-Path $VarDir)) {
+    New-Item -Path $VarDir -ItemType Directory -Force | Out-Null
+}
+if (-not (Test-Path $CmdDir)) {
+    New-Item -Path $CmdDir -ItemType Directory -Force | Out-Null
+}
+
+Write-Host "[FileVarSystem] Global variable directory: $VarDir" -ForegroundColor Cyan
 
 # ============================================
 # KEY CENTER - Shared with Python and Linux
