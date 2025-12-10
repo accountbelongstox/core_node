@@ -1850,6 +1850,284 @@ function Invoke-UvCommand {
 
 <#
 .SYNOPSIS
+    Installs Python packages using UVX with isolated tool execution
+
+.DESCRIPTION
+    UVX installation method that leverages UV's isolated tool execution.
+    UVX is similar to pipx but uses UV's fast dependency resolution.
+    It runs Python tools in isolated environments.
+    
+    Design Problems Solved:
+    - Need for isolated Python tool execution
+    - Fast dependency resolution for tools
+    - Consistent tool installation across environments
+    
+    Solution Approach:
+    - Use UVX for isolated tool installation and execution
+    - Leverage UV's fast dependency resolution
+    - Return executable path for consistent environment variable setup
+    - Support both temporary execution and permanent installation
+
+.PARAMETER PackageName
+    The UVX package name (e.g., "black", "pylint", "mcp-feedback-enhanced@latest")
+
+.PARAMETER InstallDir
+    NOTE: UVX manages its own installation strategy.
+    This parameter is kept for API consistency but is ignored.
+
+.PARAMETER Keyword
+    Primary executable name for detection (e.g., "black", "pylint")
+
+.PARAMETER AdditionalKeywords
+    Additional keywords for comprehensive detection
+
+.PARAMETER OnlyCheckFlag
+    If true, only checks if package is installed
+
+.PARAMETER ForceInstall
+    If true, forces reinstallation
+
+.RETURNS
+    Returns the full path to the main executable, or $null if not found
+
+.NOTES
+    - Similar to pipx but uses UV's fast resolver
+    - Isolated tool execution
+    - Compatible with existing Python workflows
+    - Returns executable path for environment variable setup
+#>
+function Invoke-UvxCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$InstallDir = "", # Ignored for uvx (API consistency)
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $true
+    )
+
+    $Recurse = $false
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+
+    Write-DebugLog -Message "Processing uvx package: $PackageName" -Category "UVX" -Color "Cyan"
+
+    # Repair Python environment to get valid paths
+    $envRepair = Repair-PythonEnvironment
+    if (-not $envRepair.ScriptsDir) {
+        Write-DebugLog -Message "CRITICAL: Python environment repair failed - cannot proceed" -Category "UVX" -Color "Red"
+        return $null
+    }
+
+    # Try to find uv using absolute path first (uvx is part of uv)
+    $uvExePath = Join-Path $envRepair.ScriptsDir "uv.exe"
+    $uvExe = $null
+
+    if (Test-Path $uvExePath) {
+        $uvExe = $uvExePath
+        Write-DebugLog -Message "Found uv at absolute path: $uvExePath" -Category "UVX" -Color "Green"
+    } else {
+        # Fallback to PATH search
+        $uvExeCmd = Get-Command "uv" -ErrorAction SilentlyContinue
+        if ($uvExeCmd) {
+            $uvExe = $uvExeCmd.Source
+            Write-DebugLog -Message "Found uv in PATH: $uvExe" -Category "UVX" -Color "Yellow"
+        } else {
+            Write-DebugLog -Message "uv not found, attempting to install via pip..." -Category "UVX" -Color "Yellow"
+            try {
+                # Use absolute path to pip
+                $pipExe = $envRepair.PipExe
+                if ($pipExe) {
+                    & $pipExe install uv 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        # Check again with absolute path
+                        if (Test-Path $uvExePath) {
+                            $uvExe = $uvExePath
+                            Write-DebugLog -Message "uv installed successfully at: $uvExePath" -Category "UVX" -Color "Green"
+                        } else {
+                            Write-DebugLog -Message "uv installation failed - executable not found" -Category "UVX" -Color "Red"
+                            return $null
+                        }
+                    } else {
+                        Write-DebugLog -Message "Failed to install uv via pip" -Category "UVX" -Color "Red"
+                        return $null
+                    }
+                } else {
+                    Write-DebugLog -Message "pip not found, cannot install uv" -Category "UVX" -Color "Red"
+                    return $null
+                }
+            }
+            catch {
+                Write-DebugLog -Message "Error installing uv: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+                return $null
+            }
+        }
+    }
+    
+    # Get uv tool directory for installed packages
+    $searchPaths = @()
+
+    # Get uv tool directory using absolute path
+    # NOTE: Do NOT use try-catch because uv's stderr (WARNING) will trigger exceptions
+    Write-DebugLog -Message "Getting uv tool directory using absolute path..." -Category "UVX" -Color "Cyan"
+    $uvToolOutput = & $uvExe tool dir 2>&1  # Capture both stdout and stderr
+    $uvToolExitCode = $LASTEXITCODE
+
+    if ($uvToolExitCode -eq 0 -and $uvToolOutput) {
+        # Filter out warnings and get actual path
+        $uvToolPath = $null
+        foreach ($line in $uvToolOutput) {
+            $lineStr = $line.ToString()
+            if ($lineStr -notmatch "^WARNING:" -and $lineStr -notmatch "^ERROR:" -and $lineStr.Trim() -ne "") {
+                $uvToolPath = $lineStr.Trim()
+                break
+            }
+        }
+
+        if ($uvToolPath -and (Test-Path $uvToolPath)) {
+            $searchPaths += $uvToolPath
+            Write-DebugLog -Message "Added uv tool directory: $uvToolPath" -Category "UVX" -Color "Green"
+        }
+    }
+
+    # Use Python Scripts directory from environment repair
+    if ($envRepair.ScriptsDir) {
+        $searchPaths += $envRepair.ScriptsDir
+        Write-DebugLog -Message "Added Python Scripts directory from envRepair: $($envRepair.ScriptsDir)" -Category "UVX" -Color "Green"
+    }
+
+    # UV home directory for user-installed tools
+    $uvHome = Join-Path $env:USERPROFILE ".local\bin"
+    if (Test-Path $uvHome) {
+        $searchPaths += $uvHome
+        Write-DebugLog -Message "Added UV home bin path: $uvHome" -Category "UVX" -Color "Cyan"
+    }
+
+    # Ensure we have at least one search path
+    if ($searchPaths.Count -eq 0) {
+        Write-DebugLog -Message "WARNING: No search paths found, using fallback" -Category "UVX" -Color "Yellow"
+        $searchPaths += (Split-Path -Parent $uvExe)
+    }
+
+    Write-DebugLog -Message "Final UVX search paths count: $($searchPaths.Count)" -Category "UVX" -Color "Cyan"
+    for ($i = 0; $i -lt $searchPaths.Count; $i++) {
+        Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "UVX" -Color "Cyan"
+    }
+    
+    # Build search keywords
+    $searchKeywords = @($Keyword)
+    if ($AdditionalKeywords) {
+        $searchKeywords += $AdditionalKeywords
+    }
+    if (-not $searchKeywords -or $searchKeywords -eq "") {
+        # Extract package name from PackageName (remove version specifier if present)
+        $packageNameOnly = $PackageName -replace '@.*$', ''
+        $searchKeywords = @($packageNameOnly)
+    }
+    
+    # Check if already installed - search in all uv paths at once
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+    
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "Package already installed: $executable" -Category "UVX" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "UVX" -Color "Cyan"
+        return $executable
+    }
+    
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    
+    # Install package using uv tool install (uvx uses uv tool install under the hood)
+    Write-DebugLog -Message "Installing uvx package: $PackageName" -Category "UVX" -Color "Yellow"
+    try {
+        # Use uv tool install for permanent installation
+        $installArgs = @("tool", "install", $PackageName)
+        if ($ForceInstall) {
+            $installArgs += "--force"
+        }
+        
+        $Command = "uv $($installArgs -join ' ')"
+        Write-DebugLog -Message "Command: $Command" -Category "UVX" -Color "Magenta"
+        
+        # Capture uv output but don't return it
+        $uvOutput = & $uvExe $installArgs 2>&1
+        Write-DebugLog -Message "uv tool installation output: $($uvOutput -join ' ')" -Category "UVX" -Color "Cyan"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-DebugLog -Message "UV tool installation successful" -Category "UVX" -Color "Green"
+            
+            # Refresh search paths after installation
+            Write-DebugLog -Message "Refreshing search paths..." -Category "UVX" -Color "Magenta"
+            $searchPaths = @()
+            try {
+                $uvTool = & $uvExe tool dir 2>&1
+                if ($uvTool) {
+                    # Filter out warnings
+                    foreach ($line in $uvTool) {
+                        $lineStr = $line.ToString()
+                        if ($lineStr -notmatch "^WARNING:" -and $lineStr -notmatch "^ERROR:" -and $lineStr.Trim() -ne "") {
+                            $searchPaths += $lineStr.Trim()
+                            break
+                        }
+                    }
+                }
+                
+                if ($envRepair.ScriptsDir) {
+                    $searchPaths += $envRepair.ScriptsDir
+                }
+                
+                $uvHome = Join-Path $env:USERPROFILE ".local\bin"
+                if (Test-Path $uvHome) {
+                    $searchPaths += $uvHome
+                }
+            }
+            catch {
+                Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+                throw
+            }
+            
+            # Find the installed executable
+            Write-DebugLog -Message "Searching for executable after installation..." -Category "UVX" -Color "Magenta"
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+            
+            if ($executable) {
+                Write-DebugLog -Message "Found executable: $executable" -Category "UVX" -Color "Green"
+                return $executable
+            }
+            else {
+                Write-DebugLog -Message "Installation completed but executable not found" -Category "UVX" -Color "Yellow"
+                return $null
+            }
+        }
+        else {
+            Write-DebugLog -Message "Installation failed with exit code: $LASTEXITCODE" -Category "UVX" -Color "Red"
+            # Try uninstall and reinstall for error recovery
+            if (-not $ForceInstall) {
+                Write-DebugLog -Message "Attempting uninstall and reinstall..." -Category "UVX" -Color "Yellow"
+                # Extract package name without version
+                $packageNameOnly = $PackageName -replace '@.*$', ''
+                & $uvExe tool uninstall $packageNameOnly 2>$null
+                Start-Sleep -Seconds 2
+                $retryOutput = & $uvExe tool install $PackageName --force 2>&1
+                Write-DebugLog -Message "uv tool retry installation output: $($retryOutput -join ' ')" -Category "UVX" -Color "Cyan"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-DebugLog -Message "Retry installation successful" -Category "UVX" -Color "Green"
+                    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+                    return $executable
+                }
+            }
+            return $null
+        }
+    }
+    catch {
+        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "UVX" -Color "Red"
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
     Installs Python packages using Poetry with dependency management
 
 .DESCRIPTION
