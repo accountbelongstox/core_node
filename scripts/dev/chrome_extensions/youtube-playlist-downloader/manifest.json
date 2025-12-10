@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Playlist Auto Downloader",
+  "version": "1.0",
+  "description": "Automatically download videos from YouTube playlists on ytmultidownloader.com",
+  "permissions": [
+    "downloads",
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://ytmultidownloader.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://ytmultidownloader.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

@@ -89,6 +89,57 @@ def is_admin() -> bool:
         return False
 
 
+def safe_write_secret(file_path: Path, content: str) -> None:
+    """Safely write secret content to file without BOM
+
+    Args:
+        file_path: Path to the file to write
+        content: Content to write (will be encoded as UTF-8 without BOM)
+
+    Raises:
+        OSError: If file cannot be written
+    """
+    # Ensure content is string
+    if not isinstance(content, str):
+        content = str(content)
+
+    # Encode to UTF-8 bytes without BOM
+    content_bytes = content.encode('utf-8')
+
+    # Write as bytes to ensure no BOM is added
+    file_path.write_bytes(content_bytes)
+
+
+def safe_read_secret(file_path: Path) -> str:
+    """Safely read secret content from file, removing BOM if present
+
+    Args:
+        file_path: Path to the file to read
+
+    Returns:
+        File content with BOM removed (if present)
+
+    Raises:
+        OSError: If file cannot be read
+        UnicodeDecodeError: If file is not valid UTF-8
+    """
+    # Read as bytes first
+    raw_bytes = file_path.read_bytes()
+
+    # Remove UTF-8 BOM if present (EF BB BF)
+    if raw_bytes[:3] == b'\xef\xbb\xbf':
+        raw_bytes = raw_bytes[3:]
+
+    # Decode to string
+    content = raw_bytes.decode('utf-8')
+
+    # Additional safety check for string-level BOM (should not occur)
+    if content and content[0] == '\ufeff':
+        content = content[1:]
+
+    return content
+
+
 def get_project_root() -> Path:
     """Get project root directory by finding from current script location
     
