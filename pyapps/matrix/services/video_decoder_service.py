@@ -221,17 +221,23 @@ class VideoDecoderService:
                                 ColorPrint.green(f"[VideoDecoder] ✓ Key frame received and decoded for {serial}, decoder synchronized")
                             state['waiting_for_keyframe'] = False
                             state['error_count'] = 0
+                            state['consecutive_decode_failures'] = 0
                     except Exception as decode_err:
+                        # Track consecutive failures
+                        if 'consecutive_decode_failures' not in state:
+                            state['consecutive_decode_failures'] = 0
+                        state['consecutive_decode_failures'] += 1
+
                         # If decode fails, only enable keyframe waiting if sync is enabled
                         if self.enable_keyframe_sync and not state['waiting_for_keyframe']:
                             ColorPrint.yellow(f"[VideoDecoder] Decode failed, will wait for next keyframe: {decode_err}")
                             state['waiting_for_keyframe'] = True
                             state['keyframe_wait_start'] = time.time()
                         elif not self.enable_keyframe_sync:
-                            # Keyframe sync disabled, just log occasional errors
-                            state['error_count'] += 1
-                            if state['error_count'] % 10 == 1:  # Log first and every 10th error
-                                ColorPrint.yellow(f"[VideoDecoder] Decode failed (#{state['error_count']}), continuing without keyframe sync: {decode_err}")
+                            # Keyframe sync disabled, just continue trying
+                            # After many consecutive failures, just log once
+                            if state['consecutive_decode_failures'] <= 5 or state['consecutive_decode_failures'] % 20 == 0:
+                                ColorPrint.yellow(f"[VideoDecoder] Decode failed (#{state['consecutive_decode_failures']} consecutive), will keep trying: {decode_err}")
                         continue
 
                 if not all_frames:
@@ -355,8 +361,9 @@ class VideoDecoderService:
                         import traceback
                         traceback.print_exc()
 
-            # Mark decoder as waiting for keyframe after errors
-            state['waiting_for_keyframe'] = True
+            # Mark decoder as waiting for keyframe after errors (only if sync enabled)
+            if self.enable_keyframe_sync:
+                state['waiting_for_keyframe'] = True
 
             return None
 
