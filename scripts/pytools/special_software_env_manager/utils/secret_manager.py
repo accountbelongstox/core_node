@@ -40,11 +40,32 @@ class LocalSecretManager:
                 return candidate
         return None
 
+    @staticmethod
+    def _remove_bom_from_bytes(data: bytes) -> bytes:
+        """Remove UTF-8 BOM from bytes if present."""
+        if data[:3] == b'\xef\xbb\xbf':
+            return data[3:]
+        return data
+
+    @staticmethod
+    def _remove_bom_from_string(text: str) -> str:
+        """Remove UTF-8 BOM from string if present."""
+        if text and text[0] == '\ufeff':
+            return text[1:]
+        return text
+
     def _read_raw_value(self, key_name):
         target_file = self.raw_dir / key_name
         if target_file.exists():
             try:
-                content = target_file.read_text(encoding='utf-8').strip()
+                # Read as bytes first to properly detect and remove BOM
+                raw_bytes = target_file.read_bytes()
+                raw_bytes = self._remove_bom_from_bytes(raw_bytes)
+                content = raw_bytes.decode('utf-8').strip()
+
+                # Additional safety check for string BOM
+                content = self._remove_bom_from_string(content)
+
                 if content:
                     return content
                 # If file exists but is empty, return None
