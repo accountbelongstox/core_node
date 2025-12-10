@@ -443,10 +443,10 @@ $installSuccess = Install-NodeJS
 if ($installSuccess) {
     Write-ColorMessage -Message "$SCRIPT_INDEX Node.js installation completed successfully" -Type "Success"
 
-    Write-ColorMessage -Message "" -Type "Info"
+    Write-Host ""
     Verify-AndFix-AllConfigs
 
-    Write-ColorMessage -Message "" -Type "Info"
+    Write-Host ""
     $testSuccess = Test-NodeJSInstallation
 
     if ($testSuccess) {
