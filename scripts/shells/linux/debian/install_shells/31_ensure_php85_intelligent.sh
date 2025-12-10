@@ -960,20 +960,45 @@ install_php_core() {
     echo -e "${CYAN}$SCRIPT_INDEX Preventing Apache2 installation...${NC}"
     $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
 
-    # Step 1: Install PHP 8.5 core package (without apache2 dependencies)
-    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing php8.5 (without Apache2)...${NC}"
-    if ! dpkg -l | grep -q "^ii.*php8.5[[:space:]]"; then
-        if $USE_SUDO apt install php8.5 -y --no-install-recommends 2>/dev/null || $USE_SUDO apt install php8.5 -y --no-install-recommends --allow-unauthenticated; then
-            echo -e "${GREEN}$SCRIPT_INDEX php8.5 installed successfully${NC}"
+    # Step 1: Install PHP 8.5 core packages (CLI ONLY - NO FPM, using Swoole)
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Installing PHP 8.5 core packages (CLI only, NO FPM)...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Note: NOT installing php8.5 metapackage to avoid php8.5-fpm${NC}"
+
+    # Use PHP85_CORE_PACKAGES from php_common_vars.sh (php8.5-cli, php8.5-common)
+    local core_packages=("${PHP85_CORE_PACKAGES[@]}")
+    local core_failed=false
+
+    for pkg in "${core_packages[@]}"; do
+        if ! dpkg -l | grep -q "^ii.*$pkg[[:space:]]"; then
+            echo -e "${CYAN}$SCRIPT_INDEX Installing $pkg...${NC}"
+            if $USE_SUDO apt install "$pkg" -y --no-install-recommends 2>/dev/null || $USE_SUDO apt install "$pkg" -y --no-install-recommends --allow-unauthenticated; then
+                echo -e "${GREEN}$SCRIPT_INDEX $pkg installed successfully${NC}"
+            else
+                echo -e "${RED}$SCRIPT_INDEX Failed to install $pkg${NC}"
+                core_failed=true
+            fi
         else
-            echo -e "${RED}$SCRIPT_INDEX Failed to install php8.5${NC}"
-            return 1
+            echo -e "${GREEN}$SCRIPT_INDEX $pkg already installed${NC}"
         fi
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX php8.5 already installed${NC}"
+    done
+
+    if [ "$core_failed" = true ]; then
+        echo -e "${RED}$SCRIPT_INDEX Failed to install core PHP packages${NC}"
+        return 1
     fi
 
-    # Step 2: Install Laravel-required PHP extensions (CLI only, NO FPM - using Swoole)
+    # Step 1.5: Check if php8.5-fpm got installed (should not happen) and disable it
+    if dpkg -l | grep -q "^ii.*php8.5-fpm[[:space:]]"; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Warning: php8.5-fpm was installed (unexpected)${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Disabling php8.5-fpm service (using Swoole instead)...${NC}"
+        $USE_SUDO systemctl stop php8.5-fpm 2>/dev/null || true
+        $USE_SUDO systemctl disable php8.5-fpm 2>/dev/null || true
+        echo -e "${GREEN}$SCRIPT_INDEX php8.5-fpm service disabled${NC}"
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX Good: php8.5-fpm not installed (as expected for Swoole setup)${NC}"
+    fi
+
+    # Step 2: Install Laravel-required PHP extensions (NO FPM - using Swoole)
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Installing Laravel-required PHP 8.5 extensions...${NC}"
 
     # Use core extensions from common variables
