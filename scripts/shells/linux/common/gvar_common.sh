@@ -474,23 +474,12 @@ detect_desktop_environment
 detect_desktop_windows_drives
 
 # Set core node project root directory (derived from base data directory)
-# WSL/NTFS/Desktop environment: base_dir/programing/core_node
-# Production server (no desktop, no data disk): base_dir/wwwroot/core_node
+# Unified path for both server and desktop: base_dir/programing/core_node
 get_core_node_project_root() {
     local base_dir=$(get_base_data_directory)
 
-    # Check if this is WSL, has NTFS disk, or has desktop environment
-    if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-        # For WSL: use Linux path structure
-        if [ "$IS_WSL" = true ]; then
-            echo "$base_dir/programing/core_node"
-        else
-            echo "$base_dir/programing/core_node"
-        fi
-    else
-        # Production server without desktop/NTFS
-        echo "$base_dir/wwwroot/core_node"
-    fi
+    # Unified path structure for all environments
+    echo "$base_dir/programing/core_node"
 }
 
 CORE_NODE_PROJECT_ROOT="$(get_core_node_project_root)"

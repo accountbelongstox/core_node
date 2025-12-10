@@ -42,7 +42,8 @@ EXTRACTED_DIR="$INSTALL_DIR/extracted"
 APPRUN_PATH="$EXTRACTED_DIR/squashfs-root/AppRun"
 USER_BIN_DIR="$REAL_USER_HOME/.local/bin"
 USER_SYMLINK="$USER_BIN_DIR/$EXEC_NAME"
-DESKTOP_FILE="/usr/share/applications/${EXEC_NAME}.desktop"
+USER_APPLICATIONS_DIR="$REAL_USER_HOME/.local/share/applications"
+DESKTOP_FILE="$USER_APPLICATIONS_DIR/${EXEC_NAME}.desktop"
 
 # Version tracking
 APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
@@ -391,28 +392,22 @@ create_desktop_entry() {
     # Clean up old desktop entries first
     cleanup_old_desktop_entries
 
-    print_step_from_common_functions "Creating desktop entry..."
+    print_step_from_common_functions "Creating desktop entry for user: $REAL_USER..."
 
     local icon_path=$(find_icon)
+
+    # Ensure user applications directory exists
+    if [ ! -d "$USER_APPLICATIONS_DIR" ]; then
+        print_info_from_common_functions "Creating user applications directory: $USER_APPLICATIONS_DIR"
+        mkdir -p "$USER_APPLICATIONS_DIR"
+        chown "$REAL_USER:$REAL_USER_GROUP" "$USER_APPLICATIONS_DIR"
+    fi
 
     # Check if desktop_entry_manager.sh exists
     local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
 
     if [[ -x "$desktop_manager_script" ]]; then
-        print_info_from_common_functions "Creating desktop entry via desktop_entry_manager.sh"
-
-        # Detect desktop user
-        local desktop_user="${SUDO_USER:-$USER}"
-        local desktop_home="$(getent passwd "$desktop_user" | cut -d: -f6)"
-        if [[ -z "$desktop_home" ]] || [[ ! -d "$desktop_home" ]]; then
-            desktop_home="$HOME"
-        fi
-
-        # Run desktop_entry_manager as actual user
-        local run_cmd=""
-        if [[ -n "$desktop_user" ]] && [[ "$desktop_user" != "root" ]] && [[ "$desktop_user" != "$USER" ]]; then
-            run_cmd="sudo -u $desktop_user"
-        fi
+        print_info_from_common_functions "Creating desktop entry via desktop_entry_manager.sh (as user: $REAL_USER)"
 
         # Determine exec target
         local exec_target=""
@@ -422,8 +417,8 @@ create_desktop_entry() {
             exec_target="$APPIMAGE_FILE"
         fi
 
-        # Create desktop entry
-        $run_cmd bash "$desktop_manager_script" --create-app \
+        # Always run as real user (not root)
+        sudo -u "$REAL_USER" bash "$desktop_manager_script" --create-app \
             "$EXEC_NAME" \
             "$DESKTOP_NAME" \
             "$exec_target" \
@@ -444,8 +439,8 @@ create_desktop_entry() {
             exec_target="$APPIMAGE_FILE"
         fi
 
-        # Fallback: create desktop file manually
-        cat << DESKTOP_EOF | $USE_SUDO tee "$DESKTOP_FILE" > /dev/null
+        # Fallback: create desktop file manually in user directory (NO sudo)
+        cat << DESKTOP_EOF > "$DESKTOP_FILE"
 [Desktop Entry]
 Name=$DESKTOP_NAME
 Comment=$DESKTOP_COMMENT
@@ -460,11 +455,12 @@ StartupWMClass=$STARTUP_WM_CLASS
 Keywords=wechat;weixin;chat;messaging;
 DESKTOP_EOF
 
-        $USE_SUDO chmod 644 "$DESKTOP_FILE"
+        chmod 644 "$DESKTOP_FILE"
+        chown "$REAL_USER:$REAL_USER_GROUP" "$DESKTOP_FILE"
 
-        # Update desktop database
+        # Update desktop database (user directory, no sudo needed)
         if command -v update-desktop-database >/dev/null 2>&1; then
-            $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
+            update-desktop-database "$USER_APPLICATIONS_DIR" 2>/dev/null || true
         fi
 
         print_success_from_common_functions "Desktop entry created: $DESKTOP_FILE"
@@ -593,8 +589,8 @@ main() {
     if [ -L "$USER_SYMLINK" ]; then
         print_info_from_common_functions "  User symlink: $USER_SYMLINK"
     fi
-    print_info_from_common_functions "  Desktop entry: Created via desktop_entry_manager.sh"
-    print_info_from_common_functions "  Owner: $REAL_USER:$REAL_USER_GROUP"
+    print_info_from_common_functions "  Desktop entry: $DESKTOP_FILE"
+    print_info_from_common_functions "  Owner: $REAL_USER:$REAL_USER_GROUP (non-root)"
     if [ -n "$new_version" ]; then
         print_info_from_common_functions "  Version: $new_version"
     fi
