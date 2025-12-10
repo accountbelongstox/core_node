@@ -1,0 +1,104 @@
+============================================================
+Android Localization - Supported Language Codes
+============================================================
+
+This file lists all supported language codes for Android localization.
+Use these codes in build_config.ini to enable multi-language support.
+
+============================================================
+Common Language Codes
+============================================================
+
+Code        | Language Name                    | Suggested Config
+----------- | -------------------------------- | ---------------------------
+zh          | Chinese Simplified               | zh:display_name_chinese
+zh-rTW      | Chinese Traditional (Taiwan)     | zh-rTW:display_name_chinese_traditional
+zh-rHK      | Chinese Traditional (Hong Kong)  | zh-rHK:display_name_chinese_hk
+ja          | Japanese                         | ja:display_name_japanese
+ko          | Korean                           | ko:display_name_korean
+es          | Spanish                          | es:display_name_spanish
+fr          | French                           | fr:display_name_french
+de          | German                           | de:display_name_german
+it          | Italian                          | it:display_name_italian
+pt          | Portuguese                       | pt:display_name_portuguese
+ru          | Russian                          | ru:display_name_russian
+ar          | Arabic                           | ar:display_name_arabic
+th          | Thai                             | th:display_name_thai
+vi          | Vietnamese                       | vi:display_name_vietnamese
+id          | Indonesian                       | id:display_name_indonesian
+hi          | Hindi                            | hi:display_name_hindi
+tr          | Turkish                          | tr:display_name_turkish
+nl          | Dutch                            | nl:display_name_dutch
+pl          | Polish                           | pl:display_name_polish
+sv          | Swedish                          | sv:display_name_swedish
+
+============================================================
+Usage Example
+============================================================
+
+In build_config.ini:
+
+[app_info]
+app_name = my_app
+display_name_english = My App
+display_name_chinese = 我的应用
+display_name_japanese = 私のアプリ
+display_name_spanish = Mi Aplicación
+
+# Configure supported languages (comma-separated)
+supported_languages = zh:display_name_chinese,ja:display_name_japanese,es:display_name_spanish
+
+============================================================
+Android Resource Structure
+============================================================
+
+The system will automatically create:
+
+android/app/src/main/res/
+├── values/strings.xml           # Default (English)
+├── values-zh/strings.xml        # Chinese Simplified
+├── values-ja/strings.xml        # Japanese
+└── values-es/strings.xml        # Spanish
+
+============================================================
+Automatic Detection
+============================================================
+
+If the build system detects an existing values-{lang}/ directory
+that is not configured, it will print a configuration example:
+
+Example output:
+
+⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠
+[WARNING] Unconfigured Language Directories Detected
+⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠
+
+Found 1 language directory not in configuration:
+
+  📁 values-ja/
+     Language: Japanese
+     Suggested config: ja:display_name_japanese
+
+------------------------------------------------------------
+To enable these languages, update build_config.ini:
+------------------------------------------------------------
+
+[app_info]
+supported_languages = ja:display_name_japanese
+
+# Add corresponding display name fields:
+display_name_japanese = Your App Name in Japanese
+
+⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠⚠
+
+============================================================
+Advanced: Custom Language Codes
+============================================================
+
+For unsupported language codes, use this format:
+
+supported_languages = custom:display_name_custom
+
+The system will create values-custom/strings.xml
+
+============================================================
