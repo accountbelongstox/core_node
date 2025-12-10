@@ -7,9 +7,6 @@
 # This script installs RustDesk Client - a remote desktop application
 # Recommended for desktop systems
 #
-# Enable verbose output - show all executed commands
-set -x
-
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -32,6 +29,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
 
 # Initialize global variables
 init_global_vars
@@ -39,8 +37,14 @@ init_global_vars
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 
+# Real user detection
+REAL_USER=$(get_real_user)
+REAL_USER_HOME=$(get_real_user_home)
+REAL_USER_DOWNLOADS=$(get_real_user_downloads)
+REAL_USER_GROUP=$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")
+
 # RustDesk version configuration
-RUSTDESK_VERSION="1.3.3"
+RUSTDESK_VERSION="1.4.4"
 RUSTDESK_DEB_URL="https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_VERSION}/rustdesk-${RUSTDESK_VERSION}-x86_64.deb"
 
 # Set up directories
@@ -51,7 +55,6 @@ RUSTDESK_DEB_DIR="$RUSTDESK_INSTALL_DIR/deb"
 # Version tracking
 APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
 RUSTDESK_INSTALLED_FLAG="$APP_VERSIONS_DIR/rustdesk_client.version"
-PRIMARY_DOWNLOAD_DIR="$HOME/Downloads"
 
 # Ensure sudo is available
 if command -v sudo >/dev/null 2>&1; then
@@ -139,10 +142,12 @@ install_deb_package() {
     fi
 
     # Create directories
+    echo "Creating directory: $RUSTDESK_DEB_DIR"
     $USE_SUDO mkdir -p "$RUSTDESK_DEB_DIR"
 
     # Copy .deb to installation directory
     print_step_from_common_functions "Copying .deb to $RUSTDESK_DEB_DIR"
+    echo "Running: cp $(basename "$deb_file") $RUSTDESK_DEB_DIR/"
     $USE_SUDO cp "$deb_file" "$RUSTDESK_DEB_DIR/"
 
     local deb_name=$(basename "$deb_file")
@@ -150,11 +155,14 @@ install_deb_package() {
 
     # Install the .deb package
     print_step_from_common_functions "Installing .deb package..."
+    echo "Running: dpkg -i $installed_deb"
     if $USE_SUDO dpkg -i "$installed_deb"; then
         print_success_from_common_functions "RustDesk Client .deb package installed successfully"
     else
         print_warning_from_common_functions "dpkg installation had issues, trying to fix dependencies..."
+        echo "Running: apt-get install -f -y"
         $USE_SUDO apt-get install -f -y
+        echo "Running: dpkg -i $installed_deb (retry)"
         if $USE_SUDO dpkg -i "$installed_deb"; then
             print_success_from_common_functions "RustDesk Client .deb package installed successfully after fixing dependencies"
         else
@@ -204,8 +212,10 @@ install_rustdesk() {
         print_step_from_common_functions "Attempting automatic download..."
         print_info_from_common_functions "Download URL: $RUSTDESK_DEB_URL"
 
-        local download_dir="$PRIMARY_DOWNLOAD_DIR"
+        # Use real user's Downloads directory
+        local download_dir="$REAL_USER_DOWNLOADS"
         if [[ ! -d "$download_dir" ]]; then
+            print_warning_from_common_functions "Real user Downloads not found: $download_dir"
             download_dir=$(find /home -maxdepth 2 -type d -name "Downloads" 2>/dev/null | head -1)
         fi
         if [[ -z "$download_dir" ]] || [[ ! -d "$download_dir" ]]; then
@@ -213,28 +223,66 @@ install_rustdesk() {
         fi
 
         print_info_from_common_functions "Download directory: $download_dir"
+        print_info_from_common_functions "Downloading as user: $REAL_USER"
 
-        local downloaded_file=$(download_with_browser_headers_from_common_functions "$RUSTDESK_DEB_URL" "$download_dir" 3)
+        # Download as real user (not root), with proper filename from URL
+        local target_filename="$download_dir/rustdesk-${RUSTDESK_VERSION}-x86_64.deb"
+        echo "Running: wget --content-disposition -O $target_filename $RUSTDESK_DEB_URL"
 
-        if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-            # Check if file has .deb extension, if not rename it
-            if [[ ! "$downloaded_file" =~ \.deb$ ]]; then
-                local proper_filename="$download_dir/rustdesk-${RUSTDESK_VERSION}-x86_64.deb"
-                print_info_from_common_functions "Renaming downloaded file to: $(basename "$proper_filename")"
-                mv "$downloaded_file" "$proper_filename"
-                downloaded_file="$proper_filename"
-            fi
-            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
-            deb_file="$downloaded_file"
+        if sudo -u "$REAL_USER" wget --content-disposition -O "$target_filename" "$RUSTDESK_DEB_URL" 2>&1; then
+            print_success_from_common_functions "Download successful: $(basename "$target_filename")"
+            deb_file="$target_filename"
         else
-            print_warning_from_common_functions "Auto-download failed, scanning Downloads..."
+            print_warning_from_common_functions "Direct download failed, trying alternative method..."
+
+            # Alternative: download to temp file then move
+            local temp_file=$(mktemp -u "$download_dir/rustdesk_XXXXXX")
+            if sudo -u "$REAL_USER" wget -O "$temp_file" "$RUSTDESK_DEB_URL" 2>&1; then
+                # Check if it's a valid deb file
+                if file "$temp_file" | grep -q "Debian"; then
+                    print_info_from_common_functions "Renaming downloaded file to proper name"
+                    sudo -u "$REAL_USER" mv "$temp_file" "$target_filename"
+                    deb_file="$target_filename"
+                    print_success_from_common_functions "Download successful after rename"
+                else
+                    rm -f "$temp_file"
+                    print_warning_from_common_functions "Downloaded file is not a Debian package"
+                fi
+            fi
+        fi
+
+        # If download still failed, scan for recent files
+        if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+            print_warning_from_common_functions "Download failed, scanning for recent files..."
             sleep 2
 
+            # First try to find .deb files
             local found_deb=$(find_file_in_downloads_from_common_functions "rustdesk*.deb" "newest")
             if [[ -n "$found_deb" ]] && [[ -f "$found_deb" ]]; then
                 print_success_from_common_functions "Found downloaded .deb: $(basename "$found_deb")"
                 deb_file="$found_deb"
             else
+                # Try to find any recently downloaded file (within last 2 minutes) that looks like RustDesk
+                print_info_from_common_functions "Looking for recently downloaded files without .deb extension..."
+                local recent_file=$(find "$download_dir" -maxdepth 1 -type f -mmin -2 -size +10M 2>/dev/null | head -1)
+
+                if [[ -n "$recent_file" ]] && [[ -f "$recent_file" ]]; then
+                    # Check if it's a valid deb file
+                    if file "$recent_file" | grep -q "Debian"; then
+                        local proper_filename="$download_dir/rustdesk-${RUSTDESK_VERSION}-x86_64.deb"
+                        print_info_from_common_functions "Found recent Debian package: $(basename "$recent_file")"
+                        print_info_from_common_functions "Renaming to: $(basename "$proper_filename")"
+                        sudo -u "$REAL_USER" mv "$recent_file" "$proper_filename"
+                        deb_file="$proper_filename"
+                        print_success_from_common_functions "Auto-download successful after detection and rename"
+                    else
+                        print_warning_from_common_functions "Recent file found but not a Debian package"
+                    fi
+                fi
+            fi
+
+            # If still no file found, switch to manual mode
+            if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
                 print_warning_from_common_functions "Auto-download failed, switching to manual download mode"
                 print_step_from_common_functions "Opening RustDesk download page for manual download..."
 
@@ -283,21 +331,56 @@ prompt_installation() {
         local installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
+            print_info_from_common_functions "Available version: $RUSTDESK_VERSION"
+
+            # Check if upgrade is available
+            if [[ "$installed_version" != "$RUSTDESK_VERSION" ]]; then
+                echo ""
+                print_step_from_common_functions "New version available!"
+                echo -n "Do you want to upgrade from $installed_version to $RUSTDESK_VERSION? (Y/n): "
+                read -r response
+
+                case "$response" in
+                    [nN]|[nN][oO])
+                        print_info_from_common_functions "Keeping existing installation"
+                        return 1
+                        ;;
+                    *)
+                        print_info_from_common_functions "Proceeding with upgrade..."
+                        return 0
+                        ;;
+                esac
+            else
+                echo ""
+                echo -n "Same version already installed. Reinstall? (y/N): "
+                read -r response
+
+                case "$response" in
+                    [yY]|[yY][eE][sS])
+                        print_info_from_common_functions "Proceeding with reinstallation..."
+                        return 0
+                        ;;
+                    *)
+                        print_info_from_common_functions "Keeping existing installation"
+                        return 1
+                        ;;
+                esac
+            fi
+        else
+            echo -n "Do you want to reinstall? (y/N): "
+            read -r response
+
+            case "$response" in
+                [yY]|[yY][eE][sS])
+                    print_info_from_common_functions "Proceeding with reinstallation..."
+                    return 0
+                    ;;
+                *)
+                    print_info_from_common_functions "Keeping existing installation"
+                    return 1
+                    ;;
+            esac
         fi
-
-        echo -n "Do you want to reinstall? (y/N): "
-        read -r response
-
-        case "$response" in
-            [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Proceeding with reinstallation..."
-                return 0
-                ;;
-            *)
-                print_info_from_common_functions "Keeping existing installation"
-                return 1
-                ;;
-        esac
     fi
 
     # Different prompt based on system type
