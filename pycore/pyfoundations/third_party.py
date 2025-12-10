@@ -10,7 +10,7 @@ All third-party packages MUST be imported through this module.
 Usage: from pycore.pyfoundations.third_party import aiohttp, netifaces, etc.
 
 The module automatically checks and installs missing packages on first import.
-"""
+""" 
 
 import os
 import sys

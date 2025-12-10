@@ -107,9 +107,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             active={selectedGroupId === null} 
             onClick={() => { onSelectGroup(null); onNavigate('matrix'); }}
           />
-          <NavItem icon="ph-activity" label={t('nav.system_health')} onClick={() => {}} />
+          <NavItem icon="ph-activity" label={t('nav.system_health')} onClick={() => onNavigate('health')} />
           <NavItem icon="ph-folder-open" label={t('nav.file_manager')} onClick={() => onNavigate('files')} />
           <NavItem icon="ph-film-strip" label={t('nav.recording')} onClick={() => onNavigate('media')} />
+          <NavItem icon="ph-code" label="API 测试" onClick={() => onNavigate('test')} />
 
           <div className="mt-4 mb-2 border-t border-white/5 mx-4"></div>
           

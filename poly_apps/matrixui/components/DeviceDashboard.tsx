@@ -3,11 +3,15 @@
 
 
 
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { Device, BatchActionType, DeviceLog } from '../types';
 import { DeviceInfo } from '../types/api';
 import { wsService } from '../services/websocket';
 import { useI18n } from '../services/i18n';
+import { DeviceVideoStream } from './DeviceVideoStream';
+import { ShellDialog } from './ShellDialog';
+import { useNotifications } from './Notification';
+import { useConfirmDialog } from './ConfirmDialog';
 
 interface DeviceDashboardProps {
   selectedIds: Set<string>;
@@ -27,14 +31,66 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   onBatchAction,
   onQuickAction,
   filterStatus,
-  setFilterStatus,
+  setFilterStatus, 
   addLog
 }) => {
   const { t } = useI18n();
   const [wsDevices, setWsDevices] = useState<DeviceInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const videoStreamEnabledRef = useRef<Map<string, boolean>>(new Map());
+  const addLogRef = useRef(addLog);
+
+  // Store stream info for each device
+  const [deviceStreamInfo, setDeviceStreamInfo] = useState<Map<string, { width: number; height: number; fps: number; format: string }>>(new Map());
+
+  // Zoomed device state (for layout change, NOT unmounting)
+  const [zoomedDeviceId, setZoomedDeviceId] = useState<string | null>(null);
+
+  // Dialog and notification state
+  const [activeShellDialog, setActiveShellDialog] = useState<{ deviceId: string; deviceName?: string } | null>(null);
+  const { notifications, showNotification, NotificationContainer } = useNotifications();
+  const { showConfirmDialog, ConfirmDialogComponent } = useConfirmDialog();
+
+  // ESC key to exit zoom
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && zoomedDeviceId) {
+        setZoomedDeviceId(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [zoomedDeviceId]);
+
+  // Update ref when addLog changes
+  useEffect(() => {
+    addLogRef.current = addLog;
+  }, [addLog]);
+  
+  // Stable error handler for video streams (use ref to avoid recreating)
+  const handleVideoStreamErrorRef = useRef<Map<string, (error: Error) => void>>(new Map());
+  
+  const getVideoStreamErrorHandler = useCallback((deviceId: string) => {
+    if (!handleVideoStreamErrorRef.current.has(deviceId)) {
+      handleVideoStreamErrorRef.current.set(deviceId, (error: Error) => {
+        console.error(`[DeviceVideoStream] Error for ${deviceId}:`, error);
+        addLogRef.current('error', `Video stream error for ${deviceId}: ${error.message}`);
+      });
+    }
+    return handleVideoStreamErrorRef.current.get(deviceId)!;
+  }, []);
+
+  // Handle stream init callback
+  const handleStreamInit = useCallback((deviceId: string, info: { width: number; height: number; fps: number; format: string }) => {
+    setDeviceStreamInfo(prev => {
+      const newMap = new Map(prev);
+      newMap.set(deviceId, info);
+      return newMap;
+    });
+  }, []);
   
   // Selection Box State
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ start: {x: number, y: number}, end: {x: number, y: number} } | null>(null);
   const deviceRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -42,38 +98,107 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const [activeTouch, setActiveTouch] = useState<string | null>(null); // Device serial currently being touched
   const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Wait for connection before sending initial fetch
-    const initialize = async () => {
-      await wsService.connect();
-      wsService.send('device', 'list');
-    };
-    initialize();
+  // Fetch devices using RPC v2 API
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      if (!wsService.isRpcConnected()) {
+        await wsService.connectRpc();
+      }
+      const result = await wsService.callRpc('adb.device.list', {});
+      if (result && result.devices) {
+        setWsDevices(result.devices);
+        addLog('success', `Loaded ${result.devices.length} devices`);
+      }
+    } catch (error) {
+      console.error('[DeviceDashboard] Failed to fetch devices:', error);
+      addLog('error', `Failed to fetch devices: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Listener
-    const removeListener = wsService.addListener((res) => {
-      if (res.namespace === 'device' && res.action === 'list') {
-        setWsDevices(res.data.devices);
+  useEffect(() => {
+    // Initial fetch
+    fetchDevices();
+
+    // Listen for device updates via RPC events
+    wsService.onRpcEvent('adb.devices.update', (data: any) => {
+      if (data && data.devices) {
+        console.log('[DeviceDashboard] Received adb.devices.update event:', data);
+        // Ensure all devices have deviceId
+        const devicesWithId = data.devices.map((d: any) => {
+          if (!d.deviceId) {
+            console.warn('[DeviceDashboard] Device missing deviceId in event, serial:', d.serial);
+          }
+          return d;
+        });
+        setWsDevices(devicesWithId);
+        addLog('info', `Device list updated: ${data.devices.length} devices`);
       }
     });
 
-    return () => { removeListener(); };
+    // Periodic refresh (every 10 seconds)
+    const refreshInterval = setInterval(() => {
+      fetchDevices();
+    }, 10000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      wsService.offRpcEvent('adb.devices.update');
+    };
   }, []);
 
   const mappedDevices: Device[] = useMemo(() => {
-    return wsDevices.map(d => ({
-      serial: d.serial,
-      model: d.model,
-      version: d.android_version || 'unknown',
-      status: d.status === 'device' ? 'online' : 'offline',
-      battery: 85,
-      resolution: '1080x2400',
-      groupId: 'root',
-      tags: [],
-      ip: '192.168.1.x',
-      ping: 25,
-      name: d.model
-    }));
+    return wsDevices
+      .filter(d => {
+        // Filter out devices without deviceId (should not happen, but safety check)
+        if (!d.deviceId) {
+          console.warn('[DeviceDashboard] Device missing deviceId, skipping:', d);
+          return false;
+        }
+        return true;
+      })
+      .map(d => {
+        // Determine device status based on state or legacy status field
+        let deviceStatus: 'online' | 'offline' | 'busy' = 'offline';
+        
+        if (d.state) {
+          // Use new state field
+          if (d.state === 'wifi_connected' || d.state === 'usb_connected') {
+            deviceStatus = 'online';
+          } else if (d.state === 'configuring') {
+            deviceStatus = 'busy';
+          } else {
+            deviceStatus = 'offline';
+          }
+        } else if (d.status) {
+          // Fallback to legacy status field
+          deviceStatus = d.status === 'device' ? 'online' : 'offline'; 
+        }
+        
+        // Validate deviceId format - must be "device_N" format, not serial
+        if (!d.deviceId || (!d.deviceId.startsWith('device_') && d.deviceId.includes(':'))) {
+          console.error(`[DeviceDashboard] Invalid deviceId format: ${d.deviceId}. Expected "device_1" format, got what looks like serial: ${d.serial}`);
+          // Fallback: skip this device or use serial as deviceId (will cause error but at least we log it)
+        }
+        
+        return {
+          deviceId: d.deviceId, // MUST use deviceId from API (required for video streaming) - format: "device_1", "device_2", etc.
+          serial: d.serial,
+          model: d.model || 'Unknown',
+          version: d.android_version || 'unknown',
+          status: deviceStatus,
+          battery: 85, // TODO: Get from device info
+          resolution: '1080x2400', // TODO: Get from device info
+          groupId: 'root',
+          tags: [],
+          ip: d.ip || d.serial || '192.168.1.x',
+          ping: 25, // TODO: Get from device info
+          name: d.model || d.serial,
+          manufacturer: d.manufacturer || 'Unknown'
+        };
+      });
   }, [wsDevices]);
 
   const filtered = useMemo(() => {
@@ -83,7 +208,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   }, [mappedDevices, filterStatus]);
 
   const handleEnroll = async () => {
-    await wsService.send('device', 'list');
+    await fetchDevices();
   };
 
   // --- Box Selection Logic ---
@@ -204,10 +329,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           addLog('info', `Device ${serial}: Touch Up ${coordsStr}`);
       }
     }
-    else if (type === 'double') {
-        wsService.send('control', 'touch', { serial, action: 'double', x, y, width: rect.width, height: rect.height });
-        addLog('success', `Device ${serial}: Double Click executed`);
-    }
   };
 
   return (
@@ -265,69 +386,114 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
         )}
 
         <div className="flex flex-wrap content-start gap-6">
-          {filtered.map(device => (
+          {loading && filtered.length === 0 ? (
+            <div className="w-full flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
+                  <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
+                </div>
+                <span className="text-slate-400 font-mono text-sm">Loading devices...</span>
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="w-full flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-2 text-slate-500">
+                <i className="ph ph-devices text-4xl"></i>
+                <span className="font-mono text-sm">No devices found</span>
+              </div>
+            </div>
+          ) : (
+            filtered.map(device => (
             <div
               key={device.serial}
               ref={el => { if (el) deviceRefs.current.set(device.serial, el); else deviceRefs.current.delete(device.serial); }}
-              onClick={(e) => onSelectDevice(device, e.ctrlKey || e.metaKey)}
-              onDoubleClick={() => onOpenDevice(device)}
               className={`
                 device-card group relative bg-[#0a0c10]
                 border rounded-2xl overflow-hidden transition-all duration-300
-                hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:z-10
-                flex flex-col h-[300px] w-[200px] select-none
-                ${selectedIds.has(device.serial) 
-                  ? 'border-[#00f2ff] shadow-[0_0_0_1px_#00f2ff,0_0_20px_rgba(0,242,255,0.2)]' 
+                flex flex-col select-none
+                ${zoomedDeviceId === device.deviceId
+                  ? 'fixed inset-4 z-50 w-auto h-auto shadow-[0_0_0_100vmax_rgba(0,0,0,0.8)]'
+                  : zoomedDeviceId
+                    ? 'h-[160px] w-[100px] opacity-50'
+                    : 'h-[320px] w-[200px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:z-10'
+                }
+                ${selectedIds.has(device.serial)
+                  ? 'border-[#00f2ff] shadow-[0_0_0_1px_#00f2ff,0_0_20px_rgba(0,242,255,0.2)]'
                   : 'border-white/10 hover:border-white/30'}
-                ${hoveredDevice === device.serial ? 'scale-[1.02]' : ''}
+                ${hoveredDevice === device.serial && !zoomedDeviceId ? 'scale-[1.02]' : ''}
               `}
             >
-              {/* Screen Area (Interactive) */}
-              <div 
-                className="flex-1 bg-black relative flex items-center justify-center overflow-hidden border-b border-white/5 cursor-crosshair"
+              {/* Top Info Bar - Clickable for selection */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectDevice(device, e.ctrlKey || e.metaKey);
+                }}
+                className={`bg-[#0d0f14] border-b border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors ${zoomedDeviceId === device.deviceId ? 'h-16' : 'h-[32px]'}`}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {/* Selection Checkbox */}
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      selectedIds.has(device.serial)
+                        ? 'bg-[#00f2ff] border-[#00f2ff] shadow-[0_0_8px_#00f2ff]'
+                        : 'border-white/30 hover:border-white/50'
+                    }`}
+                  >
+                    {selectedIds.has(device.serial) && (
+                      <i className="ph-bold ph-check text-black text-[10px]"></i>
+                    )}
+                  </div>
+
+                  {zoomedDeviceId === device.deviceId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomedDeviceId(null);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors text-sm"
+                    >
+                      <i className="ph ph-arrow-left"></i>
+                      <span>Back</span>
+                    </button>
+                  )}
+                  <span className={`font-mono text-white/60 truncate ${zoomedDeviceId === device.deviceId ? 'text-sm' : 'text-[9px]'}`}>{device.ip || device.serial}</span>
+                  {device.status === 'online' && (
+                    <span className="w-1.5 h-1.5 bg-[#05ffa1] rounded-full shadow-[0_0_8px_#05ffa1] animate-pulse"></span>
+                  )}
+                  {deviceStreamInfo.get(device.deviceId) && (
+                    <span className={`font-mono text-slate-400 ${zoomedDeviceId === device.deviceId ? 'text-xs' : 'text-[8px]'}`}>
+                      {deviceStreamInfo.get(device.deviceId)!.width}x{deviceStreamInfo.get(device.deviceId)!.height} @ {deviceStreamInfo.get(device.deviceId)!.fps}fps
+                    </span>
+                  )}
+                </div>
+                <span className={`font-mono text-slate-500 ${zoomedDeviceId === device.deviceId ? 'text-xs' : 'text-[8px]'}`}>{device.serial.slice(-6)}</span>
+              </div>
+
+              {/* Screen Area (Interactive) - Video fills this area */}
+              <div
+                className="flex-1 bg-black relative overflow-hidden cursor-crosshair group/video"
                 onMouseEnter={(e) => handleDeviceInteraction(e, device.serial, 'enter')}
                 onMouseLeave={(e) => handleDeviceInteraction(e, device.serial, 'leave')}
                 onMouseDown={(e) => handleDeviceInteraction(e, device.serial, 'down')}
                 onMouseMove={(e) => handleDeviceInteraction(e, device.serial, 'move')}
                 onMouseUp={(e) => handleDeviceInteraction(e, device.serial, 'up')}
-                onDoubleClick={(e) => handleDeviceInteraction(e, device.serial, 'double')}
               >
                 {device.status === 'online' ? (
-                  <div className="w-full h-full relative flex flex-col items-center justify-center p-4 pointer-events-none">
-                     {/* Background Grid */}
-                     <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(0,242,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-                     
-                     {/* Central Spinner */}
-                     <div className="relative w-16 h-16 mb-4">
-                        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#00f2ff] animate-spin"></div>
-                        <div className="absolute inset-2 rounded-full border-2 border-transparent border-l-[#bd00ff] animate-[spin_1.5s_linear_infinite_reverse]"></div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <i className="ph-fill ph-lightning text-[#00f2ff] text-xl animate-pulse"></i>
-                        </div>
-                     </div>
-                     
-                     {/* Status Text */}
-                     <div className="font-mono text-[9px] text-[#00f2ff] tracking-[2px] mb-2 animate-pulse">{t('dashboard.establishing_link')}</div>
-                     
-                     {/* Progress Bar */}
-                     <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-[#00f2ff] via-[#bd00ff] to-[#00f2ff] w-[60%] animate-[shimmer_1.5s_infinite]"></div>
-                     </div>
-                  </div>
+                  <DeviceVideoStream
+                    key={`video-${device.serial}`} // CRITICAL: Use serial (stable identifier) to prevent unmount on device info updates
+                    deviceId={device.deviceId}
+                    enabled={videoStreamEnabledRef.current.get(device.deviceId) ?? true}
+                    onError={getVideoStreamErrorHandler(device.deviceId)}
+                    onInit={(info) => handleStreamInit(device.deviceId, info)}
+                  />
                 ) : (
-                  <div className="flex flex-col items-center text-slate-700 pointer-events-none">
+                  <div className="flex flex-col items-center justify-center h-full text-slate-700 pointer-events-none">
                     <i className="ph ph-plugs text-3xl mb-2"></i>
                     <span className="text-[10px] font-mono tracking-widest">{t('dashboard.disconnected')}</span>
                   </div>
                 )}
-                
-                {/* HUD Overlay */}
-                <div className="absolute inset-0 p-3 pointer-events-none flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <span className="px-1.5 py-0.5 bg-black/80 border border-white/10 backdrop-blur rounded text-[9px] font-mono text-white/80">{device.serial}</span>
-                    {device.status === 'online' && <span className="w-2 h-2 bg-[#05ffa1] rounded-full shadow-[0_0_10px_#05ffa1] animate-pulse"></span>}
-                  </div>
-                </div>
                 
                 {/* Interaction Feedback Point */}
                 {activeTouch === device.serial && (
@@ -342,37 +508,130 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                    <div className="absolute inset-0 border border-[#00f2ff]/30 pointer-events-none bg-[#00f2ff]/5"></div>
                 )}
 
-                {/* Selection Check */}
-                {selectedIds.has(device.serial) && (
-                   <div className="absolute top-0 right-0 p-2 pointer-events-none">
-                      <div className="w-5 h-5 bg-[#00f2ff] rounded flex items-center justify-center shadow-[0_0_10px_#00f2ff]">
-                        <i className="ph-bold ph-check text-black text-xs"></i>
-                      </div>
-                   </div>
-                )}
               </div>
 
-              {/* Footer */}
-              <div className="h-[45px] bg-[#0d0f14] flex items-center justify-between px-3 pointer-events-auto">
-                <div className="flex flex-col">
-                   <span className="text-[11px] font-bold text-slate-200">{device.name}</span>
-                   <span className="text-[9px] font-mono text-slate-500">{device.ip}</span>
+              {/* Footer - Bottom Toolbar - Clickable for selection */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectDevice(device, e.ctrlKey || e.metaKey);
+                }}
+                className="h-[40px] bg-[#0d0f14] border-t border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors"
+              >
+                <div className="flex flex-col flex-1 min-w-0">
+                   <span className="text-[10px] font-bold text-slate-200 truncate">{device.name}</span>
+                   <div className="flex items-center gap-1.5">
+                     <span className="text-[8px] font-mono text-slate-500">{device.manufacturer || 'Unknown'}</span>
+                     <span className="text-[7px] text-slate-600">•</span>
+                     <span className="text-[8px] font-mono text-slate-500">Android {device.version}</span>
+                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded border border-white/5 ml-2">
                    <i className={`ph-fill ph-wifi-high text-[10px] ${device.status === 'online' ? 'text-[#05ffa1]' : 'text-slate-600'}`}></i>
-                   <span className="text-[9px] font-mono text-slate-400">{device.ping}ms</span>
+                   <span className="text-[8px] font-mono text-slate-400">{device.ping}ms</span>
                 </div>
               </div>
 
               {/* Enhanced Sidebar Tools Slide-out */}
-              <div className="absolute right-0 top-10 bottom-14 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
+              <div className="absolute right-0 top-12 bottom-12 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
                  {[
-                   { icon: 'ph-eye', title: 'View', action: () => onOpenDevice(device), color: 'text-[#00f2ff] border-[#00f2ff]/30 hover:bg-[#00f2ff]/20' },
-                   { icon: 'ph-terminal-window', title: 'Shell', action: () => {}, color: 'text-[#05ffa1] border-[#05ffa1]/30 hover:bg-[#05ffa1]/20' },
-                   { icon: 'ph-folder-open', title: 'Files', action: () => onQuickAction?.(device, 'files'), color: 'text-[#bd00ff] border-[#bd00ff]/30 hover:bg-[#bd00ff]/20' },
-                   { icon: 'ph-camera', title: t('control.actions.snap'), action: () => {}, color: 'text-white border-white/30 hover:bg-white/20' },
-                   { icon: 'ph-gear', title: 'Config', action: () => onQuickAction?.(device, 'config'), color: 'text-slate-300 border-white/20 hover:bg-white/10' },
-                   { icon: 'ph-power', title: 'Reboot', action: () => {}, color: 'text-[#ff2a6d] border-[#ff2a6d]/30 hover:bg-[#ff2a6d]/20' },
+                   { 
+                     icon: 'ph-arrows-out', 
+                     title: '大屏', 
+                     action: () => { 
+                       setZoomedDeviceId(zoomedDeviceId === device.deviceId ? null : device.deviceId); 
+                       addLog('info', `Toggled zoom for ${device.name || device.serial}`); 
+                     }, 
+                     color: 'text-[#ffd60a] border-[#ffd60a]/30 hover:bg-[#ffd60a]/20' 
+                   },
+                   { 
+                     icon: 'ph-eye', 
+                     title: 'View', 
+                     action: () => onOpenDevice(device), 
+                     color: 'text-[#00f2ff] border-[#00f2ff]/30 hover:bg-[#00f2ff]/20' 
+                   },
+                   { 
+                     icon: 'ph-terminal-window', 
+                     title: 'Shell', 
+                     action: async () => {
+                       setActiveShellDialog({ deviceId: device.deviceId, deviceName: device.name || device.serial });
+                     }, 
+                     color: 'text-[#05ffa1] border-[#05ffa1]/30 hover:bg-[#05ffa1]/20' 
+                   },
+                   { 
+                     icon: 'ph-folder-open', 
+                     title: 'Files', 
+                     action: () => onQuickAction?.(device, 'files'), 
+                     color: 'text-[#bd00ff] border-[#bd00ff]/30 hover:bg-[#bd00ff]/20' 
+                   },
+                   { 
+                     icon: 'ph-camera', 
+                     title: t('control.actions.snap'), 
+                     action: async () => {
+                       try {
+                         if (!wsService.isRpcConnected()) {
+                           await wsService.connectRpc();
+                         }
+                         showNotification('info', 'Capturing screenshot...', 2000);
+                         const result = await wsService.callRpcV2('screenshot.capture', {
+                           deviceId: device.deviceId,
+                           format: 'png'
+                         });
+                         if (result && result.success) {
+                           showNotification('success', `Screenshot saved: ${result.filePath || 'Success'}`);
+                           addLog('success', `Screenshot captured for ${device.name || device.serial}`);
+                         } else {
+                           throw new Error(result?.error?.message || 'Screenshot failed');
+                         }
+                       } catch (error) {
+                         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                         showNotification('error', `Screenshot failed: ${errorMsg}`);
+                         addLog('error', `Screenshot failed for ${device.name || device.serial}: ${errorMsg}`);
+                       }
+                     }, 
+                     color: 'text-white border-white/30 hover:bg-white/20' 
+                   },
+                   { 
+                     icon: 'ph-gear', 
+                     title: 'Config', 
+                     action: () => onQuickAction?.(device, 'config'), 
+                     color: 'text-slate-300 border-white/20 hover:bg-white/10' 
+                   },
+                   { 
+                     icon: 'ph-power', 
+                     title: 'Reboot', 
+                     action: async () => {
+                       const confirmed = await showConfirmDialog({
+                         title: 'Reboot Device',
+                         message: `Are you sure you want to reboot ${device.name || device.serial}? This action cannot be undone.`,
+                         confirmText: 'Reboot',
+                         cancelText: 'Cancel',
+                         type: 'danger'
+                       });
+                       if (confirmed) {
+                         try {
+                           if (!wsService.isRpcConnected()) {
+                             await wsService.connectRpc();
+                           }
+                           showNotification('info', 'Sending reboot command...', 2000);
+                           const result = await wsService.callRpcV2('control.reboot', {
+                             deviceId: device.deviceId
+                           });
+                           if (result && result.success) {
+                             showNotification('success', 'Reboot command sent successfully');
+                             addLog('success', `Reboot command sent to ${device.name || device.serial}`);
+                           } else {
+                             throw new Error(result?.error?.message || 'Reboot failed');
+                           }
+                         } catch (error) {
+                           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                           showNotification('error', `Reboot failed: ${errorMsg}`);
+                           addLog('error', `Reboot failed for ${device.name || device.serial}: ${errorMsg}`);
+                         }
+                       }
+                     }, 
+                     color: 'text-[#ff2a6d] border-[#ff2a6d]/30 hover:bg-[#ff2a6d]/20' 
+                   },
                  ].map((tool, i) => (
                    <button 
                      key={i}
@@ -386,7 +645,8 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                  ))}
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -421,6 +681,22 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Shell Dialog */}
+      {activeShellDialog && (
+        <ShellDialog
+          deviceId={activeShellDialog.deviceId}
+          deviceName={activeShellDialog.deviceName}
+          onClose={() => setActiveShellDialog(null)}
+        />
+      )}
+
+      {/* Notification Container */}
+      <NotificationContainer />
+
+      {/* Confirm Dialog */}
+      {ConfirmDialogComponent}
+
     </div>
   );
 };

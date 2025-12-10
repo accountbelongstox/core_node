@@ -13,6 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Optional
 
+from pycore import ColorPrint
 from pyapps.matrix.matrix_config import Config
 
 
@@ -29,13 +30,14 @@ class ConfigService:
         "codec",
         "control",
         "locked_video_orientation",
+        "video_stream_mode",  # "h264" or "yuv"
     }
 
     def __init__(self) -> None:
-        storage_root = Config.PROJECT_ROOT / "storage"
-        storage_root.mkdir(parents=True, exist_ok=True)
-
-        self._config_file: Path = storage_root / "settings.json"
+        # Use platform-specific configuration directory
+        # Windows: %USERPROFILE%/.core_node/scrcpy/config/settings.json
+        # Linux: /var/_core_node/scrcpy/config/settings.json
+        self._config_file: Path = Config.get_config_file_path()
         self._lock: asyncio.Lock = asyncio.Lock()
         self._data: Dict = self._load_from_disk()
 
@@ -63,8 +65,9 @@ class ConfigService:
                 if "global" not in data or "devices" not in data:
                     raise ValueError("Invalid configuration structure")
                 return data
-            except Exception:
+            except (json.JSONDecodeError, ValueError, IOError) as e:
                 # Fall back to defaults if the file is corrupted
+                ColorPrint.yellow(f"[ConfigService] Failed to load config file: {e}, using defaults")
                 return self._default_config()
         return self._default_config()
 
@@ -114,9 +117,19 @@ class ConfigService:
                 return deepcopy(self._data["global"])
 
         async with self._lock:
+            old_config = deepcopy(self._data["global"])
             self._data["global"].update(updates)
             await self._write_locked()
-            return deepcopy(self._data["global"])
+            new_config = deepcopy(self._data["global"])
+
+        # Log video_stream_mode changes
+        if "video_stream_mode" in updates:
+            old_mode = old_config.get("video_stream_mode")
+            new_mode = new_config.get("video_stream_mode")
+            if old_mode != new_mode:
+                ColorPrint.green(f"[ConfigService] Video stream mode changed: {old_mode} -> {new_mode}")
+
+        return new_config
 
     async def get_device_config(self, device_name: str) -> Optional[Dict]:
         async with self._lock:
@@ -129,11 +142,21 @@ class ConfigService:
         updates = self._sanitise_payload(payload)
         async with self._lock:
             key = self._match_device_key(device_name) or device_name
+            old_device_config = deepcopy(self._data["devices"].get(key, {}))
             device_config = self._data["devices"].get(key, {})
             device_config.update(updates)
             self._data["devices"][key] = device_config
             await self._write_locked()
-            return deepcopy(self._data["devices"][key])
+            new_device_config = deepcopy(self._data["devices"][key])
+
+        # Log video_stream_mode changes
+        if "video_stream_mode" in updates:
+            old_mode = old_device_config.get("video_stream_mode")
+            new_mode = new_device_config.get("video_stream_mode")
+            if old_mode != new_mode:
+                ColorPrint.green(f"[ConfigService] Device {device_name} video stream mode changed: {old_mode} -> {new_mode}")
+
+        return new_device_config
 
     async def delete_device_config(self, device_name: str) -> bool:
         async with self._lock:
