@@ -126,6 +126,7 @@ def extract_config_info(config):
         info['description'] = config.get('app_info', 'description', fallback='')
         info['app_logo_src'] = config.get('app_info', 'app_logo_src', fallback='logo.png')
         info['splash_src'] = config.get('app_info', 'splash_src', fallback='splash.png')
+        info['supported_languages'] = config.get('app_info', 'supported_languages', fallback='')
 
     # Extract package settings
     if 'package_settings' in config:

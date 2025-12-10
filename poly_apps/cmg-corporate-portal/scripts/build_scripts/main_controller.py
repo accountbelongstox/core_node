@@ -496,7 +496,9 @@ class BuildController:
             app_name=config_info.get("app_name", ""),
             display_name_en=config_info.get("display_name_english", ""),
             display_name_cn=config_info.get("display_name_chinese", ""),
-            package_id=config_info.get("package_id", "")
+            package_id=config_info.get("package_id", ""),
+            supported_languages=config_info.get("supported_languages", ""),
+            config_info=config_info
         )
 
         # Step 4: Re-scan after replacement to show updated resources
