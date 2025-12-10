@@ -198,6 +198,65 @@ class ADBManager:
         return devices
 
     @staticmethod
+    def get_device_info(serial: str, adb_path: str = "adb") -> ADBDevice:
+        """
+        Get device information (wrapper around list_devices for single device)
+
+        Args:
+            serial: Device serial number
+            adb_path: Path to ADB executable
+
+        Returns:
+            ADBDevice object with properties filled in
+
+        Examples:
+            >>> device = ADBManager.get_device_info("ABC123")
+            >>> print(f"{device.properties.model} - {device.serial}")
+        """
+        # Get all devices
+        devices = ADBManager.list_devices(adb_path)
+        device = next((d for d in devices if d.serial == serial), None)
+
+        if not device:
+            # Create a device object with offline state
+            basic = ADBDeviceBasic(serial=serial, state=ADBDeviceState.OFFLINE)
+            device = ADBDevice.from_basic(basic)
+            return device
+
+        # Get detailed properties if device is online
+        if device.is_online:
+            props = ADBManager.get_device_properties(serial, adb_path)
+            if props:
+                # Update device properties (need to create new dataclass since frozen)
+                # Since ADBDevice is not frozen, we can set properties directly
+                device.properties = props
+
+        return device
+
+    @staticmethod
+    def get_prop(serial: str, prop: str, adb_path: str = "adb") -> str:
+        """
+        Get device property using getprop
+
+        Args:
+            serial: Device serial number
+            prop: Property name (e.g., "ro.build.version.release")
+            adb_path: Path to ADB executable
+
+        Returns:
+            Property value (empty string if failed)
+
+        Examples:
+            >>> version = ADBManager.get_prop("ABC123", "ro.build.version.release")
+            >>> print(version)  # "13"
+        """
+        try:
+            output = ADBManager.execute_shell(serial, f"getprop {prop}", adb_path, timeout=5)
+            return output.strip()
+        except Exception:
+            return ""
+
+    @staticmethod
     def get_device_properties(
         serial: str,
         adb_path: str = "adb"

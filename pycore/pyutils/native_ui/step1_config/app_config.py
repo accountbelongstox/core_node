@@ -252,6 +252,31 @@ class NativeUIConfig:
     on_restart_callback: Optional[Callable] = None
     """Callback when restart is triggered (optional custom logic)"""
 
+    # ========== QtWebEngine Configuration ==========
+    webengine_enable_config: bool = True
+    """Enable multi-tier QtWebEngine configuration (Chromium flags for hardware acceleration)"""
+
+    webengine_chromium_flags: Optional[List[str]] = None
+    """Custom Chromium flags (None = use auto-generated flags based on options below)"""
+
+    webengine_disable_gpu_sandbox: bool = True
+    """Disable GPU sandbox (may be needed for hardware acceleration on Windows)"""
+
+    webengine_enable_webcodecs: bool = True
+    """Enable WebCodecs API (H.264 video decoding)"""
+
+    webengine_enable_hardware_acceleration: bool = True
+    """Enable GPU hardware acceleration"""
+
+    webengine_enable_remote_debugging: bool = False
+    """Enable remote debugging (F12 dev tools via http://localhost:port)"""
+
+    webengine_remote_debugging_port: int = 9222
+    """Remote debugging port (default: 9222)"""
+
+    webengine_print_diagnostics: bool = False
+    """Print detailed QtWebEngine diagnostic info on startup"""
+
     # ========== Advanced Options ==========
     force: bool = False
     """Force close existing instance if found"""

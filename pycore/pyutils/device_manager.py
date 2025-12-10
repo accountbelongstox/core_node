@@ -104,8 +104,8 @@ class DeviceManager:
         """
         # Get basic device info from ADB
         device = ADBManager.get_device_info(serial, adb_path)
-        if not device.is_available:
-            print(f"Device {serial} is not available")
+        if not device.is_online:
+            print(f"Device {serial} is not online (state: {device.state.value})")
             return None
 
         # Get resolution
@@ -143,7 +143,7 @@ class DeviceManager:
 
         return DeviceInfo(
             serial=serial,
-            model=device.model or "Unknown",
+            model=device.properties.model if device.properties else "Unknown",
             resolution=Resolution(width=width, height=height),
             dpi=dpi,
             android_version=android_version,
@@ -194,7 +194,10 @@ class DeviceManager:
 
             # Start scrcpy-server (CRITICAL: must succeed for video streaming)
             print(f"[DeviceManager] Starting scrcpy-server for {serial}...")
-            await asyncio.to_thread(device.start_server)
+            await asyncio.wait_for(
+                asyncio.to_thread(device.start_server),
+                timeout=60.0  # 60 seconds timeout (socket accept is 30s)
+            )
             print(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
 
             # Verify device is truly connected (has active sockets)
