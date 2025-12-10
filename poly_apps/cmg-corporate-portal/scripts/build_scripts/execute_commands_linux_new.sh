@@ -12,8 +12,23 @@ set -e
 # ============================================
 
 PROJECT_ROOT="$1"
-VAR_DIR="${PROJECT_ROOT}/.build_vars"
-CMD_DIR="${VAR_DIR}/commands"
+
+# Determine global variable directory based on permissions
+GLOBAL_VAR_DIR="/var/_core_node/_build_global_vars"
+
+# Check if we have write permission to /var/_core_node or /var
+if [ -w "/var/_core_node" ] 2>/dev/null || [ -w "/var" ] 2>/dev/null; then
+    VAR_DIR="$GLOBAL_VAR_DIR"
+else
+    # Fallback to user home if no permission
+    VAR_DIR="$HOME/.core_node/.build_global_vars"
+    echo "[WARNING] No write permission to /var, using fallback: $VAR_DIR"
+fi
+
+# Ensure directory exists
+mkdir -p "$VAR_DIR"
+echo "[FileVarSystem] Global variable directory: $VAR_DIR"
+
 APP_PREFIX=""
 
 # Colors
@@ -150,9 +165,9 @@ get_command() {
     # Get a command by index
     local index="$1"
 
-    local type_file="${CMD_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_TYPE}"
-    local desc_file="${CMD_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_DESC}"
-    local workdir_file="${CMD_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_WORKDIR}"
+    local type_file="${VAR_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_TYPE}"
+    local desc_file="${VAR_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_DESC}"
+    local workdir_file="${VAR_DIR}/${APP_PREFIX}_COMMAND_${index}_${FIELD_CMD_WORKDIR}"
 
     if [ ! -f "$type_file" ]; then
         return 1
@@ -325,10 +340,14 @@ execute_command() {
             backup_package_json
             ;;
         init_capacitor)
-            initialize_capacitor "$arg1" "$arg2"
+            # No parameter parsing - all data read from file variables
+            initialize_capacitor
             ;;
         add_android_platform)
             add_android_platform
+            ;;
+        remove_android_platform)
+            remove_android_platform
             ;;
         start_dev_server)
             start_dev_server
@@ -338,6 +357,28 @@ execute_command() {
             ;;
         sync_capacitor_android)
             sync_capacitor_android
+            ;;
+        pnpm_remove)
+            # Parse command: pnpm_remove|package1 package2 package3
+            packages="${cmd_type#*|}"
+            print_section "Removing Capacitor Packages"
+            project_root=$(get_var_value "$KEY_PROJECT_ROOT")
+            print_color "$COLOR_GRAY" "[Work Dir] $project_root"
+            cd "$project_root"
+            echo "[CMD] pnpm remove $packages"
+            # Pass packages as separate arguments
+            pnpm remove $packages
+            ;;
+        pnpm_add)
+            # Parse command: pnpm_add|package1@latest package2@latest
+            packages="${cmd_type#*|}"
+            print_section "Installing Capacitor Packages"
+            project_root=$(get_var_value "$KEY_PROJECT_ROOT")
+            print_color "$COLOR_GRAY" "[Work Dir] $project_root"
+            cd "$project_root"
+            echo "[CMD] pnpm add $packages"
+            # Pass packages as separate arguments
+            pnpm add $packages
             ;;
         build_android_apk)
             build_android_apk
@@ -389,15 +430,18 @@ backup_package_json() {
 }
 
 initialize_capacitor() {
-    local app_name="$1"
-    local package_id="$2"
-
     print_section "Initializing Capacitor"
 
+    # Read all variables from file system (no direct parameter passing)
     local project_root=$(get_var_value "$KEY_PROJECT_ROOT")
+    local app_name=$(get_var_value "$KEY_APP_NAME")
+    local package_id=$(get_var_value "$KEY_PACKAGE_ID")
     local display_name_en=$(get_var_value "$KEY_DISPLAY_NAME_EN")
     local display_name_cn=$(get_var_value "DISPLAY_NAME_CN")
     local description=$(get_var_value "DESCRIPTION")
+
+    local capacitor_config_ts="$project_root/capacitor.config.ts"
+    local capacitor_config_js="$project_root/capacitor.config.js"
 
     print_color "$COLOR_CYAN" "[Config] App Name (Technical): $app_name"
     if [ -n "$display_name_en" ]; then
@@ -411,80 +455,86 @@ initialize_capacitor() {
         print_color "$COLOR_GRAY" "[Config] Description: $description"
     fi
 
-    cd "$project_root"
+    # Check for existing non-JSON config files before running init
+    local existing_configs=()
+    if [ -f "$capacitor_config_ts" ]; then
+        existing_configs+=("capacitor.config.ts")
+    fi
+    if [ -f "$capacitor_config_js" ]; then
+        existing_configs+=("capacitor.config.js")
+    fi
 
-    print_command "npx cap init \"$app_name\" \"$package_id\""
+    # If non-JSON config exists, ask user to delete first
+    if [ ${#existing_configs[@]} -gt 0 ]; then
+        echo ""
+        print_color "$COLOR_YELLOW" "[Warning] Found existing Capacitor configuration file(s)"
+        print_color "$COLOR_CYAN" "[Info] Found: ${existing_configs[*]}"
+        echo ""
+        echo "Capacitor requires a JSON configuration file for initialization."
+        echo "The existing TypeScript/JavaScript config will be removed."
+        echo ""
 
-    # Capture output to check for errors
-    local output
-    output=$(npx cap init "$app_name" "$package_id" 2>&1)
-    local exit_code=$?
+        # Prompt user (default No)
+        read -p "Delete config file(s) and reinitialize? [y/N]: " confirmation
 
-    if [ $exit_code -ne 0 ]; then
-        print_color "$COLOR_RED" "[ERROR] Capacitor initialization failed"
-        echo "$output"
-
-        # Check if error is about non-JSON config file
-        if echo "$output" | grep -q "non-JSON configuration file\|capacitor.config.ts"; then
+        if [[ "$confirmation" =~ ^[Yy]$ ]]; then
             echo ""
-            print_color "$COLOR_YELLOW" "[Warning] Found existing Capacitor configuration file(s)"
+            print_color "$COLOR_YELLOW" "[Action] Removing existing configuration files..."
 
-            local config_files=()
-            if [ -f "$project_root/capacitor.config.ts" ]; then
-                config_files+=("capacitor.config.ts")
-            fi
-            if [ -f "$project_root/capacitor.config.js" ]; then
-                config_files+=("capacitor.config.js")
-            fi
+            # Remove existing config files
+            for config_file in "${existing_configs[@]}"; do
+                local full_path="$project_root/$config_file"
+                if [ -f "$full_path" ]; then
+                    # Backup first
+                    print_command "cp \"$full_path\" \"$full_path.backup\""
+                    cp "$full_path" "$full_path.backup"
+                    print_color "$COLOR_GREEN" "[Backup] Created backup: $config_file.backup"
 
-            if [ ${#config_files[@]} -gt 0 ]; then
-                print_color "$COLOR_CYAN" "[Info] Found: ${config_files[*]}"
-                echo ""
-                echo "Capacitor requires a JSON configuration file for initialization."
-                echo "The existing TypeScript/JavaScript config will be removed."
-                echo ""
-
-                # Prompt user
-                read -p "Delete config file(s) and reinitialize? [Y/n]: " confirmation
-
-                if [[ "$confirmation" =~ ^[Yy]$ ]] || [ -z "$confirmation" ]; then
-                    echo ""
-                    print_color "$COLOR_YELLOW" "[Action] Removing existing configuration files..."
-
-                    # Remove existing config files
-                    for config_file in "${config_files[@]}"; do
-                        local full_path="$project_root/$config_file"
-                        if [ -f "$full_path" ]; then
-                            # Backup first
-                            print_command "cp \"$full_path\" \"$full_path.backup\""
-                            cp "$full_path" "$full_path.backup"
-                            print_color "$COLOR_GREEN" "[Backup] Created backup: $config_file.backup"
-
-                            print_command "rm -f \"$full_path\""
-                            rm -f "$full_path"
-                            print_color "$COLOR_GREEN" "[Removed] Deleted: $config_file"
-                        fi
-                    done
-
-                    echo ""
-                    print_color "$COLOR_YELLOW" "[Capacitor] Retrying initialization..."
-
-                    # Retry initialization
-                    print_command "npx cap init \"$app_name\" \"$package_id\""
-                    if npx cap init "$app_name" "$package_id"; then
-                        print_color "$COLOR_GREEN" "[Success] Capacitor initialized successfully"
-                    else
-                        print_color "$COLOR_RED" "[ERROR] Capacitor initialization failed again"
-                    fi
-                else
-                    echo ""
-                    print_color "$COLOR_YELLOW" "[Skipped] Capacitor initialization cancelled by user"
-                    print_color "$COLOR_CYAN" "[Info] You can manually delete the config files and run initialization again"
+                    print_command "rm -f \"$full_path\""
+                    rm -f "$full_path"
+                    print_color "$COLOR_GREEN" "[Removed] Deleted: $config_file"
                 fi
-            fi
+            done
+            echo ""
+        else
+            echo ""
+            print_color "$COLOR_YELLOW" "[Skipped] Capacitor initialization cancelled by user"
+            print_color "$COLOR_CYAN" "[Info] You can manually delete the config files and run initialization again"
+            return
         fi
+    fi
+
+    # Execute Capacitor init command (no exit code checking)
+    cd "$project_root"
+    print_command "npx cap init \"$app_name\" \"$package_id\""
+    npx cap init "$app_name" "$package_id"
+    echo ""
+}
+
+remove_android_platform() {
+    print_section "Removing Android Platform"
+
+    local project_root=$(get_var_value "$KEY_PROJECT_ROOT")
+    local android_path="$project_root/android"
+
+    if [ ! -d "$android_path" ]; then
+        print_color "$COLOR_YELLOW" "[Info] Android folder does not exist. Nothing to remove."
+        return
+    fi
+
+    print_color "$COLOR_YELLOW" "[Action] Removing Android platform folder..."
+    print_color "$COLOR_GRAY" "[Path] $android_path"
+
+    # Delete the folder (as recommended by Capacitor community)
+    # Reference: https://forum.ionicframework.com/t/how-to-remove-android-platform/211263
+    print_command "rm -rf \"$android_path\""
+    if rm -rf "$android_path"; then
+        print_color "$COLOR_GREEN" "[Success] Android folder removed successfully"
+        print_color "$COLOR_CYAN" "[Info] You can now run 'npx cap add android' to create a fresh Android project"
     else
-        print_color "$COLOR_GREEN" "[Success] Capacitor initialized successfully"
+        print_color "$COLOR_RED" "[ERROR] Failed to remove android directory"
+        print_color "$COLOR_YELLOW" "[TIP] Close Android Studio and try again"
+        return 1
     fi
 }
 
@@ -640,6 +690,17 @@ build_android_apk() {
 
     cd "$android_path"
 
+    # Check if we should stop Gradle Daemon before build (prevents cache corruption)
+    local stop_daemon_flag=$(get_var_value "STOP_GRADLE_DAEMON_BEFORE_BUILD")
+    if [ "$stop_daemon_flag" = "true" ]; then
+        print_color "$COLOR_CYAN" "[Gradle] Stopping Gradle Daemon to prevent cache issues..."
+        print_command "./gradlew --stop"
+        ./gradlew --stop
+        sleep 2
+        print_color "$COLOR_GREEN" "[Gradle] Daemon stopped successfully"
+        echo ""
+    fi
+
     # First attempt
     print_command "./gradlew assembleDebug"
     if ./gradlew assembleDebug; then
@@ -648,13 +709,20 @@ build_android_apk() {
         print_color "$COLOR_RED" "[ERROR] Android build failed"
         print_color "$COLOR_YELLOW" "[INFO] Attempting to clean Gradle cache and retry..."
 
-        # Clean Gradle cache
+        # Step 1: Stop all Gradle Daemon processes (official solution)
+        echo ""
+        print_color "$COLOR_CYAN" "[Gradle] Stopping all Gradle Daemon processes..."
+        print_command "./gradlew --stop"
+        ./gradlew --stop
+        sleep 2
+
+        # Step 2: Clean build directory
         echo ""
         print_color "$COLOR_CYAN" "[Gradle] Cleaning build directory..."
         print_command "./gradlew clean"
         ./gradlew clean
 
-        # Clean Gradle user cache (common location for corrupted files)
+        # Step 3: Clean Gradle user cache (common location for corrupted files)
         local gradle_cache_dir="$HOME/.gradle/caches"
         if [ -d "$gradle_cache_dir" ]; then
             print_color "$COLOR_CYAN" "[Gradle] Clearing Gradle caches at: $gradle_cache_dir"
@@ -666,7 +734,7 @@ build_android_apk() {
             fi
         fi
 
-        # Retry build
+        # Step 4: Retry build
         echo ""
         print_color "$COLOR_CYAN" "[Gradle] Retrying build..."
         print_command "./gradlew assembleDebug"
@@ -676,6 +744,7 @@ build_android_apk() {
             print_color "$COLOR_RED" "[ERROR] Android build failed after cache cleanup"
             print_color "$COLOR_YELLOW" "[SOLUTION] Try manually running:"
             print_color "$COLOR_GRAY" "  cd android"
+            print_color "$COLOR_GRAY" "  ./gradlew --stop"
             print_color "$COLOR_GRAY" "  ./gradlew clean build --refresh-dependencies"
         fi
     fi
@@ -686,6 +755,20 @@ build_android_apk() {
         local full_path=$(readlink -f "$apk_path")
         echo ""
         print_color "$COLOR_GREEN" "[APK] $full_path"
+
+        # Print adb install commands
+        echo ""
+        print_color "$COLOR_CYAN" "=== ADB Install Commands ==="
+        print_color "$COLOR_YELLOW" "Install APK to device:"
+        echo "  adb install -r \"$full_path\""
+        echo ""
+        print_color "$COLOR_YELLOW" "Push APK to device storage:"
+        echo "  adb push \"$full_path\" /sdcard/Download/"
+        echo ""
+        print_color "$COLOR_YELLOW" "Install from device storage:"
+        echo "  adb shell pm install -r /sdcard/Download/app-debug.apk"
+        print_color "$COLOR_CYAN" "============================"
+        echo ""
     else
         print_color "$COLOR_CYAN" "[Output] APK location: android/app/build/outputs/apk/debug/"
     fi
@@ -714,19 +797,11 @@ if [ "$python_success" != "true" ]; then
     exit 1
 fi
 
-# Check for errors
-error_msg=$(get_var_value "$KEY_ERROR")
-
-if [ -n "$error_msg" ]; then
-    print_color "$COLOR_RED" "[ERROR] Python reported error: $error_msg"
-    exit 1
-fi
-
 # Get command count
 command_count=$(get_command_count)
 
 if [ "$command_count" -eq 0 ]; then
-    print_color "$COLOR_YELLOW" "[WARNING] No commands to execute"
+    print_color "$COLOR_CYAN" "[INFO] No commands to execute (user may have cancelled)"
     exit 0
 fi
 
