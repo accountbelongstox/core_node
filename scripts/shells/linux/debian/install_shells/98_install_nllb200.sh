@@ -124,14 +124,15 @@ test_model_load() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local runner_script_path="$parent_dir_3/pytools/aitools/nllb200_runner.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local runner_script_path="$parent_dir_4/pytools/aitools/nllb200_tester.py"
 
     if [ ! -f "$runner_script_path" ]; then
-        print_error "Runner script not found at: $runner_script_path"
+        print_error "Tester script not found at: $runner_script_path"
         return 1
     fi
 
-    print_info "Using shared runner script: $runner_script_path"
+    print_info "Using shared tester script: $runner_script_path"
 
     echo ""
     $python_cmd "$runner_script_path"
@@ -155,10 +156,11 @@ create_interactive_script() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local runner_script_path="$parent_dir_3/pytools/aitools/nllb200_runner.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local runner_script_path="$parent_dir_4/pytools/aitools/nllb200_translator.py"
 
     if [ ! -f "$runner_script_path" ]; then
-        print_error "Runner script not found at: $runner_script_path"
+        print_error "Translator script not found at: $runner_script_path"
         return 1
     fi
 
@@ -172,7 +174,7 @@ echo "========================================"
 echo ""
 echo "Starting translator... Please wait..."
 echo ""
-$python_cmd "$runner_script_path" --interactive
+$python_cmd "$runner_script_path"
 echo ""
 echo "========================================"
 echo "  Translation Ended"
