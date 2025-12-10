@@ -43,3 +43,88 @@ val），不要处处去new，因为这样没法全局生效。查看其中是�
 不用关闭c++部份，你只需要关注项目是如何 调用 scrcpy来完成上面的工作的，如果 你对 scrcpy 不哆了解，则调用MCP查询官方文档 https://github.com/Genymobile/scrcpy?tab=readme-ov-file
 
 pyapps\matrix\docs\SCRCPY扫描到的代码逻辑.md 根据以上，扩展现在的接口， 先写出， 1:心跳系统根据局域网，得到可用的所有root设备，并自动设置为可用5555连接。2：心跳系统排查局域网是否添加了新设备（跳过稳定连接的），3：要维护一个设备表，添加，断开时要更新，4：心跳系统查看当前新接入的usb adb设备，并立即 设置允许  无线连接。之后转为无线连接。 注意，不要直接在 pycore\pythreadpool 进行硬编码，该类不引入任何子app类，而是在 pycore\pylauncher\launcher.py 其中注入心跳函数，供 pythreadpool 每次引用。 需要扩展的是 python .\pymain.py app=matrix 查看文档 development-guides\PYTHON_PYCORE.md
+
+
+  | 优先级 | 功能              | 实现难度  | 说明                   |
+  |-----|-----------------|-------|----------------------|
+  | P0  | 拖拽安装 APK        | 🟢 简单 | 后端已支持，仅需前端 100 行代码   |
+  | P0  | 拖拽传输文件          | 🟢 简单 | 后端已支持，仅需前端实现         |
+  | P1  | Host/Slave 输入同步 | 🟡 中等 | 需实现 GroupSyncService |
+  | P1  | 快捷键绑定           | 🟢 简单 | 前端键盘事件监听             |
+  | P2  | 多设备窗口           | 🟡 中等 | 前端多 Video 同步渲染       | | P3  | OpenGL 渲染 (可选)  | 🔴 复杂 |
+Web 方案更合理            |  完成这些，你先全面扫描文档，有些实现在子app中，核心类库实现在
+pycore/utils中。注意要和前面的代码一致性保持一致。共用代码，复用逻辑。统一逻辑的一致性，你可以调整原来的代码的不合
+理的地方，注意你要整体规划，不要单独只考虑一个点。
+
+先解决现在 python .\pymain.py app=matrix 先参考其中的单例交互模式，给
+该启动连中的前端线程也加上单例交互，当有新的启动时通过单独端口通知旧线程关闭，注意是前端启动模块自行通知（也就是启
+动到前端这一步了再通知），之后旧的前端使用thread
+bus事件对其单独退出，因为此时可能其他线程已经退出只有前端线程变成了死线程。
+
+websockt会间歇性的关闭的原因是什么，你先找后端的问题，同时查看前端并在前端目录写报告（如果有问题。）
+
+你不用管前端，核对后端的功能的一致性，并对比QtScrcpy 查看端点的缺失，以及设计技巧的跟进上（注意重点放在设计技巧上），同时更新api端点文档（需要数据格式）。 pyapps/matrix/docs/ f合并其中的文档，去掉重复的过时内容，不要再增架新文档文件。
+
+：用全局 HeartbeatSystem 只发信号，ADB 逻辑拆成非阻塞
+    的异步任务或子线程池,确保不会阻塞全局 1s tick。 同时，如果正在忙，跳过心跳线
+  程的信号。
+
+
+不要改 pyheartbeat，你只需要往里边注册一个信号接收接就可以了，只需要改 app_matri 只需要改了ADBHeartbeatThread
+
+
+根据之前的扫描，在QTSCRPY中，如何做到视频流直接给前端WEB GL。参考QTSCRCPY 的实现方案，然后扩展现在的文档，pyapps/matrix 应该如何最快推流，而不用web gl繁杂的去解码。
+
+现在需要查看的是 yuv 流 ,是否解析出视频流推流成功。
+
+ 检测前端是那里没有对上。同时，你不要吞掉错误，仔细查看一下QTSCRPY是如何传递视频流的。
+
+
+视频两套视频流播放，使用张爱玲 组件，查看端点， pyapps\matrix\docs\API_DOCUMENTATION.md 添修改设置界面，系统配置  注意保留多语言，然后扩展端点中的配置，并在前端也缓存一份，修改后立即 更新给后端，现在视频将在修改中实时生效，前后端同进切换。使用两个不同的组件播放测试。在现在的前端的 等待连接。. 的背景显示视频。后端要保证切换后，立即重启，使用新的推流方式（如果可以不用重启，使用不重启的方案），使用thread bus.
+
+
+[VideoStreamService] ✓ YUV decoder created for 192.168.50.44:5555
+  DEBUG:    > HTTP/1.1 101 Switching Protocols
+  DEBUG:    > Upgrade: websocket
+  DEBUG:    > Connection: Upgrade
+  DEBUG:    > Sec-WebSocket-Accept: I+vhegDD4xi451skPELDs6Bs92g=
+  DEBUG:    > Sec-WebSocket-Extensions: permessage-deflate
+  DEBUG:    > date: Tue, 09 Dec 2025 10:39:25 GMT
+  DEBUG:    > server: uvicorn
+  INFO:     connection open
+  DEBUG:    = connection is OPEN
+  DEBUG:    > TEXT '{"type":"video.init","timestamp":0,"data":{"ser...0000,"hwaccel":"auto"}}' [177 bytes]
+  [VideoStreamService] Sent YUV init message to client
+  [VideoDecoder] Decoding first frame (32 bytes)...
+  [VideoDecoder] ⚠ First frame decode returned no frames
+  [ADBService] Running USB scan task...
+  [Heartbeat] Tick #40, Time: 2025-12-09 17:39:26
+  DEBUG:    > TEXT '{"type":"event","event":"adb.devices.update","d...mp":1765276766.0348842}' [628 bytes]
+  [Broadcast] Sent adb.devices.update to client 268c6d54
+  [VideoDecoder] ✗ Decode error for 192.168.50.44:5555: [Errno 1094995529] Invalid data found when processing input:
+  'avcodec_send_packet()'
+  [VideoDecoder] ✗ Decode error for 192.168.50.44:5555: [Errno 1094995529] Invalid data found when processing input:
+  'avcodec_send_packet()'
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 79 79 79 79 79 7b [354283 bytes]
+  DEBUG:    > BINARY 12 31 39 32 2e 31 36 38 2e 35 30 2e 34 34 3a 35 ... 79 79 7b 79 79 79 77 79  pyapps\scrcpy_webgl_test
+  现在这个是正确的， pyapps\scrcpy_webgl_test\解决过程.md 。根据这个的过程，了最后的代码，一一对比 pyapps\matrix
+  修正其中。pyapps\scrcpy_webgl_test\BUGFIX_REPORT.md   要修正的是 pyapps\matrix 这个。
+  
+注意总的websockt连接，当总的websockt连接断开时，说明前端有可能
+  关闭浏览器，此时才处理视频流有必要处理的相关。理次核对所有逻辑。
+
+ 现在查看，当多设备的时候，有没有处理好多设备的所有视频流，以及视频流切换。同时目前视频流没有切换到大屏区。
+
+现在修改UI，1：选中小窗口时不再是点击屏幕（因为此时实际上是相当于操作手机），而是点击手机的顶部或底部栏，或者
+是由手机外部按住拖动，2：目前双击打开大屏还是之前的旧在的页面，查看是还有冒泡事件，以及你是否找到了这个页，现在
+改为点击 手机内部右侧面弹出的小菜单中的大屏，改变布局（注意不要重载元素），3：手机的选中复选框也移到顶部区域、或
+者底部区
+
+跟踪这个调用调，使用第三方包管理器（认直阅读文档），写一个打印脚本。
+
+development-guides\PYTHON_PYCORE.md  python .\pymain.py app=matrix
+跟踪这个调用调，使用第三方包管理器（认直阅读文档），写一个打印脚本。 打包脚本先调用py
+第三方管理器确保所有包都安装了，之后，将回到shell执行打包命令，主要是你要跟踪调用链，自动加入所有必要的资源。
+打包脚本的入口在 dd.cmd ->dd.ps1 Unified App Manager 中的默认识别的项目中的默认脚本中。对pycore app可以进行打包。

@@ -24,7 +24,7 @@
 **Import Statement Rules**
 - All import statements **must be at file top**
 - Order: stdlib → third-party → project internal
-- **Forbidden**: import statements inside functions
+- **Forbidden**: import statements inside functions 
 - **Forbidden**: import statements in try-except blocks (direct import, handle ImportError at usage if needed)
 
 **Global Variable Pattern for Singleton Managers**

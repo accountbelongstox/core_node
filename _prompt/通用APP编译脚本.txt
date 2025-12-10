@@ -1,0 +1,5 @@
+Continue? [Y/n]:
+.\poly_apps\cmg-corporate-portal\scripts\start.ps1 .\poly_apps\cmg-corporate-portal\scripts\start.ps1
+查看其中是否正确处理了 build_config.ini 中的APPNAME替换，为什么在  http://127.0.0.1:8899 中看到的  App Names
+cmg_club 没有看到APP 中英文名的实际 替换正则规则 。以及有些图片没有替换成功比如
+ic_launcher_background.png注意所有替换都要递归 查找，不难直接硬编码路径的噢。

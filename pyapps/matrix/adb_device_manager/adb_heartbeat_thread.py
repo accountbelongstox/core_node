@@ -36,6 +36,7 @@ class ADBHeartbeatThread(threading.Thread):
         usb_scan_interval: float = 5.0,
         cleanup_interval: float = 60.0,
         heartbeat_interval: float = 10.0,
+        push_interval: float = 10.0,
         daemon: bool = True
     ):
         """
@@ -57,9 +58,11 @@ class ADBHeartbeatThread(threading.Thread):
         self.usb_scan_interval = usb_scan_interval
         self.cleanup_interval = cleanup_interval
         self.heartbeat_interval = heartbeat_interval
+        self.push_interval = push_interval
 
         self._stop_flag = False
         self._running = False
+        self.rpc_server = None
 
         self.device_table = DeviceTable()
         self.adb = ADBExecutor(adb_path=adb_path)
@@ -74,6 +77,7 @@ class ADBHeartbeatThread(threading.Thread):
         self._last_usb_scan = 0.0
         self._last_cleanup = 0.0
         self._last_heartbeat = 0.0
+        self._last_push = 0.0
 
         self._tick_count = 0
         self._start_time: Optional[float] = None
@@ -88,6 +92,7 @@ class ADBHeartbeatThread(threading.Thread):
         ColorPrint.blue(f"[ADBHeartbeat] USB scan interval: {self.usb_scan_interval}s")
         ColorPrint.blue(f"[ADBHeartbeat] Cleanup interval: {self.cleanup_interval}s")
         ColorPrint.blue(f"[ADBHeartbeat] Heartbeat interval: {self.heartbeat_interval}s")
+        ColorPrint.blue(f"[ADBHeartbeat] Push interval: {self.push_interval}s")
 
         while not self._stop_flag:
             tick_start = time.time()
@@ -110,6 +115,10 @@ class ADBHeartbeatThread(threading.Thread):
             if current_time - self._last_heartbeat >= self.heartbeat_interval:
                 self._heartbeat_task()
                 self._last_heartbeat = current_time
+
+            if self.rpc_server and self.push_interval and current_time - self._last_push >= self.push_interval:
+                self._push_device_updates()
+                self._last_push = current_time
 
             elapsed = time.time() - tick_start
             sleep_time = max(0, self.tick_interval - elapsed)
@@ -232,6 +241,41 @@ class ADBHeartbeatThread(threading.Thread):
                     elif device.device_type in (DeviceType.WIFI, DeviceType.ROOT):
                         self.device_table.update_device_state(device.serial, DeviceState.WIFI_CONNECTED)
 
+    def _push_device_updates(self):
+        """
+        Push device updates to all WebSocket clients via RPC v2.
+        """
+        device_table = self.device_table
+        all_devices = device_table.get_all_devices()
+
+        devices_list = []
+        for device_info in all_devices:
+            devices_list.append({
+                "serial": device_info.serial,
+                "ip": device_info.ip_address,
+                "connection_type": device_info.device_type.value,
+                "state": device_info.state.value,
+                "is_root": device_info.is_root,
+                "model": device_info.model,
+                "android_version": device_info.android_version,
+                "last_seen": device_info.last_seen,
+                "connected_at": device_info.first_seen,
+            })
+
+        stats = device_table.get_stats()
+        payload = {
+            "devices": devices_list,
+            "count": len(devices_list),
+            "stats": stats,
+            "timestamp": int(time.time() * 1000)
+        }
+
+        self.rpc_server.broadcast_notification(
+            event="adb.devices.update",
+            data=payload
+        )
+        ColorPrint.green(f"[ADBHeartbeat] Pushed device list (count: {len(devices_list)})")
+
     def stop(self):
         """Stop heartbeat thread"""
         ColorPrint.yellow("[ADBHeartbeat] Stopping...")
@@ -240,6 +284,20 @@ class ADBHeartbeatThread(threading.Thread):
     def is_running(self) -> bool:
         """Check if thread is running"""
         return self._running
+
+    def set_rpc_server(self, rpc_server, push_interval: Optional[float] = None):
+        """
+        Attach RPC server for device push notifications.
+
+        Args:
+            rpc_server: RPC v2 server instance
+            push_interval: Override push interval (seconds)
+        """
+        self.rpc_server = rpc_server
+        if push_interval is not None:
+            self.push_interval = push_interval
+        self._last_push = 0.0
+        ColorPrint.green(f"[ADBHeartbeat] RPC server attached for device push (interval={self.push_interval}s)")
 
     def get_stats(self) -> dict:
         """Get heartbeat statistics"""

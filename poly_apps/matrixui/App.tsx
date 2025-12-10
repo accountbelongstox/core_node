@@ -15,9 +15,12 @@ import { LoadingScreen } from './components/LoadingScreen';
 const ScriptLibrary = lazy(() => import('./components/ScriptLibrary').then(m => ({ default: m.ScriptLibrary })));
 const FileManager = lazy(() => import('./components/FileManager').then(m => ({ default: m.FileManager })));
 const MediaGallery = lazy(() => import('./components/MediaGallery').then(m => ({ default: m.MediaGallery })));
+const TestPage = lazy(() => import('./components/TestPage').then(m => ({ default: m.TestPage })));
+const SystemHealth = lazy(() => import('./components/SystemHealth').then(m => ({ default: m.SystemHealth })));
 import { Device, DeviceGroup, DeviceLog, BatchActionType, StreamConfig } from './types';
 import { I18nProvider, useI18n } from './services/i18n';
 import { wsService } from './services/websocket';
+import { configService, GlobalConfig } from './services/configService';
 
 // --- Mock Groups Data ---
 const MOCK_GROUPS: DeviceGroup[] = [
@@ -40,13 +43,73 @@ const MatrixApp: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   
+  // Initialize state based on URL hash
+  const getInitialView = () => {
+    const hash = window.location.hash.slice(1);
+    return hash === 'test' || hash === 'files' || hash === 'media' || hash === 'health' ? hash : null;
+  };
+
   // Modal/Panel State
   const [showSettings, setShowSettings] = useState(false);
   const [showScripts, setShowScripts] = useState(false);
-  const [showFileManager, setShowFileManager] = useState(false);
-  const [showMediaGallery, setShowMediaGallery] = useState(false); // New State
+  const [showFileManager, setShowFileManager] = useState(() => getInitialView() === 'files');
+  const [showMediaGallery, setShowMediaGallery] = useState(() => getInitialView() === 'media');
+  const [showTestPage, setShowTestPage] = useState(() => getInitialView() === 'test');
+  const [showSystemHealth, setShowSystemHealth] = useState(() => getInitialView() === 'health');
   const [fileManagerTarget, setFileManagerTarget] = useState<string | null>(null);
-  const [deviceConfigTarget, setDeviceConfigTarget] = useState<Device | null>(null); // New State
+  const [fileManagerDeviceId, setFileManagerDeviceId] = useState<string | null>(null);
+  const [deviceConfigTarget, setDeviceConfigTarget] = useState<Device | null>(null);
+
+  // Check URL hash for direct navigation and handle changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'test') {
+        setShowTestPage(true);
+        setShowFileManager(false);
+        setShowMediaGallery(false);
+        setShowSystemHealth(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === 'files') {
+        setShowFileManager(true);
+        setShowTestPage(false);
+        setShowMediaGallery(false);
+        setShowSystemHealth(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === 'media') {
+        setShowMediaGallery(true);
+        setShowTestPage(false);
+        setShowFileManager(false);
+        setShowSystemHealth(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === 'health') {
+        setShowSystemHealth(true);
+        setShowTestPage(false);
+        setShowFileManager(false);
+        setShowMediaGallery(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      } else if (hash === '' || hash === 'matrix') {
+        setShowTestPage(false);
+        setShowFileManager(false);
+        setShowMediaGallery(false);
+        setShowSystemHealth(false);
+        setShowSettings(false);
+        setShowScripts(false);
+      }
+    };
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+
+    // Also check on mount in case hash was set before component mounted
+    handleHashChange();
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Data State
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -70,14 +133,8 @@ const MatrixApp: React.FC = () => {
     search: ''
   });
 
-  // Stream Config State (Alignment v2.0)
-  const [streamConfig, setStreamConfig] = useState<StreamConfig>({
-    max_size: 720,
-    bit_rate: 4000000,
-    max_fps: 60,
-    codec: 'h264',
-    locked_video_orientation: -1
-  });
+  // Stream Config State - synced with configService (starts with default)
+  const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
 
   // Logs - 初始为空，避免mock数据导致的闪烁
   const [logs, setLogs] = useState<DeviceLog[]>([]);
@@ -93,7 +150,39 @@ const MatrixApp: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Initialize config service (uses default config initially)
+    configService.initialize().then(() => {
+      setGlobalConfig(configService.getConfig());
+    });
+
+    // Subscribe to config changes
+    const unsubscribe = configService.subscribe((config) => {
+      setGlobalConfig(config);
+    });
+
+    // Connect WebSocket
     wsService.connect();
+    
+    // Poll for RPC connection and load config when ready
+    const checkRpcConnection = setInterval(() => {
+      if (wsService.isRpcConnected()) {
+        clearInterval(checkRpcConnection);
+        configService.onRpcConnected().catch(err => {
+          console.error('[App] Failed to load config after RPC connection:', err);
+        });
+      }
+    }, 500);
+
+    // Cleanup after 30 seconds (should be connected by then)
+    const timeout = setTimeout(() => {
+      clearInterval(checkRpcConnection);
+    }, 30000);
+
+    return () => {
+      clearInterval(checkRpcConnection);
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -127,6 +216,7 @@ const MatrixApp: React.FC = () => {
   const handleDeviceQuickAction = (device: Device, action: string) => {
     if (action === 'files') {
       setFileManagerTarget(device.serial);
+      setFileManagerDeviceId(device.deviceId);
       setShowFileManager(true);
       setShowScripts(false);
       setShowSettings(false);
@@ -161,15 +251,26 @@ const MatrixApp: React.FC = () => {
     setShowFileManager(false);
     setShowScripts(false);
     setShowMediaGallery(false);
+    setShowSystemHealth(false);
     setShowSettings(false);
+    setShowTestPage(false);
 
     if (view === 'files') {
-      setFileManagerTarget(null); 
+      setFileManagerTarget(null);
       setShowFileManager(true);
+      window.location.hash = 'files';
     } else if (view === 'matrix') {
        // Just close others
+       window.location.hash = '';
     } else if (view === 'media') {
        setShowMediaGallery(true);
+       window.location.hash = 'media';
+    } else if (view === 'test') {
+       setShowTestPage(true);
+       window.location.hash = 'test';
+    } else if (view === 'health') {
+       setShowSystemHealth(true);
+       window.location.hash = 'health';
     }
   };
 
@@ -214,72 +315,156 @@ const MatrixApp: React.FC = () => {
                </div>
             </div>
 
-            {/* Stream Configuration (New) */}
+            {/* Stream Configuration */}
             <div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 border-b border-white/10 pb-1">
-                {t('settings.stream_config')}
-              </div>
-              
-              <div className="space-y-4">
-                {/* Max Size */}
-                <div>
-                   <label className="flex justify-between text-xs text-slate-400 mb-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 border-b border-white/10 pb-1">
+                  {t('settings.stream_config')}
+                </div>
+                
+                <div className="space-y-4">
+                  {/* Video Stream Mode */}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">Video Stream Mode</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['h264', 'yuv'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={async () => {
+                            try {
+                              await configService.updateConfig({ video_stream_mode: mode });
+                              addLog('success', `Video stream mode switched to ${mode.toUpperCase()}`);
+                            } catch (error) {
+                              addLog('error', `Failed to switch video stream mode: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                            }
+                          }}
+                          className={`py-2 rounded border text-xs font-mono ${
+                            globalConfig?.video_stream_mode === mode
+                              ? 'bg-[#00f2ff]/20 border-[#00f2ff] text-white'
+                              : 'border-white/10 text-slate-500 hover:text-white'
+                          }`}
+                        >
+                          {mode.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[9px] text-slate-500 mt-1">
+                      {globalConfig?.video_stream_mode === 'h264' 
+                        ? 'Low bandwidth, WebCodecs decoding'
+                        : 'High quality, WebGL rendering (LAN only)'}
+                    </div>
+                  </div>
+
+                  {/* Max Size */}
+                  <div>
+                    <label className="flex justify-between text-xs text-slate-400 mb-1">
                       <span>{t('settings.resolution')}</span>
-                      <span className="text-white font-mono">{streamConfig.max_size}p</span>
-                   </label>
-                   <input 
-                     type="range" min="360" max="1080" step="120"
-                     value={streamConfig.max_size}
-                     onChange={(e) => setStreamConfig({...streamConfig, max_size: parseInt(e.target.value)})}
-                     className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#00f2ff]"
-                   />
-                </div>
+                      <span className="text-white font-mono">{globalConfig?.max_size || 720}p</span>
+                    </label>
+                    <input
+                      type="range" min="360" max="1080" step="120"
+                      value={globalConfig?.max_size || 720}
+                      onChange={async (e) => {
+                        try {
+                          await configService.updateConfig({ max_size: parseInt(e.target.value) });
+                        } catch (error) {
+                          addLog('error', `Failed to update resolution: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                        }
+                      }}
+                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#00f2ff]"
+                    />
+                  </div>
 
-                {/* Bitrate */}
-                <div>
-                   <label className="flex justify-between text-xs text-slate-400 mb-1">
+                  {/* Bitrate */}
+                  <div>
+                    <label className="flex justify-between text-xs text-slate-400 mb-1">
                       <span>{t('settings.bitrate')}</span>
-                      <span className="text-white font-mono">{streamConfig.bit_rate / 1000000} Mbps</span>
-                   </label>
-                   <input 
-                     type="range" min="500000" max="8000000" step="500000"
-                     value={streamConfig.bit_rate}
-                     onChange={(e) => setStreamConfig({...streamConfig, bit_rate: parseInt(e.target.value)})}
-                     className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#00f2ff]"
-                   />
-                </div>
+                      <span className="text-white font-mono">{((globalConfig?.bit_rate || 8000000) / 1000000).toFixed(1)} Mbps</span>
+                    </label>
+                    <input
+                      type="range" min="500000" max="8000000" step="500000"
+                      value={globalConfig?.bit_rate || 8000000}
+                      onChange={async (e) => {
+                        try {
+                          await configService.updateConfig({ bit_rate: parseInt(e.target.value) });
+                        } catch (error) {
+                          addLog('error', `Failed to update bitrate: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                        }
+                      }}
+                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#00f2ff]"
+                    />
+                  </div>
 
-                {/* FPS */}
-                <div>
-                   <label className="block text-xs text-slate-400 mb-2">{t('settings.fps')}</label>
-                   <div className="grid grid-cols-3 gap-2">
+                  {/* FPS */}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">{t('settings.fps')}</label>
+                    <div className="grid grid-cols-3 gap-2">
                       {[30, 60, 90].map(fps => (
-                        <button 
+                        <button
                           key={fps}
-                          onClick={() => setStreamConfig({...streamConfig, max_fps: fps})}
-                          className={`py-1 rounded border text-xs ${streamConfig.max_fps === fps ? 'bg-[#00f2ff]/20 border-[#00f2ff] text-white' : 'border-white/10 text-slate-500'}`}
+                          onClick={async () => {
+                            try {
+                              await configService.updateConfig({ max_fps: fps });
+                            } catch (error) {
+                              addLog('error', `Failed to update FPS: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                            }
+                          }}
+                          className={`py-1 rounded border text-xs ${
+                            globalConfig?.max_fps === fps
+                              ? 'bg-[#00f2ff]/20 border-[#00f2ff] text-white'
+                              : 'border-white/10 text-slate-500 hover:text-white'
+                          }`}
                         >
                           {fps}
                         </button>
                       ))}
-                   </div>
-                </div>
+                    </div>
+                  </div>
 
-                {/* Codec */}
-                <div>
-                   <label className="block text-xs text-slate-400 mb-2">{t('settings.codec')}</label>
-                   <select 
-                      value={streamConfig.codec}
-                      onChange={(e) => setStreamConfig({...streamConfig, codec: e.target.value as any})}
+                  {/* Codec */}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">{t('settings.codec')}</label>
+                    <select
+                      value={globalConfig?.codec || 'h264'}
+                      onChange={async (e) => {
+                        try {
+                          await configService.updateConfig({ codec: e.target.value as any });
+                        } catch (error) {
+                          addLog('error', `Failed to update codec: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                        }
+                      }}
                       className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
-                   >
+                    >
                       <option value="h264">{t('app.codec_h264')}</option>
                       <option value="h265">{t('app.codec_h265')}</option>
                       <option value="av1">{t('app.codec_av1')}</option>
-                   </select>
+                    </select>
+                  </div>
+
+                  {/* Hardware Acceleration (for YUV mode) */}
+                  {globalConfig?.video_stream_mode === 'yuv' && (
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Hardware Acceleration</label>
+                      <select
+                        value={globalConfig?.hwaccel || 'auto'}
+                        onChange={async (e) => {
+                          try {
+                            await configService.updateConfig({ hwaccel: e.target.value as any });
+                          } catch (error) {
+                            addLog('error', `Failed to update hardware acceleration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                          }
+                        }}
+                        className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-[#00f2ff] outline-none"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="cuda">NVIDIA CUDA</option>
+                        <option value="qsv">Intel QSV</option>
+                        <option value="dxva2">DirectX VA2 (Windows)</option>
+                        <option value="vaapi">VAAPI (Linux)</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
             
             <div className="border-t border-white/10 pt-4">
               <label className="block text-xs font-mono text-[#00f2ff] mb-2 tracking-widest">{t('settings.protocol')}</label>
@@ -367,24 +552,37 @@ const MatrixApp: React.FC = () => {
          
          {/* Main Content Area */}
          <main className="flex-1 overflow-hidden relative flex flex-col transition-all duration-300 bg-gradient-to-br from-white/[0.02] to-transparent pb-32">
-             {showFileManager ? (
+             {showTestPage ? (
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
-                  <FileManager 
-                     targetDeviceSerial={fileManagerTarget} 
-                     onClose={() => setShowFileManager(false)} 
+                  <TestPage />
+                </Suspense>
+             ) : showFileManager ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
+                  <FileManager
+                     targetDeviceSerial={fileManagerTarget}
+                     targetDeviceId={fileManagerDeviceId}
+                     onClose={() => {
+                       setShowFileManager(false);
+                       setFileManagerTarget(null);
+                       setFileManagerDeviceId(null);
+                     }}
                   />
                 </Suspense>
              ) : showMediaGallery ? (
                 <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
                   <MediaGallery onClose={() => setShowMediaGallery(false)} />
                 </Suspense>
+             ) : showSystemHealth ? (
+                <Suspense fallback={<div className="flex items-center justify-center h-full text-[#00f2ff]">加载中...</div>}>
+                  <SystemHealth onClose={() => { setShowSystemHealth(false); window.location.hash = ''; }} />
+                </Suspense>
              ) : (
-                <DeviceDashboard 
+                <DeviceDashboard
                   selectedIds={selectedIds}
                   onSelectDevice={handleSelectDevice}
                   onOpenDevice={handleOpenDevice}
                   onBatchAction={handleBatchAction}
-                  onQuickAction={handleDeviceQuickAction} 
+                  onQuickAction={handleDeviceQuickAction}
                   filterStatus={filterStatus}
                   setFilterStatus={setFilterStatus}
                   addLog={addLog}

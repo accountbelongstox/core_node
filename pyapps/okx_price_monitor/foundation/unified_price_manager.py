@@ -384,6 +384,29 @@ class UnifiedPriceManager:
             return (result[0], result[1])
         return None
 
+    def count_records(self, coin_symbol: str, start_time_ms: int, end_time_ms: int) -> int:
+        """
+        Count records for a coin within a time range
+
+        Args:
+            coin_symbol: Coin symbol
+            start_time_ms: Start timestamp
+            end_time_ms: End timestamp
+
+        Returns:
+            int: Record count
+        """
+        cursor = self.conn.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM unified_prices
+            WHERE coin_symbol = ? AND timestamp_ms BETWEEN ? AND ?
+        """, (coin_symbol, start_time_ms, end_time_ms))
+
+        result = cursor.fetchone()
+        return result[0] if result else 0
+
     def check_duplicates(self, coin_symbol: str) -> int:
         """
         Check for duplicate timestamps for a coin
