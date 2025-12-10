@@ -3,3 +3,20 @@ Continue? [Y/n]:
 查看其中是否正确处理了 build_config.ini 中的APPNAME替换，为什么在  http://127.0.0.1:8899 中看到的  App Names
 cmg_club 没有看到APP 中英文名的实际 替换正则规则 。以及有些图片没有替换成功比如
 ic_launcher_background.png注意所有替换都要递归 查找，不难直接硬编码路径的噢。
+
+ http://127.0.0.1:8899/ 中要显示所有递归 扫描到的图片，未命中的也要显示 。
+同时目前包名显示 有限，所有匹配到类似于包名的都要显示，包括所在文件，
+Package Names
+capacitor.cordova.android.plugins
+com.ddsj.cmg.club
+com.getcapacitor.myapp
+
+以及 现在  App Names并没有显示，这是替换后的递归查找，查找可能没有替换到的文件，使用正则。
+
+为什么只显示了一个，没有对中英文进行处理，查看 build_config.ini 中，如果设置了一个语言的时候，要进行处理 如何处理你现在调用MCP 查看官方文档，在python中预置扩展程序 。
+
+ app\src\main\res\values\strings.xml 为什么只显示了一个，没有对中英文进行处理，查看 build_config.ini
+中，如果设置了一个语言的时候，要进行处理 如何处理你现在调用MCP 查看官方文档，在python中预置扩展程序 。
+
+ 还需要查看  capacitor 的官方文档。这个创建应该是由python根据规范自动创建，或者如果 capacitor
+支持预处理，也应该预处理，同时根据 build_config.ini 中的扩展语言来自动扩展。
