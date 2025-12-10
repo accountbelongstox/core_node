@@ -18,17 +18,17 @@ TARGET_LINK_PATH="/usr/local/bin/php"
 
 # PHP 8.5 specific packages (NO FPM - using Swoole)
 # Note: opcache is now a core extension in PHP 8.5, no separate package needed
+# IMPORTANT: Do NOT include "php8.5" metapackage as it pulls in php8.5-fpm
+# We only need CLI for Swoole-based Laravel Octane
 PHP85_CORE_PACKAGES=(
-    "php8.5"
     "php8.5-cli"
     "php8.5-common"
 )
 
 # PHP 8.5 extensions for Laravel support (NO FPM - using Swoole)
 # Note: opcache is bundled in PHP 8.5, no php8.5-opcache package exists
+# Note: php8.5-cli and php8.5-common are already in PHP85_CORE_PACKAGES, not listed here
 CORE_EXTENSIONS=(
-    "php8.5-cli"
-    "php8.5-common"
     "php8.5-mysql"
     "php8.5-sqlite3"
     "php8.5-xml"
