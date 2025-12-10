@@ -48,7 +48,9 @@ def create_default_config(project_root, folder_name):
         'app_name': generate_app_name(folder_name),
         'display_name_chinese': generate_display_name(folder_name),
         'display_name_english': generate_display_name(folder_name),
-        'description': 'Application built with Capacitor'
+        'description': 'Application built with Capacitor',
+        'app_logo_src': 'logo.png',
+        'splash_src': 'splash.png'
     }
 
     # Package Settings Section
@@ -122,6 +124,8 @@ def extract_config_info(config):
         info['display_name_chinese'] = config.get('app_info', 'display_name_chinese', fallback='')
         info['display_name_english'] = config.get('app_info', 'display_name_english', fallback='')
         info['description'] = config.get('app_info', 'description', fallback='')
+        info['app_logo_src'] = config.get('app_info', 'app_logo_src', fallback='logo.png')
+        info['splash_src'] = config.get('app_info', 'splash_src', fallback='splash.png')
 
     # Extract package settings
     if 'package_settings' in config:
@@ -150,6 +154,8 @@ def print_config_info(info, is_new=False):
     print(f"Package ID:        {info.get('package_id', 'N/A')}")
     print(f"Description:       {info.get('description', 'N/A')}")
     print(f"Build Platforms:   {info.get('build_platforms', 'N/A')}")
+    print(f"App Logo Source:   {info.get('app_logo_src', 'logo.png')}")
+    print(f"Splash Source:     {info.get('splash_src', 'splash.png')}")
 
     print("\n" + "=" * 60)
 

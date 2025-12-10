@@ -78,14 +78,14 @@ class ResourceScanner:
 
         return dict(images)
 
-    def scan_package_names(self) -> Set[str]:
+    def scan_package_names(self) -> Dict[str, List[str]]:
         """
         Scan for package names in Android files
 
         Returns:
-            Set of found package names
+            Dictionary mapping package names to list of files where found
         """
-        package_names = set()
+        package_names = defaultdict(list)
 
         # Package name patterns
         patterns = [
@@ -105,31 +105,35 @@ class ResourceScanner:
                 if ext in self.text_extensions:
                     try:
                         content = file_path.read_text(encoding='utf-8', errors='ignore')
+                        rel_path = file_path.relative_to(self.android_path)
 
                         for pattern in patterns:
                             matches = re.findall(pattern, content, re.MULTILINE)
                             for match in matches:
                                 if '.' in match and len(match) > 5:
-                                    package_names.add(match)
+                                    if str(rel_path) not in package_names[match]:
+                                        package_names[match].append(str(rel_path))
                     except:
                         continue
 
-        return package_names
+        return dict(package_names)
 
-    def scan_app_names(self) -> Set[str]:
+    def scan_app_names(self) -> Dict[str, List[str]]:
         """
         Scan for app names in Android files
 
         Returns:
-            Set of found app names
+            Dictionary mapping app names to list of files where found
         """
-        app_names = set()
+        app_names = defaultdict(list)
 
-        # App name patterns
+        # App name patterns - expanded to catch more cases
         patterns = [
             r'android:label\s*=\s*"([^"@]+)"',  # XML label (not @string/...)
-            r'<string\s+name\s*=\s*"app_name"\s*>([^<]+)</string>',  # strings.xml
+            r'<string\s+name\s*=\s*["\']app_name["\']\s*>([^<]+)</string>',  # strings.xml app_name
+            r'<string\s+name\s*=\s*["\']title_activity_main["\']\s*>([^<]+)</string>',  # title_activity_main
             r'APP_NAME\s*=\s*["\']([^"\']+)["\']',  # Properties
+            r'appName\s*[:=]\s*["\']([^"\']+)["\']',  # Config files
         ]
 
         for root, dirs, files in os.walk(self.android_path):
@@ -142,17 +146,19 @@ class ResourceScanner:
                 if ext in self.text_extensions:
                     try:
                         content = file_path.read_text(encoding='utf-8', errors='ignore')
+                        rel_path = file_path.relative_to(self.android_path)
 
                         for pattern in patterns:
                             matches = re.findall(pattern, content, re.MULTILINE)
                             for match in matches:
                                 match = match.strip()
                                 if match and len(match) > 2:
-                                    app_names.add(match)
+                                    if str(rel_path) not in app_names[match]:
+                                        app_names[match].append(str(rel_path))
                     except:
                         continue
 
-        return app_names
+        return dict(app_names)
 
     def _get_image_dimensions(self, image_path: Path) -> tuple:
         """
@@ -193,8 +199,8 @@ class ResourceScanner:
 
         return {
             'images': images,
-            'package_names': sorted(package_names),
-            'app_names': sorted(app_names),
+            'package_names': package_names,  # Now a dict with file locations
+            'app_names': app_names,          # Now a dict with file locations
             'statistics': {
                 'total_images': total_images,
                 'categories': len(images),
@@ -221,12 +227,16 @@ def test_scanner(android_path: str):
         print(f"  {category}: {len(images)} images")
 
     print(f"\nPackage Names ({len(report['package_names'])}):")
-    for pkg in report['package_names']:
+    for pkg, files in report['package_names'].items():
         print(f"  - {pkg}")
+        for file_path in files:
+            print(f"      in: {file_path}")
 
     print(f"\nApp Names ({len(report['app_names'])}):")
-    for name in report['app_names']:
+    for name, files in report['app_names'].items():
         print(f"  - {name}")
+        for file_path in files:
+            print(f"      in: {file_path}")
 
 
 if __name__ == '__main__':
