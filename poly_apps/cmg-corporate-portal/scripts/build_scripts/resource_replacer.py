@@ -10,34 +10,37 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from PIL import Image
+import xml.etree.ElementTree as ET
 
 
 class ResourceReplacer:
     """Replace Android resources with intelligent scaling and cropping"""
 
-    def __init__(self, android_path: str, assets_path: str):
+    def __init__(self, android_path: str, assets_path: str, app_logo_src: str = "logo.png", splash_src: str = "splash.png"):
         """
         Initialize resource replacer
 
         Args:
             android_path: Path to android directory
             assets_path: Path to assets directory containing source images
+            app_logo_src: Source filename for app logo (default: "logo.png")
+            splash_src: Source filename for splash screen (default: "splash.png")
         """
         self.android_path = Path(android_path)
         self.assets_path = Path(assets_path)
         self.res_path = self.android_path / "app" / "src" / "main" / "res"
 
-        # Source to target mapping
+        # Source to target mapping (using configurable source filenames)
         self.mappings = {
-            "logo.png": ["ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"],
-            "splash.png": ["splash.png"]
+            app_logo_src: ["ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png", "ic_launcher_background.png"],
+            splash_src: ["splash.png"]
         }
 
         self.replaced_files = []
 
     def scan_target_files(self, filename_pattern: str) -> List[Path]:
         """
-        Scan for all target files matching the pattern
+        Scan for all target files matching the pattern using recursive search
 
         Args:
             filename_pattern: File name to search for (e.g., "ic_launcher.png")
@@ -50,18 +53,15 @@ class ResourceReplacer:
         if not self.res_path.exists():
             return target_files
 
-        # Search in all mipmap-* and drawable-* directories
-        for subdir in self.res_path.iterdir():
-            if not subdir.is_dir():
-                continue
-
-            # Only search in resource directories
-            if not (subdir.name.startswith("mipmap-") or subdir.name.startswith("drawable")):
-                continue
-
-            target_file = subdir / filename_pattern
-            if target_file.exists():
-                target_files.append(target_file)
+        # Use os.walk for full recursive search
+        for root, dirs, files in os.walk(self.res_path):
+            root_path = Path(root)
+            # Check if this is a resource directory (mipmap-* or drawable-*)
+            dir_name = root_path.name
+            if dir_name.startswith("mipmap-") or dir_name.startswith("drawable"):
+                if filename_pattern in files:
+                    target_file = root_path / filename_pattern
+                    target_files.append(target_file)
 
         return target_files
 
@@ -184,6 +184,10 @@ class ResourceReplacer:
             # Check if source exists
             if not source_path.exists():
                 print(f"\n[Skip] Source not found: {source_filename}")
+                print(f"  Expected location: {source_path}")
+                print(f"  \033[93m[Warning] Configured resource file does not exist\033[0m")
+                print(f"  \033[93m[Hint] Please check 'app_logo_src' or 'splash_src' in build_config.ini\033[0m")
+                print(f"  \033[93m[Hint] Or place the file in: {self.assets_path}\033[0m")
                 stats["by_source"][source_filename] = {"replaced": 0, "failed": 0}
                 continue
 
@@ -256,6 +260,108 @@ class ResourceReplacer:
             List of relative file paths that were replaced
         """
         return self.replaced_files
+
+    def update_android_strings(self, app_name: str, display_name_en: str,
+                              display_name_cn: str, package_id: str) -> bool:
+        """
+        Update Android strings.xml with app display names
+
+        Args:
+            app_name: Technical app name (e.g., "cmg_club")
+            display_name_en: English display name (e.g., "CMG-Shooting&Hotel")
+            display_name_cn: Chinese display name (e.g., "CMG靶场&酒店")
+            package_id: Package ID (e.g., "com.ddsj.cmg.club")
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Find all strings.xml files recursively
+        strings_files = []
+        values_dirs = []
+
+        for root, dirs, files in os.walk(self.res_path):
+            root_path = Path(root)
+            if root_path.name.startswith("values"):
+                if "strings.xml" in files:
+                    strings_file = root_path / "strings.xml"
+                    strings_files.append(strings_file)
+                    values_dirs.append(root_path.name)
+
+        if not strings_files:
+            print("\n[Strings] No strings.xml files found")
+            return False
+
+        print("\n" + "=" * 60)
+        print("Updating Android App Names")
+        print("=" * 60)
+        print(f"\nFound {len(strings_files)} strings.xml file(s)")
+
+        success_count = 0
+
+        for strings_file, values_dir in zip(strings_files, values_dirs):
+            try:
+                # Parse XML
+                tree = ET.parse(strings_file)
+                root = tree.getroot()
+
+                # Determine which display name to use based on locale
+                display_name = display_name_en
+                if "zh" in values_dir.lower() or "cn" in values_dir.lower():
+                    display_name = display_name_cn
+
+                # Update app_name
+                app_name_elem = root.find(".//string[@name='app_name']")
+                if app_name_elem is not None:
+                    old_value = app_name_elem.text
+                    app_name_elem.text = display_name
+                    print(f"\n[{values_dir}/strings.xml]")
+                    print(f"  app_name: '{old_value}' → '{display_name}'")
+
+                # Update title_activity_main if exists
+                title_elem = root.find(".//string[@name='title_activity_main']")
+                if title_elem is not None:
+                    old_value = title_elem.text
+                    title_elem.text = display_name
+                    print(f"  title_activity_main: '{old_value}' → '{display_name}'")
+
+                # Update package_name if exists
+                package_elem = root.find(".//string[@name='package_name']")
+                if package_elem is not None:
+                    old_value = package_elem.text
+                    package_elem.text = package_id
+                    print(f"  package_name: '{old_value}' → '{package_id}'")
+
+                # Update custom_url_scheme if exists
+                scheme_elem = root.find(".//string[@name='custom_url_scheme']")
+                if scheme_elem is not None:
+                    old_value = scheme_elem.text
+                    scheme_elem.text = package_id
+                    print(f"  custom_url_scheme: '{old_value}' → '{package_id}'")
+
+                # Write back to file with pretty formatting
+                tree.write(strings_file, encoding='utf-8', xml_declaration=True)
+
+                # Fix formatting to match original
+                with open(strings_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # Add single quotes around attributes and clean up
+                content = content.replace('encoding="utf-8"', "encoding='utf-8'")
+                content = content.replace('name="', "name='").replace('">', "'>")
+
+                with open(strings_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+                success_count += 1
+
+            except Exception as e:
+                print(f"\n[ERROR] Failed to update {strings_file}: {e}")
+
+        print("\n" + "=" * 60)
+        print(f"Updated {success_count}/{len(strings_files)} strings.xml file(s)")
+        print("=" * 60)
+
+        return success_count > 0
 
 
 def main():

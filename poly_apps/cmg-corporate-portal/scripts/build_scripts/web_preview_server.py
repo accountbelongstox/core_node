@@ -431,14 +431,28 @@ class ResourcePreviewHandler(BaseHTTPRequestHandler):
                 <div class="section">
                     <h2>📦 Package Names</h2>
                     <ul class="list-group">
-                        ${packageNames.map(pkg => `<li class="list-item">${pkg}</li>`).join('')}
+                        ${Object.entries(packageNames).map(([pkg, files]) => `
+                            <li class="list-item">
+                                <strong>${pkg}</strong>
+                                <div style="margin-left: 20px; margin-top: 5px; font-size: 0.9em; color: #666;">
+                                    ${files.map(file => `<div>📄 ${file}</div>`).join('')}
+                                </div>
+                            </li>
+                        `).join('')}
                     </ul>
                 </div>
 
                 <div class="section">
                     <h2>📱 App Names</h2>
                     <ul class="list-group">
-                        ${appNames.map(name => `<li class="list-item">${name}</li>`).join('')}
+                        ${Object.entries(appNames).map(([name, files]) => `
+                            <li class="list-item">
+                                <strong>${name}</strong>
+                                <div style="margin-left: 20px; margin-top: 5px; font-size: 0.9em; color: #666;">
+                                    ${files.map(file => `<div>📄 ${file}</div>`).join('')}
+                                </div>
+                            </li>
+                        `).join('')}
                     </ul>
                 </div>
 
