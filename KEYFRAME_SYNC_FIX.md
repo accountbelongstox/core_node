@@ -23,6 +23,7 @@
 
 **文件**: `pyapps/matrix/services/video_decoder_service.py`
 
+#### 修改1: 禁用关键帧同步（第42行）
 ```python
 def __init__(self):
     # ...
@@ -30,10 +31,22 @@ def __init__(self):
     self.enable_keyframe_sync = False  # ← 设置为 False
 ```
 
-**效果**:
+#### 修改2: 外层异常处理器也要尊重设置（第364-366行）
+```python
+# Mark decoder as waiting for keyframe after errors (only if sync enabled)
+if self.enable_keyframe_sync:
+    state['waiting_for_keyframe'] = True
+```
+
+**重要**: 之前有**两个地方**会设置 `waiting_for_keyframe = True`:
+1. ✅ 内层解码异常处理（第232行）- 已修复，会检查 `enable_keyframe_sync`
+2. ❌ 外层通用异常处理（第365行）- **之前无条件设置，导致矛盾循环**
+
+**修复后效果**:
 - ✅ 视频立即显示，无需等待关键帧
 - ✅ 保留错误日志限流功能
 - ✅ 如果出现解码错误，错误日志会被智能限流（不会刷屏）
+- ✅ **修复了"黑屏循环"问题** - 不再出现"等待关键帧→立即开始"的矛盾循环
 
 ---
 
