@@ -19,7 +19,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Variables
-INSTALL_NGINX=$(get_global_var "INSTALL_NGINX" "false")
+START_NGINX=$(get_global_var "START_NGINX" "false")
 INSTALL_MODE=$(get_global_var "INSTALL_MODE" "base")
 NGINX_PORT="80"
 
@@ -29,7 +29,7 @@ DEFAULT_SITE_DIR="$WWW_ROOT/default"
 NGINX_CONFIG_DIR=$(map_web_path "nginxconfig")
 
 echo "[$SCRIPT_INDEX] Nginx Installation Script"
-echo "[$SCRIPT_INDEX] INSTALL_NGINX: $INSTALL_NGINX"
+echo "[$SCRIPT_INDEX] START_NGINX: $START_NGINX"
 echo "[$SCRIPT_INDEX] INSTALL_MODE: $INSTALL_MODE"
 
 # Function to disable nginx service
@@ -62,16 +62,11 @@ disable_nginx() {
     return 0
 }
 
-# Check if Nginx installation is enabled
-if [ "$INSTALL_NGINX" != "true" ]; then
-    echo "[$SCRIPT_INDEX] Nginx installation is disabled (INSTALL_NGINX: $INSTALL_NGINX)"
-
-    if [ "$INSTALL_NGINX" = "false" ]; then
-        echo "[$SCRIPT_INDEX] Checking for existing Nginx services to disable..."
-        disable_nginx
-    fi
-
-    exit 0
+# Check START_NGINX to determine service behavior
+# Note: Nginx is always installed, START_NGINX only controls whether to start it
+if [ "$START_NGINX" != "true" ]; then
+    echo "[$SCRIPT_INDEX] START_NGINX is not true (value: $START_NGINX)"
+    echo "[$SCRIPT_INDEX] Nginx will be installed but service will be disabled"
 fi
 
 # Function to check if command exists
@@ -343,9 +338,16 @@ install_nginx() {
     # Install Nginx with no recommends to avoid extra packages
     $USE_SUDO apt install -y nginx --no-install-recommends
 
-    # Enable and start Nginx service
-    $USE_SUDO systemctl enable nginx
-    $USE_SUDO systemctl start nginx
+    # Check START_NGINX variable to decide whether to start service
+    if [ "$START_NGINX" = "true" ]; then
+        echo "[$SCRIPT_INDEX] START_NGINX is true, enabling and starting Nginx service..."
+        $USE_SUDO systemctl enable nginx
+        $USE_SUDO systemctl start nginx
+        echo "[$SCRIPT_INDEX] Nginx service started"
+    else
+        echo "[$SCRIPT_INDEX] START_NGINX is false, Nginx installed but NOT started"
+        echo "[$SCRIPT_INDEX] To start Nginx later: sudo systemctl start nginx"
+    fi
 
     echo "[$SCRIPT_INDEX] Nginx installed successfully"
 }
@@ -531,15 +533,23 @@ EOF
     echo "[$SCRIPT_INDEX] Testing Nginx configuration before applying..."
     if $USE_SUDO nginx -t; then
         echo "[$SCRIPT_INDEX] Nginx configuration test passed"
-        # Reload Nginx only if test passes
-        echo "[$SCRIPT_INDEX] Reloading Nginx service..."
-        if $USE_SUDO systemctl reload nginx; then
-            echo "[$SCRIPT_INDEX] Nginx configuration reloaded successfully"
+
+        # Only reload/restart if START_NGINX is true and service is running
+        if [ "$START_NGINX" = "true" ]; then
+            echo "[$SCRIPT_INDEX] START_NGINX is true, reloading Nginx service..."
+            if $USE_SUDO systemctl reload nginx 2>/dev/null; then
+                echo "[$SCRIPT_INDEX] Nginx configuration reloaded successfully"
+            else
+                echo "[$SCRIPT_INDEX] Reload failed, attempting restart instead..."
+                if $USE_SUDO systemctl restart nginx 2>/dev/null; then
+                    echo "[$SCRIPT_INDEX] Nginx restarted successfully"
+                else
+                    echo "[$SCRIPT_INDEX] [WARN] Failed to restart Nginx"
+                fi
+            fi
         else
-            echo "[$SCRIPT_INDEX] Error: Nginx reload failed"
-            # Try restart instead
-            echo "[$SCRIPT_INDEX] Attempting restart instead..."
-            $USE_SUDO systemctl restart nginx
+            echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service reload"
+            echo "[$SCRIPT_INDEX] Configuration updated but service not started"
         fi
     else
         echo "[$SCRIPT_INDEX] Error: Nginx configuration test failed"
@@ -804,35 +814,46 @@ check_and_fix_duplicate_default_servers() {
 # Function to fix Nginx service
 fix_nginx_service() {
     echo "[$SCRIPT_INDEX] Checking and fixing Nginx service..."
-    
+
     # Check if service exists
     if ! systemctl list-unit-files | grep -q "nginx.service"; then
         echo "[$SCRIPT_INDEX] [FAIL] Nginx service not found, reinstalling..."
         return 1
     fi
-    
-    # Enable service if not enabled
-    if ! systemctl is-enabled --quiet nginx; then
-        echo "[$SCRIPT_INDEX] Enabling Nginx service..."
-        $USE_SUDO systemctl enable nginx
-    fi
-    
-    # Start service if not active
-    if ! systemctl is-active --quiet nginx; then
-        echo "[$SCRIPT_INDEX] Starting Nginx service..."
-        $USE_SUDO systemctl start nginx
-        
-        # Wait a moment and check again
-        sleep 2
+
+    # Check START_NGINX variable to decide whether to start service
+    if [ "$START_NGINX" = "true" ]; then
+        # Enable service if not enabled
+        if ! systemctl is-enabled --quiet nginx; then
+            echo "[$SCRIPT_INDEX] Enabling Nginx service (START_NGINX=true)..."
+            $USE_SUDO systemctl enable nginx
+        fi
+
+        # Start service if not active
         if ! systemctl is-active --quiet nginx; then
-            echo "[$SCRIPT_INDEX] [FAIL] Nginx service failed to start, checking configuration..."
-            echo "[$SCRIPT_INDEX] Configuration test output:"
-            $USE_SUDO nginx -t || true
-            return 1
+            echo "[$SCRIPT_INDEX] Starting Nginx service (START_NGINX=true)..."
+            $USE_SUDO systemctl start nginx
+
+            # Wait a moment and check again
+            sleep 2
+            if ! systemctl is-active --quiet nginx; then
+                echo "[$SCRIPT_INDEX] [FAIL] Nginx service failed to start, checking configuration..."
+                echo "[$SCRIPT_INDEX] Configuration test output:"
+                $USE_SUDO nginx -t || true
+                return 1
+            fi
+        fi
+    else
+        echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service start"
+        echo "[$SCRIPT_INDEX] Nginx is installed but will not be started automatically"
+        # Disable service if START_NGINX is false
+        if systemctl is-enabled --quiet nginx; then
+            echo "[$SCRIPT_INDEX] Disabling Nginx service (START_NGINX=false)..."
+            $USE_SUDO systemctl disable nginx
         fi
     fi
-    
-    echo "[$SCRIPT_INDEX] [OK] Nginx service is running properly"
+
+    echo "[$SCRIPT_INDEX] [OK] Nginx service configuration updated"
     return 0
 }
 
@@ -1035,27 +1056,35 @@ verify_nginx_installation() {
         echo "[$SCRIPT_INDEX] [OK] Nginx binary found: $(which nginx)"
     fi
     
-    # Check 2: Nginx service is active
-    if ! systemctl is-active --quiet nginx; then
-        echo "[$SCRIPT_INDEX] [FAIL] Nginx service is not active"
-        verification_passed=false
+    # Check 2: Nginx service is active (only required if START_NGINX is true)
+    if [ "$START_NGINX" = "true" ]; then
+        if ! systemctl is-active --quiet nginx; then
+            echo "[$SCRIPT_INDEX] [FAIL] Nginx service is not active (START_NGINX=true requires active service)"
+            verification_passed=false
+        else
+            echo "[$SCRIPT_INDEX] [OK] Nginx service is active"
+        fi
     else
-        echo "[$SCRIPT_INDEX] [OK] Nginx service is active"
+        echo "[$SCRIPT_INDEX] [SKIP] Nginx service check (START_NGINX=false, service not required to run)"
     fi
-    
-    # Check 3: Port is listening
-    local port_listening=false
-    if netstat -tuln 2>/dev/null | grep -q ":$NGINX_PORT "; then
-        port_listening=true
-    elif ss -tuln 2>/dev/null | grep -q ":$NGINX_PORT "; then
-        port_listening=true
-    fi
-    
-    if [ "$port_listening" = false ]; then
-        echo "[$SCRIPT_INDEX] [FAIL] Nginx is not listening on port $NGINX_PORT"
-        verification_passed=false
+
+    # Check 3: Port is listening (only required if START_NGINX is true)
+    if [ "$START_NGINX" = "true" ]; then
+        local port_listening=false
+        if netstat -tuln 2>/dev/null | grep -q ":$NGINX_PORT "; then
+            port_listening=true
+        elif ss -tuln 2>/dev/null | grep -q ":$NGINX_PORT "; then
+            port_listening=true
+        fi
+
+        if [ "$port_listening" = false ]; then
+            echo "[$SCRIPT_INDEX] [FAIL] Nginx is not listening on port $NGINX_PORT (START_NGINX=true requires listening)"
+            verification_passed=false
+        else
+            echo "[$SCRIPT_INDEX] [OK] Nginx is listening on port $NGINX_PORT"
+        fi
     else
-        echo "[$SCRIPT_INDEX] [OK] Nginx is listening on port $NGINX_PORT"
+        echo "[$SCRIPT_INDEX] [SKIP] Port listening check (START_NGINX=false, port not required)"
     fi
     
     # Check 4: Default HTML file exists
@@ -1444,9 +1473,16 @@ if ! verify_nginx_installation; then
     # Test configuration before restart
     echo "[$SCRIPT_INDEX] Testing configuration before restart..."
     if $USE_SUDO nginx -t; then
-        echo "[$SCRIPT_INDEX] [OK] Configuration test passed, restarting service..."
-        $USE_SUDO systemctl restart nginx
-        sleep 3
+        echo "[$SCRIPT_INDEX] [OK] Configuration test passed"
+
+        # Only restart if START_NGINX is true
+        if [ "$START_NGINX" = "true" ]; then
+            echo "[$SCRIPT_INDEX] START_NGINX is true, restarting service..."
+            $USE_SUDO systemctl restart nginx
+            sleep 3
+        else
+            echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service restart"
+        fi
     else
         echo "[$SCRIPT_INDEX] [FAIL] Configuration test failed even after cleanup"
         echo "[$SCRIPT_INDEX] Configuration error details:"
@@ -1457,10 +1493,16 @@ if ! verify_nginx_installation; then
     if ! verify_nginx_installation; then
         echo "[$SCRIPT_INDEX] Reconfiguring and restarting..."
         configure_nginx_port
-        # Only restart if config test passes
+
+        # Only restart if config test passes and START_NGINX is true
         if $USE_SUDO nginx -t; then
-            $USE_SUDO systemctl restart nginx
-            sleep 3
+            if [ "$START_NGINX" = "true" ]; then
+                echo "[$SCRIPT_INDEX] START_NGINX is true, restarting service..."
+                $USE_SUDO systemctl restart nginx
+                sleep 3
+            else
+                echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service restart"
+            fi
         fi
     fi
 
@@ -1484,6 +1526,7 @@ print_final_summary() {
     echo "[$SCRIPT_INDEX] Nginx Installation Status:"
     echo "[$SCRIPT_INDEX] -------------------------"
     echo "[$SCRIPT_INDEX] Version: $(nginx -v 2>&1 | cut -d' ' -f3)"
+    echo "[$SCRIPT_INDEX] START_NGINX Setting: $START_NGINX"
     echo "[$SCRIPT_INDEX] Service Status: $(systemctl is-active nginx)"
     echo "[$SCRIPT_INDEX] Service Enabled: $(systemctl is-enabled nginx)"
     echo "[$SCRIPT_INDEX] Listening Port: $NGINX_PORT"
