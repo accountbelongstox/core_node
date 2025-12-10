@@ -25,6 +25,113 @@ except ImportError:
     print("[WARNING] redis-py not installed. Run: pip install redis")
 
 
+class InMemoryRedisClient:
+    """Lightweight in-memory Redis replacement for offline/dev usage."""
+
+    def __init__(self):
+        self._strings = {}
+        self._hashes = {}
+        self._sorted_sets = {}
+        self._expire_at = {}
+
+    def _is_expired(self, key: str) -> bool:
+        expire_at = self._expire_at.get(key)
+        if expire_at and expire_at <= time.time():
+            self._strings.pop(key, None)
+            self._hashes.pop(key, None)
+            self._sorted_sets.pop(key, None)
+            self._expire_at.pop(key, None)
+            return True
+        return False
+
+    def setex(self, key: str, ttl: int, value: str):
+        self._strings[key] = value
+        self._expire_at[key] = time.time() + ttl if ttl else None
+
+    def get(self, key: str):
+        if self._is_expired(key):
+            return None
+        return self._strings.get(key)
+
+    def zadd(self, key: str, mapping: Dict[str, float]):
+        current = self._sorted_sets.setdefault(key, [])
+        for member, score in mapping.items():
+            current.append((score, member))
+
+    def zcard(self, key: str) -> int:
+        if self._is_expired(key):
+            return 0
+        return len(self._sorted_sets.get(key, []))
+
+    def zremrangebyrank(self, key: str, start: int, stop: int):
+        if self._is_expired(key):
+            return
+        data = self._sorted_sets.get(key, [])
+        data.sort(key=lambda item: item[0])
+        del data[start:stop + 1]
+
+    def zrangebyscore(self, key: str, min_score: float, max_score: float, start: int = 0, num: int = -1):
+        if self._is_expired(key):
+            return []
+        data = self._sorted_sets.get(key, [])
+        filtered = [member for score, member in sorted(data, key=lambda item: item[0]) if min_score <= score <= max_score]
+        end = None if num == -1 else start + num
+        return filtered[start:end]
+
+    def zrevrange(self, key: str, start: int, stop: int):
+        if self._is_expired(key):
+            return []
+        data = sorted(self._sorted_sets.get(key, []), key=lambda item: item[0], reverse=True)
+        return [member for _, member in data[start:stop + 1]]
+
+    def expire(self, key: str, ttl: int):
+        if key in self._strings or key in self._hashes or key in self._sorted_sets:
+            self._expire_at[key] = time.time() + ttl if ttl else None
+
+    def hset(self, key: str, mapping: Dict[str, Any]):
+        if self._is_expired(key):
+            self._hashes.pop(key, None)
+        existing = self._hashes.get(key, {})
+        existing.update(mapping)
+        self._hashes[key] = existing
+
+    def hgetall(self, key: str) -> Dict[str, Any]:
+        if self._is_expired(key):
+            return {}
+        return self._hashes.get(key, {})
+
+    def keys(self, pattern: str):
+        if not pattern.endswith('*'):
+            return []
+        prefix = pattern[:-1]
+        collected = []
+        for key in list(self._strings.keys()) + list(self._hashes.keys()) + list(self._sorted_sets.keys()):
+            if key.startswith(prefix) and not self._is_expired(key):
+                collected.append(key)
+        return collected
+
+    def delete(self, key: str):
+        self._strings.pop(key, None)
+        self._hashes.pop(key, None)
+        self._sorted_sets.pop(key, None)
+        self._expire_at.pop(key, None)
+
+    def flushdb(self):
+        self._strings.clear()
+        self._hashes.clear()
+        self._sorted_sets.clear()
+        self._expire_at.clear()
+
+    def info(self, section: str = 'stats'):
+        return {'total_commands_processed': 0, 'used_memory': 0}
+
+    def dbsize(self) -> int:
+        return len(self._strings) + len(self._hashes) + len(self._sorted_sets)
+
+    def close(self):
+        return None
+
+
 class RedisManager:
     """
     Redis Cache Manager
@@ -49,6 +156,7 @@ class RedisManager:
         self.port = port or strategy_config.REDIS_PORT
         self.db = db or strategy_config.REDIS_DB
         self.password = password or strategy_config.REDIS_PASSWORD
+        self.using_fallback = False
 
         # Connect to Redis with timeout
         import sys
@@ -72,17 +180,22 @@ class RedisManager:
             self.client.ping()
             print(f"[RedisManager] [OK] Connected to Redis at {self.host}:{self.port} (DB {self.db})")
             sys.stdout.flush()
+            self.using_fallback = False
         except redis.ConnectionError as e:
             print(f"[RedisManager] [FAIL] Failed to connect to Redis: {e}")
             print(f"[RedisManager] Please start Redis server:")
             print(f"[RedisManager]   Windows: redis-server.exe")
             print(f"[RedisManager]   Linux/Mac: redis-server")
             sys.stdout.flush()
-            raise
+            print("[RedisManager] Falling back to in-memory cache for this session")
+            self.client = InMemoryRedisClient()
+            self.using_fallback = True
         except Exception as e:
             print(f"[RedisManager] [ERROR] Unexpected error: {e}")
             sys.stdout.flush()
-            raise
+            print("[RedisManager] Falling back to in-memory cache for this session")
+            self.client = InMemoryRedisClient()
+            self.using_fallback = True
 
         # Statistics
         self.stats = {
@@ -349,6 +462,15 @@ class RedisManager:
 
     def get_stats(self) -> Dict:
         """Get Redis statistics"""
+        if self.using_fallback:
+            return {
+                **self.stats,
+                'total_keys': self.client.dbsize(),
+                'used_memory_mb': 0,
+                'total_commands': 0,
+                'backend': 'in-memory',
+            }
+
         info = self.client.info('stats')
         memory_info = self.client.info('memory')
 
@@ -357,6 +479,7 @@ class RedisManager:
             'total_keys': self.client.dbsize(),
             'used_memory_mb': memory_info.get('used_memory', 0) / 1024 / 1024,
             'total_commands': info.get('total_commands_processed', 0),
+            'backend': 'redis',
         }
 
     def close(self):

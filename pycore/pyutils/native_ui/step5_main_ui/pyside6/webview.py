@@ -87,11 +87,17 @@ class PySide6WebView(QWidget):
             self.enable_javascript
         )
 
-        if self.enable_dev_tools:
-            settings.setAttribute(
-                QWebEngineSettings.WebAttribute.DeveloperExtrasEnabled,
-                True
-            )
+        # NOTE: DeveloperExtrasEnabled does NOT exist in Qt WebEngine (it was in old QtWebKit)
+        # Developer tools are enabled via:
+        # 1. Environment variable QTWEBENGINE_REMOTE_DEBUGGING (set via Chromium flags)
+        # 2. QWebEnginePage.setDevToolsPage() for in-app dev tools
+        # Since we're already setting Chromium flags, remote debugging is handled there.
+        # For additional in-app dev tools, we would need to create a separate QWebEnginePage.
+
+        # CRITICAL: Apply Tier 3 QtWebEngine configuration for WebCodecs/WebGL support
+        # This is the final redundant layer after Tier 1 (env) and Tier 2 (qputenv)
+        from .webengine_config import configure_webengine_tier3_settings
+        configure_webengine_tier3_settings(settings)
 
         # Connect signals
         self.web_view.loadStarted.connect(self._on_load_started)

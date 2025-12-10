@@ -49,6 +49,7 @@ class I18nKeys:
     TRAY_MENU_HIDE = "tray.menu.hide"
     TRAY_MENU_MAXIMIZE = "tray.menu.maximize"
     TRAY_MENU_MINIMIZE = "tray.menu.minimize"
+    TRAY_MENU_RESTORE = "tray.menu.restore"
     TRAY_MENU_RESTART = "tray.menu.restart"
     TRAY_MENU_EXIT = "tray.menu.exit"
     

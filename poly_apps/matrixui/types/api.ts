@@ -21,11 +21,18 @@ export interface APIInfo {
 }
 
 export interface DeviceInfo {
-  serial: string;
-  status: 'device' | 'offline' | 'unauthorized';
+  deviceId: string; // Primary ID for API calls (e.g., "device_1", "device_2")
+  serial: string; // Device serial number (USB) or IP:port (WiFi) - for reference only
+  status?: 'device' | 'offline' | 'unauthorized'; // Legacy field
+  state?: 'unknown' | 'usb_connected' | 'wifi_connected' | 'configuring' | 'disconnected' | 'error'; // New field from API
   model: string;
-  manufacturer: string | null;
-  android_version: string | null;
+  manufacturer?: string | null;
+  android_version?: string | null;
+  ip?: string;
+  connection_type?: 'usb' | 'wifi';
+  is_root?: boolean;
+  last_seen?: number;
+  connected_at?: number;
 }
 
 export interface DeviceDetail {
@@ -65,7 +72,7 @@ export interface WSError {
 // --- Payload Types ---
 
 export interface DeviceConnectPayload {
-  serial: string;
+  deviceId: string; // Use deviceId instead of serial
   max_size?: number;
   bit_rate?: number;
   max_fps?: number;

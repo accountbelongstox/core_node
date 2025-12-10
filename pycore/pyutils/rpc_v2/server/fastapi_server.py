@@ -204,6 +204,27 @@ class FastAPIRPCServer:
                 if self.debug:
                     ColorPrint.yellow(f"[Broadcast] Failed to send to client {client_id[:8]}: {e}")
 
+    def broadcast_event_sync(self, event_name: str, data: Dict[str, Any]):
+        """
+        Synchronous wrapper for broadcast_event() for use from non-async contexts.
+
+        This method can be called from any thread (e.g., HeartbeatPusher thread).
+
+        Args:
+            event_name: Event name
+            data: Event data
+        """
+        if self._broadcast_loop is None:
+            if self.debug:
+                ColorPrint.yellow(f"[Broadcast] Event loop not ready for {event_name}, skipping")
+            return
+
+        # Schedule the coroutine in the uvicorn event loop
+        asyncio.run_coroutine_threadsafe(
+            self.broadcast_event(event_name, data),
+            self._broadcast_loop
+        )
+
     def register_thread_bus_listener(self, event_name: str):
         """
         Register a THREAD_BUS event listener that broadcasts to WebSocket clients.
@@ -437,6 +458,9 @@ class FastAPIRPCServer:
                 if self.debug:
                     ColorPrint.green(f"[HTTP RPC] Sync route {route} completed, returning result")
 
+                # Mark sync responses as notified to skip ACK/redo flow
+                self.request_event_table.mark_notified(request_id)
+
                 # ✅ Return result immediately (no requires_ack)
                 return JSONResponse(
                     {
@@ -640,7 +664,7 @@ class FastAPIRPCServer:
         inventory_items = self.inventory_table.get_by_client(client_id)
 
         for event in pending_events[:10]:
-            await self.ack_manager.notify_websocket_with_retry(
+            self.ack_manager.notify_websocket_with_retry(
                 client_id=client_id,
                 request_id=event.request_id,
                 result=event.result,
@@ -733,7 +757,7 @@ class FastAPIRPCServer:
             existing_event = self.request_event_table.get_event(request_id)
             if existing_event:
                 if existing_event.status == RequestStatus.COMPLETED:
-                    await self.ack_manager.notify_websocket_with_retry(
+                    self.ack_manager.notify_websocket_with_retry(
                         client_id=client_id,
                         request_id=request_id,
                         result=existing_event.result,
@@ -788,6 +812,9 @@ class FastAPIRPCServer:
                 if event and event.status == RequestStatus.COMPLETED:
                     if self.debug:
                         ColorPrint.green(f"[WS RPC] Sync route {route} completed, sending result")
+
+                    # Mark sync responses as notified so ACK manager does not retry them
+                    self.request_event_table.mark_notified(request_id)
 
                     # ✅ Send result immediately (no ACK mechanism)
                     await websocket.send_json(
@@ -865,7 +892,7 @@ class FastAPIRPCServer:
             )
 
             for event in pending_events[:5]:
-                await self.ack_manager.notify_websocket_with_retry(
+                self.ack_manager.notify_websocket_with_retry(
                     client_id=client_id,
                     request_id=event.request_id,
                     result=event.result,
