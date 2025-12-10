@@ -147,6 +147,9 @@ class CapacitorResourceManager:
         # Check source file
         if not source_path.exists():
             result["message"] = f"Source icon not found: {source_filename}"
+            print(f"\n\033[91m[Icon] Source file not found: {source_filename}\033[0m")
+            print(f"[Icon] Expected location: {source_path}")
+            print(f"\033[93m[Hint] Check 'app_logo_src' in build_config.ini [app_info] section\033[0m")
             return result
 
         # Check size
@@ -208,7 +211,9 @@ class CapacitorResourceManager:
         if not source_path.exists():
             result["message"] = f"Source splash not found: {source_filename}"
             result["skipped"] = True
-            print(f"\n[Splash] Source not found: {source_filename} (optional)")
+            print(f"\n\033[93m[Splash] Source file not found: {source_filename}\033[0m")
+            print(f"[Splash] Expected location: {source_path}")
+            print(f"\033[93m[Hint] Check 'splash_src' in build_config.ini [app_info] section\033[0m")
             return result
 
         # Check size
@@ -319,7 +324,9 @@ class CapacitorResourceManager:
             return False
 
     def prepare_for_capacitor_assets(self, app_name: str, display_name_en: str,
-                                    display_name_cn: str, package_id: str) -> Dict[str, any]:
+                                    display_name_cn: str, package_id: str,
+                                    app_logo_src: str = "logo.png",
+                                    splash_src: str = "splash.png") -> Dict[str, any]:
         """
         Prepare all resources for Capacitor's @capacitor/assets tool
 
@@ -328,6 +335,8 @@ class CapacitorResourceManager:
             display_name_en: English display name
             display_name_cn: Chinese display name
             package_id: Package ID
+            app_logo_src: Source filename for app logo (default: "logo.png")
+            splash_src: Source filename for splash screen (default: "splash.png")
 
         Returns:
             Dictionary with preparation results
@@ -357,13 +366,13 @@ class CapacitorResourceManager:
         print("\n" + "-" * 60)
         print("Copying Icon")
         print("-" * 60)
-        results["icon"] = self.copy_icon()
+        results["icon"] = self.copy_icon(source_filename=app_logo_src)
 
         # Step 3: Copy splash
         print("\n" + "-" * 60)
         print("Copying Splash Screen")
         print("-" * 60)
-        results["splash"] = self.copy_splash()
+        results["splash"] = self.copy_splash(source_filename=splash_src)
 
         # Step 4: Update capacitor config
         print("\n" + "-" * 60)
