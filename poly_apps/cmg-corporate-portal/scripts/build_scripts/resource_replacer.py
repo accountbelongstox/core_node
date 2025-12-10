@@ -262,52 +262,101 @@ class ResourceReplacer:
         return self.replaced_files
 
     def update_android_strings(self, app_name: str, display_name_en: str,
-                              display_name_cn: str, package_id: str) -> bool:
+                              display_name_cn: str, package_id: str,
+                              supported_languages: str = '', config_info: dict = None) -> bool:
         """
-        Update Android strings.xml with app display names
+        Update Android strings.xml with app display names and create localized versions
 
         Args:
             app_name: Technical app name (e.g., "cmg_club")
             display_name_en: English display name (e.g., "CMG-Shooting&Hotel")
             display_name_cn: Chinese display name (e.g., "CMG靶场&酒店")
             package_id: Package ID (e.g., "com.ddsj.cmg.club")
+            supported_languages: Comma-separated language config (e.g., "zh:display_name_chinese")
+            config_info: Full config dictionary for accessing custom display names
 
         Returns:
             True if successful, False otherwise
         """
-        # Find all strings.xml files recursively
-        strings_files = []
-        values_dirs = []
+        print("\n" + "=" * 60)
+        print("Updating Android App Names (Multi-Language)")
+        print("=" * 60)
 
-        for root, dirs, files in os.walk(self.res_path):
-            root_path = Path(root)
-            if root_path.name.startswith("values"):
-                if "strings.xml" in files:
-                    strings_file = root_path / "strings.xml"
-                    strings_files.append(strings_file)
-                    values_dirs.append(root_path.name)
+        # Parse language configuration
+        language_map = self._parse_language_config(supported_languages, config_info or {})
 
-        if not strings_files:
-            print("\n[Strings] No strings.xml files found")
-            return False
+        # Update default strings.xml (English)
+        self._update_or_create_strings_xml('values', display_name_en, package_id)
+
+        # Create/update localized strings.xml for each supported language
+        for lang_code, display_name in language_map.items():
+            values_dir = f'values-{lang_code}'
+            self._update_or_create_strings_xml(values_dir, display_name, package_id)
 
         print("\n" + "=" * 60)
-        print("Updating Android App Names")
+        print(f"Updated strings.xml for {1 + len(language_map)} language(s)")
         print("=" * 60)
-        print(f"\nFound {len(strings_files)} strings.xml file(s)")
 
-        success_count = 0
+        return True
 
-        for strings_file, values_dir in zip(strings_files, values_dirs):
+    def _parse_language_config(self, supported_languages: str, config_info: dict) -> dict:
+        """
+        Parse language configuration string
+
+        Args:
+            supported_languages: String like "zh:display_name_chinese,es:display_name_spanish"
+            config_info: Full config dictionary
+
+        Returns:
+            Dictionary mapping language codes to display names
+        """
+        language_map = {}
+
+        if not supported_languages or not supported_languages.strip():
+            return language_map
+
+        for lang_config in supported_languages.split(','):
+            lang_config = lang_config.strip()
+            if ':' not in lang_config:
+                continue
+
+            lang_code, field_name = lang_config.split(':', 1)
+            lang_code = lang_code.strip()
+            field_name = field_name.strip()
+
+            # Get display name from config
+            display_name = config_info.get(field_name, '')
+            if display_name:
+                language_map[lang_code] = display_name
+
+        return language_map
+
+    def _update_or_create_strings_xml(self, values_dir: str, display_name: str, package_id: str) -> bool:
+        """
+        Update or create strings.xml in a specific values directory
+
+        Args:
+            values_dir: Directory name (e.g., 'values', 'values-zh')
+            display_name: Display name for this locale
+            package_id: Package ID
+
+        Returns:
+            True if successful
+        """
+        values_path = self.res_path / values_dir
+        strings_file = values_path / 'strings.xml'
+
+        # Create directory if it doesn't exist
+        if not values_path.exists():
+            values_path.mkdir(parents=True, exist_ok=True)
+            print(f"\n[Created] {values_dir}/ directory")
+
+        # If strings.xml exists, update it; otherwise create new one
+        if strings_file.exists():
             try:
-                # Parse XML
+                # Parse and update existing XML
                 tree = ET.parse(strings_file)
                 root = tree.getroot()
-
-                # Determine which display name to use based on locale
-                display_name = display_name_en
-                if "zh" in values_dir.lower() or "cn" in values_dir.lower():
-                    display_name = display_name_cn
 
                 # Update app_name
                 app_name_elem = root.find(".//string[@name='app_name']")
@@ -316,6 +365,12 @@ class ResourceReplacer:
                     app_name_elem.text = display_name
                     print(f"\n[{values_dir}/strings.xml]")
                     print(f"  app_name: '{old_value}' → '{display_name}'")
+                else:
+                    # Create app_name element
+                    new_elem = ET.SubElement(root, 'string', name='app_name')
+                    new_elem.text = display_name
+                    print(f"\n[{values_dir}/strings.xml]")
+                    print(f"  app_name: (new) → '{display_name}'")
 
                 # Update title_activity_main if exists
                 title_elem = root.find(".//string[@name='title_activity_main']")
@@ -338,30 +393,64 @@ class ResourceReplacer:
                     scheme_elem.text = package_id
                     print(f"  custom_url_scheme: '{old_value}' → '{package_id}'")
 
-                # Write back to file with pretty formatting
+                # Write back
                 tree.write(strings_file, encoding='utf-8', xml_declaration=True)
 
-                # Fix formatting to match original
+                # Fix formatting
                 with open(strings_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-
-                # Add single quotes around attributes and clean up
                 content = content.replace('encoding="utf-8"', "encoding='utf-8'")
                 content = content.replace('name="', "name='").replace('">', "'>")
-
                 with open(strings_file, 'w', encoding='utf-8') as f:
                     f.write(content)
 
-                success_count += 1
+                return True
 
             except Exception as e:
                 print(f"\n[ERROR] Failed to update {strings_file}: {e}")
+                return False
+        else:
+            # Create new strings.xml file
+            try:
+                root = ET.Element('resources')
 
-        print("\n" + "=" * 60)
-        print(f"Updated {success_count}/{len(strings_files)} strings.xml file(s)")
-        print("=" * 60)
+                # Add app_name
+                app_name_elem = ET.SubElement(root, 'string', name='app_name')
+                app_name_elem.text = display_name
 
-        return success_count > 0
+                # Add title_activity_main
+                title_elem = ET.SubElement(root, 'string', name='title_activity_main')
+                title_elem.text = display_name
+
+                # Add package_name
+                package_elem = ET.SubElement(root, 'string', name='package_name')
+                package_elem.text = package_id
+
+                # Add custom_url_scheme
+                scheme_elem = ET.SubElement(root, 'string', name='custom_url_scheme')
+                scheme_elem.text = package_id
+
+                # Write to file
+                tree = ET.ElementTree(root)
+                tree.write(strings_file, encoding='utf-8', xml_declaration=True)
+
+                # Fix formatting
+                with open(strings_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                content = content.replace('encoding="utf-8"', "encoding='utf-8'")
+                content = content.replace('name="', "name='").replace('">', "'>")
+                with open(strings_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+                print(f"\n[Created] {values_dir}/strings.xml")
+                print(f"  app_name: '{display_name}'")
+                print(f"  package_name: '{package_id}'")
+
+                return True
+
+            except Exception as e:
+                print(f"\n[ERROR] Failed to create {strings_file}: {e}")
+                return False
 
 
 def main():
