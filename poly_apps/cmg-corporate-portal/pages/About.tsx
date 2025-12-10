@@ -77,21 +77,10 @@ const About: React.FC = () => {
           </div>
 
           <div className="space-y-6">
-            {/* Chairman Photo */}
-            <div className="relative">
-              <div className="w-full bg-zinc-800 rounded-xl overflow-hidden border-2 border-yellow-500/30 p-2">
-                <div className="relative w-full" style={{ paddingBottom: '75%' }}>
-                  <img 
-                    src={Assets.chairman} 
-                    alt={t('about.chairman.name')}
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 bg-black/80 backdrop-blur-md rounded-lg p-3 border border-yellow-500/30">
-                <h3 className="text-lg font-serif font-bold text-yellow-500 mb-1">{t('about.chairman.name')}</h3>
-                <p className="text-xs text-zinc-400">{t('about.chairman.position')}</p>
-              </div>
+            {/* Chairman Info Header */}
+            <div className="bg-black/80 backdrop-blur-md rounded-lg p-3 border border-yellow-500/30">
+              <h3 className="text-lg font-serif font-bold text-yellow-500 mb-1">{t('about.chairman.name')}</h3>
+              <p className="text-xs text-zinc-400">{t('about.chairman.position')}</p>
             </div>
 
             {/* Chairman Info */}
