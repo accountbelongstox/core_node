@@ -113,7 +113,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
             thread = startup_thread_ref['thread']
             if thread is None:
                 if config.debug:
-                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - will close debug window when it becomes available")
+                    ColorPrint.yellow("[NativeLauncher] frontend.ready received - waiting for startup window thread")
                 return
 
             ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
@@ -137,6 +137,20 @@ def launch_native_app(config: NativeUIConfig) -> None:
     frontend_thread = None
     if config.frontend_enabled:
         frontend_thread = _start_frontend(config)
+
+        # Register frontend shutdown handler to THREAD_BUS
+        if frontend_thread:
+            def stop_frontend():
+                ColorPrint.blue("[frontend] Stopping frontend thread...")
+                frontend_thread.stop()
+
+            THREAD_BUS.register_shutdown_handler(
+                handler=stop_frontend,
+                priority=30,  # Stop before RPC v2 (priority 50)
+                name="frontend"
+            )
+            if config.debug:
+                ColorPrint.blue("[frontend] Registered shutdown handler (priority=30)")
 
         # Update final_url if frontend is in dev mode
         if frontend_thread and config.frontend_mode == "dev":
@@ -162,53 +176,66 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
     def handle_app_close(event_data):
         """
-        Handle app.close event - stop all services in proper order
+        Handle app.close event - trigger THREAD_BUS shutdown
 
         Triggered by:
         - Window close (main_window.py closeEvent)
         - Tray exit action
         - Ctrl+C / KeyboardInterrupt
+
+        IMPORTANT: Don't manually stop services here!
+        Let THREAD_BUS.request_shutdown() handle service shutdown via shutdown stack.
+        This ensures proper shutdown order (RPC v2 → Heartbeat → etc.)
         """
-        ColorPrint.yellow("[NativeLauncher] Handling app.close event - stopping services...")
+        source = event_data.get('source', 'unknown')
+        ColorPrint.yellow(f"[NativeLauncher] Handling app.close event (source: {source})")
 
-        # Stop frontend thread first (may have running dev server)
-        if frontend_thread:
-            ColorPrint.blue("[NativeLauncher] Stopping frontend thread...")
-            frontend_thread.stop()
+        # CRITICAL FIX: Stop startup thread (if it exists and is running)
+        # This must be done manually as it's not registered in shutdown stack
+        if startup_thread_ref and startup_thread_ref.get('thread'):
+            thread = startup_thread_ref['thread']
+            if thread and thread.is_alive():
+                ColorPrint.blue("[NativeLauncher] Stopping startup thread (debug window/tray)...")
+                thread.request_close()
 
-        # Stop RPC v2 server
-        if rpc_service:
-            ColorPrint.blue("[NativeLauncher] Stopping RPC v2 server...")
-            rpc_service.stop()
-
-        ColorPrint.green("[NativeLauncher] All services stopped")
+        # Trigger THREAD_BUS shutdown to stop all services in proper order
+        # Don't manually stop services - let shutdown stack handle it
+        if not THREAD_BUS.is_shutdown_requested():
+            ColorPrint.blue("[NativeLauncher] Triggering THREAD_BUS shutdown...")
+            THREAD_BUS.request_shutdown(
+                reason=f"app.close event (source: {source})",
+                execute_handlers=True
+            )
+        else:
+            ColorPrint.yellow("[NativeLauncher] Shutdown already requested, skipping")
 
     # Register with high priority to ensure cleanup happens early
     THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
-    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for service cleanup")
+    ColorPrint.blue("[NativeLauncher] Registered app.close event handler for THREAD_BUS shutdown")
 
     # ========== Phase 5: Singleton Detection ==========
     from pycore.pylauncher.singleton_detector import SingletonDetector
 
+    # Create singleton detector with shutdown_existing=True
+    # This means: if an old instance exists, notify it to shutdown and take over
     detector = SingletonDetector(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,
         timeout=1.0,
-        debug=config.debug
+        debug=config.debug,
+        shutdown_existing=True  # New instance will shutdown old instance and take over
     )
 
     detection = detector.detect_and_bind()
 
-    # Check existing instance
-    if detection.existing_instance:
-        if not config.force:
-            ColorPrint.print_warn(f"[NativeLauncher] Instance already running at port {detection.existing_port}")
-            return
-
     # Check if became primary
     if not detection.is_primary:
-        ColorPrint.print_error("[NativeLauncher] No available ports in range")
+        if detection.existing_instance:
+            # Should not happen with shutdown_existing=True, but handle it anyway
+            ColorPrint.print_error(f"[NativeLauncher] Failed to take over from existing instance at port {detection.existing_port}")
+        else:
+            ColorPrint.print_error("[NativeLauncher] No available ports in range")
         return
 
     if config.debug:
@@ -400,7 +427,10 @@ def _start_rpc_v2_service(
                         f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
                     )
             elif config.debug:
-                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (dev mode or not ready)")
+                if config.frontend_mode == "dev":
+                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (using dev server)")
+                else:
+                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (not ready yet)")
 
         # ========== 2. 创建 RPC v2 服务配置 ==========
         rpc_v2_config = {
@@ -489,6 +519,35 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     from pycore.pyfoundations.third_party import get_third_package_pyside6
     get_third_package_pyside6()  # Ensure PySide6 is installed
 
+    # CRITICAL: Configure QtWebEngine BEFORE importing PySide6 modules
+    # This must be done before QApplication is created
+    if config.webengine_enable_config:
+        ColorPrint.blue("=" * 80)
+        ColorPrint.blue("[NativeLauncher] CRITICAL: Configuring QtWebEngine BEFORE QApplication...")
+        ColorPrint.blue("=" * 80)
+
+        from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import (
+            configure_webengine_all_tiers
+        )
+
+        # Apply all tiers of WebEngine configuration with config options
+        results = configure_webengine_all_tiers(
+            env_flags=config.webengine_chromium_flags,
+            qputenv_flags=config.webengine_chromium_flags,
+            enable_webcodecs=config.webengine_enable_webcodecs,
+            enable_hardware_acceleration=config.webengine_enable_hardware_acceleration,
+            disable_gpu_sandbox=config.webengine_disable_gpu_sandbox,
+            enable_remote_debugging=config.webengine_enable_remote_debugging,
+            remote_debugging_port=config.webengine_remote_debugging_port,
+            print_diagnostics=config.webengine_print_diagnostics
+        )
+
+        ColorPrint.blue("=" * 80)
+        ColorPrint.blue("[NativeLauncher] QtWebEngine configuration completed")
+        ColorPrint.blue("=" * 80)
+    else:
+        ColorPrint.yellow("[NativeLauncher] QtWebEngine configuration DISABLED (webengine_enable_config=False)")
+
     from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
         PySide6Framework,
         PySide6UIConfig,
@@ -530,14 +589,24 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     # Create PySide6 UI config
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
-        app_id=config.app_id,  # ← 添加 app_id
+        app_id=config.app_id,
         webview_url=url,
         window_size=(window_width, window_height),
         show_on_start=config.show_on_start,
         frameless=config.frameless,
         icon_path=config.icon_path,
         enable_tray=config.enable_tray,
-        tray_menu_items=pyside6_tray_items
+        tray_menu_items=pyside6_tray_items,
+        # QtWebEngine configuration
+        enable_dev_tools=config.webengine_enable_remote_debugging,  # Fixed: was webengine_enable_dev_tools
+        webengine_enable_config=config.webengine_enable_config,
+        webengine_chromium_flags=config.webengine_chromium_flags,
+        webengine_disable_gpu_sandbox=config.webengine_disable_gpu_sandbox,
+        webengine_enable_webcodecs=config.webengine_enable_webcodecs,
+        webengine_enable_hardware_acceleration=config.webengine_enable_hardware_acceleration,
+        webengine_enable_remote_debugging=config.webengine_enable_remote_debugging,
+        webengine_remote_debugging_port=config.webengine_remote_debugging_port,
+        webengine_print_diagnostics=config.webengine_print_diagnostics
     )
 
     # Wire callbacks from callback_manager

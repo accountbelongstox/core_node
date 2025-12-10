@@ -18,7 +18,7 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $winCommonDir "WindowsPathFunction.ps1")
 
 $STEP_NUMBER = 4
-$SCRIPT_INDEX = "[Step $STEP_NUMBER]"
+$script:SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
 # Node.js installation configuration
 # Version is defined in GlobalVars.ps1 to prevent multiple definitions
@@ -245,7 +245,7 @@ function Install-PackageManagers {
         & $PnpmExePath config set global-dir $pnpmGlobalDir
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
         & $PnpmExePath config set enable-pre-post-scripts true
-        & $PnpmExePath setup
+        Write-Host "Y" | & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
@@ -373,7 +373,7 @@ function Verify-AndFix-AllConfigs {
         & $PnpmExePath config set enable-pre-post-scripts true
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
-        & $PnpmExePath setup
+        Write-Host "Y" | & $PnpmExePath setup
 
         Configure-PnpmRegistry
 
@@ -443,10 +443,10 @@ $installSuccess = Install-NodeJS
 if ($installSuccess) {
     Write-ColorMessage -Message "$SCRIPT_INDEX Node.js installation completed successfully" -Type "Success"
 
-    Write-ColorMessage -Message "" -Type "Info"
+    Write-Host ""
     Verify-AndFix-AllConfigs
 
-    Write-ColorMessage -Message "" -Type "Info"
+    Write-Host ""
     $testSuccess = Test-NodeJSInstallation
 
     if ($testSuccess) {

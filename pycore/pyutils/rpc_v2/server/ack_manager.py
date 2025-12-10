@@ -214,6 +214,11 @@ class FastAPIAckManager:
         if self.debug:
             ColorPrint.yellow(f"[FastAPIAckManager] ACK timeout for {request_id}, retrying delivery")
 
+        # Stop retrying after max attempts and fall back to inventory
+        if attempt + 1 >= max_attempts:
+            self._store_in_inventory(client_id, request_id, result, error, event)
+            return
+
         self._schedule_ws_attempt(
             client_id=client_id,
             request_id=request_id,

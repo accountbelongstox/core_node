@@ -40,7 +40,12 @@ from pycore.pyutils.native_ui.step4_startup.startup_window import StartupWindow,
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType
 from .main_window import PySide6MainWindow
 from .title_bar import PySide6TitleBar
-from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_tray_menu
+from .system_tray import (
+    PySide6SystemTray,
+    PySide6TrayMenuItem,
+    create_default_tray_menu,
+    create_i18n_event_driven_tray_menu
+)
 from .webview import PySide6WebView
 
 
@@ -272,6 +277,13 @@ class PySide6Framework(QObject):
         # Create Qt application if not exists
         ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
 
+        # CRITICAL: Configure QtWebEngine BEFORE QApplication creation
+        # This enables WebCodecs, WebGL, hardware acceleration for H.264 video streaming
+        ColorPrint.blue("[PySide6Framework] Step 2.1: Configuring QtWebEngine (multi-tier redundant)...")
+        from .webengine_config import configure_webengine_all_tiers
+        webengine_results = configure_webengine_all_tiers()
+        ColorPrint.green(f"[PySide6Framework] QtWebEngine configuration completed: {webengine_results}")
+
         # Suppress Qt CSS warnings for unsupported properties
         os.environ.setdefault('QT_LOGGING_RULES', 'qt.qpa.*.warning=false;*.debug=false')
 
@@ -455,11 +467,13 @@ class PySide6Framework(QObject):
 
             # Create default menu if no custom items
             if not self.config.tray_menu_items:
-                ColorPrint.blue("[PySide6Framework] Creating default tray menu...")
-                menu_items = create_default_tray_menu(
-                    show_callback=self.show_window,
-                    hide_callback=self.hide_window,
-                    quit_callback=self.quit
+                ColorPrint.blue("[PySide6Framework] Creating default i18n event-driven tray menu...")
+                # Use i18n + event-driven menu (automatically updates with language changes)
+                menu_items = create_i18n_event_driven_tray_menu(
+                    app_name=self.config.app_name,
+                    enable_show_hide=True,
+                    enable_maximize=True,
+                    enable_restart=False  # Restart not implemented yet
                 )
                 self.system_tray.set_menu_items(menu_items)
 
@@ -621,9 +635,10 @@ class PySide6Framework(QObject):
         if self.tick_timer:
             self.tick_timer.stop()
 
-        # Hide tray
+        # Cleanup tray (hide and release resources)
         if self.system_tray:
-            self.system_tray.hide()
+            ColorPrint.blue("[PySide6Framework] Cleaning up system tray...")
+            self.system_tray.cleanup()
 
         # Close window
         if self.main_window:

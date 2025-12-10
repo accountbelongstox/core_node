@@ -5,6 +5,11 @@ Frontend Launcher Thread
 
 Thread-based frontend launcher for native UI applications.
 Inherits from threading.Thread directly (follows pycore standards).
+
+Frontend Singleton Support:
+- Detects existing frontend instances using dedicated port range (55000-55099)
+- Automatically shuts down old frontend when new one starts
+- Uses THREAD_BUS events for graceful frontend-only shutdown
 """
 
 import os
@@ -17,8 +22,10 @@ import platform
 from pathlib import Path
 from typing import Optional, List
 
+from pycore import THREAD_BUS
 from pycore.pyfoundations.color_print import ColorPrint
 from .frontend_config import FrontendConfig
+from .frontend_singleton_detector import FrontendSingletonDetector
 
 
 def _resolve_command_for_platform(command: List[str]) -> List[str]:
@@ -86,14 +93,55 @@ class FrontendLauncherThread(threading.Thread):
         self.ready = False
         self.error_message: Optional[str] = None
 
+        # Frontend singleton detector
+        self.singleton_detector: Optional[FrontendSingletonDetector] = None
+        self._shutdown_requested = threading.Event()
+
         ColorPrint.blue(f"[FrontendThread] Initialized: {config.framework} ({config.mode} mode)")
         ColorPrint.blue(f"[FrontendThread] App directory: {config.app_dir}")
+
+    def _on_singleton_shutdown_request(self):
+        """Called when another frontend requests this one to shutdown"""
+        ColorPrint.yellow("[FrontendThread] Singleton shutdown requested by new frontend instance")
+        self._shutdown_requested.set()
+
+        # Trigger frontend shutdown via THREAD_BUS
+        THREAD_BUS.trigger_event('frontend.singleton.shutdown', {
+            'reason': 'New frontend instance detected',
+            'port': self.singleton_detector.get_port() if self.singleton_detector else None
+        })
+
+        # Stop frontend process
+        self.stop()
 
     def run(self):
         """Thread entry point - called by Thread.start()"""
         self.running = True
 
         try:
+            # Step 0: Frontend singleton detection (before starting frontend)
+            # This ensures only one frontend instance runs at a time
+            ColorPrint.blue("[FrontendThread] Performing frontend singleton detection...")
+            app_id = f"frontend_{self.config.framework}_{self.config.port}"
+            self.singleton_detector = FrontendSingletonDetector(
+                app_id=app_id,
+                port_start=55000,
+                port_range=100,
+                debug=os.environ.get('FRONTEND_SINGLETON_DEBUG', '').lower() in ('1', 'true', 'yes'),
+                on_shutdown_request=self._on_singleton_shutdown_request
+            )
+
+            detection_result = self.singleton_detector.detect_and_bind(shutdown_existing=True)
+
+            if not detection_result.is_primary:
+                # Failed to become primary (shouldn't happen with shutdown_existing=True)
+                ColorPrint.red(f"[FrontendThread] Failed to become primary frontend: {detection_result.message}")
+                self.error_message = f"Frontend singleton detection failed: {detection_result.message}"
+                self.error_event.set()
+                return
+
+            ColorPrint.green(f"[FrontendThread] Became PRIMARY frontend on singleton port {detection_result.port}")
+
             # Step 1: Install dependencies if needed
             if self.config.auto_install:
                 ColorPrint.blue("[FrontendThread] Installing dependencies...")
@@ -113,11 +161,11 @@ class FrontendLauncherThread(threading.Thread):
             ColorPrint.green(f"[FrontendThread] Frontend ready")
 
             # Trigger THREAD_BUS event for external listeners (e.g., Debug Log auto-close)
-            from pycore import THREAD_BUS
             THREAD_BUS.trigger_event('frontend.ready', {
                 'mode': self.config.mode,
                 'port': self.config.port,
-                'framework': self.config.framework
+                'framework': self.config.framework,
+                'singleton_port': detection_result.port
             })
             ColorPrint.blue("[FrontendThread] Triggered THREAD_BUS event: frontend.ready")
 
@@ -134,6 +182,9 @@ class FrontendLauncherThread(threading.Thread):
 
         finally:
             self.running = False
+            # Cleanup singleton detector
+            if self.singleton_detector:
+                self.singleton_detector.stop()
 
     def _ensure_dependencies(self) -> bool:
         """
@@ -340,6 +391,20 @@ class FrontendLauncherThread(threading.Thread):
         Handle dev mode - start dev server (waits indefinitely for ready)
         """
         ColorPrint.blue("[FrontendThread] Starting dev server...")
+
+        # Step 0: Force clean frontend port to prevent Vite auto-increment
+        ColorPrint.blue(f"[FrontendThread] Checking if port {self.config.port} is occupied...")
+        from .port_killer import is_port_available, kill_process_on_port
+
+        if not is_port_available(self.config.port, self.config.host):
+            ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied, cleaning...")
+            if kill_process_on_port(self.config.port, force=True):
+                ColorPrint.green(f"[FrontendThread] Port {self.config.port} cleaned successfully")
+                time.sleep(0.5)  # Wait for port to be fully released
+            else:
+                ColorPrint.red(f"[FrontendThread] Failed to clean port {self.config.port}")
+        else:
+            ColorPrint.green(f"[FrontendThread] Port {self.config.port} is available")
 
         command = self._resolve_dev_command()
         command = _resolve_command_for_platform(command)

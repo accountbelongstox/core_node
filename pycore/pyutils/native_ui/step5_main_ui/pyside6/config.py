@@ -88,9 +88,20 @@ class PySide6UIConfig:
     loading_background: str = "#1e1e1e"
 
     # WebView settings
-    enable_dev_tools: bool = False  # Enable web inspector
+    enable_dev_tools: bool = False  # Enable web inspector (F12 or right-click inspect)
     enable_javascript: bool = True
     enable_plugins: bool = False
+
+    # ========== QtWebEngine Configuration ==========
+    # QtWebEngine/Chromium flags for hardware acceleration and WebCodecs support
+    webengine_enable_config: bool = True  # Enable multi-tier WebEngine configuration
+    webengine_chromium_flags: Optional[List[str]] = None  # Custom Chromium flags (None = use defaults)
+    webengine_disable_gpu_sandbox: bool = True  # Disable GPU sandbox (may be needed for hardware acceleration on Windows)
+    webengine_enable_webcodecs: bool = True  # Enable WebCodecs API (H.264 video decoding)
+    webengine_enable_hardware_acceleration: bool = True  # Enable GPU hardware acceleration
+    webengine_enable_remote_debugging: bool = False  # Enable remote debugging (F12 dev tools via http://localhost:port)
+    webengine_remote_debugging_port: int = 9222  # Remote debugging port (default: 9222)
+    webengine_print_diagnostics: bool = False  # Print detailed WebEngine diagnostic info on startup
 
     # ========== Thread Configuration ==========
     # Main thread: UI event loop (PySide6 QApplication)
