@@ -26,18 +26,37 @@ CORE_NODE_GIT_URL="https://github.com/your-username/core_node.git"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
+# Build pnpm absolute path from gvar_common.sh variables
+PNPM_ABS_PATH="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+NPM_ABS_PATH="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/npm"
+
 # Function to check package manager availability
 check_package_manager() {
-    if command -v pnpm >/dev/null 2>&1; then
-        echo "pnpm is available: $(pnpm --version)"
+    # Check for pnpm using absolute path first (prevents "command not found" on first install)
+    if [ -f "$PNPM_ABS_PATH" ]; then
+        echo "pnpm found at: $PNPM_ABS_PATH"
+        echo "pnpm version: $($PNPM_ABS_PATH --version)"
         echo "Will use pnpm for installation"
         return 0
-    elif command -v npm >/dev/null 2>&1; then
-        echo "pnpm not found, npm is available: $(npm --version)"
+    elif command -v pnpm >/dev/null 2>&1; then
+        echo "pnpm found in PATH: $(which pnpm)"
+        echo "pnpm version: $(pnpm --version)"
+        echo "Will use pnpm for installation"
+        PNPM_ABS_PATH="$(which pnpm)"
+        return 0
+    elif [ -f "$NPM_ABS_PATH" ]; then
+        echo "pnpm not found, using npm at: $NPM_ABS_PATH"
+        echo "npm version: $($NPM_ABS_PATH --version)"
         echo "Will use npm for installation"
         return 1
+    elif command -v npm >/dev/null 2>&1; then
+        echo "pnpm not found, using npm in PATH: $(which npm)"
+        echo "npm version: $(npm --version)"
+        echo "Will use npm for installation"
+        NPM_ABS_PATH="$(which npm)"
+        return 1
     else
-        echo "Error: Neither pnpm nor npm is installed. Please install a package manager first." >&2
+        echo "Error: Neither pnpm nor npm is installed. Please install Node.js first." >&2
         return 2
     fi
 }
@@ -77,7 +96,7 @@ clone_core_node_project() {
 # Function to install dependencies
 install_dependencies() {
     local current_dir=$(pwd)
-    local use_yarn=$1
+    local use_pnpm=$1
 
     echo "Changing directory to $CORE_NODE_DIR"
     cd "$CORE_NODE_DIR" || {
@@ -85,12 +104,14 @@ install_dependencies() {
         return 1
     }
 
-    if [ "$use_yarn" = true ]; then
-        echo "Installing dependencies with pnpm (PUPPETEER_SKIP_DOWNLOAD=true)..."
-        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true pnpm install
+    if [ "$use_pnpm" = true ]; then
+        echo "Installing dependencies with pnpm (absolute path: $PNPM_ABS_PATH)..."
+        echo "Executing: PUPPETEER_SKIP_DOWNLOAD=true $PNPM_ABS_PATH install"
+        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true "$PNPM_ABS_PATH" install
     else
-        echo "Installing dependencies with npm (PUPPETEER_SKIP_DOWNLOAD=true)..."
-        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true npm install
+        echo "Installing dependencies with npm (absolute path: $NPM_ABS_PATH)..."
+        echo "Executing: PUPPETEER_SKIP_DOWNLOAD=true $NPM_ABS_PATH install"
+        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true "$NPM_ABS_PATH" install
     fi
     local install_status=$?
 
@@ -102,6 +123,11 @@ install_dependencies() {
 
 # Main execution
 echo "Core Node Setup Finalization Script"
+echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
+echo "NODE_VERSION: $NODE_VERSION"
+echo "Derived pnpm path: $PNPM_ABS_PATH"
+echo "Derived npm path: $NPM_ABS_PATH"
+echo ""
 
 # Check if CORE_NODE_DIR is set
 if [ -z "$CORE_NODE_DIR" ]; then
