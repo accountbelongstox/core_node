@@ -80,7 +80,7 @@ $global:CurrentIndex = 0
 $global:MaxAppNameWidth = 0
 
 # Script files to scan for
-$global:ScriptFiles = @("start.ps1", "start.bat", "install.ps1", "deploy.ps1", "deploy.bat")
+$global:ScriptFiles = @("start.ps1", "start.bat", "install.ps1", "deploy.ps1", "deploy.bat", "build_package.ps1")
 
 # Poly apps directory
 $PolyApps = Join-Path $rootDir "poly_apps"
