@@ -438,11 +438,11 @@ create_python_venv_and_replace_system() {
             print_info_from_common_functions "Virtual environment exists and appears up-to-date"
         fi
 
-        print_step_from_common_functions "Rebuild virtual environment? [Y/n] (recommended if you added new packages)"
+        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
         read -r response </dev/tty
-        response=${response:-Y}  # Default to Y if user just presses Enter
+        response=${response:-n}  # Default to n if user just presses Enter
 
-        if [[ "$response" =~ ^[Yy]$ ]] || [ -z "$response" ]; then
+        if [[ "$response" =~ ^[Yy]$ ]]; then
             user_wants_rebuild=true
         else
             print_info_from_common_functions "Skipping venv rebuild. Using existing venv."

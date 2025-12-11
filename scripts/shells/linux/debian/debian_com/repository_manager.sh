@@ -212,31 +212,94 @@ remove_php_repository() {
 # Function to add MariaDB repository
 add_mysql_repository() {
     echo "Adding MariaDB repository..."
-    
+
     local mariadb_repo_files=(
         "/etc/apt/sources.list.d/mariadb.list"
         "/etc/apt/sources.list.d/mariadb-10.11.list"
         "/etc/apt/sources.list.d/mariadb-maxscale.list"
     )
-    
+
     # Check if any MariaDB repository is already added
     local already_added=false
     for file in "${mariadb_repo_files[@]}"; do
         if [ -f "$file" ]; then
             already_added=true
-            break
+            echo "MariaDB repository already added at: $file"
+            return 0
         fi
     done
-    
-    if [ "$already_added" = "true" ]; then
-        echo "MariaDB repository already added"
-        return 0
+
+    # Detect OS
+    local os_id=""
+    local os_codename=""
+    local os_version=""
+
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        os_id="$ID"
+        os_codename="$VERSION_CODENAME"
+        os_version="$VERSION_ID"
+    else
+        echo "Cannot detect OS version"
+        return 1
     fi
-    
-    # Add MariaDB repository using official setup script
-    curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | bash -s -- --mariadb-server-version="mariadb-10.11"
-    
-    echo "MariaDB repository added successfully"
+
+    echo "Detected OS: $os_id $os_codename (version $os_version)"
+
+    # Check if OS is supported
+    local supported=false
+    case "$os_id" in
+        ubuntu)
+            # Ubuntu 22.04 (Jammy) and 24.04 (Noble) are officially supported
+            if [[ "$os_codename" == "jammy" || "$os_codename" == "noble" ]]; then
+                supported=true
+            fi
+            ;;
+        debian)
+            # Debian 11 (Bullseye), 12 (Bookworm), 13 (Trixie) are officially supported
+            if [[ "$os_codename" == "bullseye" || "$os_codename" == "bookworm" || "$os_codename" == "trixie" ]]; then
+                supported=true
+            fi
+            ;;
+    esac
+
+    if [ "$supported" = false ]; then
+        echo "Warning: OS $os_id $os_codename may not be officially supported"
+        echo "Attempting installation anyway..."
+    fi
+
+    # Install prerequisites
+    echo "Installing prerequisites..."
+    $USE_SUDO apt update
+    $USE_SUDO apt install -y curl apt-transport-https ca-certificates
+
+    # Download MariaDB repository setup script
+    local setup_script="/tmp/mariadb_repo_setup"
+    echo "Downloading MariaDB repository setup script..."
+
+    if ! curl -LsSO https://r.mariadb.com/downloads/mariadb_repo_setup; then
+        echo "Failed to download mariadb_repo_setup script"
+        return 1
+    fi
+
+    # Move to temp location
+    mv mariadb_repo_setup "$setup_script"
+    chmod +x "$setup_script"
+
+    # Run the setup script with MariaDB version
+    echo "Running MariaDB repository setup script..."
+    if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11"; then
+        echo "MariaDB repository added successfully"
+        rm -f "$setup_script"
+
+        # Update package cache
+        $USE_SUDO apt update
+        return 0
+    else
+        echo "Failed to setup MariaDB repository"
+        rm -f "$setup_script"
+        return 1
+    fi
 }
 
 # Function to remove MariaDB repository
