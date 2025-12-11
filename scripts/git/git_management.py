@@ -48,17 +48,18 @@ class GitManagement:
         print("  1. Get the latest git version (backup + commit + pull)")
         print("  2. Force overwrite local with remote (backup local first)")
         print("  3. Cleanup Git repository with BFG (remove large files)")
-        print("  4. Git time travel")
-        print("  5. Back to main menu")
+        print("  4. Remove directories from Git history (e.g., .venv, node_modules)")
+        print("  5. Git time travel")
+        print("  6. Back to main menu")
         print("\033[36m========================================================\033[0m")
 
     def get_user_choice(self) -> str:
         """Get user menu choice"""
         try:
-            choice = input("Select an option (1-5): ").strip()
+            choice = input("Select an option (1-6): ").strip()
             return choice
         except (KeyboardInterrupt, EOFError):
-            return "5"
+            return "6"
 
     def handle_safe_pull(self):
         """Handle option 1: Safe git pull"""
@@ -201,6 +202,412 @@ class GitManagement:
             print(f"\033[31mError: BFG cleanup script not found at {bfg_script}\033[0m")
             self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
 
+    def handle_directory_cleanup(self):
+        """Handle option 4: Remove directories from Git history"""
+        import subprocess
+        import sys
+
+        try:
+            print()
+            print("\033[36m╔════════════════════════════════════════════════════════════════╗\033[0m")
+            print("\033[36m║         REMOVE DIRECTORIES FROM GIT HISTORY                   ║\033[0m")
+            print("\033[36m╚════════════════════════════════════════════════════════════════╝\033[0m")
+            print()
+            print("\033[33mExamples: .venv, node_modules, dist, __pycache__\033[0m")
+            print("\033[33mYou can enter multiple directories separated by spaces\033[0m")
+            print()
+
+            sys.stdout.flush()
+
+            dir_paths = input("\033[36mEnter directory path(s) to remove: \033[0m").strip()
+            print(f"\033[90m[DEBUG] User input: '{dir_paths}'\033[0m")
+            sys.stdout.flush()
+
+            if not dir_paths:
+                print("\033[31mNo directory path provided\033[0m")
+                self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_CANCELLED)
+                input("\n\033[33mPress Enter to continue...\033[0m")
+                return
+
+            directories = [d.rstrip('/') for d in dir_paths.split()]
+            print(f"\033[90m[DEBUG] Parsed directories: {directories}\033[0m")
+            sys.stdout.flush()
+
+            print()
+            print("\033[33mThis will remove the following directories from Git history:\033[0m")
+            for dir_path in directories:
+                print(f"  - \033[33m{dir_path}\033[0m")
+
+            print()
+            print("\033[31m⚠️  WARNING: This operation will:\033[0m")
+            print("\033[31m  1. Rewrite Git history\033[0m")
+            print("\033[31m  2. Automatically remove all remotes (git-filter-repo behavior)\033[0m")
+            print("\033[31m  3. Require force push to update remote repository\033[0m")
+            print()
+
+            sys.stdout.flush()
+
+            confirm = input("\033[36mContinue? (yes/no): \033[0m").strip().lower()
+            print(f"\033[90m[DEBUG] Confirmation: '{confirm}'\033[0m")
+            sys.stdout.flush()
+
+            if confirm not in ['yes', 'y']:
+                print("\033[32mOperation cancelled\033[0m")
+                self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_CANCELLED)
+                input("\n\033[33mPress Enter to continue...\033[0m")
+                return
+
+            print()
+            print("\033[36m✓ Confirmation received, proceeding...\033[0m")
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"\033[31m✗ Error during input phase: {e}\033[0m")
+            import traceback
+            traceback.print_exc()
+            input("\n\033[33mPress Enter to continue...\033[0m")
+            return
+
+        print()
+        print("\033[36mChecking git-filter-repo installation...\033[0m")
+        sys.stdout.flush()
+
+        try:
+            result = subprocess.run(
+                ['git', 'filter-repo', '--help'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                raise FileNotFoundError("git-filter-repo not found")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            print("\033[33mgit-filter-repo not found. Installing...\033[0m")
+            sys.stdout.flush()
+
+            try:
+                print("\033[90m[DEBUG] Attempting pip3 install with --break-system-packages...\033[0m")
+                sys.stdout.flush()
+
+                install_result = subprocess.run(
+                    ['pip3', 'install', '--user', '--break-system-packages', 'git-filter-repo'],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+
+                if install_result.returncode != 0:
+                    print(f"\033[33mWarning: pip3 install returned {install_result.returncode}\033[0m")
+                    print(f"\033[90m[DEBUG] stderr: {install_result.stderr}\033[0m")
+                    sys.stdout.flush()
+
+                import site
+                import glob
+                user_base = site.USER_BASE
+                filter_repo_paths = glob.glob(f"{user_base}/bin/git-filter-repo")
+
+                print(f"\033[90m[DEBUG] Searching in: {user_base}/bin/git-filter-repo\033[0m")
+                print(f"\033[90m[DEBUG] Found paths: {filter_repo_paths}\033[0m")
+                sys.stdout.flush()
+
+                if filter_repo_paths:
+                    filter_repo_path = filter_repo_paths[0]
+                    import shutil
+                    print(f"\033[90m[DEBUG] Copying from: {filter_repo_path}\033[0m")
+                    sys.stdout.flush()
+
+                    try:
+                        shutil.copy(filter_repo_path, '/usr/local/bin/git-filter-repo')
+                        import os
+                        os.chmod('/usr/local/bin/git-filter-repo', 0o755)
+                        print("\033[32m✓ Installed to /usr/local/bin/git-filter-repo\033[0m")
+                        sys.stdout.flush()
+                    except PermissionError:
+                        print("\033[33m⚠ No permission for /usr/local/bin, using ~/.local/bin\033[0m")
+                        sys.stdout.flush()
+                        local_bin = Path.home() / '.local' / 'bin'
+                        local_bin.mkdir(parents=True, exist_ok=True)
+                        shutil.copy(filter_repo_path, local_bin / 'git-filter-repo')
+                        import os
+                        os.chmod(local_bin / 'git-filter-repo', 0o755)
+                        print(f"\033[32m✓ Installed to {local_bin}/git-filter-repo\033[0m")
+                        sys.stdout.flush()
+
+                        path_env = os.environ.get('PATH', '')
+                        if str(local_bin) not in path_env:
+                            print(f"\033[33m⚠ Adding {local_bin} to PATH for this session\033[0m")
+                            os.environ['PATH'] = f"{local_bin}:{path_env}"
+                            sys.stdout.flush()
+                else:
+                    print("\033[31m✗ git-filter-repo not found after installation\033[0m")
+                    print(f"\033[33mTrying alternative locations...\033[0m")
+                    sys.stdout.flush()
+
+                    alt_paths = [
+                        Path.home() / '.local' / 'bin' / 'git-filter-repo',
+                        Path('/usr/local/bin/git-filter-repo'),
+                        Path('/usr/bin/git-filter-repo')
+                    ]
+
+                    for alt_path in alt_paths:
+                        if alt_path.exists():
+                            print(f"\033[32m✓ Found at: {alt_path}\033[0m")
+                            sys.stdout.flush()
+                            break
+                    else:
+                        print("\033[31m✗ git-filter-repo not found in any location\033[0m")
+                        print("\033[33mPlease install manually:\033[0m")
+                        print("  \033[37mpip3 install --user --break-system-packages git-filter-repo\033[0m")
+                        print("  \033[37mor\033[0m")
+                        print("  \033[37msudo apt install git-filter-repo\033[0m")
+                        sys.stdout.flush()
+                        self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
+                        input("\n\033[33mPress Enter to continue...\033[0m")
+                        return
+
+                print("\033[32mgit-filter-repo installed successfully\033[0m")
+                sys.stdout.flush()
+
+                test_result = subprocess.run(
+                    ['git', 'filter-repo', '--help'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False
+                )
+
+                if test_result.returncode == 0:
+                    print("\033[32m✓ git-filter-repo is working\033[0m")
+                    sys.stdout.flush()
+                else:
+                    print(f"\033[33m⚠ git-filter-repo test failed: {test_result.returncode}\033[0m")
+                    sys.stdout.flush()
+
+            except Exception as e:
+                print(f"\033[31mFailed to install git-filter-repo: {e}\033[0m")
+                import traceback
+                traceback.print_exc()
+                sys.stdout.flush()
+                self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
+                input("\n\033[33mPress Enter to continue...\033[0m")
+                return
+
+        print(f"\033[90m[DEBUG] Changing to directory: {self.core_node_root}\033[0m")
+        sys.stdout.flush()
+        os.chdir(self.core_node_root)
+        print(f"\033[90m[DEBUG] Current directory: {os.getcwd()}\033[0m")
+        sys.stdout.flush()
+
+        remote_url = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            capture_output=True,
+            text=True
+        ).stdout.strip()
+
+        print()
+        print(f"\033[36mSaved remote URL: {remote_url}\033[0m")
+        sys.stdout.flush()
+
+        backup_branch = f"backup-before-filter-repo-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        print(f"\033[36mCreating backup branch: {backup_branch}\033[0m")
+        sys.stdout.flush()
+
+        branch_result = subprocess.run(['git', 'branch', backup_branch], capture_output=True, text=True, check=False)
+        if branch_result.returncode == 0:
+            print(f"\033[32m✓ Backup branch created\033[0m")
+        else:
+            print(f"\033[33m⚠ Branch creation warning: {branch_result.stderr}\033[0m")
+        sys.stdout.flush()
+
+        print()
+        print("\033[36mRemoving directories from current HEAD...\033[0m")
+        sys.stdout.flush()
+
+        for dir_path in directories:
+            dir_path_clean = dir_path.rstrip('/')
+            dir_full_path = self.core_node_root / dir_path_clean
+            print(f"\033[90m[DEBUG] Checking path: {dir_full_path}\033[0m")
+            sys.stdout.flush()
+
+            if dir_full_path.exists():
+                import shutil
+                print(f"\033[90m[DEBUG] Removing: {dir_full_path}\033[0m")
+                sys.stdout.flush()
+                shutil.rmtree(dir_full_path)
+                print(f"\033[32m✓ Removed from HEAD: {dir_path_clean}\033[0m")
+                sys.stdout.flush()
+            else:
+                print(f"\033[33m⚠ Directory not found in current HEAD: {dir_path_clean}\033[0m")
+                sys.stdout.flush()
+
+        print()
+        print("\033[36mStaging changes...\033[0m")
+        sys.stdout.flush()
+        subprocess.run(['git', 'add', '.'], check=False)
+
+        print("\033[36mCommitting changes...\033[0m")
+        sys.stdout.flush()
+
+        commit_result = subprocess.run(
+            ['git', 'commit', '-m', 'Remove large files from HEAD before cleanup'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        if commit_result.returncode == 0:
+            print("\033[32m✓ Changes committed\033[0m")
+        else:
+            if "nothing to commit" in commit_result.stdout.lower():
+                print("\033[33m⚠ No changes to commit (already clean)\033[0m")
+            else:
+                print(f"\033[33m⚠ Commit warning: {commit_result.stdout}\033[0m")
+        sys.stdout.flush()
+
+        print()
+        print("\033[36mRunning git-filter-repo to clean history...\033[0m")
+        sys.stdout.flush()
+
+        filter_args = ['git', 'filter-repo']
+        for dir_path_clean in directories:
+            filter_args.extend(['--path', dir_path_clean, '--invert-paths'])
+        filter_args.append('--force')
+
+        print(f"\033[36mCommand: {' '.join(filter_args)}\033[0m")
+        print("\033[36m" + "="*60 + "\033[0m")
+        print()
+        sys.stdout.flush()
+
+        print("\033[90m[DEBUG] Executing git-filter-repo...\033[0m")
+        sys.stdout.flush()
+
+        try:
+            result = subprocess.run(filter_args, capture_output=True, text=True, check=False)
+            print(f"\033[90m[DEBUG] git-filter-repo exit code: {result.returncode}\033[0m")
+            sys.stdout.flush()
+
+            if result.stdout:
+                print("\033[37m" + result.stdout + "\033[0m")
+                sys.stdout.flush()
+
+            if result.stderr and result.returncode != 0:
+                print("\033[33m" + result.stderr + "\033[0m")
+                sys.stdout.flush()
+
+            print()
+            print("\033[36m⏳ Waiting 5 seconds for cleanup to settle...\033[0m")
+            sys.stdout.flush()
+            import time
+            time.sleep(5)
+            print()
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"\033[31m✗ Failed to execute git-filter-repo: {e}\033[0m")
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+            result = subprocess.CompletedProcess(filter_args, returncode=1, stdout='', stderr=str(e))
+
+        print(f"\033[90m[DEBUG] Checking result.returncode: {result.returncode}\033[0m")
+        sys.stdout.flush()
+
+        if result.returncode == 0:
+            print()
+            print("\033[32m✓ Directories successfully removed from Git history\033[0m")
+            sys.stdout.flush()
+
+            print()
+            print("\033[36mRestoring remote URL to default...\033[0m")
+            sys.stdout.flush()
+
+            default_remote = self._get_default_remote_url()
+            print(f"\033[90m[DEBUG] Default remote URL: {default_remote}\033[0m")
+            sys.stdout.flush()
+
+            try:
+                subprocess.run(['git', 'remote', 'get-url', 'origin'], capture_output=True, check=True)
+                subprocess.run(['git', 'remote', 'set-url', 'origin', default_remote], check=True)
+            except:
+                subprocess.run(['git', 'remote', 'add', 'origin', default_remote], check=True)
+
+            print(f"\033[32m✓ Remote URL restored to default: {default_remote}\033[0m")
+            sys.stdout.flush()
+
+            repo_size = subprocess.run(
+                ['du', '-sh', '.git'],
+                capture_output=True,
+                text=True
+            ).stdout.strip()
+            print()
+            print(f"\033[36mRepository size after cleanup: {repo_size}\033[0m")
+            sys.stdout.flush()
+
+            print()
+            print(f"\033[36m📦 Backup branch created: {backup_branch}\033[0m")
+            print("\033[33mTo recover old changes:\033[0m")
+            print(f"  \033[37mgit checkout {backup_branch}\033[0m")
+            sys.stdout.flush()
+
+            print()
+            print("\033[33m⚠️  IMPORTANT: Local changes have been cleaned.\033[0m")
+            print("\033[33m⚠️  DO NOT push to remote unless you want to update it.\033[0m")
+            print("\033[33m⚠️  If you want to push:\033[0m")
+            print("  \033[37mgit push origin --force --all\033[0m")
+            print("  \033[37mgit push origin --force --tags\033[0m")
+            sys.stdout.flush()
+
+            self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_SUCCESS)
+        else:
+            print("\033[90m[DEBUG] git-filter-repo failed\033[0m")
+            sys.stdout.flush()
+            print()
+            print(f"\033[31m✗ git-filter-repo failed\033[0m")
+            sys.stdout.flush()
+
+            if result.stderr:
+                print(f"\033[31mError output:\033[0m")
+                print(f"\033[33m{result.stderr}\033[0m")
+                sys.stdout.flush()
+
+            if result.stdout:
+                print(f"\033[36mStandard output:\033[0m")
+                print(f"\033[37m{result.stdout}\033[0m")
+                sys.stdout.flush()
+
+            print()
+            print("\033[36mAttempting to restore remote URL...\033[0m")
+            sys.stdout.flush()
+
+            try:
+                subprocess.run(['git', 'remote', 'get-url', 'origin'], capture_output=True, check=True)
+                subprocess.run(['git', 'remote', 'set-url', 'origin', remote_url], check=False)
+                print(f"\033[32m✓ Remote URL restored to original: {remote_url}\033[0m")
+            except:
+                subprocess.run(['git', 'remote', 'add', 'origin', remote_url], check=False)
+                print(f"\033[32m✓ Remote URL added back: {remote_url}\033[0m")
+            sys.stdout.flush()
+
+            self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
+
+        print()
+        print("\033[36m" + "="*60 + "\033[0m")
+        sys.stdout.flush()
+
+        print()
+        print("\033[32m[DEBUG] Cleanup function completed, waiting for user confirmation\033[0m")
+        sys.stdout.flush()
+
+        input("\n\033[33mPress Enter to continue...\033[0m")
+
+    def _get_default_remote_url(self) -> str:
+        """Get the default remote URL based on region"""
+        region = self._get_region_setting()
+        project_name = "core_node"
+
+        if region == "Global":
+            return f"git@github.com:accountbelongstox/{project_name}.git"
+        else:
+            return f"git@gitee.com:accountbelongstox/{project_name}.git"
+
     def handle_git_time_travel(self):
         """Handle option 4: Git time travel"""
         print("\n\033[36m=== Git Time Travel ===\033[0m")
@@ -276,9 +683,20 @@ class GitManagement:
                 self.handle_bfg_cleanup()
                 break
             elif choice == "4":
+                try:
+                    self.handle_directory_cleanup()
+                except Exception as e:
+                    print()
+                    print(f"\033[31m✗ Unexpected error: {e}\033[0m")
+                    import traceback
+                    print("\033[33mStack trace:\033[0m")
+                    traceback.print_exc()
+                    print()
+                    input("\033[33mPress Enter to continue...\033[0m")
+            elif choice == "5":
                 self.handle_git_time_travel()
                 break
-            elif choice == "5":
+            elif choice == "6":
                 self.handle_back_to_menu()
                 break
             else:
