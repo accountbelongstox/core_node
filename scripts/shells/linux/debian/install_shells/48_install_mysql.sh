@@ -227,53 +227,34 @@ get_mysql_password() {
 install_mysql() {
     echo "Installing MySQL (MariaDB)..."
 
-    # Detect OS
+    # Detect OS for version-specific handling
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         OS_ID="$ID"
         OS_VERSION_ID="$VERSION_ID"
-    else
-        echo "[$SCRIPT_INDEX] Cannot detect OS version"
-        return 1
+        echo "[$SCRIPT_INDEX] Detected OS: $OS_ID $OS_VERSION_ID"
     fi
-
-    echo "[$SCRIPT_INDEX] Detected OS: $OS_ID $OS_VERSION_ID"
 
     # Repository should already be added by 12_update.sh
     echo "[$SCRIPT_INDEX] Installing MariaDB from pre-configured repository..."
 
-    # Fix libaio1 dependency issue for Ubuntu Noble (24.04)
-    if [ "$OS_ID" = "ubuntu" ] && [ "$OS_VERSION_ID" = "24.04" ]; then
-        echo "[$SCRIPT_INDEX] Ubuntu 24.04 detected - handling libaio1 dependency..."
-
-        # Try to install libaio1t64 (replacement for libaio1 in Ubuntu 24.04)
-        if $USE_SUDO apt install -y libaio1t64 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] Installed libaio1t64 (Ubuntu 24.04 replacement)"
-        else
-            echo "[$SCRIPT_INDEX] Warning: Could not install libaio1t64"
-        fi
-    fi
-
-    # Install MariaDB server and client
+    # Update package list
     $USE_SUDO apt update
 
-    # Try to install with automatic dependency resolution
+    # Install MariaDB server and client
     if ! $USE_SUDO apt install -y mariadb-server mariadb-client 2>&1 | tee /tmp/mysql_install.log; then
-        echo "[$SCRIPT_INDEX] Initial installation failed, checking for dependency issues..."
+        echo "[$SCRIPT_INDEX] Initial installation failed, checking for issues..."
+        cat /tmp/mysql_install.log
 
-        # Check if it's a libaio1 issue
-        if grep -q "libaio1" /tmp/mysql_install.log; then
-            echo "[$SCRIPT_INDEX] Detected libaio1 dependency issue"
+        # Try to fix broken dependencies
+        echo "[$SCRIPT_INDEX] Attempting to fix broken dependencies..."
+        $USE_SUDO apt --fix-broken install -y
 
-            # Try alternative: install from universe repository
-            $USE_SUDO apt install -y --fix-broken
-            $USE_SUDO apt install -y mariadb-server mariadb-client || {
-                echo "[$SCRIPT_INDEX] Failed to install MariaDB"
-                return 1
-            }
-        else
-            echo "[$SCRIPT_INDEX] Installation failed for unknown reason"
-            cat /tmp/mysql_install.log
+        # Retry installation
+        echo "[$SCRIPT_INDEX] Retrying MariaDB installation..."
+        if ! $USE_SUDO apt install -y mariadb-server mariadb-client; then
+            echo "[$SCRIPT_INDEX] Failed to install MariaDB"
+            rm -f /tmp/mysql_install.log
             return 1
         fi
     fi
@@ -282,10 +263,10 @@ install_mysql() {
 
     # Create MySQL user and group if they don't exist
     if ! getent group mysql >/dev/null; then
-        groupadd mysql
+        $USE_SUDO groupadd mysql
     fi
     if ! getent passwd mysql >/dev/null; then
-        useradd -r -g mysql -s /bin/false mysql
+        $USE_SUDO useradd -r -g mysql -s /bin/false mysql
     fi
 
     # Setup data directory
