@@ -516,20 +516,44 @@ reinstall_service() {
 
     echo ""
     echo "================================================"
-    echo "Reinstalling $service_name"
-    echo "================================================"
-    echo ""
-    echo -e "${YELLOW}WARNING: This will reinstall $service_name${NC}"
-    echo "This will:"
-    echo "  1. Run the installation script: $install_script"
-    echo "  2. Reconfigure the service"
-    echo "  3. Leave the service stopped and disabled (to save memory)"
-    echo ""
-    read -p "Do you want to continue? (y/N): " confirm
 
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Reinstallation cancelled"
-        return 0
+    # Check if service is already installed
+    if is_service_installed "$service"; then
+        echo "Reinstalling $service_name"
+        echo "================================================"
+        echo ""
+        echo -e "${YELLOW}$service_name is already installed${NC}"
+        echo "This will:"
+        echo "  1. Run the installation script: $install_script"
+        echo "  2. Reconfigure the service"
+        echo "  3. Update to latest version if available"
+        echo ""
+        echo "Note: Installation script will handle reinstall confirmation"
+        echo ""
+        read -p "Do you want to reinstall? (Y/n): " confirm
+
+        # Default to Yes (empty input or Y/y)
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            echo "Reinstallation cancelled"
+            return 0
+        fi
+    else
+        echo "Installing $service_name"
+        echo "================================================"
+        echo ""
+        echo -e "${GREEN}Installing $service_name for the first time${NC}"
+        echo "This will:"
+        echo "  1. Run the installation script: $install_script"
+        echo "  2. Configure the service"
+        echo "  3. Set up required dependencies"
+        echo ""
+        read -p "Do you want to install? (Y/n): " confirm
+
+        # Default to Yes (empty input or Y/y)
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            echo "Installation cancelled"
+            return 0
+        fi
     fi
 
     local script_path="$INSTALL_SHELLS_DIR/$install_script"
@@ -544,11 +568,16 @@ reinstall_service() {
 
     if bash "$script_path"; then
         echo ""
-        echo -e "${GREEN}$service_name reinstallation completed successfully${NC}"
+        if is_service_installed "$service"; then
+            echo -e "${GREEN}$service_name installation/reinstallation completed successfully${NC}"
+        else
+            echo -e "${YELLOW}$service_name script execution completed${NC}"
+            echo -e "${YELLOW}Service may need manual configuration${NC}"
+        fi
         return 0
     else
         echo ""
-        echo -e "${RED}$service_name reinstallation failed${NC}"
+        echo -e "${RED}$service_name installation/reinstallation failed${NC}"
         return 1
     fi
 }
@@ -736,9 +765,9 @@ show_main_menu() {
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}�?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}�?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 else
-                    echo -e "  ${YELLOW}�?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}�?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 fi
             fi
 
@@ -758,7 +787,7 @@ show_main_menu() {
 
         echo ""
         echo "================================================"
-        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
+        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}3i${NC}=Install/Reinstall, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
         echo "================================================"
         echo ""
         read -p "Command: " choice
