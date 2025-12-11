@@ -179,23 +179,41 @@ initialize_secrets() {
     echo "[$SCRIPT_INDEX] SERVER ENVIRONMENT DETECTED"
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] For security, encrypted secrets require password authentication."
+    echo "[$SCRIPT_INDEX] Press Ctrl+C to cancel, or enter your password to continue."
     echo "[$SCRIPT_INDEX]"
 
     local password=""
-    if type _secret_read_password >/dev/null 2>&1; then
-        password=$(_secret_read_password "[$SCRIPT_INDEX] Enter decryption password: " "asterisk")
-    else
-        echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
-        read -s password
-        echo "" >&2
-    fi
+    local max_attempts=3
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if type _secret_read_password >/dev/null 2>&1; then
+            password=$(_secret_read_password "[$SCRIPT_INDEX] Enter decryption password (attempt $attempt/$max_attempts): " "asterisk")
+        else
+            echo -n "[$SCRIPT_INDEX] Enter decryption password (attempt $attempt/$max_attempts): " >&2
+            read -s password
+            echo "" >&2
+        fi
+
+        if [ -z "$password" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
+            attempt=$((attempt + 1))
+            if [ $attempt -le $max_attempts ]; then
+                echo "[$SCRIPT_INDEX] Please try again..." >&2
+            fi
+            continue
+        fi
+
+        # Try to decrypt with provided password
+        echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
+        break
+    done
 
     if [ -z "$password" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
+        echo "[$SCRIPT_INDEX] ERROR: Maximum password attempts reached" >&2
+        echo "[$SCRIPT_INDEX] Cannot continue without valid password" >&2
         return 1
     fi
-
-    echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
 
     DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$password")
     if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
@@ -299,41 +317,62 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    # Get Node.js and pnpm paths from gvar_common.sh
+    node_install_dir=$(map_web_path "dev_system")
+    node_version="v24.11.1"
+    pnpm_abspath="$node_install_dir/node/$node_version/bin/pnpm"
+
+    # Try absolute path first, then fallback to command
+    pnpm_cmd=""
+    if [ -f "$pnpm_abspath" ]; then
+        pnpm_cmd="$pnpm_abspath"
+        echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_cmd="pnpm"
+        echo "[$SCRIPT_INDEX] Using system pnpm"
+    else
+        echo "[$SCRIPT_INDEX] [ERROR] pnpm not found"
+        echo "[$SCRIPT_INDEX] Please install pnpm first (npm install -g pnpm)"
+        cd - >/dev/null
+        exit 1
+    fi
+
+    # Check Node.js
+    if command -v node >/dev/null 2>&1; then
         node_ver=$(node --version)
-        pnpm_ver=$(pnpm --version)
-        echo "[$SCRIPT_INDEX] [OK]Node.js: $node_ver"
-        echo "[$SCRIPT_INDEX] [OK]pnpm: $pnpm_ver"
+        pnpm_ver=$("$pnpm_cmd" --version)
+        echo "[$SCRIPT_INDEX] [OK] Node.js: $node_ver"
+        echo "[$SCRIPT_INDEX] [OK] pnpm: $pnpm_ver"
 
         echo "[$SCRIPT_INDEX] Installing/Verifying chokidar..."
         if [ -d "node_modules/chokidar" ]; then
             echo "[$SCRIPT_INDEX] chokidar exists, verifying..."
-            pnpm install --save-dev chokidar >/dev/null 2>&1
+            "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
         else
             echo "[$SCRIPT_INDEX] Installing chokidar..."
-            pnpm install --save-dev chokidar >/dev/null 2>&1
+            "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
         fi
 
         if [ -d "node_modules/chokidar" ]; then
-            chokidar_ver=$(pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "installed")
-            echo "[$SCRIPT_INDEX] [OK]chokidar: $chokidar_ver"
+            chokidar_ver=$("$pnpm_cmd" list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "installed")
+            echo "[$SCRIPT_INDEX] [OK] chokidar: $chokidar_ver"
 
             if node -e "require('chokidar'); console.log('OK')" 2>/dev/null | grep -q "OK"; then
-                echo "[$SCRIPT_INDEX] [OK]chokidar test passed - hot-reload ready"
+                echo "[$SCRIPT_INDEX] [OK] chokidar test passed - hot-reload ready"
             else
-                echo "[$SCRIPT_INDEX] [WARN]chokidar test failed but module exists"
+                echo "[$SCRIPT_INDEX] [WARN] chokidar test failed but module exists"
             fi
         else
-            echo "[$SCRIPT_INDEX] [ERROR]chokidar installation failed"
+            echo "[$SCRIPT_INDEX] [ERROR] chokidar installation failed"
         fi
     else
-        echo "[$SCRIPT_INDEX] [WARN]Node.js/pnpm not found - hot-reload unavailable"
-        echo "[$SCRIPT_INDEX] Install Node.js and pnpm to enable Octane --watch mode"
+        echo "[$SCRIPT_INDEX] [WARN] Node.js not found - hot-reload unavailable"
+        echo "[$SCRIPT_INDEX] Install Node.js to enable Octane --watch mode"
     fi
 
     cd - >/dev/null
 else
-    echo "[$SCRIPT_INDEX] [ERROR]Laravel directory not found"
+    echo "[$SCRIPT_INDEX] [ERROR] Laravel directory not found"
 fi
 
 # Display summary
