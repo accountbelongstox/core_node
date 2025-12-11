@@ -52,14 +52,30 @@ class MatrixPackager:
         except ImportError:
             ColorPrint.yellow("PyInstaller not found, installing...")
 
-        # Install PyInstaller
+        # Install PyInstaller with direct output
         cmd = [sys.executable, "-m", "pip", "install", "pyinstaller"]
-        result = Commander.exec_realtime(cmd, info=True, show_output=True)
+        ColorPrint.blue(f"Running: {' '.join(cmd)}")
 
-        if result.success:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        # Print output in real-time
+        for line in process.stdout:
+            print(line, end='')
+
+        process.wait()
+
+        # Verify by trying to import again
+        try:
+            import PyInstaller
             ColorPrint.green("PyInstaller installed successfully")
             return True
-        else:
+        except ImportError:
             ColorPrint.red("Failed to install PyInstaller")
             return False
 
@@ -96,31 +112,46 @@ class MatrixPackager:
 
             # Install npm dependencies
             ColorPrint.blue("Installing npm dependencies...")
-            result = Commander.exec_realtime(
+            ColorPrint.blue(f"Running: npm install in {self.frontend_dir}")
+
+            process = subprocess.Popen(
                 ["npm", "install"],
                 cwd=str(self.frontend_dir),
-                info=True,
-                show_output=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
             )
 
-            if not result.success:
-                ColorPrint.red("Failed to install npm dependencies")
-                return False
+            for line in process.stdout:
+                print(line, end='')
+
+            process.wait()
 
             # Build frontend
             ColorPrint.blue("Building frontend...")
-            result = Commander.exec_realtime(
+            ColorPrint.blue(f"Running: npm run build in {self.frontend_dir}")
+
+            process = subprocess.Popen(
                 ["npm", "run", "build"],
                 cwd=str(self.frontend_dir),
-                info=True,
-                show_output=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
             )
 
-            if result.success:
+            for line in process.stdout:
+                print(line, end='')
+
+            process.wait()
+
+            # Check if build succeeded by verifying dist directory
+            if frontend_dist.exists():
                 ColorPrint.green("Frontend built successfully")
                 return True
             else:
-                ColorPrint.red("Failed to build frontend")
+                ColorPrint.red("Failed to build frontend - dist directory not found")
                 return False
         else:
             ColorPrint.yellow("Frontend mode is 'dev', skipping frontend build")
@@ -157,10 +188,18 @@ class MatrixPackager:
         """Generate PyInstaller spec file"""
         ColorPrint.blue("[5/6] Generating PyInstaller spec file...")
 
-        main_entry = self.app_root / "matrix_main.py"
+        # Use pymain.py as entry point (actual call chain)
+        main_entry = self.project_root / "pymain.py"
         icon_file = self.resources_dir / "icon.ico"
 
+        # Convert paths to use forward slashes (PyInstaller compatible)
+        def path_to_spec_string(p):
+            """Convert Path to spec-compatible string with forward slashes"""
+            return str(p).replace('\\', '/')
+
         spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
+# Matrix Application PyInstaller Spec
+# Entry: pymain.py app=matrix (actual call chain)
 
 block_cipher = None
 
@@ -169,22 +208,43 @@ added_files = [
 """
 
         for src, dst in resources:
-            spec_content += f"    ('{src}', '{dst}'),\n"
+            # Use forward slashes for cross-platform compatibility
+            src_fixed = path_to_spec_string(src)
+            spec_content += f"    (r'{src_fixed}', '{dst}'),\n"
 
-        spec_content += """]
+        spec_content += f"""]
 
 # Hidden imports (third-party packages used by matrix)
 hiddenimports = [
+    # Pycore modules
     'pycore',
     'pycore.pyfoundations',
+    'pycore.pyfoundations.app_launcher',
     'pycore.pyutils',
+    'pycore.pyutils.native_ui',
+    'pycore.pyutils.rpc',
     'pycore.pygvar',
     'pycore.pyheartbeat',
     'pycore.database',
+
+    # Matrix app modules
+    'pyapps.matrix',
+    'pyapps.matrix.matrix_main',
+    'pyapps.matrix.matrix_config',
+    'pyapps.matrix.api',
+    'pyapps.matrix.controller',
+    'pyapps.matrix.adb_device_manager',
+
+    # Third-party packages
     'fastapi',
     'uvicorn',
     'websockets',
     'PySide6',
+    'PySide6.QtCore',
+    'PySide6.QtGui',
+    'PySide6.QtWidgets',
+    'PySide6.QtWebEngineWidgets',
+    'PySide6.QtWebEngineCore',
     'aiohttp',
     'requests',
     'psutil',
@@ -194,11 +254,13 @@ hiddenimports = [
     'numpy',
     'adb_shell',
     'av',
+    'sqlalchemy',
+    'pystray',
 ]
 
 a = Analysis(
-    ['{main_entry}'],
-    pathex=['{self.project_root}'],
+    [r'{path_to_spec_string(main_entry)}'],
+    pathex=[r'{path_to_spec_string(self.project_root)}'],
     binaries=[],
     datas=added_files,
     hiddenimports=hiddenimports,
@@ -230,7 +292,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='{icon_file}' if {icon_file.exists()} else None,
+    icon=r'{path_to_spec_string(icon_file)}' if {icon_file.exists()} else None,
 )
 
 coll = COLLECT(
@@ -250,7 +312,7 @@ coll = COLLECT(
         return True
 
     def run_pyinstaller(self):
-        """Run PyInstaller with generated spec file"""
+        """Run PyInstaller with generated spec file - output everything in real-time"""
         ColorPrint.blue("[6/6] Running PyInstaller...")
 
         if not self.spec_file.exists():
@@ -266,7 +328,7 @@ coll = COLLECT(
             ColorPrint.yellow("Cleaning previous dist...")
             shutil.rmtree(self.dist_dir)
 
-        # Run PyInstaller
+        # Run PyInstaller with direct real-time output
         cmd = [
             sys.executable,
             "-m", "PyInstaller",
@@ -275,16 +337,53 @@ coll = COLLECT(
             "--noconfirm"
         ]
 
-        result = Commander.exec_realtime(cmd, info=True, show_output=True)
+        ColorPrint.blue(f"Executing: {' '.join(cmd)}")
+        ColorPrint.blue("=" * 70)
 
-        if result.success:
+        # Use subprocess.Popen for real-time output
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        # Print all output in real-time
+        for line in process.stdout:
+            print(line, end='')
+
+        process.wait()
+
+        ColorPrint.blue("=" * 70)
+        ColorPrint.blue("PyInstaller process completed, checking results...")
+
+        # Check results by verifying output files exist
+        output_exe = self.dist_dir / "Matrix" / "Matrix.exe"
+
+        if output_exe.exists():
             ColorPrint.green("=" * 70)
-            ColorPrint.green("PyInstaller completed successfully!")
+            ColorPrint.green("✓ BUILD SUCCESSFUL!")
+            ColorPrint.green("=" * 70)
             ColorPrint.green(f"Output directory: {self.dist_dir}")
-            ColorPrint.green("=" * 70)
+            ColorPrint.green(f"Executable: {output_exe}")
+            ColorPrint.green(f"File size: {output_exe.stat().st_size / (1024*1024):.2f} MB")
+            ColorPrint.blue("")
+            ColorPrint.blue("Usage Instructions:")
+            ColorPrint.blue(f"  Method 1: Run directly with argument")
+            ColorPrint.blue(f"    {output_exe} app=matrix")
+            ColorPrint.blue(f"  Method 2: Use launcher script")
+            ColorPrint.blue(f"    {self.app_root / 'scripts' / 'run_matrix.bat'}")
+            ColorPrint.blue("=" * 70)
             return True
         else:
-            ColorPrint.red("PyInstaller failed")
+            ColorPrint.red("=" * 70)
+            ColorPrint.red("✗ BUILD FAILED!")
+            ColorPrint.red("=" * 70)
+            ColorPrint.red(f"Expected executable not found: {output_exe}")
+            ColorPrint.red("Check the output above for errors")
+            ColorPrint.blue("=" * 70)
             return False
 
     def package(self):
