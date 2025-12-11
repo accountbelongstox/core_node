@@ -121,7 +121,6 @@ class DesktopIconGenerator:
     def get_desktop_path():
         """
         Get Windows desktop path
-
         Returns:
             Path: Desktop directory path
         """
