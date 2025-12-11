@@ -189,20 +189,19 @@ install_python_essentials() {
         return 1
     fi
 
-    if pip3 -V >/dev/null 2>&1; then
-        print_success_from_common_functions "pip3 installed: $(pip3 -V 2>&1)"
+    if pip3 -V >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
+        print_success_from_common_functions "pip3 installed: $(pip3 -V 2>&1 || python3 -m pip --version 2>&1)"
         PIP_INSTALLED=true
     else
-        # Fallback: try ensurepip (may be disabled on Debian/Ubuntu builds) and re-check
-        print_warning_from_common_functions "pip3 not available, attempting python3 -m ensurepip"
+        print_warning_from_common_functions "pip3 not available, attempting ensurepip"
         if python3 -m ensurepip --upgrade >/dev/null 2>&1; then
-            if command -v pip3 >/dev/null 2>&1; then
+            if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
                 print_success_from_common_functions "pip3 installed via ensurepip"
                 PIP_INSTALLED=true
             else
                 print_warning_from_common_functions "ensurepip ran but pip3 still missing; attempting direct package install"
                 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
-                if command -v pip3 >/dev/null 2>&1; then
+                if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
                     print_success_from_common_functions "pip3 installed via apt after ensurepip"
                     PIP_INSTALLED=true
                 else
@@ -211,10 +210,9 @@ install_python_essentials() {
                 fi
             fi
         else
-            # As a last resort, attempt re-import keys and retry pip install
             fix_apt_gpg_if_needed
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
-            if command -v pip3 >/dev/null 2>&1; then
+            if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
                 print_success_from_common_functions "pip3 installed after fixing APT keys"
                 PIP_INSTALLED=true
             else
@@ -224,7 +222,6 @@ install_python_essentials() {
         fi
     fi
 
-    # Clean up
     $USE_SUDO apt-get clean
     $USE_SUDO rm -rf /var/lib/apt/lists/*
 
@@ -232,20 +229,79 @@ install_python_essentials() {
     return 0
 }
 
-# Function to set pip mirror based on region
-set_pip_mirror() {
-    if [ "$SELECTED_REGION" = "China" ]; then
-        print_step_from_common_functions "Setting pip mirror to China (Huawei Cloud)..."
-        mkdir -p ~/.pip
-        tee ~/.pip/pip.conf > /dev/null <<EOF
-[global]
-index-url = https://repo.huaweicloud.com/repository/pypi/simple/
-trusted-host = repo.huaweicloud.com
-EOF
-        print_success_from_common_functions "pip mirror configured for China region"
-    else
-        print_step_from_common_functions "Using default pip configuration (Global region)"
+# Function to upgrade pip with official PyPI only
+upgrade_pip_official() {
+    local pip_cmd="$1"
+    local python_cmd="$2"
+
+    print_step_from_common_functions "Upgrading pip to latest version using official PyPI..."
+
+    if [ -z "$pip_cmd" ] || [ ! -f "$pip_cmd" ]; then
+        print_warning_from_common_functions "pip binary not found at: $pip_cmd"
+        return 1
     fi
+
+    print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/"
+
+    if $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/ --break-system-packages --ignore-installed 2>&1 | grep -v "WARNING\|Retrying" | head -20; then
+        print_success_from_common_functions "pip upgraded successfully using official PyPI"
+        return 0
+    else
+        print_warning_from_common_functions "pip upgrade failed, continuing with existing pip version"
+        return 1
+    fi
+}
+
+# Function to install required Python packages with official PyPI only
+install_python_packages_official() {
+    local pip_cmd="$1"
+    local python_cmd="$2"
+    shift 2
+    local packages=("$@")
+
+    if [ -z "$pip_cmd" ] || [ ! -f "$pip_cmd" ]; then
+        print_warning_from_common_functions "pip binary not found, skipping package installation"
+        return 1
+    fi
+
+    if [ ${#packages[@]} -eq 0 ]; then
+        print_info_from_common_functions "No packages to install"
+        return 0
+    fi
+
+    print_step_from_common_functions "Installing Python packages using official PyPI: ${packages[*]}"
+
+    print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade ${packages[*]} --index-url https://pypi.org/simple/"
+
+    if $python_cmd -m pip install --upgrade --index-url https://pypi.org/simple/ --break-system-packages --ignore-installed "${packages[@]}" 2>&1 | grep -v "WARNING\|Retrying" | head -30; then
+        print_success_from_common_functions "Packages installed successfully using official PyPI"
+        return 0
+    else
+        print_warning_from_common_functions "Package installation failed, continuing anyway"
+        return 1
+    fi
+}
+
+# Function to set pip mirror to official PyPI
+set_pip_mirror() {
+    print_step_from_common_functions "Configuring pip to use official PyPI..."
+
+    local pip_conf_dir="$HOME/.pip"
+    local pip_conf_file="$pip_conf_dir/pip.conf"
+
+    mkdir -p "$pip_conf_dir"
+
+    print_step_from_common_functions "Always using official PyPI for maximum reliability"
+    cat > "$pip_conf_file" <<EOF
+[global]
+index-url = https://pypi.org/simple/
+timeout = 120
+retries = 5
+EOF
+    print_success_from_common_functions "pip configured to use official PyPI: https://pypi.org/simple/"
+    print_info_from_common_functions "pip configuration file: $pip_conf_file"
+
+    return 0
 }
 
 # Function to fix Python symlinks
@@ -438,11 +494,11 @@ create_python_venv_and_replace_system() {
             print_info_from_common_functions "Virtual environment exists and appears up-to-date"
         fi
 
-        print_step_from_common_functions "Rebuild virtual environment? [Y/n] (recommended if you added new packages)"
+        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
         read -r response </dev/tty
-        response=${response:-Y}  # Default to Y if user just presses Enter
+        response=${response:-n}  # Default to n if user just presses Enter
 
-        if [[ "$response" =~ ^[Yy]$ ]] || [ -z "$response" ]; then
+        if [[ "$response" =~ ^[Yy]$ ]]; then
             user_wants_rebuild=true
         else
             print_info_from_common_functions "Skipping venv rebuild. Using existing venv."
@@ -485,13 +541,24 @@ create_python_venv_and_replace_system() {
             return 1
         fi
 
-        # Upgrade pip in venv
+        # Upgrade pip in venv - always run to ensure latest version
         if [ -f "$VENV_PIP3" ]; then
             print_step_from_common_functions "Upgrading pip in virtual environment..."
-            "$VENV_PYTHON3" -m pip install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+            upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
+
+            print_step_from_common_functions "Installing essential packages in venv..."
+            install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" setuptools wheel
         fi
     else
         print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
+    fi
+
+    # IMPORTANT: Always upgrade pip and essential packages, even if venv was not rebuilt
+    # This ensures pip is always up-to-date and packages are fixed on every run
+    print_step_from_common_functions "Ensuring pip and essential packages are up-to-date in venv..."
+    if [ -f "$VENV_PIP3" ]; then
+        upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
+        install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" setuptools wheel
     fi
 
     # Verify venv executables exist
@@ -669,9 +736,11 @@ setup_production_python_venv() {
         if [ "$venv_created" = true ]; then
             print_step_from_common_functions "Installing essential packages in venv..."
             if [ -f "$python_venv_dir/bin/pip3" ]; then
-                "$python_venv_dir/bin/pip3" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+                upgrade_pip_official "$python_venv_dir/bin/pip3" "$python_venv_dir/bin/python3"
+                install_python_packages_official "$python_venv_dir/bin/pip3" "$python_venv_dir/bin/python3" setuptools wheel
             elif [ -f "$python_venv_dir/bin/pip" ]; then
-                "$python_venv_dir/bin/pip" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+                upgrade_pip_official "$python_venv_dir/bin/pip" "$python_venv_dir/bin/python3"
+                install_python_packages_official "$python_venv_dir/bin/pip" "$python_venv_dir/bin/python3" setuptools wheel
             else
                 print_warning_from_common_functions "pip not available in venv, skipping package installation"
             fi
@@ -685,6 +754,17 @@ setup_production_python_venv() {
     if [ ! -f "$venv_python3" ]; then
         print_error_from_common_functions "Python venv python3 binary not found at: $venv_python3"
         return 1
+    fi
+
+    # IMPORTANT: Always upgrade pip and packages, even if venv already exists
+    # This ensures packages are always up-to-date on every run
+    print_step_from_common_functions "Ensuring pip and packages are up-to-date in production venv..."
+    if [ -f "$venv_pip3" ]; then
+        upgrade_pip_official "$venv_pip3" "$venv_python3"
+        install_python_packages_official "$venv_pip3" "$venv_python3" setuptools wheel
+    elif [ -f "$venv_pip" ]; then
+        upgrade_pip_official "$venv_pip" "$venv_python3"
+        install_python_packages_official "$venv_pip" "$venv_python3" setuptools wheel
     fi
 
     local pip_binary=""
@@ -775,14 +855,16 @@ main() {
             print_error_from_common_functions "Failed to install Python essentials"
             return 1
         fi
-
-        # Set pip mirror after installation
-        set_pip_mirror
     else
         print_info_from_common_functions "Python and pip are already installed"
-        # Still set pip mirror for existing installations
-        set_pip_mirror
     fi
+
+    # IMPORTANT: Always set pip mirror on every run to ensure correct configuration
+    set_pip_mirror
+
+    # IMPORTANT: Always fix Python symlinks on every run to ensure correct setup
+    print_step_from_common_functions "Ensuring Python symlinks are correct..."
+    fix_python_links
 
     # Create Python venv and replace system commands
     print_header_from_common_functions "Python Virtual Environment Setup"

@@ -170,83 +170,8 @@ detect_and_fix_previous_issues() {
 
 # Function to configure pnpm mirror and global settings
 configure_npm_settings() {
-    echo "Configuring pnpm and npm settings..."
-
-    # First ensure npm is available (comes with Node.js)
-    local npm_bin="$NODE_BIN_DIR/npm"
-    if [ ! -f "$npm_bin" ]; then
-        echo "Warning: npm binary not found at $npm_bin, trying system npm..."
-        npm_bin=$(which npm 2>/dev/null)
-        if [ -z "$npm_bin" ]; then
-            echo "Error: npm not found in system PATH"
-            return 1
-        fi
-    fi
-
-    # Install pnpm globally using npm if not already installed
-    if ! command -v pnpm >/dev/null 2>&1; then
-        echo "Installing pnpm globally..."
-        if [ "$(id -u)" -eq 0 ]; then
-            "$npm_bin" install -g pnpm
-        else
-            $USE_SUDO "$npm_bin" install -g pnpm
-        fi
-
-        # Create symlink for pnpm
-        local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
-        if [ -f "$pnpm_path" ]; then
-            $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
-            echo "Created symlink: /usr/local/bin/pnpm -> $pnpm_path"
-        fi
-    fi
-
-    # Configure pnpm
-    if command -v pnpm >/dev/null 2>&1; then
-        # Configure pnpm global directories
-        local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
-        local pnpm_global_bin="$pnpm_global_dir/bin"
-
-        echo "Configuring pnpm global directories..."
-        pnpm config set global-dir "$pnpm_global_dir"
-        pnpm config set global-bin-dir "$pnpm_global_bin"
-        pnpm config set enable-pre-post-scripts true
-
-        # Ensure directories exist
-        mkdir -p "$pnpm_global_dir"
-        mkdir -p "$pnpm_global_bin"
-
-        # Configure registry based on region
-        if [ "$SELECTED_REGION" = "China" ]; then
-            echo "Region is set to China, configuring pnpm to use China mirror..."
-            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
-        else
-            echo "Region is Global, using default pnpm registry..."
-            pnpm config set registry https://registry.npmjs.org/
-        fi
-
-        # Create or update .pnpmrc file
-        local user_home="$HOME"
-        local pnpmrc_path="$user_home/.pnpmrc"
-
-        echo "Creating/updating .pnpmrc file..."
-        if [ "$SELECTED_REGION" = "China" ]; then
-            cat > "$pnpmrc_path" <<EOF
-registry=https://repo.huaweicloud.com/repository/npm/
-enable-pre-post-scripts=true
-EOF
-        else
-            cat > "$pnpmrc_path" <<EOF
-registry=https://registry.npmjs.org/
-enable-pre-post-scripts=true
-EOF
-        fi
-        echo ".pnpmrc created at: $pnpmrc_path"
-
-        echo "pnpm configuration completed:"
-        pnpm config list
-    else
-        echo "Warning: pnpm installation failed, falling back to npm"
-    fi
+    echo "Configuring npm settings..."
+    return 0
 }
 
 check_node_installation() {
@@ -453,54 +378,59 @@ create_symlinks() {
         fi
     fi
 
-    # Remove any existing broken symlinks first
-    for binary in node npm npx; do
+    # Always check and fix core Node.js symlinks
+    local binaries=("node" "npm" "npx")
+    local paths=("$node_path" "$npm_path" "$npx_path")
+    local failed_count=0
+
+    for i in "${!binaries[@]}"; do
+        local binary="${binaries[$i]}"
+        local target_path="${paths[$i]}"
         local link_path="/usr/local/bin/$binary"
-        if [ -L "$link_path" ] && [ ! -e "$link_path" ]; then
-            echo "Removing broken symlink: $link_path"
+
+        # Skip if target doesn't exist
+        if [ -z "$target_path" ] || [ ! -f "$target_path" ]; then
+            continue
+        fi
+
+        # Remove broken or incorrect symlinks
+        if [ -L "$link_path" ]; then
+            local current_target=$(readlink "$link_path")
+            if [ "$current_target" != "$target_path" ] || [ ! -e "$link_path" ]; then
+                echo "Removing broken/incorrect symlink: $link_path -> $current_target"
+                $USE_SUDO rm -f "$link_path"
+            fi
+        elif [ -f "$link_path" ] && [ ! -L "$link_path" ]; then
+            echo "Removing non-symlink file: $link_path"
             $USE_SUDO rm -f "$link_path"
+        fi
+
+        # Create or recreate symlink
+        if [ ! -L "$link_path" ]; then
+            if $USE_SUDO ln -sf "$target_path" "$link_path"; then
+                echo "Created symlink: $link_path -> $target_path"
+            else
+                echo "Failed to create symlink for $binary"
+                failed_count=$((failed_count + 1))
+            fi
+        else
+            echo "Symlink already correct: $link_path -> $target_path"
+        fi
+
+        # Verify symlink works
+        if [ -L "$link_path" ] && "$link_path" --version >/dev/null 2>&1; then
+            echo "[OK] $binary symlink working: $("$link_path" --version | head -1)"
+        elif [ -L "$link_path" ]; then
+            echo "[WARN] $binary symlink exists but not working"
         fi
     done
 
-    # Create symlinks for node binaries to /usr/local/bin
-    if $USE_SUDO ln -sf "$node_path" /usr/local/bin/node; then
-        echo "Created symlink: /usr/local/bin/node -> $node_path"
-    else
-        echo "Failed to create symlink for node"
+    if [ $failed_count -gt 0 ]; then
+        echo "Warning: $failed_count symlink(s) failed to create"
         return 1
     fi
 
-    if $USE_SUDO ln -sf "$npm_path" /usr/local/bin/npm; then
-        echo "Created symlink: /usr/local/bin/npm -> $npm_path"
-    else
-        echo "Failed to create symlink for npm"
-        return 1
-    fi
-
-    if [ -n "$npx_path" ] && [ -f "$npx_path" ]; then
-        if $USE_SUDO ln -sf "$npx_path" /usr/local/bin/npx; then
-            echo "Created symlink: /usr/local/bin/npx -> $npx_path"
-        else
-            echo "Failed to create symlink for npx"
-        fi
-    fi
-
-    # Verify symlinks work
-    echo "Verifying symlinks..."
-    if /usr/local/bin/node --version >/dev/null 2>&1; then
-        echo "[OK] Node.js symlink working: $(/usr/local/bin/node --version)"
-    else
-        echo "[ERROR] Node.js symlink not working"
-    fi
-
-    if /usr/local/bin/npm --version >/dev/null 2>&1; then
-        echo "[OK] npm symlink working: $(/usr/local/bin/npm --version)"
-    else
-        echo "[ERROR] npm symlink not working"
-    fi
-
-    echo "Symlinks created successfully:"
-    ls -l /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx 2>/dev/null
+    echo "Core Node.js symlinks verified and fixed successfully"
     return 0
 }
 
@@ -594,39 +524,61 @@ verify_and_fix_all_configs() {
     fi
 
     echo ""
-    echo "[2/4] Checking pnpm installation..."
+    echo "[2/4] Checking and fixing pnpm installation..."
     local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+    local pnpm_link="/usr/local/bin/pnpm"
+    local npm_bin="$NODE_BIN_DIR/npm"
 
-    if ! command -v pnpm >/dev/null 2>&1 && [ ! -f "$pnpm_path" ]; then
-        echo "Installing pnpm..."
-        if [ -f "$NODE_BIN_DIR/npm" ]; then
-            "$NODE_BIN_DIR/npm" install -g pnpm
-
-            # Create symlink if needed
-            if [ -f "$pnpm_path" ]; then
-                $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
-                echo "Created pnpm symlink"
-            fi
+    if [ ! -f "$npm_bin" ]; then
+        npm_bin=$(which npm 2>/dev/null)
+        if [ -z "$npm_bin" ]; then
+            echo "npm not found, skipping pnpm installation"
+            return 0
         fi
-    else
-        echo "pnpm already installed"
     fi
 
-    # Use absolute path for pnpm to ensure it works without environment variables loaded
+    if [ ! -f "$pnpm_path" ] && ! command -v pnpm >/dev/null 2>&1; then
+        echo "Installing pnpm..."
+        if [ "$(id -u)" -eq 0 ]; then
+            "$npm_bin" install -g pnpm
+        else
+            $USE_SUDO "$npm_bin" install -g pnpm
+        fi
+    fi
+
+    if [ -f "$pnpm_path" ]; then
+        if [ -L "$pnpm_link" ]; then
+            local current_target=$(readlink "$pnpm_link")
+            if [ "$current_target" != "$pnpm_path" ] || [ ! -e "$pnpm_link" ]; then
+                echo "Fixing broken/incorrect pnpm symlink: $pnpm_link"
+                $USE_SUDO rm -f "$pnpm_link"
+                $USE_SUDO ln -sf "$pnpm_path" "$pnpm_link"
+                echo "Fixed: $pnpm_link -> $pnpm_path"
+            else
+                echo "pnpm symlink already correct"
+            fi
+        else
+            echo "Creating pnpm symlink..."
+            $USE_SUDO rm -f "$pnpm_link"
+            $USE_SUDO ln -sf "$pnpm_path" "$pnpm_link"
+            echo "Created: $pnpm_link -> $pnpm_path"
+        fi
+    elif command -v pnpm >/dev/null 2>&1; then
+        echo "pnpm found in system PATH"
+    fi
+
     local pnpm_cmd=""
     if [ -f "$pnpm_path" ]; then
         pnpm_cmd="$pnpm_path"
-        echo "Using pnpm at: $pnpm_cmd"
     elif command -v pnpm >/dev/null 2>&1; then
         pnpm_cmd="pnpm"
-        echo "Using system pnpm"
     else
         echo "pnpm not found, skipping pnpm configuration"
         return 0
     fi
 
     echo ""
-    echo "[3/4] Checking pnpm configuration..."
+    echo "[3/4] Checking and fixing pnpm configuration..."
     local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
     local pnpm_global_bin="$pnpm_global_dir/bin"
 
@@ -639,11 +591,9 @@ verify_and_fix_all_configs() {
     echo "Setting pnpm enable-pre-post-scripts: true"
     "$pnpm_cmd" config set enable-pre-post-scripts true
 
-    # Ensure directories exist
     mkdir -p "$pnpm_global_dir"
     mkdir -p "$pnpm_global_bin"
 
-    # Configure registry
     if [ "$SELECTED_REGION" = "China" ]; then
         echo "Setting pnpm China mirror..."
         "$pnpm_cmd" config set registry https://repo.huaweicloud.com/repository/npm/
@@ -652,7 +602,6 @@ verify_and_fix_all_configs() {
         "$pnpm_cmd" config set registry https://registry.npmjs.org/
     fi
 
-    # Create or update .pnpmrc file
     local user_home="$HOME"
     local pnpmrc_path="$user_home/.pnpmrc"
 
@@ -672,15 +621,36 @@ EOF
     echo "pnpm configuration verified and fixed"
 
     echo ""
-    echo "[4/4] Checking yarn installation..."
-    if ! command -v yarn >/dev/null 2>&1; then
+    echo "[4/4] Checking and fixing yarn installation..."
+    local yarn_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/yarn"
+    local yarn_link="/usr/local/bin/yarn"
+
+    if [ ! -f "$yarn_path" ] && ! command -v yarn >/dev/null 2>&1; then
         echo "Installing yarn..."
         if [ -f "$NODE_BIN_DIR/npm" ]; then
             "$NODE_BIN_DIR/npm" install -g yarn
-            echo "yarn installed"
         fi
-    else
-        echo "yarn already installed"
+    fi
+
+    if [ -f "$yarn_path" ]; then
+        if [ -L "$yarn_link" ]; then
+            local current_target=$(readlink "$yarn_link")
+            if [ "$current_target" != "$yarn_path" ] || [ ! -e "$yarn_link" ]; then
+                echo "Fixing broken/incorrect yarn symlink: $yarn_link"
+                $USE_SUDO rm -f "$yarn_link"
+                $USE_SUDO ln -sf "$yarn_path" "$yarn_link"
+                echo "Fixed: $yarn_link -> $yarn_path"
+            else
+                echo "yarn symlink already correct"
+            fi
+        else
+            echo "Creating yarn symlink..."
+            $USE_SUDO rm -f "$yarn_link"
+            $USE_SUDO ln -sf "$yarn_path" "$yarn_link"
+            echo "Created: $yarn_link -> $yarn_path"
+        fi
+    elif command -v yarn >/dev/null 2>&1; then
+        echo "yarn found in system PATH"
     fi
 
     echo ""
