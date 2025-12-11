@@ -1308,7 +1308,7 @@ main() {
         write_color_text "=== Unified Git PUSH Script ===" "Magenta"
     fi
     write_color_text "Default remote: $DEFAULT_REMOTE" "DarkCyan"
-    
+
     # Determine target remote
     if [ -z "$TARGET_REMOTE" ]; then
         write_color_text "No target specified, using all remotes" "Yellow"
@@ -1316,12 +1316,35 @@ main() {
     else
         targets=("$TARGET_REMOTE")
     fi
-    
+
+    # Check if running on server (non-desktop environment)
+    local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+    local is_production=$(get_global_var "IS_PRODUCTION")
+
+    # Skip local remote (192.168.50.2) if running on server
+    if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+        write_color_text "Detected server environment (non-desktop), skipping local remote (192.168.50.2)" "Yellow"
+        local filtered_targets=()
+        for target in "${targets[@]}"; do
+            if [ "$target" != "local" ]; then
+                filtered_targets+=("$target")
+            else
+                write_color_text "Skipped remote: $target (${remote_configs[$target]})" "DarkGray"
+            fi
+        done
+        targets=("${filtered_targets[@]}")
+
+        if [ ${#targets[@]} -eq 0 ]; then
+            write_color_text "No valid remotes to process after filtering" "Red"
+            return 1
+        fi
+    fi
+
     # Reorder targets to execute DEFAULT_REMOTE first
     targets=($(get_execution_order "${targets[@]}"))
-    
+
     local all_success=true
-    
+
     for target in "${targets[@]}"; do
         if [ -n "${remote_configs[$target]}" ]; then
             local target_url="${remote_configs[$target]}"
@@ -1382,7 +1405,7 @@ main() {
             write_color_text "Some git push operations failed!" "Red"
         fi
     fi
-    
+
     # Restore original working directory
     cd "$ORIGINAL_WORKING_DIR"
     write_color_text "Restored working directory: $ORIGINAL_WORKING_DIR" "DarkCyan"
