@@ -27,6 +27,7 @@ declare -a MENU_CONFIG=(
     "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
     "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
+    "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
