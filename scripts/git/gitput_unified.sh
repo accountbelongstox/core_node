@@ -981,21 +981,14 @@ invoke_force_overwrite() {
         write_color_text "✓ Reset forced to completion" "Green"
     fi
 
-    # Step 7: Clean untracked files and directories (remove ALL local files not in remote)
-    write_color_text "Step 7: Cleaning untracked files and directories..." "Cyan"
-    write_color_text "Executing: git clean -fdx" "DarkGray"
-    # -f: force, -d: directories, -x: ignored files too
-    git clean -fdx 2>&1 || true
-    write_color_text "✓ All untracked and ignored files removed" "Green"
-
-    # Step 8: Final verification - ensure working tree is clean
-    write_color_text "Step 8: Final verification..." "Cyan"
+    # Step 7: Final verification - ensure tracked files match remote
+    write_color_text "Step 7: Final verification..." "Cyan"
     write_color_text "Executing: git status --porcelain" "DarkGray"
     local status_output=$(git status --porcelain)
     if [ -z "$status_output" ]; then
-        write_color_text "✓ Working tree is 100% clean - matches remote exactly" "Green"
+        write_color_text "✓ All tracked files match remote exactly" "Green"
     else
-        write_color_text "Warning: Some files remain (this is OK if they're gitignored)" "Yellow"
+        write_color_text "Note: Untracked files preserved (node_modules, .secret_keys, etc.)" "Cyan"
         write_color_text "$status_output" "DarkGray"
     fi
 
