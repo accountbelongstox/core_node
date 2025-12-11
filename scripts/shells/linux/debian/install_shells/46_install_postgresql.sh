@@ -49,7 +49,6 @@ POSTGRESQL_CONFIG_DIR=""
 POSTGRESQL_LOG_DIR=$(map_web_path "compile_dir" "postgresql/logs")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
-echo "[$SCRIPT_INDEX] PostgreSQL will always be installed"
 echo "[$SCRIPT_INDEX] START_POSTGRESQL: $START_POSTGRESQL"
 
 # Function to check if command exists
@@ -354,37 +353,34 @@ remove_postgresql() {
 
 # Main execution logic
 main() {
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] Installing PostgreSQL..."
-    echo "[$SCRIPT_INDEX] ============================================"
-
-    # Check if PostgreSQL is already installed
-    if check_postgresql; then
-        echo "[$SCRIPT_INDEX] PostgreSQL is already installed"
-        show_postgresql_info
-    else
-        echo "[$SCRIPT_INDEX] Installing PostgreSQL..."
-        if install_postgresql; then
-            configure_postgresql
-            if is_postgresql_running; then
-                setup_postgresql_user
-                show_postgresql_info
-            else
-                echo "[$SCRIPT_INDEX] PostgreSQL installation failed - service not running"
-                exit 1
-            fi
-        else
-            echo "[$SCRIPT_INDEX] PostgreSQL installation failed"
-            exit 1
-        fi
-    fi
-
-    # Configure service based on START_POSTGRESQL variable
+    # Configure based on START_POSTGRESQL variable
     if [ "$START_POSTGRESQL" = "true" ]; then
         echo "[$SCRIPT_INDEX] ============================================"
-        echo "[$SCRIPT_INDEX] START_POSTGRESQL is true - Enabling and starting PostgreSQL..."
+        echo "[$SCRIPT_INDEX] START_POSTGRESQL is true - Installing and starting PostgreSQL..."
         echo "[$SCRIPT_INDEX] ============================================"
 
+        # Check if PostgreSQL is already installed
+        if check_postgresql; then
+            echo "[$SCRIPT_INDEX] PostgreSQL is already installed"
+            show_postgresql_info
+        else
+            echo "[$SCRIPT_INDEX] Installing PostgreSQL..."
+            if install_postgresql; then
+                configure_postgresql
+                if is_postgresql_running; then
+                    setup_postgresql_user
+                    show_postgresql_info
+                else
+                    echo "[$SCRIPT_INDEX] PostgreSQL installation failed - service not running"
+                    exit 1
+                fi
+            else
+                echo "[$SCRIPT_INDEX] PostgreSQL installation failed"
+                exit 1
+            fi
+        fi
+
+        # Enable and start service
         if ! is_postgresql_running; then
             $USE_SUDO systemctl enable postgresql
             $USE_SUDO systemctl start postgresql
@@ -395,19 +391,28 @@ main() {
         echo "[$SCRIPT_INDEX] ============================================"
     else
         echo "[$SCRIPT_INDEX] ============================================"
-        echo "[$SCRIPT_INDEX] START_POSTGRESQL is false - Disabling PostgreSQL service to save memory..."
+        echo "[$SCRIPT_INDEX] START_POSTGRESQL is false - Skipping PostgreSQL installation"
         echo "[$SCRIPT_INDEX] ============================================"
 
-        if is_postgresql_running; then
-            $USE_SUDO systemctl stop postgresql
+        # If PostgreSQL is already installed, stop and disable it
+        if check_postgresql; then
+            echo "[$SCRIPT_INDEX] PostgreSQL is already installed, stopping and disabling services..."
+
+            if is_postgresql_running; then
+                $USE_SUDO systemctl stop postgresql
+            fi
+            $USE_SUDO systemctl disable postgresql
+
+            echo "[$SCRIPT_INDEX] ============================================"
+            echo "[$SCRIPT_INDEX] PostgreSQL is installed but stopped and disabled"
+            echo "[$SCRIPT_INDEX] ============================================"
+        else
+            echo "[$SCRIPT_INDEX] PostgreSQL is not installed and will not be installed"
+
+            echo "[$SCRIPT_INDEX] ============================================"
+            echo "[$SCRIPT_INDEX] PostgreSQL skipped"
+            echo "[$SCRIPT_INDEX] ============================================"
         fi
-        $USE_SUDO systemctl disable postgresql
-
-        echo "[$SCRIPT_INDEX] ============================================"
-        echo "[$SCRIPT_INDEX] IMPORTANT: PostgreSQL is installed but NOT running"
-        echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
-        echo "[$SCRIPT_INDEX] Use the Service Manager menu to start PostgreSQL when needed"
-        echo "[$SCRIPT_INDEX] ============================================"
     fi
 
     echo "[$SCRIPT_INDEX] PostgreSQL configuration completed"
