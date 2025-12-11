@@ -599,6 +599,130 @@ def get_third_package_yaml():
     return _lazy_import('yaml', 'import yaml')
 
 
+# PIL/Pillow packages
+def get_third_package_PIL():
+    """Get PIL (Pillow) package (lazy load)"""
+    return _lazy_import('PIL', 'import PIL')
+
+
+def get_third_package_PIL_Image():
+    """Get PIL.Image module (lazy load)"""
+    if 'PIL_Image' not in _PACKAGE_CACHE:
+        from PIL import Image as PIL_Image
+        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
+    return _PACKAGE_CACHE['PIL_Image']
+
+
+def get_third_package_PIL_ImageDraw():
+    """Get PIL.ImageDraw module (lazy load)"""
+    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
+        from PIL import ImageDraw as PIL_ImageDraw
+        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
+    return _PACKAGE_CACHE['PIL_ImageDraw']
+
+
+def get_third_package_PIL_ImageFont():
+    """Get PIL.ImageFont module (lazy load)"""
+    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
+        from PIL import ImageFont as PIL_ImageFont
+        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
+    return _PACKAGE_CACHE['PIL_ImageFont']
+
+
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk module (lazy load) - requires tkinter"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
+
+
+# Computer vision and automation packages
+def get_third_package_cv2():
+    """Get cv2 (OpenCV) package (lazy load)"""
+    return _lazy_import('cv2', 'import cv2')
+
+
+def get_third_package_pyautogui():
+    """Get pyautogui package (lazy load)"""
+    return _lazy_import('pyautogui', 'import pyautogui')
+
+
+def get_third_package_psutil():
+    """Get psutil package (lazy load)"""
+    return _lazy_import('psutil', 'import psutil')
+
+
+def get_third_package_mss():
+    """Get mss package (lazy load)"""
+    return _lazy_import('mss', 'import mss')
+
+
+# Deep learning packages
+def get_third_package_torch():
+    """Get torch (PyTorch) package (lazy load) - Heavy package"""
+    return _lazy_import('torch', 'import torch')
+
+
+def get_third_package_ultralytics():
+    """Get ultralytics (YOLO) package (lazy load) - Heavy package"""
+    return _lazy_import('ultralytics', 'import ultralytics')
+
+
+def get_third_package_numpy():
+    """Get numpy package (lazy load)"""
+    return _lazy_import('numpy', 'import numpy')
+
+
+# Network and web packages
+def get_third_package_websockets():
+    """Get websockets package (lazy load)"""
+    return _lazy_import('websockets', 'import websockets')
+
+
+def get_third_package_requests():
+    """Get requests package (lazy load)"""
+    return _lazy_import('requests', 'import requests')
+
+
+def get_third_package_uvicorn():
+    """Get uvicorn package (lazy load)"""
+    return _lazy_import('uvicorn', 'import uvicorn')
+
+
+def get_third_package_fastapi():
+    """Get fastapi package (lazy load)"""
+    return _lazy_import('fastapi', 'import fastapi')
+
+
+# Device and streaming packages
+def get_third_package_adb_shell():
+    """Get adb_shell package (lazy load)"""
+    return _lazy_import('adb_shell', 'import adb_shell')
+
+
+def get_third_package_av():
+    """Get av (PyAV) package (lazy load)"""
+    return _lazy_import('av', 'import av')
+
+
+# Logging
+def get_third_package_loguru():
+    """Get loguru package (lazy load)"""
+    return _lazy_import('loguru', 'import loguru')
+
+
+# Browser automation
+def get_third_package_selenium():
+    """Get selenium package (lazy load)"""
+    return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_webdriver_manager():
+    """Get webdriver_manager package (lazy load)"""
+    return _lazy_import('webdriver_manager', 'import webdriver_manager')
+
+
 def get_third_package_webview():
     """Get webview package (lazy load)"""
     return _lazy_import('webview', 'import webview')
