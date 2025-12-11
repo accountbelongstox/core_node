@@ -47,7 +47,6 @@ MYSQL_DATA_DIR=$(map_web_path "compile_dir" "mysql/data")
 MYSQL_LOG_DIR=$(map_web_path "compile_dir" "mysql/logs")
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
-echo "[$SCRIPT_INDEX] MySQL will always be installed"
 echo "[$SCRIPT_INDEX] START_MYSQL: $START_MYSQL"
 
 # Check repository status before proceeding
@@ -227,14 +226,60 @@ get_mysql_password() {
 # Function to install MySQL
 install_mysql() {
     echo "Installing MySQL (MariaDB)..."
-    
+
+    # Detect OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_ID="$ID"
+        OS_VERSION_ID="$VERSION_ID"
+    else
+        echo "[$SCRIPT_INDEX] Cannot detect OS version"
+        return 1
+    fi
+
+    echo "[$SCRIPT_INDEX] Detected OS: $OS_ID $OS_VERSION_ID"
+
     # Repository should already be added by 12_update.sh
     echo "[$SCRIPT_INDEX] Installing MariaDB from pre-configured repository..."
-    
+
+    # Fix libaio1 dependency issue for Ubuntu Noble (24.04)
+    if [ "$OS_ID" = "ubuntu" ] && [ "$OS_VERSION_ID" = "24.04" ]; then
+        echo "[$SCRIPT_INDEX] Ubuntu 24.04 detected - handling libaio1 dependency..."
+
+        # Try to install libaio1t64 (replacement for libaio1 in Ubuntu 24.04)
+        if $USE_SUDO apt install -y libaio1t64 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] Installed libaio1t64 (Ubuntu 24.04 replacement)"
+        else
+            echo "[$SCRIPT_INDEX] Warning: Could not install libaio1t64"
+        fi
+    fi
+
     # Install MariaDB server and client
     $USE_SUDO apt update
-    $USE_SUDO apt install -y mariadb-server mariadb-client
-    
+
+    # Try to install with automatic dependency resolution
+    if ! $USE_SUDO apt install -y mariadb-server mariadb-client 2>&1 | tee /tmp/mysql_install.log; then
+        echo "[$SCRIPT_INDEX] Initial installation failed, checking for dependency issues..."
+
+        # Check if it's a libaio1 issue
+        if grep -q "libaio1" /tmp/mysql_install.log; then
+            echo "[$SCRIPT_INDEX] Detected libaio1 dependency issue"
+
+            # Try alternative: install from universe repository
+            $USE_SUDO apt install -y --fix-broken
+            $USE_SUDO apt install -y mariadb-server mariadb-client || {
+                echo "[$SCRIPT_INDEX] Failed to install MariaDB"
+                return 1
+            }
+        else
+            echo "[$SCRIPT_INDEX] Installation failed for unknown reason"
+            cat /tmp/mysql_install.log
+            return 1
+        fi
+    fi
+
+    rm -f /tmp/mysql_install.log
+
     # Create MySQL user and group if they don't exist
     if ! getent group mysql >/dev/null; then
         groupadd mysql
@@ -242,11 +287,11 @@ install_mysql() {
     if ! getent passwd mysql >/dev/null; then
         useradd -r -g mysql -s /bin/false mysql
     fi
-    
+
     # Setup data directory
     setup_data_dir
     local need_init=$?
-    
+
     # Get or generate root password
     local root_password=$(get_mysql_password)
     
@@ -315,30 +360,27 @@ if [ "$EUID" -ne 0 ] && [ "$USE_SUDO" = "sudo" ]; then
     exit 1
 fi
 
-# Main installation logic - MySQL is always installed
-echo "[$SCRIPT_INDEX] ============================================"
-echo "[$SCRIPT_INDEX] Installing MySQL (MariaDB)..."
-echo "[$SCRIPT_INDEX] ============================================"
-
-# Check if MySQL is already installed
-if check_mysql; then
-    echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
-    # Update stored information
-    store_mysql_info
-else
-    install_mysql
-    if ! check_mysql; then
-        echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
-        exit 1
-    fi
-    echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
-fi
-
-# Configure service based on START_MYSQL variable
+# Configure based on START_MYSQL variable
 if [ "$START_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_MYSQL is true - Enabling and starting MySQL..."
+    echo "[$SCRIPT_INDEX] START_MYSQL is true - Installing and starting MySQL..."
     echo "[$SCRIPT_INDEX] ============================================"
+
+    # Check if MySQL is already installed
+    if check_mysql; then
+        echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
+        # Update stored information
+        store_mysql_info
+    else
+        install_mysql
+        if ! check_mysql; then
+            echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
+            exit 1
+        fi
+        echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+    fi
+
+    # Enable and start services
     enable_mysql_services
 
     # Set global variables
@@ -350,19 +392,32 @@ if [ "$START_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
 else
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_MYSQL is false - Disabling MySQL service to save memory..."
+    echo "[$SCRIPT_INDEX] START_MYSQL is false - Skipping MySQL installation"
     echo "[$SCRIPT_INDEX] ============================================"
-    disable_mysql_services
 
-    # Set global variables
-    set_var "MYSQL_AVAILABLE" "true"
-    set_var "MYSQL_ENABLED" "false"
+    # If MySQL is already installed, stop and disable it
+    if check_mysql; then
+        echo "[$SCRIPT_INDEX] MySQL is already installed, stopping and disabling services..."
+        disable_mysql_services
 
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] IMPORTANT: MySQL is installed but NOT running"
-    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
-    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start MySQL when needed"
-    echo "[$SCRIPT_INDEX] ============================================"
+        # Set global variables
+        set_var "MYSQL_AVAILABLE" "true"
+        set_var "MYSQL_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] MySQL is installed but stopped and disabled"
+        echo "[$SCRIPT_INDEX] ============================================"
+    else
+        echo "[$SCRIPT_INDEX] MySQL is not installed and will not be installed"
+
+        # Set global variables
+        set_var "MYSQL_AVAILABLE" "false"
+        set_var "MYSQL_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] MySQL skipped"
+        echo "[$SCRIPT_INDEX] ============================================"
+    fi
 fi
 
 echo "[$SCRIPT_INDEX] MySQL configuration completed"
