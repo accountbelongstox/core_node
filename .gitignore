@@ -34,6 +34,10 @@ pyenv_*/
 app.*.symbols
 **/*.vsix
 **/*.test/
+**/test/
+**/tests/
+/test/
+/tests/
 /~
 /Microsoft
 /Microsoft/
