@@ -38,6 +38,8 @@ app.*.symbols
 **/tests/
 /test/
 /tests/
+/.venv/
+**/.venv/
 /~
 /Microsoft
 /Microsoft/
