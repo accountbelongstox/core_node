@@ -1131,11 +1131,74 @@ create_script_temp_dir() {
 cleanup_script_temp_dir() {
     local script_name="$1"
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-    
+
     if [ -d "$script_temp_dir" ]; then
         echo "Cleaning up temporary directory: $script_temp_dir"
         $USE_SUDO rm -rf "$script_temp_dir"
     fi
+}
+
+# Function to get pnpm absolute path with fallback
+get_pnpm_abspath() {
+    local pnpm_path=""
+
+    # Try variables (defined later in this file)
+    if [ -n "$PNPM_BIN" ] && [ -f "$PNPM_BIN" ]; then
+        pnpm_path="$PNPM_BIN"
+    elif [ -n "$NODE_BIN_DIR" ] && [ -f "$NODE_BIN_DIR/pnpm" ]; then
+        pnpm_path="$NODE_BIN_DIR/pnpm"
+    # Try standard symlink location
+    elif [ -f "/usr/local/bin/pnpm" ]; then
+        pnpm_path="/usr/local/bin/pnpm"
+    # Try system PATH
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_path=$(command -v pnpm)
+    fi
+
+    echo "$pnpm_path"
+    return 0
+}
+
+# Function to get npm absolute path with fallback
+get_npm_abspath() {
+    local npm_path=""
+
+    # Try variables (defined later in this file)
+    if [ -n "$NPM_BIN" ] && [ -f "$NPM_BIN" ]; then
+        npm_path="$NPM_BIN"
+    elif [ -n "$NODE_BIN_DIR" ] && [ -f "$NODE_BIN_DIR/npm" ]; then
+        npm_path="$NODE_BIN_DIR/npm"
+    # Try standard symlink location
+    elif [ -f "/usr/local/bin/npm" ]; then
+        npm_path="/usr/local/bin/npm"
+    # Try system PATH
+    elif command -v npm >/dev/null 2>&1; then
+        npm_path=$(command -v npm)
+    fi
+
+    echo "$npm_path"
+    return 0
+}
+
+# Function to get node absolute path with fallback
+get_node_abspath() {
+    local node_path=""
+
+    # Try variables (defined later in this file)
+    if [ -n "$NODE_BIN" ] && [ -f "$NODE_BIN" ]; then
+        node_path="$NODE_BIN"
+    elif [ -n "$NODE_BIN_DIR" ] && [ -f "$NODE_BIN_DIR/node" ]; then
+        node_path="$NODE_BIN_DIR/node"
+    # Try standard symlink location
+    elif [ -f "/usr/local/bin/node" ]; then
+        node_path="/usr/local/bin/node"
+    # Try system PATH
+    elif command -v node >/dev/null 2>&1; then
+        node_path=$(command -v node)
+    fi
+
+    echo "$node_path"
+    return 0
 }
 
 # Ensure the global variable directory exists
