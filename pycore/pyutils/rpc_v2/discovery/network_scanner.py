@@ -14,12 +14,12 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_netifaces
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.constants import RPC_STATUS_PATH
 
-netifaces = get_third_package_netifaces()
+psutil = get_third_package_psutil()
 
 
 @dataclass
@@ -41,18 +41,22 @@ class NetworkScanner:
 
     def get_local_network_segments(self) -> List[str]:
         segments: List[str] = []
-        for interface in netifaces.interfaces():
-            addrs = netifaces.ifaddresses(interface)
-            if netifaces.AF_INET in addrs:
-                for addr_info in addrs[netifaces.AF_INET]:
-                    ip = addr_info.get("addr")
-                    netmask = addr_info.get("netmask")
-                    if ip and netmask and not ip.startswith("127."):
-                        try:
-                            network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
-                            segments.append(str(network))
-                        except Exception:
-                            pass
+        # Use psutil to get network interfaces
+        try:
+            for interface, addrs in psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == socket.AF_INET:
+                        ip = addr.address
+                        netmask = addr.netmask
+                        if ip and netmask and not ip.startswith("127."):
+                            try:
+                                network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                                segments.append(str(network))
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
         if not segments:
             segments = ["192.168.1.0/24", "192.168.0.0/24", "10.0.0.0/24"]
         if self.debug:
