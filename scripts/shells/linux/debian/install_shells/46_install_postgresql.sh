@@ -399,9 +399,36 @@ main() {
             echo "[$SCRIPT_INDEX] PostgreSQL is already installed, stopping and disabling services..."
 
             if is_postgresql_running; then
+                echo "[$SCRIPT_INDEX] Stopping PostgreSQL service..."
                 $USE_SUDO systemctl stop postgresql
             fi
-            $USE_SUDO systemctl disable postgresql
+
+            # Wait a moment and check if PostgreSQL processes are still running
+            sleep 1
+
+            # Kill any remaining postgres processes
+            if pgrep -x postgres >/dev/null 2>&1; then
+                echo "[$SCRIPT_INDEX] PostgreSQL processes still running, killing them..."
+                $USE_SUDO pkill -TERM postgres 2>/dev/null || true
+                sleep 2
+
+                # Force kill if still running
+                if pgrep -x postgres >/dev/null 2>&1; then
+                    echo "[$SCRIPT_INDEX] Force killing PostgreSQL processes..."
+                    $USE_SUDO pkill -9 postgres 2>/dev/null || true
+                fi
+            fi
+
+            # Verify PostgreSQL is stopped
+            if pgrep -x postgres >/dev/null 2>&1; then
+                echo "[$SCRIPT_INDEX] Warning: Failed to stop all PostgreSQL processes"
+            else
+                echo "[$SCRIPT_INDEX] PostgreSQL service stopped successfully"
+            fi
+
+            # Disable PostgreSQL service from auto-start
+            echo "[$SCRIPT_INDEX] Disabling PostgreSQL service from auto-start..."
+            $USE_SUDO systemctl disable postgresql 2>/dev/null || true
 
             echo "[$SCRIPT_INDEX] ============================================"
             echo "[$SCRIPT_INDEX] PostgreSQL is installed but stopped and disabled"
