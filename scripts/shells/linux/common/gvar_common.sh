@@ -1131,7 +1131,7 @@ create_script_temp_dir() {
 cleanup_script_temp_dir() {
     local script_name="$1"
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-    
+
     if [ -d "$script_temp_dir" ]; then
         echo "Cleaning up temporary directory: $script_temp_dir"
         $USE_SUDO rm -rf "$script_temp_dir"

@@ -47,7 +47,6 @@ MYSQL_DATA_DIR=$(map_web_path "compile_dir" "mysql/data")
 MYSQL_LOG_DIR=$(map_web_path "compile_dir" "mysql/logs")
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
-echo "[$SCRIPT_INDEX] MySQL will always be installed"
 echo "[$SCRIPT_INDEX] START_MYSQL: $START_MYSQL"
 
 # Check repository status before proceeding
@@ -91,24 +90,42 @@ is_mysql_running() {
 # Function to disable MySQL services
 disable_mysql_services() {
     echo "[$SCRIPT_INDEX] Disabling MySQL services..."
-    
+
     # Stop MySQL service if running
     if is_mysql_running; then
         echo "[$SCRIPT_INDEX] Stopping MySQL service..."
         $USE_SUDO systemctl stop mariadb 2>/dev/null || $USE_SUDO service mariadb stop 2>/dev/null
-        if is_mysql_running; then
-            echo "[$SCRIPT_INDEX] Warning: Failed to stop MySQL service"
-        else
-            echo "[$SCRIPT_INDEX] MySQL service stopped successfully"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] MySQL service is not running"
     fi
-    
+
+    # Wait a moment and check if MySQL processes are still running
+    sleep 1
+
+    # Kill any remaining mariadb/mysqld processes
+    if pgrep -x mariadbd >/dev/null 2>&1 || pgrep -x mysqld >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] MySQL processes still running, killing them..."
+        $USE_SUDO pkill -TERM mariadbd 2>/dev/null || true
+        $USE_SUDO pkill -TERM mysqld 2>/dev/null || true
+        sleep 2
+
+        # Force kill if still running
+        if pgrep -x mariadbd >/dev/null 2>&1 || pgrep -x mysqld >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Force killing MySQL processes..."
+            $USE_SUDO pkill -9 mariadbd 2>/dev/null || true
+            $USE_SUDO pkill -9 mysqld 2>/dev/null || true
+        fi
+    fi
+
+    # Verify MySQL is stopped
+    if is_mysql_running; then
+        echo "[$SCRIPT_INDEX] Warning: Failed to stop all MySQL processes"
+    else
+        echo "[$SCRIPT_INDEX] MySQL service stopped successfully"
+    fi
+
     # Disable MySQL service from auto-start
     echo "[$SCRIPT_INDEX] Disabling MySQL service from auto-start..."
     $USE_SUDO systemctl disable mariadb 2>/dev/null || $USE_SUDO update-rc.d mariadb disable 2>/dev/null
-    
+
     echo "[$SCRIPT_INDEX] MySQL services disabled successfully"
 }
 
@@ -227,26 +244,53 @@ get_mysql_password() {
 # Function to install MySQL
 install_mysql() {
     echo "Installing MySQL (MariaDB)..."
-    
+
+    # Detect OS for version-specific handling
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_ID="$ID"
+        OS_VERSION_ID="$VERSION_ID"
+        echo "[$SCRIPT_INDEX] Detected OS: $OS_ID $OS_VERSION_ID"
+    fi
+
     # Repository should already be added by 12_update.sh
     echo "[$SCRIPT_INDEX] Installing MariaDB from pre-configured repository..."
-    
-    # Install MariaDB server and client
+
+    # Update package list
     $USE_SUDO apt update
-    $USE_SUDO apt install -y mariadb-server mariadb-client
-    
+
+    # Install MariaDB server and client
+    if ! $USE_SUDO apt install -y mariadb-server mariadb-client 2>&1 | tee /tmp/mysql_install.log; then
+        echo "[$SCRIPT_INDEX] Initial installation failed, checking for issues..."
+        cat /tmp/mysql_install.log
+
+        # Try to fix broken dependencies
+        echo "[$SCRIPT_INDEX] Attempting to fix broken dependencies..."
+        $USE_SUDO apt --fix-broken install -y
+
+        # Retry installation
+        echo "[$SCRIPT_INDEX] Retrying MariaDB installation..."
+        if ! $USE_SUDO apt install -y mariadb-server mariadb-client; then
+            echo "[$SCRIPT_INDEX] Failed to install MariaDB"
+            rm -f /tmp/mysql_install.log
+            return 1
+        fi
+    fi
+
+    rm -f /tmp/mysql_install.log
+
     # Create MySQL user and group if they don't exist
     if ! getent group mysql >/dev/null; then
-        groupadd mysql
+        $USE_SUDO groupadd mysql
     fi
     if ! getent passwd mysql >/dev/null; then
-        useradd -r -g mysql -s /bin/false mysql
+        $USE_SUDO useradd -r -g mysql -s /bin/false mysql
     fi
-    
+
     # Setup data directory
     setup_data_dir
     local need_init=$?
-    
+
     # Get or generate root password
     local root_password=$(get_mysql_password)
     
@@ -315,30 +359,27 @@ if [ "$EUID" -ne 0 ] && [ "$USE_SUDO" = "sudo" ]; then
     exit 1
 fi
 
-# Main installation logic - MySQL is always installed
-echo "[$SCRIPT_INDEX] ============================================"
-echo "[$SCRIPT_INDEX] Installing MySQL (MariaDB)..."
-echo "[$SCRIPT_INDEX] ============================================"
-
-# Check if MySQL is already installed
-if check_mysql; then
-    echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
-    # Update stored information
-    store_mysql_info
-else
-    install_mysql
-    if ! check_mysql; then
-        echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
-        exit 1
-    fi
-    echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
-fi
-
-# Configure service based on START_MYSQL variable
+# Configure based on START_MYSQL variable
 if [ "$START_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_MYSQL is true - Enabling and starting MySQL..."
+    echo "[$SCRIPT_INDEX] START_MYSQL is true - Installing and starting MySQL..."
     echo "[$SCRIPT_INDEX] ============================================"
+
+    # Check if MySQL is already installed
+    if check_mysql; then
+        echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
+        # Update stored information
+        store_mysql_info
+    else
+        install_mysql
+        if ! check_mysql; then
+            echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
+            exit 1
+        fi
+        echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+    fi
+
+    # Enable and start services
     enable_mysql_services
 
     # Set global variables
@@ -350,19 +391,32 @@ if [ "$START_MYSQL" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
 else
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_MYSQL is false - Disabling MySQL service to save memory..."
+    echo "[$SCRIPT_INDEX] START_MYSQL is false - Skipping MySQL installation"
     echo "[$SCRIPT_INDEX] ============================================"
-    disable_mysql_services
 
-    # Set global variables
-    set_var "MYSQL_AVAILABLE" "true"
-    set_var "MYSQL_ENABLED" "false"
+    # If MySQL is already installed, stop and disable it
+    if check_mysql; then
+        echo "[$SCRIPT_INDEX] MySQL is already installed, stopping and disabling services..."
+        disable_mysql_services
 
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] IMPORTANT: MySQL is installed but NOT running"
-    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
-    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start MySQL when needed"
-    echo "[$SCRIPT_INDEX] ============================================"
+        # Set global variables
+        set_var "MYSQL_AVAILABLE" "true"
+        set_var "MYSQL_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] MySQL is installed but stopped and disabled"
+        echo "[$SCRIPT_INDEX] ============================================"
+    else
+        echo "[$SCRIPT_INDEX] MySQL is not installed and will not be installed"
+
+        # Set global variables
+        set_var "MYSQL_AVAILABLE" "false"
+        set_var "MYSQL_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] MySQL skipped"
+        echo "[$SCRIPT_INDEX] ============================================"
+    fi
 fi
 
 echo "[$SCRIPT_INDEX] MySQL configuration completed"
