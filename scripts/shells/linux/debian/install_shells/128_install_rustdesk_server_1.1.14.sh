@@ -58,6 +58,17 @@ RUSTDESK_DATA_DIR="$RUSTDESK_BASE_DIR/data"
 RUSTDESK_LOG_DIR="$RUSTDESK_BASE_DIR/logs"
 RUSTDESK_INSTALLED_FLAG="$RUSTDESK_BASE_DIR/.installed"
 
+# Server configuration storage (persistent across reinstalls)
+RUSTDESK_SERVER_CONFIG_DIR="/var/_core_node/rustdesk_server"
+RUSTDESK_SERVER_CONFIG_FILE="$RUSTDESK_SERVER_CONFIG_DIR/server.conf"
+RUSTDESK_SERVER_KEY_BACKUP="$RUSTDESK_SERVER_CONFIG_DIR/id_ed25519.pub"
+
+# Client configuration
+RUSTDESK_CLIENT_VERSION="1.3.3"  # Latest stable client version
+RUSTDESK_CLIENTS_DIR="$APPLICATIONS_DIR/rustdesk-clients"
+RUSTDESK_CLIENT_LINUX_URL="https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_CLIENT_VERSION}/rustdesk-${RUSTDESK_CLIENT_VERSION}-x86_64.deb"
+RUSTDESK_CLIENT_WINDOWS_URL="https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_CLIENT_VERSION}/rustdesk-${RUSTDESK_CLIENT_VERSION}-x86_64.exe"
+
 # Version tracking
 APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
 RUSTDESK_SERVER_INSTALLED_FLAG="$APP_VERSIONS_DIR/rustdesk_server.version"
@@ -694,6 +705,238 @@ display_connection_info() {
     echo ""
 }
 
+# Save server configuration to persistent storage
+save_server_config() {
+    print_step_from_common_functions "Saving server configuration..."
+
+    # Create config directory
+    $USE_SUDO mkdir -p "$RUSTDESK_SERVER_CONFIG_DIR"
+
+    # Get current configuration
+    local public_key=$(get_public_key)
+    local public_ip=$(get_public_ip)
+    local all_local_ips=$(get_all_ips | tr '\n' ',' | sed 's/,$//')
+
+    # Save configuration file
+    cat <<EOF | $USE_SUDO tee "$RUSTDESK_SERVER_CONFIG_FILE" > /dev/null
+# RustDesk Server Configuration
+# Generated: $(date '+%Y-%m-%d %H:%M:%S')
+# Version: $RUSTDESK_SERVER_VERSION
+
+# Server Identity
+PUBLIC_KEY=$public_key
+SERVER_VERSION=$RUSTDESK_SERVER_VERSION
+
+# Network Configuration
+PUBLIC_IP=$public_ip
+LOCAL_IPS=$all_local_ips
+
+# Port Configuration
+HBBS_PORT=$HBBS_PORT
+HBBS_NAT_PORT=$HBBS_NAT_PORT
+HBBS_WEB_PORT=$HBBS_WEB_PORT
+HBBR_PORT=$HBBR_PORT
+RELAY_PORT=$RELAY_PORT
+
+# Directory Paths
+DATA_DIR=$RUSTDESK_DATA_DIR
+LOG_DIR=$RUSTDESK_LOG_DIR
+CLIENTS_DIR=$RUSTDESK_CLIENTS_DIR
+EOF
+
+    # Backup encryption key
+    if [[ -f "$RUSTDESK_DATA_DIR/id_ed25519.pub" ]]; then
+        $USE_SUDO cp "$RUSTDESK_DATA_DIR/id_ed25519.pub" "$RUSTDESK_SERVER_KEY_BACKUP"
+        print_success_from_common_functions "Encryption key backed up to: $RUSTDESK_SERVER_KEY_BACKUP"
+    fi
+
+    $USE_SUDO chmod 644 "$RUSTDESK_SERVER_CONFIG_FILE"
+    $USE_SUDO chmod 644 "$RUSTDESK_SERVER_KEY_BACKUP" 2>/dev/null
+
+    print_success_from_common_functions "Configuration saved to: $RUSTDESK_SERVER_CONFIG_FILE"
+}
+
+# Load server configuration from persistent storage
+load_server_config() {
+    if [[ -f "$RUSTDESK_SERVER_CONFIG_FILE" ]]; then
+        source "$RUSTDESK_SERVER_CONFIG_FILE"
+        return 0
+    fi
+    return 1
+}
+
+# Download and configure RustDesk clients
+download_and_configure_clients() {
+    print_step_from_common_functions "Downloading and configuring RustDesk clients..."
+
+    # Create clients directory
+    $USE_SUDO mkdir -p "$RUSTDESK_CLIENTS_DIR"
+
+    # Load server configuration
+    if ! load_server_config; then
+        print_error_from_common_functions "Server configuration not found. Cannot configure clients."
+        return 1
+    fi
+
+    local public_ip=$(get_public_ip)
+    local public_key=$(get_public_key)
+
+    if [[ -z "$public_key" ]] || [[ "$public_key" == *"not found"* ]]; then
+        print_error_from_common_functions "Public key not available. Cannot configure clients."
+        return 1
+    fi
+
+    # Download Linux client
+    print_step_from_common_functions "Downloading Linux client..."
+    local linux_client="$RUSTDESK_CLIENTS_DIR/rustdesk-${RUSTDESK_CLIENT_VERSION}-linux-x86_64.deb"
+    if wget -O "$linux_client" "$RUSTDESK_CLIENT_LINUX_URL" 2>/dev/null; then
+        print_success_from_common_functions "Linux client downloaded: $(basename $linux_client)"
+    else
+        print_warning_from_common_functions "Failed to download Linux client"
+    fi
+
+    # Download Windows client
+    print_step_from_common_functions "Downloading Windows client..."
+    local windows_client="$RUSTDESK_CLIENTS_DIR/rustdesk-${RUSTDESK_CLIENT_VERSION}-windows-x86_64.exe"
+    if wget -O "$windows_client" "$RUSTDESK_CLIENT_WINDOWS_URL" 2>/dev/null; then
+        print_success_from_common_functions "Windows client downloaded: $(basename $windows_client)"
+    else
+        print_warning_from_common_functions "Failed to download Windows client"
+    fi
+
+    # Create configuration readme
+    local readme_file="$RUSTDESK_CLIENTS_DIR/CONFIGURATION.txt"
+    cat <<EOF | $USE_SUDO tee "$readme_file" > /dev/null
+═══════════════════════════════════════════════════════════════════════════════
+                   RUSTDESK CLIENT CONFIGURATION GUIDE
+═══════════════════════════════════════════════════════════════════════════════
+
+Generated: $(date '+%Y-%m-%d %H:%M:%S')
+Server Version: $RUSTDESK_SERVER_VERSION
+Client Version: $RUSTDESK_CLIENT_VERSION
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT: Configuration Required After Installation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠  RustDesk clients require manual configuration to connect to your server.
+⚠  Follow the steps below carefully after installing the client.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SERVER CONNECTION DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ID Server:    $public_ip:$HBBS_NAT_PORT
+Relay Server: (leave empty for auto-detect)
+Public Key:   $public_key
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIGURATION STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: Install the Client
+──────────────────────────
+  • Linux:   sudo dpkg -i rustdesk-${RUSTDESK_CLIENT_VERSION}-linux-x86_64.deb
+  • Windows: Run rustdesk-${RUSTDESK_CLIENT_VERSION}-windows-x86_64.exe
+
+Step 2: Open Client Settings
+────────────────────────────
+  1. Launch RustDesk application
+  2. Click the menu icon (⋮ three dots)
+  3. Select "Settings"
+  4. Navigate to "Network" tab
+
+Step 3: Unlock Settings (IMPORTANT)
+──────────────────────────────────
+  • Click the padlock icon to unlock settings
+  • This may require administrator/root privileges
+
+Step 4: Enter Server Configuration
+─────────────────────────────────
+
+  Field: ID Server
+  Value: $public_ip:$HBBS_NAT_PORT
+
+  Field: Relay Server
+  Value: (leave empty)
+
+  Field: Key
+  Value: $public_key
+
+Step 5: Save and Test
+────────────────────
+  1. Click "OK" to save settings
+  2. Restart RustDesk client
+  3. Your device ID should appear in the main window
+  4. Test connection with another device
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIREWALL REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure these ports are open on your server firewall:
+  • TCP $HBBS_PORT      (ID/Rendezvous Server)
+  • TCP/UDP $HBBS_NAT_PORT (NAT Type Test)
+  • TCP $HBBR_PORT      (Relay Server)
+  • TCP $RELAY_PORT      (Relay)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cannot Connect:
+  • Verify firewall ports are open
+  • Check server is running: systemctl status rustdesk-hbbs rustdesk-hbbr
+  • Ensure public key is entered correctly (no extra spaces)
+  • Try using server's public IP address
+
+Settings Won't Save:
+  • Ensure you unlocked settings with padlock icon
+  • Run client with administrator/root privileges
+
+For More Help:
+  • Official Documentation: https://rustdesk.com/docs/
+  • GitHub Issues: https://github.com/rustdesk/rustdesk/issues
+
+═══════════════════════════════════════════════════════════════════════════════
+EOF
+
+    print_success_from_common_functions "Client configuration guide created: $readme_file"
+
+    # Display download location
+    echo ""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
+    echo "│ CONFIGURED CLIENTS AVAILABLE                                                │"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
+    echo ""
+    print_success_from_common_functions "Clients downloaded and ready for distribution:"
+    echo ""
+    echo "  📁 Location: $RUSTDESK_CLIENTS_DIR"
+    echo ""
+
+    # Show file listing
+    if [[ -d "$RUSTDESK_CLIENTS_DIR" ]]; then
+        echo "  Available files:"
+        ls -lh "$RUSTDESK_CLIENTS_DIR" | grep -v "^total" | awk '{printf "    • %-40s %8s\n", $9, $5}'
+    fi
+
+    echo ""
+    print_info_from_common_functions "Configuration Instructions:"
+    echo "  • See: $readme_file"
+    echo "  • Or run: cat $readme_file"
+    echo ""
+
+    # Check if directory is web-accessible
+    local web_base=$(map_web_path "www_root")
+    if [[ "$RUSTDESK_CLIENTS_DIR" == "$web_base"* ]]; then
+        local web_path="${RUSTDESK_CLIENTS_DIR#$web_base}"
+        print_info_from_common_functions "Web Download (if web server configured):"
+        echo "  • http://your-server$web_path/"
+    fi
+
+    return 0
+}
+
 # Main installation function
 install_rustdesk_server() {
     print_header_from_common_functions "Installing RustDesk Server"
@@ -729,6 +972,13 @@ install_rustdesk_server() {
     # Display connection info
     display_connection_info
 
+    # Save server configuration
+    save_server_config
+
+    # Download and configure clients
+    echo ""
+    download_and_configure_clients
+
     return 0
 }
 
@@ -743,6 +993,25 @@ prompt_installation() {
             print_info_from_common_functions "Latest version: $RUSTDESK_SERVER_VERSION"
         fi
 
+        echo ""
+        print_info_from_common_functions "Refreshing client configuration..."
+        echo ""
+
+        # Wait for services and key generation if needed
+        if systemctl is-active --quiet rustdesk-hbbs; then
+            wait_for_key_generation
+        fi
+
+        # Display current connection info
+        display_connection_info
+
+        # Refresh client downloads and configuration
+        save_server_config
+        echo ""
+        download_and_configure_clients
+
+        echo ""
+        echo "───────────────────────────────────────────────────────────────"
         echo -n "Do you want to reinstall/upgrade? (y/N): "
         read -r response
 
