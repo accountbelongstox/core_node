@@ -27,6 +27,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
+START_DOTNET=$(get_var "START_DOTNET" "false")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "127_install_dotnet")
 LOG_FILE="$SCRIPT_TEMP_DIR/dotnet_install_$(date +%Y%m%d_%H%M%S).log"
 DOTNET_VERSION="8.0"
@@ -44,6 +45,81 @@ log_message "Target .NET version: $DOTNET_VERSION"
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check if .NET is already installed
+check_dotnet_installed() {
+    if command_exists dotnet; then
+        return 0  # true, is installed
+    fi
+    return 1  # false, is not installed
+}
+
+# Function to disable/uninstall .NET
+disable_dotnet() {
+    log_message "Disabling/uninstalling .NET..."
+
+    if ! check_dotnet_installed; then
+        log_message ".NET is not installed"
+        return 0
+    fi
+
+    log_message ".NET is installed, proceeding to remove..."
+
+    # Check if installed via snap
+    if command_exists snap && snap list 2>/dev/null | grep -q "^dotnet-sdk "; then
+        log_message "Removing .NET SDK installed via snap..."
+        $USE_SUDO snap remove dotnet-sdk 2>/dev/null || true
+    fi
+
+    # Remove symlinks
+    log_message "Removing .NET symlinks..."
+    $USE_SUDO rm -f /usr/bin/dotnet 2>/dev/null || true
+    $USE_SUDO rm -f /usr/local/bin/dotnet 2>/dev/null || true
+
+    # Remove installation directory
+    if [ -d "/usr/share/dotnet" ]; then
+        log_message "Removing /usr/share/dotnet directory..."
+        $USE_SUDO rm -rf /usr/share/dotnet
+    fi
+
+    # Remove from PATH in /etc/environment
+    if [ -f /etc/environment ]; then
+        if grep -q "/usr/share/dotnet" /etc/environment 2>/dev/null; then
+            log_message "Removing .NET from /etc/environment PATH..."
+            $USE_SUDO sed -i '/\/usr\/share\/dotnet/d' /etc/environment
+        fi
+    fi
+
+    # Remove .NET tools from user profiles
+    local shell_profiles=(
+        "$HOME/.bashrc"
+        "$HOME/.zshrc"
+        "$HOME/.profile"
+    )
+
+    for profile in "${shell_profiles[@]}"; do
+        if [ -f "$profile" ]; then
+            if grep -q "\.dotnet/tools" "$profile"; then
+                log_message "Removing .NET tools from PATH in $profile"
+                sed -i '/\.dotnet\/tools/d' "$profile"
+                sed -i '/# \.NET tools path/d' "$profile"
+            fi
+        fi
+    done
+
+    # Remove .NET user directory
+    if [ -d "$HOME/.dotnet" ]; then
+        log_message "Removing $HOME/.dotnet directory..."
+        rm -rf "$HOME/.dotnet"
+    fi
+
+    # Verify removal
+    if check_dotnet_installed; then
+        log_message "Warning: Failed to completely remove .NET"
+    else
+        log_message ".NET has been successfully removed"
+    fi
 }
 
 # Function to get OS information
@@ -224,32 +300,73 @@ setup_dotnet_environment() {
 # Main installation logic
 main() {
     log_message "=========================================="
-    log_message "Starting .NET Development Platform Installation"
+    log_message ".NET SDK Management Script"
     log_message "Install Mode: $INSTALL_MODE"
+    log_message "START_DOTNET: $START_DOTNET"
     log_message "=========================================="
-    
-    # Try Microsoft repository first, then snap as fallback
-    if install_dotnet_microsoft_repo; then
-        log_message ".NET installation via Microsoft repository successful"
-    elif install_dotnet_snap; then
-        log_message ".NET installation via snap successful"
-    else
-        log_message "All .NET installation methods failed"
+
+    # Check if .NET should be processed based on installation mode
+    case "$INSTALL_MODE" in
+        "base")
+            log_message "Base mode - .NET installation skipped"
+            exit 0
+            ;;
+        "server"|"full"|"desktop")
+            log_message "Mode: $INSTALL_MODE - Processing .NET..."
+            ;;
+        *)
+            log_message "Unknown mode: $INSTALL_MODE - Defaulting to base (skip)"
+            exit 0
+            ;;
+    esac
+
+    # Process based on START_DOTNET value
+    if [ "$START_DOTNET" = "true" ]; then
+        log_message "START_DOTNET is true - Installing .NET SDK..."
+
+        # Try Microsoft repository first, then snap as fallback
+        if install_dotnet_microsoft_repo; then
+            log_message ".NET installation via Microsoft repository successful"
+        elif install_dotnet_snap; then
+            log_message ".NET installation via snap successful"
+        else
+            log_message "All .NET installation methods failed"
+            log_message "=========================================="
+            log_message ".NET Installation Failed"
+            log_message "Log file: $LOG_FILE"
+            log_message "=========================================="
+            exit 1
+        fi
+
+        # Setup environment and tools
+        setup_dotnet_environment
+
         log_message "=========================================="
-        log_message ".NET Installation Failed"
+        log_message ".NET Installation Complete"
         log_message "Log file: $LOG_FILE"
         log_message "=========================================="
-        exit 1
+        log_message "Note: You may need to restart your shell to use .NET global tools"
+    else
+        log_message "START_DOTNET is false - Skipping .NET installation"
+
+        # If .NET is already installed, remove it
+        if check_dotnet_installed; then
+            log_message ".NET is already installed, proceeding to remove..."
+            disable_dotnet
+
+            log_message "=========================================="
+            log_message ".NET has been removed"
+            log_message "Log file: $LOG_FILE"
+            log_message "=========================================="
+        else
+            log_message ".NET is not installed and will not be installed"
+
+            log_message "=========================================="
+            log_message ".NET skipped"
+            log_message "Log file: $LOG_FILE"
+            log_message "=========================================="
+        fi
     fi
-    
-    # Setup environment and tools
-    setup_dotnet_environment
-    
-    log_message "=========================================="
-    log_message ".NET Installation Complete"
-    log_message "Log file: $LOG_FILE"
-    log_message "=========================================="
-    log_message "Note: You may need to restart your shell to use .NET global tools"
 }
 
 # Execute main function
