@@ -22,11 +22,19 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
+START_DOCKER=$(get_var "START_DOCKER" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
-if [ "$INSTALL_DOCKER" = "false" ]; then
-    echo "Skipping Docker installation,INSTALL_DOCKER: $INSTALL_DOCKER,INSTALL_MODE: $INSTALL_MODE" 
+# Check if Docker is installed
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is not installed. Skipping docker-compose generation."
+    exit 0
+fi
+
+# Check if Docker should be running
+if [ "$START_DOCKER" = "false" ]; then
+    echo "START_DOCKER is false. Skipping docker-compose generation."
+    echo "START_DOCKER: $START_DOCKER, INSTALL_MODE: $INSTALL_MODE"
     exit 0
 fi
 

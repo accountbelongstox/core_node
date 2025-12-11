@@ -24,7 +24,7 @@ SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
+START_DOCKER=$(get_var "START_DOCKER" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
 # Source /etc/environment for CLOUD_PROVIDER
@@ -38,13 +38,16 @@ fi
 SELECTED_REGION=$(get_var "SELECTED_REGION")
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-$(get_var "CLOUD_PROVIDER")}
 
-if [ "$INSTALL_DOCKER" = "false" ]; then
-    echo "Skipping Docker installation,INSTALL_DOCKER: $INSTALL_DOCKER,INSTALL_MODE: $INSTALL_MODE"
+# Check if Docker is installed
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is not installed. Skipping Docker daemon configuration."
     exit 0
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-    echo "Docker is not installed. Skipping Docker daemon configuration."
+# Check if Docker should be running
+if [ "$START_DOCKER" = "false" ]; then
+    echo "START_DOCKER is false. Skipping Docker daemon configuration."
+    echo "START_DOCKER: $START_DOCKER, INSTALL_MODE: $INSTALL_MODE"
     exit 0
 fi
 

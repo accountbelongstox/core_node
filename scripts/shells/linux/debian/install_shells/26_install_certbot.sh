@@ -19,11 +19,9 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Variables
-INSTALL_NGINX=$(get_var "INSTALL_NGINX")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
 echo "[$SCRIPT_INDEX] Certbot SSL Certificate Installation Script"
-echo "[$SCRIPT_INDEX] INSTALL_NGINX: $INSTALL_NGINX"
 echo "[$SCRIPT_INDEX] INSTALL_MODE: $INSTALL_MODE"
 
 # Function to check if Nginx is actually installed
@@ -35,20 +33,13 @@ check_nginx_installed() {
 }
 
 # Check if Nginx is installed (Certbot depends on Nginx)
-if [ "$INSTALL_NGINX" != "true" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_NGINX is set to: $INSTALL_NGINX"
-    echo "[$SCRIPT_INDEX] Checking if Nginx is actually installed..."
-
-    if check_nginx_installed; then
-        echo "[$SCRIPT_INDEX] Nginx is installed, proceeding with Certbot installation"
-    else
-        echo "[$SCRIPT_INDEX] Skipping Certbot installation - Nginx is not installed"
-        echo "[$SCRIPT_INDEX] Certbot requires Nginx to be installed"
-        exit 0
-    fi
-else
-    echo "[$SCRIPT_INDEX] INSTALL_NGINX is enabled, proceeding with Certbot installation"
+if ! check_nginx_installed; then
+    echo "[$SCRIPT_INDEX] Skipping Certbot installation - Nginx is not installed"
+    echo "[$SCRIPT_INDEX] Certbot requires Nginx to be installed"
+    exit 0
 fi
+
+echo "[$SCRIPT_INDEX] Nginx is installed, proceeding with Certbot installation"
 
 check_and_install_sudo
 
