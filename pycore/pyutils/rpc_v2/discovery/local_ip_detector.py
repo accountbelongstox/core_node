@@ -9,9 +9,9 @@ import socket
 from typing import Optional
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_netifaces
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
-netifaces = get_third_package_netifaces()
+psutil = get_third_package_psutil()
 
 
 def get_local_lan_ip(debug: bool = False) -> Optional[str]:
@@ -36,15 +36,18 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
     except Exception:
         pass
 
-    for interface in netifaces.interfaces():
-        addrs = netifaces.ifaddresses(interface)
-        if netifaces.AF_INET in addrs:
-            for addr_info in addrs[netifaces.AF_INET]:
-                ip = addr_info.get("addr")
-                if ip and not ip.startswith(("127.", "169.254.")):
-                    if debug:
-                        ColorPrint.blue(f"[LocalIPDetector] Netifaces LAN IP: {ip}")
-                    return ip
+    # Use psutil to get network interfaces
+    try:
+        for interface, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET:
+                    ip = addr.address
+                    if ip and not ip.startswith(("127.", "169.254.")):
+                        if debug:
+                            ColorPrint.blue(f"[LocalIPDetector] psutil LAN IP: {ip}")
+                        return ip
+    except Exception:
+        pass
 
     if debug:
         ColorPrint.yellow("[LocalIPDetector] Could not detect local LAN IP")
