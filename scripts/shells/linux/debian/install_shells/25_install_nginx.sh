@@ -44,18 +44,41 @@ disable_nginx() {
 
     echo "[$SCRIPT_INDEX] Nginx is installed, proceeding to disable services..."
 
+    # Stop nginx service
     if systemctl is-active --quiet nginx 2>/dev/null; then
         echo "[$SCRIPT_INDEX] Stopping Nginx service..."
         $USE_SUDO systemctl stop nginx
-    else
-        echo "[$SCRIPT_INDEX] Nginx service is not running"
     fi
 
+    # Wait a moment and check if nginx processes are still running
+    sleep 1
+
+    # Kill any remaining nginx processes
+    if pgrep -x nginx >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Nginx processes still running, killing them..."
+        $USE_SUDO pkill -TERM nginx 2>/dev/null || true
+        sleep 2
+
+        # Force kill if still running
+        if pgrep -x nginx >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Force killing nginx processes..."
+            $USE_SUDO pkill -9 nginx 2>/dev/null || true
+        fi
+    fi
+
+    # Verify nginx is stopped
+    if pgrep -x nginx >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Warning: Failed to stop all nginx processes"
+    else
+        echo "[$SCRIPT_INDEX] Nginx service stopped successfully"
+    fi
+
+    # Disable nginx from auto-start
     if systemctl is-enabled --quiet nginx 2>/dev/null; then
         echo "[$SCRIPT_INDEX] Disabling Nginx service from auto-start..."
         $USE_SUDO systemctl disable nginx
     else
-        echo "[$SCRIPT_INDEX] Nginx service is not enabled for auto-start"
+        echo "[$SCRIPT_INDEX] Nginx service is already disabled from auto-start"
     fi
 
     echo "[$SCRIPT_INDEX] Nginx service disabled successfully"
