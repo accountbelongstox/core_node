@@ -680,12 +680,23 @@ function Show-GitManagementMenu {
                 Read-Host "Press Enter to return to Git Management menu"
             }
             "2" {
-                $bfgCleanupScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\cleanup_repo_with_bfg.ps1"
-                Write-ColorMessage -Message "Launching BFG Repo-Cleaner..." -Type "Info"
-                if (Test-Path $bfgCleanupScript) {
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $bfgCleanupScript
+                $gitManagementScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_management.py"
+                Write-ColorMessage -Message "Launching Git Management (Python)..." -Type "Info"
+                if (Test-Path $gitManagementScript) {
+                    $pythonCommand = $null
+                    if (Get-Command python -ErrorAction SilentlyContinue) {
+                        $pythonCommand = "python"
+                    } elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+                        $pythonCommand = "python3"
+                    }
+
+                    if ($pythonCommand) {
+                        & $pythonCommand $gitManagementScript
+                    } else {
+                        Write-ColorMessage -Message "Error: Python not found. Please install Python 3.6 or higher." -Type "Error"
+                    }
                 } else {
-                    Write-ColorMessage -Message "Error: BFG cleanup script not found at $bfgCleanupScript" -Type "Error"
+                    Write-ColorMessage -Message "Error: Git management script not found at $gitManagementScript" -Type "Error"
                 }
                 Read-Host "Press Enter to return to Git Management menu"
             }
