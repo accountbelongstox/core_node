@@ -30,9 +30,17 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Check if Docker installation is enabled
-INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
-if [ "$INSTALL_DOCKER" != "true" ]; then
-    echo "[49] Skipping Docker Compose finish (INSTALL_DOCKER: $INSTALL_DOCKER)"
+START_DOCKER=$(get_var "START_DOCKER" "false")
+
+# Check if Docker is installed
+if ! command -v docker >/dev/null 2>&1; then
+    echo "[49] Docker is not installed. Skipping Docker Compose finish."
+    exit 0
+fi
+
+# Check if Docker should be running
+if [ "$START_DOCKER" != "true" ]; then
+    echo "[49] Skipping Docker Compose finish (START_DOCKER: $START_DOCKER)"
     exit 0
 fi
 

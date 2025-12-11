@@ -317,16 +317,8 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    # Get pnpm path using gvar_common.sh helper function
-    pnpm_cmd=$(get_pnpm_abspath)
-
-    if [ -z "$pnpm_cmd" ] || [ ! -f "$pnpm_cmd" ]; then
-        echo "[$SCRIPT_INDEX] [ERROR] pnpm not found"
-        echo "[$SCRIPT_INDEX] Please install pnpm first (npm install -g pnpm)"
-        cd - >/dev/null
-        exit 1
-    fi
-
+    # Trust that pnpm is available via global variables (信任式编程)
+    pnpm_cmd="${PNPM_BIN:-$NODE_BIN_DIR/pnpm}"
     echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
 
     # Check Node.js
