@@ -317,25 +317,17 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    # Get Node.js and pnpm paths from gvar_common.sh
-    node_install_dir=$(map_web_path "dev_system")
-    node_version="v24.11.1"
-    pnpm_abspath="$node_install_dir/node/$node_version/bin/pnpm"
+    # Get pnpm path using gvar_common.sh helper function
+    pnpm_cmd=$(get_pnpm_abspath)
 
-    # Try absolute path first, then fallback to command
-    pnpm_cmd=""
-    if [ -f "$pnpm_abspath" ]; then
-        pnpm_cmd="$pnpm_abspath"
-        echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
-    elif command -v pnpm >/dev/null 2>&1; then
-        pnpm_cmd="pnpm"
-        echo "[$SCRIPT_INDEX] Using system pnpm"
-    else
+    if [ -z "$pnpm_cmd" ] || [ ! -f "$pnpm_cmd" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] pnpm not found"
         echo "[$SCRIPT_INDEX] Please install pnpm first (npm install -g pnpm)"
         cd - >/dev/null
         exit 1
     fi
+
+    echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
 
     # Check Node.js
     if command -v node >/dev/null 2>&1; then
