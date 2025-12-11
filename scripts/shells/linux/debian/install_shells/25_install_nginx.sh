@@ -1405,97 +1405,81 @@ remove_caddy_if_exists
 # Wait for apt to fully release lock
 sleep 2
 
-# Step 2: Ensure Nginx is installed
-echo "[$SCRIPT_INDEX] Checking Nginx installation..."
-if check_nginx; then
-    echo "[$SCRIPT_INDEX] [OK] Nginx is already installed: $(nginx -v 2>&1)"
-else
-    echo "[$SCRIPT_INDEX] Installing Nginx..."
-    install_nginx
-    if ! check_nginx; then
-        echo "[$SCRIPT_INDEX] [FAIL] Nginx installation failed"
-        exit 1
+# Check START_NGINX variable to determine action
+if [ "$START_NGINX" = "true" ]; then
+    echo "[$SCRIPT_INDEX] START_NGINX is true - Installing and configuring Nginx..."
+
+    # Step 2: Ensure Nginx is installed
+    echo "[$SCRIPT_INDEX] Checking Nginx installation..."
+    if check_nginx; then
+        echo "[$SCRIPT_INDEX] [OK] Nginx is already installed: $(nginx -v 2>&1)"
+    else
+        echo "[$SCRIPT_INDEX] Installing Nginx..."
+        install_nginx
+        if ! check_nginx; then
+            echo "[$SCRIPT_INDEX] [FAIL] Nginx installation failed"
+            exit 1
+        fi
+        echo "[$SCRIPT_INDEX] [OK] Nginx installed successfully: $(nginx -v 2>&1)"
     fi
-    echo "[$SCRIPT_INDEX] [OK] Nginx installed successfully: $(nginx -v 2>&1)"
-fi
 
-# Step 3: Fix directory structure and permissions (always run)
-fix_directory_structure
+    # Step 3: Fix directory structure and permissions (always run)
+    fix_directory_structure
 
-# Step 4: Fix Nginx service (always run)
-fix_nginx_service
+    # Step 4: Fix Nginx service (always run)
+    fix_nginx_service
 
-# Step 5: Create/fix Nginx symlink (always run)
-create_nginx_symlink
+    # Step 5: Create/fix Nginx symlink (always run)
+    create_nginx_symlink
 
-# Step 6: Configure Nginx for port 80 (always run)
-echo "[$SCRIPT_INDEX] Configuring Nginx for port $NGINX_PORT..."
-configure_nginx_port
+    # Step 6: Configure Nginx for port 80 (always run)
+    echo "[$SCRIPT_INDEX] Configuring Nginx for port $NGINX_PORT..."
+    configure_nginx_port
 
-# Step 7: Fix default HTML page with current IPs (always run)
-fix_default_html
+    # Step 7: Fix default HTML page with current IPs (always run)
+    fix_default_html
 
-# Step 8: Setup Laravel ServerManager compatibility
-echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
-setup_laravel_compatibility
+    # Step 8: Setup Laravel ServerManager compatibility
+    echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
+    setup_laravel_compatibility
 
-# Step 8.5: Update nginx.conf (always run)
-echo "[$SCRIPT_INDEX] Updating nginx.conf configuration..."
-update_nginx_conf
+    # Step 8.5: Update nginx.conf (always run)
+    echo "[$SCRIPT_INDEX] Updating nginx.conf configuration..."
+    update_nginx_conf
 
-# Step 8.6: Check and fix duplicate default_server declarations (always run)
-echo "[$SCRIPT_INDEX] Checking for duplicate default_server declarations..."
-check_and_fix_duplicate_default_servers
-
-# Step 9: Create nginx configuration symlinks
-echo "[$SCRIPT_INDEX] Setting up nginx configuration symlinks..."
-create_nginx_config_symlinks
-
-# Step 10: Verify and fix symlinks (always run)
-verify_and_fix_symlinks
-
-# Step 11: Store/update Nginx information (always run)
-store_nginx_info
-
-# Step 12: Comprehensive verification and final repair attempt
-echo "[$SCRIPT_INDEX] COMPREHENSIVE VERIFICATION"
-
-if ! verify_nginx_installation; then
-    echo "[$SCRIPT_INDEX] [WARN] Initial verification failed, attempting repairs..."
-
-    # Repair attempt 1: Clean up configs and test
-    echo "[$SCRIPT_INDEX] Attempting to clean up configurations..."
-    cleanup_broken_configs
-
-    # Check for duplicate default_server declarations
+    # Step 8.6: Check and fix duplicate default_server declarations (always run)
+    echo "[$SCRIPT_INDEX] Checking for duplicate default_server declarations..."
     check_and_fix_duplicate_default_servers
 
-    # Test configuration before restart
-    echo "[$SCRIPT_INDEX] Testing configuration before restart..."
-    if $USE_SUDO nginx -t; then
-        echo "[$SCRIPT_INDEX] [OK] Configuration test passed"
+    # Step 9: Create nginx configuration symlinks
+    echo "[$SCRIPT_INDEX] Setting up nginx configuration symlinks..."
+    create_nginx_config_symlinks
 
-        # Only restart if START_NGINX is true
-        if [ "$START_NGINX" = "true" ]; then
-            echo "[$SCRIPT_INDEX] START_NGINX is true, restarting service..."
-            $USE_SUDO systemctl restart nginx
-            sleep 3
-        else
-            echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service restart"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] [FAIL] Configuration test failed even after cleanup"
-        echo "[$SCRIPT_INDEX] Configuration error details:"
-        $USE_SUDO nginx -t 2>&1 || true
-    fi
+    # Step 10: Verify and fix symlinks (always run)
+    verify_and_fix_symlinks
 
-    # Repair attempt 2: Fix configuration and restart
+    # Step 11: Store/update Nginx information (always run)
+    store_nginx_info
+
+    # Step 12: Comprehensive verification and final repair attempt
+    echo "[$SCRIPT_INDEX] COMPREHENSIVE VERIFICATION"
+
     if ! verify_nginx_installation; then
-        echo "[$SCRIPT_INDEX] Reconfiguring and restarting..."
-        configure_nginx_port
+        echo "[$SCRIPT_INDEX] [WARN] Initial verification failed, attempting repairs..."
 
-        # Only restart if config test passes and START_NGINX is true
+        # Repair attempt 1: Clean up configs and test
+        echo "[$SCRIPT_INDEX] Attempting to clean up configurations..."
+        cleanup_broken_configs
+
+        # Check for duplicate default_server declarations
+        check_and_fix_duplicate_default_servers
+
+        # Test configuration before restart
+        echo "[$SCRIPT_INDEX] Testing configuration before restart..."
         if $USE_SUDO nginx -t; then
+            echo "[$SCRIPT_INDEX] [OK] Configuration test passed"
+
+            # Only restart if START_NGINX is true
             if [ "$START_NGINX" = "true" ]; then
                 echo "[$SCRIPT_INDEX] START_NGINX is true, restarting service..."
                 $USE_SUDO systemctl restart nginx
@@ -1503,95 +1487,132 @@ if ! verify_nginx_installation; then
             else
                 echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service restart"
             fi
+        else
+            echo "[$SCRIPT_INDEX] [FAIL] Configuration test failed even after cleanup"
+            echo "[$SCRIPT_INDEX] Configuration error details:"
+            $USE_SUDO nginx -t 2>&1 || true
+        fi
+
+        # Repair attempt 2: Fix configuration and restart
+        if ! verify_nginx_installation; then
+            echo "[$SCRIPT_INDEX] Reconfiguring and restarting..."
+            configure_nginx_port
+
+            # Only restart if config test passes and START_NGINX is true
+            if $USE_SUDO nginx -t; then
+                if [ "$START_NGINX" = "true" ]; then
+                    echo "[$SCRIPT_INDEX] START_NGINX is true, restarting service..."
+                    $USE_SUDO systemctl restart nginx
+                    sleep 3
+                else
+                    echo "[$SCRIPT_INDEX] START_NGINX is false, skipping service restart"
+                fi
+            fi
+        fi
+
+        # Final check
+        if ! verify_nginx_installation; then
+            echo "[$SCRIPT_INDEX] [FAIL] Nginx repair attempts failed"
+            echo "[$SCRIPT_INDEX] Manual intervention may be required"
+            echo "[$SCRIPT_INDEX] Check the Nginx error log: sudo journalctl -xeu nginx.service"
+            exit 1
         fi
     fi
 
-    # Final check
-    if ! verify_nginx_installation; then
-        echo "[$SCRIPT_INDEX] [FAIL] Nginx repair attempts failed"
-        echo "[$SCRIPT_INDEX] Manual intervention may be required"
-        echo "[$SCRIPT_INDEX] Check the Nginx error log: sudo journalctl -xeu nginx.service"
-        exit 1
+    # Success report
+    print_final_summary() {
+        local server_ips=($(detect_server_ips))
+        echo ""
+        echo "[$SCRIPT_INDEX] =============================================="
+        echo "[$SCRIPT_INDEX] NGINX INSTALLATION COMPLETED SUCCESSFULLY"
+        echo "[$SCRIPT_INDEX] =============================================="
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Nginx Installation Status:"
+        echo "[$SCRIPT_INDEX] -------------------------"
+        echo "[$SCRIPT_INDEX] Version: $(nginx -v 2>&1 | cut -d' ' -f3)"
+        echo "[$SCRIPT_INDEX] START_NGINX Setting: $START_NGINX"
+        echo "[$SCRIPT_INDEX] Service Status: $(systemctl is-active nginx)"
+        echo "[$SCRIPT_INDEX] Service Enabled: $(systemctl is-enabled nginx)"
+        echo "[$SCRIPT_INDEX] Listening Port: $NGINX_PORT"
+        echo "[$SCRIPT_INDEX] Website Root: $WWW_ROOT (Permissions: 777)"
+        echo "[$SCRIPT_INDEX] Config Directory: $NGINX_CONFIG_DIR"
+        echo "[$SCRIPT_INDEX] Binary Path: $(which nginx)"
+        echo "[$SCRIPT_INDEX] Symlink: /usr/local/bin/nginx -> $(readlink /usr/local/bin/nginx 2>/dev/null || echo 'Not found')"
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Detected Server IPs: ${server_ips[*]}"
+        echo "[$SCRIPT_INDEX] Access URLs (Copy for testing):"
+        for ip in "${server_ips[@]}"; do
+            if [ "$ip" != "localhost" ]; then
+                echo "[$SCRIPT_INDEX]   http://$ip:$NGINX_PORT"
+            fi
+        done
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Integration Status:"
+        echo "[$SCRIPT_INDEX] ------------------"
+
+        # Check PHP integration (Using Swoole, not FPM)
+        if command -v php >/dev/null 2>&1; then
+            local php_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
+            if [[ "$php_version" == "8.5"* ]]; then
+                echo "[$SCRIPT_INDEX] PHP Integration: ACTIVE (PHP $php_version with Swoole)"
+                echo "[$SCRIPT_INDEX]   - Using Swoole with Laravel Octane (no PHP-FPM)"
+                echo "[$SCRIPT_INDEX]   - PHP CLI available for scripts"
+            else
+                echo "[$SCRIPT_INDEX] PHP Integration: VERSION MISMATCH (found $php_version, need 8.5)"
+                echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to update PHP"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] PHP Integration: NOT INSTALLED"
+            echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to enable PHP support"
+        fi
+
+        # Check Certbot integration
+        if command -v certbot >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Certbot Integration: AVAILABLE"
+            echo "[$SCRIPT_INDEX]   - SSL certificates can be obtained via Certbot"
+            echo "[$SCRIPT_INDEX]   - Run 26_install_certbot.sh for SSL setup"
+            echo "[$SCRIPT_INDEX]   - Nginx is configured for Let's Encrypt challenges"
+        else
+            echo "[$SCRIPT_INDEX] Certbot Integration: NOT INSTALLED"
+            echo "[$SCRIPT_INDEX]   - Run 26_install_certbot.sh to enable SSL support"
+        fi
+
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Management Commands:"
+        echo "[$SCRIPT_INDEX] -------------------"
+        echo "[$SCRIPT_INDEX] Start:    sudo systemctl start nginx"
+        echo "[$SCRIPT_INDEX] Stop:     sudo systemctl stop nginx"
+        echo "[$SCRIPT_INDEX] Restart:  sudo systemctl restart nginx"
+        echo "[$SCRIPT_INDEX] Status:   sudo systemctl status nginx"
+        echo "[$SCRIPT_INDEX] Test:     sudo nginx -t"
+        echo "[$SCRIPT_INDEX] Disable:  Press 'D' in selector menu"
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Configuration Files:"
+        echo "[$SCRIPT_INDEX] -------------------"
+        echo "[$SCRIPT_INDEX] Main Config: /etc/nginx/nginx.conf"
+        echo "[$SCRIPT_INDEX] Site Config: $NGINX_CONFIG_DIR/sites-available/default"
+        echo "[$SCRIPT_INDEX] Enabled Sites: $NGINX_CONFIG_DIR/sites-enabled/"
+        echo "[$SCRIPT_INDEX] Symlinked Config: $NGINX_CONFIG_DIR/ (symlinks to /etc/nginx/)"
+        echo "[$SCRIPT_INDEX] "
+        echo "[$SCRIPT_INDEX] Script can be run repeatedly for maintenance and repairs"
+        echo "[$SCRIPT_INDEX] =============================================="
+    }
+
+    print_final_summary
+else
+    echo "[$SCRIPT_INDEX] START_NGINX is false - Skipping Nginx installation"
+
+    # If Nginx is already installed, stop and disable it
+    if check_nginx; then
+        echo "[$SCRIPT_INDEX] Nginx is already installed, stopping and disabling services..."
+        disable_nginx
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Nginx is installed but stopped and disabled"
+        echo "[$SCRIPT_INDEX] ============================================"
+    else
+        echo "[$SCRIPT_INDEX] Nginx is not installed and will not be installed"
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Nginx skipped"
+        echo "[$SCRIPT_INDEX] ============================================"
     fi
 fi
-
-# Step 10: Success report with detected IPs and integration info
-print_final_summary() {
-    local server_ips=($(detect_server_ips))
-    echo ""
-    echo "[$SCRIPT_INDEX] =============================================="
-    echo "[$SCRIPT_INDEX] NGINX INSTALLATION COMPLETED SUCCESSFULLY"
-    echo "[$SCRIPT_INDEX] =============================================="
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Nginx Installation Status:"
-    echo "[$SCRIPT_INDEX] -------------------------"
-    echo "[$SCRIPT_INDEX] Version: $(nginx -v 2>&1 | cut -d' ' -f3)"
-    echo "[$SCRIPT_INDEX] START_NGINX Setting: $START_NGINX"
-    echo "[$SCRIPT_INDEX] Service Status: $(systemctl is-active nginx)"
-    echo "[$SCRIPT_INDEX] Service Enabled: $(systemctl is-enabled nginx)"
-    echo "[$SCRIPT_INDEX] Listening Port: $NGINX_PORT"
-    echo "[$SCRIPT_INDEX] Website Root: $WWW_ROOT (Permissions: 777)"
-    echo "[$SCRIPT_INDEX] Config Directory: $NGINX_CONFIG_DIR"
-    echo "[$SCRIPT_INDEX] Binary Path: $(which nginx)"
-    echo "[$SCRIPT_INDEX] Symlink: /usr/local/bin/nginx -> $(readlink /usr/local/bin/nginx 2>/dev/null || echo 'Not found')"
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Detected Server IPs: ${server_ips[*]}"
-    echo "[$SCRIPT_INDEX] Access URLs (Copy for testing):"
-    for ip in "${server_ips[@]}"; do
-        if [ "$ip" != "localhost" ]; then
-            echo "[$SCRIPT_INDEX]   http://$ip:$NGINX_PORT"
-        fi
-    done
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Integration Status:"
-    echo "[$SCRIPT_INDEX] ------------------"
-
-    # Check PHP integration (Using Swoole, not FPM)
-    if command -v php >/dev/null 2>&1; then
-        local php_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
-        if [[ "$php_version" == "8.5"* ]]; then
-            echo "[$SCRIPT_INDEX] PHP Integration: ACTIVE (PHP $php_version with Swoole)"
-            echo "[$SCRIPT_INDEX]   - Using Swoole with Laravel Octane (no PHP-FPM)"
-            echo "[$SCRIPT_INDEX]   - PHP CLI available for scripts"
-        else
-            echo "[$SCRIPT_INDEX] PHP Integration: VERSION MISMATCH (found $php_version, need 8.5)"
-            echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to update PHP"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] PHP Integration: NOT INSTALLED"
-        echo "[$SCRIPT_INDEX]   - Run 31_ensure_php85_intelligent.sh to enable PHP support"
-    fi
-
-    # Check Certbot integration
-    if command -v certbot >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] Certbot Integration: AVAILABLE"
-        echo "[$SCRIPT_INDEX]   - SSL certificates can be obtained via Certbot"
-        echo "[$SCRIPT_INDEX]   - Run 26_install_certbot.sh for SSL setup"
-        echo "[$SCRIPT_INDEX]   - Nginx is configured for Let's Encrypt challenges"
-    else
-        echo "[$SCRIPT_INDEX] Certbot Integration: NOT INSTALLED"
-        echo "[$SCRIPT_INDEX]   - Run 26_install_certbot.sh to enable SSL support"
-    fi
-
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Management Commands:"
-    echo "[$SCRIPT_INDEX] -------------------"
-    echo "[$SCRIPT_INDEX] Start:    sudo systemctl start nginx"
-    echo "[$SCRIPT_INDEX] Stop:     sudo systemctl stop nginx"
-    echo "[$SCRIPT_INDEX] Restart:  sudo systemctl restart nginx"
-    echo "[$SCRIPT_INDEX] Status:   sudo systemctl status nginx"
-    echo "[$SCRIPT_INDEX] Test:     sudo nginx -t"
-    echo "[$SCRIPT_INDEX] Disable:  Press 'D' in selector menu"
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Configuration Files:"
-    echo "[$SCRIPT_INDEX] -------------------"
-    echo "[$SCRIPT_INDEX] Main Config: /etc/nginx/nginx.conf"
-    echo "[$SCRIPT_INDEX] Site Config: $NGINX_CONFIG_DIR/sites-available/default"
-    echo "[$SCRIPT_INDEX] Enabled Sites: $NGINX_CONFIG_DIR/sites-enabled/"
-    echo "[$SCRIPT_INDEX] Symlinked Config: $NGINX_CONFIG_DIR/ (symlinks to /etc/nginx/)"
-    echo "[$SCRIPT_INDEX] "
-    echo "[$SCRIPT_INDEX] Script can be run repeatedly for maintenance and repairs"
-    echo "[$SCRIPT_INDEX] =============================================="
-}
-
-print_final_summary
