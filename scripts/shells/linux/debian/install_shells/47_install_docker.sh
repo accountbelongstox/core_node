@@ -36,7 +36,6 @@ SCRIPT_INDEX="47"
 START_DOCKER=$(get_var "START_DOCKER" "false")
 
 echo "[$SCRIPT_INDEX] Docker Management Script"
-echo "[$SCRIPT_INDEX] Docker will always be installed"
 echo "[$SCRIPT_INDEX] START_DOCKER: $START_DOCKER"
 
 # Function to check if command exists
@@ -46,31 +45,73 @@ command_exists() {
 
 # Function to check if Docker service is running
 is_docker_running() {
+    # Check standard docker service
     if command_exists systemctl; then
-        if systemctl is-active --quiet docker; then
+        if systemctl is-active --quiet docker 2>/dev/null; then
             return 0
-        else
-            return 1
+        fi
+        # Check snap docker service
+        if systemctl is-active --quiet snap.docker.dockerd 2>/dev/null; then
+            return 0
         fi
     elif command_exists service; then
         if service docker status >/dev/null 2>&1; then
             return 0
-        else
-            return 1
         fi
-    else
-        return 1
     fi
+
+    # Check if dockerd process is running
+    if pgrep -x dockerd >/dev/null 2>&1; then
+        return 0
+    fi
+
+    return 1
 }
 
 # Function to disable Docker services
 disable_docker_services() {
     echo "[$SCRIPT_INDEX] Disabling Docker services..."
-    
+
     # Stop Docker service if running
     if is_docker_running; then
         echo "[$SCRIPT_INDEX] Stopping Docker service..."
-        $USE_SUDO systemctl stop docker 2>/dev/null || $USE_SUDO service docker stop 2>/dev/null
+
+        # Try to stop standard docker service
+        if systemctl is-active --quiet docker 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] Stopping standard docker service..."
+            $USE_SUDO systemctl stop docker 2>/dev/null
+        fi
+
+        # Try to stop snap docker service
+        if systemctl is-active --quiet snap.docker.dockerd 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] Stopping snap docker service..."
+            $USE_SUDO systemctl stop snap.docker.dockerd 2>/dev/null
+            $USE_SUDO snap stop docker 2>/dev/null || true
+        fi
+
+        # Kill any remaining dockerd processes
+        if pgrep -x dockerd >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Killing remaining dockerd processes..."
+            $USE_SUDO pkill -TERM dockerd 2>/dev/null || true
+            sleep 2
+            # Force kill if still running
+            if pgrep -x dockerd >/dev/null 2>&1; then
+                $USE_SUDO pkill -9 dockerd 2>/dev/null || true
+            fi
+        fi
+
+        # Kill containerd processes
+        if pgrep -x containerd >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Killing containerd processes..."
+            $USE_SUDO pkill -TERM containerd 2>/dev/null || true
+            sleep 1
+            if pgrep -x containerd >/dev/null 2>&1; then
+                $USE_SUDO pkill -9 containerd 2>/dev/null || true
+            fi
+        fi
+
+        sleep 1
+
         if is_docker_running; then
             echo "[$SCRIPT_INDEX] Warning: Failed to stop Docker service"
         else
@@ -79,20 +120,30 @@ disable_docker_services() {
     else
         echo "[$SCRIPT_INDEX] Docker service is not running"
     fi
-    
+
     # Disable Docker service from auto-start
     echo "[$SCRIPT_INDEX] Disabling Docker service from auto-start..."
-    $USE_SUDO systemctl disable docker 2>/dev/null || $USE_SUDO update-rc.d docker disable 2>/dev/null
-    
+
+    # Disable standard docker
+    $USE_SUDO systemctl disable docker 2>/dev/null || true
+
+    # Disable snap docker
+    if command -v snap >/dev/null 2>&1; then
+        if snap list 2>/dev/null | grep -q "^docker "; then
+            echo "[$SCRIPT_INDEX] Disabling snap docker from auto-start..."
+            $USE_SUDO systemctl disable snap.docker.dockerd 2>/dev/null || true
+        fi
+    fi
+
     # Disable Docker Compose service if exists
     if command_exists systemctl; then
         if systemctl list-unit-files | grep -q docker-compose; then
             echo "[$SCRIPT_INDEX] Disabling Docker Compose service..."
-            $USE_SUDO systemctl stop docker-compose 2>/dev/null
-            $USE_SUDO systemctl disable docker-compose 2>/dev/null
+            $USE_SUDO systemctl stop docker-compose 2>/dev/null || true
+            $USE_SUDO systemctl disable docker-compose 2>/dev/null || true
         fi
     fi
-    
+
     echo "[$SCRIPT_INDEX] Docker services disabled successfully"
 }
 
@@ -192,20 +243,17 @@ echo "[$SCRIPT_INDEX] === Docker Management ==="
 # Remove docker.list file regardless of installation status
 remove_docker_list_file
 
-# Main installation logic - Docker is always installed
-echo "[$SCRIPT_INDEX] ============================================"
-echo "[$SCRIPT_INDEX] Installing Docker..."
-echo "[$SCRIPT_INDEX] ============================================"
-
-# Install Docker if not present
-install_docker_with_snap_if_needed
-install_docker_compose_with_snap_if_needed
-
-# Configure service based on START_DOCKER variable
+# Configure based on START_DOCKER variable
 if [ "$START_DOCKER" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_DOCKER is true - Enabling and starting Docker..."
+    echo "[$SCRIPT_INDEX] START_DOCKER is true - Installing and starting Docker..."
     echo "[$SCRIPT_INDEX] ============================================"
+
+    # Install Docker if not present
+    install_docker_with_snap_if_needed
+    install_docker_compose_with_snap_if_needed
+
+    # Enable and start services
     enable_docker_services
 
     # Set global variables
@@ -217,19 +265,32 @@ if [ "$START_DOCKER" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
 else
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_DOCKER is false - Disabling Docker service to save memory..."
+    echo "[$SCRIPT_INDEX] START_DOCKER is false - Skipping Docker installation"
     echo "[$SCRIPT_INDEX] ============================================"
-    disable_docker_services
 
-    # Set global variables
-    set_var "DOCKER_AVAILABLE" "true"
-    set_var "DOCKER_ENABLED" "false"
+    # If Docker is already installed, stop and disable it
+    if command_exists docker; then
+        echo "[$SCRIPT_INDEX] Docker is already installed, stopping and disabling services..."
+        disable_docker_services
 
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] IMPORTANT: Docker is installed but NOT running"
-    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
-    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start Docker when needed"
-    echo "[$SCRIPT_INDEX] ============================================"
+        # Set global variables
+        set_var "DOCKER_AVAILABLE" "true"
+        set_var "DOCKER_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Docker is installed but stopped and disabled"
+        echo "[$SCRIPT_INDEX] ============================================"
+    else
+        echo "[$SCRIPT_INDEX] Docker is not installed and will not be installed"
+
+        # Set global variables
+        set_var "DOCKER_AVAILABLE" "false"
+        set_var "DOCKER_ENABLED" "false"
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Docker skipped"
+        echo "[$SCRIPT_INDEX] ============================================"
+    fi
 fi
 
 echo "[$SCRIPT_INDEX] Docker configuration completed"

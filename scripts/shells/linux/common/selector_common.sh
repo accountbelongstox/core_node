@@ -458,7 +458,7 @@ manage_nginx_service() {
         fi
 
         echo "Nginx service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_NGINX=true and run the installation script."
+        echo "To re-enable, set START_NGINX=true and run the installation script."
     else
         echo "Nginx is not installed."
     fi
@@ -499,7 +499,7 @@ manage_mysql_service() {
         fi
 
         echo "$found_service service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_MYSQL=true and run the installation script."
+        echo "To re-enable, set START_MYSQL=true and run the installation script."
     else
         echo "MySQL/MariaDB is not installed."
     fi
@@ -540,7 +540,7 @@ manage_redis_service() {
         fi
 
         echo "$found_service service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_REDIS=true and run the installation script."
+        echo "To re-enable, set START_REDIS=true and run the installation script."
     else
         echo "Redis is not installed."
     fi
