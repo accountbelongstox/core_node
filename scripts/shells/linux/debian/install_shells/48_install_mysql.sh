@@ -90,24 +90,42 @@ is_mysql_running() {
 # Function to disable MySQL services
 disable_mysql_services() {
     echo "[$SCRIPT_INDEX] Disabling MySQL services..."
-    
+
     # Stop MySQL service if running
     if is_mysql_running; then
         echo "[$SCRIPT_INDEX] Stopping MySQL service..."
         $USE_SUDO systemctl stop mariadb 2>/dev/null || $USE_SUDO service mariadb stop 2>/dev/null
-        if is_mysql_running; then
-            echo "[$SCRIPT_INDEX] Warning: Failed to stop MySQL service"
-        else
-            echo "[$SCRIPT_INDEX] MySQL service stopped successfully"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] MySQL service is not running"
     fi
-    
+
+    # Wait a moment and check if MySQL processes are still running
+    sleep 1
+
+    # Kill any remaining mariadb/mysqld processes
+    if pgrep -x mariadbd >/dev/null 2>&1 || pgrep -x mysqld >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] MySQL processes still running, killing them..."
+        $USE_SUDO pkill -TERM mariadbd 2>/dev/null || true
+        $USE_SUDO pkill -TERM mysqld 2>/dev/null || true
+        sleep 2
+
+        # Force kill if still running
+        if pgrep -x mariadbd >/dev/null 2>&1 || pgrep -x mysqld >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Force killing MySQL processes..."
+            $USE_SUDO pkill -9 mariadbd 2>/dev/null || true
+            $USE_SUDO pkill -9 mysqld 2>/dev/null || true
+        fi
+    fi
+
+    # Verify MySQL is stopped
+    if is_mysql_running; then
+        echo "[$SCRIPT_INDEX] Warning: Failed to stop all MySQL processes"
+    else
+        echo "[$SCRIPT_INDEX] MySQL service stopped successfully"
+    fi
+
     # Disable MySQL service from auto-start
     echo "[$SCRIPT_INDEX] Disabling MySQL service from auto-start..."
     $USE_SUDO systemctl disable mariadb 2>/dev/null || $USE_SUDO update-rc.d mariadb disable 2>/dev/null
-    
+
     echo "[$SCRIPT_INDEX] MySQL services disabled successfully"
 }
 

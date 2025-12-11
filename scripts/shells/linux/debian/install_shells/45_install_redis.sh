@@ -62,6 +62,29 @@ disable_redis_services() {
         fi
     done
 
+    # Wait a moment and check if Redis processes are still running
+    sleep 1
+
+    # Kill any remaining redis-server processes
+    if pgrep -x redis-server >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Redis processes still running, killing them..."
+        $USE_SUDO pkill -TERM redis-server 2>/dev/null || true
+        sleep 2
+
+        # Force kill if still running
+        if pgrep -x redis-server >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] Force killing Redis processes..."
+            $USE_SUDO pkill -9 redis-server 2>/dev/null || true
+        fi
+    fi
+
+    # Verify Redis is stopped
+    if pgrep -x redis-server >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Warning: Failed to stop all Redis processes"
+    else
+        echo "[$SCRIPT_INDEX] Redis processes stopped successfully"
+    fi
+
     if [ -z "$found_service" ]; then
         echo "[$SCRIPT_INDEX] No Redis services found to disable"
     fi
