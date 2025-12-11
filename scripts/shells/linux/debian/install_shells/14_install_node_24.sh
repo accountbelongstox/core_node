@@ -595,13 +595,14 @@ verify_and_fix_all_configs() {
 
     echo ""
     echo "[2/4] Checking pnpm installation..."
-    if ! command -v pnpm >/dev/null 2>&1; then
+    local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+
+    if ! command -v pnpm >/dev/null 2>&1 && [ ! -f "$pnpm_path" ]; then
         echo "Installing pnpm..."
         if [ -f "$NODE_BIN_DIR/npm" ]; then
             "$NODE_BIN_DIR/npm" install -g pnpm
 
             # Create symlink if needed
-            local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
             if [ -f "$pnpm_path" ]; then
                 $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
                 echo "Created pnpm symlink"
@@ -611,55 +612,64 @@ verify_and_fix_all_configs() {
         echo "pnpm already installed"
     fi
 
+    # Use absolute path for pnpm to ensure it works without environment variables loaded
+    local pnpm_cmd=""
+    if [ -f "$pnpm_path" ]; then
+        pnpm_cmd="$pnpm_path"
+        echo "Using pnpm at: $pnpm_cmd"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_cmd="pnpm"
+        echo "Using system pnpm"
+    else
+        echo "pnpm not found, skipping pnpm configuration"
+        return 0
+    fi
+
     echo ""
     echo "[3/4] Checking pnpm configuration..."
-    if command -v pnpm >/dev/null 2>&1; then
-        local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
-        local pnpm_global_bin="$pnpm_global_dir/bin"
+    local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
+    local pnpm_global_bin="$pnpm_global_dir/bin"
 
-        echo "Setting pnpm global-dir: $pnpm_global_dir"
-        pnpm config set global-dir "$pnpm_global_dir"
+    echo "Setting pnpm global-dir: $pnpm_global_dir"
+    "$pnpm_cmd" config set global-dir "$pnpm_global_dir"
 
-        echo "Setting pnpm global-bin-dir: $pnpm_global_bin"
-        pnpm config set global-bin-dir "$pnpm_global_bin"
+    echo "Setting pnpm global-bin-dir: $pnpm_global_bin"
+    "$pnpm_cmd" config set global-bin-dir "$pnpm_global_bin"
 
-        echo "Setting pnpm enable-pre-post-scripts: true"
-        pnpm config set enable-pre-post-scripts true
+    echo "Setting pnpm enable-pre-post-scripts: true"
+    "$pnpm_cmd" config set enable-pre-post-scripts true
 
-        # Ensure directories exist
-        mkdir -p "$pnpm_global_dir"
-        mkdir -p "$pnpm_global_bin"
+    # Ensure directories exist
+    mkdir -p "$pnpm_global_dir"
+    mkdir -p "$pnpm_global_bin"
 
-        # Configure registry
-        if [ "$SELECTED_REGION" = "China" ]; then
-            echo "Setting pnpm China mirror..."
-            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
-        else
-            echo "Setting pnpm default registry..."
-            pnpm config set registry https://registry.npmjs.org/
-        fi
+    # Configure registry
+    if [ "$SELECTED_REGION" = "China" ]; then
+        echo "Setting pnpm China mirror..."
+        "$pnpm_cmd" config set registry https://repo.huaweicloud.com/repository/npm/
+    else
+        echo "Setting pnpm default registry..."
+        "$pnpm_cmd" config set registry https://registry.npmjs.org/
+    fi
 
-        # Create or update .pnpmrc file
-        local user_home="$HOME"
-        local pnpmrc_path="$user_home/.pnpmrc"
+    # Create or update .pnpmrc file
+    local user_home="$HOME"
+    local pnpmrc_path="$user_home/.pnpmrc"
 
-        echo "Creating/updating .pnpmrc file at: $pnpmrc_path"
-        if [ "$SELECTED_REGION" = "China" ]; then
-            cat > "$pnpmrc_path" <<EOF
+    echo "Creating/updating .pnpmrc file at: $pnpmrc_path"
+    if [ "$SELECTED_REGION" = "China" ]; then
+        cat > "$pnpmrc_path" <<EOF
 registry=https://repo.huaweicloud.com/repository/npm/
 enable-pre-post-scripts=true
 EOF
-        else
-            cat > "$pnpmrc_path" <<EOF
+    else
+        cat > "$pnpmrc_path" <<EOF
 registry=https://registry.npmjs.org/
 enable-pre-post-scripts=true
 EOF
-        fi
-
-        echo "pnpm configuration verified and fixed"
-    else
-        echo "pnpm not found, skipping pnpm configuration"
     fi
+
+    echo "pnpm configuration verified and fixed"
 
     echo ""
     echo "[4/4] Checking yarn installation..."

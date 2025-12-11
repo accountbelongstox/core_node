@@ -21,7 +21,7 @@ SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
 SCRIPT_INDEX="47"
-INSTALL_DOCKER=""
+START_DOCKER=""
 
 # Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,10 +33,11 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
 SCRIPT_INDEX="47"
-INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
+START_DOCKER=$(get_var "START_DOCKER" "false")
 
 echo "[$SCRIPT_INDEX] Docker Management Script"
-echo "[$SCRIPT_INDEX] INSTALL_DOCKER: $INSTALL_DOCKER"
+echo "[$SCRIPT_INDEX] Docker will always be installed"
+echo "[$SCRIPT_INDEX] START_DOCKER: $START_DOCKER"
 
 # Function to check if command exists
 command_exists() {
@@ -191,17 +192,32 @@ echo "[$SCRIPT_INDEX] === Docker Management ==="
 # Remove docker.list file regardless of installation status
 remove_docker_list_file
 
-# Check INSTALL_DOCKER variable
-if [ "$INSTALL_DOCKER" = "true" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_DOCKER is true - Installing and enabling Docker..."
-    
-    # Install Docker if not present
-    install_docker_with_snap_if_needed
-    install_docker_compose_with_snap_if_needed
+# Main installation logic - Docker is always installed
+echo "[$SCRIPT_INDEX] ============================================"
+echo "[$SCRIPT_INDEX] Installing Docker..."
+echo "[$SCRIPT_INDEX] ============================================"
 
-    # Disable Docker services to save memory
+# Install Docker if not present
+install_docker_with_snap_if_needed
+install_docker_compose_with_snap_if_needed
+
+# Configure service based on START_DOCKER variable
+if [ "$START_DOCKER" = "true" ]; then
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] Disabling Docker service to save memory..."
+    echo "[$SCRIPT_INDEX] START_DOCKER is true - Enabling and starting Docker..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    enable_docker_services
+
+    # Set global variables
+    set_var "DOCKER_AVAILABLE" "true"
+    set_var "DOCKER_ENABLED" "true"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Docker is installed and running"
+    echo "[$SCRIPT_INDEX] ============================================"
+else
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] START_DOCKER is false - Disabling Docker service to save memory..."
     echo "[$SCRIPT_INDEX] ============================================"
     disable_docker_services
 
@@ -214,25 +230,9 @@ if [ "$INSTALL_DOCKER" = "true" ]; then
     echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
     echo "[$SCRIPT_INDEX] Use the Service Manager menu to start Docker when needed"
     echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] Docker installation completed"
-    
-elif [ "$INSTALL_DOCKER" = "false" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_DOCKER is false - Disabling Docker services..."
-    
-    # Disable Docker services (but keep installation)
-    disable_docker_services
-    
-    # Set global variables
-    set_var "DOCKER_AVAILABLE" "true"
-    set_var "DOCKER_ENABLED" "false"
-    
-    echo "[$SCRIPT_INDEX] Docker services disabled (installation preserved)"
-    
-else
-    echo "[$SCRIPT_INDEX] INSTALL_DOCKER is not set or invalid: $INSTALL_DOCKER"
-    echo "[$SCRIPT_INDEX] Skipping Docker management"
-    exit 0
 fi
+
+echo "[$SCRIPT_INDEX] Docker configuration completed"
 
 echo "[$SCRIPT_INDEX] Docker Management Script completed"
 

@@ -24,61 +24,214 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
-# WARNING: INSTALL_UPSC is hardcoded to false - UPS Control installation is disabled
-INSTALL_UPSC="false"
+# Get INSTALL_UPSC from global variables
+INSTALL_UPSC=$(get_var "INSTALL_UPSC" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
+# Configuration file paths
+UPS_CONF="/etc/nut/ups.conf"
+UPSD_CONF="/etc/nut/upsd.conf"
+UPSD_USERS_CONF="/etc/nut/upsd.users"
+UPSMON_CONF="/etc/nut/upsmon.conf"
+
+# Check if UPSC components are installed
+check_upsc_installed() {
+    local has_nut=false
+    local has_apache=false
+    local has_service=false
+
+    # Check for NUT packages
+    if dpkg -l | grep -q "^ii.*nut"; then
+        has_nut=true
+    fi
+
+    # Check for Apache2
+    if dpkg -l | grep -q "^ii.*apache2"; then
+        has_apache=true
+    fi
+
+    # Check for NUT services
+    if systemctl list-unit-files | grep -q "nut-server\|nut-monitor"; then
+        has_service=true
+    fi
+
+    # Return true if any component is installed
+    if [[ "$has_nut" == true ]] || [[ "$has_apache" == true ]] || [[ "$has_service" == true ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Prompt user for uninstallation
+prompt_uninstall() {
+    echo ""
+    echo "============================================"
+    echo "UPSC Installation Status Check"
+    echo "============================================"
+    echo ""
+    print_warning_from_common_functions "INSTALL_UPSC is set to false"
+    print_info_from_common_functions "UPSC installation is disabled in configuration"
+    echo ""
+
+    # Check what's installed
+    local has_nut=false
+    local has_apache=false
+    local has_service=false
+
+    if dpkg -l | grep -q "^ii.*nut"; then
+        has_nut=true
+        print_info_from_common_functions "Found: NUT (Network UPS Tools) packages"
+    fi
+
+    if dpkg -l | grep -q "^ii.*apache2"; then
+        has_apache=true
+        print_info_from_common_functions "Found: Apache2 web server"
+    fi
+
+    if systemctl list-unit-files | grep -q "nut-server\|nut-monitor"; then
+        has_service=true
+        print_info_from_common_functions "Found: NUT services"
+    fi
+
+    # If nothing is installed, just exit
+    if [[ "$has_nut" == false ]] && [[ "$has_apache" == false ]] && [[ "$has_service" == false ]]; then
+        echo ""
+        print_success_from_common_functions "UPSC components are not installed"
+        print_info_from_common_functions "No action needed"
+        return 1
+    fi
+
+    # Prompt for uninstallation
+    echo ""
+    print_warning_from_common_functions "The following components will be uninstalled:"
+    if [[ "$has_nut" == true ]]; then
+        echo "  - NUT packages (nut, nut-client, nut-server)"
+    fi
+    if [[ "$has_apache" == true ]]; then
+        echo "  - Apache2 web server and all related packages"
+    fi
+    if [[ "$has_service" == true ]]; then
+        echo "  - NUT systemd services"
+    fi
+    echo ""
+    echo -n "Do you want to uninstall UPSC and related components? (Y/n) [Y]: "
+    read -r response
+
+    case "$response" in
+        [nN]|[nN][oO])
+            print_info_from_common_functions "Keeping UPSC components as is"
+            return 1
+            ;;
+        *)
+            # Default is Yes (uninstall)
+            return 0
+            ;;
+    esac
+}
+
 uninstall_upsc() {
-    echo "Uninstalling UPSC and related components..."
+    print_header_from_common_functions "UPSC Uninstallation"
+    print_info_from_common_functions "Starting UPSC component removal..."
+    echo ""
+
+    local uninstall_count=0
 
     # Stop and disable services
+    print_step_from_common_functions "Stopping and disabling NUT services..."
     SERVICES=("nut-server.service" "nut-monitor.service")
     for SERVICE in "${SERVICES[@]}"; do
         if systemctl list-units --type=service --all | grep -q "$SERVICE"; then
-            echo "Stopping and disabling $SERVICE..."
-            $USE_SUDO systemctl stop "$SERVICE"
-            $USE_SUDO systemctl disable "$SERVICE"
+            print_info_from_common_functions "Processing $SERVICE..."
+            $USE_SUDO systemctl stop "$SERVICE" 2>/dev/null || true
+            $USE_SUDO systemctl disable "$SERVICE" 2>/dev/null || true
+            print_success_from_common_functions "$SERVICE stopped and disabled"
+            ((uninstall_count++))
         else
-            echo -e "\033[1;33mWarning: Service $SERVICE not found, skipping stop/disable.\033[0m"
+            print_warning_from_common_functions "Service $SERVICE not found, skipping"
+        fi
+    done
+    echo ""
+
+    # Uninstall nut packages
+    print_step_from_common_functions "Removing NUT packages..."
+    local nut_packages=("nut-client" "nut-server" "nut")
+    for pkg in "${nut_packages[@]}"; do
+        if dpkg -l | grep -q "^ii.*$pkg"; then
+            print_info_from_common_functions "Removing $pkg..."
+            $USE_SUDO apt-get purge -y "$pkg" 2>/dev/null || true
+            print_success_from_common_functions "$pkg removed"
+            ((uninstall_count++))
         fi
     done
 
-    # Uninstall nut packages
-    if dpkg -l | grep -q "nut-client"; then
-        $USE_SUDO apt-get purge -y nut-client
-    fi
-    if dpkg -l | grep -q "nut-server"; then
-        $USE_SUDO apt-get purge -y nut-server
-    fi
-    if dpkg -l | grep -q "nut"; then
-        $USE_SUDO apt-get purge -y nut
-    fi
-    
-    $USE_SUDO apt-get autoremove -y
+    print_step_from_common_functions "Cleaning up unused dependencies..."
+    $USE_SUDO apt-get autoremove -y 2>/dev/null || true
+    echo ""
 
     # Remove configuration files
-    $USE_SUDO rm -f "$UPS_CONF" "$UPSD_CONF" "$UPSD_USERS_CONF" "$UPSMON_CONF"
+    print_step_from_common_functions "Removing configuration files..."
+    local config_files=("$UPS_CONF" "$UPSD_CONF" "$UPSD_USERS_CONF" "$UPSMON_CONF")
+    for conf in "${config_files[@]}"; do
+        if [[ -f "$conf" ]]; then
+            $USE_SUDO rm -f "$conf"
+            print_success_from_common_functions "Removed: $conf"
+            ((uninstall_count++))
+        fi
+    done
+    echo ""
 
     # Check for and uninstall apache2
-    if dpkg -l | grep -q "apache2"; then
-        echo "Uninstalling apache2..."
-        if systemctl list-units --type=service --all | grep -q "apache2.service"; then
-            $USE_SUDO systemctl stop apache2.service
-            $USE_SUDO systemctl disable apache2.service
-            $USE_SUDO systemctl mask apache2.service
-        else
-            echo -e "\033[1;33mWarning: Service apache2.service not found, skipping stop/disable.\033[0m"
-        fi
-        $USE_SUDO apt-get purge -y apache2* 2>/dev/null || true
-        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
-    fi
+    if dpkg -l | grep -q "^ii.*apache2"; then
+        print_step_from_common_functions "Removing Apache2 web server..."
 
-    echo "UPSC uninstallation complete."
+        # Stop and disable apache2 service
+        if systemctl list-units --type=service --all | grep -q "apache2.service"; then
+            print_info_from_common_functions "Stopping Apache2 service..."
+            $USE_SUDO systemctl stop apache2.service 2>/dev/null || true
+            $USE_SUDO systemctl disable apache2.service 2>/dev/null || true
+            $USE_SUDO systemctl mask apache2.service 2>/dev/null || true
+            print_success_from_common_functions "Apache2 service stopped and disabled"
+        fi
+
+        print_info_from_common_functions "Removing Apache2 packages..."
+        $USE_SUDO apt-get purge -y apache2 apache2-bin apache2-data apache2-utils 2>/dev/null || true
+        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
+        print_success_from_common_functions "Apache2 removed"
+        ((uninstall_count++))
+    else
+        print_info_from_common_functions "Apache2 not installed, skipping"
+    fi
+    echo ""
+
+    # Final cleanup
+    print_step_from_common_functions "Final cleanup..."
+    $USE_SUDO apt-get autoremove -y 2>/dev/null || true
+    $USE_SUDO apt-get autoclean -y 2>/dev/null || true
+    echo ""
+
+    print_success_from_common_functions "UPSC uninstallation complete"
+    print_info_from_common_functions "Components removed: $uninstall_count"
+    echo ""
 }
 
 if [ "$INSTALL_UPSC" = "false" ]; then
-    echo "Skipping UPSC installation and performing uninstallation instead, INSTALL_UPSC: $INSTALL_UPSC, INSTALL_MODE: $INSTALL_MODE"
-    uninstall_upsc
+    # Check if any UPSC components are installed
+    if check_upsc_installed; then
+        # Prompt user for uninstallation
+        if prompt_uninstall; then
+            # User confirmed uninstallation
+            uninstall_upsc
+        else
+            # User declined uninstallation
+            print_info_from_common_functions "No changes made to UPSC installation"
+        fi
+    else
+        # Nothing installed, just inform
+        print_header_from_common_functions "UPSC Installation Check"
+        print_warning_from_common_functions "INSTALL_UPSC is set to false"
+        print_success_from_common_functions "UPSC components are not installed"
+        print_info_from_common_functions "No action needed"
+    fi
     exit 0
 fi
 
