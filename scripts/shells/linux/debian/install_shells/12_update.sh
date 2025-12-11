@@ -480,17 +480,17 @@ remove_edge_packages() {
 # Function to perform repository cleanup based on configuration
 perform_repository_cleanup() {
     echo "=== Repository Cleanup ==="
-    
+
     # Get configuration variables
-    local INSTALL_MYSQL=$(get_var "INSTALL_MYSQL" "false")
+    local START_MYSQL=$(get_var "START_MYSQL" "false")
     local INSTALL_EDGE=$(get_var "INSTALL_EDGE" "false")
 
-    echo "MySQL Status: $INSTALL_MYSQL"
+    echo "MySQL Status: $START_MYSQL"
     echo "Edge Status: $INSTALL_EDGE"
     echo "PHP Status: ALWAYS INSTALLED (required)"
 
     # Handle MySQL cleanup
-    if [ "$INSTALL_MYSQL" = "false" ]; then
+    if [ "$START_MYSQL" = "false" ]; then
         echo "MySQL is disabled - cleaning up..."
         remove_mariadb_repositories
         stop_mysql_services
