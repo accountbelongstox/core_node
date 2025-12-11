@@ -10,6 +10,16 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+#region Load Dependencies
+# Get the directory of this script and resolve win_common path
+$scriptDir = Split-Path -Parent $PSCommandPath
+$winCommonDir = Join-Path (Split-Path -Parent $scriptDir) "win_common"
+$globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
+
+# Load GlobalVars.ps1 to get access to Get-GlobalVar and Set-GlobalVar
+. $globalVarsPath
+#endregion
+
 # Centralized installer scripts list
 # IMPORTANT: When adding new scripts to this list, maintain the index order sequence
 # Scripts are executed in the order they appear in this array
