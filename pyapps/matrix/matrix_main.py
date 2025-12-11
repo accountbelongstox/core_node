@@ -24,6 +24,7 @@ from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyutils.shortcut_manager import ShortcutManager
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.adb_device_manager.adb_heartbeat_service import init_adb_heartbeat_service, get_adb_heartbeat_service
 
