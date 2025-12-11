@@ -31,7 +31,6 @@ from pycore.pyutils.rpc.protocol.rpc_protocol import RPC_STATUS_PATH
 class NetworkHost:
     """
     Network host information
-
     Attributes:
         ip: IP address
         port: Port number
@@ -58,7 +57,6 @@ class NetworkScanner:
     - Port-based service discovery
     - Multi-threaded scanning
     - Configurable timeout and intervals
-
     Usage:
         scanner = NetworkScanner()
         hosts = scanner.scan_network_segment()
