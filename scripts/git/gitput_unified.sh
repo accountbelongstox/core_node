@@ -1321,15 +1321,36 @@ main() {
     local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
     local is_production=$(get_global_var "IS_PRODUCTION")
 
-    # Skip local remote (192.168.50.2) if running on server
+    # Additional server detection methods
+    local is_server_env=false
+
+    # Method 1: Check for desktop environment variables
+    if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+        is_server_env=true
+        write_color_text "Server detected: No desktop environment variables found" "DarkGray"
+    fi
+
+    # Method 2: Check if running in container or VPS
+    if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+        is_server_env=true
+        write_color_text "Server detected: Container/VPS environment found" "DarkGray"
+    fi
+
+    # Method 3: Check global variables
     if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+        is_server_env=true
+        write_color_text "Server detected: Global variables indicate server environment" "DarkGray"
+    fi
+
+    # Skip local remote (192.168.50.2) if running on server
+    if [ "$is_server_env" = "true" ]; then
         write_color_text "Detected server environment (non-desktop), skipping local remote (192.168.50.2)" "Yellow"
         local filtered_targets=()
         for target in "${targets[@]}"; do
             if [ "$target" != "local" ]; then
                 filtered_targets+=("$target")
             else
-                write_color_text "Skipped remote: $target (${remote_configs[$target]})" "DarkGray"
+                write_color_text "在服务器，非桌面环境时，跳过 ${remote_configs[$target]}" "Yellow"
             fi
         done
         targets=("${filtered_targets[@]}")
