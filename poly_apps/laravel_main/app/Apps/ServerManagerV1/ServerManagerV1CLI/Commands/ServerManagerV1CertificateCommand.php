@@ -16,11 +16,13 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
      * The name and signature of the console command.
      */
     protected $signature = 'servermanager:certificate
-                            {action : Action to perform (add|find|list|summary|update)}
+                            {action : Action to perform (add|find|list|summary|update|renew-all)}
                             {domain? : Domain name (required for add, find, update)}
                             {--prefixes= : Subdomain prefixes (comma-separated, default: si,sz,local,api)}
                             {--provider= : SSL provider (default: dnspod)}
-                            {--status= : Certificate status for update}';
+                            {--status= : Certificate status for update}
+                            {--days= : Days threshold for renewal (default: 30)}
+                            {--dry-run : Check which certificates need renewal without actually renewing}';
 
     /**
      * The console command description.
@@ -35,7 +37,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         // PRE-REQUISITE: Fix PHP configuration before any operations
         // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
         $this->initializeCommand();
-        
+
         $action = $this->argument('action');
         $domain = $this->argument('domain');
 
@@ -45,6 +47,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             'list' => $this->listCertificates(),
             'summary' => $this->showSummary(),
             'update' => $this->updateCertificate($domain),
+            'renew-all' => $this->renewAllCertificates(),
             default => $this->showHelp()
         };
     }
@@ -434,15 +437,20 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
                 mkdir($logsDir, 0755, true);
             }
 
-            // Check if certificate already exists and is not expired
+            // Certificate expiry check and automatic renewal
+            // Certificates naturally expire - check and renew as needed
             $baseDomain = $domains[0] ?? '';
+
             if ($baseDomain) {
                 $expiryInfo = $this->checkCertificateExpiry($baseDomain);
                 if ($expiryInfo['exists'] && !$expiryInfo['expired'] && !$expiryInfo['expiring_soon']) {
-                    $this->info("Certificate for $baseDomain already exists and is valid for {$expiryInfo['days_until_expiry']} more days. Skipping certificate generation.");
+                    $this->info("Certificate for $baseDomain already exists and is valid for {$expiryInfo['days_until_expiry']} more days.");
+                    $this->info("Certificate will be automatically renewed when it expires or is expiring soon (< 30 days).");
                     return true;
                 } elseif ($expiryInfo['exists'] && ($expiryInfo['expired'] || $expiryInfo['expiring_soon'])) {
                     $this->warn("Certificate for $baseDomain is " . ($expiryInfo['expired'] ? 'expired' : "expiring in {$expiryInfo['days_until_expiry']} days") . ". Regenerating...");
+                } else {
+                    $this->info("No existing certificate found for $baseDomain. Generating new certificate...");
                 }
             }
 

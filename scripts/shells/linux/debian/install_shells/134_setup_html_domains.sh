@@ -201,6 +201,26 @@ update_hosts_file() {
     fi
 }
 
+# Function to check SSL certificate status
+check_ssl_status() {
+    local domain="$1"
+
+    cd "$laravel_dir" || return 1
+
+    local cert_output
+    cert_output=$($USE_SUDO php artisan servermanager:certificate find "$domain" 2>&1)
+
+    if echo "$cert_output" | grep -q "Found certificate"; then
+        local expires_line
+        expires_line=$(echo "$cert_output" | grep "Expires:" || echo "Expires: unknown")
+        echo "[EXISTS] $expires_line"
+        return 0
+    else
+        echo "[NOT FOUND] No certificate found for domain"
+        return 1
+    fi
+}
+
 # Function to check if domain exists
 check_domain_exists() {
     local domain="$1"
@@ -224,12 +244,21 @@ add_html_website() {
     echo "[$SCRIPT_INDEX]   Processing HTML website: $html_domain"
     echo "[$SCRIPT_INDEX]   Type: html (static content)"
 
+    # IDEMPOTENCY CHECK: Check SSL certificate status before adding domain
+    echo "[$SCRIPT_INDEX]   [SSL CHECK] Verifying certificate status..."
+    local ssl_status
+    ssl_status=$(check_ssl_status "$html_domain")
+    echo "[$SCRIPT_INDEX]   [SSL STATUS] $ssl_status"
+
     if check_domain_exists "$html_domain"; then
         echo "[$SCRIPT_INDEX]   [EXISTS] Domain already configured: $html_domain"
         echo "[$SCRIPT_INDEX]   [IDEMPOTENT] Skipping addition (configuration preserved)"
+        echo "[$SCRIPT_INDEX]   [SSL PRESERVED] Existing certificate not modified"
         return 0
     fi
 
+    # SSL certificates are linked automatically if they exist, or created if --ssl=auto
+    # Idempotent: If certificate exists, it's reused (not regenerated)
     echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$html_domain\" --type=html --ssl=auto --php-version=$PHP_VERSION"
 
     local output
@@ -240,6 +269,11 @@ add_html_website() {
     echo "$output" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]     $line"
     done
+
+    # POST-VERIFICATION: Check SSL certificate status after domain addition
+    echo "[$SCRIPT_INDEX]   [SSL VERIFY] Post-addition certificate status..."
+    ssl_status=$(check_ssl_status "$html_domain")
+    echo "[$SCRIPT_INDEX]   [SSL FINAL] $ssl_status"
 
     return $result
 }

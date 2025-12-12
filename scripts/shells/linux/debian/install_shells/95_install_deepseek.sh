@@ -222,7 +222,7 @@ install_dependencies() {
     cd "$install_dir"
     print_info "Installing core dependencies..."
     echo ""
-    $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate
+    $python_cmd -m pip install --break-system-packages --no-user torch transformers pillow numpy einops timm accelerate
     echo ""
     cd - > /dev/null
 
