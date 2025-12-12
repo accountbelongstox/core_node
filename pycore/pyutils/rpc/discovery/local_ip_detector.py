@@ -38,7 +38,6 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
             s.connect(('8.8.8.8', 80))
             local_ip = s.getsockname()[0]
             s.close()
-
             # Filter out localhost and link-local
             if not local_ip.startswith('127.') and not local_ip.startswith('169.254.'):
                 if debug:
@@ -46,7 +45,6 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
                 return local_ip
         except Exception:
             s.close()
-
         # Method 2: Use hostname
         try:
             hostname = socket.gethostname()

@@ -24,6 +24,7 @@ from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyutils.shortcut_manager import ShortcutManager
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.adb_device_manager.adb_heartbeat_service import init_adb_heartbeat_service, get_adb_heartbeat_service
 
@@ -161,11 +162,37 @@ def rpc_init_callback(rpc_server):
     ColorPrint.blue("[Matrix] RPC v2 routes registered successfully")
 
 
+def ensure_desktop_shortcut():
+    """Ensure Matrix desktop shortcut exists"""
+    try:
+        ColorPrint.blue("[Matrix] Checking desktop shortcut...")
+        manager = ShortcutManager()
+
+        # Get paths
+        app_dir = Path(__file__).parent
+        resources_dir = app_dir / "resources"
+
+        # Create/update shortcut
+        manager.ensure_shortcut(
+            name="Matrix Cloud",
+            command=f'python "{PROJECT_ROOT / "pymain.py"}" app=matrix',
+            icon_search_dir=resources_dir,
+            working_dir=PROJECT_ROOT,
+            description="Launch Matrix Cloud - Android Device Manager"
+        )
+        ColorPrint.green("[Matrix] ✓ Desktop shortcut ready")
+    except Exception as e:
+        ColorPrint.yellow(f"[Matrix] Warning: Could not create desktop shortcut: {e}")
+
+
 def start():
     """Unified startup entry point"""
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
     ColorPrint.blue("=" * 70)
+
+    # Ensure desktop shortcut exists
+    ensure_desktop_shortcut()
 
     # Resource paths
     resources_dir = Path(__file__).parent / "resources"
