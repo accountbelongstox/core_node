@@ -170,10 +170,15 @@ async def yuv_video_stream(
     hwaccel: Optional[str] = Query(None, description="Hardware acceleration (cuda/qsv/dxva2/vaapi)")
 ):
     """
-    YUV420P video streaming endpoint (WebGL-optimized)
+    YUV420P video streaming endpoint (UNIFIED SHARED ARCHITECTURE)
 
     WebSocket endpoint for YUV streaming with backend FFmpeg decoding.
-    Supports pause/resume for efficient page switching.
+    Uses shared background task pattern - one decoder for multiple clients.
+
+    FIXED: Problem 1 & 2 - Now uses shared architecture like H.264 streaming:
+    - One read per device
+    - One decode per device
+    - Broadcast to all clients
 
     Args:
         websocket: WebSocket connection
@@ -195,7 +200,7 @@ async def yuv_video_stream(
         ws://localhost:48000/video/yuv/device_1?hwaccel=cuda
     """
     ColorPrint.blue("=" * 80)
-    ColorPrint.blue(f"[VideoWebSocket] YUV stream connection request")
+    ColorPrint.blue(f"[VideoWebSocket] YUV stream connection request (UNIFIED ARCHITECTURE)")
     ColorPrint.blue(f"  - Device ID: {device_id}")
     ColorPrint.blue(f"  - Client: {websocket.client}")
     ColorPrint.blue(f"  - Hardware Acceleration: {hwaccel or 'None'}")
@@ -216,50 +221,59 @@ async def yuv_video_stream(
     ColorPrint.green(f"[VideoWebSocket] ✓ YUV WebSocket accepted for {device_id} ({serial})")
 
     video_service = VideoStreamService.instance()
-
-    # Create streaming task
-    import asyncio
-    streaming_task = asyncio.create_task(
-        video_service.stream_yuv_to_websocket(serial, websocket, hwaccel=hwaccel)
-    )
+    streaming_serial = None
 
     try:
-        # Listen for control messages (pause/resume)
+        # Start YUV streaming (shared architecture - subscribes client to stream)
+        success = await video_service.start_yuv_stream(serial, websocket, hwaccel=hwaccel)
+
+        if not success:
+            ColorPrint.red(f"[VideoWebSocket] Failed to start YUV stream for {serial}")
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Failed to start YUV stream for {serial}"
+            })
+            return
+
+        streaming_serial = serial
+        ColorPrint.green(f"[VideoWebSocket] ✓ YUV stream started for {serial}")
+
+        # Listen for control messages (pause/resume/stop)
         while True:
             try:
-                # Receive with timeout to check if streaming task is done
-                message = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+                message = await websocket.receive_text()
                 data = json.loads(message)
                 command = data.get('command')
 
                 ColorPrint.blue(f"[VideoWebSocket] Received YUV control command: {command}")
 
                 if command == 'pause':
-                    await video_service.pause_stream(serial, websocket)
+                    await video_service.pause_yuv_stream(serial, websocket)
                 elif command == 'resume':
-                    await video_service.resume_stream(serial, websocket)
+                    await video_service.resume_yuv_stream(serial, websocket)
                 elif command == 'stop':
                     ColorPrint.yellow(f"[VideoWebSocket] Stop command received for YUV stream")
                     break
                 else:
                     ColorPrint.yellow(f"[VideoWebSocket] Unknown command: {command}")
 
-            except asyncio.TimeoutError:
-                # No message received, check if streaming task is still running
-                if streaming_task.done():
-                    break
-                continue
+            except Exception as e:
+                ColorPrint.yellow(f"[VideoWebSocket] Error receiving YUV message: {e}")
+                break
 
     except WebSocketDisconnect:
         ColorPrint.blue(f"[VideoWebSocket] YUV Client disconnected for {device_id}")
+
+    except Exception as e:
+        ColorPrint.red(f"[VideoWebSocket] Error in YUV stream for {device_id}: {e}")
+        import traceback
+        traceback.print_exc()
+
     finally:
-        # Cancel streaming task if still running
-        if not streaming_task.done():
-            streaming_task.cancel()
-            try:
-                await streaming_task
-            except asyncio.CancelledError:
-                pass
+        # Stop YUV streaming (unsubscribe client from stream)
+        if streaming_serial:
+            await video_service.stop_yuv_stream(streaming_serial, websocket)
+
         ColorPrint.blue(f"[VideoWebSocket] YUV stream cleanup completed for {device_id}")
 
 

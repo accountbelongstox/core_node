@@ -26,11 +26,28 @@ class ShortcutManager:
     - BAT file generation
     - Windows version detection
     - Working directory management
+    - i18n support for localized shortcut names and descriptions
     """
 
-    def __init__(self):
-        """Initialize shortcut manager"""
+    def __init__(self, i18n_manager=None):
+        """
+        Initialize shortcut manager
+
+        Args:
+            i18n_manager: Optional I18nManager instance for localized shortcut names
+                         If not provided, will attempt to import from pycore.pyutils.native_ui
+        """
         self.icon_generator = DesktopIconGenerator()
+        self.i18n = i18n_manager
+
+        # Try to import i18n if not provided
+        if self.i18n is None:
+            try:
+                from pycore.pyutils.native_ui.step0_i18n import i18n
+                self.i18n = i18n
+            except ImportError:
+                # i18n not available, will use provided names directly
+                pass
 
     @staticmethod
     def get_windows_version():
@@ -168,12 +185,16 @@ class ShortcutManager:
                        icon_search_dir=None,
                        working_dir=None,
                        description=None,
-                       use_bat=True):
+                       use_bat=True,
+                       i18n_name_key=None,
+                       i18n_description_key=None,
+                       app_user_model_id=None):
         """
         Create desktop shortcut for an application
 
         Args:
             name: Shortcut name (displayed on desktop)
+                  Used as fallback if i18n_name_key is not provided or i18n is unavailable
             command: Command to execute (e.g., 'python ./pymain.py app=matrix')
                     Required if target_path is not provided
             target_path: Direct path to executable (alternative to command+BAT)
@@ -181,7 +202,16 @@ class ShortcutManager:
             icon_search_dir: Directory to search for icons (optional)
             working_dir: Working directory (optional, required if command is specified)
             description: Shortcut description (optional)
+                        Used as fallback if i18n_description_key is not provided or i18n is unavailable
             use_bat: Create BAT file for command (default: True)
+            i18n_name_key: i18n key for shortcut name (e.g., "matrix.shortcut.name")
+                          If provided and i18n is available, will use localized name
+            i18n_description_key: i18n key for description (e.g., "matrix.shortcut.description")
+                                 If provided and i18n is available, will use localized description
+            app_user_model_id: AppUserModelID (optional, prevents duplicate taskbar icons when running as admin)
+                              Format: CompanyName.ProductName[.SubProduct]
+                              Example: "XingcanMedia.Matrix.Cloud"
+                              IMPORTANT: Must match the AppUserModelID set in your application code
 
         Returns:
             Path: Path to created shortcut
@@ -189,16 +219,43 @@ class ShortcutManager:
         Raises:
             ValueError: If neither command nor target_path is provided
         """
+        # Resolve localized name if i18n is available
+        final_name = name
+        localized_name_used = False
+        if i18n_name_key and self.i18n:
+            try:
+                localized_name = self.i18n.get(i18n_name_key)
+                if localized_name and localized_name != i18n_name_key:
+                    final_name = localized_name
+                    localized_name_used = True
+                    current_lang = self.i18n.get_current_language()
+                    print(f"[ShortcutManager] Using localized name: '{final_name}' (lang: {current_lang})")
+            except Exception as e:
+                print(f"[ShortcutManager] Warning: Failed to get localized name for key '{i18n_name_key}': {e}")
+
+        # Resolve localized description if i18n is available
+        final_description = description
+        if i18n_description_key and self.i18n:
+            try:
+                localized_desc = self.i18n.get(i18n_description_key)
+                if localized_desc and localized_desc != i18n_description_key:
+                    final_description = localized_desc
+                    if localized_name_used:
+                        print(f"[ShortcutManager] Using localized description: '{final_description}'")
+            except Exception as e:
+                print(f"[ShortcutManager] Warning: Failed to get localized description for key '{i18n_description_key}': {e}")
         # Validate inputs
         if not command and not target_path:
             raise ValueError("Either 'command' or 'target_path' must be provided")
 
         # Determine target path (BAT file or direct executable)
         if command and use_bat:
-            # Create BAT file for command
+            # Create BAT file for command (use original name for BAT file, not localized)
             bat_name = name.replace(' ', '_').lower()
+            print(f"[ShortcutManager] Creating BAT file: {bat_name}.bat")
             bat_path = self.create_bat_file(command, bat_name, working_dir)
             final_target_path = bat_path
+            print(f"[ShortcutManager] BAT file created: {bat_path}")
         elif target_path:
             final_target_path = Path(target_path)
             if not final_target_path.exists():
@@ -216,16 +273,17 @@ class ShortcutManager:
                 final_icon_path = None
 
         if not final_icon_path and icon_search_dir:
-            # Search for icon in directory
+            # Search for icon in directory (use original name for icon search, not localized)
+            print(f"[ShortcutManager] Searching for icon in: {icon_search_dir}")
             found_icon = self.find_icon(icon_search_dir, name.replace(' ', '_').lower())
             if found_icon:
                 final_icon_path = found_icon
-                print(f"Found icon: {final_icon_path}")
+                print(f"[ShortcutManager] Found icon: {final_icon_path}")
 
         # Use Python executable icon as fallback
         if not final_icon_path:
             final_icon_path = sys.executable
-            print(f"Using Python icon as fallback: {final_icon_path}")
+            print(f"[ShortcutManager] Using Python icon as fallback: {final_icon_path}")
 
         # Determine working directory
         if working_dir:
@@ -233,24 +291,83 @@ class ShortcutManager:
         else:
             final_working_dir = str(final_target_path.parent)
 
-        # Set default description
-        if not description:
-            description = f"Launch {name}"
+        # Set default description (use localized description if available)
+        if not final_description:
+            final_description = f"Launch {final_name}"
 
-        # Create shortcut using DesktopIconGenerator
+        print(f"[ShortcutManager] Shortcut configuration:")
+        print(f"  - Name: {final_name}")
+        print(f"  - Target: {final_target_path}")
+        print(f"  - Icon: {final_icon_path}")
+        print(f"  - Working Dir: {final_working_dir}")
+        print(f"  - Description: {final_description}")
+        if app_user_model_id:
+            print(f"  - AppUserModelID: {app_user_model_id}")
+
+        # Create shortcut using DesktopIconGenerator (use localized name)
+        # Note: DesktopIconGenerator.create_shortcut() has built-in idempotency check
+        # It will only update if properties have changed
         try:
+            print(f"[ShortcutManager] Calling DesktopIconGenerator.create_shortcut()...")
             shortcut_path = self.icon_generator.create_shortcut(
                 target_path=final_target_path,
-                name=name,
+                name=final_name,
                 icon_path=str(final_icon_path),
                 working_dir=final_working_dir,
-                description=description
+                description=final_description,
+                app_user_model_id=app_user_model_id
             )
-            print(f"Created/updated desktop shortcut: {name}")
+            print(f"[ShortcutManager] ✓ Desktop shortcut ready: {final_name}")
             return shortcut_path
         except Exception as e:
-            print(f"Failed to create desktop shortcut: {e}")
+            print(f"[ShortcutManager] ✗ Failed to create desktop shortcut: {e}")
             raise
+
+    def cleanup_old_shortcuts(self, current_name, possible_old_names):
+        """
+        Clean up old shortcuts with different names (e.g., different language versions)
+
+        This is useful when app supports multiple languages and shortcut name changes
+        based on system language. We want to keep only the current language shortcut
+        and remove old ones.
+
+        Args:
+            current_name: Current shortcut name (the one we want to keep)
+            possible_old_names: List of possible old shortcut names to check and remove
+                               (e.g., ["Matrix Cloud", "星灿传媒云矩阵", "マトリックス"])
+
+        Returns:
+            list: List of removed shortcut paths
+        """
+        removed = []
+        desktop_path = self.icon_generator.get_desktop_path()
+
+        print(f"[ShortcutManager] Checking for old shortcuts to clean up...")
+        print(f"[ShortcutManager] Current name: {current_name}")
+        print(f"[ShortcutManager] Possible old names: {possible_old_names}")
+
+        for old_name in possible_old_names:
+            # Skip if this is the current name
+            if old_name == current_name:
+                continue
+
+            # Check if old shortcut exists
+            old_shortcut_path = desktop_path / f"{old_name}.lnk"
+            if old_shortcut_path.exists():
+                try:
+                    print(f"[ShortcutManager] Found old shortcut: {old_name}")
+                    old_shortcut_path.unlink()
+                    removed.append(old_shortcut_path)
+                    print(f"[ShortcutManager] ✓ Removed old shortcut: {old_name}")
+                except Exception as e:
+                    print(f"[ShortcutManager] ✗ Failed to remove old shortcut {old_name}: {e}")
+
+        if not removed:
+            print(f"[ShortcutManager] No old shortcuts found to clean up")
+        else:
+            print(f"[ShortcutManager] Cleaned up {len(removed)} old shortcut(s)")
+
+        return removed
 
     def ensure_shortcut(self,
                        name,
@@ -260,15 +377,38 @@ class ShortcutManager:
                        icon_search_dir=None,
                        working_dir=None,
                        description=None,
-                       use_bat=True):
+                       use_bat=True,
+                       i18n_name_key=None,
+                       i18n_description_key=None,
+                       cleanup_old_names=None,
+                       app_user_model_id=None):
         """
         Ensure desktop shortcut exists (creates if missing, updates if different)
 
-        Same parameters as create_shortcut()
+        Same parameters as create_shortcut(), plus:
+            cleanup_old_names: Optional list of old shortcut names to clean up
+                              (e.g., ["Matrix Cloud", "星灿传媒云矩阵"])
+                              Useful when app name changes due to language switch
+            app_user_model_id: AppUserModelID (prevents duplicate taskbar icons)
 
         Returns:
             Path: Path to shortcut
         """
+        # Clean up old shortcuts if specified
+        if cleanup_old_names:
+            # Resolve final name first (with i18n)
+            final_name = name
+            if i18n_name_key and self.i18n:
+                try:
+                    localized_name = self.i18n.get(i18n_name_key)
+                    if localized_name and localized_name != i18n_name_key:
+                        final_name = localized_name
+                except Exception:
+                    pass
+
+            # Clean up old shortcuts (excluding current name)
+            self.cleanup_old_shortcuts(final_name, cleanup_old_names)
+
         return self.create_shortcut(
             name=name,
             command=command,
@@ -277,7 +417,10 @@ class ShortcutManager:
             icon_search_dir=icon_search_dir,
             working_dir=working_dir,
             description=description,
-            use_bat=use_bat
+            use_bat=use_bat,
+            i18n_name_key=i18n_name_key,
+            i18n_description_key=i18n_description_key,
+            app_user_model_id=app_user_model_id
         )
 
 

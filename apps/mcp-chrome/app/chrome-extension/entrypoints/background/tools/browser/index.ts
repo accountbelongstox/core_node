@@ -19,3 +19,10 @@ export {
   audioStatusTool,
   audioDurationTool,
 } from './audio';
+export {
+  deepseekSendPromptTool,
+  deepseekGetTaskStatusTool,
+  deepseekGetResultTool,
+  deepseekListTasksTool,
+  deepseekCancelTaskTool,
+} from './deepseek';

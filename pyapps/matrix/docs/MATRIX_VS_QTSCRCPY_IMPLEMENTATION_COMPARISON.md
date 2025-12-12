@@ -145,6 +145,132 @@ void GroupController::postGoHome() {
 - ❌ 易出错 - 容易在某个方法中忘记添加检查
 - ❌ 代码膨胀 - 444 行代码，大部分是重复
 
+#### 5. 屏幕操作实现 (Qt 事件系统)
+
+**文件**: `QtScrcpy/ui/videoform.cpp`
+
+##### 鼠标事件处理
+
+```cpp
+void VideoForm::mousePressEvent(QMouseEvent *event) {
+    // 1. 获取设备对象
+    auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!device) {
+        return;
+    }
+
+    // 2. 特殊按键处理
+    if (event->button() == Qt::MiddleButton) {
+        // 中键 = Home 键
+        device->postGoHome();
+        return;
+    }
+
+    if (event->button() == Qt::RightButton) {
+        // 右键 = Back 键
+        device->postGoBack();
+        return;
+    }
+
+    // 3. 坐标转换（从窗口坐标到设备坐标）
+    if (m_videoWidget->geometry().contains(event->pos())) {
+        QPointF mappedPos = m_videoWidget->mapFrom(this, localPos.toPoint());
+
+        // 4. 创建新的鼠标事件（包含转换后的坐标）
+        QMouseEvent newEvent(
+            event->type(),
+            mappedPos,
+            globalPos,
+            event->button(),
+            event->buttons(),
+            event->modifiers()
+        );
+
+        // 5. 通过信号发送到设备（这里会触发 GroupController）
+        emit device->mouseEvent(
+            &newEvent,
+            m_videoWidget->frameSize(),  // 设备原始分辨率
+            m_videoWidget->size()         // 窗口显示尺寸
+        );
+    }
+}
+
+// 其他鼠标事件类似处理
+void VideoForm::mouseMoveEvent(QMouseEvent *event) { ... }
+void VideoForm::mouseReleaseEvent(QMouseEvent *event) { ... }
+void VideoForm::wheelEvent(QWheelEvent *event) { ... }
+```
+
+##### 键盘事件处理
+
+```cpp
+void VideoForm::keyPressEvent(QKeyEvent *event) {
+    auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!device) {
+        return;
+    }
+
+    // 特殊处理：ESC 退出全屏
+    if (Qt::Key_Escape == event->key() &&
+        !event->isAutoRepeat() &&
+        isFullScreen()) {
+        switchFullScreen();
+    }
+
+    // 直接转发键盘事件到设备
+    emit device->keyEvent(
+        event,
+        m_videoWidget->frameSize(),
+        m_videoWidget->size()
+    );
+}
+
+void VideoForm::keyReleaseEvent(QKeyEvent *event) {
+    // 同样处理按键释放
+    auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!device) {
+        return;
+    }
+    emit device->keyEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
+}
+```
+
+##### 事件流程
+
+```
+用户操作
+   ↓
+VideoForm 捕获 Qt 事件 (mousePressEvent/keyPressEvent)
+   ↓
+坐标转换 (窗口坐标 → 设备坐标)
+   ↓
+emit device->mouseEvent() / device->keyEvent()
+   ↓
+触发 Observer 模式
+   ↓
+GroupController::mouseEvent() (如果设备是 Host)
+   ↓
+广播到所有 Slave 设备
+   ↓
+通过 scrcpy 控制协议发送到 Android 设备
+```
+
+**关键点**:
+1. **坐标缩放**: Qt 窗口尺寸 ≠ 设备分辨率，需要比例转换
+2. **信号驱动**: 使用 Qt 信号/槽机制，自动触发 GroupController
+3. **透明同步**: 用户只操作 Host 设备，自动同步到 Slave
+4. **特殊映射**: 鼠标中键/右键映射到 Android 系统按键
+
+**优点**:
+- ✅ 自动触发 - 通过 Qt 信号自动调用 GroupController
+- ✅ 坐标自动转换 - Qt 提供的坐标转换 API
+- ✅ 事件丰富 - 支持鼠标、键盘、滚轮、拖拽等
+
+**缺点**:
+- ❌ 紧耦合 UI - 必须依赖 Qt 窗口系统
+- ❌ 无法远程控制 - 没有 API 接口
+- ❌ 测试困难 - 需要模拟 Qt 事件
+
 ---
 
 ### Matrix ControlService 设计改进
@@ -153,36 +279,117 @@ void GroupController::postGoHome() {
 
 #### 1. API 驱动模式 (显式调用，更灵活)
 
-```python
-# 前端显式调用 API
-await wsService.send('control', 'touch', {
-    serial: 'ABC123',
-    action: 'down',
-    x: 500,
-    y: 1000
-});
+**完整调用链**: 参见 `CONTROL_SYSTEM_CALL_CHAIN.md` 详细文档
 
-# ControlService 检查是否需要广播
+##### 前端触摸捕获 (需要实现)
+
+```tsx
+// poly_apps/matrixui/components/DeviceH264Stream.tsx
+export const DeviceH264Stream: React.FC<Props> = ({
+  deviceId,
+  enabled,
+  controlEnabled = true
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [frameSize, setFrameSize] = useState({ width: 1080, height: 2340 });
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!controlEnabled || !canvasRef.current) return;
+
+    // 坐标转换：窗口坐标 → 设备坐标
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / rect.width * frameSize.width);
+    const y = Math.floor((e.clientY - rect.top) / rect.height * frameSize.height);
+
+    // 发送到后端
+    wsService.send('control.touch', {
+      deviceId: deviceId,
+      action: 'down',
+      pointerId: 0,
+      x: x,
+      y: y,
+      pressure: 1.0,
+      screenWidth: frameSize.width,
+      screenHeight: frameSize.height
+    });
+  }, [deviceId, controlEnabled, frameSize]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full cursor-crosshair"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+    />
+  );
+};
+```
+
+##### 后端 API 路由 (已完成)
+
+```python
+# pyapps/matrix/api/main.py
+async def send_touch(data: Dict[str, Any], request_id: str, context: Any):
+    device_id = data.get('deviceId')
+    serial = device_id_manager.get_serial(device_id)
+
+    touch_data = {
+        "action": data.get("action"),  # down/up/move
+        "pointerId": data.get("pointerId", 0),
+        "x": data.get("x"),
+        "y": data.get("y"),
+        "pressure": data.get("pressure", 1.0),
+        "screenWidth": data.get("screenWidth"),
+        "screenHeight": data.get("screenHeight")
+    }
+
+    control_service = ControlService.instance()
+    success = await control_service.send_touch_event(serial, touch_data)
+    return {"success": success}
+
+# 注册路由
+rpc_server.route('control.touch', send_touch, sync=False)
+```
+
+##### 控制服务实现 (已完成)
+
+```python
+# pyapps/matrix/services/control_service.py
 async def send_touch_event(self, serial: str, event_data: dict) -> bool:
     # 1. 发送到目标设备
-    device.send_control_message(message)
-
-    # 2. 检查是否为 master，自动广播
-    broadcasted = await self._broadcast_if_master(
-        serial=serial,
-        event_type='touch',
-        event_data=event_data,
-        handler_func=_send_touch_to_slave
+    device = self.device_manager.get_device(serial)
+    touch_event = TouchEvent(
+        action=event_data["action"],
+        x=event_data["x"],
+        y=event_data["y"],
+        screen_width=event_data["screenWidth"],
+        screen_height=event_data["screenHeight"]
     )
+    message = self.message_builder.build_touch_message(touch_event)
+    success = device.send_control_message(message)
+
+    # 2. 如果是 master，自动广播到 slaves
+    if success:
+        await self._broadcast_if_master(
+            serial=serial,
+            event_type='touch',
+            event_data=event_data,
+            handler_func=self._send_touch_to_slave
+        )
+
+    return success
 ```
 
 **优点**:
 - ✅ API 化 - 可远程控制，不依赖 UI
 - ✅ 灵活 - 可以单独控制 master 或 slave
 - ✅ 可测试 - 可以通过 API 直接测试
+- ✅ 跨平台 - 任何能发送 HTTP/WebSocket 的客户端都可以控制
 
 **缺点**:
 - ⚠️ 需要显式调用 - 前端需要调用 API（但更可控）
+- ⚠️ 网络延迟 - 比本地进程调用慢（但 WebSocket 本地连接延迟很低）
 
 #### 2. DRY 原则 (统一广播逻辑)
 
