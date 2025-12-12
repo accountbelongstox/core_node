@@ -11,6 +11,10 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# ===================================================================
+# ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
+# ===================================================================
+
 # Source common variables and functions
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 if command -v sudo >/dev/null 2>&1; then
@@ -18,14 +22,11 @@ if command -v sudo >/dev/null 2>&1; then
 else
     USE_SUDO=""
 fi
-# Parameter validation
+
+# Parameter variables (will be set during parsing)
 TARGET_REMOTE=""
 PULL_MODE=false
 FORCE_OVERWRITE_MODE=false
-
-# ===================================================================
-# ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
-# ===================================================================
 
 # State tracking variables
 ENCRYPTION_CHECK_COMPLETED=false
@@ -34,11 +35,6 @@ ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
 BACKUP_ENABLED=false
-
-# Parameter variables (will be set during parsing)
-TARGET_REMOTE=""
-PULL_MODE=false
-FORCE_OVERWRITE_MODE=false
 
 # Path and project variables
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
