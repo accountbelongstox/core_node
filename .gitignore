@@ -74,13 +74,14 @@ app.*.symbols
 **/log/
 **/.runtime_cache/
 
-#  Cache 
+#  Cache
 **/cache/
 **/.cache/
 **/tmp/
 **/temp/
 **/tmp_*
 **/test_*
+**/.vite/
 
 # Flutter/Dart Test
 

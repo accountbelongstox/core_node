@@ -112,6 +112,33 @@ class ServerManagerV1DomainManager
     /**
      * Add or update domain configuration
      */
+    /**
+     * Refresh nginx configuration for existing domain
+     * Re-generates nginx config files using current domain configuration
+     *
+     * @param string $domain Domain name
+     * @return bool True if successful, false otherwise
+     */
+    public static function refreshDomainConfig(string $domain): bool
+    {
+        $config = self::getDomain($domain);
+
+        if (!$config) {
+            Log::error('Domain not found for refresh', ['domain' => $domain]);
+            return false;
+        }
+
+        Log::info('Refreshing nginx configuration', ['domain' => $domain]);
+
+        if (!self::generateNginxConfig($domain, $config)) {
+            Log::error('Failed to regenerate nginx configuration', ['domain' => $domain]);
+            return false;
+        }
+
+        Log::info('Nginx configuration refreshed successfully', ['domain' => $domain]);
+        return true;
+    }
+
     public static function addDomain(string $domain, array $config): bool
     {
         // Validate domain name format
@@ -824,30 +851,22 @@ class ServerManagerV1DomainManager
         $certDir = null;
 
         if ($sslEnabled) {
-            // Get certificate path from certificate manager
             $certificate = ServerManagerV1CertificateManager::findCertificateForDomain($domain);
-            if ($certificate && isset($certificate['certificate_path'])) {
-                $certDir = rtrim($certificate['certificate_path'], '/');
+            if ($certificate && isset($certificate['base_domain'])) {
+                $baseDomain = $certificate['base_domain'];
+                $certDir = ServerManagerV1PathConfig::getSslCertDir($baseDomain);
             } else {
-                // Fallback to letsencrypt live directory
-                $certDir = ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain);
+                $baseDomain = self::extractBaseDomain($domain);
+                $certDir = ServerManagerV1PathConfig::getSslCertDir($baseDomain);
             }
 
-            // Also check ssl directory (for compatibility with old certificates or symlinks)
-            $sslCertDir = ServerManagerV1PathConfig::getSslCertDir($domain);
             $fullchainPath = "$certDir/fullchain.pem";
             $privkeyPath = "$certDir/privkey.pem";
-            
-            // If not found in letsencrypt, try ssl directory
-            if (!file_exists($fullchainPath) || !file_exists($privkeyPath)) {
-                $fullchainPath = "$sslCertDir/fullchain.pem";
-                $privkeyPath = "$sslCertDir/privkey.pem";
-                $certDir = $sslCertDir;
-            }
 
             if (!file_exists($fullchainPath) || !file_exists($privkeyPath)) {
                 Log::warning('SSL certificate files not found, they should be created before nginx restart', [
                     'domain' => $domain,
+                    'base_domain' => $baseDomain,
                     'cert_dir' => $certDir,
                     'fullchain_exists' => file_exists($fullchainPath),
                     'privkey_exists' => file_exists($privkeyPath)
@@ -2182,6 +2201,25 @@ server {
     }
 
     /**
+     * Extract base domain from subdomain
+     * Examples: api.12gm.com -> 12gm.com, sh.api.12gm.com -> 12gm.com
+     *
+     * @param string $domain Full domain name
+     * @return string Base domain
+     */
+    private static function extractBaseDomain(string $domain): string
+    {
+        $parts = explode('.', $domain);
+        $count = count($parts);
+
+        if ($count <= 2) {
+            return $domain;
+        }
+
+        return implode('.', array_slice($parts, -2));
+    }
+
+    /**
      * Restore domains from backup
      *
      * @param string $backupFile Backup file path
@@ -2725,7 +2763,8 @@ server {
 
         // HTTPS configuration
         if ($sslEnabled) {
-            $certDir = ServerManagerV1PathConfig::getSslCertDir($targetDomain);
+            $baseDomain = self::extractBaseDomain($targetDomain);
+            $certDir = ServerManagerV1PathConfig::getSslCertDir($baseDomain);
             $httpConfig .= "\nserver {\n";
             $httpConfig .= "    listen 443 ssl http2;\n";
             $httpConfig .= "    listen [::]:443 ssl http2;\n";
