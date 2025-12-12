@@ -252,8 +252,23 @@ def _register_device_routes(rpc_server):
         device_id_manager = DeviceIDManager.instance()
         serial = device_id_manager.get_serial(device_id)
 
+        # If not found, try to auto-register (handles race condition where frontend calls connect before list)
         if not serial:
-            return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
+            service = DeviceService.instance()
+            adb_devices = await service.list_devices()
+
+            # Check if device_id is actually a serial number (frontend passed serial directly)
+            for device in adb_devices:
+                if device.serial == device_id:
+                    # Auto-register this device
+                    registered_id = device_id_manager.register_device(device_id)
+                    ColorPrint.blue(f"[RPC] Auto-registered device {device_id} as {registered_id}")
+                    serial = device_id  # Use the serial directly
+                    break
+
+            # If still not found, return error
+            if not serial:
+                return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
         service = DeviceService.instance()
         params = {
@@ -1259,17 +1274,31 @@ def _register_control_routes(rpc_server):
 
     async def send_touch(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Send touch event"""
+        # Step 1: Log incoming touch request
+        print(f"[ControlAPI] >>> STEP 1: Received touch event request")
+        print(f"[ControlAPI]     Device ID: {data.get('deviceId')}")
+        print(f"[ControlAPI]     Action: {data.get('action')}")
+        print(f"[ControlAPI]     Position: ({data.get('x')}, {data.get('y')})")
+        print(f"[ControlAPI]     Screen Size: {data.get('screenWidth')}x{data.get('screenHeight')}")
+
         device_id = data.get('deviceId')
         if not device_id:
+            print(f"[ControlAPI] [X] FAILED: Missing device ID")
             return {'error': {'code': 'MISSING_DEVICE_ID', 'message': 'Device ID required'}}
 
-        # Resolve device_id to serial
+        # Step 2: Resolve device_id to serial
+        print(f"[ControlAPI] >>> STEP 2: Resolving device ID to serial")
         device_id_manager = DeviceIDManager.instance()
         serial = device_id_manager.get_serial(device_id)
 
         if not serial:
+            print(f"[ControlAPI] [X] FAILED: Unknown device ID: {device_id}")
             return {'error': {'code': 'UNKNOWN_DEVICE_ID', 'message': f'Unknown device ID: {device_id}'}}
 
+        print(f"[ControlAPI]     Resolved: {device_id} -> {serial}")
+
+        # Step 3: Prepare touch data
+        print(f"[ControlAPI] >>> STEP 3: Preparing touch data")
         touch_data = {
             "action": data.get("action"),
             "pointerId": data.get("pointerId", 0),
@@ -1279,13 +1308,18 @@ def _register_control_routes(rpc_server):
             "screenWidth": data.get("screenWidth"),
             "screenHeight": data.get("screenHeight")
         }
+        print(f"[ControlAPI]     Touch data: {touch_data}")
 
+        # Step 4: Send to control service
+        print(f"[ControlAPI] >>> STEP 4: Sending touch event to ControlService")
         control_service = ControlService.instance()
         success = await control_service.send_touch_event(serial, touch_data)
 
         if not success:
+            print(f"[ControlAPI] [X] FAILED: ControlService returned failure")
             return {'error': {'code': 'TOUCH_FAILED', 'message': 'Failed to send touch event'}}
 
+        print(f"[ControlAPI] [OK] Touch event sent successfully")
         return {"success": True}
 
     async def send_key(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:

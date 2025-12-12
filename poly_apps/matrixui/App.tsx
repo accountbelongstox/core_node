@@ -40,7 +40,7 @@ const MatrixApp: React.FC = () => {
   const { t, language, setLanguage } = useI18n();
   
   // Layout State
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // 默认收起左侧导航
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   
   // Initialize state based on URL hash

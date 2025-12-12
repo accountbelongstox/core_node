@@ -79,13 +79,13 @@ class MCPConfigProvider:
     @staticmethod
     def get_context7_config(target: str = "claude") -> Optional[MCPConfig]:
         """
-        Get Context7 MCP configuration
+        Get Context7 MCP configuration (HTTP transport for all tools)
 
         Args:
-            target: Target AI tool (claude uses HTTP, codex uses stdio with npx)
+            target: Target AI tool (claude, codex, droid, gemini)
 
         Returns:
-            MCPConfig with API key (if found) or empty string
+            MCPConfig with API key (if found) or None
         """
         context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
 
@@ -96,45 +96,16 @@ class MCPConfigProvider:
 
         print("[INFO] Context7 API key loaded successfully")
 
-        # Codex uses stdio with npx, Claude uses HTTP
-        if target.lower() == "codex":
-            env = {}
-            home_dir = Path.home()
-            if os.name == "nt":
-                appdata_path = os.environ.get("APPDATA", str(home_dir / "AppData" / "Roaming"))
-                system_root = os.environ.get("SystemRoot", "C:\\Windows")
-                npx_path = Path(appdata_path) / "npm" / "npx.cmd"
-                command_path = str(npx_path) if npx_path.exists() else "npx"
-            else:
-                appdata_path = os.environ.get("APPDATA", "")
-                system_root = os.environ.get("SystemRoot", "")
-                command_path = "npx"
-
-            if context7_api_key:
-                env["CONTEXT7_API_KEY"] = context7_api_key
-            if os.name == "nt":
-                env.setdefault("APPDATA", appdata_path)
-                env.setdefault("SystemRoot", system_root)
-
-            # Codex format: codex mcp add context7 -- npx -y @upstash/context7-mcp
-            return MCPConfig(
-                name="context7",
-                transport_type="stdio",
-                command=command_path,
-                args=["-y", "@upstash/context7-mcp"],
-                env=env
-            )
-        else:
-            # Claude format: HTTP transport with headers
-            return MCPConfig(
-                name="context7",
-                transport_type="http",
-                url="https://mcp.context7.com/mcp",
-                headers={
-                    "CONTEXT7_API_KEY": context7_api_key,
-                    "Accept": "application/json, text/event-stream"
-                }
-            )
+        # All tools use HTTP transport with headers
+        return MCPConfig(
+            name="context7",
+            transport_type="http",
+            url="https://mcp.context7.com/mcp",
+            headers={
+                "CONTEXT7_API_KEY": context7_api_key,
+                "Accept": "application/json, text/event-stream"
+            }
+        )
 
     @staticmethod
     def get_unified_server_config() -> MCPConfig:
@@ -163,6 +134,23 @@ class MCPConfigProvider:
             env={"MCP_ALLOW_ALL_PATHS": "true"}
         )
 
+    @staticmethod
+    def get_chrome_mcp_config() -> MCPConfig:
+        """
+        Get Chrome MCP Server configuration (HTTP transport)
+
+        Reference: _prompt/mcpWindowsTemplate.json
+        URL: http://127.0.0.1:12306/mcp
+
+        Returns:
+            MCPConfig with HTTP transport configuration
+        """
+        return MCPConfig(
+            name="chrome",
+            transport_type="http",
+            url="http://127.0.0.1:12306/mcp"
+        )
+
     @classmethod
     def get_all_configs(cls, target: str = "claude") -> List[MCPConfig]:
         """
@@ -188,6 +176,10 @@ class MCPConfigProvider:
         unified_config = cls.get_unified_server_config()
         configs.append(unified_config)
 
+        # Chrome MCP Server (HTTP transport)
+        chrome_config = cls.get_chrome_mcp_config()
+        configs.append(chrome_config)
+
         print()
         print(f"[INFO] Loaded {len(configs)} MCP configuration(s):")
         for config in configs:
@@ -211,15 +203,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             }
         }

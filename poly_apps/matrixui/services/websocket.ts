@@ -1,6 +1,7 @@
 
 import { WSRequest, WSResponse } from '../types/api';
 import { MockBackend } from './mockBackend';
+import { API_CONFIG } from '../config/api';
 
 type MessageHandler = (response: WSResponse) => void;
 type RpcEventHandler = (data: any) => void;
@@ -46,7 +47,7 @@ class WebSocketService {
     // Initialize RPC v2 client options
     this.rpcClientId = this.getOrCreateClientId();
     this.rpcOptions = {
-      baseUrl: 'http://localhost:48000',
+      baseUrl: API_CONFIG.HTTP_BASE_URL,
       wsPath: '/rpc/ws',
       reconnect: true,
       reconnectInterval: 3000,
