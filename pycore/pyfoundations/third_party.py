@@ -681,6 +681,12 @@ def get_third_package_httpx():
     return _lazy_import('httpx', 'import httpx')
 
 
+# HTTP requests library
+def get_third_package_requests():
+    """Get requests package (lazy load)"""
+    return _lazy_import('requests', 'import requests')
+
+
 # Document processing packages
 def get_third_package_pypdf():
     """Get pypdf package (lazy load)"""
@@ -747,6 +753,12 @@ def get_third_package_sqlalchemy():
 def get_third_package_fastmcp():
     """Get fastmcp package (lazy load)"""
     return _lazy_import('fastmcp', 'import fastmcp')
+
+
+# FastAPI Web Framework
+def get_third_package_fastapi():
+    """Get fastapi package (lazy load)"""
+    return _lazy_import('fastapi', 'import fastapi')
 
 
 def get_third_package_FastMCP():
