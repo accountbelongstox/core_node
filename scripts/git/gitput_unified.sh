@@ -1350,7 +1350,7 @@ main() {
             if [ "$target" != "local" ]; then
                 filtered_targets+=("$target")
             else
-                write_color_text "在服务器，非桌面环境时，跳过 ${remote_configs[$target]}" "Yellow"
+                write_color_text "Skipping ${remote_configs[$target]} in server/non-desktop environment" "Yellow"
             fi
         done
         targets=("${filtered_targets[@]}")
