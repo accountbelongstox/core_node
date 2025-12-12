@@ -23,7 +23,48 @@ TARGET_REMOTE=""
 PULL_MODE=false
 FORCE_OVERWRITE_MODE=false
 
-# Parse parameters
+# ===================================================================
+# ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
+# ===================================================================
+
+# State tracking variables
+ENCRYPTION_CHECK_COMPLETED=false
+FILE_VALIDATION_COMPLETED=false
+ORIGINAL_WORKING_DIR=$(pwd)
+ORIGINAL_REMOTE_URL=""
+ORIGINAL_BRANCH=""
+BACKUP_ENABLED=false
+
+# Parameter variables (will be set during parsing)
+TARGET_REMOTE=""
+PULL_MODE=false
+FORCE_OVERWRITE_MODE=false
+
+# Path and project variables
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
+PROJECT_NAME="core_node"
+TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
+WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+# Cache and encryption variables
+SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
+SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
+
+# Commit message variable
+export COMMIT_MESSAGE=""
+
+# Global associative array for remote configurations
+declare -g -A remote_configs
+
+# Default remote (will be set after loading configurations)
+DEFAULT_REMOTE=""
+
+# ===================================================================
+# PARAMETER PARSING
+# ===================================================================
+
+# Parse command line parameters
 while [[ $# -gt 0 ]]; do
     case $1 in
         --pull)
@@ -48,38 +89,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# ===================================================================
-# ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
-# ===================================================================
-
-# State tracking variables
-ENCRYPTION_CHECK_COMPLETED=false
-FILE_VALIDATION_COMPLETED=false
-ORIGINAL_WORKING_DIR=$(pwd)
-ORIGINAL_REMOTE_URL=""
-ORIGINAL_BRANCH=""
-BACKUP_ENABLED=false
-
-# Path and project variables
-SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
-CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
-PROJECT_NAME="core_node"
-TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
-WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
-
-# Cache and encryption variables
-SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
-SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
-
-# Commit message variable
-export COMMIT_MESSAGE=""
-
-# Global associative array for remote configurations
-declare -g -A remote_configs
-
-# Default remote (will be set after loading configurations)
-DEFAULT_REMOTE=""
 
 # Initialize skip encrypt cache
 init_skip_encrypt_cache() {
