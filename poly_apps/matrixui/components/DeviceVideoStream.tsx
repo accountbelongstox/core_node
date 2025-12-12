@@ -117,28 +117,9 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
           className="w-full h-full object-cover"
           style={{ display: 'block' }}
         />
-        
-        {/* Connection Status Indicator */}
-        <div className="absolute top-2 left-2 px-2 py-1 bg-[#05ffa1]/20 border border-[#05ffa1]/50 rounded text-[9px] font-mono text-[#05ffa1] pointer-events-none z-10">
-          ● CONNECTED
-        </div>
 
-        {/* Paused Indicator */}
-        {isPaused && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none z-10">
-            <div className="text-center">
-              <div className="text-white text-sm font-mono mb-2">
-                <i className="ph ph-pause-circle text-xl"></i>
-              </div>
-              <div className="text-white/80 text-xs font-mono">
-                Stream Paused
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Error Indicator with Reconnect Button */}
-        {hasError && !isPaused && (
+        {/* Error Indicator with Reconnect Button - ONLY shown on error */}
+        {hasError && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center pointer-events-auto z-10">
             <div className="text-center p-4">
               <div className="text-[#ff2a6d] text-sm font-mono mb-2">

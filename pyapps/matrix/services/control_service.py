@@ -131,13 +131,17 @@ class ControlService:
             Success status
         """
         try:
-            # Get device from centralized DeviceManager
+            # Step 5: Get device from centralized DeviceManager
+            print(f"[ControlService] >>> STEP 5: Looking up device by serial: {serial}")
             device = self.device_manager.get_device(serial)
             if not device:
-                print(f"Device {serial} not connected")
+                print(f"[ControlService] [X] FAILED: Device {serial} not connected")
                 return False
+            print(f"[ControlService]     Device found: {serial}")
+            print(f"[ControlService]     Device connected: {device.is_connected()}")
 
-            # Create touch event
+            # Step 6: Create touch event
+            print(f"[ControlService] >>> STEP 6: Creating TouchEvent object")
             touch_event = TouchEvent(
                 action=event_data["action"],
                 pointer_id=event_data.get("pointerId", 0),
@@ -147,14 +151,18 @@ class ControlService:
                 screen_width=event_data["screenWidth"],
                 screen_height=event_data["screenHeight"]
             )
+            print(f"[ControlService]     TouchEvent created: action={touch_event.action}, pos=({touch_event.x}, {touch_event.y})")
 
-            # Build control message
+            # Step 7: Build control message
+            print(f"[ControlService] >>> STEP 7: Building scrcpy control message")
             message = self.message_builder.build_touch_message(touch_event)
+            print(f"[ControlService]     Message built: {len(message)} bytes")
 
-            # Send to scrcpy-server via control socket
+            # Step 8: Send to scrcpy-server via control socket
+            print(f"[ControlService] >>> STEP 8: Sending message to device")
             if device.is_connected():
                 device.send_control_message(message)
-                print(f"[ControlService] Touch {event_data['action']} sent to {serial} at ({event_data['x']}, {event_data['y']})")
+                print(f"[ControlService] [OK] Touch {event_data['action']} sent to {serial} at ({event_data['x']}, {event_data['y']})")
 
                 # Broadcast to slave devices if this is a master
                 async def _send_touch_to_slave(slave_serial: str, data: dict) -> bool:

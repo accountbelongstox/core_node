@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { wsService } from '../services/websocket';
 
 interface DeviceH264StreamProps {
   deviceId: string;
@@ -17,11 +18,24 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
   const decoderRef = useRef<VideoDecoder | null>(null);
   const decoderConfigured = useRef(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [browserSupport, setBrowserSupport] = useState<{
     webcodecs: boolean;
     canvas2d: boolean;
     webgl: boolean;
   } | null>(null);
+
+  // Reconnection state
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const reconnectDelays = [1000, 2000, 4000, 8000, 16000, 30000]; // Max 30s
+
+  // Hidden control layer state
+  const [frameSize, setFrameSize] = useState({ width: 1080, height: 2340 });
+  const isMouseDownRef = useRef(false);
+  const lastSendTimeRef = useRef(0);
 
   // Check browser capabilities on mount (ONCE only, with proper cleanup)
   useEffect(() => {
@@ -76,24 +90,18 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
     checkSupport();
   }, []);
 
-  useEffect(() => {
-    // Wait for browser support check to complete
-    if (!browserSupport) {
-      console.log(`[H264Stream] Waiting for browser support check...`);
-      return;
-    }
-
-    if (!enabled) return;
-
-    // Log support status but continue even if WebCodecs not supported (will show error UI)
-    console.log(`[H264Stream] Browser support: WebCodecs=${browserSupport.webcodecs}, Canvas2D=${browserSupport.canvas2d}, WebGL=${browserSupport.webgl}`);
-
-    if (!browserSupport.webcodecs) {
+  // WebSocket connection function
+  const connect = useCallback(() => {
+    if (!browserSupport?.webcodecs) {
       console.error(`[H264Stream] WebCodecs not supported, cannot create stream for ${deviceId}`);
+      setConnectionError('WebCodecs not supported in this browser');
       return;
     }
 
-    console.log(`[H264Stream] Creating WebSocket for ${deviceId}`);
+    console.log(`[H264Stream] Connecting WebSocket for ${deviceId} (attempt ${reconnectAttemptsRef.current + 1})`);
+    setIsReconnecting(reconnectAttemptsRef.current > 0);
+    setConnectionError(null);
+
     const ws = new WebSocket(`ws://localhost:48000/video/${deviceId}`);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
@@ -101,6 +109,9 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
     ws.onopen = () => {
       console.log(`[H264Stream] WebSocket opened for ${deviceId}`);
       ws.send(JSON.stringify({ command: 'start_stream', device_id: deviceId }));
+      reconnectAttemptsRef.current = 0; // Reset on successful connection
+      setIsReconnecting(false);
+      setConnectionError(null);
     };
 
     ws.onmessage = (event) => {
@@ -115,6 +126,21 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
           console.log(`[H264Stream] ✓ Stream paused for ${deviceId}`);
         } else if (msg.type === 'stream.resumed') {
           console.log(`[H264Stream] ✓ Stream resumed for ${deviceId}`);
+        } else if (msg.type === 'video.metadata') {
+          // Update frame size for coordinate transformation
+          console.log(`[H264Stream] Video metadata:`, msg.data);
+          setFrameSize({
+            width: msg.data.width,
+            height: msg.data.height
+          });
+        } else if (msg.type === 'device.status') {
+          // Handle device status updates from backend
+          console.log(`[H264Stream] Device status update:`, msg.data);
+          if (msg.data.status === 'error' || msg.data.status === 'reconnecting') {
+            setConnectionError(msg.data.error_message || 'Device connection issue');
+          } else if (msg.data.status === 'healthy') {
+            setConnectionError(null);
+          }
         }
       }
     };
@@ -122,19 +148,68 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
     ws.onerror = (err) => {
       console.error(`[H264Stream] WebSocket error for ${deviceId}:`, err);
       setIsConnected(false);
+      setConnectionError('WebSocket connection error');
     };
 
-    ws.onclose = () => {
-      console.log(`[H264Stream] WebSocket closed for ${deviceId}`);
+    ws.onclose = (event) => {
+      console.log(`[H264Stream] WebSocket closed for ${deviceId}`, event.code, event.reason);
       setIsConnected(false);
+      wsRef.current = null;
+
+      // Attempt reconnection if enabled
+      if (enabled && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        const delayIndex = Math.min(reconnectAttemptsRef.current, reconnectDelays.length - 1);
+        const delay = reconnectDelays[delayIndex];
+        reconnectAttemptsRef.current++;
+
+        console.log(
+          `[H264Stream] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
+        );
+        setIsReconnecting(true);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connect();
+        }, delay);
+      } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        console.error(`[H264Stream] Max reconnection attempts reached for ${deviceId}`);
+        setConnectionError(`Connection failed after ${maxReconnectAttempts} attempts`);
+        setIsReconnecting(false);
+      }
     };
+  }, [browserSupport, deviceId, enabled]);
+
+  // Main connection effect
+  useEffect(() => {
+    // Wait for browser support check to complete
+    if (!browserSupport) {
+      console.log(`[H264Stream] Waiting for browser support check...`);
+      return;
+    }
+
+    if (!enabled) return;
+
+    // Log support status
+    console.log(`[H264Stream] Browser support: WebCodecs=${browserSupport.webcodecs}, Canvas2D=${browserSupport.canvas2d}, WebGL=${browserSupport.webgl}`);
+
+    // Initial connection
+    connect();
 
     return () => {
       console.log(`[H264Stream] Cleaning up ${deviceId}`);
+
+      // Cancel reconnection timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Close WebSocket
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
+
+      // Close decoder
       if (decoderRef.current) {
         try {
           decoderRef.current.close();
@@ -142,9 +217,112 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
         decoderRef.current = null;
         decoderConfigured.current = false;
       }
+
       setIsConnected(false);
+      setIsReconnecting(false);
+      reconnectAttemptsRef.current = 0;
     };
-  }, [enabled, deviceId, browserSupport]);
+  }, [enabled, browserSupport, connect]);
+
+  // ========== Hidden Control Layer ==========
+  // Coordinate transformation: window coords → device coords
+  const convertCoordinates = useCallback((clientX: number, clientY: number) => {
+    if (!canvasRef.current) return null;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = Math.floor((clientX - rect.left) / rect.width * frameSize.width);
+    const y = Math.floor((clientY - rect.top) / rect.height * frameSize.height);
+
+    return { x, y };
+  }, [frameSize]);
+
+  // Send touch event (with throttling)
+  const sendTouchEvent = useCallback(async (action: 'down' | 'up' | 'move', x: number, y: number) => {
+    if (!isConnected) {
+      console.warn('[H264Stream] Cannot send touch - not connected');
+      return;
+    }
+
+    // Event throttling: move events max 60fps (16ms)
+    const now = Date.now();
+    if (action === 'move' && now - lastSendTimeRef.current < 16) {
+      return;
+    }
+    lastSendTimeRef.current = now;
+
+    try {
+      console.log(`[H264Stream] Sending touch ${action} to ${deviceId} at (${x}, ${y}), screen: ${frameSize.width}x${frameSize.height}`);
+
+      const result = await wsService.callRpc('control.touch', {
+        deviceId: deviceId,
+        action: action,
+        pointerId: 0,
+        x: x,
+        y: y,
+        pressure: 1.0,
+        screenWidth: frameSize.width,
+        screenHeight: frameSize.height
+      });
+
+      console.log(`[H264Stream] Touch ${action} result:`, result);
+
+      if (result?.error) {
+        console.error('[H264Stream] Touch event error:', result.error);
+      }
+    } catch (error) {
+      console.error('[H264Stream] Failed to send touch event:', error);
+    }
+  }, [deviceId, isConnected, frameSize]);
+
+  // Mouse down
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    console.log('[H264Stream] ========== MOUSE DOWN EVENT FIRED ==========');
+    console.log('[H264Stream] Client position:', e.clientX, e.clientY);
+    console.log('[H264Stream] Button:', e.button);
+    console.log('[H264Stream] Target:', e.target);
+
+    e.preventDefault();
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) {
+      console.warn('[H264Stream] [X] Failed to convert coordinates on mouseDown');
+      return;
+    }
+
+    console.log(`[H264Stream] Mouse down at client(${e.clientX}, ${e.clientY}) -> device(${coords.x}, ${coords.y})`);
+    console.log(`[H264Stream] isConnected: ${isConnected}, frameSize: ${frameSize.width}x${frameSize.height}`);
+
+    isMouseDownRef.current = true;
+    sendTouchEvent('down', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent, isConnected, frameSize]);
+
+  // Mouse move
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isMouseDownRef.current) return;
+
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) return;
+
+    sendTouchEvent('move', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent]);
+
+  // Mouse up
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isMouseDownRef.current) return;
+
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) return;
+
+    isMouseDownRef.current = false;
+    sendTouchEvent('up', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent]);
+
+  // Mouse leave - auto release if dragging
+  const handleMouseLeave = useCallback(() => {
+    if (isMouseDownRef.current) {
+      console.log('[H264Stream] Mouse left canvas while dragging, auto-releasing touch');
+      isMouseDownRef.current = false;
+    }
+  }, []);
 
   // Handle page visibility changes to pause/resume stream
   useEffect(() => {
@@ -399,15 +577,40 @@ export const DeviceH264Stream: React.FC<DeviceH264StreamProps> = ({
 
   return (
     <div className="w-full h-full relative">
-      <canvas ref={canvasRef} className="w-full h-full object-cover" style={{ display: 'block' }} />
-      {isConnected && (
-        <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-[9px] font-mono text-blue-400">
-          H.264 CONNECTED
-        </div>
-      )}
-      {browserSupport && !browserSupport.webgl && (
-        <div className="absolute top-2 right-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded text-[9px] font-mono text-yellow-400">
-          WebGL Disabled
+      {/* Canvas with touch control layer - NO UI OVERLAYS */}
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full object-cover cursor-crosshair"
+        style={{ display: 'block', touchAction: 'none' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      />
+
+      {/* Manual Reconnect Button - ONLY shown when max attempts reached */}
+      {connectionError && reconnectAttemptsRef.current >= maxReconnectAttempts && (
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+          <div className="text-center p-4">
+            <div className="text-[#ff2a6d] text-sm font-mono mb-2">
+              <i className="ph ph-warning text-xl"></i>
+            </div>
+            <div className="text-white/90 text-xs font-mono mb-2">
+              Connection Failed
+            </div>
+            <div className="text-white/60 text-[10px] font-mono mb-4">
+              {connectionError}
+            </div>
+            <button
+              onClick={() => {
+                reconnectAttemptsRef.current = 0;
+                connect();
+              }}
+              className="px-4 py-2 bg-[#05ffa1] text-black text-xs font-mono rounded hover:bg-[#04cc81] transition-colors"
+            >
+              Retry Connection
+            </button>
+          </div>
         </div>
       )}
     </div>

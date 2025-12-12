@@ -25,12 +25,18 @@ from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyutils.shortcut_manager import ShortcutManager
+from pycore.pyutils.appusermodelid_manager import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.adb_device_manager.adb_heartbeat_service import init_adb_heartbeat_service, get_adb_heartbeat_service
 
 
 _adb_service = None
 _rpc_server = None  # Global RPC server instance
+
+# Matrix AppUserModelID (prevents duplicate taskbar icons when running as admin)
+# Format: CompanyName.ProductName.SubProduct
+# Must be consistent across shortcut and application
+MATRIX_APP_USER_MODEL_ID = "XingcanMedia.Matrix.Cloud"
 
 
 def get_adb_service():
@@ -52,17 +58,16 @@ def matrix_main_entry():
     - No periodic task generation
     - Direct callback registration to unified heartbeat
     - Callbacks use tick counter interceptor (30s = skip 29 ticks, run on 30th)
+
+    Note: i18n is already extended in start() function before this is called
     """
     global _adb_service
 
-    # Extend i18n with Matrix app translations (uses global i18n object)
-    # This allows startup window language selector to work with Matrix translations
-    ColorPrint.blue("[Matrix] Extending i18n with Matrix app translations...")
-    app_dir = Path(__file__).parent
-    i18n.extend_translations(app_dir=str(app_dir), app_name="matrix")
-    ColorPrint.green("[Matrix] i18n extended successfully")
+    # i18n is already extended in start() function
+    # No need to extend again here
 
     from pyapps.matrix.controller.event_handlers import register_matrix_event_handlers
+    from pyapps.matrix.services.video_stream_health_service import get_video_stream_health_service
 
     # Register Matrix event handlers
     register_matrix_event_handlers(
@@ -82,6 +87,29 @@ def matrix_main_entry():
     if _rpc_server:
         _adb_service.set_rpc_server(_rpc_server)
         ColorPrint.green("[Matrix] RPC server attached to ADB service")
+
+    # Initialize Video Stream Health Service
+    ColorPrint.blue("[Matrix] Initializing Video Stream Health Service...")
+    video_health_service = get_video_stream_health_service()
+    if _rpc_server:
+        video_health_service.set_rpc_server(_rpc_server)
+        ColorPrint.green("[Matrix] RPC server attached to Video Health service")
+
+    # Establish bidirectional reference between VideoStreamService and HealthService
+    # This enables proper coordination for device cleanup
+    ColorPrint.blue("[Matrix] Establishing service coordination...")
+    from pyapps.matrix.services.video_stream_service import VideoStreamService
+    video_stream_service = VideoStreamService.instance()
+    video_health_service.set_video_stream_service(video_stream_service)
+    ColorPrint.green("[Matrix] ✓ VideoStreamService <-> HealthService coordination established")
+
+    # Initialize Device State Coordinator (Problem 3 fix)
+    # This service provides unified device state management across all services
+    ColorPrint.blue("[Matrix] Initializing Device State Coordinator...")
+    from pyapps.matrix.services.device_state_coordinator import get_device_state_coordinator
+    device_state_coordinator = get_device_state_coordinator()
+    device_state_coordinator.initialize()
+    ColorPrint.green("[Matrix] ✓ DeviceStateCoordinator initialized")
 
     # Register callbacks to unified heartbeat (using tick counter interceptor)
     # Note: ADBHeartbeatService is NOT a thread - it's driven by heartbeat callbacks
@@ -117,8 +145,17 @@ def matrix_main_entry():
         interval=10  # 10 seconds (10 ticks)
     )
 
+    # Register video stream health check callback
+    heartbeat.register_callback(
+        name='video_stream_health_check',
+        callback=lambda: video_health_service.check_all_devices(),
+        interval=10  # 10 seconds (10 ticks)
+    )
+
     ColorPrint.green("[Matrix] ADB callbacks registered to unified heartbeat")
+    ColorPrint.green("[Matrix] Video stream health check registered to unified heartbeat")
     ColorPrint.blue("[Matrix] ADB Device Manager initialized (callback driven)")
+    ColorPrint.blue("[Matrix] Video Stream Health Service initialized (callback driven)")
 
 
 def rpc_init_callback(rpc_server):
@@ -163,7 +200,18 @@ def rpc_init_callback(rpc_server):
 
 
 def ensure_desktop_shortcut():
-    """Ensure Matrix desktop shortcut exists"""
+    """
+    Ensure Matrix desktop shortcut exists with localized name
+
+    Shortcut name is automatically localized based on system language:
+    - English (en): "Matrix Cloud"
+    - Chinese (zh): "星灿传媒云矩阵"
+
+    Old shortcuts with different names will be automatically cleaned up.
+
+    AppUserModelID is set to prevent duplicate taskbar icons when
+    running as administrator.
+    """
     try:
         ColorPrint.blue("[Matrix] Checking desktop shortcut...")
         manager = ShortcutManager()
@@ -172,13 +220,29 @@ def ensure_desktop_shortcut():
         app_dir = Path(__file__).parent
         resources_dir = app_dir / "resources"
 
-        # Create/update shortcut
+        # Define all possible shortcut names (for cleanup)
+        # This includes all language variations to clean up old shortcuts
+        ALL_POSSIBLE_NAMES = [
+            "Matrix Cloud",           # English
+            "星灿传媒云矩阵",          # Chinese (simplified)
+            "Xingcan Media - Cloud Matrix",  # Old English variant
+        ]
+
+        # Create/update shortcut with i18n support, cleanup, and AppUserModelID
+        # The shortcut name and description will be automatically localized
+        # based on the current language setting in i18n manager
+        # Old shortcuts with different names will be removed
+        # AppUserModelID prevents duplicate taskbar icons when running as admin
         manager.ensure_shortcut(
-            name="Matrix Cloud",
+            name="Matrix Cloud",  # Fallback name (if i18n not available)
             command=f'python "{PROJECT_ROOT / "pymain.py"}" app=matrix',
             icon_search_dir=resources_dir,
             working_dir=PROJECT_ROOT,
-            description="Launch Matrix Cloud - Android Device Manager"
+            description="Launch Matrix Cloud - Android Device Manager",  # Fallback description
+            i18n_name_key="matrix.shortcut.name",  # Localized name key
+            i18n_description_key="matrix.shortcut.description",  # Localized description key
+            cleanup_old_names=ALL_POSSIBLE_NAMES,  # Clean up old language versions
+            app_user_model_id=MATRIX_APP_USER_MODEL_ID  # Prevent duplicate taskbar icons
         )
         ColorPrint.green("[Matrix] ✓ Desktop shortcut ready")
     except Exception as e:
@@ -191,7 +255,24 @@ def start():
     ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
     ColorPrint.blue("=" * 70)
 
-    # Ensure desktop shortcut exists
+    # Set AppUserModelID for current process
+    # This must match the AppUserModelID set on desktop shortcut
+    # Prevents duplicate taskbar icons when running as administrator
+    ColorPrint.blue(f"[Matrix] Setting AppUserModelID: {MATRIX_APP_USER_MODEL_ID}")
+    if set_app_user_model_id(MATRIX_APP_USER_MODEL_ID):
+        ColorPrint.green("[Matrix] ✓ AppUserModelID set for current process")
+    else:
+        ColorPrint.yellow("[Matrix] ⚠ Failed to set AppUserModelID (non-Windows or error)")
+
+    # Extend i18n with Matrix app translations BEFORE creating shortcut
+    # This ensures the shortcut name is localized based on system language
+    ColorPrint.blue("[Matrix] Extending i18n for shortcut localization...")
+    app_dir = Path(__file__).parent
+    i18n.extend_translations(app_dir=str(app_dir), app_name="matrix")
+    current_lang = i18n.get_current_language()
+    ColorPrint.green(f"[Matrix] i18n extended successfully (current language: {current_lang})")
+
+    # Ensure desktop shortcut exists (now with localized name and AppUserModelID)
     ensure_desktop_shortcut()
 
     # Resource paths

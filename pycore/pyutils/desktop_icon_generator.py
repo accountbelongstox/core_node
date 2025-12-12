@@ -240,11 +240,11 @@ class DesktopIconGenerator:
             print(f"Warning: Could not read shortcut info, will update: {e}")
             return True
     
-    def create_shortcut(self, target_path, name=None, icon_path=None, working_dir=None, 
-                       arguments="", description=""):
+    def create_shortcut(self, target_path, name=None, icon_path=None, working_dir=None,
+                       arguments="", description="", app_user_model_id=None):
         """
         Create or modify a desktop shortcut (only updates if content differs)
-        
+
         Args:
             target_path: Path to target executable or file
             name: Shortcut name (optional, uses basename if not provided)
@@ -252,7 +252,10 @@ class DesktopIconGenerator:
             working_dir: Working directory (optional, uses target's directory if not provided)
             arguments: Command line arguments (optional)
             description: Shortcut description (optional)
-        
+            app_user_model_id: AppUserModelID (optional, prevents duplicate taskbar icons when running as admin)
+                              Format: CompanyName.ProductName[.SubProduct]
+                              Example: "XingcanMedia.Matrix.Cloud"
+
         Returns:
             Path: Path to created shortcut (.lnk file)
         """
@@ -304,9 +307,24 @@ class DesktopIconGenerator:
         
         # Save shortcut
         shortcut.Save()
-        
+
         action = "Updated" if shortcut_exists else "Created"
         print(f"{action} shortcut: {shortcut_path}")
+
+        # Set AppUserModelID property if provided (prevents duplicate taskbar icons)
+        if app_user_model_id:
+            try:
+                from pycore.pyutils.appusermodelid_manager import set_shortcut_app_user_model_id
+                print(f"[DesktopIconGenerator] Setting AppUserModelID on shortcut...")
+                if set_shortcut_app_user_model_id(shortcut_path, app_user_model_id):
+                    print(f"[DesktopIconGenerator] ✓ AppUserModelID set: {app_user_model_id}")
+                else:
+                    print(f"[DesktopIconGenerator] ⚠ Failed to set AppUserModelID")
+            except ImportError as e:
+                print(f"[DesktopIconGenerator] ⚠ AppUserModelID module not available: {e}")
+            except Exception as e:
+                print(f"[DesktopIconGenerator] ⚠ Error setting AppUserModelID: {e}")
+
         return shortcut_path
     
     def update_shortcut(self, shortcut_path, target_path=None, name=None, icon_path=None,
