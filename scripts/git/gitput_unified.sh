@@ -753,7 +753,35 @@ handle_conflict_resolution() {
 # Function to perform safe git pull operations
 invoke_safe_git_pull() {
     local target_url="$1"
-    
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
+
     write_color_text "Starting SAFE GIT PULL operations for: $target_url" "Cyan"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
@@ -857,6 +885,34 @@ invoke_safe_git_pull() {
 # Reference: https://www.datacamp.com/tutorial/git-pull-force
 invoke_force_overwrite() {
     local target_url="$1"
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
 
     write_color_text "═══════════════════════════════════════════════════════════════" "Yellow"
     write_color_text "FORCE OVERWRITE - DISCARDING LOCAL CHANGES" "Red"
@@ -1016,6 +1072,34 @@ invoke_force_overwrite() {
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
 
     write_color_text "----------------------------------------------------------------" "DarkYellow"
     write_color_text "Starting git operations for: $target_url" "Cyan"
