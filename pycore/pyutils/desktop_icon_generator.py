@@ -121,7 +121,6 @@ class DesktopIconGenerator:
     def get_desktop_path():
         """
         Get Windows desktop path
-        
         Returns:
             Path: Desktop directory path
         """
@@ -130,17 +129,42 @@ class DesktopIconGenerator:
             if HAS_WIN32COM:
                 shell = win32com.client.Dispatch("WScript.Shell")
                 desktop = shell.SpecialFolders("Desktop")
+                if desktop and os.path.exists(desktop):
+                    return Path(desktop)
+        except:
+            pass
+
+        # Fallback 1: use USERPROFILE\Desktop
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            if os.path.exists(desktop):
                 return Path(desktop)
         except:
             pass
-        
-        # Fallback: use environment variable
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        if not os.path.exists(desktop):
-            # For some Windows versions, desktop is in Public
-            desktop = os.path.join(os.environ.get("PUBLIC", ""), "Desktop")
-        
-        return Path(desktop)
+
+        # Fallback 2: use USERPROFILE environment variable
+        if "USERPROFILE" in os.environ:
+            desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+            if os.path.exists(desktop):
+                return Path(desktop)
+
+        # Fallback 3: try PUBLIC\Desktop
+        if "PUBLIC" in os.environ:
+            desktop = os.path.join(os.environ["PUBLIC"], "Desktop")
+            if os.path.exists(desktop):
+                return Path(desktop)
+
+        # Fallback 4: create Desktop directory if needed
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            os.makedirs(desktop, exist_ok=True)
+            return Path(desktop)
+        except:
+            pass
+
+        # Last resort: use current directory (should never happen)
+        print("Warning: Could not determine desktop path, using current directory")
+        return Path(".")
     
     def _shortcut_needs_update(self, shortcut_path, target_path, icon_path, working_dir, arguments, description):
         """

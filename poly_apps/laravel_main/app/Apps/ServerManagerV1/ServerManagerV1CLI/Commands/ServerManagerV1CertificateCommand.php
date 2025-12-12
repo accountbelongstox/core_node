@@ -345,19 +345,113 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         $this->line("  list             - List all certificates");
         $this->line("  summary          - Show certificates summary");
         $this->line("  update <domain>  - Update certificate status");
+        $this->line("  renew-all        - Renew all certificates expiring soon");
         $this->line("");
         $this->info("Options:");
         $this->line("  --prefixes       - Subdomain prefixes (default: si,sz,local,api)");
         $this->line("  --provider       - SSL provider (default: dnspod)");
         $this->line("  --status         - Certificate status for update");
+        $this->line("  --days           - Days threshold for renewal (default: 30)");
+        $this->line("  --dry-run        - Check renewals without executing");
         $this->line("");
         $this->info("Examples:");
         $this->line("  php artisan servermanager:certificate add example.com");
         $this->line("  php artisan servermanager:certificate find api.example.com");
         $this->line("  php artisan servermanager:certificate list");
         $this->line("  php artisan servermanager:certificate summary");
+        $this->line("  php artisan servermanager:certificate renew-all");
+        $this->line("  php artisan servermanager:certificate renew-all --dry-run");
 
         return 0;
+    }
+
+    /**
+     * Renew all certificates that are expiring soon
+     */
+    private function renewAllCertificates(): int
+    {
+        $daysThreshold = (int)($this->option('days') ?: 30);
+        $dryRun = $this->option('dry-run');
+
+        $this->info("Certificate Renewal Process");
+        $this->info("Days threshold: $daysThreshold days");
+        if ($dryRun) {
+            $this->warn("DRY RUN MODE - No certificates will be renewed");
+        }
+        $this->line("");
+
+        // Get certificates needing renewal
+        $needingRenewal = ServerManagerV1CertificateManager::getCertificatesNeedingRenewal($daysThreshold);
+
+        if (empty($needingRenewal)) {
+            $this->info("No certificates need renewal at this time");
+            $this->info("All certificates are valid for more than $daysThreshold days");
+            return 0;
+        }
+
+        $this->info("Certificates needing renewal: " . count($needingRenewal));
+        $this->line("");
+
+        foreach ($needingRenewal as $cert) {
+            $domain = $cert['base_domain'];
+            $daysLeft = $cert['days_until_expiry'];
+            $status = $cert['is_expired'] ? 'EXPIRED' : "Expires in $daysLeft days";
+
+            $this->line("Certificate: $domain");
+            $this->line("  Status: $status");
+            $this->line("  Expiry: " . $cert['expires_at']);
+            $this->line("  Domains: " . count($cert['domains']));
+            $this->line("");
+        }
+
+        if ($dryRun) {
+            $this->info("DRY RUN completed - no changes made");
+            return 0;
+        }
+
+        // Execute certbot renew
+        $this->info("Starting certificate renewal with certbot...");
+        $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+
+        $command = [
+            'renew',
+            '--config-dir', $letsEncryptDir,
+            '--work-dir', $letsEncryptDir . '/work',
+            '--logs-dir', $letsEncryptDir . '/logs',
+            '--quiet',
+            '--no-random-sleep-on-renew'
+        ];
+
+        $result = $this->executeCommand('certbot', $command);
+
+        if ($result['success']) {
+            $this->info("Certificate renewal completed successfully");
+
+            // Reload nginx
+            $this->info("Reloading nginx to apply new certificates...");
+            $nginxResult = $this->executeCommand('systemctl', ['reload', 'nginx']);
+
+            if ($nginxResult['success']) {
+                $this->info("Nginx reloaded successfully");
+            } else {
+                $this->warn("Failed to reload nginx");
+                $this->line("Error: " . ($nginxResult['error'] ?? 'Unknown error'));
+            }
+
+            // Show updated summary
+            $this->line("");
+            $this->info("Updated certificate status:");
+            return $this->showSummary();
+        } else {
+            $this->error("Certificate renewal failed");
+            if (!empty($result['output'])) {
+                $this->line("Output: " . $result['output']);
+            }
+            if (!empty($result['error'])) {
+                $this->line("Error: " . $result['error']);
+            }
+            return 1;
+        }
     }
 
     /**
