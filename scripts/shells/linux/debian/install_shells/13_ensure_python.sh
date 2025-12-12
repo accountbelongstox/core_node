@@ -243,7 +243,9 @@ upgrade_pip_official() {
 
     print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/"
 
-    if $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/ --break-system-packages --ignore-installed 2>&1 | grep -v "WARNING\|Retrying" | head -20; then
+    # IDEMPOTENCY: Always upgrade pip to ensure latest version
+    # Use --no-user to force system-level installation (not /var/_core_node/Users)
+    if $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/ --break-system-packages --no-user --ignore-installed 2>&1 | grep -v "WARNING\|Retrying" | head -20; then
         print_success_from_common_functions "pip upgraded successfully using official PyPI"
         return 0
     else
@@ -273,7 +275,9 @@ install_python_packages_official() {
 
     print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade ${packages[*]} --index-url https://pypi.org/simple/"
 
-    if $python_cmd -m pip install --upgrade --index-url https://pypi.org/simple/ --break-system-packages --ignore-installed "${packages[@]}" 2>&1 | grep -v "WARNING\|Retrying" | head -30; then
+    # IDEMPOTENCY: Always check and install/upgrade packages
+    # Use --no-user to force system-level installation (not /var/_core_node/Users)
+    if $python_cmd -m pip install --upgrade --index-url https://pypi.org/simple/ --break-system-packages --no-user --ignore-installed "${packages[@]}" 2>&1 | grep -v "WARNING\|Retrying" | head -30; then
         print_success_from_common_functions "Packages installed successfully using official PyPI"
         return 0
     else
@@ -830,6 +834,67 @@ setup_production_python_venv() {
     return 0
 }
 
+# Function to check and fix urllib3 compatibility for certbot
+check_urllib3_for_certbot() {
+    print_info_from_common_functions "Checking urllib3 version for certbot compatibility..."
+
+    # Check if certbot is installed
+    if ! command -v certbot >/dev/null 2>&1; then
+        print_info_from_common_functions "certbot not installed, skipping urllib3 check"
+        return 0
+    fi
+
+    # Check current urllib3 version
+    local current_version=$(python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null || echo "not found")
+    print_info_from_common_functions "Current urllib3 version: $current_version"
+
+    # Check if DEFAULT_CIPHERS is available (required by certbot 2.1.0)
+    if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
+        print_success_from_common_functions "urllib3 is compatible with certbot (has DEFAULT_CIPHERS)"
+
+        # Test certbot
+        if certbot plugins >/dev/null 2>&1; then
+            print_success_from_common_functions "certbot plugins command works correctly"
+            return 0
+        else
+            print_warning_from_common_functions "certbot has issues despite DEFAULT_CIPHERS present"
+        fi
+    else
+        print_warning_from_common_functions "urllib3 missing DEFAULT_CIPHERS - certbot will fail"
+    fi
+
+    # Fix urllib3 if needed
+    print_step_from_common_functions "Fixing urllib3 compatibility for certbot..."
+    print_info_from_common_functions "Installing urllib3 1.26.18 (last version with DEFAULT_CIPHERS)..."
+
+    # Remove incompatible versions
+    $USE_SUDO pip3 uninstall -y urllib3 >/dev/null 2>&1 || true
+
+    # Install compatible version
+    if python3 -m pip install --break-system-packages --no-user urllib3==1.26.18 >/dev/null 2>&1; then
+        local new_version=$(python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null)
+        print_success_from_common_functions "urllib3 $new_version installed successfully"
+
+        # Verify DEFAULT_CIPHERS
+        if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
+            print_success_from_common_functions "DEFAULT_CIPHERS verified"
+
+            # Test certbot
+            if certbot plugins >/dev/null 2>&1; then
+                print_success_from_common_functions "certbot compatibility fixed"
+            else
+                print_warning_from_common_functions "certbot still has issues, may need manual fix"
+            fi
+        else
+            print_warning_from_common_functions "DEFAULT_CIPHERS still not available"
+        fi
+    else
+        print_warning_from_common_functions "Failed to install urllib3 1.26.18"
+    fi
+
+    return 0
+}
+
 # Main function
 main() {
     local needs_install=false
@@ -884,6 +949,10 @@ main() {
         print_error_from_common_functions "Verification failed - some components are missing"
         return 1
     fi
+
+    # IDEMPOTENCY: Check and fix urllib3 compatibility for certbot
+    print_step_from_common_functions "Checking urllib3 compatibility for certbot..."
+    check_urllib3_for_certbot
 
     print_success_from_common_functions "Python environment setup complete!"
     if [ -d "$VENV_DIR" ] && [ -f "$VENV_PYTHON3" ]; then

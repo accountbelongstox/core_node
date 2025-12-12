@@ -100,12 +100,12 @@ install_dependencies() {
     if [[ "$has_gpu" == true ]]; then
         print_info "Uninstalling incompatible torch versions..."
         echo ""
-        $python_cmd -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+        $python_cmd -m pip uninstall --break-system-packages -y torch torchvision torchaudio 2>/dev/null || true
         echo ""
 
         print_info "Installing GPU-enabled torch and dependencies..."
         echo ""
-        $python_cmd -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+        $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
         echo ""
     else
         print_info "Skipping torch installation (CPU-only setup)"
@@ -115,7 +115,7 @@ install_dependencies() {
 
     print_info "Installing transformers and accelerate..."
     echo ""
-    $python_cmd -m pip install --upgrade transformers accelerate
+    $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers accelerate
     echo ""
 
     print_info "Verifying installation..."
