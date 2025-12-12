@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebGLYUVRenderer } from '../utils/WebGLYUVRenderer';
 import { wsService } from '../services/websocket';
 import { configService, GlobalConfig } from '../services/configService';
+import { API_CONFIG } from '../config/api';
 
 interface VideoStreamOptions {
   deviceId: string; // Use deviceId instead of serial
@@ -125,15 +126,23 @@ export function useVideoStream({
       }
 
       // Connect device via RPC BEFORE opening video WebSocket (device connection takes 30s)
-      console.log(`[useVideoStream] Connecting device ${deviceId} via RPC...`);
-      const connectResult = await wsService.callRpc('device.connect', { deviceId });
-      if (!connectResult.success) {
-        const error = new Error(`Failed to connect device: ${connectResult.error || 'Unknown error'}`);
-        console.error(`[useVideoStream] ${error.message}`);
-        onErrorRef.current?.(error);
-        return;
+      // Check if device is already connected to prevent redundant calls
+      if (!deviceConnectMapRef.current.has(deviceId)) {
+        console.log(`[useVideoStream] Connecting device ${deviceId} via RPC...`);
+        const connectResult = await wsService.callRpc('device.connect', { deviceId });
+        if (!connectResult.success) {
+          const error = new Error(`Failed to connect device: ${connectResult.error || 'Unknown error'}`);
+          console.error(`[useVideoStream] ${error.message}`);
+          onErrorRef.current?.(error);
+          return;
+        }
+        console.log(`[useVideoStream] Device ${deviceId} connected successfully via RPC`);
+
+        // Mark device as connected to prevent redundant calls
+        deviceConnectMapRef.current.set(deviceId, true);
+      } else {
+        console.log(`[useVideoStream] Device ${deviceId} already connected via RPC (skipping redundant call)`);
       }
-      console.log(`[useVideoStream] Device ${deviceId} connected successfully via RPC`);
 
       // Build WebSocket URL based on stream type
       // Backend routes:
@@ -155,14 +164,11 @@ export function useVideoStream({
       let wsUrl: string;
       if (targetStreamType === 'yuv') {
         // YUV endpoint: /video/yuv/{device_id}
-        wsUrl = `ws://localhost:48000/video/yuv/${encodedDeviceId}`;
-        if (targetHwaccel) {
-          wsUrl += `?hwaccel=${targetHwaccel}`;
-        }
+        wsUrl = API_CONFIG.WS_VIDEO_YUV_URL(deviceId, targetHwaccel);
         console.log(`[useVideoStream] Using YUV endpoint: ${wsUrl} (deviceId: ${deviceId})`);
       } else {
         // H.264 stream endpoint: /video/{device_id}
-        wsUrl = `ws://localhost:48000/video/${encodedDeviceId}`;
+        wsUrl = API_CONFIG.WS_VIDEO_H264_URL(deviceId);
         console.log(`[useVideoStream] Using H.264 endpoint: ${wsUrl} (deviceId: ${deviceId})`);
       }
       
@@ -241,9 +247,9 @@ export function useVideoStream({
               const pts = view.getBigUint64(offset); offset += 8;
               const width = view.getUint16(offset); offset += 2;
               const height = view.getUint16(offset); offset += 2;
-              const ySize = view.getInt32(offset); offset += 4;
-              const uSize = view.getInt32(offset); offset += 4;
-              const vSize = view.getInt32(offset); offset += 4;
+              const ySize = view.getUint32(offset); offset += 4;
+              const uSize = view.getUint32(offset); offset += 4;
+              const vSize = view.getUint32(offset); offset += 4;
 
               console.log(`[useVideoStream] [STEP 4] Header parsed, offset now: ${offset}`);
               console.log(`[useVideoStream] Frame dimensions: ${width}x${height}`);
@@ -396,7 +402,51 @@ export function useVideoStream({
               connectionStateRef.current.isConnected = false;
               setIsConnected(false);
               onErrorRef.current?.(error);
-            } else {
+            }
+            // Handle fatal stream error (from health service)
+            else if (message.type === 'stream.error') {
+              const errorMsg = message.data?.error || 'Fatal stream error';
+              const isFatal = message.data?.fatal || false;
+              console.error(`[useVideoStream] ${isFatal ? 'FATAL' : ''} stream error for ${deviceId}:`, errorMsg);
+
+              connectionStateRef.current.isConnected = false;
+              setIsConnected(false);
+              setHasError(true);
+              onErrorRef.current?.(new Error(errorMsg));
+
+              // Close WebSocket on fatal errors to prevent reconnection attempts
+              if (isFatal && wsRef.current) {
+                console.log(`[useVideoStream] Closing WebSocket due to fatal error`);
+                wsRef.current.close(1000, errorMsg);
+              }
+            }
+            // Handle graceful stream termination
+            else if (message.type === 'stream.ended') {
+              const reason = message.data?.reason || 'Stream ended';
+              console.log(`[useVideoStream] Stream ended for ${deviceId}: ${reason}`);
+
+              connectionStateRef.current.isConnected = false;
+              setIsConnected(false);
+
+              // Don't treat as error, just normal termination
+              console.log(`[useVideoStream] Stream gracefully terminated`);
+            }
+            // Handle device status updates (from health service)
+            else if (message.type === 'device.status') {
+              const status = message.data?.status;
+              const errorMessage = message.data?.error_message;
+              const reconnectAttempts = message.data?.reconnect_attempts;
+
+              console.log(`[useVideoStream] Device status for ${deviceId}:`, status, errorMessage, `(reconnect attempts: ${reconnectAttempts})`);
+
+              // Show health warnings to user
+              if (status === 'warning' || status === 'error') {
+                setConnectionError(errorMessage || `Device health: ${status}`);
+              } else if (status === 'healthy') {
+                setConnectionError(null);
+              }
+            }
+            else {
               console.log(`[useVideoStream] Unknown message type for ${deviceId}: ${message.type}`, message);
             }
           } catch (error) {

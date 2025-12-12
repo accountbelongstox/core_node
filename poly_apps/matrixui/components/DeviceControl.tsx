@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Device, DeviceLog } from '../types';
 import { useI18n } from '../services/i18n';
+import { wsService } from '../services/websocket';
 
 interface InspectorProps {
   device: Device | null; 
@@ -130,6 +131,59 @@ const InspectorContent: React.FC<{
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }> = ({ device, logs, telemetry, scrollRef }) => {
   const { t } = useI18n();
+  const [textInput, setTextInput] = useState('');
+  const [isInputting, setIsInputting] = useState(false);
+
+  // Control functions
+  const sendKeyEvent = useCallback(async (keyCode: number) => {
+    if (!device) return;
+    try {
+      await wsService.send('control.key', {
+        deviceId: device.id,
+        action: 'down',
+        keyCode: keyCode,
+        metaState: 0
+      });
+      // Send up event immediately after down
+      await wsService.send('control.key', {
+        deviceId: device.id,
+        action: 'up',
+        keyCode: keyCode,
+        metaState: 0
+      });
+    } catch (error) {
+      console.error('[DeviceControl] Failed to send key event:', error);
+    }
+  }, [device]);
+
+  const sendSystemKey = useCallback(async (action: string) => {
+    if (!device) return;
+    try {
+      await wsService.send('control.systemkey', {
+        deviceId: device.id,
+        action: action
+      });
+    } catch (error) {
+      console.error('[DeviceControl] Failed to send system key:', error);
+    }
+  }, [device]);
+
+  const sendText = useCallback(async () => {
+    if (!device || !textInput.trim()) return;
+    setIsInputting(true);
+    try {
+      await wsService.send('control.text', {
+        deviceId: device.id,
+        text: textInput
+      });
+      setTextInput('');
+    } catch (error) {
+      console.error('[DeviceControl] Failed to send text:', error);
+    } finally {
+      setIsInputting(false);
+    }
+  }, [device, textInput]);
+
   if (!device) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-center p-6">
@@ -144,7 +198,7 @@ const InspectorContent: React.FC<{
   return (
     <div className="flex-1 flex flex-col overflow-hidden animate-[scan_0.3s_ease-out]">
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        
+
         {/* Identity Block */}
         <div className="mb-6">
           <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
@@ -154,44 +208,110 @@ const InspectorContent: React.FC<{
             <InfoItem label={t('device_control.model')} value={device.model} />
             <InfoItem label={t('device_control.serial')} value={device.serial} mono />
             <InfoItem label={t('device_control.battery')} value={`${device.battery}%`} valueColor={device.battery > 20 ? 'text-[#05ffa1]' : 'text-[#ff2a6d]'} />
-            <InfoItem label={t('device_control.temp')} value="34°C" />
+            <InfoItem label="Status" value="ONLINE" valueColor="text-[#05ffa1]" />
           </div>
         </div>
 
-        {/* Telemetry Block */}
+        {/* Virtual D-Pad Control */}
         <div className="mb-6">
-           <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
-            {t('device_control.telemetry')}
+          <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
+            NAVIGATION
           </div>
-          <div className="h-24 bg-black/40 border border-white/10 rounded-lg flex items-end justify-between px-1 pb-1 pt-6 gap-1 overflow-hidden relative">
-             <div className="absolute top-2 left-2 text-[8px] text-slate-500 font-mono flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00f2ff]"></div> {t('device_control.cpu_load')}
-             </div>
-             {telemetry.map((h, i) => (
-               <div key={i} className="flex-1 bg-gradient-to-t from-[#00f2ff]/80 to-[#00f2ff]/20 rounded-t-sm transition-all duration-300" style={{ height: `${h}%` }}></div>
-             ))}
+          <div className="flex gap-4">
+            {/* D-Pad */}
+            <div className="flex-1 aspect-square relative">
+              <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-1">
+                <div></div>
+                <DPadButton icon="ph-caret-up" onClick={() => sendKeyEvent(19)} />
+                <div></div>
+                <DPadButton icon="ph-caret-left" onClick={() => sendKeyEvent(21)} />
+                <DPadButton icon="ph-circle" onClick={() => sendKeyEvent(23)} label="OK" />
+                <DPadButton icon="ph-caret-right" onClick={() => sendKeyEvent(22)} />
+                <div></div>
+                <DPadButton icon="ph-caret-down" onClick={() => sendKeyEvent(20)} />
+                <div></div>
+              </div>
+            </div>
+
+            {/* System Keys */}
+            <div className="flex-1 grid grid-cols-2 gap-2">
+              <SystemButton icon="ph-arrow-left" label="Back" onClick={() => sendSystemKey('back')} />
+              <SystemButton icon="ph-house" label="Home" onClick={() => sendSystemKey('home')} />
+              <SystemButton icon="ph-squares-four" label="Recent" onClick={() => sendSystemKey('recent')} />
+              <SystemButton icon="ph-power" label="Power" onClick={() => sendSystemKey('power')} danger />
+            </div>
+          </div>
+        </div>
+
+        {/* Text Input */}
+        <div className="mb-6">
+          <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
+            TEXT INPUT
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') sendText();
+              }}
+              placeholder="Type text to send..."
+              className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00f2ff]/50"
+              disabled={isInputting}
+            />
+            <button
+              onClick={sendText}
+              disabled={!textInput.trim() || isInputting}
+              className="px-4 bg-[#00f2ff]/20 border border-[#00f2ff]/50 rounded text-[#00f2ff] text-xs font-bold hover:bg-[#00f2ff]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              {isInputting ? '...' : 'SEND'}
+            </button>
+          </div>
+        </div>
+
+        {/* Volume Control */}
+        <div className="mb-6">
+          <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
+            VOLUME
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => sendKeyEvent(25)}
+              className="flex-1 py-3 bg-white/5 border border-white/10 rounded hover:bg-white/10 transition-all flex items-center justify-center gap-2 text-white"
+            >
+              <i className="ph-bold ph-speaker-simple-low text-lg"></i>
+              <span className="text-xs">DOWN</span>
+            </button>
+            <button
+              onClick={() => sendKeyEvent(24)}
+              className="flex-1 py-3 bg-white/5 border border-white/10 rounded hover:bg-white/10 transition-all flex items-center justify-center gap-2 text-white"
+            >
+              <i className="ph-bold ph-speaker-simple-high text-lg"></i>
+              <span className="text-xs">UP</span>
+            </button>
           </div>
         </div>
 
         {/* Quick Actions */}
         <div className="mb-6">
            <div className="text-[10px] text-[#00f2ff] font-bold tracking-widest mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-[1px] after:bg-gradient-to-r after:from-[#00f2ff]/20 after:to-transparent">
-            {t('device_control.quick_actions')}
+            QUICK ACTIONS
           </div>
           <div className="grid grid-cols-3 gap-2">
-             <ActionButton icon="ph-camera" label={t('control.actions.snap')} />
-             <ActionButton icon="ph-video" label={t('control.actions.rec')} />
-             <ActionButton icon="ph-clipboard" label={t('control.actions.paste')} />
-             <ActionButton icon="ph-lock-key" label={t('control.actions.lock')} />
-             <ActionButton icon="ph-trash" label={t('control.actions.clean')} />
-             <ActionButton icon="ph-skull" label={t('control.actions.kill')} danger />
+             <ActionButton icon="ph-camera" label="Snap" onClick={() => sendSystemKey('screenshot')} />
+             <ActionButton icon="ph-keyboard" label="Enter" onClick={() => sendKeyEvent(66)} />
+             <ActionButton icon="ph-backspace" label="Delete" onClick={() => sendKeyEvent(67)} />
+             <ActionButton icon="ph-arrow-u-up-left" label="Esc" onClick={() => sendKeyEvent(111)} />
+             <ActionButton icon="ph-arrow-clockwise" label="Menu" onClick={() => sendKeyEvent(82)} />
+             <ActionButton icon="ph-x-circle" label="Clear" onClick={() => sendKeyEvent(28)} danger />
           </div>
         </div>
 
       </div>
 
       {/* Console */}
-      <div className="h-[200px] bg-black/40 border-t border-white/10 flex flex-col">
+      <div className="h-[160px] bg-black/40 border-t border-white/10 flex flex-col">
         <div className="h-8 flex items-center px-4 text-[10px] font-bold text-slate-500 bg-white/[0.02]">
            <i className="ph ph-terminal-window mr-2"></i> {t('device_control.system_log')}
         </div>
@@ -200,7 +320,7 @@ const InspectorContent: React.FC<{
              <div key={i} className="mb-1.5 flex gap-2 border-l-2 border-transparent hover:border-white/20 pl-1">
                 <span className="text-slate-600">[{log.time}]</span>
                 <span className={
-                  log.type === 'info' ? 'text-[#00f2ff]' : 
+                  log.type === 'info' ? 'text-[#00f2ff]' :
                   log.type === 'error' ? 'text-[#ff2a6d]' : 'text-slate-300'
                 }>{log.msg}</span>
              </div>
@@ -219,8 +339,36 @@ const InfoItem = ({ label, value, mono, valueColor }: any) => (
   </div>
 );
 
-const ActionButton = ({ icon, label, danger }: any) => (
-  <button className={`
+const DPadButton = ({ icon, label, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className="bg-white/5 border border-white/10 rounded hover:bg-[#00f2ff]/20 hover:border-[#00f2ff]/50 transition-all active:scale-90 flex items-center justify-center text-white"
+  >
+    <i className={`ph-bold ${icon} text-xl`}></i>
+    {label && <span className="text-[8px] ml-1">{label}</span>}
+  </button>
+);
+
+const SystemButton = ({ icon, label, onClick, danger }: any) => (
+  <button
+    onClick={onClick}
+    className={`
+      py-3 rounded flex flex-col items-center justify-center gap-1 transition-all hover:scale-95 active:scale-90
+      ${danger
+        ? 'bg-[#ff2a6d]/10 border border-[#ff2a6d]/30 text-[#ff2a6d] hover:bg-[#ff2a6d]/20 hover:border-[#ff2a6d]/50'
+        : 'bg-white/5 border border-white/10 text-white hover:bg-[#00f2ff]/20 hover:border-[#00f2ff]/50'
+      }
+    `}
+  >
+    <i className={`ph-bold ${icon} text-lg`}></i>
+    <span className="text-[9px] font-medium">{label}</span>
+  </button>
+);
+
+const ActionButton = ({ icon, label, onClick, danger }: any) => (
+  <button
+    onClick={onClick}
+    className={`
     aspect-square rounded-lg border bg-white/5 flex flex-col items-center justify-center gap-1.5 transition-all hover:bg-white/10 hover:scale-95 active:scale-90
     ${danger ? 'border-[#ff2a6d]/30 text-[#ff2a6d] hover:border-[#ff2a6d]' : 'border-white/10 text-slate-400 hover:text-white hover:border-white/30'}
   `}>

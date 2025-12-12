@@ -6,6 +6,7 @@ import {
 import { initStorageManagerListener } from './storage-manager';
 import { cleanupModelCache } from '@/utils/semantic-similarity-engine';
 import { setupAudioStatusListener } from './tools/audio';
+import { getDeepSeekPollingService } from './deepseek-polling-service';
 
 /**
  * Background script entry point
@@ -17,6 +18,16 @@ export default defineBackground(() => {
   initSemanticSimilarityListener();
   initStorageManagerListener();
   setupAudioStatusListener();
+
+  // Initialize DeepSeek polling service
+  getDeepSeekPollingService()
+    .initialize()
+    .then(() => {
+      console.log('Background: DeepSeek polling service initialized');
+    })
+    .catch((error) => {
+      console.warn('Background: Failed to initialize DeepSeek polling service:', error);
+    });
 
   // Conditionally initialize semantic similarity engine if model cache exists
   initializeSemanticEngineIfCached()

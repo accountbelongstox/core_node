@@ -128,3 +128,23 @@ development-guides\PYTHON_PYCORE.md  python .\pymain.py app=matrix
 跟踪这个调用调，使用第三方包管理器（认直阅读文档），写一个打印脚本。 打包脚本先调用py
 第三方管理器确保所有包都安装了，之后，将回到shell执行打包命令，主要是你要跟踪调用链，自动加入所有必要的资源。
 打包脚本的入口在 dd.cmd ->dd.ps1 Unified App Manager 中的默认识别的项目中的默认脚本中。对pycore app可以进行打包。
+
+ edevelopment-guides\PYTHON_PYCORE.md 找到 python .\pymain.py app=matrix 先了解一下调用链。 全局考虑并处理一下前后端的重连一策略。跟踪进程，这个域名是否会在sh 或laravel中自动适配。
+
+ 解决一个问题，当图标在windows下被右键设置总是以管理员运行后，会被识别为两个图标，调用MCP查看如何 解决。
+
+ 先查看文档中是否已经有查找过pyapps\matrix\docs， pyapps\QtScrcpy 如果 没有，找一下原来的qt scrcpy是如何进行屏幕操作的。更新文档，注意不要再写新文档。
+
+ pyapps\matrix\docs 根据 其中的文档 ，继续 完成前后端的操控，python .\pymain.py app=matrix  development-guides\PYTHON_PYCORE.md  
+ 修复，然后扫描 前后端的一致性，特别是你之前扫描 到的YU流。
+
+ 在CANVAS上隐藏一个操控层。
+
+ 注意，控制层和工具栏都要存在，互不影响 。
+
+ 将工具栏从右边弹出，屏幕区域 不要放任何东西干扰操作。
+
+先在系统日志 上打印操作检测到的步骤。
+
+ 使用关键字扫描还有那些没合并的。
+
