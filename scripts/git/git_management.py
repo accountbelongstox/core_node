@@ -476,17 +476,9 @@ class GitManagement:
         sys.stdout.flush()
 
         try:
-            result = subprocess.run(filter_args, capture_output=True, text=True, check=False)
+            result = subprocess.run(filter_args, text=True, check=False)
             print(f"\033[90m[DEBUG] git-filter-repo exit code: {result.returncode}\033[0m")
             sys.stdout.flush()
-
-            if result.stdout:
-                print("\033[37m" + result.stdout + "\033[0m")
-                sys.stdout.flush()
-
-            if result.stderr and result.returncode != 0:
-                print("\033[33m" + result.stderr + "\033[0m")
-                sys.stdout.flush()
 
             print()
             print("\033[36m⏳ Waiting 5 seconds for cleanup to settle...\033[0m")
