@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Alert Logger - Log Price Alerts to File
-告警日志记录器 - 将价格告警写入日志文件
+Alert Logger - Write Price Alerts to Log File
 
 Features:
 - Log alerts to daily rotating log files

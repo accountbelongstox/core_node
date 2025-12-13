@@ -7,7 +7,7 @@ Replays historical data from SQLite in chronological order,
 simulating real-time price updates for backtesting.
 
 Data Flow (TEST Mode):
-1. Initialize: Load SQLite data → Redis
+1. Initialize: Load SQLite data -> Redis
 2. Replay: Feed data chronologically from start_time
 3. Trading: Execute on replayed data
 """

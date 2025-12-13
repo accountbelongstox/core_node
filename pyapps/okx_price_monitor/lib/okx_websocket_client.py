@@ -180,7 +180,7 @@ class OKXWebSocketClient:
                 self.stats['blacklist_retries'] += 1
 
         if expired_instruments:
-            print(f"[WS-{connection_id}] 🔄 Retrying {len(expired_instruments)} expired blacklist instrument(s):")
+            print(f"[WS-{connection_id}] RETRY Retrying {len(expired_instruments)} expired blacklist instrument(s):")
             for inst_id in expired_instruments:
                 print(f"[WS-{connection_id}]    - {inst_id}")
             self.stats['invalid_instruments_count'] = len(self.invalid_instruments)
