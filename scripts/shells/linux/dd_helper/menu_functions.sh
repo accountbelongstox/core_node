@@ -73,6 +73,7 @@ handle_menu_action() {
             show_service_manager
             ;;
         "unified_manager")
+            cd "$CORE_NODE_ROOT_DIR"
             bash "$UNIFIED_MANAGER_SCRIPT_PATH"
             ;;
                 "push_git")

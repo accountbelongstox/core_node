@@ -16,7 +16,8 @@ export enum ViewType {
   VOCABULARY = 'vocabulary',
   MCP_MANAGER = 'mcp',
   OCTANE_TASKS = 'octane',
-  SERVER_MANAGER = 'server'
+  SERVER_MANAGER = 'server',
+  AI_TOOLS = 'ai_tools'
 }
 
 export interface NavItem {
