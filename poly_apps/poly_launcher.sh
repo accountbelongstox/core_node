@@ -66,33 +66,34 @@ echo ""
 
 # Framework-specific script mapping
 FRAMEWORK_SCRIPT=""
+UNIFIED_MANAGER_LAUNCHERS="$SCRIPT_PATH/../scripts/unified_manager/launchers"
 case "$FRAMEWORK" in
     "nuxt")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/nuxt_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/nuxt_launcher.sh"
         ;;
     "laravel")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/laravel_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/laravel_launcher.sh"
         ;;
     "flutter")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/flutter_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/flutter_launcher.sh"
         ;;
     "react-native")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/react_native_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/react_native_launcher.sh"
         ;;
     "vue")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/vue_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/vue_launcher.sh"
         ;;
     "react")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/react_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/react_launcher.sh"
         ;;
     "kotlin-multiplatform")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/kotlin_multiplatform_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/kotlin_multiplatform_launcher.sh"
         ;;
     "php")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/php_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/php_launcher.sh"
         ;;
     "python")
-        FRAMEWORK_SCRIPT="$SCRIPT_PATH/scripts/python_launcher.sh"
+        FRAMEWORK_SCRIPT="$UNIFIED_MANAGER_LAUNCHERS/python_launcher.sh"
         ;;
     "unknown")
         echo "WARNING: Framework not detected for app '$APP_NAME'"
