@@ -23,12 +23,17 @@ Usage:
 import sys
 import signal
 import time
+import argparse
 from pathlib import Path
 
 PYCORE_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PYCORE_ROOT))
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
+from pycore.pylauncher import ServiceLauncher
+from pycore.callmodule.callmodule_main import start
+from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
+from pycore.callmodule.event_handlers import register_event_handlers
 
 
 def main_native_ui(host='0.0.0.0', port=59000, debug=False):
@@ -40,7 +45,6 @@ def main_native_ui(host='0.0.0.0', port=59000, debug=False):
         port: RPC v2 server port
         debug: Debug mode
     """
-    from pycore.callmodule.callmodule_main import start
     start(host=host, port=port, debug=debug)
 
 
@@ -53,11 +57,6 @@ def main_legacy(host='0.0.0.0', port=59000, debug=False):
         port: RPC v2 server port
         debug: Debug mode
     """
-    from pycore import THREAD_BUS
-    from pycore.pylauncher import ServiceLauncher
-    from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
-    from pycore.callmodule.event_handlers import register_event_handlers
-
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Legacy Mode")
     ColorPrint.blue("=" * 70)
@@ -114,8 +113,6 @@ def main_legacy(host='0.0.0.0', port=59000, debug=False):
 
 
 if __name__ == '__main__':
-    import argparse
-
     parser = argparse.ArgumentParser(description="Pycore Module Caller")
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')

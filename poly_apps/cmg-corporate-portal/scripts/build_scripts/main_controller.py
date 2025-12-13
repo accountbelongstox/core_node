@@ -21,20 +21,15 @@ from pathlib import Path
 # Add build_scripts to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from file_var_system_new import FileVarSystem
-from init_build_config import (
+from file_var_system import FileVarSystem
+from utils import (
     generate_app_name,
     generate_package_id,
     generate_display_name,
     create_default_config,
     read_config,
-    extract_config_info
-)
-from resource_scanner import ResourceScanner
-from web_preview_server import show_preview
-from resource_replacer import ResourceReplacer
-from capacitor_resource_manager import CapacitorResourceManager
-from key_center import (
+    extract_config_info,
+    show_preview,
     VERSION_CONFIG,
     REQUIRED_CORE_MAJOR_VERSION,
     get_java_requirements,
@@ -67,6 +62,11 @@ from key_center import (
     FIX_METHOD_DOWNGRADE,
     FIX_METHOD_PATCH_GRADLE,
     FIX_METHOD_NONE
+)
+from managers import (
+    ResourceScanner,
+    ResourceReplacer,
+    CapacitorResourceManager
 )
 
 
