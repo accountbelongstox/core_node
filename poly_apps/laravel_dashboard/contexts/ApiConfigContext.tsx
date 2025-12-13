@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface ApiConfig {
   baseUrl: string;
   apiKey?: string;
+  port?: number;
 }
 
 interface ApiConfigContextType {
@@ -12,9 +13,21 @@ interface ApiConfigContextType {
   resetConfig: () => void;
 }
 
+const DEFAULT_PORT = 9000;
+
+const getDefaultBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:${DEFAULT_PORT}`;
+  }
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
+};
+
 const DEFAULT_CONFIG: ApiConfig = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io',
-  apiKey: import.meta.env.VITE_API_KEY || undefined
+  baseUrl: getDefaultBaseUrl(),
+  apiKey: import.meta.env.VITE_API_KEY || undefined,
+  port: DEFAULT_PORT
 };
 
 const STORAGE_KEY = 'dashboard_api_config';
@@ -30,7 +43,8 @@ export const ApiConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         return {
           baseUrl: parsed.baseUrl || DEFAULT_CONFIG.baseUrl,
-          apiKey: parsed.apiKey || DEFAULT_CONFIG.apiKey
+          apiKey: parsed.apiKey || DEFAULT_CONFIG.apiKey,
+          port: parsed.port || DEFAULT_CONFIG.port
         };
       }
     } catch (error) {

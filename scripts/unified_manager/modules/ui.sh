@@ -110,13 +110,17 @@ toggle_selection() {
     save_cache
 }
 
-# Show script selection menu for current app
+# Show app action menu for current app
 show_script_menu() {
     local app_index=$1
+    local app_name="${APPS_NAME[$app_index]}"
+    local app_path="${APPS_PATH[$app_index]}"
+    local app_type="${APPS_TYPE[$app_index]}"
+    local current_script="${APPS_CURRENT_SCRIPT[$app_index]}"
     local scripts_str="${APPS_AVAILABLE_SCRIPTS[$app_index]}"
 
     if [ -z "$scripts_str" ] || [ "$scripts_str" = "None" ]; then
-        echo -e "\033[33mNo scripts available for ${APPS_NAME[$app_index]}\033[0m"
+        echo -e "\033[31mNo startup methods available for $app_name\033[0m"
         echo -e "\033[33mPress any key to continue...\033[0m"
         read -n 1
         return 1
@@ -124,70 +128,126 @@ show_script_menu() {
 
     IFS=',' read -ra scripts <<< "$scripts_str"
 
-    # Always show menu, even for single script
     clear
-    echo -e "\033[36m=== Script Selection Menu ===\033[0m"
-    echo -e "\033[33mApp: ${APPS_NAME[$app_index]}\033[0m"
-    echo -e "\033[33mPath: ${APPS_PATH[$app_index]}\033[0m"
+    echo -e "\033[36m=== Application Launch Configuration ===\033[0m"
+    echo -e "\033[33mSelected App: \033[37m$app_name\033[0m"
+    echo -e "\033[33mType: \033[37m$app_type\033[0m"
+    echo -e "\033[33mPath: \033[90m$app_path\033[0m"
     echo ""
-    echo -e "\033[33mAvailable Scripts:\033[0m"
 
-    local current_script_index=${APPS_SCRIPT_INDEX[$app_index]}
+    # Show current startup method
+    echo -e "\033[36m=== Current Startup Method ===\033[0m"
+    echo -e "\033[32m➤ $current_script\033[0m"
 
-    for i in "${!scripts[@]}"; do
-        local indicator=" "
-        local color="\033[37m"  # White
+    # Show alternative methods if available
+    if [ ${#scripts[@]} -gt 1 ]; then
+        echo ""
+        echo -e "\033[36m=== Alternative Startup Methods ===\033[0m"
+        local current_script_index=${APPS_SCRIPT_INDEX[$app_index]}
 
-        if [ $i -eq $current_script_index ]; then
-            indicator=">"
-            color="\033[33m"  # Yellow (current selection)
-        fi
-
-        printf "${color}%s%2d | %s\033[0m\n" "$indicator" $((i + 1)) "${scripts[$i]}"
-    done
-
-    echo ""
-    if [ ${#scripts[@]} -eq 1 ]; then
-        echo -e "\033[33mNote: Only one script available\033[0m"
+        for i in "${!scripts[@]}"; do
+            if [ $i -ne $current_script_index ]; then
+                echo -e "\033[90m  $((i + 1)). ${scripts[$i]}\033[0m"
+            fi
+        done
+        echo ""
+        echo -e "\033[33mTip: Enter number 1-${#scripts[@]} to switch startup method\033[0m"
     fi
-    echo -e "\033[33mControls:\033[0m"
-    echo "Enter script number to select | L: Launch with current script | C: Create service | B: Back to main menu"
+
     echo ""
-    echo -ne "\033[36mEnter script number (1-${#scripts[@]}) or command: \033[0m"
+    echo -e "\033[36m=== Available Actions ===\033[0m"
+    echo -e "\033[32m1. \033[37mLaunch Application (Development Mode)\033[0m"
+    echo -e "\033[32m2. \033[37mInstall as System Service\033[0m"
+    echo -e "\033[32m3. \033[37mInstall as System Service + Domain Proxy\033[0m"
+    if [ ${#scripts[@]} -gt 1 ]; then
+        echo -e "\033[32m4. \033[37mChange Startup Method\033[0m"
+        echo -e "\033[32m5. \033[37mBack to Main Menu\033[0m"
+    else
+        echo -e "\033[32m4. \033[37mBack to Main Menu\033[0m"
+    fi
+    echo ""
+
+    if [ ${#scripts[@]} -gt 1 ]; then
+        echo -ne "\033[36mSelect action (1-5): \033[0m"
+    else
+        echo -ne "\033[36mSelect action (1-4): \033[0m"
+    fi
 
     while true; do
-        read script_input
+        read action_input
 
-        # Convert to uppercase for command comparison
-        script_input_upper=$(echo "$script_input" | tr '[:lower:]' '[:upper:]')
+        case "$action_input" in
+            "1")
+                echo -e "\033[32mLaunching $app_name in development mode...\033[0m"
+                return 2  # Signal to launch
+                ;;
+            "2")
+                echo -e "\033[32mInstalling $app_name as system service...\033[0m"
+                return 3  # Signal to create service
+                ;;
+            "3")
+                echo -e "\033[32mInstalling $app_name as system service with domain proxy...\033[0m"
+                return 4  # Signal to create service with proxy
+                ;;
+            "4")
+                if [ ${#scripts[@]} -gt 1 ]; then
+                    # Show startup method selection
+                    echo ""
+                    echo -e "\033[36m=== Select Startup Method ===\033[0m"
+                    local current_script_index=${APPS_SCRIPT_INDEX[$app_index]}
 
-        if [[ "$script_input" =~ ^[0-9]+$ ]]; then
-            local script_num=$script_input
-            local script_index=$((script_num - 1))
+                    for i in "${!scripts[@]}"; do
+                        local indicator=" "
+                        local color="\033[37m"  # White
 
-            if [ $script_index -ge 0 ] && [ $script_index -lt ${#scripts[@]} ]; then
-                APPS_SCRIPT_INDEX[$app_index]=$script_index
-                APPS_CURRENT_SCRIPT[$app_index]="${scripts[$script_index]}"
-                save_cache
-                echo -e "\033[32mSelected script #$script_num: ${scripts[$script_index]}\033[0m"
-                sleep 1
-                return 0
-            else
-                echo -e "\033[31mInvalid script number: $script_num\033[0m"
-                echo -ne "\033[36mEnter script number (1-${#scripts[@]}) or command: \033[0m"
-            fi
-        elif [ "$script_input_upper" = "L" ]; then
-            return 2  # Signal to launch
-        elif [ "$script_input_upper" = "C" ]; then
-            return 3  # Signal to create service
-        elif [ "$script_input_upper" = "B" ] || [ "$script_input_upper" = "BACK" ]; then
-            return 0  # Back to main menu
-        elif [ -z "$script_input" ]; then
-            return 2  # Empty input, launch current script
-        else
-            echo -e "\033[31mUnknown command: $script_input\033[0m"
-            echo -e "\033[33mValid commands: L (launch), C (create service), B (back), or script number (1-${#scripts[@]})\033[0m"
-            echo -ne "\033[36mEnter script number (1-${#scripts[@]}) or command: \033[0m"
-        fi
+                        if [ $i -eq $current_script_index ]; then
+                            indicator="*"
+                            color="\033[33m"  # Yellow (current selection)
+                        fi
+
+                        printf "${color}%s%2d. %s\033[0m\n" "$indicator" $((i + 1)) "${scripts[$i]}"
+                    done
+                    echo ""
+                    echo -ne "\033[36mSelect startup method (1-${#scripts[@]}): \033[0m"
+
+                    read method_input
+                    if [[ "$method_input" =~ ^[0-9]+$ ]]; then
+                        local method_index=$((method_input - 1))
+                        if [ $method_index -ge 0 ] && [ $method_index -lt ${#scripts[@]} ]; then
+                            APPS_SCRIPT_INDEX[$app_index]=$method_index
+                            APPS_CURRENT_SCRIPT[$app_index]="${scripts[$method_index]}"
+                            save_cache
+                            echo -e "\033[32m✓ Switched to: ${scripts[$method_index]}\033[0m"
+                            sleep 1
+                            # Refresh the menu
+                            show_script_menu "$app_index"
+                            return $?
+                        fi
+                    fi
+                    echo -e "\033[31mInvalid selection\033[0m"
+                    echo -ne "\033[36mSelect action (1-5): \033[0m"
+                else
+                    echo -e "\033[33mReturning to main menu...\033[0m"
+                    return 0  # Back to main menu
+                fi
+                ;;
+            "5")
+                if [ ${#scripts[@]} -gt 1 ]; then
+                    echo -e "\033[33mReturning to main menu...\033[0m"
+                    return 0  # Back to main menu
+                else
+                    echo -e "\033[31mInvalid option\033[0m"
+                    echo -ne "\033[36mSelect action (1-4): \033[0m"
+                fi
+                ;;
+            *)
+                echo -e "\033[31mInvalid option\033[0m"
+                if [ ${#scripts[@]} -gt 1 ]; then
+                    echo -ne "\033[36mSelect action (1-5): \033[0m"
+                else
+                    echo -ne "\033[36mSelect action (1-4): \033[0m"
+                fi
+                ;;
+        esac
     done
 }

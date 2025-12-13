@@ -9,65 +9,75 @@
 
 ### 1. **API路径不一致 - SSL证书模块** ❌
 
-所有SSL证书相关端点在前后端使用了不同的路径:
+**根本原因**: 前端使用了错误的路径，后端路由定义是正确的。
 
-| 端点 | 后端路径 (ApiInfo.php) | 前端路径 (endpoints.ts & apiService.ts) | 状态 |
-|-----|----------------------|---------------------------------------|------|
-| 证书列表 | `/api/servermanager/v1/certificate**s**/` | `/api/servermanager/v1/certificate/list` | ❌ 不一致 |
-| 生成证书 | `/api/servermanager/v1/certificate**s**/generate` | `/api/servermanager/v1/certificate/generate` | ❌ 不一致 |
-| 续期证书 | `/api/servermanager/v1/certificate**s**/renew` | `/api/servermanager/v1/certificate/renew` | ❌ 不一致 |
-| 证书状态 | `/api/servermanager/v1/certificate**s**/status` | `/api/servermanager/v1/certificate/status` | ❌ 不一致 |
-| 检测Certbot | `/api/servermanager/v1/certificates/detect-certbot` | `/api/servermanager/v1/certificates/detect-certbot` | ✅ 一致 |
-| 安装Certbot | `/api/servermanager/v1/certificates/install-certbot` | `/api/servermanager/v1/certificates/install-certbot` | ✅ 一致 |
+#### 后端实际路由 (ServerManagerV1Routes.php:64-72) ✅
+
+```php
+Route::prefix('certificates')->group(function () {
+    Route::get('/', [...]::class, 'listCertificates']);           // Line 66
+    Route::post('generate', [...]::class, 'generateCertificate']); // Line 67
+    Route::post('renew', [...]::class, 'renewCertificates']);      // Line 68
+    Route::get('status', [...]::class, 'getCertificateStatus']);   // Line 69
+    Route::post('install-certbot', [...], 'installCertbot');       // Line 70
+    Route::get('detect-certbot', [...], 'detectCertbot');          // Line 71
+});
+```
+
+#### 路径对比表
+
+| 端点 | 后端实际路由 (Routes.php) | 前端路径 (endpoints.ts & apiService.ts) | 状态 |
+|-----|-------------------------|---------------------------------------|------|
+| 证书列表 | `/api/servermanager/v1/certificate**s**/` | `/api/servermanager/v1/certificate/list` | ❌ 404错误 |
+| 生成证书 | `/api/servermanager/v1/certificate**s**/generate` | `/api/servermanager/v1/certificate/generate` | ❌ 404错误 |
+| 续期证书 | `/api/servermanager/v1/certificate**s**/renew` | `/api/servermanager/v1/certificate/renew` | ❌ 404错误 |
+| 证书状态 | `/api/servermanager/v1/certificate**s**/status` | `/api/servermanager/v1/certificate/status` | ❌ 404错误 |
+| 检测Certbot | `/api/servermanager/v1/certificates/detect-certbot` | `/api/servermanager/v1/certificates/detect-certbot` | ✅ 正常 |
+| 安装Certbot | `/api/servermanager/v1/certificates/install-certbot` | `/api/servermanager/v1/certificates/install-certbot` | ✅ 正常 |
+
+**错误原因**:
+- 前端使用 `certificate` (单数) 而非 `certificates` (复数)
+- 证书列表端点前端错误使用 `/list` 后缀，后端实际是根路径 `/`
 
 **影响**:
 - 前4个SSL API将**完全无法工作** ❌
 - 前端调用会返回 404 Not Found
-- SSL证书管理功能完全失效
+- SSL证书管理功能**66.7%失效** (4/6个端点)
 
 **文件位置**:
-- 后端: `/www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1ApiInfo.php:191-205`
-- 前端 endpoints: `/www/programing/core_node/poly_apps/laravel_dashboard/endpoints.ts:579-604`
-- 前端 apiService: `/www/programing/core_node/poly_apps/laravel_dashboard/services/apiService.ts:308-322`
+- ✅ 后端路由定义正确: `/www/programing/core_node/poly_apps/laravel_main/routes/ServerManagerV1Router/ServerManagerV1Routes.php:64-72`
+- ✅ 后端控制器实现正确: `/www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Controllers/ServerManagerV1CertificateManagerCtl.php`
+- ✅ 后端ApiInfo文档正确: `/www/programing/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1ApiInfo.php:191-205`
+- ❌ 前端 endpoints 路径错误: `/www/programing/core_node/poly_apps/laravel_dashboard/endpoints.ts:579-604`
+- ❌ 前端 apiService 路径错误: `/www/programing/core_node/poly_apps/laravel_dashboard/services/apiService.ts:308-322`
 
 ---
 
-### 2. **方法名冲突 - getSystemInfo() 重复定义** ❌
+### 2. **方法名冲突 - getApiInfo() vs getSystemInfo()** ✅ 已修复
 
-**问题**: `apiService.ts` 中有两个同名方法 `getSystemInfo()`
+**检查结果**: apiService.ts 已经被正确修复！
 
-**第一个定义** (apiService.ts:103):
+**当前定义** (apiService.ts:103):
 ```typescript
-async getSystemInfo(): Promise<ApiResponse<SystemInfo>> {
+async getApiInfo(): Promise<ApiResponse<SystemInfo>> {
   return this.request<SystemInfo>('GET', '/api_info');
 }
 ```
+- ✅ 方法名已改为 `getApiInfo()` (不再是 `getSystemInfo()`)
 - 作用: 获取Laravel主系统API信息
 - 端点: `/api_info` (非ServerManager)
 
-**第二个定义** (apiService.ts:333):
+**ServerManager定义** (apiService.ts:333):
 ```typescript
 async getSystemInfo(): Promise<ApiResponse<SystemInfo>> {
   return this.request<SystemInfo>('GET', '/api/servermanager/v1/system/info');
 }
 ```
+- ✅ 保持 `getSystemInfo()` 名称
 - 作用: 获取ServerManager系统信息
 - 端点: `/api/servermanager/v1/system/info`
 
-**影响**:
-- ❌ **TypeScript中第二个定义会覆盖第一个**
-- 调用 `apiService.getSystemInfo()` 时，**只会调用第二个** (ServerManager endpoint)
-- 无法访问Laravel主系统信息 (`/api_info`)
-- 代码可读性差，维护困难
-
-**正确做法**: 两个方法应该有不同的名称:
-```typescript
-// Laravel 系统信息
-async getLaravelSystemInfo(): Promise<ApiResponse<SystemInfo>> { ... }
-
-// ServerManager 系统信息
-async getServerManagerSystemInfo(): Promise<ApiResponse<SystemInfo>> { ... }
-```
+**状态**: ✅ **已解决** - 不存在方法名冲突
 
 ---
 

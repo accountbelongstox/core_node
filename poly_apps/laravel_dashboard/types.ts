@@ -36,6 +36,12 @@ export interface FileNode {
   isOpen?: boolean;
 }
 
+export interface FileTreeResponse {
+  items: FileNode[];
+  path: string;
+  realPath: string;
+}
+
 export type ToolStatus = 'available' | 'todo' | 'beta';
 
 export interface ToolItem {
@@ -810,4 +816,64 @@ export interface CertbotStatus {
   installed: boolean;
   version?: string;
   path?: string;
+}
+
+export interface ApiInfoEndpoint {
+  path: string;
+  feature: string;
+}
+
+export interface ApiInfoParsedEndpoint {
+  id: string;
+  path: string;
+  method: string;
+  authType: string;
+  description: string;
+  controller?: string;
+  params?: ApiInfoParam[];
+  headers?: ApiInfoHeader[];
+  response?: ApiInfoResponse[];
+  tags?: string[];
+}
+
+export interface ApiInfoParam {
+  name: string;
+  type: string;
+  requirement: 'required' | 'optional';
+  example?: string;
+}
+
+export interface ApiInfoHeader {
+  name: string;
+  description?: string;
+}
+
+export interface ApiInfoResponse {
+  name: string;
+  type: string;
+  description?: string;
+}
+
+export interface ApiInfo {
+  app_name: string;
+  api_version: string;
+  app_description: string;
+  base_url: string;
+  api_prefix: string;
+  endpoints: ApiInfoEndpoint[];
+  cli_commands?: any[];
+  supported_headers?: string[];
+  authentication?: any;
+}
+
+export interface FullApiInfo {
+  public_info: {
+    framework: string;
+    version: string;
+    environment: string;
+    [key: string]: any;
+  };
+  api_reference: {
+    [appName: string]: ApiInfo;
+  };
 }

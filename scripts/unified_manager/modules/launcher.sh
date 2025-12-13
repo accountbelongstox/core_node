@@ -14,6 +14,250 @@
 # App Launcher Module
 # Provides app launching functions for unified manager
 
+# Show service installation options for current app
+show_service_installation_options() {
+    local app_name="$1"
+    local app_path="$2"
+    local app_type="$3"
+    local current_script="$4"
+    local working_dir="$5"
+    local command="$6"
+
+    echo -e "\033[36m=== Installation Options ================\033[0m"
+    echo -e "\033[33m1)\033[0m Just run temporarily (development mode)"
+    echo -e "\033[33m2)\033[0m Install as system service"
+    echo -e "\033[33m3)\033[0m Install as system service + Laravel reverse proxy (with domain)"
+    echo -e "\033[33m4)\033[0m Back to main menu"
+    echo ""
+    echo -ne "\033[36mSelect installation option (1-4): \033[0m"
+
+    while true; do
+        read -n 1 -r option
+        echo ""
+
+        case "$option" in
+            "1")
+                echo -e "\033[32mRunning temporarily in development mode...\033[0m"
+                run_app_temporarily "$app_name" "$app_path" "$current_script" "$working_dir" "$command"
+                return 0
+                ;;
+            "2")
+                echo -e "\033[32mInstalling as system service...\033[0m"
+                install_as_system_service "$app_name" "$app_path" "$app_type" "$current_script"
+                return 0
+                ;;
+            "3")
+                echo -e "\033[32mInstalling as system service with Laravel reverse proxy...\033[0m"
+                install_with_laravel_proxy "$app_name" "$app_path" "$app_type" "$current_script"
+                return 0
+                ;;
+            "4")
+                echo -e "\033[33mReturning to main menu...\033[0m"
+                return 0
+                ;;
+            *)
+                echo -e "\033[31mInvalid option. Please select 1-4.\033[0m"
+                echo -ne "\033[36mSelect installation option (1-4): \033[0m"
+                ;;
+        esac
+    done
+}
+
+# Run app temporarily without installing as service
+run_app_temporarily() {
+    local app_name="$1"
+    local app_path="$2"
+    local current_script="$3"
+    local working_dir="$4"
+    local command="$5"
+
+    echo ""
+    echo -e "\033[90mWorking Directory: $working_dir\033[0m"
+    echo -e "\033[90mCommand: $command\033[0m"
+    echo ""
+
+    # Check if this is a persistent development server
+    local is_persistent_service=0
+    case "$current_script" in
+        "reactStart"|"vueStart"|"nuxtStart"|"laravelStart"|"flutterStart")
+            is_persistent_service=1
+            ;;
+    esac
+
+    # Create temporary shell script
+    local clean_script_name="${current_script//[\/\\:*?\"<>|]/_}"
+    local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${clean_script_name}.sh"
+
+    if [ $is_persistent_service -eq 1 ]; then
+        # For persistent development servers, run directly without wrapper
+        cat > "$temp_script" << EOF
+#!/bin/bash
+cd "$working_dir"
+echo -e "\033[33m=== Development Server Starting ===\033[0m"
+echo -e "\033[33mApp: $app_name\033[0m"
+echo -e "\033[33mMode: $current_script\033[0m"
+echo -e "\033[33mWorking Directory: \$(pwd)\033[0m"
+echo -e "\033[33mPress Ctrl+C to stop the server\033[0m"
+echo ""
+exec $command
+EOF
+    else
+        # For one-time commands, use wrapper
+        cat > "$temp_script" << EOF
+#!/bin/bash
+cd "$working_dir"
+echo "Starting $app_name with $current_script..."
+echo "Working Directory: \$(pwd)"
+echo ""
+$command
+echo ""
+echo "Process completed."
+EOF
+    fi
+
+    chmod +x "$temp_script"
+
+    echo -e "\033[32mLaunching $app_name...\033[0m"
+
+    # Run in current terminal
+    bash "$temp_script"
+
+    # Only wait for user input if it was not a persistent service
+    if [ $is_persistent_service -eq 0 ]; then
+        echo ""
+        echo -e "\033[36mApplication finished. Press any key to return to menu...\033[0m"
+        read -n 1 -r
+    else
+        echo ""
+        echo -e "\033[36mDevelopment server stopped. Press any key to return to menu...\033[0m"
+        read -n 1 -r
+    fi
+}
+
+# Install app as system service
+install_as_system_service() {
+    local app_name="$1"
+    local app_path="$2"
+    local app_type="$3"
+    local current_script="$4"
+
+    echo ""
+    echo -e "\033[36m=== System Service Installation ===\033[0m"
+
+    # Get port input
+    local default_port=$(get_available_port)
+    echo -ne "\033[33mPort (press Enter for auto-assigned port $default_port): \033[0m"
+    read port_input
+    local port="${port_input:-$default_port}"
+
+    # Auto-detect debug mode
+    local debug_mode=$(should_use_debug_mode "$app_path" "$current_script")
+
+    echo ""
+    echo -e "\033[33mInstalling system service without reverse proxy...\033[0m"
+
+    # Create the service
+    create_systemd_service "$app_name" "$app_path" "$app_type" "$current_script" "$port" "" "$debug_mode"
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        echo ""
+        echo -e "\033[32m✓ System service installation completed!\033[0m"
+        echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
+        echo -e "\033[36mPort: $port\033[0m"
+        echo ""
+        echo -e "\033[33mService Management Commands:\033[0m"
+        echo -e "  Start:   sudo systemctl start ${current_script%Start}-$app_name"
+        echo -e "  Stop:    sudo systemctl stop ${current_script%Start}-$app_name"
+        echo -e "  Status:  sudo systemctl status ${current_script%Start}-$app_name"
+        echo -e "  Enable:  sudo systemctl enable ${current_script%Start}-$app_name"
+        echo -e "  Logs:    sudo journalctl -u ${current_script%Start}-$app_name -f"
+        echo ""
+        echo -e "\033[36mDirect access: http://localhost:$port\033[0m"
+    else
+        echo -e "\033[31m✗ System service installation failed\033[0m"
+    fi
+
+    echo ""
+    echo -e "\033[33mPress any key to continue...\033[0m"
+    read -n 1
+}
+
+# Install app with Laravel reverse proxy
+install_with_laravel_proxy() {
+    local app_name="$1"
+    local app_path="$2"
+    local app_type="$3"
+    local current_script="$4"
+
+    echo ""
+    echo -e "\033[36m=== Laravel Reverse Proxy Installation ===\033[0m"
+
+    # Get domain input
+    echo -ne "\033[33mDomain (e.g., $app_name.local): \033[0m"
+    read domain_input
+    if [ -z "$domain_input" ]; then
+        echo -e "\033[31mDomain is required for reverse proxy setup\033[0m"
+        echo -e "\033[33mPress any key to continue...\033[0m"
+        read -n 1
+        return 1
+    fi
+    local domain="$domain_input"
+
+    # Get port input
+    local default_port=$(get_available_port)
+    echo -ne "\033[33mPort (press Enter for auto-assigned port $default_port): \033[0m"
+    read port_input
+    local port="${port_input:-$default_port}"
+
+    # Auto-detect debug mode
+    local debug_mode=$(should_use_debug_mode "$app_path" "$current_script")
+
+    echo ""
+    echo -e "\033[33mInstalling system service with Laravel reverse proxy...\033[0m"
+    echo -e "\033[33mDomain: $domain\033[0m"
+    echo -e "\033[33mPort: $port\033[0m"
+
+    # Create the service with Laravel integration
+    if [ "$current_script" = "nuxtStart" ]; then
+        # Use Laravel servermanager:nuxt command for Nuxt apps
+        echo -e "\033[32mUsing Laravel Nuxt service manager...\033[0m"
+        create_nuxt_service "$app_name" "$app_path" "$port" "$domain" "$debug_mode" "$ROOT_DIR/poly_apps/laravel_main"
+    else
+        # Create systemd service and nginx reverse proxy
+        create_systemd_service "$app_name" "$app_path" "$app_type" "$current_script" "$port" "$domain" "$debug_mode"
+    fi
+
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        echo ""
+        echo -e "\033[32m✓ Laravel reverse proxy installation completed!\033[0m"
+        echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
+        echo -e "\033[36mDomain: http://$domain\033[0m"
+        echo -e "\033[36mPort: $port\033[0m"
+        echo ""
+        echo -e "\033[33mService Management Commands:\033[0m"
+        echo -e "  Start:   sudo systemctl start ${current_script%Start}-$app_name"
+        echo -e "  Stop:    sudo systemctl stop ${current_script%Start}-$app_name"
+        echo -e "  Status:  sudo systemctl status ${current_script%Start}-$app_name"
+        echo -e "  Enable:  sudo systemctl enable ${current_script%Start}-$app_name"
+        echo -e "  Logs:    sudo journalctl -u ${current_script%Start}-$app_name -f"
+        echo ""
+        echo -e "\033[36m🌐 Domain Access: http://$domain\033[0m"
+        echo -e "\033[36m🔗 Direct Access: http://localhost:$port\033[0m"
+        echo ""
+        echo -e "\033[33mAdd to your /etc/hosts file for local testing:\033[0m"
+        echo -e "\033[90m127.0.0.1 $domain\033[0m"
+    else
+        echo -e "\033[31m✗ Laravel reverse proxy installation failed\033[0m"
+    fi
+
+    echo ""
+    echo -e "\033[33mPress any key to continue...\033[0m"
+    read -n 1
+}
+
 # Launch current app
 launch_current_app() {
     local app_name="${APPS_NAME[$CURRENT_INDEX]}"
@@ -225,57 +469,8 @@ launch_current_app() {
             echo -e "\033[36m========================================\033[0m"
             echo ""
 
-            echo -e "\033[90mWorking Directory: $working_dir\033[0m"
-            echo -e "\033[90mCommand: $command\033[0m"
-            echo ""
-            read -p "Press any key to continue, or 'n' to cancel..." -n 1 -r
-            echo ""
-
-            if [[ $REPLY =~ ^[Nn]$ ]]; then
-                echo -e "\033[33mLaunch cancelled\033[0m"
-                sleep 1
-                return
-            fi
-
-            # Create temporary shell script
-            local clean_script_name="${current_script//[\/\\:*?\"<>|]/_}"
-            local temp_script="$TEMP_SCRIPT_DIR/${app_name}_${clean_script_name}.sh"
-
-            if [ $needs_install -eq 1 ]; then
-                # Use the standalone installer script for Ncore/Pycore/Installer
-                if [ "$current_script" = "Ncore/Pycore/Installer" ]; then
-                    local installer_script="$ROOT_DIR/scripts/unified_manager/ncore_pycore_installer.sh"
-                    cat > "$temp_script" << EOF
-#!/bin/bash
-echo "Launching unified installer..."
-bash "$installer_script" "$app_name" "$app_type" "$command" "$working_dir" "$ROOT_DIR"
-EOF
-                fi
-            else
-                # No installation needed
-                cat > "$temp_script" << EOF
-#!/bin/bash
-cd "$working_dir"
-echo "Starting $app_name with $current_script..."
-echo "Working Directory: \$(pwd)"
-echo ""
-$command
-echo ""
-echo "Process completed."
-EOF
-            fi
-
-            chmod +x "$temp_script"
-
-            echo -e "\033[32mLaunching $app_name...\033[0m"
-
-            # Run in current terminal instead of new terminal
-            bash "$temp_script"
-
-            # Wait for user input after execution
-            echo ""
-            echo -e "\033[36mApplication finished. Press any key to return to menu...\033[0m"
-            read -n 1 -r
+            # Show installation and service options
+            show_service_installation_options "$app_name" "$app_path" "$app_type" "$current_script" "$working_dir" "$command"
         else
             echo -e "\033[31mFailed to generate startup command\033[0m"
             read -p "Press Enter to continue..."
@@ -285,26 +480,44 @@ EOF
         local script_path="$app_path/scripts/$current_script"
 
         if [ -f "$script_path" ]; then
-            echo -e "\033[90mScript Path: $script_path\033[0m"
             echo ""
-            read -p "Press any key to continue, or 'n' to cancel..." -n 1 -r
+            echo -e "\033[36m=== Script Execution =====================\033[0m"
+            echo -e "\033[33mScript Path:\033[0m $script_path"
             echo ""
-
-            if [[ $REPLY =~ ^[Nn]$ ]]; then
-                echo -e "\033[33mLaunch cancelled\033[0m"
-                sleep 1
-                return
-            fi
-
-            echo -e "\033[32mLaunching $app_name with $current_script...\033[0m"
-
-            # Run script in current terminal
-            bash "$script_path"
-
-            # Wait for user input after script execution
+            echo -e "\033[33mScript Execution Options:\033[0m"
+            echo -e "\033[33m1)\033[0m Run script directly"
+            echo -e "\033[33m2)\033[0m Back to main menu"
             echo ""
-            echo -e "\033[36mScript finished. Press any key to return to menu...\033[0m"
-            read -n 1 -r
+            echo -ne "\033[36mSelect option (1-2): \033[0m"
+
+            while true; do
+                read -n 1 -r option
+                echo ""
+
+                case "$option" in
+                    "1")
+                        echo -e "\033[32mExecuting script...\033[0m"
+                        echo ""
+
+                        # Run script in current terminal
+                        bash "$script_path"
+
+                        # Wait for user input after script execution
+                        echo ""
+                        echo -e "\033[36mScript finished. Press any key to return to menu...\033[0m"
+                        read -n 1 -r
+                        return 0
+                        ;;
+                    "2")
+                        echo -e "\033[33mReturning to main menu...\033[0m"
+                        return 0
+                        ;;
+                    *)
+                        echo -e "\033[31mInvalid option. Please select 1 or 2.\033[0m"
+                        echo -ne "\033[36mSelect option (1-2): \033[0m"
+                        ;;
+                esac
+            done
         else
             echo -e "\033[31mScript not found: $script_path\033[0m"
             read -p "Press Enter to continue..."
