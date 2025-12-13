@@ -90,10 +90,46 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
     try {
       const response = await apiService.getLanguages();
       if (response.success && response.data) {
-        setLanguages(response.data);
+        // Ensure data is an array
+        let languageData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).languages || (response.data as any).items || []);
+
+        // Double-check it's an array
+        if (!Array.isArray(languageData)) {
+          languageData = [];
+        }
+
+        setLanguages(languageData.length > 0 ? languageData : [
+          { code: 'en', name: 'English', native_name: 'English' },
+          { code: 'zh', name: 'Chinese', native_name: '中文' },
+          { code: 'ja', name: 'Japanese', native_name: '日本語' },
+          { code: 'ko', name: 'Korean', native_name: '한국어' },
+          { code: 'fr', name: 'French', native_name: 'Français' },
+          { code: 'de', name: 'German', native_name: 'Deutsch' },
+          { code: 'es', name: 'Spanish', native_name: 'Español' }
+        ]);
+      } else {
+        // Fallback to default languages if API fails
+        setLanguages([
+          { code: 'en', name: 'English', native_name: 'English' },
+          { code: 'zh', name: 'Chinese', native_name: '中文' },
+          { code: 'ja', name: 'Japanese', native_name: '日本語' },
+          { code: 'ko', name: 'Korean', native_name: '한국어' },
+          { code: 'fr', name: 'French', native_name: 'Français' },
+          { code: 'de', name: 'German', native_name: 'Deutsch' },
+          { code: 'es', name: 'Spanish', native_name: 'Español' }
+        ]);
       }
     } catch (error) {
       console.error('Failed to load languages:', error);
+      // Fallback to default languages on error
+      setLanguages([
+        { code: 'en', name: 'English', native_name: 'English' },
+        { code: 'zh', name: 'Chinese', native_name: '中文' },
+        { code: 'ja', name: 'Japanese', native_name: '日本語' },
+        { code: 'ko', name: 'Korean', native_name: '한국어' }
+      ]);
     }
   };
 
@@ -374,7 +410,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
               onChange={(e) => setSourceLanguage(e.target.value)}
               className={`${commonClasses.input} text-sm`}
             >
-              {languages.map(lang => (
+              {Array.isArray(languages) && languages.map(lang => (
                 <option key={lang.code} value={lang.code}>
                   {lang.native_name} ({lang.name})
                 </option>
@@ -385,7 +421,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
               onChange={(e) => setTargetLanguage(e.target.value)}
               className={`${commonClasses.input} text-sm`}
             >
-              {languages.map(lang => (
+              {Array.isArray(languages) && languages.map(lang => (
                 <option key={lang.code} value={lang.code}>
                   {lang.native_name} ({lang.name})
                 </option>

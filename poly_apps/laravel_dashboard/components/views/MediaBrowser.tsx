@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import BentoCard from '../BentoCard';
 import { FileNode, Language } from '../../types';
-import { apiService } from '../../services/apiService';
-import { useApiConfig } from '../../contexts/ApiConfigContext';
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';
 import {
@@ -130,7 +129,6 @@ interface MediaBrowserProps {
 
 const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].media_browser;
-  const { config } = useApiConfig();
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<FileNode | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('/www/programing/core_node');
@@ -151,11 +149,27 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiService.getStaticResourcesTree(path);
+      // Use centralized API singleton (McpV1)
+      const response = await api.mcpV1.getStaticResourcesTree(path);
       if (response.success && response.data) {
-        setFileTree(response.data);
-        if (response.data.length > 0 && !activeFile) {
-          const firstFile = findFirstFile(response.data);
+        // Handle response data structure
+        const items = response.data.items || response.data;
+
+        // Add id field to each node if not present (backend doesn't return id)
+        const addIdToNodes = (nodes: any[]): FileNode[] => {
+          return nodes.map((node: any) => ({
+            ...node,
+            id: node.id || node.path || `${node.name}-${Math.random().toString(36).substr(2, 9)}`,
+            type: node.type === 'directory' ? 'folder' : 'file',
+            children: node.children ? addIdToNodes(node.children) : undefined
+          }));
+        };
+
+        const nodesWithId = addIdToNodes(Array.isArray(items) ? items : []);
+        setFileTree(nodesWithId);
+
+        if (nodesWithId.length > 0 && !activeFile) {
+          const firstFile = findFirstFile(nodesWithId);
           if (firstFile) setActiveFile(firstFile);
         }
       } else {
@@ -239,7 +253,8 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
 
   const handleUpload = async (files: FileList) => {
      try {
-       const response = await apiService.uploadStaticResources(files);
+       // Use centralized API singleton (McpV1)
+       const response = await api.mcpV1.uploadStaticResources(Array.from(files));
        if (response.success) {
          await loadFileTree();
        } else {
@@ -360,7 +375,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                     onEnded={handleVideoEnd}
                     onTimeUpdate={handleVideoTimeUpdate}
                     className="w-full h-full"
-                    src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
+                    src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                   />
                   {/* Floating Episode Controls */}
                   {showFloatingControls && (hasPrevious || hasNext) && (
@@ -409,11 +424,11 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                   autoPlay
                   onEnded={handleVideoEnd}
                   className="w-full"
-                  src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
+                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                 />
               ) : activeFile?.fileType === 'image' ? (
                 <img
-                  src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
+                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                   alt={activeFile.name}
                   className="max-w-full max-h-full object-contain"
                 />
