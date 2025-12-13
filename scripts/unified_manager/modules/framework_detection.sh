@@ -122,7 +122,16 @@ get_react_start_command() {
     if [ -f "$package_json" ] && grep -q "react" "$package_json" 2>/dev/null; then
         # Exclude React Native and Nuxt
         if ! grep -q "react-native" "$package_json" 2>/dev/null && ! grep -q "nuxt" "$package_json" 2>/dev/null; then
-            echo "cd \"$app_path\" && pnpm start"
+            # Check available scripts in priority order
+            if grep -q '"start"' "$package_json" 2>/dev/null; then
+                echo "cd \"$app_path\" && pnpm start"
+            elif grep -q '"dev"' "$package_json" 2>/dev/null; then
+                echo "cd \"$app_path\" && pnpm run dev"
+            elif grep -q '"serve"' "$package_json" 2>/dev/null; then
+                echo "cd \"$app_path\" && pnpm run serve"
+            else
+                echo "cd \"$app_path\" && pnpm start"
+            fi
         fi
     fi
 }

@@ -45,66 +45,147 @@ step4_generate_native_startup() {
 
         # Priority 2: Framework-specific starts for poly_apps
         if [ "$app_type" = "poly_apps" ]; then
-            # Use unified poly launcher for all poly_apps
-            local poly_launcher="$SCRIPT_PATH/../../poly_apps/poly_launcher.sh"
-            if [ -f "$poly_launcher" ]; then
-                available_scripts+=("polyLauncher")
-                current_script="polyLauncher"
-                script_index=0
-                found_native=1
-                echo -e "  \033[35m$app_name: polyLauncher - bash \"$poly_launcher\" $app_name start\033[0m" >&2
-            else
-                # Fallback to individual framework detection
-                # Flutter
-                if [ "$has_pubspec" -eq 1 ]; then
-                    local cmd="$(get_flutter_start_command "$app_path")"
+            # Perform framework detection for each poly_apps application
+
+            # Flutter
+            if [ "$has_pubspec" -eq 1 ]; then
+                local cmd="$(get_flutter_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("flutterStart")
+                        current_script="flutterStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("flutterStart")
+                    fi
+                    echo -e "  \033[35m$app_name: flutterStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # Laravel
+            if [ "$has_composer" -eq 1 ] && [ -f "$app_path/artisan" ]; then
+                local cmd="$(get_laravel_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("laravelStart")
+                        current_script="laravelStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("laravelStart")
+                    fi
+                    echo -e "  \033[35m$app_name: laravelStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # Nuxt
+            if [ "$has_nuxt_config" -eq 1 ]; then
+                local cmd="$(get_nuxt_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("nuxtStart")
+                        current_script="nuxtStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("nuxtStart")
+                    fi
+                    echo -e "  \033[35m$app_name: nuxtStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # React/Vue (detect by package.json and vite.config)
+            if [ "$has_package_json" -eq 1 ] && [ -f "$app_path/vite.config.ts" -o -f "$app_path/vite.config.js" ]; then
+                # Check if it's React
+                if grep -q "\"react\"" "$app_path/package.json" 2>/dev/null; then
+                    local cmd="$(get_react_start_command "$app_path")"
                     if [ -n "$cmd" ]; then
                         if [ "$found_native" -eq 0 ]; then
-                            available_scripts+=("flutterStart")
-                            current_script="flutterStart"
+                            available_scripts+=("reactStart")
+                            current_script="reactStart"
                             script_index=0
                             found_native=1
                         else
-                            available_scripts+=("flutterStart")
+                            available_scripts+=("reactStart")
                         fi
-                        echo -e "  \033[35m$app_name: flutterStart - $cmd\033[0m" >&2
+                        echo -e "  \033[35m$app_name: reactStart - $cmd\033[0m" >&2
                     fi
-                fi
-
-                # Laravel
-                if [ "$has_composer" -eq 1 ] && [ -f "$app_path/public/index.php" ]; then
-                    local cmd="$(get_laravel_start_command "$app_path")"
+                # Check if it's Vue
+                elif grep -q "\"vue\"" "$app_path/package.json" 2>/dev/null; then
+                    local cmd="$(get_vue_start_command "$app_path")"
                     if [ -n "$cmd" ]; then
                         if [ "$found_native" -eq 0 ]; then
-                            available_scripts+=("laravelStart")
-                            current_script="laravelStart"
+                            available_scripts+=("vueStart")
+                            current_script="vueStart"
                             script_index=0
                             found_native=1
                         else
-                            available_scripts+=("laravelStart")
+                            available_scripts+=("vueStart")
                         fi
-                        echo -e "  \033[35m$app_name: laravelStart - $cmd\033[0m" >&2
+                        echo -e "  \033[35m$app_name: vueStart - $cmd\033[0m" >&2
                     fi
                 fi
+            fi
 
-                # Nuxt
-                if [ "$has_nuxt_config" -eq 1 ]; then
-                    local cmd="$(get_nuxt_start_command "$app_path")"
-                    if [ -n "$cmd" ]; then
-                        if [ "$found_native" -eq 0 ]; then
-                            available_scripts+=("nuxtStart")
-                            current_script="nuxtStart"
-                            script_index=0
-                            found_native=1
-                        else
-                            available_scripts+=("nuxtStart")
-                        fi
-                        echo -e "  \033[35m$app_name: nuxtStart - $cmd\033[0m" >&2
+            # React Native
+            if [ "$has_package_json" -eq 1 ] && grep -q "react-native" "$app_path/package.json" 2>/dev/null; then
+                local cmd="$(get_react_native_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("reactNativeStart")
+                        current_script="reactNativeStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("reactNativeStart")
                     fi
+                    echo -e "  \033[35m$app_name: reactNativeStart - $cmd\033[0m" >&2
                 fi
+            fi
 
-                # Other frameworks...
-                # (Keep existing framework detection as fallback)
+            # Kotlin Multiplatform
+            if [ "$has_gradle" -eq 1 ] && [ -f "$app_path/gradle.properties" ]; then
+                local cmd="$(get_kotlin_multiplatform_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("kotlinMultiPlatformStart")
+                        current_script="kotlinMultiPlatformStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("kotlinMultiPlatformStart")
+                    fi
+                    echo -e "  \033[35m$app_name: kotlinMultiPlatformStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # PHP (standalone)
+            if [ "$has_index_php" -eq 1 ] && [ ! -f "$app_path/artisan" ]; then
+                local cmd="$(get_php_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("phpStart")
+                        current_script="phpStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("phpStart")
+                    fi
+                    echo -e "  \033[35m$app_name: phpStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # Fallback: Use unified poly launcher if no specific framework detected
+            if [ "$found_native" -eq 0 ]; then
+                local poly_launcher="$SCRIPT_PATH/../../poly_apps/poly_launcher.sh"
+                if [ -f "$poly_launcher" ]; then
+                    available_scripts+=("polyLauncher")
+                    current_script="polyLauncher"
+                    script_index=0
+                    found_native=1
+                    echo -e "  \033[35m$app_name: polyLauncher - bash \"$poly_launcher\" $app_name start\033[0m" >&2
+                fi
             fi
         fi
 
