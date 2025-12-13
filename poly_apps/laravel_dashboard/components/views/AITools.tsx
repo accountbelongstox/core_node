@@ -12,13 +12,11 @@ import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
 
-// Import AI tool components
-import {
-  TranslationPanel,
-  TTSPanel,
-  OCRPanel,
-  PromptManager
-} from '../ai-tools';
+// Import new centralized architecture components
+import TranslationForm from '../examples/TranslationForm';
+import TTSForm from '../tools/TTSForm';
+import OCRForm from '../tools/OCRForm';
+import PromptForm from '../tools/PromptForm';
 
 interface AIToolsProps {
   lang?: Language;
@@ -65,15 +63,15 @@ const AITools: React.FC<AIToolsProps> = ({ lang = 'en' }) => {
   const renderContent = () => {
     switch (currentView) {
       case 'translation':
-        return <TranslationPanel />;
+        return <TranslationForm />;
       case 'tts':
-        return <TTSPanel />;
+        return <TTSForm />;
       case 'ocr':
-        return <OCRPanel />;
+        return <OCRForm />;
       case 'prompts':
-        return <PromptManager />;
+        return <PromptForm />;
       default:
-        return <TranslationPanel />;
+        return <TranslationForm />;
     }
   };
 

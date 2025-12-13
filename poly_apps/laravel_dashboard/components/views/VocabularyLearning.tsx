@@ -90,10 +90,32 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
     try {
       const response = await apiService.getLanguages();
       if (response.success && response.data) {
-        setLanguages(response.data);
+        // Ensure data is an array
+        const languageData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).languages || (response.data as any).items || []);
+        setLanguages(languageData);
+      } else {
+        // Fallback to default languages if API fails
+        setLanguages([
+          { code: 'en', name: 'English', native_name: 'English' },
+          { code: 'zh', name: 'Chinese', native_name: '中文' },
+          { code: 'ja', name: 'Japanese', native_name: '日本語' },
+          { code: 'ko', name: 'Korean', native_name: '한국어' },
+          { code: 'fr', name: 'French', native_name: 'Français' },
+          { code: 'de', name: 'German', native_name: 'Deutsch' },
+          { code: 'es', name: 'Spanish', native_name: 'Español' }
+        ]);
       }
     } catch (error) {
       console.error('Failed to load languages:', error);
+      // Fallback to default languages on error
+      setLanguages([
+        { code: 'en', name: 'English', native_name: 'English' },
+        { code: 'zh', name: 'Chinese', native_name: '中文' },
+        { code: 'ja', name: 'Japanese', native_name: '日本語' },
+        { code: 'ko', name: 'Korean', native_name: '한국어' }
+      ]);
     }
   };
 
