@@ -70,6 +70,117 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
     onInit
   });
 
+  // Touch control state for YUV mode
+  const isMouseDownRef = React.useRef(false);
+  const lastSendTimeRef = React.useRef(0);
+  const [frameSize, setFrameSize] = React.useState({ width: 1080, height: 2340 });
+
+  // Update frame size when stream info changes
+  React.useEffect(() => {
+    if (streamInfo) {
+      console.log(`[YUVStream] Updating frameSize from ${frameSize.width}x${frameSize.height} to ${streamInfo.width}x${streamInfo.height}`);
+      setFrameSize({ width: streamInfo.width, height: streamInfo.height });
+    }
+  }, [streamInfo]);
+
+  // Coordinate transformation: window coords → device coords
+  const convertCoordinates = React.useCallback((clientX: number, clientY: number) => {
+    if (!canvasRef.current) return null;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = Math.floor((clientX - rect.left) / rect.width * frameSize.width);
+    const y = Math.floor((clientY - rect.top) / rect.height * frameSize.height);
+
+    return { x, y };
+  }, [frameSize, canvasRef]);
+
+  // Send touch event (with throttling)
+  const sendTouchEvent = React.useCallback(async (action: 'down' | 'up' | 'move', x: number, y: number) => {
+    if (!isConnected) {
+      console.warn('[YUVStream] Cannot send touch - not connected');
+      return;
+    }
+
+    // Event throttling: move events max 60fps (16ms)
+    const now = Date.now();
+    if (action === 'move' && now - lastSendTimeRef.current < 16) {
+      return;
+    }
+    lastSendTimeRef.current = now;
+
+    try {
+      console.log(`[YUVStream] Sending touch ${action} to ${deviceId} at (${x}, ${y}), screen: ${frameSize.width}x${frameSize.height}`);
+
+      // Import wsService dynamically to avoid circular dependencies
+      const { wsService } = await import('../services/websocket');
+
+      const result = await wsService.callRpc('control.touch', {
+        deviceId: deviceId,
+        action: action,
+        pointerId: 0,
+        x: x,
+        y: y,
+        pressure: 1.0,
+        screenWidth: frameSize.width,
+        screenHeight: frameSize.height
+      });
+
+      console.log(`[YUVStream] Touch ${action} result:`, result);
+
+      if (result?.error) {
+        console.error('[YUVStream] Touch event error:', result.error);
+      }
+    } catch (error) {
+      console.error('[YUVStream] Failed to send touch event:', error);
+    }
+  }, [deviceId, isConnected, frameSize]);
+
+  // Mouse event handlers for YUV mode
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    console.log('[YUVStream] ========== MOUSE DOWN EVENT FIRED ==========');
+    console.log('[YUVStream] Client position:', e.clientX, e.clientY);
+    console.log('[YUVStream] Button:', e.button);
+
+    e.preventDefault();
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) {
+      console.warn('[YUVStream] [X] Failed to convert coordinates on mouseDown');
+      return;
+    }
+
+    console.log(`[YUVStream] Mouse down at client(${e.clientX}, ${e.clientY}) -> device(${coords.x}, ${coords.y})`);
+    console.log(`[YUVStream] isConnected: ${isConnected}, frameSize: ${frameSize.width}x${frameSize.height}`);
+
+    isMouseDownRef.current = true;
+    sendTouchEvent('down', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent, isConnected, frameSize]);
+
+  const handleMouseMove = React.useCallback((e: React.MouseEvent) => {
+    if (!isMouseDownRef.current) return;
+
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) return;
+
+    sendTouchEvent('move', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent]);
+
+  const handleMouseUp = React.useCallback((e: React.MouseEvent) => {
+    if (!isMouseDownRef.current) return;
+
+    const coords = convertCoordinates(e.clientX, e.clientY);
+    if (!coords) return;
+
+    isMouseDownRef.current = false;
+    sendTouchEvent('up', coords.x, coords.y);
+  }, [convertCoordinates, sendTouchEvent]);
+
+  const handleMouseLeave = React.useCallback(() => {
+    if (isMouseDownRef.current) {
+      console.log('[YUVStream] Mouse left canvas while dragging, auto-releasing touch');
+      isMouseDownRef.current = false;
+    }
+  }, []);
+
   // Reset error state when connection is restored
   useEffect(() => {
     if (isConnected) {
@@ -114,8 +225,12 @@ export const DeviceVideoStream: React.FC<DeviceVideoStreamProps> = ({
       <div className="w-full h-full relative">
         <canvas
           ref={canvasRef}
-          className="w-full h-full object-cover"
-          style={{ display: 'block' }}
+          className="w-full h-full object-cover cursor-crosshair"
+          style={{ display: 'block', touchAction: 'none' }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
         />
 
         {/* Error Indicator with Reconnect Button - ONLY shown on error */}

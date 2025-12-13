@@ -93,7 +93,17 @@ class AndroidDevice(ABC):
         Returns:
             True if device is ready for streaming/control
         """
-        return self._video_socket is not None and self._control_socket is not None
+        # Check sockets exist
+        if self._video_socket is None or self._control_socket is None:
+            return False
+
+        # Check sockets are actually alive (fileno() returns -1 if closed)
+        try:
+            video_alive = self._video_socket.fileno() != -1
+            control_alive = self._control_socket.fileno() != -1
+            return video_alive and control_alive
+        except (OSError, AttributeError):
+            return False
 
     def __repr__(self) -> str:
         return f"AndroidDevice(serial='{self.serial}', connected={self.is_connected()})"
