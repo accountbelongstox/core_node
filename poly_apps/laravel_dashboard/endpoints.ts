@@ -500,6 +500,13 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         params: []
     },
 
+    // --- ServerManager - API Info ---
+    {
+        id: 'srvmgr_info', method: 'GET', path: '/api/servermanager/v1/info', 
+        description: 'Get ServerManager API information', section: 'ServerManager - API Info',
+        params: []
+    },
+
     // --- ServerManager - Nginx Management ---
     {
         id: 'nginx1', method: 'GET', path: '/api/servermanager/v1/nginx/sites', 
@@ -558,6 +565,13 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         description: 'Reload nginx configuration', section: 'ServerManager - Nginx',
         params: []
     },
+    {
+        id: 'nginx9', method: 'DELETE', path: '/api/servermanager/v1/nginx/sites/{site_name}', 
+        description: 'Delete nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true, path: true }
+        ]
+    },
 
     // --- ServerManager - SSL Certificates ---
     {
@@ -588,6 +602,16 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
             { name: 'domain', type: 'string', required: true }
         ]
     },
+    {
+        id: 'ssl5', method: 'GET', path: '/api/servermanager/v1/certificates/detect-certbot', 
+        description: 'Detect Certbot installation', section: 'ServerManager - SSL',
+        params: []
+    },
+    {
+        id: 'ssl6', method: 'POST', path: '/api/servermanager/v1/certificates/install-certbot', 
+        description: 'Install Certbot', section: 'ServerManager - SSL',
+        params: []
+    },
 
     // --- ServerManager - System Info ---
     {
@@ -599,5 +623,107 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         id: 'sysmgr2', method: 'GET', path: '/api/servermanager/v1/system/services', 
         description: 'Get system services status', section: 'ServerManager - System',
         params: []
+    },
+    {
+        id: 'sysmgr3', method: 'GET', path: '/api/servermanager/v1/system/processes', 
+        description: 'Get system processes list', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr4', method: 'GET', path: '/api/servermanager/v1/system/storage', 
+        description: 'Get system storage information', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr5', method: 'GET', path: '/api/servermanager/v1/system/permissions', 
+        description: 'Get system permissions check', section: 'ServerManager - System',
+        params: []
+    },
+
+    // --- ServerManager - File Management ---
+    {
+        id: 'file1', method: 'GET', path: '/api/servermanager/v1/files/browse', 
+        description: 'Browse files and directories', section: 'ServerManager - File Management',
+        params: [
+            { name: 'path', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'file2', method: 'GET', path: '/api/servermanager/v1/files/download', 
+        description: 'Download file', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'file3', method: 'GET', path: '/api/servermanager/v1/files/info', 
+        description: 'Get file information', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'file4', method: 'GET', path: '/api/servermanager/v1/files/preview', 
+        description: 'Preview text file content', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true },
+            { name: 'max_lines', type: 'integer', required: false }
+        ]
+    },
+
+    // --- ServerManager - Code Executor ---
+    {
+        id: 'exec1', method: 'GET', path: '/api/servermanager/v1/executor/scripts', 
+        description: 'List predefined scripts', section: 'ServerManager - Code Executor',
+        params: []
+    },
+    {
+        id: 'exec2', method: 'POST', path: '/api/servermanager/v1/executor/run', 
+        description: 'Execute predefined script', section: 'ServerManager - Code Executor',
+        params: [
+            { name: 'script_id', type: 'integer', required: true }
+        ]
+    },
+    {
+        id: 'exec3', method: 'GET', path: '/api/servermanager/v1/executor/logs', 
+        description: 'Get execution logs', section: 'ServerManager - Code Executor',
+        params: [
+            { name: 'execution_id', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'exec4', method: 'GET', path: '/api/servermanager/v1/executor/status', 
+        description: 'Get execution status', section: 'ServerManager - Code Executor',
+        params: []
+    },
+
+    // --- ServerManager - Unified Manager ---
+    {
+        id: 'unified1', method: 'GET', path: '/api/servermanager/v1/unified/apps', 
+        description: 'List applications from unified manager', section: 'ServerManager - Unified Manager',
+        params: []
+    },
+    {
+        id: 'unified2', method: 'POST', path: '/api/servermanager/v1/unified/deploy', 
+        description: 'Deploy application', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'action', type: 'string', required: true, options: ['deploy', 'start', 'stop', 'restart'] }
+        ]
+    },
+    {
+        id: 'unified3', method: 'GET', path: '/api/servermanager/v1/unified/status', 
+        description: 'Get application status', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'unified4', method: 'GET', path: '/api/servermanager/v1/unified/logs', 
+        description: 'Get application logs', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'lines', type: 'integer', required: false }
+        ]
     }
 ];

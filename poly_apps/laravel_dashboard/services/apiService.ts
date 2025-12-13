@@ -29,7 +29,19 @@ import {
   NginxReloadResponse,
   SSLCertificate,
   SSLCertificateGenerateRequest,
-  SystemServiceStatus
+  SystemServiceStatus,
+  SystemProcess,
+  SystemStorage,
+  FileNode,
+  FileInfo,
+  FilePreview,
+  PredefinedScript,
+  ScriptExecution,
+  ScriptExecutionRequest,
+  UnifiedApp,
+  UnifiedAppDeployRequest,
+  UnifiedAppStatus,
+  CertbotStatus
 } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
@@ -288,6 +300,10 @@ class ApiService {
     return this.request<NginxReloadResponse>('POST', '/api/servermanager/v1/nginx/reload');
   }
 
+  async deleteNginxSite(siteName: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('DELETE', `/api/servermanager/v1/nginx/sites/${encodeURIComponent(siteName)}`);
+  }
+
   // ========== ServerManager - SSL ==========
   async getSSLCertificates(): Promise<ApiResponse<SSLCertificate[]>> {
     return this.request<SSLCertificate[]>('GET', '/api/servermanager/v1/certificate/list');
@@ -305,6 +321,14 @@ class ApiService {
     return this.request<SSLCertificate>('GET', `/api/servermanager/v1/certificate/status?domain=${encodeURIComponent(domain)}`);
   }
 
+  async detectCertbot(): Promise<ApiResponse<CertbotStatus>> {
+    return this.request<CertbotStatus>('GET', '/api/servermanager/v1/certificates/detect-certbot');
+  }
+
+  async installCertbot(): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificates/install-certbot');
+  }
+
   // ========== ServerManager - System ==========
   async getSystemInfo(): Promise<ApiResponse<SystemInfo>> {
     return this.request<SystemInfo>('GET', '/api/servermanager/v1/system/info');
@@ -312,6 +336,88 @@ class ApiService {
 
   async getSystemServices(): Promise<ApiResponse<SystemServiceStatus[]>> {
     return this.request<SystemServiceStatus[]>('GET', '/api/servermanager/v1/system/services');
+  }
+
+  async getSystemProcesses(): Promise<ApiResponse<SystemProcess[]>> {
+    return this.request<SystemProcess[]>('GET', '/api/servermanager/v1/system/processes');
+  }
+
+  async getSystemStorage(): Promise<ApiResponse<SystemStorage[]>> {
+    return this.request<SystemStorage[]>('GET', '/api/servermanager/v1/system/storage');
+  }
+
+  async getSystemPermissions(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/servermanager/v1/system/permissions');
+  }
+
+  // ========== ServerManager - File Management ==========
+  async browseFiles(path?: string): Promise<ApiResponse<ServerFileNode[]>> {
+    const url = path 
+      ? `/api/servermanager/v1/files/browse?path=${encodeURIComponent(path)}`
+      : '/api/servermanager/v1/files/browse';
+    return this.request<ServerFileNode[]>('GET', url);
+  }
+
+  async downloadFile(filePath: string): Promise<Blob> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
+    const response = await fetch(`${baseUrl}/api/servermanager/v1/files/download?file_path=${encodeURIComponent(filePath)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/octet-stream',
+      },
+    });
+    return response.blob();
+  }
+
+  async getFileInfo(filePath: string): Promise<ApiResponse<FileInfo>> {
+    return this.request<FileInfo>('GET', `/api/servermanager/v1/files/info?file_path=${encodeURIComponent(filePath)}`);
+  }
+
+  async previewFile(filePath: string, maxLines?: number): Promise<ApiResponse<FilePreview>> {
+    const url = maxLines
+      ? `/api/servermanager/v1/files/preview?file_path=${encodeURIComponent(filePath)}&max_lines=${maxLines}`
+      : `/api/servermanager/v1/files/preview?file_path=${encodeURIComponent(filePath)}`;
+    return this.request<FilePreview>('GET', url);
+  }
+
+  // ========== ServerManager - Code Executor ==========
+  async listScripts(): Promise<ApiResponse<PredefinedScript[]>> {
+    return this.request<PredefinedScript[]>('GET', '/api/servermanager/v1/executor/scripts');
+  }
+
+  async executeScript(request: ScriptExecutionRequest): Promise<ApiResponse<ScriptExecution>> {
+    return this.request<ScriptExecution>('POST', '/api/servermanager/v1/executor/run', request);
+  }
+
+  async getExecutionLogs(executionId?: string): Promise<ApiResponse<any[]>> {
+    const url = executionId
+      ? `/api/servermanager/v1/executor/logs?execution_id=${executionId}`
+      : '/api/servermanager/v1/executor/logs';
+    return this.request<any[]>('GET', url);
+  }
+
+  async getExecutionStatus(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/servermanager/v1/executor/status');
+  }
+
+  // ========== ServerManager - Unified Manager ==========
+  async getUnifiedApps(): Promise<ApiResponse<UnifiedApp[]>> {
+    return this.request<UnifiedApp[]>('GET', '/api/servermanager/v1/unified/apps');
+  }
+
+  async deployUnifiedApp(request: UnifiedAppDeployRequest): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/servermanager/v1/unified/deploy', request);
+  }
+
+  async getUnifiedAppStatus(appName: string): Promise<ApiResponse<UnifiedAppStatus>> {
+    return this.request<UnifiedAppStatus>('GET', `/api/servermanager/v1/unified/status?app_name=${encodeURIComponent(appName)}`);
+  }
+
+  async getUnifiedAppLogs(appName: string, lines?: number): Promise<ApiResponse<any>> {
+    const url = lines
+      ? `/api/servermanager/v1/unified/logs?app_name=${encodeURIComponent(appName)}&lines=${lines}`
+      : `/api/servermanager/v1/unified/logs?app_name=${encodeURIComponent(appName)}`;
+    return this.request<any>('GET', url);
   }
 }
 
