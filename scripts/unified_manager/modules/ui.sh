@@ -117,16 +117,14 @@ show_script_menu() {
 
     if [ -z "$scripts_str" ] || [ "$scripts_str" = "None" ]; then
         echo -e "\033[33mNo scripts available for ${APPS_NAME[$app_index]}\033[0m"
+        echo -e "\033[33mPress any key to continue...\033[0m"
+        read -n 1
         return 1
     fi
 
     IFS=',' read -ra scripts <<< "$scripts_str"
 
-    if [ ${#scripts[@]} -eq 1 ]; then
-        echo -e "\033[33mOnly one script available: ${scripts[0]}\033[0m"
-        return 1
-    fi
-
+    # Always show menu, even for single script
     clear
     echo -e "\033[36m=== Script Selection Menu ===\033[0m"
     echo -e "\033[33mApp: ${APPS_NAME[$app_index]}\033[0m"
@@ -149,6 +147,9 @@ show_script_menu() {
     done
 
     echo ""
+    if [ ${#scripts[@]} -eq 1 ]; then
+        echo -e "\033[33mNote: Only one script available\033[0m"
+    fi
     echo -e "\033[33mControls:\033[0m"
     echo "Enter script number to select | L: Launch with current script | B: Back to main menu"
     echo ""
