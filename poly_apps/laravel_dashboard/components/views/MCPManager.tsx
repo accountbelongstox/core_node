@@ -1,15 +1,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Language, 
-  AsyncState, 
-  Screenshot, 
-  TaskCategory, 
+import {
+  Language,
+  AsyncState,
+  Screenshot,
+  TaskCategory,
   DispatchTask,
   PlaceholderResponse,
   PlaceholderGenerateRequest,
-  VoiceQueueItem,
-  AddVoiceQueueRequest
+  VoiceQueueItem
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { TRANSLATIONS } from '../../constants';
@@ -48,20 +47,20 @@ type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'settings';
 const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<MCPTab>('screenshots');
   const [screenshots, setScreenshots] = useState<AsyncState<Screenshot[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
   });
   const [categories, setCategories] = useState<AsyncState<TaskCategory[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
   });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [tasks, setTasks] = useState<AsyncState<DispatchTask[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -104,7 +103,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   
   // Voice Subtitle State
   const [voiceQueue, setVoiceQueue] = useState<AsyncState<VoiceQueueItem[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -149,8 +148,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.getScreenshots(1, 20);
       if (response.success && response.data) {
+        // Ensure data is an array - handle multiple response formats
+        const screenshotsData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).screenshots || (response.data as any).items || []);
+
         setScreenshots({
-          data: Array.isArray(response.data) ? response.data : response.data.screenshots || [],
+          data: screenshotsData,
           loading: false,
           error: null,
           status: 'success'
@@ -159,8 +163,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         throw new Error(response.error || 'Failed to load screenshots');
       }
     } catch (error: any) {
+      console.error('Failed to load screenshots:', error);
       setScreenshots({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -173,21 +178,30 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.getTaskCategories();
       if (response.success && response.data) {
+        // Ensure data is an array - handle multiple response formats
+        const categoriesData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).categories || (response.data as any).items || []);
+
         setCategories({
-          data: response.data,
+          data: categoriesData,
           loading: false,
           error: null,
           status: 'success'
         });
-        if (response.data.length > 0 && !selectedCategory) {
-          setSelectedCategory(response.data[0].id);
+        if (categoriesData.length > 0 && !selectedCategory) {
+          setSelectedCategory(categoriesData[0].id);
         }
       } else {
         throw new Error(response.error || 'Failed to load categories');
       }
     } catch (error: any) {
+      console.error('Failed to load categories:', error);
+      // Fallback to default categories on error
       setCategories({
-        data: null,
+        data: [
+          { id: 'default', name: 'Default Category', file_count: 0, total_file_size: 0 }
+        ],
         loading: false,
         error: error.message,
         status: 'error'
@@ -200,8 +214,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.getTaskQueue(categoryId);
       if (response.success && response.data) {
+        // Ensure data is an array - handle multiple response formats
+        const tasksData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).tasks || (response.data as any).items || []);
+
         setTasks({
-          data: response.data,
+          data: tasksData,
           loading: false,
           error: null,
           status: 'success'
@@ -210,8 +229,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         throw new Error(response.error || 'Failed to load tasks');
       }
     } catch (error: any) {
+      console.error('Failed to load tasks:', error);
       setTasks({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -482,7 +502,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
           </div>
         )}
-        {categories.data && (
+        {categories.data && categories.data.length > 0 && (
           <div className="space-y-2">
             {categories.data.map((category) => (
               <button
@@ -500,6 +520,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 </div>
               </button>
             ))}
+          </div>
+        )}
+        {categories.data && categories.data.length === 0 && !categories.loading && (
+          <div className="text-center text-slate-400 py-8">
+            <p className="text-sm">No categories available</p>
           </div>
         )}
       </div>
@@ -759,8 +784,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.getVoiceQueue();
       if (response.success && response.data) {
+        // Ensure data is an array - handle multiple response formats
+        const voiceQueueData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).queue || (response.data as any).items || []);
+
         setVoiceQueue({
-          data: response.data,
+          data: voiceQueueData,
           loading: false,
           error: null,
           status: 'success'
@@ -769,8 +799,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         throw new Error(response.error || 'Failed to load voice queue');
       }
     } catch (error: any) {
+      console.error('Failed to load voice queue:', error);
       setVoiceQueue({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -798,7 +829,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     if (!newVoiceContent.trim()) return;
 
     try {
-      const request: AddVoiceQueueRequest = {
+      const request = {
         type: newVoiceType,
         content: newVoiceContent,
         language: newVoiceLanguage,

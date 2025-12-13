@@ -78,13 +78,29 @@ SERVICE_SYSTEMD["laravel"]="laravel-octane"
 SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
 
+SERVICE_NAME["unified_apps"]="Unified Apps"
+SERVICE_SYSTEMD["unified_apps"]=""
+SERVICE_INSTALL_SCRIPT["unified_apps"]=""
+SERVICE_MANAGER_SCRIPT["unified_apps"]="$SCRIPT_CURRENT_DIR/unified_app_service_manager.sh"
+
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "unified_apps")
 
 # Function to check if service is installed
 is_service_installed() {
     local service="$1"
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
+
+    # Special handling for Unified Apps (manages multiple services)
+    if [ "$service" = "unified_apps" ]; then
+        local unified_prefixes=("app-" "webapp-" "nuxt-" "laravel-" "flutter-" "react-" "vue-")
+        for prefix in "${unified_prefixes[@]}"; do
+            if systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${prefix}"; then
+                return 0
+            fi
+        done
+        return 1
+    fi
 
     if [ -z "$systemd_name" ]; then
         return 1
@@ -122,6 +138,41 @@ is_service_installed() {
 get_service_status() {
     local service="$1"
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
+
+    # Special handling for Unified Apps (multiple services)
+    if [ "$service" = "unified_apps" ]; then
+        if ! is_service_installed "$service"; then
+            echo "NOT_INSTALLED"
+            return
+        fi
+
+        local unified_prefixes=("app-" "webapp-" "nuxt-" "laravel-" "flutter-" "react-" "vue-")
+        local total_count=0
+        local running_count=0
+
+        for prefix in "${unified_prefixes[@]}"; do
+            local services=$(systemctl list-unit-files --type=service 2>/dev/null | grep "^${prefix}" | awk '{print $1}' | sed 's/.service$//')
+            if [ -n "$services" ]; then
+                while IFS= read -r svc; do
+                    ((total_count++))
+                    if systemctl is-active --quiet "$svc"; then
+                        ((running_count++))
+                    fi
+                done <<< "$services"
+            fi
+        done
+
+        if [ "$total_count" -eq 0 ]; then
+            echo "NOT_INSTALLED"
+        elif [ "$running_count" -eq "$total_count" ]; then
+            echo "RUNNING:$running_count/$total_count"
+        elif [ "$running_count" -gt 0 ]; then
+            echo "PARTIAL:$running_count/$total_count"
+        else
+            echo "STOPPED:0/$total_count"
+        fi
+        return
+    fi
 
     if ! is_service_installed "$service"; then
         echo "NOT_INSTALLED"
@@ -513,6 +564,27 @@ reinstall_service() {
     local service="$1"
     local install_script="${SERVICE_INSTALL_SCRIPT[$service]}"
     local service_name="${SERVICE_NAME[$service]}"
+
+    # Special handling for Unified Apps (launches unified manager)
+    if [ "$service" = "unified_apps" ]; then
+        echo ""
+        echo "================================================"
+        echo "Launching Unified App Manager"
+        echo "================================================"
+        echo ""
+        echo -e "${GREEN}Opening Unified App Manager to create/reinstall services${NC}"
+        echo ""
+        read -p "Press Enter to continue..."
+
+        local unified_manager="$PARENT_DIR_LEVEL_3/scripts/unified_manager/unified_manager.sh"
+        if [ -f "$unified_manager" ]; then
+            bash "$unified_manager"
+        else
+            echo -e "${RED}Error: Unified Manager not found at $unified_manager${NC}"
+            return 1
+        fi
+        return 0
+    fi
 
     echo ""
     echo "================================================"

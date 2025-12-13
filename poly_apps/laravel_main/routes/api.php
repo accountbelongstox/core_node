@@ -61,6 +61,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FileManag
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CodeExecutorCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1NginxManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1UnifiedManagerCtl;
+use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CertificateManagerCtl;
 
 // ServerManagerV1 API Routes
 Route::prefix('servermanager/v1')->group(function () {
@@ -112,6 +113,16 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
         Route::get('status', [ServerManagerV1UnifiedManagerCtl::class, 'getAppStatus']);
         Route::get('logs', [ServerManagerV1UnifiedManagerCtl::class, 'getAppLogs']);
+    });
+
+    // SSL Certificate Management Routes
+    Route::prefix('certificates')->group(function () {
+        Route::get('/', [ServerManagerV1CertificateManagerCtl::class, 'listCertificates']);
+        Route::post('generate', [ServerManagerV1CertificateManagerCtl::class, 'generateCertificate']);
+        Route::post('renew', [ServerManagerV1CertificateManagerCtl::class, 'renewCertificates']);
+        Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
+        Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
+        Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);
     });
 
 });

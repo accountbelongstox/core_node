@@ -28,6 +28,10 @@ VARIABLE_KEYS=(
 
     [STATUS]="STATUS"
     [LAUNCH_COMMAND]="LAUNCH_COMMAND"
+    [EXECUTE_COMMAND]="EXECUTE_COMMAND"
+    [WORKING_DIRECTORY]="WORKING_DIRECTORY"
+    [SELECTED_APP_INDEX]="SELECTED_APP_INDEX"
+    [ACTION]="ACTION"
 
     [CURRENT_INDEX]="CURRENT_INDEX"
     [MAX_APP_NAME_WIDTH]="MAX_APP_NAME_WIDTH"
@@ -38,6 +42,9 @@ STATUS_VALUES=(
     [SCAN_COMPLETE]="scan_complete"
     [COMMAND_READY]="command_ready"
     [SELECTION_UPDATED]="selection_updated"
+    [MENU_EXIT]="menu_exit"
+    [MENU_RESCAN]="menu_rescan"
+    [EXECUTE_READY]="execute_ready"
     [ERROR_INVALID_INDEX]="error_invalid_index"
     [ERROR_INVALID_SCRIPT]="error_invalid_script"
 )

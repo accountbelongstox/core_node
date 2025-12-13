@@ -520,6 +520,23 @@ class UnifiedAppManager:
     def run_interactive_menu(self) -> None:
         """Run interactive menu loop in Python"""
 
+        # Scan applications first if not already scanned
+        if not self.apps:
+            print("\033[H\033[2J\033[3J", end='', flush=True)  # Clear screen
+            print("\033[36m=== Initializing Unified App Manager ===\033[0m")
+            print("\033[90mScanning applications in: apps/, pyapps/, poly_apps/...\033[0m")
+            print()
+
+            self.scan_applications()
+
+            if self.apps:
+                print(f"\033[32m✓ Found {len(self.apps)} applications\033[0m")
+            else:
+                print("\033[33m⚠ No applications found\033[0m")
+
+            import time
+            time.sleep(1)
+
         # Create menu config from platform info
         menu_config = MenuConfig(
             enable_systemd=not self.system_info.is_windows,
@@ -640,9 +657,98 @@ class UnifiedAppManager:
                         break
 
                 elif action == 'select':
-                    menu.log_success(f"Selected app #{app_index + 1}: {self.apps[app_index].name}")
-                    import time
-                    time.sleep(0.5)
+                    # User selected an app by number - ask if they want to launch
+                    if app_index is not None and 0 <= app_index < len(self.apps):
+                        app = self.apps[app_index]
+
+                        menu.clear_screen()
+                        menu.log_success(f"Selected app #{app_index + 1}: {app.name}")
+                        print()
+                        menu.log_info(f"Type: {app.type}")
+                        menu.log_info(f"Framework: {app.framework}")
+                        menu.log_info(f"Port: {app.port}")
+                        menu.log_info(f"Debug Mode: {app.debug_mode}")
+                        print()
+
+                        # Ask user what to do
+                        print(f"{menu.COLOR_WARNING}Actions:{menu.COLOR_RESET}")
+                        print("  L - Launch this app")
+                        print("  Enter - Return to menu")
+                        if menu_config.enable_systemd:
+                            print("  C - Create systemd service")
+                        if menu_config.enable_domain_proxy:
+                            print("  P - Create service with proxy")
+                        print()
+
+                        user_choice = input(f"{menu.COLOR_HEADER}Choose action: {menu.COLOR_RESET}").strip().upper()
+
+                        if user_choice == 'L':
+                            # Launch the app
+                            command = self.command_gen.generate_command(app)
+
+                            if not command:
+                                menu.show_error(f"No command available for {app.name}")
+                                menu.wait_for_key()
+                                continue
+
+                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.LAUNCH)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header(f"Launching {app.name}")
+                            menu.log_info(f"Command: {command}")
+                            print()
+                            menu.log_success("Command prepared for execution")
+                            print()
+                            break
+
+                        elif user_choice == 'C' and menu_config.enable_systemd:
+                            # Create service
+                            command = self.command_gen.generate_command(app)
+
+                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.SERVICE_CREATE)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Creating SystemD Service")
+                            menu.log_info(f"App: {app.name}")
+                            print()
+                            break
+
+                        elif user_choice == 'P' and menu_config.enable_domain_proxy:
+                            # Create service with proxy
+                            command = self.command_gen.generate_command(app)
+
+                            print()
+                            domain = input(f"{menu.COLOR_WARNING}Enter domain (e.g., {app.name}.local): {menu.COLOR_RESET}").strip()
+
+                            if not domain:
+                                menu.show_error("Domain is required for proxy setup")
+                                menu.wait_for_key()
+                                continue
+
+                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.PROXY_CREATE)
+                            self.file_vars.write_var("DOMAIN", domain)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Creating Service with Domain Proxy")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Domain: {domain}")
+                            print()
+                            break
+
+                        # Otherwise (Enter or invalid), just return to menu
+                        continue
 
                 elif action == 'invalid':
                     available_commands = "L (launch), R (rescan), Q (quit)"
