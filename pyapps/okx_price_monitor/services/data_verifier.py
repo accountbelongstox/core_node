@@ -89,8 +89,9 @@ class DataVerifier:
         print(f"\n[2/5] Checking time range coverage...")
         sys.stdout.flush()
 
-        oldest_ts = records[0]['timestamp_ms']
-        latest_ts = records[-1]['timestamp_ms']
+        # Find oldest and latest (records may be in any order)
+        oldest_ts = min(r['timestamp_ms'] for r in records)
+        latest_ts = max(r['timestamp_ms'] for r in records)
         oldest_dt = datetime.fromtimestamp(oldest_ts / 1000)
         latest_dt = datetime.fromtimestamp(latest_ts / 1000)
 
@@ -121,10 +122,13 @@ class DataVerifier:
         print(f"\n[3/5] Checking data continuity (gaps)...")
         sys.stdout.flush()
 
-        gaps = []
-        prev_ts = records[0]['timestamp_ms']
+        # Sort records by timestamp for gap detection
+        sorted_records = sorted(records, key=lambda r: r['timestamp_ms'])
 
-        for i, record in enumerate(records[1:], 1):
+        gaps = []
+        prev_ts = sorted_records[0]['timestamp_ms']
+
+        for i, record in enumerate(sorted_records[1:], 1):
             current_ts = record['timestamp_ms']
             gap_minutes = (current_ts - prev_ts) / 1000 / 60
 
