@@ -66,6 +66,7 @@ source "$MODULES_DIR/app_scanner.sh"
 source "$MODULES_DIR/startup_generator.sh"
 source "$MODULES_DIR/ui.sh"
 source "$MODULES_DIR/launcher.sh"
+source "$MODULES_DIR/service_manager.sh"
 source "$UTILS_DIR/cache.sh"
 
 # Scan all apps
@@ -130,6 +131,65 @@ scan_apps() {
     echo ""
 }
 
+# Create systemd service for current app
+create_service_for_current_app() {
+    local app_name="${APPS_NAME[$CURRENT_INDEX]}"
+    local app_path="${APPS_PATH[$CURRENT_INDEX]}"
+    local app_type="${APPS_TYPE[$CURRENT_INDEX]}"
+    local current_script="${APPS_CURRENT_SCRIPT[$CURRENT_INDEX]}"
+
+    if [ -z "$current_script" ] || [ "$current_script" = "None" ]; then
+        echo -e "\033[31mNo startup script configured for $app_name\033[0m"
+        echo -e "\033[33mPlease select a startup script first using T (toggle script)\033[0m"
+        sleep 2
+        return 1
+    fi
+
+    echo ""
+    echo -e "\033[36m=== Service Creation for $app_name ===\033[0m"
+
+    # Get domain input
+    echo -ne "\033[33mDomain (e.g., $app_name.local, press Enter for auto): \033[0m"
+    read domain_input
+    local domain="${domain_input:-$app_name.local}"
+
+    # Get port input
+    local default_port=$(get_available_port)
+    echo -ne "\033[33mPort (press Enter for auto-assigned port $default_port): \033[0m"
+    read port_input
+    local port="${port_input:-$default_port}"
+
+    # Auto-detect debug mode
+    local debug_mode=$(should_use_debug_mode "$app_path" "$current_script")
+
+    # Create the service
+    create_systemd_service "$app_name" "$app_path" "$app_type" "$current_script" "$port" "$domain" "$debug_mode"
+    local result=$?
+
+    if [ $result -eq 0 ]; then
+        echo ""
+        echo -e "\033[32m✓ Service creation completed!\033[0m"
+        echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
+        echo -e "\033[36mDomain: http://$domain\033[0m"
+        echo -e "\033[36mPort: $port\033[0m"
+        echo ""
+        echo -e "\033[33mNext steps:\033[0m"
+        echo -e "  1. Start service: sudo systemctl start ${current_script%Start}-$app_name"
+        echo -e "  2. Enable on boot: sudo systemctl enable ${current_script%Start}-$app_name"
+        echo -e "  3. Check status: sudo systemctl status ${current_script%Start}-$app_name"
+        echo -e "  4. View logs: sudo journalctl -u ${current_script%Start}-$app_name -f"
+        echo ""
+        echo -e "\033[36mAdd '$domain' to your /etc/hosts file to test locally:\033[0m"
+        echo -e "\033[90m127.0.0.1 $domain\033[0m"
+    else
+        echo -e "\033[31m✗ Service creation failed\033[0m"
+    fi
+
+    echo ""
+    echo -e "\033[33mPress any key to continue...\033[0m"
+    read -n 1
+}
+
 # Main loop
 main() {
     # Always scan apps first
@@ -173,6 +233,8 @@ main() {
         # Handle commands
         elif [ "$input_upper" = "L" ]; then
             launch_current_app
+        elif [ "$input_upper" = "C" ]; then
+            create_service_for_current_app
         elif [ "$input_upper" = "T" ]; then
             toggle_script
         elif [ "$input_upper" = "S" ]; then
@@ -191,7 +253,7 @@ main() {
             launch_current_app
         else
             echo -e "\033[31mUnknown command: $input\033[0m"
-            echo -e "\033[33mValid commands: L (launch), T (toggle script), S (select), R (rescan), Q (quit)\033[0m"
+            echo -e "\033[33mValid commands: L (launch), C (create service), T (toggle script), S (select), R (rescan), Q (quit)\033[0m"
             echo -e "\033[33mOr enter an app number (1-${#APPS_NAME[@]})\033[0m"
             sleep 2
         fi

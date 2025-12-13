@@ -62,44 +62,169 @@ launch_current_app() {
                 working_dir="$ROOT_DIR"
                 ;;
             "pyStart")
-                command="$(get_py_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/python_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "flutterStart")
-                command="$(get_flutter_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/flutter_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "laravelStart")
-                command="$(get_laravel_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/laravel_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "nuxtStart")
-                command="$(get_nuxt_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/nuxt_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "reactNativeStart")
-                command="$(get_react_native_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/react_native_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "vueStart")
-                command="$(get_vue_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/vue_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "reactStart")
-                command="$(get_react_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/react_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "kotlinMultiPlatformStart")
-                command="$(get_kotlin_multiplatform_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/kotlin_multiplatform_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
             "phpStart")
-                command="$(get_php_start_command "$app_path")"
+                local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/php_launcher.sh"
+                command="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 working_dir="$app_path"
                 ;;
         esac
 
         if [ -n "$command" ]; then
+            echo ""
+            echo -e "\033[36m=== Project Analysis ====================\033[0m"
+            echo -e "\033[33mApp Name:\033[0m $app_name"
+            echo -e "\033[33mApp Type:\033[0m $app_type"
+            echo -e "\033[33mApp Path:\033[0m $app_path"
+            echo -e "\033[33mStartup Mode:\033[0m $current_script"
+
+            # Show launcher script path for framework-specific starters
+            case "$current_script" in
+                "reactStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/react_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "vueStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/vue_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "nuxtStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/nuxt_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "laravelStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/laravel_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "flutterStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/flutter_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "reactNativeStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/react_native_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "kotlinMultiPlatformStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/kotlin_multiplatform_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+                "phpStart")
+                    local launcher_script="$ROOT_DIR/scripts/unified_manager/launchers/php_launcher.sh"
+                    echo -e "\033[33mLauncher Script:\033[0m $launcher_script"
+                    ;;
+            esac
+
+            echo -e "\033[33mWorking Directory:\033[0m $working_dir"
+            echo -e "\033[33mGenerated Command:\033[0m $command"
+
+            # Show project files detected
+            echo ""
+            echo -e "\033[36m=== Project Files Detected ==============\033[0m"
+            if [ -f "$app_path/package.json" ]; then
+                echo -e "\033[32m✓ package.json found\033[0m"
+                if grep -q '"react"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "  \033[90m→ React dependency detected\033[0m"
+                fi
+                if grep -q '"vue"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "  \033[90m→ Vue dependency detected\033[0m"
+                fi
+                if grep -q '"nuxt"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "  \033[90m→ Nuxt dependency detected\033[0m"
+                fi
+                if grep -q '"react-native"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "  \033[90m→ React Native dependency detected\033[0m"
+                fi
+
+                echo -e "  \033[90mAvailable scripts:\033[0m"
+                if grep -q '"start"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "    \033[90m• start\033[0m"
+                fi
+                if grep -q '"dev"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "    \033[90m• dev\033[0m"
+                fi
+                if grep -q '"build"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "    \033[90m• build\033[0m"
+                fi
+                if grep -q '"serve"' "$app_path/package.json" 2>/dev/null; then
+                    echo -e "    \033[90m• serve\033[0m"
+                fi
+            fi
+
+            if [ -f "$app_path/vite.config.ts" ]; then
+                echo -e "\033[32m✓ vite.config.ts found\033[0m"
+            elif [ -f "$app_path/vite.config.js" ]; then
+                echo -e "\033[32m✓ vite.config.js found\033[0m"
+            fi
+
+            if [ -f "$app_path/tsconfig.json" ]; then
+                echo -e "\033[32m✓ tsconfig.json found (TypeScript)\033[0m"
+            fi
+
+            if [ -f "$app_path/composer.json" ]; then
+                echo -e "\033[32m✓ composer.json found (PHP/Laravel)\033[0m"
+            fi
+
+            if [ -f "$app_path/artisan" ]; then
+                echo -e "\033[32m✓ artisan found (Laravel)\033[0m"
+            fi
+
+            if [ -f "$app_path/pubspec.yaml" ]; then
+                echo -e "\033[32m✓ pubspec.yaml found (Flutter)\033[0m"
+            fi
+
+            if [ -f "$app_path/nuxt.config.ts" ]; then
+                echo -e "\033[32m✓ nuxt.config.ts found\033[0m"
+            elif [ -f "$app_path/nuxt.config.js" ]; then
+                echo -e "\033[32m✓ nuxt.config.js found\033[0m"
+            fi
+
+            if [ -d "$app_path/node_modules" ]; then
+                echo -e "\033[32m✓ node_modules exists\033[0m"
+            else
+                echo -e "\033[33m⚠ node_modules missing (will install)\033[0m"
+            fi
+
+            echo -e "\033[36m========================================\033[0m"
+            echo ""
+
             echo -e "\033[90mWorking Directory: $working_dir\033[0m"
             echo -e "\033[90mCommand: $command\033[0m"
             echo ""
@@ -136,7 +261,7 @@ echo "Working Directory: \$(pwd)"
 echo ""
 $command
 echo ""
-echo "Exit code: \$?"
+echo "Process completed."
 EOF
             fi
 

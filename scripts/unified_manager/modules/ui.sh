@@ -56,7 +56,7 @@ show_menu() {
 
     echo ""
     echo -e "\033[33mControls:\033[0m"
-    echo "Enter app number to select | L: Launch current | T: Toggle script | S: Select/Unselect | R: Rescan | Q: Quit"
+    echo "Enter app number to select | L: Launch current | C: Create service | T: Toggle script | S: Select/Unselect | R: Rescan | Q: Quit"
     echo ""
     echo -ne "\033[36mEnter app number (1-${#APPS_NAME[@]}) or command: \033[0m"
 }
@@ -151,7 +151,7 @@ show_script_menu() {
         echo -e "\033[33mNote: Only one script available\033[0m"
     fi
     echo -e "\033[33mControls:\033[0m"
-    echo "Enter script number to select | L: Launch with current script | B: Back to main menu"
+    echo "Enter script number to select | L: Launch with current script | C: Create service | B: Back to main menu"
     echo ""
     echo -ne "\033[36mEnter script number (1-${#scripts[@]}) or command: \033[0m"
 
@@ -178,13 +178,15 @@ show_script_menu() {
             fi
         elif [ "$script_input_upper" = "L" ]; then
             return 2  # Signal to launch
+        elif [ "$script_input_upper" = "C" ]; then
+            return 3  # Signal to create service
         elif [ "$script_input_upper" = "B" ] || [ "$script_input_upper" = "BACK" ]; then
             return 0  # Back to main menu
         elif [ -z "$script_input" ]; then
             return 2  # Empty input, launch current script
         else
             echo -e "\033[31mUnknown command: $script_input\033[0m"
-            echo -e "\033[33mValid commands: L (launch), B (back), or script number (1-${#scripts[@]})\033[0m"
+            echo -e "\033[33mValid commands: L (launch), C (create service), B (back), or script number (1-${#scripts[@]})\033[0m"
             echo -ne "\033[36mEnter script number (1-${#scripts[@]}) or command: \033[0m"
         fi
     done
