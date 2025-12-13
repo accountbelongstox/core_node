@@ -25,16 +25,42 @@ export function useUser() {
   /**
    * Login
    */
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      await userModel.login(email, password);
+      await userModel.login(username, password);
       refreshState();
       return true;
     } catch (err: any) {
       const errorMessage = err.message || 'Login failed';
+      setError(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshState]);
+
+  /**
+   * Register
+   */
+  const register = useCallback(async (
+    username: string,
+    password: string,
+    email?: string,
+    nickname?: string,
+    registrationCode?: string
+  ) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await userModel.register(username, password, email, nickname, registrationCode);
+      refreshState();
+      return true;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Registration failed';
       setError(errorMessage);
       return false;
     } finally {
@@ -134,6 +160,7 @@ export function useUser() {
 
     // Methods
     login,
+    register,
     logout,
     updatePreferences,
     addRecentTool,

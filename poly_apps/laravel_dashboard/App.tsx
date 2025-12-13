@@ -12,49 +12,49 @@ import OctaneTasks from './components/views/OctaneTasks';
 import ServerManager from './components/views/ServerManager';
 import Settings from './components/views/Settings';
 import LoginModal from './components/LoginModal';
+import AuthGuard from './components/auth/AuthGuard';
 import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
+import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import { ToastProvider } from './components/admin';
 import { apiService } from './services/apiService';
 import { api } from './core/api';
-import { ViewType, Language, Theme } from './types';
+import { useUser } from './hooks/useUser';
+import { ViewType } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
 import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
 
-// Internal App Component (uses ApiConfigContext)
 const AppContent: React.FC = () => {
   const { config } = useApiConfig();
-  const [activeView, setActiveView] = useState<ViewType>(ViewType.MEDIA_BROWSER);
-  const [lang, setLang] = useState<Language>('en');
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const {
+    activeView,
+    setActiveView,
+    lang,
+    toggleLang,
+    theme,
+    toggleTheme,
+    isLoggedIn,
+    setIsLoggedIn
+  } = useAppState();
+  const { isLoggedIn: userIsLoggedIn, logout: userLogout, user } = useUser();
+
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Sync API config to both apiService and new api singleton whenever it changes
   useEffect(() => {
     apiService.setConfig(config.baseUrl, config.apiKey);
     api.updateBaseURL(config.baseUrl);
   }, [config]);
 
-  // Apply Theme Effect
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [theme]);
+    setIsLoggedIn(userIsLoggedIn);
+  }, [userIsLoggedIn, setIsLoggedIn]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
+  useEffect(() => {
+    console.log('[App] Mounted with activeView:', activeView);
+  }, []);
 
-  const toggleLang = () => {
-    setLang(prev => prev === 'en' ? 'zh' : 'en');
-  };
-
-  const handleAuthAction = () => {
+  const handleAuthAction = async () => {
     if (isLoggedIn) {
+      await userLogout();
       setIsLoggedIn(false);
     } else {
       setShowLoginModal(true);
@@ -62,7 +62,6 @@ const AppContent: React.FC = () => {
   };
 
   const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
     setShowLoginModal(false);
   };
 
@@ -91,7 +90,16 @@ const AppContent: React.FC = () => {
       case ViewType.SERVER_MANAGER:
         return <ServerManager lang={lang} />;
       case ViewType.SETTINGS:
-        return <Settings lang={lang} />;
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={true}
+            fallbackMessage={t.settings?.auth_required || 'Settings page requires authentication. Please login to continue.'}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <Settings lang={lang} />
+          </AuthGuard>
+        );
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -234,9 +242,9 @@ const AppContent: React.FC = () => {
 
       {/* Login Modal */}
       <LoginModal
-        isOpen={showLoginModal} 
+        isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onLogin={handleLoginSuccess}
+        onSuccess={handleLoginSuccess}
         lang={lang}
       />
 
@@ -244,14 +252,16 @@ const AppContent: React.FC = () => {
   );
 };
 
-// Main App Component with ApiConfigProvider and ToastProvider
+// Main App Component with AppStateProvider, ApiConfigProvider and ToastProvider
 const App: React.FC = () => {
   return (
-    <ApiConfigProvider>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </ApiConfigProvider>
+    <AppStateProvider>
+      <ApiConfigProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </ApiConfigProvider>
+    </AppStateProvider>
   );
 };
 

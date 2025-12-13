@@ -18,26 +18,66 @@ export class UserModel {
   }
 
   /**
-   * 登录
+   * Login
    */
-  async login(email: string, password: string): Promise<void> {
-    const response = await api.appQyV1.login({ email, password });
+  async login(username: string, password: string): Promise<void> {
+    const response = await api.appQyV1.login({ username, password });
 
     if (!response.success) {
       throw new Error(response.error || 'Login failed');
     }
 
-    this.user = response.data.user;
-    const token = response.data.token;
+    const token = response.data.token || response.data.data?.token;
+    const user = response.data.user || response.data.data?.user;
 
-    // 设置token
+    if (!token || !user) {
+      throw new Error('Invalid response format');
+    }
+
+    this.user = user;
     api.setAuthToken(token);
 
-    // 保存
     this.save();
     this.saveToken(token);
 
-    // 加载用户偏好
+    await this.loadPreferences();
+  }
+
+  /**
+   * Register
+   */
+  async register(
+    username: string,
+    password: string,
+    email?: string,
+    nickname?: string,
+    registrationCode?: string
+  ): Promise<void> {
+    const response = await api.appQyV1.register({
+      username,
+      password,
+      email,
+      nickname,
+      registration_code: registrationCode
+    });
+
+    if (!response.success) {
+      throw new Error(response.error || 'Registration failed');
+    }
+
+    const token = response.data.token || response.data.data?.token;
+    const user = response.data.user || response.data.data?.user;
+
+    if (!token || !user) {
+      throw new Error('Invalid response format');
+    }
+
+    this.user = user;
+    api.setAuthToken(token);
+
+    this.save();
+    this.saveToken(token);
+
     await this.loadPreferences();
   }
 

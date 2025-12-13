@@ -619,9 +619,9 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.bcryptHash',
     inputSchema: {
-      required: ['text'],
+      required: ['password'],
       properties: {
-        text: { type: 'string', minLength: 1 },
+        password: { type: 'string', minLength: 1 },
         rounds: { type: 'number', min: 4, max: 12 }
       }
     },
@@ -961,13 +961,13 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     name: 'Bcrypt Hash Verifier',
     category: 'Crypto & Security',
     icon: 'Lock',
-    description: 'Verify text against Bcrypt hash',
+    description: 'Verify password against Bcrypt hash',
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.bcryptVerify',
     inputSchema: {
-      required: ['text', 'hash'],
+      required: ['password', 'hash'],
       properties: {
-        text: { type: 'string', minLength: 1 },
+        password: { type: 'string', minLength: 1 },
         hash: { type: 'string', minLength: 1 }
       }
     },
