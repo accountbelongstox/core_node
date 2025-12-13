@@ -20,7 +20,16 @@ import {
   VoiceQueueItem,
   AddVoiceQueueRequest,
   OctaneTasksStatus,
-  OctaneTask
+  OctaneTask,
+  NginxSite,
+  NginxSiteCreateRequest,
+  NginxSiteConfig,
+  NginxSiteUpdateRequest,
+  NginxTestResponse,
+  NginxReloadResponse,
+  SSLCertificate,
+  SSLCertificateGenerateRequest,
+  SystemServiceStatus
 } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
@@ -244,6 +253,65 @@ class ApiService {
 
   async verifyOctaneInit(): Promise<ApiResponse<any>> {
     return this.request<any>('GET', '/octane-tasks/verify');
+  }
+
+  // ========== ServerManager - Nginx ==========
+  async getNginxSites(): Promise<ApiResponse<NginxSite[]>> {
+    return this.request<NginxSite[]>('GET', '/api/servermanager/v1/nginx/sites');
+  }
+
+  async createNginxSite(request: NginxSiteCreateRequest): Promise<ApiResponse<NginxSite>> {
+    return this.request<NginxSite>('POST', '/api/servermanager/v1/nginx/sites', request);
+  }
+
+  async getNginxSiteConfig(siteName: string): Promise<ApiResponse<NginxSiteConfig>> {
+    return this.request<NginxSiteConfig>('GET', `/api/servermanager/v1/nginx/config?site_name=${encodeURIComponent(siteName)}`);
+  }
+
+  async updateNginxSite(siteName: string, request: NginxSiteUpdateRequest): Promise<ApiResponse<NginxSite>> {
+    return this.request<NginxSite>('PUT', `/api/servermanager/v1/nginx/sites/${encodeURIComponent(siteName)}`, request);
+  }
+
+  async enableNginxSite(siteName: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/nginx/enable', { site_name: siteName });
+  }
+
+  async disableNginxSite(siteName: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/nginx/disable', { site_name: siteName });
+  }
+
+  async testNginxConfig(): Promise<ApiResponse<NginxTestResponse>> {
+    return this.request<NginxTestResponse>('POST', '/api/servermanager/v1/nginx/test');
+  }
+
+  async reloadNginx(): Promise<ApiResponse<NginxReloadResponse>> {
+    return this.request<NginxReloadResponse>('POST', '/api/servermanager/v1/nginx/reload');
+  }
+
+  // ========== ServerManager - SSL ==========
+  async getSSLCertificates(): Promise<ApiResponse<SSLCertificate[]>> {
+    return this.request<SSLCertificate[]>('GET', '/api/servermanager/v1/certificate/list');
+  }
+
+  async generateSSLCertificate(request: SSLCertificateGenerateRequest): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificate/generate', request);
+  }
+
+  async renewSSLCertificates(all: boolean = true): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificate/renew', { all });
+  }
+
+  async getSSLCertificateStatus(domain: string): Promise<ApiResponse<SSLCertificate>> {
+    return this.request<SSLCertificate>('GET', `/api/servermanager/v1/certificate/status?domain=${encodeURIComponent(domain)}`);
+  }
+
+  // ========== ServerManager - System ==========
+  async getSystemInfo(): Promise<ApiResponse<SystemInfo>> {
+    return this.request<SystemInfo>('GET', '/api/servermanager/v1/system/info');
+  }
+
+  async getSystemServices(): Promise<ApiResponse<SystemServiceStatus[]>> {
+    return this.request<SystemServiceStatus[]>('GET', '/api/servermanager/v1/system/services');
   }
 }
 
