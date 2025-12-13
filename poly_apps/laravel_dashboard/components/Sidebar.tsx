@@ -22,10 +22,10 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
   { id: ViewType.MEDIA_BROWSER, icon: Film, labelKey: 'media' },
   { id: ViewType.CODE_BROWSER, icon: Code2, labelKey: 'code' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
-  { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
   { id: ViewType.SYSTEM_INFO, icon: Info, labelKey: 'system' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },

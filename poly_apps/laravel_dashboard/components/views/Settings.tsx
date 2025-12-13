@@ -10,10 +10,18 @@ interface SettingsProps {
   lang?: Language;
 }
 
+const getOriginUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'http://localhost:8000';
+};
+
 const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
   const { config, updateConfig, resetConfig } = useApiConfig();
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
   const [apiKey, setApiKey] = useState(config.apiKey || '');
+  const [port, setPort] = useState(config.port || 9000);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
@@ -34,14 +42,21 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
   useEffect(() => {
     setBaseUrl(config.baseUrl);
     setApiKey(config.apiKey || '');
+    setPort(config.port || 9000);
   }, [config]);
 
   const handleSave = () => {
     try {
+      const hostname = baseUrl.trim().replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+      const protocol = baseUrl.trim().startsWith('https') ? 'https' : 'http';
+      const finalUrl = `${protocol}://${hostname}:${port}`;
+
       updateConfig({
-        baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim() || undefined
+        baseUrl: finalUrl,
+        apiKey: apiKey.trim() || undefined,
+        port: port
       });
+      setBaseUrl(finalUrl);
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
@@ -57,6 +72,21 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
     }
+  };
+
+  const handleResetToOrigin = () => {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    const finalUrl = `${protocol}//${hostname}:${port}`;
+
+    updateConfig({
+      baseUrl: finalUrl,
+      apiKey: config.apiKey,
+      port: port
+    });
+    setBaseUrl(finalUrl);
+    setSaveStatus('success');
+    setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
   const handleTestConnection = async () => {
@@ -113,11 +143,30 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.nexus-orbit.io"
+              placeholder="http://43.163.112.77:9000"
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Default: https://api.nexus-orbit.io
+              Current origin: {getOriginUrl()}
+            </p>
+          </div>
+
+          {/* Port */}
+          <div>
+            <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
+              API Port
+            </label>
+            <input
+              type="number"
+              value={port}
+              onChange={(e) => setPort(parseInt(e.target.value) || 9000)}
+              placeholder="9000"
+              min="1"
+              max="65535"
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Default: 9000 (Laravel backend port)
             </p>
           </div>
 
@@ -168,6 +217,14 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
               )}
             </button>
             <button
+              onClick={handleResetToOrigin}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+              title="Reset to current browser origin"
+            >
+              <Globe className="w-4 h-4" />
+              Reset to Origin
+            </button>
+            <button
               onClick={handleReset}
               className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
             >
@@ -207,6 +264,14 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
           <div className="flex items-center justify-between">
             <span className="text-slate-500 dark:text-slate-400">Base URL:</span>
             <span className="font-mono text-slate-900 dark:text-white">{config.baseUrl}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">API Port:</span>
+            <span className="font-mono text-slate-900 dark:text-white">{config.port || 9000}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">Browser Origin:</span>
+            <span className="font-mono text-slate-900 dark:text-white">{getOriginUrl()}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 dark:text-slate-400">API Key:</span>
