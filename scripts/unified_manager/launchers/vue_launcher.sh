@@ -19,6 +19,10 @@ APP_PATH="$1"
 APP_NAME="$2"
 ACTION="${3:-start}"
 
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
+
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_path> <app_name> [action]"
@@ -54,18 +58,39 @@ case "$ACTION" in
         ;;
     "start"|"dev")
         echo "Starting Vue application..."
+
+        # Check if node_modules exists, install if not
+        if [ ! -d "node_modules" ]; then
+            echo "node_modules not found. Installing dependencies..."
+            pnpm install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install dependencies"
+                exit 1
+            fi
+        fi
+
+        # Setup host binding for network access
+        setup_host_binding "$APP_PATH"
+
         # Check for common Vue dev scripts
         if grep -q '"dev"' "$PACKAGE_JSON" 2>/dev/null; then
-            pnpm run dev
+            echo "Launching with pnpm run dev..."
+            HOST=0.0.0.0 pnpm run dev
         elif grep -q '"serve"' "$PACKAGE_JSON" 2>/dev/null; then
-            pnpm run serve
+            echo "Launching with pnpm run serve..."
+            HOST=0.0.0.0 pnpm run serve
         elif grep -q '"start"' "$PACKAGE_JSON" 2>/dev/null; then
-            pnpm start
+            echo "Launching with pnpm start..."
+            HOST=0.0.0.0 pnpm start
         else
             echo "No dev, serve, or start script found in package.json"
             echo "Available scripts:"
             pnpm run
         fi
+
+        # Show network addresses after launch attempt
+        local port=$(extract_port "$(grep -E '\"(dev|serve|start)\"' "$PACKAGE_JSON")" "8080")
+        get_all_ips "$port"
         ;;
     "build")
         echo "Building Vue application..."

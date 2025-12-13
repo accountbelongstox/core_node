@@ -56,8 +56,9 @@ show_menu() {
 
     echo ""
     echo -e "\033[33mControls:\033[0m"
-    echo "Up/Down: Navigate | Left/Right: Toggle script | Enter: Launch | Space: Select | Q: Quit"
+    echo "Enter app number to select | L: Launch current | T: Toggle script | S: Select/Unselect | R: Rescan | Q: Quit"
     echo ""
+    echo -ne "\033[36mEnter app number (1-${#APPS_NAME[@]}) or command: \033[0m"
 }
 
 # Navigation and control functions

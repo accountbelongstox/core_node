@@ -801,8 +801,8 @@ handle_conflict_resolution() {
 invoke_safe_git_pull() {
     local target_url="$1"
 
-    # Check if this is the local remote and we're in a server environment
-    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+    # Check if this is any 192.x.x.x remote and we're in a server environment
+    if [[ "$target_url" == *"192."* ]]; then
         # Additional server detection methods
         local is_server_env=false
 
@@ -933,8 +933,8 @@ invoke_safe_git_pull() {
 invoke_force_overwrite() {
     local target_url="$1"
 
-    # Check if this is the local remote and we're in a server environment
-    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+    # Check if this is any 192.x.x.x remote and we're in a server environment
+    if [[ "$target_url" == *"192."* ]]; then
         # Additional server detection methods
         local is_server_env=false
 
@@ -1120,8 +1120,8 @@ invoke_force_overwrite() {
 invoke_git_operations() {
     local target_url="$1"
 
-    # Check if this is the local remote and we're in a server environment
-    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+    # Check if this is any 192.x.x.x remote and we're in a server environment
+    if [[ "$target_url" == *"192."* ]]; then
         # Additional server detection methods
         local is_server_env=false
 
@@ -1473,9 +1473,9 @@ main() {
         write_color_text "Server detected: Global variables indicate server environment" "DarkGray"
     fi
 
-    # Skip local remote (192.168.50.2) if running on server
+    # Skip local remotes (192.x.x.x networks) if running on server
     if [ "$is_server_env" = "true" ]; then
-        write_color_text "Detected server environment (non-desktop), skipping local remote (192.168.50.2)" "Yellow"
+        write_color_text "Detected server environment (non-desktop), skipping local remote (192.x.x.x networks)" "Yellow"
         local filtered_targets=()
         for target in "${targets[@]}"; do
             if [ "$target" != "local" ]; then

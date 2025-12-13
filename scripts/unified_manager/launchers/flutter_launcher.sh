@@ -19,6 +19,10 @@ APP_PATH="$1"
 APP_NAME="$2"
 ACTION="${3:-start}"
 
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
+
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_path> <app_name> [action]"
@@ -55,6 +59,17 @@ case "$ACTION" in
         ;;
     "start"|"run")
         echo "Running Flutter application..."
+
+        # Check if Flutter dependencies are installed
+        if [ ! -d ".dart_tool" ]; then
+            echo "Flutter dependencies not found. Installing..."
+            flutter pub get
+            if [ $? -ne 0 ]; then
+                echo "Failed to install Flutter dependencies"
+                exit 1
+            fi
+        fi
+
         flutter run
         ;;
     "debug")
@@ -75,7 +90,14 @@ case "$ACTION" in
         ;;
     "build-web")
         echo "Building web app..."
-        flutter build web
+        flutter build web --web-hostname 0.0.0.0
+        ;;
+    "web-dev")
+        echo "Running Flutter web development server..."
+        flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
+
+        # Show network addresses after launch attempt
+        get_all_ips "8080"
         ;;
     "test")
         echo "Running Flutter tests..."
@@ -96,7 +118,7 @@ case "$ACTION" in
         ;;
     *)
         echo "Unknown action: $ACTION"
-        echo "Available actions: install, start, run, debug, release, build-android, build-ios, build-web, test, analyze, clean, doctor"
+        echo "Available actions: install, start, run, debug, release, build-android, build-ios, build-web, web-dev, test, analyze, clean, doctor"
         exit 1
         ;;
 esac

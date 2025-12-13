@@ -19,6 +19,10 @@ APP_PATH="$1"
 APP_NAME="$2"
 ACTION="${3:-start}"
 
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
+
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_path> <app_name> [action]"
@@ -72,7 +76,32 @@ case "$ACTION" in
         ;;
     "start"|"serve")
         echo "Starting Laravel development server..."
-        php artisan serve
+
+        # Check if vendor directory exists, install if not
+        if [ ! -d "vendor" ]; then
+            echo "vendor directory not found. Installing dependencies..."
+            composer install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install composer dependencies"
+                exit 1
+            fi
+        fi
+
+        # Check if package.json exists and install npm dependencies
+        if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
+            echo "node_modules not found. Installing frontend dependencies..."
+            pnpm install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install npm dependencies"
+                exit 1
+            fi
+        fi
+
+        echo "Launching Laravel server on 0.0.0.0:8000..."
+        php artisan serve --host=0.0.0.0 --port=8000
+
+        # Show network addresses after launch attempt
+        get_all_ips "8000"
         ;;
     "build")
         echo "Building Laravel application..."
