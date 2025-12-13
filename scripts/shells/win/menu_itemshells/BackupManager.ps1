@@ -124,10 +124,10 @@ function Backup-CurrentProject {
     Write-Host "  - .pyc, .log, .tmp, .cache files" -ForegroundColor Gray
     Write-Host "  - Compilation directories (dart, flutter, nuxt, etc.)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "Do you want to proceed with backup? (Y/N): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
+    Write-Host "Do you want to proceed with backup? (Y/n): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
 
     $confirmation = Read-Host
-    if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {
+    if ($confirmation -eq '' -or $confirmation -eq 'Y' -or $confirmation -eq 'y') {
         $backupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\core_node\backup_manager.py"
         Invoke-ScriptAndPause -ScriptPath $backupScript -Description "Core Node Project Backup Manager" -Action "backup"
     }
@@ -155,10 +155,10 @@ function Backup-DevelopmentEnvironment {
     Write-ColorMessage -Message "Development Environment Backup" -Type "Info"
     Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
     Write-Host ""
-    Write-Host "Do you want to proceed with backup? (Y/N): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
+    Write-Host "Do you want to proceed with backup? (Y/n): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
 
     $confirmation = Read-Host
-    if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {
+    if ($confirmation -eq '' -or $confirmation -eq 'Y' -or $confirmation -eq 'y') {
         $devEnvBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\dev_env\backup_dev_env.py"
         Invoke-ScriptAndPause -ScriptPath $devEnvBackupScript -Description "Development Environment Backup Manager" -Action "backup"
     }
@@ -186,10 +186,10 @@ function Backup-ClaudeCodexAnthropic {
     Write-ColorMessage -Message "Claude, Codex and @anthropic-ai Backup" -Type "Info"
     Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
     Write-Host ""
-    Write-Host "Do you want to proceed with backup? (Y/N): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
+    Write-Host "Do you want to proceed with backup? (Y/n): " -NoNewline -ForegroundColor $script:COLOR_HIGHLIGHT
 
     $confirmation = Read-Host
-    if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {
+    if ($confirmation -eq '' -or $confirmation -eq 'Y' -or $confirmation -eq 'y') {
         $aiBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\claude_backup\backup_claude_anthropic.py"
         Invoke-ScriptAndPause -ScriptPath $aiBackupScript -Description "Claude, Codex and @anthropic-ai Backup Manager" -Action "backup"
     }
