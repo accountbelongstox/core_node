@@ -156,7 +156,16 @@ main() {
                 CURRENT_INDEX=$app_index
                 save_cache
                 echo -e "\033[32mSelected app #$app_num: ${APPS_NAME[$app_index]}\033[0m"
-                sleep 1
+
+                # Show script selection menu
+                show_script_menu $app_index
+                local menu_result=$?
+
+                if [ $menu_result -eq 2 ]; then
+                    # User chose to launch from script menu
+                    launch_current_app
+                fi
+                # If menu_result is 0 or 1, just return to main menu
             else
                 echo -e "\033[31mInvalid app number: $app_num\033[0m"
                 sleep 1

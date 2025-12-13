@@ -801,32 +801,10 @@ handle_conflict_resolution() {
 invoke_safe_git_pull() {
     local target_url="$1"
 
-    # Check if this is any 192.x.x.x remote and we're in a server environment
+    # Check if this is any 192.x.x.x remote - skip in all environments
     if [[ "$target_url" == *"192."* ]]; then
-        # Additional server detection methods
-        local is_server_env=false
-
-        # Method 1: Check for desktop environment variables
-        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
-            is_server_env=true
-        fi
-
-        # Method 2: Check if running in container or VPS
-        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
-            is_server_env=true
-        fi
-
-        # Method 3: Check global variables
-        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
-        local is_production=$(get_global_var "IS_PRODUCTION")
-        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
-            is_server_env=true
-        fi
-
-        if [ "$is_server_env" = "true" ]; then
-            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
-            return 0
-        fi
+        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+        return 0
     fi
 
     write_color_text "Starting SAFE GIT PULL operations for: $target_url" "Cyan"
@@ -933,32 +911,10 @@ invoke_safe_git_pull() {
 invoke_force_overwrite() {
     local target_url="$1"
 
-    # Check if this is any 192.x.x.x remote and we're in a server environment
+    # Check if this is any 192.x.x.x remote - skip in all environments
     if [[ "$target_url" == *"192."* ]]; then
-        # Additional server detection methods
-        local is_server_env=false
-
-        # Method 1: Check for desktop environment variables
-        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
-            is_server_env=true
-        fi
-
-        # Method 2: Check if running in container or VPS
-        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
-            is_server_env=true
-        fi
-
-        # Method 3: Check global variables
-        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
-        local is_production=$(get_global_var "IS_PRODUCTION")
-        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
-            is_server_env=true
-        fi
-
-        if [ "$is_server_env" = "true" ]; then
-            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
-            return 0
-        fi
+        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+        return 0
     fi
 
     write_color_text "═══════════════════════════════════════════════════════════════" "Yellow"
@@ -1120,32 +1076,10 @@ invoke_force_overwrite() {
 invoke_git_operations() {
     local target_url="$1"
 
-    # Check if this is any 192.x.x.x remote and we're in a server environment
+    # Check if this is any 192.x.x.x remote - skip in all environments
     if [[ "$target_url" == *"192."* ]]; then
-        # Additional server detection methods
-        local is_server_env=false
-
-        # Method 1: Check for desktop environment variables
-        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
-            is_server_env=true
-        fi
-
-        # Method 2: Check if running in container or VPS
-        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
-            is_server_env=true
-        fi
-
-        # Method 3: Check global variables
-        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
-        local is_production=$(get_global_var "IS_PRODUCTION")
-        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
-            is_server_env=true
-        fi
-
-        if [ "$is_server_env" = "true" ]; then
-            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
-            return 0
-        fi
+        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+        return 0
     fi
 
     write_color_text "----------------------------------------------------------------" "DarkYellow"
@@ -1473,23 +1407,21 @@ main() {
         write_color_text "Server detected: Global variables indicate server environment" "DarkGray"
     fi
 
-    # Skip local remotes (192.x.x.x networks) if running on server
-    if [ "$is_server_env" = "true" ]; then
-        write_color_text "Detected server environment (non-desktop), skipping local remote (192.x.x.x networks)" "Yellow"
-        local filtered_targets=()
-        for target in "${targets[@]}"; do
-            if [ "$target" != "local" ]; then
-                filtered_targets+=("$target")
-            else
-                write_color_text "Skipping ${remote_configs[$target]} in server/non-desktop environment" "Yellow"
-            fi
-        done
-        targets=("${filtered_targets[@]}")
-
-        if [ ${#targets[@]} -eq 0 ]; then
-            write_color_text "No valid remotes to process after filtering" "Red"
-            return 1
+    # Skip local remotes (192.x.x.x networks) in all environments
+    write_color_text "Filtering out local remotes (192.x.x.x networks)" "Yellow"
+    local filtered_targets=()
+    for target in "${targets[@]}"; do
+        if [ "$target" != "local" ]; then
+            filtered_targets+=("$target")
+        else
+            write_color_text "Skipping ${remote_configs[$target]} (local remote)" "Yellow"
         fi
+    done
+    targets=("${filtered_targets[@]}")
+
+    if [ ${#targets[@]} -eq 0 ]; then
+        write_color_text "No valid remotes to process after filtering" "Red"
+        return 1
     fi
 
     # Reorder targets to execute DEFAULT_REMOTE first
