@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
-from key_center import (
+from utils.key_center import (
     VERSION_CONFIG,
     get_java_requirements,
     KEY_REQUIRED_JAVA_VERSION,
