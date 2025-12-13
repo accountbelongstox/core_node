@@ -49,7 +49,8 @@ step4_generate_native_startup() {
 
             # Flutter
             if [ "$has_pubspec" -eq 1 ]; then
-                local cmd="$(get_flutter_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/flutter_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("flutterStart")
@@ -65,7 +66,8 @@ step4_generate_native_startup() {
 
             # Laravel
             if [ "$has_composer" -eq 1 ] && [ -f "$app_path/artisan" ]; then
-                local cmd="$(get_laravel_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/laravel_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("laravelStart")
@@ -81,7 +83,8 @@ step4_generate_native_startup() {
 
             # Nuxt
             if [ "$has_nuxt_config" -eq 1 ]; then
-                local cmd="$(get_nuxt_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/nuxt_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("nuxtStart")
@@ -99,7 +102,8 @@ step4_generate_native_startup() {
             if [ "$has_package_json" -eq 1 ] && [ -f "$app_path/vite.config.ts" -o -f "$app_path/vite.config.js" ]; then
                 # Check if it's React
                 if grep -q "\"react\"" "$app_path/package.json" 2>/dev/null; then
-                    local cmd="$(get_react_start_command "$app_path")"
+                    local launcher_script="$SCRIPT_PATH/launchers/react_launcher.sh"
+                    local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                     if [ -n "$cmd" ]; then
                         if [ "$found_native" -eq 0 ]; then
                             available_scripts+=("reactStart")
@@ -113,7 +117,8 @@ step4_generate_native_startup() {
                     fi
                 # Check if it's Vue
                 elif grep -q "\"vue\"" "$app_path/package.json" 2>/dev/null; then
-                    local cmd="$(get_vue_start_command "$app_path")"
+                    local launcher_script="$SCRIPT_PATH/launchers/vue_launcher.sh"
+                    local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                     if [ -n "$cmd" ]; then
                         if [ "$found_native" -eq 0 ]; then
                             available_scripts+=("vueStart")
@@ -130,7 +135,8 @@ step4_generate_native_startup() {
 
             # React Native
             if [ "$has_package_json" -eq 1 ] && grep -q "react-native" "$app_path/package.json" 2>/dev/null; then
-                local cmd="$(get_react_native_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/react_native_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("reactNativeStart")
@@ -146,7 +152,8 @@ step4_generate_native_startup() {
 
             # Kotlin Multiplatform
             if [ "$has_gradle" -eq 1 ] && [ -f "$app_path/gradle.properties" ]; then
-                local cmd="$(get_kotlin_multiplatform_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/kotlin_multiplatform_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("kotlinMultiPlatformStart")
@@ -162,7 +169,8 @@ step4_generate_native_startup() {
 
             # PHP (standalone)
             if [ "$has_index_php" -eq 1 ] && [ ! -f "$app_path/artisan" ]; then
-                local cmd="$(get_php_start_command "$app_path")"
+                local launcher_script="$SCRIPT_PATH/launchers/php_launcher.sh"
+                local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
                 if [ -n "$cmd" ]; then
                     if [ "$found_native" -eq 0 ]; then
                         available_scripts+=("phpStart")
@@ -191,7 +199,8 @@ step4_generate_native_startup() {
 
         # Priority 3: pyStart for main.py (for general Python apps in poly_apps)
         if [ "$has_main_py" -eq 1 ] && [ "$app_type" = "poly_apps" ] && [ "$found_native" -eq 0 ]; then
-            local cmd="$(get_py_start_command "$app_path")"
+            local launcher_script="$SCRIPT_PATH/launchers/python_launcher.sh"
+            local cmd="bash \"$launcher_script\" \"$app_path\" \"$app_name\" start"
             if [ -n "$cmd" ]; then
                 available_scripts+=("pyStart")
                 current_script="pyStart"
