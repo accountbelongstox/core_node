@@ -969,6 +969,7 @@ class FastAPIRPCServerRunner:
             port=self.server.port,
             loop="asyncio",
             log_level="debug" if self.server.debug else "info",
+            access_log=False,  # Disable access log to prevent WebSocket binary spam
         )
         self._uvicorn_server = uvicorn.Server(config=config)
 
