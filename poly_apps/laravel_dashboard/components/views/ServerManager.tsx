@@ -26,7 +26,13 @@ import {
   XCircle,
   FileText,
   Play,
-  Settings
+  Settings,
+  Folder,
+  File,
+  Download,
+  Terminal,
+  Rocket,
+  Clock
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 
@@ -34,7 +40,7 @@ interface ServerManagerProps {
   lang?: Language;
 }
 
-type ServerTab = 'nginx' | 'ssl' | 'system';
+type ServerTab = 'nginx' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
 
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<ServerTab>('nginx');
@@ -57,6 +63,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   // SSL Certificates State
   const [sslCertificates, setSSLCertificates] = useState<AsyncState<SSLCertificate[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [showGenerateCert, setShowGenerateCert] = useState(false);
+  const [certbotStatus, setCertbotStatus] = useState<AsyncState<CertbotStatus>>({
     data: null,
     loading: false,
     error: null,
@@ -153,10 +166,80 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       loadNginxSites();
     } else if (activeTab === 'ssl') {
       loadSSLCertificates();
+      loadCertbotStatus();
     } else if (activeTab === 'system') {
       loadSystemInfo();
     }
   }, [activeTab]);
+
+  // Load Certbot Status
+  const loadCertbotStatus = async () => {
+    setCertbotStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.detectCertbot();
+      if (response.success && response.data) {
+        setCertbotStatus({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to detect certbot');
+      }
+    } catch (error: any) {
+      setCertbotStatus({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  // SSL Actions
+  const handleGenerateCertificate = async (domain: string, provider?: string, staging?: boolean) => {
+    try {
+      const response = await apiService.generateSSLCertificate({
+        domain,
+        provider: provider as 'dnspod' | 'cloudflare' | undefined,
+        staging
+      });
+      if (response.success) {
+        alert(response.data?.message || 'Certificate generation started');
+        setShowGenerateCert(false);
+        await loadSSLCertificates();
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to generate certificate');
+    }
+  };
+
+  const handleRenewAllCertificates = async () => {
+    if (!confirm('Are you sure you want to renew all certificates?')) return;
+    try {
+      const response = await apiService.renewSSLCertificates(true);
+      if (response.success) {
+        alert(response.data?.message || 'Certificate renewal started');
+        await loadSSLCertificates();
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to renew certificates');
+    }
+  };
+
+  const handleInstallCertbot = async () => {
+    if (!confirm('Are you sure you want to install Certbot?')) return;
+    try {
+      const response = await apiService.installCertbot();
+      if (response.success) {
+        alert(response.data?.message || 'Certbot installation started');
+        await loadCertbotStatus();
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to install Certbot');
+    }
+  };
 
   // Nginx Site Actions
   const handleEnableSite = async (siteName: string) => {
@@ -215,6 +298,34 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const handleDeleteSite = async (siteName: string) => {
+    if (!confirm(`Are you sure you want to delete site: ${siteName}?`)) return;
+    try {
+      const response = await apiService.deleteNginxSite(siteName);
+      if (response.success) {
+        await loadNginxSites();
+        alert(response.data?.message || 'Site deleted successfully');
+      }
+    } catch (error) {
+      console.error('Failed to delete site:', error);
+    }
+  };
+
+  const handleTestConfig = async () => {
+    try {
+      const response = await apiService.testNginxConfig();
+      if (response.success && response.data) {
+        if (response.data.valid) {
+          alert('Nginx configuration is valid!');
+        } else {
+          alert(`Configuration errors:\n${response.data.errors.join('\n')}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to test config:', error);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ok':
@@ -232,6 +343,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     { id: 'nginx' as ServerTab, label: t.tabs.nginx, icon: Network },
     { id: 'ssl' as ServerTab, label: t.tabs.ssl, icon: Shield },
     { id: 'system' as ServerTab, label: t.tabs.system, icon: Server },
+    { id: 'files' as ServerTab, label: t.tabs.files, icon: FileText },
+    { id: 'executor' as ServerTab, label: t.tabs.executor, icon: Settings },
+    { id: 'unified' as ServerTab, label: t.tabs.unified, icon: Settings },
   ];
 
   return (
@@ -246,11 +360,25 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           {activeTab === 'nginx' && (
             <>
               <button
+                onClick={handleTestConfig}
+                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {t.nginx.test}
+              </button>
+              <button
                 onClick={handleReloadNginx}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
               >
                 <Play className="w-4 h-4" />
                 {t.nginx.reload}
+              </button>
+              <button
+                onClick={() => setShowCreateSite(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {t.nginx.create}
               </button>
               <button
                 onClick={loadNginxSites}
@@ -261,12 +389,28 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </>
           )}
           {activeTab === 'ssl' && (
-            <button
-              onClick={loadSSLCertificates}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-            >
-              <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${sslCertificates.loading ? 'animate-spin' : ''}`} />
-            </button>
+            <>
+              <button
+                onClick={() => setShowGenerateCert(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {t.ssl.generate}
+              </button>
+              <button
+                onClick={handleRenewAllCertificates}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                {t.ssl.renew_all}
+              </button>
+              <button
+                onClick={loadSSLCertificates}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${sslCertificates.loading ? 'animate-spin' : ''}`} />
+              </button>
+            </>
           )}
           {activeTab === 'system' && (
             <button
@@ -348,6 +492,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                         >
                           <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
+                        <button
+                          onClick={() => handleDeleteSite(site.site_name)}
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          title={t.nginx.delete}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        </button>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -385,6 +536,37 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
         {activeTab === 'ssl' && (
           <div className="space-y-4">
+            {/* Certbot Status */}
+            {certbotStatus.data && (
+              <div className={`${commonClasses.card} p-4 ${certbotStatus.data.installed ? 'bg-green-50 dark:bg-green-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {certbotStatus.data.installed ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                    )}
+                    <div>
+                      <p className="font-semibold">Certbot Status</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {certbotStatus.data.installed 
+                          ? `Installed${certbotStatus.data.version ? ` (v${certbotStatus.data.version})` : ''}`
+                          : 'Not Installed'}
+                      </p>
+                    </div>
+                  </div>
+                  {!certbotStatus.data.installed && (
+                    <button
+                      onClick={handleInstallCertbot}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                    >
+                      {t.ssl.certbot_install}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {sslCertificates.loading && (
               <div className="flex items-center justify-center py-12">
                 <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
@@ -419,8 +601,14 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                       </div>
                       <div>
                         <span className="text-slate-500 dark:text-slate-400">{t.ssl.days_until_expiry}:</span>
-                        <p className="mt-1">{cert.days_until_expiry}</p>
+                        <p className="mt-1">{cert.days_until_expiry} days</p>
                       </div>
+                      {cert.certificate_path && (
+                        <div>
+                          <span className="text-slate-500 dark:text-slate-400">Certificate Path:</span>
+                          <p className="font-mono text-xs mt-1">{cert.certificate_path}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -430,6 +618,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               <div className={`${commonClasses.card} p-12 text-center`}>
                 <Shield className="w-12 h-12 mx-auto mb-4 text-slate-400" />
                 <p className="text-slate-500 dark:text-slate-400">No SSL certificates found</p>
+                <button
+                  onClick={() => setShowGenerateCert(true)}
+                  className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                >
+                  {t.ssl.generate}
+                </button>
               </div>
             )}
           </div>
@@ -498,7 +692,87 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             )}
           </div>
         )}
+
+        {activeTab === 'files' && (
+          <FileManagerTab lang={lang} />
+        )}
+
+        {activeTab === 'executor' && (
+          <CodeExecutorTab lang={lang} />
+        )}
+
+        {activeTab === 'unified' && (
+          <UnifiedManagerTab lang={lang} />
+        )}
       </div>
+
+      {/* Generate Certificate Modal */}
+      {showGenerateCert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="font-semibold text-lg">{t.ssl.generate}</h3>
+              <button
+                onClick={() => setShowGenerateCert(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">{t.ssl.domain}</label>
+                <input
+                  type="text"
+                  id="cert-domain"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  placeholder="example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Provider (Optional)</label>
+                <select
+                  id="cert-provider"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                >
+                  <option value="">Auto</option>
+                  <option value="dnspod">DNSPod</option>
+                  <option value="cloudflare">Cloudflare</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="cert-staging"
+                  className="w-4 h-4"
+                />
+                <label htmlFor="cert-staging" className="text-sm">Use Staging Environment</label>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowGenerateCert(false)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const domain = (document.getElementById('cert-domain') as HTMLInputElement)?.value;
+                    const provider = (document.getElementById('cert-provider') as HTMLSelectElement)?.value;
+                    const staging = (document.getElementById('cert-staging') as HTMLInputElement)?.checked;
+                    if (domain) {
+                      handleGenerateCertificate(domain, provider || undefined, staging);
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                >
+                  Generate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Site Config Modal */}
       {selectedSite && siteConfig.data && (
@@ -523,10 +797,3 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-};
-
-export default ServerManager;
-

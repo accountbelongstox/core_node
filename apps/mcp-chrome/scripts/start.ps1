@@ -1,10 +1,10 @@
 # ======================================
-# Chrome MCP Server Startup Script
+# Chrome MCP Server Startup Script (Windows)
 # ======================================
 # Functions:
 # 1. Check and install dependencies
 # 2. Build all components (shared, native-server, chrome-extension)
-# 3. Register Native Messaging Host
+# 3. Register Native Messaging Host (Local Development Version)
 # 4. Provide extension loading guide
 # ======================================
 
@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  Chrome MCP Server Startup Script" -ForegroundColor Cyan
+Write-Host "  Chrome MCP Server - Windows Setup" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Navigate to project root
@@ -21,177 +21,208 @@ Set-Location $ProjectRoot
 # ======================================
 # Step 1: Check Dependencies
 # ======================================
-Write-Host "[1/5] Checking dependencies..." -ForegroundColor Yellow
+Write-Host "[1/6] Checking dependencies..." -ForegroundColor Yellow
 
 # Check Node.js
 try {
     $nodeVersion = node --version
-    Write-Host "  [OK] Node.js: $nodeVersion" -ForegroundColor Green
+    Write-Host "  ✓ Node.js: $nodeVersion" -ForegroundColor Green
 
     # Check version >= 18.19.0
     $versionNumber = $nodeVersion -replace 'v', ''
     $major = [int]($versionNumber -split '\.')[0]
     if ($major -lt 18) {
-        Write-Host "  [ERROR] Node.js version too low, requires >= 18.19.0" -ForegroundColor Red
+        Write-Host "  ✗ ERROR: Node.js version too low, requires >= 18.19.0" -ForegroundColor Red
         exit 1
     }
 } catch {
-    Write-Host "  [ERROR] Node.js not installed, please install Node.js >= 18.19.0" -ForegroundColor Red
+    Write-Host "  ✗ ERROR: Node.js not installed" -ForegroundColor Red
+    Write-Host "  Please install Node.js >= 18.19.0 from https://nodejs.org/" -ForegroundColor Yellow
     exit 1
 }
 
 # Check pnpm
 try {
     $pnpmVersion = pnpm --version
-    Write-Host "  [OK] pnpm: v$pnpmVersion" -ForegroundColor Green
+    Write-Host "  ✓ pnpm: v$pnpmVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  [WARN] pnpm not installed, installing..." -ForegroundColor Yellow
+    Write-Host "  ⚠ pnpm not installed, installing..." -ForegroundColor Yellow
     npm install -g pnpm
-    Write-Host "  [OK] pnpm installed successfully" -ForegroundColor Green
+    Write-Host "  ✓ pnpm installed successfully" -ForegroundColor Green
+}
+
+# Check Chrome/Chromium
+$chromeInstalled = Test-Path "C:\Program Files\Google\Chrome\Application\chrome.exe"
+$chromiumInstalled = Test-Path "C:\Program Files\Chromium\Application\chrome.exe"
+
+if ($chromeInstalled) {
+    Write-Host "  ✓ Chrome detected" -ForegroundColor Green
+} elseif ($chromiumInstalled) {
+    Write-Host "  ✓ Chromium detected" -ForegroundColor Green
+} else {
+    Write-Host "  ⚠ Chrome/Chromium not detected in default location" -ForegroundColor Yellow
 }
 
 # ======================================
-# Step 2: Build Native Server First (to fix postinstall)
+# Step 2: Install Dependencies
 # ======================================
-Write-Host "`n[2/5] Building native-server (to enable postinstall)..." -ForegroundColor Yellow
+Write-Host "`n[2/6] Installing project dependencies..." -ForegroundColor Yellow
 
-# Check if shared package dist exists
-if (-Not (Test-Path "packages\shared\dist")) {
-    Write-Host "  Building shared package first..." -ForegroundColor Cyan
-    Set-Location "packages\shared"
-    pnpm install --ignore-scripts
-    pnpm run build
-    Set-Location $ProjectRoot
-    Write-Host "  [OK] Shared package built" -ForegroundColor Green
+# Check if node_modules exists
+if (-Not (Test-Path "node_modules")) {
+    Write-Host "  Installing dependencies (may take a few minutes)..." -ForegroundColor Cyan
+    pnpm install
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ✗ ERROR: Dependency installation failed" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  ✓ Dependencies installed successfully" -ForegroundColor Green
+} else {
+    Write-Host "  ✓ Dependencies already installed (node_modules exists)" -ForegroundColor Green
 }
 
-# Build native-server without running postinstall
-Write-Host "  Building native-server..." -ForegroundColor Cyan
-Set-Location "app\native-server"
-pnpm install --ignore-scripts
-pnpm run build
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Native server build failed" -ForegroundColor Red
-    Set-Location $ProjectRoot
-    exit 1
-}
-Set-Location $ProjectRoot
-Write-Host "  [OK] Native server built successfully" -ForegroundColor Green
-
 # ======================================
-# Step 3: Install Dependencies
+# Step 3: Build Shared Package
 # ======================================
-Write-Host "`n[3/5] Installing project dependencies..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Building shared package..." -ForegroundColor Yellow
 
-Write-Host "  Installing dependencies (may take a few minutes)..." -ForegroundColor Cyan
-pnpm install
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Dependency installation failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  [OK] Dependencies installed successfully" -ForegroundColor Green
-
-# ======================================
-# Step 4: Build All Components
-# ======================================
-Write-Host "`n[4/5] Building all project components..." -ForegroundColor Yellow
-
-# Build shared package
-Write-Host "  [4.1] Building shared package (packages/shared)..." -ForegroundColor Cyan
+Write-Host "  Building chrome-mcp-shared (packages/shared)..." -ForegroundColor Cyan
 pnpm run build:shared
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Shared package build failed" -ForegroundColor Red
+    Write-Host "  ✗ ERROR: Shared package build failed" -ForegroundColor Red
     exit 1
 }
-Write-Host "  [OK] Shared package built successfully" -ForegroundColor Green
+Write-Host "  ✓ Shared package built successfully" -ForegroundColor Green
 
-# Build native-server (again to ensure latest)
-Write-Host "`n  [4.2] Rebuilding Native Server (app/native-server)..." -ForegroundColor Cyan
+# ======================================
+# Step 4: Build Native Server
+# ======================================
+Write-Host "`n[4/6] Building Native Server..." -ForegroundColor Yellow
+
+Write-Host "  Building mcp-chrome-bridge (app/native-server)..." -ForegroundColor Cyan
 pnpm run build:native
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Native Server build failed" -ForegroundColor Red
+    Write-Host "  ✗ ERROR: Native Server build failed" -ForegroundColor Red
     exit 1
 }
-Write-Host "  [OK] Native Server built successfully" -ForegroundColor Green
+Write-Host "  ✓ Native Server built successfully" -ForegroundColor Green
 
-# Build chrome-extension
-Write-Host "`n  [4.3] Building Chrome Extension (app/chrome-extension)..." -ForegroundColor Cyan
+# Verify run_host.bat exists
+$runHostPath = Join-Path $ProjectRoot "app\native-server\dist\run_host.bat"
+if (Test-Path $runHostPath) {
+    Write-Host "  ✓ Windows startup script: run_host.bat" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ ERROR: run_host.bat not found" -ForegroundColor Red
+    exit 1
+}
+
+# ======================================
+# Step 5: Build Chrome Extension
+# ======================================
+Write-Host "`n[5/6] Building Chrome Extension..." -ForegroundColor Yellow
+
+Write-Host "  Building chrome-mcp-server (app/chrome-extension)..." -ForegroundColor Cyan
 pnpm run build:extension
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Chrome Extension build failed" -ForegroundColor Red
+    Write-Host "  ✗ ERROR: Chrome Extension build failed" -ForegroundColor Red
     exit 1
 }
-Write-Host "  [OK] Chrome Extension built successfully" -ForegroundColor Green
+Write-Host "  ✓ Chrome Extension built successfully" -ForegroundColor Green
 
-# ======================================
-# Step 5: Register Native Messaging Host
-# ======================================
-Write-Host "`n[5/5] Registering Native Messaging Host..." -ForegroundColor Yellow
-
-# Run registration script
-Set-Location "$ProjectRoot\app\native-server"
-node dist\scripts\register-dev.js
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Native Messaging Host registration failed" -ForegroundColor Red
-    Write-Host "  Tip: You may need administrator privileges, try running this script as administrator" -ForegroundColor Yellow
-    Set-Location $ProjectRoot
-    exit 1
-}
-Set-Location $ProjectRoot
-Write-Host "  [OK] Native Messaging Host registered successfully" -ForegroundColor Green
-
-# ======================================
-# Usage Guide
-# ======================================
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  BUILD COMPLETE - IMPORTANT FILES" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Cyan
-
+# Verify extension output
 $extensionPath = Join-Path $ProjectRoot "app\chrome-extension\.output\chrome-mv3"
-$nativeServerDist = Join-Path $ProjectRoot "app\native-server\dist"
-$stdioServerPath = Join-Path $nativeServerDist "mcp\mcp-server-stdio.js"
-$stdioConfigPath = Join-Path $nativeServerDist "mcp\stdio-config.json"
-
-Write-Host "`n[IMPORTANT FILES]" -ForegroundColor Yellow
-Write-Host "  Chrome Extension (built):" -ForegroundColor White
-Write-Host "    $extensionPath" -ForegroundColor Cyan
-Write-Host "`n  Native Messaging Host:" -ForegroundColor White
-Write-Host "    $nativeServerDist" -ForegroundColor Cyan
-Write-Host "`n  MCP STDIO Server (for Cursor/Claude Desktop):" -ForegroundColor White
-Write-Host "    $stdioServerPath" -ForegroundColor Cyan
-Write-Host "`n  MCP STDIO Config:" -ForegroundColor White
-Write-Host "    $stdioConfigPath" -ForegroundColor Cyan
-
-# Check where Native Messaging Host is registered
-$nativeHostPath = Join-Path $env:APPDATA "Google\Chrome\NativeMessagingHosts\com.chromemcp.nativehost.json"
-if (Test-Path $nativeHostPath) {
-    Write-Host "`n  Native Messaging Host Manifest:" -ForegroundColor White
-    Write-Host "    $nativeHostPath" -ForegroundColor Cyan
+if (Test-Path $extensionPath) {
+    Write-Host "  ✓ Extension output: .output\chrome-mv3" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ ERROR: Extension output not found" -ForegroundColor Red
+    exit 1
 }
 
+# ======================================
+# Step 6: Register Native Messaging Host
+# ======================================
+Write-Host "`n[6/6] Registering Native Messaging Host (Local Development)..." -ForegroundColor Yellow
+
+# Run local registration script
+Write-Host "  Using local development registration..." -ForegroundColor Cyan
+node scripts\register-local-dev.cjs
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ✗ ERROR: Native Messaging Host registration failed" -ForegroundColor Red
+    Write-Host "  Tip: Check if Chrome is running and try restarting it" -ForegroundColor Yellow
+    exit 1
+}
+
+# ======================================
+# Verify Registration
+# ======================================
+$chromeManifest = Join-Path $env:APPDATA "Google\Chrome\NativeMessagingHosts\com.chromemcp.nativehost.json"
+$chromiumManifest = Join-Path $env:APPDATA "Chromium\NativeMessagingHosts\com.chromemcp.nativehost.json"
+
+Write-Host "`n  Registration Verification:" -ForegroundColor Cyan
+if (Test-Path $chromeManifest) {
+    Write-Host "  ✓ Chrome manifest registered" -ForegroundColor Green
+    Write-Host "    Location: $chromeManifest" -ForegroundColor DarkGray
+}
+if (Test-Path $chromiumManifest) {
+    Write-Host "  ✓ Chromium manifest registered" -ForegroundColor Green
+    Write-Host "    Location: $chromiumManifest" -ForegroundColor DarkGray
+}
+
+# ======================================
+# Success Summary
+# ======================================
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  SETUP STEPS" -ForegroundColor Yellow
+Write-Host "  ✅ BUILD & REGISTRATION COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 
-Write-Host "`n[STEP 1] Load Chrome Extension:" -ForegroundColor Yellow
-Write-Host "  - Open Chrome: chrome://extensions/" -ForegroundColor White
-Write-Host "  - Enable 'Developer mode'" -ForegroundColor White
-Write-Host "  - Click 'Load unpacked'" -ForegroundColor White
-Write-Host "  - Select: $extensionPath" -ForegroundColor Cyan
+Write-Host "`n[IMPORTANT PATHS]" -ForegroundColor Yellow
+Write-Host "  Chrome Extension:" -ForegroundColor White
+Write-Host "    $extensionPath" -ForegroundColor Cyan
+Write-Host "`n  Native Server:" -ForegroundColor White
+Write-Host "    $(Join-Path $ProjectRoot 'app\native-server\dist')" -ForegroundColor Cyan
+Write-Host "`n  MCP STDIO Server:" -ForegroundColor White
+Write-Host "    $(Join-Path $ProjectRoot 'app\native-server\dist\mcp\mcp-server-stdio.js')" -ForegroundColor Cyan
 
-Write-Host "`n[STEP 2] Start MCP Service:" -ForegroundColor Yellow
-Write-Host "  - Click Chrome extension icon" -ForegroundColor White
-Write-Host "  - Click 'Connect' button" -ForegroundColor White
-Write-Host "  - Service starts on: http://127.0.0.1:12306" -ForegroundColor Green
-
+# ======================================
+# Setup Instructions
+# ======================================
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  MCP CLIENT CONFIGURATION" -ForegroundColor Yellow
+Write-Host "  📋 NEXT STEPS" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Cyan
 
-Write-Host "`n[METHOD 1] Streamable HTTP (Recommended)" -ForegroundColor Yellow
+Write-Host "`n[STEP 1] Load Extension in Chrome:" -ForegroundColor Yellow
+Write-Host "  1. Open Chrome and go to: chrome://extensions/" -ForegroundColor White
+Write-Host "  2. Enable 'Developer mode' (toggle in top right)" -ForegroundColor White
+Write-Host "  3. Click 'Load unpacked' button" -ForegroundColor White
+Write-Host "  4. Select folder: $extensionPath" -ForegroundColor Cyan
+Write-Host "`n  ⚠ Important: Copy the Extension ID after loading" -ForegroundColor Yellow
+
+Write-Host "`n[STEP 2] Verify Extension ID:" -ForegroundColor Yellow
+Write-Host "  1. In chrome://extensions, find your extension" -ForegroundColor White
+Write-Host "  2. Copy the Extension ID (e.g., hbdgbgagpkpjffpklnamcljpakneikee)" -ForegroundColor White
+Write-Host "  3. Compare with registered ID in manifest file" -ForegroundColor White
+Write-Host "`n  If IDs don't match, run: pnpm run unregister:local" -ForegroundColor Yellow
+Write-Host "  Then update EXTENSION_ID in these files:" -ForegroundColor Yellow
+Write-Host "    - app\native-server\src\scripts\constant.ts" -ForegroundColor Cyan
+Write-Host "    - scripts\register-local-dev.cjs" -ForegroundColor Cyan
+Write-Host "  Finally run: pnpm run build:native && pnpm run register:local" -ForegroundColor Yellow
+
+Write-Host "`n[STEP 3] Start MCP Service:" -ForegroundColor Yellow
+Write-Host "  1. Click the extension icon in Chrome toolbar" -ForegroundColor White
+Write-Host "  2. Click 'Connect' button in popup" -ForegroundColor White
+Write-Host "  3. Service will start on: http://127.0.0.1:12306" -ForegroundColor Green
+
+# ======================================
+# MCP Client Configuration
+# ======================================
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  🔧 MCP CLIENT CONFIGURATION" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
+
+Write-Host "`n[Recommended] Streamable HTTP Method:" -ForegroundColor Yellow
 Write-Host "  For: Claude Desktop, CherryStudio, etc." -ForegroundColor White
-Write-Host "  Config:" -ForegroundColor White
 Write-Host @"
+
   {
     "mcpServers": {
       "chrome-mcp-server": {
@@ -202,36 +233,64 @@ Write-Host @"
   }
 "@ -ForegroundColor Cyan
 
-Write-Host "`n[METHOD 2] STDIO (Alternative)" -ForegroundColor Yellow
-Write-Host "  For: Cursor, older clients" -ForegroundColor White
-Write-Host "  Config:" -ForegroundColor White
+Write-Host "`n[Alternative] STDIO Method:" -ForegroundColor Yellow
+Write-Host "  For: Cursor, older MCP clients" -ForegroundColor White
+$stdioPath = Join-Path $ProjectRoot "app\native-server\dist\mcp\mcp-server-stdio.js"
+$stdioPathEscaped = $stdioPath -replace '\\', '\\'
 Write-Host @"
+
   {
     "mcpServers": {
       "chrome-mcp-server": {
         "command": "node",
-        "args": ["$stdioServerPath"]
+        "args": ["$stdioPathEscaped"]
       }
     }
   }
 "@ -ForegroundColor Cyan
 
-Write-Host "`n  Note: STDIO server connects to HTTP server at:" -ForegroundColor DarkGray
-Write-Host "        http://127.0.0.1:12306/mcp (via stdio-config.json)" -ForegroundColor DarkGray
+# ======================================
+# Development Commands
+# ======================================
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  🛠️ DEVELOPMENT COMMANDS" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  pnpm run dev:native      - Watch mode for Native Server" -ForegroundColor White
+Write-Host "  pnpm run dev:extension   - Watch mode for Extension" -ForegroundColor White
+Write-Host "  pnpm run build:all       - Rebuild all components" -ForegroundColor White
+Write-Host "  pnpm run register:local  - Re-register local version" -ForegroundColor White
+Write-Host "  pnpm run unregister:local - Unregister local version" -ForegroundColor White
+
+# ======================================
+# Platform-Specific Notes
+# ======================================
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  💡 WINDOWS-SPECIFIC NOTES" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  • Registry entries created in HKCU\Software\Google\Chrome" -ForegroundColor White
+Write-Host "  • Manifest location: %APPDATA%\Google\Chrome\NativeMessagingHosts" -ForegroundColor White
+Write-Host "  • Startup script: run_host.bat" -ForegroundColor White
+Write-Host "  • If firewall prompts appear, allow Node.js access" -ForegroundColor White
+
+# ======================================
+# Troubleshooting
+# ======================================
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  🔍 TROUBLESHOOTING" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Connection Issues:" -ForegroundColor White
+Write-Host "    1. Verify Extension ID matches registration" -ForegroundColor White
+Write-Host "    2. Restart Chrome completely" -ForegroundColor White
+Write-Host "    3. Check manifest file exists:" -ForegroundColor White
+Write-Host "       type `"%APPDATA%\Google\Chrome\NativeMessagingHosts\com.chromemcp.nativehost.json`"" -ForegroundColor Cyan
+Write-Host "`n  Port Conflicts:" -ForegroundColor White
+Write-Host "    • Check if port 12306 is in use:" -ForegroundColor White
+Write-Host "      netstat -ano | findstr :12306" -ForegroundColor Cyan
+Write-Host "`n  Documentation:" -ForegroundColor White
+Write-Host "    • Local Development Guide: LOCAL_DEVELOPMENT_GUIDE.md" -ForegroundColor Cyan
+Write-Host "    • Configuration Checklist: CONFIGURATION_CHECKLIST.md" -ForegroundColor Cyan
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  Development Mode Commands:" -ForegroundColor Yellow
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  pnpm run dev          # Start all components in dev mode" -ForegroundColor White
-Write-Host "  pnpm run dev:native   # Start Native Server in dev mode only" -ForegroundColor White
-Write-Host "  pnpm run dev:extension # Start Extension in dev mode only" -ForegroundColor White
-
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  Documentation Links:" -ForegroundColor Yellow
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  • README: $ProjectRoot\README.md" -ForegroundColor White
-Write-Host "  • Architecture: $ProjectRoot\docs\ARCHITECTURE.md" -ForegroundColor White
-Write-Host "  • Tools API: $ProjectRoot\docs\TOOLS.md" -ForegroundColor White
-Write-Host "  • Troubleshooting: $ProjectRoot\docs\TROUBLESHOOTING.md" -ForegroundColor White
-
-Write-Host "`n[SUCCESS] Startup script completed successfully!`n" -ForegroundColor Green
+Write-Host "  ✅ Setup completed successfully!" -ForegroundColor Green
+Write-Host "  Follow the steps above to complete the installation." -ForegroundColor White
+Write-Host "========================================`n" -ForegroundColor Cyan

@@ -106,7 +106,10 @@ export const TRANSLATIONS = {
       tabs: {
         nginx: "Nginx Sites",
         ssl: "SSL Certificates",
-        system: "System Status"
+        system: "System Status",
+        files: "File Manager",
+        executor: "Code Executor",
+        unified: "Unified Manager"
       },
       nginx: {
         sites: "Nginx Sites",
@@ -126,7 +129,11 @@ export const TRANSLATIONS = {
         view_config: "View Config",
         test_config: "Test Config",
         reload: "Reload Nginx",
-        refresh: "Refresh"
+        refresh: "Refresh",
+        create: "Create Site",
+        delete: "Delete Site",
+        update: "Update Site",
+        test: "Test Configuration"
       },
       ssl: {
         certificates: "SSL Certificates",
@@ -138,7 +145,11 @@ export const TRANSLATIONS = {
         status: "Status",
         ok: "OK",
         warning: "Warning",
-        critical: "Critical"
+        critical: "Critical",
+        generate: "Generate Certificate",
+        renew_all: "Renew All Certificates",
+        certbot_detect: "Detect Certbot",
+        certbot_install: "Install Certbot"
       },
       system: {
         title: "System Status",
@@ -146,7 +157,43 @@ export const TRANSLATIONS = {
         memory: "Memory",
         disk: "Disk",
         services: "Services",
-        refresh: "Refresh"
+        refresh: "Refresh",
+        processes: "Processes",
+        storage: "Storage",
+        permissions: "Permissions"
+      },
+      files: {
+        title: "File Manager",
+        browse: "Browse",
+        download: "Download",
+        preview: "Preview",
+        info: "File Info",
+        path: "Path",
+        size: "Size",
+        modified: "Modified",
+        permissions: "Permissions"
+      },
+      executor: {
+        title: "Code Executor",
+        scripts: "Predefined Scripts",
+        execute: "Execute",
+        logs: "Execution Logs",
+        status: "Status",
+        category: "Category",
+        timeout: "Timeout",
+        output: "Output"
+      },
+      unified: {
+        title: "Unified Manager",
+        apps: "Applications",
+        deploy: "Deploy",
+        start: "Start",
+        stop: "Stop",
+        restart: "Restart",
+        status: "Status",
+        logs: "Logs",
+        service_name: "Service Name",
+        port: "Port"
       }
     }
   },
@@ -242,7 +289,10 @@ export const TRANSLATIONS = {
       tabs: {
         nginx: "Nginx 站点",
         ssl: "SSL 证书",
-        system: "系统状态"
+        system: "系统状态",
+        files: "文件管理",
+        executor: "代码执行",
+        unified: "统一管理器"
       },
       nginx: {
         sites: "Nginx 站点",
@@ -262,7 +312,11 @@ export const TRANSLATIONS = {
         view_config: "查看配置",
         test_config: "测试配置",
         reload: "重载 Nginx",
-        refresh: "刷新"
+        refresh: "刷新",
+        create: "创建站点",
+        delete: "删除站点",
+        update: "更新站点",
+        test: "测试配置"
       },
       ssl: {
         certificates: "SSL 证书",
@@ -274,7 +328,11 @@ export const TRANSLATIONS = {
         status: "状态",
         ok: "正常",
         warning: "警告",
-        critical: "紧急"
+        critical: "紧急",
+        generate: "生成证书",
+        renew_all: "续期全部证书",
+        certbot_detect: "检测 Certbot",
+        certbot_install: "安装 Certbot"
       },
       system: {
         title: "系统状态",
@@ -282,7 +340,43 @@ export const TRANSLATIONS = {
         memory: "内存",
         disk: "磁盘",
         services: "服务",
-        refresh: "刷新"
+        refresh: "刷新",
+        processes: "进程",
+        storage: "存储",
+        permissions: "权限"
+      },
+      files: {
+        title: "文件管理",
+        browse: "浏览",
+        download: "下载",
+        preview: "预览",
+        info: "文件信息",
+        path: "路径",
+        size: "大小",
+        modified: "修改时间",
+        permissions: "权限"
+      },
+      executor: {
+        title: "代码执行",
+        scripts: "预定义脚本",
+        execute: "执行",
+        logs: "执行日志",
+        status: "状态",
+        category: "分类",
+        timeout: "超时",
+        output: "输出"
+      },
+      unified: {
+        title: "统一管理器",
+        apps: "应用列表",
+        deploy: "部署",
+        start: "启动",
+        stop: "停止",
+        restart: "重启",
+        status: "状态",
+        logs: "日志",
+        service_name: "服务名称",
+        port: "端口"
       }
     }
   }
