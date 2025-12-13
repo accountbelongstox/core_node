@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Real-time Statistics Display - Console Output
-实时统计显示 - 控制台输出
+Realtime Statistics Display - Console Output
 
 Features:
 - Real-time price statistics (5s, 30s, 60s)
@@ -43,9 +43,9 @@ class RealtimeStatsDisplay:
 
     # Alert thresholds (percentage)
     ALERT_THRESHOLDS = {
-        '5s': 1.0,   # 5秒超过1%
-        '30s': 1.0,  # 30秒超过1%
-        '1m': 2.0,   # 1分钟超过2%
+        '5s': 1.0,   # 1% in 5s
+        '30s': 1.0,  # 1% in 30s
+        '1m': 2.0,   # 2% in 1m
     }
 
     def __init__(self):
@@ -299,50 +299,50 @@ class RealtimeStatsDisplay:
     def _print_header(self):
         """Print display header"""
         print("\n" + "="*80)
-        print(f"{self.COLORS['bold']}{self.COLORS['cyan']}实时币价监控 - Real-time Price Monitor{self.COLORS['reset']}")
+        print(f"{self.COLORS['bold']}{self.COLORS['cyan']}Realtime Price Monitor - Real-time Price Monitor{self.COLORS['reset']}")
         print("="*80)
 
     def _print_stats(self, stats: Dict):
         """Print statistics"""
         total = stats['total_coins']
 
-        # 5秒统计
+        # 5sStats
         rising_5s = stats['rising_5s']
         falling_5s = stats['falling_5s']
-        print(f"\n{self.COLORS['bold']}[5秒]{self.COLORS['reset']} "
-              f"上涨: {self.COLORS['green']}{rising_5s}{self.COLORS['reset']}个 | "
-              f"下跌: {self.COLORS['red']}{falling_5s}{self.COLORS['reset']}个 | "
-              f"持平: {total - rising_5s - falling_5s}个")
+        print(f"\n{self.COLORS['bold']}[5s]{self.COLORS['reset']} "
+              f"Rising: {self.COLORS['green']}{rising_5s}{self.COLORS['reset']} | "
+              f"Falling: {self.COLORS['red']}{falling_5s}{self.COLORS['reset']} | "
+              f"Stable: {total - rising_5s - falling_5s}")
 
-        # 30秒统计
+        # 30sStats
         rising_30s = stats['rising_30s']
         falling_30s = stats['falling_30s']
-        print(f"{self.COLORS['bold']}[30秒]{self.COLORS['reset']} "
-              f"上涨: {self.COLORS['green']}{rising_30s}{self.COLORS['reset']}个 | "
-              f"下跌: {self.COLORS['red']}{falling_30s}{self.COLORS['reset']}个 | "
-              f"持平: {total - rising_30s - falling_30s}个")
+        print(f"{self.COLORS['bold']}[30s]{self.COLORS['reset']} "
+              f"Rising: {self.COLORS['green']}{rising_30s}{self.COLORS['reset']} | "
+              f"Falling: {self.COLORS['red']}{falling_30s}{self.COLORS['reset']} | "
+              f"Stable: {total - rising_30s - falling_30s}")
 
-        # 60秒统计
+        # 60sStats
         rising_60s = stats['rising_60s']
         falling_60s = stats['falling_60s']
-        print(f"{self.COLORS['bold']}[60秒]{self.COLORS['reset']} "
-              f"上涨: {self.COLORS['green']}{rising_60s}{self.COLORS['reset']}个 | "
-              f"下跌: {self.COLORS['red']}{falling_60s}{self.COLORS['reset']}个 | "
-              f"持平: {total - rising_60s - falling_60s}个")
+        print(f"{self.COLORS['bold']}[60s]{self.COLORS['reset']} "
+              f"Rising: {self.COLORS['green']}{rising_60s}{self.COLORS['reset']} | "
+              f"Falling: {self.COLORS['red']}{falling_60s}{self.COLORS['reset']} | "
+              f"Stable: {total - rising_60s - falling_60s}")
 
     def _print_top_movers(self):
         """Print top movers"""
-        print(f"\n{self.COLORS['bold']}━━━ 涨跌幅榜 (30秒) ━━━{self.COLORS['reset']}")
+        print(f"\n{self.COLORS['bold']}=== Top Gainers/Losers (30s) ==={self.COLORS['reset']}")
 
         # Top gainers
         if self.top_gainers_30s:
-            print(f"{self.COLORS['green']}▲ 涨幅最大:{self.COLORS['reset']}")
+            print(f"{self.COLORS['green']}UP Top Gainers:{self.COLORS['reset']}")
             for i, mover in enumerate(self.top_gainers_30s, 1):
                 print(f"  {i}. {mover['coin']}: {self.COLORS['green']}+{mover['change']:.2f}%{self.COLORS['reset']}")
 
         # Top losers
         if self.top_losers_30s:
-            print(f"{self.COLORS['red']}▼ 跌幅最大:{self.COLORS['reset']}")
+            print(f"{self.COLORS['red']}DOWN Top Losers:{self.COLORS['reset']}")
             for i, mover in enumerate(self.top_losers_30s, 1):
                 print(f"  {i}. {mover['coin']}: {self.COLORS['red']}{mover['change']:.2f}%{self.COLORS['reset']}")
 
@@ -350,19 +350,19 @@ class RealtimeStatsDisplay:
         """Print trend curves"""
         if len(self.rising_curve_30s) > 1:
             curve_30s = self._generate_sparkline(list(self.rising_curve_30s)[-20:])
-            print(f"\n{self.COLORS['bold']}[30秒曲线]{self.COLORS['reset']} "
-                  f"上涨数量: {curve_30s} ({self.stats['rising_30s']}个)")
+            print(f"\n{self.COLORS['bold']}[30sChart]{self.COLORS['reset']} "
+                  f"RisingCount: {curve_30s} ({self.stats['rising_30s']})")
 
         if len(self.rising_curve_60s) > 1:
             curve_60s = self._generate_sparkline(list(self.rising_curve_60s)[-20:])
-            print(f"{self.COLORS['bold']}[60秒曲线]{self.COLORS['reset']} "
-                  f"上涨数量: {curve_60s} ({self.stats['rising_60s']}个)")
+            print(f"{self.COLORS['bold']}[60sChart]{self.COLORS['reset']} "
+                  f"RisingCount: {curve_60s} ({self.stats['rising_60s']})")
 
     def _print_footer(self):
         """Print footer"""
         update_time = self.stats['last_update']
         if update_time:
-            print(f"\n{self.COLORS['dim']}更新时间: {update_time.strftime('%H:%M:%S')}{self.COLORS['reset']}")
+            print(f"\n{self.COLORS['dim']}Updated: {update_time.strftime('%H:%M:%S')}{self.COLORS['reset']}")
         print("="*80 + "\n")
 
     def _generate_sparkline(self, data: List[int]) -> str:
@@ -379,7 +379,7 @@ class RealtimeStatsDisplay:
             return ""
 
         # Sparkline characters
-        chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+        chars = ['_', '_', '_', '_', '=', '=', '=', '#']
 
         min_val = min(data)
         max_val = max(data)
@@ -412,18 +412,18 @@ class RealtimeStatsDisplay:
         # Choose color based on window and direction
         if window == '5s':
             color = self.COLORS['yellow']
-            icon = '⚡'
+            icon = 'FLASH'
         elif window == '30s':
             color = self.COLORS['magenta']
-            icon = '⚠️'
+            icon = 'WARNING'
         else:  # 1m
             color = self.COLORS['red'] if direction == 'up' else self.COLORS['blue']
-            icon = '🔥' if direction == 'up' else '❄️'
+            icon = 'HOT' if direction == 'up' else 'COLD'
 
         symbol = '+' if change > 0 else ''
 
         print(f"\n{color}{self.COLORS['bold']}"
-              f"{icon} 【告警】{coin} {window} {symbol}{change:.2f}%"
+              f"{icon} [ALERT]{coin} {window} {symbol}{change:.2f}%"
               f"{self.COLORS['reset']}")
 
     def get_stats(self) -> Dict:

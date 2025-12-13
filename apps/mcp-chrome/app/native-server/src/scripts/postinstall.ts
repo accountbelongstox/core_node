@@ -107,7 +107,7 @@ async function ensureExecutionPermissions(): Promise<void> {
         );
       }
     } else {
-      console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
     }
   }
 }
@@ -150,7 +150,7 @@ async function ensureWindowsFilePermissions(): Promise<void> {
         );
       }
     } else {
-      console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
     }
   }
 }

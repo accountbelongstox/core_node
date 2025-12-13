@@ -7,9 +7,16 @@ const distDir = path.join(__dirname, '..', '..', 'dist');
 console.log('Cleaning previous build...');
 try {
   fs.rmSync(distDir, { recursive: true, force: true });
-} catch (err) {
-  // Ignore if directory doesn't exist
-  console.log(err);
+} catch (err: any) {
+  // Non-blocking: EPERM errors on Windows are common when files are in use
+  // The build will continue and overwrite files as needed
+  if (err.code === 'EPERM') {
+    console.log('[WARNING] Permission denied when cleaning dist folder (files may be in use)');
+    console.log('[INFO] Build will continue and overwrite files as needed');
+  } else if (err.code !== 'ENOENT') {
+    // ENOENT means directory doesn't exist, which is fine
+    console.log('[WARNING] Error cleaning previous build:', err.message);
+  }
 }
 
 // Create dist directory
