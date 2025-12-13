@@ -8,9 +8,9 @@ Supports two modes:
 2. LIVE Mode: Start from current time (paper trading with virtual money)
 
 Data Flow:
-- Initialize: SQLite → Redis (load historical data)
+- Initialize: SQLite -> Redis (load historical data)
 - Runtime: Redis only (all calculations and trading)
-- Persistence: Redis → SQLite (background sync every 30s)
+- Persistence: Redis -> SQLite (background sync every 30s)
 
 Architecture:
 - Calculation Threads: Update coin attributes (Redis only)
@@ -87,10 +87,10 @@ class TradingSystemManager:
         """
         Load historical data into SQLite and Redis
 
-        Data Flow: OKX API → SQLite → Redis
+        Data Flow: OKX API -> SQLite -> Redis
         """
         print("\n" + "="*80)
-        print("STEP 1: INITIALIZE HISTORICAL DATA (SQLite → Redis)")
+        print("STEP 1: INITIALIZE HISTORICAL DATA (SQLite -> Redis)")
         print("="*80)
 
         # Get all coins
@@ -105,7 +105,7 @@ class TradingSystemManager:
         start_time = end_time - timedelta(days=days_to_load)
 
         print(f"Loading {days_to_load} days of data ({start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')})")
-        print("Data Flow: OKX API → SQLite → Redis")
+        print("Data Flow: OKX API -> SQLite -> Redis")
 
         # Load data for each coin
         loaded_count = 0
@@ -123,9 +123,9 @@ class TradingSystemManager:
 
                 if oldest_dt <= start_time:
                     # Already have enough data, just load to Redis
-                    print("✓ Loading to Redis", end=' ')
+                    print("OK Loading to Redis", end=' ')
                     self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
-                    print("✓ Complete")
+                    print("OK Complete")
                     loaded_count += 1
                     continue
 
@@ -134,7 +134,7 @@ class TradingSystemManager:
             candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
 
             if not candles_data:
-                print("✗ No data")
+                print("FAIL No data")
                 failed_count += 1
                 continue
 
@@ -145,7 +145,7 @@ class TradingSystemManager:
             # Load to Redis
             self._load_to_redis(coin_symbol, candles_data)
 
-            print(f"✓ Loaded {len(candles_data)} candles")
+            print(f"OK Loaded {len(candles_data)} candles")
             loaded_count += 1
 
             # Rate limiting
@@ -262,8 +262,8 @@ class TradingSystemManager:
         print("STEP 2: START WORKER THREADS (Redis-only operations)")
         print("="*80)
 
-        # Start sync worker (Redis → SQLite persistence)
-        print("Starting sync worker (Redis → SQLite)...")
+        # Start sync worker (Redis -> SQLite persistence)
+        print("Starting sync worker (Redis -> SQLite)...")
         self.sync_worker = get_sync_worker()
         self.sync_worker.start()
 
@@ -287,7 +287,7 @@ class TradingSystemManager:
 
         # Start data source based on mode
         if self.mode == 'TEST':
-            print("\n[TEST Mode] Starting data replayer (SQLite → Redis chronologically)...")
+            print("\n[TEST Mode] Starting data replayer (SQLite -> Redis chronologically)...")
             start_time = datetime.now() - timedelta(days=strategy_config.BACKTEST_START_DAYS)
             self.data_replayer = create_data_replayer(self.coin_symbols, start_time)
             self.data_replayer.set_replay_speed(1.0)  # 1x speed
@@ -385,9 +385,9 @@ class TradingSystemManager:
         for worker in self.calculation_workers:
             worker.stop()
 
-        # Stop sync worker (final sync: Redis → SQLite)
+        # Stop sync worker (final sync: Redis -> SQLite)
         if self.sync_worker:
-            print("Final Redis → SQLite sync...")
+            print("Final Redis -> SQLite sync...")
             self.sync_worker.stop(wait=True)
 
         print("="*80 + "\n")
@@ -415,7 +415,7 @@ def main():
 
     # Run system
     try:
-        # Step 1: Initialize (SQLite → Redis)
+        # Step 1: Initialize (SQLite -> Redis)
         manager.initialize_historical_data()
 
         # Step 2: Start workers (Redis only)

@@ -29,7 +29,7 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
   const fetchSystemInfo = async () => {
     setSystemInfo(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSystemInfo();
+      const response = await apiService.getApiInfo();
       if (response.success && response.data) {
         setSystemInfo({
           data: response.data,
