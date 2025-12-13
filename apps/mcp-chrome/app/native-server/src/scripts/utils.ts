@@ -134,11 +134,11 @@ export async function ensureExecutionPermissions(): Promise<void> {
           );
         }
       } else {
-        console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+        console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
       }
     }
   } catch (error: any) {
-    console.warn(colorText(`⚠️ Error ensuring execution permissions: ${error.message}`, 'yellow'));
+    console.warn(colorText(`[WARNING] Error ensuring execution permissions: ${error.message}`, 'yellow'));
   }
 }
 
@@ -180,7 +180,7 @@ async function ensureWindowsFilePermissions(packageDistDir: string): Promise<voi
         );
       }
     } else {
-      console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
     }
   }
 }
