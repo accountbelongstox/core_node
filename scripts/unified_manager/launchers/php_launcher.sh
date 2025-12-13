@@ -20,6 +20,10 @@ APP_NAME="$2"
 ACTION="${3:-start}"
 PORT="${4:-8000}"
 
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
+
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_path> <app_name> [action] [port]"
@@ -61,8 +65,22 @@ case "$ACTION" in
         ;;
     "start"|"serve")
         echo "Starting PHP development server..."
-        echo "Server will be available at: http://localhost:$PORT"
-        php -S localhost:$PORT -t .
+
+        # Check if composer dependencies exist, install if not
+        if [ -f "composer.json" ] && [ ! -d "vendor" ]; then
+            echo "vendor directory not found. Installing dependencies..."
+            composer install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install composer dependencies"
+                exit 1
+            fi
+        fi
+
+        echo "Launching PHP server on 0.0.0.0:$PORT..."
+        php -S 0.0.0.0:$PORT -t .
+
+        # Show network addresses after launch attempt
+        get_all_ips "$PORT"
         ;;
     "test")
         echo "Running PHP tests..."
