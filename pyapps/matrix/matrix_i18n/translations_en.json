@@ -13,5 +13,7 @@
   "matrix.tray.exit": "Exit",
   "matrix.services": "Services",
   "matrix.status": "Status",
-  "matrix.ready": "Ready"
+  "matrix.ready": "Ready",
+  "matrix.shortcut.name": "Matrix Cloud",
+  "matrix.shortcut.description": "Launch Matrix Cloud - Android Device Manager"
 }

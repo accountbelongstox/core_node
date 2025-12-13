@@ -121,7 +121,6 @@ class DesktopIconGenerator:
     def get_desktop_path():
         """
         Get Windows desktop path
-        
         Returns:
             Path: Desktop directory path
         """
@@ -130,17 +129,42 @@ class DesktopIconGenerator:
             if HAS_WIN32COM:
                 shell = win32com.client.Dispatch("WScript.Shell")
                 desktop = shell.SpecialFolders("Desktop")
+                if desktop and os.path.exists(desktop):
+                    return Path(desktop)
+        except:
+            pass
+
+        # Fallback 1: use USERPROFILE\Desktop
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            if os.path.exists(desktop):
                 return Path(desktop)
         except:
             pass
-        
-        # Fallback: use environment variable
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        if not os.path.exists(desktop):
-            # For some Windows versions, desktop is in Public
-            desktop = os.path.join(os.environ.get("PUBLIC", ""), "Desktop")
-        
-        return Path(desktop)
+
+        # Fallback 2: use USERPROFILE environment variable
+        if "USERPROFILE" in os.environ:
+            desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+            if os.path.exists(desktop):
+                return Path(desktop)
+
+        # Fallback 3: try PUBLIC\Desktop
+        if "PUBLIC" in os.environ:
+            desktop = os.path.join(os.environ["PUBLIC"], "Desktop")
+            if os.path.exists(desktop):
+                return Path(desktop)
+
+        # Fallback 4: create Desktop directory if needed
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            os.makedirs(desktop, exist_ok=True)
+            return Path(desktop)
+        except:
+            pass
+
+        # Last resort: use current directory (should never happen)
+        print("Warning: Could not determine desktop path, using current directory")
+        return Path(".")
     
     def _shortcut_needs_update(self, shortcut_path, target_path, icon_path, working_dir, arguments, description):
         """
@@ -216,11 +240,11 @@ class DesktopIconGenerator:
             print(f"Warning: Could not read shortcut info, will update: {e}")
             return True
     
-    def create_shortcut(self, target_path, name=None, icon_path=None, working_dir=None, 
-                       arguments="", description=""):
+    def create_shortcut(self, target_path, name=None, icon_path=None, working_dir=None,
+                       arguments="", description="", app_user_model_id=None):
         """
         Create or modify a desktop shortcut (only updates if content differs)
-        
+
         Args:
             target_path: Path to target executable or file
             name: Shortcut name (optional, uses basename if not provided)
@@ -228,7 +252,10 @@ class DesktopIconGenerator:
             working_dir: Working directory (optional, uses target's directory if not provided)
             arguments: Command line arguments (optional)
             description: Shortcut description (optional)
-        
+            app_user_model_id: AppUserModelID (optional, prevents duplicate taskbar icons when running as admin)
+                              Format: CompanyName.ProductName[.SubProduct]
+                              Example: "XingcanMedia.Matrix.Cloud"
+
         Returns:
             Path: Path to created shortcut (.lnk file)
         """
@@ -280,9 +307,24 @@ class DesktopIconGenerator:
         
         # Save shortcut
         shortcut.Save()
-        
+
         action = "Updated" if shortcut_exists else "Created"
         print(f"{action} shortcut: {shortcut_path}")
+
+        # Set AppUserModelID property if provided (prevents duplicate taskbar icons)
+        if app_user_model_id:
+            try:
+                from pycore.pyutils.appusermodelid_manager import set_shortcut_app_user_model_id
+                print(f"[DesktopIconGenerator] Setting AppUserModelID on shortcut...")
+                if set_shortcut_app_user_model_id(shortcut_path, app_user_model_id):
+                    print(f"[DesktopIconGenerator] ✓ AppUserModelID set: {app_user_model_id}")
+                else:
+                    print(f"[DesktopIconGenerator] ⚠ Failed to set AppUserModelID")
+            except ImportError as e:
+                print(f"[DesktopIconGenerator] ⚠ AppUserModelID module not available: {e}")
+            except Exception as e:
+                print(f"[DesktopIconGenerator] ⚠ Error setting AppUserModelID: {e}")
+
         return shortcut_path
     
     def update_shortcut(self, shortcut_path, target_path=None, name=None, icon_path=None,

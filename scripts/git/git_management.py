@@ -9,6 +9,12 @@ Communicates via file variables instead of exit codes
 import os
 import sys
 import platform
+import subprocess
+import time
+import traceback
+import shutil
+import site
+import glob
 from pathlib import Path
 from datetime import datetime
 
@@ -204,9 +210,12 @@ class GitManagement:
 
     def handle_directory_cleanup(self):
         """Handle option 4: Remove directories from Git history"""
+<<<<<<< HEAD
+=======
         import subprocess
         import sys
 
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
         try:
             print()
             print("\033[36m╔════════════════════════════════════════════════════════════════╗\033[0m")
@@ -262,7 +271,10 @@ class GitManagement:
             sys.stdout.flush()
         except Exception as e:
             print(f"\033[31m✗ Error during input phase: {e}\033[0m")
+<<<<<<< HEAD
+=======
             import traceback
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
             traceback.print_exc()
             input("\n\033[33mPress Enter to continue...\033[0m")
             return
@@ -300,8 +312,11 @@ class GitManagement:
                     print(f"\033[90m[DEBUG] stderr: {install_result.stderr}\033[0m")
                     sys.stdout.flush()
 
+<<<<<<< HEAD
+=======
                 import site
                 import glob
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                 user_base = site.USER_BASE
                 filter_repo_paths = glob.glob(f"{user_base}/bin/git-filter-repo")
 
@@ -311,13 +326,19 @@ class GitManagement:
 
                 if filter_repo_paths:
                     filter_repo_path = filter_repo_paths[0]
+<<<<<<< HEAD
+=======
                     import shutil
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                     print(f"\033[90m[DEBUG] Copying from: {filter_repo_path}\033[0m")
                     sys.stdout.flush()
 
                     try:
                         shutil.copy(filter_repo_path, '/usr/local/bin/git-filter-repo')
+<<<<<<< HEAD
+=======
                         import os
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                         os.chmod('/usr/local/bin/git-filter-repo', 0o755)
                         print("\033[32m✓ Installed to /usr/local/bin/git-filter-repo\033[0m")
                         sys.stdout.flush()
@@ -327,7 +348,10 @@ class GitManagement:
                         local_bin = Path.home() / '.local' / 'bin'
                         local_bin.mkdir(parents=True, exist_ok=True)
                         shutil.copy(filter_repo_path, local_bin / 'git-filter-repo')
+<<<<<<< HEAD
+=======
                         import os
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                         os.chmod(local_bin / 'git-filter-repo', 0o755)
                         print(f"\033[32m✓ Installed to {local_bin}/git-filter-repo\033[0m")
                         sys.stdout.flush()
@@ -384,7 +408,10 @@ class GitManagement:
 
             except Exception as e:
                 print(f"\033[31mFailed to install git-filter-repo: {e}\033[0m")
+<<<<<<< HEAD
+=======
                 import traceback
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                 traceback.print_exc()
                 sys.stdout.flush()
                 self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
@@ -429,7 +456,10 @@ class GitManagement:
             sys.stdout.flush()
 
             if dir_full_path.exists():
+<<<<<<< HEAD
+=======
                 import shutil
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                 print(f"\033[90m[DEBUG] Removing: {dir_full_path}\033[0m")
                 sys.stdout.flush()
                 shutil.rmtree(dir_full_path)
@@ -481,6 +511,15 @@ class GitManagement:
         sys.stdout.flush()
 
         try:
+<<<<<<< HEAD
+            result = subprocess.run(filter_args, text=True, check=False)
+            print(f"\033[90m[DEBUG] git-filter-repo exit code: {result.returncode}\033[0m")
+            sys.stdout.flush()
+
+            print()
+            print("\033[36m⏳ Waiting 5 seconds for cleanup to settle...\033[0m")
+            sys.stdout.flush()
+=======
             result = subprocess.run(filter_args, capture_output=True, text=True, check=False)
             print(f"\033[90m[DEBUG] git-filter-repo exit code: {result.returncode}\033[0m")
             sys.stdout.flush()
@@ -497,12 +536,16 @@ class GitManagement:
             print("\033[36m⏳ Waiting 5 seconds for cleanup to settle...\033[0m")
             sys.stdout.flush()
             import time
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
             time.sleep(5)
             print()
             sys.stdout.flush()
         except Exception as e:
             print(f"\033[31m✗ Failed to execute git-filter-repo: {e}\033[0m")
+<<<<<<< HEAD
+=======
             import traceback
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
             traceback.print_exc()
             sys.stdout.flush()
             result = subprocess.CompletedProcess(filter_args, returncode=1, stdout='', stderr=str(e))
@@ -688,7 +731,10 @@ class GitManagement:
                 except Exception as e:
                     print()
                     print(f"\033[31m✗ Unexpected error: {e}\033[0m")
+<<<<<<< HEAD
+=======
                     import traceback
+>>>>>>> bd3e27ea1cb269aa2e2163b64db21d1e5d678ba2
                     print("\033[33mStack trace:\033[0m")
                     traceback.print_exc()
                     print()

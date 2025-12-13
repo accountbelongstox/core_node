@@ -34,6 +34,12 @@ pyenv_*/
 app.*.symbols
 **/*.vsix
 **/*.test/
+**/test/
+**/tests/
+/test/
+/tests/
+/.venv/
+**/.venv/
 /~
 /Microsoft
 /Microsoft/
@@ -68,13 +74,14 @@ app.*.symbols
 **/log/
 **/.runtime_cache/
 
-#  Cache 
+#  Cache
 **/cache/
 **/.cache/
 **/tmp/
 **/temp/
 **/tmp_*
 **/test_*
+**/.vite/
 
 # Flutter/Dart Test
 

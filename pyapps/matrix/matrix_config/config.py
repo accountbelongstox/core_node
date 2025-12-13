@@ -122,6 +122,13 @@ class Config:
     # - "yuv": YUV420P decoded stream (works on all browsers, compatible with Qt WebEngine)
     DEFAULT_VIDEO_STREAM_MODE = "yuv"  # Changed from "h264" to "yuv" for Qt WebEngine compatibility
 
+    # ==================== Video Stream Health Check Configuration ====================
+    HEALTH_CHECK_INTERVAL = 10           # Health check interval (seconds)
+    HEALTH_DATA_TIMEOUT = 30            # No data timeout threshold (seconds)
+    HEALTH_MAX_RECONNECT_ATTEMPTS = 3   # Maximum reconnection attempts
+    HEALTH_RECONNECT_BASE_DELAY = 1     # Base delay for exponential backoff (seconds)
+    HEALTH_RECONNECT_MAX_DELAY = 4      # Maximum reconnection delay (seconds)
+
     # ==================== WebSocket Configuration ====================
     WS_BASE_PATH = "/ws"
     WS_VIDEO_PATH = "/ws/video/{serial}"      # Video stream

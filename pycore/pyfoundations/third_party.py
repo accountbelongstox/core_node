@@ -8,7 +8,6 @@ with automatic dependency checking and installation.
 
 All third-party packages MUST be imported through this module.
 Usage: from pycore.pyfoundations.third_party import aiohttp, netifaces, etc.
-
 The module automatically checks and installs missing packages on first import.
 """ 
 
@@ -96,11 +95,7 @@ DEPENDENCY_MAP = {
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
 
-    # For network interface detection (pyutils.rpc.discovery)
-    "netifaces": "netifaces",
-
-    # For WebView GUI (pyutils.web, pyutils.native_ui)
-    "webview": "pywebview",
+    # For GUI and HTML rendering
     "tkinterweb": "tkinterweb",
     "tkhtmlview": "tkhtmlview",
     "pystray": "pystray",
@@ -599,11 +594,87 @@ def get_third_package_aiohttp_web():
     return _PACKAGE_CACHE['aiohttp_web']
 
 
-def get_third_package_netifaces():
-    """Get netifaces package (lazy load)"""
-    return _lazy_import('netifaces', 'import netifaces')
+def get_third_package_yaml():
+    """Get yaml package (lazy load)"""
+    return _lazy_import('yaml', 'import yaml')
 
 
+# PIL/Pillow packages
+def get_third_package_PIL():
+    """Get PIL (Pillow) package (lazy load)"""
+    return _lazy_import('PIL', 'import PIL')
+
+
+def get_third_package_PIL_Image():
+    """Get PIL.Image module (lazy load)"""
+    if 'PIL_Image' not in _PACKAGE_CACHE:
+        from PIL import Image as PIL_Image
+        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
+    return _PACKAGE_CACHE['PIL_Image']
+
+
+def get_third_package_PIL_ImageDraw():
+    """Get PIL.ImageDraw module (lazy load)"""
+    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
+        from PIL import ImageDraw as PIL_ImageDraw
+        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
+    return _PACKAGE_CACHE['PIL_ImageDraw']
+
+
+def get_third_package_PIL_ImageFont():
+    """Get PIL.ImageFont module (lazy load)"""
+    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
+        from PIL import ImageFont as PIL_ImageFont
+        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
+    return _PACKAGE_CACHE['PIL_ImageFont']
+
+
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk module (lazy load) - requires tkinter"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
+
+
+# Computer vision and automation packages
+def get_third_package_cv2():
+    """Get cv2 (OpenCV) package (lazy load)"""
+    return _lazy_import('cv2', 'import cv2')
+
+
+def get_third_package_pyautogui():
+    """Get pyautogui package (lazy load)"""
+    return _lazy_import('pyautogui', 'import pyautogui')
+
+
+def get_third_package_psutil():
+    """Get psutil package (lazy load)"""
+    return _lazy_import('psutil', 'import psutil')
+
+
+def get_third_package_mss():
+    """Get mss package (lazy load)"""
+    return _lazy_import('mss', 'import mss')
+
+
+# Deep learning packages
+def get_third_package_torch():
+    """Get torch (PyTorch) package (lazy load) - Heavy package"""
+    return _lazy_import('torch', 'import torch')
+
+
+def get_third_package_ultralytics():
+    """Get ultralytics (YOLO) package (lazy load) - Heavy package"""
+    return _lazy_import('ultralytics', 'import ultralytics')
+
+
+def get_third_package_numpy():
+    """Get numpy package (lazy load)"""
+    return _lazy_import('numpy', 'import numpy')
+
+
+# Network and web packages
 def get_third_package_websockets():
     """Get websockets package (lazy load)"""
     return _lazy_import('websockets', 'import websockets')
@@ -624,198 +695,32 @@ def get_third_package_fastapi():
     return _lazy_import('fastapi', 'import fastapi')
 
 
-def get_third_package_starlette_staticfiles():
-    """Get starlette.staticfiles.StaticFiles (lazy load, installed with fastapi)"""
-    if 'starlette_StaticFiles' not in _PACKAGE_CACHE:
-        from starlette.staticfiles import StaticFiles
-        _PACKAGE_CACHE['starlette_StaticFiles'] = StaticFiles
-    return _PACKAGE_CACHE['starlette_StaticFiles']
-
-
-def get_third_package_PIL():
-    """Get PIL package (lazy load)"""
-    return _lazy_import('PIL', 'import PIL')
-
-
-def get_third_package_PIL_Image():
-    """Get PIL.Image (lazy load)"""
-    if 'PIL_Image' not in _PACKAGE_CACHE:
-        from PIL import Image as PIL_Image
-        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
-    return _PACKAGE_CACHE['PIL_Image']
-
-
-def get_third_package_PIL_ImageDraw():
-    """Get PIL.ImageDraw (lazy load)"""
-    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
-        from PIL import ImageDraw as PIL_ImageDraw
-        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
-    return _PACKAGE_CACHE['PIL_ImageDraw']
-
-
-def get_third_package_PIL_ImageFont():
-    """Get PIL.ImageFont (lazy load)"""
-    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
-        from PIL import ImageFont as PIL_ImageFont
-        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
-    return _PACKAGE_CACHE['PIL_ImageFont']
-
-
-def get_third_package_PIL_ImageTk():
-    """Get PIL.ImageTk (lazy load)"""
-    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
-        from PIL import ImageTk as PIL_ImageTk
-        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
-    return _PACKAGE_CACHE['PIL_ImageTk']
-
-
-def get_third_package_cv2():
-    """Get cv2 package (lazy load)"""
-    return _lazy_import('cv2', 'import cv2')
-
-
-def get_third_package_pyautogui():
-    """
-    Get pyautogui package (lazy load)
-
-    On Linux, pyautogui may fail to import if X11 display is not accessible.
-    In this case, returns None instead of raising an exception.
-    """
-    if 'pyautogui' not in _PACKAGE_CACHE:
-        try:
-            import pyautogui
-            _PACKAGE_CACHE['pyautogui'] = pyautogui
-            return pyautogui
-        except Exception as e:
-            # Check if this is a display-related error (common on Linux when running as root or headless)
-            error_msg = str(e)
-            if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
-                ColorPrint.yellow(f"[WARN] pyautogui unavailable due to display error: {type(e).__name__}")
-                ColorPrint.yellow("[INFO] This is normal when running without X11 display access")
-                ColorPrint.yellow("[INFO] pyautogui features will be disabled")
-                _PACKAGE_CACHE['pyautogui'] = None
-                return None
-            else:
-                # Some other error, try lazy import (might trigger auto-install)
-                try:
-                    return _lazy_import('pyautogui', 'import pyautogui')
-                except Exception as e2:
-                    ColorPrint.yellow(f"[WARN] pyautogui import failed: {e2}")
-                    _PACKAGE_CACHE['pyautogui'] = None
-                    return None
-
-    return _PACKAGE_CACHE['pyautogui']
-
-
-def get_third_package_psutil():
-    """Get psutil package (lazy load)"""
-    return _lazy_import('psutil', 'import psutil')
-
-
-def get_third_package_mss():
-    """Get mss package (lazy load)"""
-    return _lazy_import('mss', 'import mss')
-
-
-def get_third_package_torch():
-    """Get torch package (lazy load) - Heavy package ~2s load time"""
-    return _lazy_import('torch', 'import torch')
-
-
-def get_third_package_ultralytics():
-    """Get ultralytics package (lazy load) - Heavy package ~2s load time"""
-    return _lazy_import('ultralytics', 'import ultralytics')
-
-
-def get_third_package_numpy():
-    """Get numpy package (lazy load)"""
-    return _lazy_import('numpy', 'import numpy')
-
-
-def get_third_package_selenium():
-    """Get selenium package (lazy load)"""
-    return _lazy_import('selenium', 'import selenium')
-
-
-def get_third_package_selenium_webdriver():
-    """Get selenium.webdriver module (lazy load)"""
-    if 'selenium_webdriver' not in _PACKAGE_CACHE:
-        from selenium import webdriver as selenium_webdriver
-        _PACKAGE_CACHE['selenium_webdriver'] = selenium_webdriver
-    return _PACKAGE_CACHE['selenium_webdriver']
-
-
-def get_third_package_selenium_by():
-    """Get selenium.webdriver.common.by.By (lazy load)"""
-    if 'selenium_by' not in _PACKAGE_CACHE:
-        from selenium.webdriver.common.by import By as selenium_by
-        _PACKAGE_CACHE['selenium_by'] = selenium_by
-    return _PACKAGE_CACHE['selenium_by']
-
-
-def get_third_package_selenium_support_ui():
-    """Get selenium.webdriver.support.ui module (lazy load)"""
-    if 'selenium_support_ui' not in _PACKAGE_CACHE:
-        from selenium.webdriver.support import ui as selenium_support_ui
-        _PACKAGE_CACHE['selenium_support_ui'] = selenium_support_ui
-    return _PACKAGE_CACHE['selenium_support_ui']
-
-
-def get_third_package_selenium_support_expected_conditions():
-    """Get selenium.webdriver.support.expected_conditions module (lazy load)"""
-    if 'selenium_support_expected_conditions' not in _PACKAGE_CACHE:
-        from selenium.webdriver.support import expected_conditions as selenium_expected_conditions
-        _PACKAGE_CACHE['selenium_support_expected_conditions'] = selenium_expected_conditions
-    return _PACKAGE_CACHE['selenium_support_expected_conditions']
-
-
-def get_third_package_webdriver_manager():
-    """Get webdriver_manager package (lazy load)"""
-    return _lazy_import('webdriver_manager', 'import webdriver_manager')
-
-
-def get_third_package_webdriver_manager_chrome():
-    """Get webdriver_manager.chrome.ChromeDriverManager (lazy load)"""
-    if 'webdriver_manager_chrome' not in _PACKAGE_CACHE:
-        from webdriver_manager.chrome import ChromeDriverManager as _ChromeDriverManager
-        _PACKAGE_CACHE['webdriver_manager_chrome'] = _ChromeDriverManager
-    return _PACKAGE_CACHE['webdriver_manager_chrome']
-
-
-def get_third_package_webdriver_manager_edge():
-    """Get webdriver_manager.microsoft.EdgeChromiumDriverManager (lazy load)"""
-    if 'webdriver_manager_edge' not in _PACKAGE_CACHE:
-        from webdriver_manager.microsoft import EdgeChromiumDriverManager as _EdgeChromiumDriverManager
-        _PACKAGE_CACHE['webdriver_manager_edge'] = _EdgeChromiumDriverManager
-    return _PACKAGE_CACHE['webdriver_manager_edge']
-
-
-def get_third_package_webdriver_manager_firefox():
-    """Get webdriver_manager.firefox.GeckoDriverManager (lazy load)"""
-    if 'webdriver_manager_firefox' not in _PACKAGE_CACHE:
-        from webdriver_manager.firefox import GeckoDriverManager as _GeckoDriverManager
-        _PACKAGE_CACHE['webdriver_manager_firefox'] = _GeckoDriverManager
-    return _PACKAGE_CACHE['webdriver_manager_firefox']
-
-
+# Device and streaming packages
 def get_third_package_adb_shell():
     """Get adb_shell package (lazy load)"""
     return _lazy_import('adb_shell', 'import adb_shell')
 
 
 def get_third_package_av():
-    """Get av package (lazy load)"""
+    """Get av (PyAV) package (lazy load)"""
     return _lazy_import('av', 'import av')
 
 
+# Logging
 def get_third_package_loguru():
     """Get loguru package (lazy load)"""
     return _lazy_import('loguru', 'import loguru')
 
 
-def get_third_package_yaml():
-    """Get yaml package (lazy load)"""
-    return _lazy_import('yaml', 'import yaml')
+# Browser automation
+def get_third_package_selenium():
+    """Get selenium package (lazy load)"""
+    return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_webdriver_manager():
+    """Get webdriver_manager package (lazy load)"""
+    return _lazy_import('webdriver_manager', 'import webdriver_manager')
 
 
 def get_third_package_webview():
@@ -1230,7 +1135,6 @@ __all__ = [
     # Lazy loading getter functions (use these instead of direct imports)
     'get_third_package_aiohttp',
     'get_third_package_aiohttp_web',
-    'get_third_package_netifaces',
     'get_third_package_websockets',
     'get_third_package_requests',
     'get_third_package_uvicorn',

@@ -11,6 +11,10 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# ===================================================================
+# ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
+# ===================================================================
+
 # Source common variables and functions
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 if command -v sudo >/dev/null 2>&1; then
@@ -18,12 +22,45 @@ if command -v sudo >/dev/null 2>&1; then
 else
     USE_SUDO=""
 fi
-# Parameter validation
+
+# Parameter variables (will be set during parsing)
 TARGET_REMOTE=""
 PULL_MODE=false
 FORCE_OVERWRITE_MODE=false
 
-# Parse parameters
+# State tracking variables
+ENCRYPTION_CHECK_COMPLETED=false
+FILE_VALIDATION_COMPLETED=false
+ORIGINAL_WORKING_DIR=$(pwd)
+ORIGINAL_REMOTE_URL=""
+ORIGINAL_BRANCH=""
+BACKUP_ENABLED=false
+
+# Path and project variables
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
+PROJECT_NAME="core_node"
+TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
+WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+# Cache and encryption variables
+SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
+SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
+
+# Commit message variable
+export COMMIT_MESSAGE=""
+
+# Global associative array for remote configurations
+declare -g -A remote_configs
+
+# Default remote (will be set after loading configurations)
+DEFAULT_REMOTE=""
+
+# ===================================================================
+# PARAMETER PARSING
+# ===================================================================
+
+# Parse command line parameters
 while [[ $# -gt 0 ]]; do
     case $1 in
         --pull)
@@ -48,22 +85,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Declare all variables at the beginning
-ENCRYPTION_CHECK_COMPLETED=false
-FILE_VALIDATION_COMPLETED=false
-ORIGINAL_WORKING_DIR=$(pwd)
-ORIGINAL_REMOTE_URL=""
-ORIGINAL_BRANCH=""
-BACKUP_ENABLED=false
-SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
-CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
-PROJECT_NAME="core_node"  # Hardcoded project name
-TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
-export COMMIT_MESSAGE=""
-WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
-SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
-SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
 
 # Initialize skip encrypt cache
 init_skip_encrypt_cache() {
@@ -483,13 +504,12 @@ get_default_remote() {
 # Load remote configurations from git_remotes.conf
 load_remote_configs() {
     local config_file="$SCRIPT_DIR/git_remotes.conf"
-    declare -g -A remote_configs
-    
+
     if [ ! -f "$config_file" ]; then
         echo "Error: Configuration file not found: $config_file"
         exit 1
     fi
-    
+
     while IFS='=' read -r key value || [ -n "$key" ]; do
         # Skip empty lines and comments
         [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
@@ -504,7 +524,7 @@ load_remote_configs() {
 # Load configurations
 load_remote_configs
 
-# Default remote (primary) - this will be restored after each operation
+# Initialize default remote after loading configurations
 DEFAULT_REMOTE=$(get_default_remote "$PROJECT_NAME")
 
 # Determine execution order - DEFAULT_REMOTE should be executed first
@@ -619,7 +639,34 @@ create_working_backup() {
 write_color_text() {
     local text="$1"
     local color="$2"
-    
+
+    # Desktop environment detection (run once)
+    if [ -z "$DESKTOP_ENV_DETECTED" ]; then
+        export DESKTOP_ENV_DETECTED=true
+        local is_desktop=false
+
+        # Check for desktop environment indicators
+        if [ -n "$XDG_CURRENT_DESKTOP" ] || [ -n "$DESKTOP_SESSION" ] || [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+            is_desktop=true
+        fi
+
+        # Check for display manager processes
+        if ps aux | grep -E "(gdm|lightdm|sddm|xdm)" | grep -v grep >/dev/null 2>&1; then
+            is_desktop=true
+        fi
+
+        # Check for window manager processes
+        if ps aux | grep -E "(gnome|kde|xfce|lxde|mate|cinnamon|i3|openbox)" | grep -v grep >/dev/null 2>&1; then
+            is_desktop=true
+        fi
+
+        if [ "$is_desktop" = true ]; then
+            echo -e "\033[32m[DESKTOP] Running in desktop environment\033[0m" >&2
+        else
+            echo -e "\033[33m[SERVER] Running in headless/server environment\033[0m" >&2
+        fi
+    fi
+
     case "$color" in
         "Green")
             echo -e "\033[32m$text\033[0m"
@@ -753,7 +800,35 @@ handle_conflict_resolution() {
 # Function to perform safe git pull operations
 invoke_safe_git_pull() {
     local target_url="$1"
-    
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
+
     write_color_text "Starting SAFE GIT PULL operations for: $target_url" "Cyan"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
@@ -857,6 +932,34 @@ invoke_safe_git_pull() {
 # Reference: https://www.datacamp.com/tutorial/git-pull-force
 invoke_force_overwrite() {
     local target_url="$1"
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
 
     write_color_text "═══════════════════════════════════════════════════════════════" "Yellow"
     write_color_text "FORCE OVERWRITE - DISCARDING LOCAL CHANGES" "Red"
@@ -1016,6 +1119,34 @@ invoke_force_overwrite() {
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
+
+    # Check if this is the local remote and we're in a server environment
+    if [[ "$target_url" == *"192.168.50.2"* ]]; then
+        # Additional server detection methods
+        local is_server_env=false
+
+        # Method 1: Check for desktop environment variables
+        if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+            is_server_env=true
+        fi
+
+        # Method 2: Check if running in container or VPS
+        if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+            is_server_env=true
+        fi
+
+        # Method 3: Check global variables
+        local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+        local is_production=$(get_global_var "IS_PRODUCTION")
+        if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+            is_server_env=true
+        fi
+
+        if [ "$is_server_env" = "true" ]; then
+            write_color_text "Skipping $target_url in server/non-desktop environment" "Yellow"
+            return 0
+        fi
+    fi
 
     write_color_text "----------------------------------------------------------------" "DarkYellow"
     write_color_text "Starting git operations for: $target_url" "Cyan"
@@ -1308,7 +1439,7 @@ main() {
         write_color_text "=== Unified Git PUSH Script ===" "Magenta"
     fi
     write_color_text "Default remote: $DEFAULT_REMOTE" "DarkCyan"
-    
+
     # Determine target remote
     if [ -z "$TARGET_REMOTE" ]; then
         write_color_text "No target specified, using all remotes" "Yellow"
@@ -1316,12 +1447,56 @@ main() {
     else
         targets=("$TARGET_REMOTE")
     fi
-    
+
+    # Check if running on server (non-desktop environment)
+    local has_desktop_env=$(get_global_var "HAS_DESKTOP_ENVIRONMENT")
+    local is_production=$(get_global_var "IS_PRODUCTION")
+
+    # Additional server detection methods
+    local is_server_env=false
+
+    # Method 1: Check for desktop environment variables
+    if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ -z "$XDG_SESSION_TYPE" ]; then
+        is_server_env=true
+        write_color_text "Server detected: No desktop environment variables found" "DarkGray"
+    fi
+
+    # Method 2: Check if running in container or VPS
+    if [ -f /.dockerenv ] || [ -d /proc/vz ] || [ -f /proc/user_beancounters ]; then
+        is_server_env=true
+        write_color_text "Server detected: Container/VPS environment found" "DarkGray"
+    fi
+
+    # Method 3: Check global variables
+    if [ "$has_desktop_env" = "false" ] || [ "$is_production" = "true" ]; then
+        is_server_env=true
+        write_color_text "Server detected: Global variables indicate server environment" "DarkGray"
+    fi
+
+    # Skip local remote (192.168.50.2) if running on server
+    if [ "$is_server_env" = "true" ]; then
+        write_color_text "Detected server environment (non-desktop), skipping local remote (192.168.50.2)" "Yellow"
+        local filtered_targets=()
+        for target in "${targets[@]}"; do
+            if [ "$target" != "local" ]; then
+                filtered_targets+=("$target")
+            else
+                write_color_text "Skipping ${remote_configs[$target]} in server/non-desktop environment" "Yellow"
+            fi
+        done
+        targets=("${filtered_targets[@]}")
+
+        if [ ${#targets[@]} -eq 0 ]; then
+            write_color_text "No valid remotes to process after filtering" "Red"
+            return 1
+        fi
+    fi
+
     # Reorder targets to execute DEFAULT_REMOTE first
     targets=($(get_execution_order "${targets[@]}"))
-    
+
     local all_success=true
-    
+
     for target in "${targets[@]}"; do
         if [ -n "${remote_configs[$target]}" ]; then
             local target_url="${remote_configs[$target]}"
@@ -1382,7 +1557,7 @@ main() {
             write_color_text "Some git push operations failed!" "Red"
         fi
     fi
-    
+
     # Restore original working directory
     cd "$ORIGINAL_WORKING_DIR"
     write_color_text "Restored working directory: $ORIGINAL_WORKING_DIR" "DarkCyan"

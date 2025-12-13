@@ -49,3 +49,9 @@ windows/liunx都只使用 入口作为调用py,最后命令会到shell中执行�
 /var/_core_node/_build_global_vars/ 
 中，其中不能有文件夹和子目录，key=filename,val=content. 
 
+ 14_install_node_24.sh 
+为什么还没有处理好各个变量的连接，/usr/local/bin，即安装成功了，也要修复每个
+连接，反复运行该脚本会修复一个一个的连接和安装，不能因为修复一个完安装一个页
+跳过别的。 
+
+
