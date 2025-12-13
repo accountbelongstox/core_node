@@ -13,6 +13,8 @@ import time
 from typing import Optional, Dict, Any
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyctl.speech import get_speech_manager
+from pycore.pyctl.speech.transcription_app import run_app, run_app_dual_source
 
 
 class SpeechTranscriptionThread(threading.Thread):
@@ -66,8 +68,6 @@ class SpeechTranscriptionThread(threading.Thread):
         })
 
         # Initialize speech manager
-        from pycore.pyctl.speech import get_speech_manager
-
         speech_manager = get_speech_manager()
         if not speech_manager.initialize():
             ColorPrint.red("[SpeechThread] Failed to initialize speech manager")
@@ -99,8 +99,6 @@ class SpeechTranscriptionThread(threading.Thread):
         """Run single-source transcription"""
         ColorPrint.blue("[SpeechThread] Running single-source mode...")
 
-        from pycore.pyctl.speech.transcription_app import run_app
-        from pycore.pyctl.speech import get_speech_manager
 
         # Run in this thread
         speech_manager = get_speech_manager()
@@ -110,8 +108,6 @@ class SpeechTranscriptionThread(threading.Thread):
         """Run dual-source transcription"""
         ColorPrint.blue("[SpeechThread] Running dual-source mode...")
 
-        from pycore.pyctl.speech.transcription_app import run_app_dual_source
-        from pycore.pyctl.speech import get_speech_manager
 
         # Run in this thread
         speech_manager = get_speech_manager()
@@ -169,7 +165,6 @@ class SpeechServiceThread(threading.Thread):
         })
 
         # Initialize speech manager
-        from pycore.pyctl.speech import get_speech_manager
         self._speech_manager = get_speech_manager()
 
         if not self._speech_manager.initialize():

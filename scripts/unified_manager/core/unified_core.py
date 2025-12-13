@@ -21,7 +21,10 @@ from dataclasses import dataclass, asdict
 # Import centralized variable management
 sys.path.append(str(Path(__file__).parent.parent / "utils"))
 from global_variables import GlobalVariableManager, global_vars
-from variable_keys import VariableKeys, StatusValues
+from variable_keys import VariableKeys, StatusValues, ActionValues
+
+# Import menu manager
+from menu_manager import MenuManager, MenuConfig
 
 
 @dataclass

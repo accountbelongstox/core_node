@@ -83,24 +83,13 @@ call_python_core() {
         return 1
     fi
 
-    # Capture both stdout and stderr
-    local python_output
-    local python_exit_code
+    # Run Python core (stderr goes to console for error messages)
+    python3 "$PYTHON_CORE" "$action" "$@"
+    local python_exit_code=$?
 
-    python_output=$(python3 "$PYTHON_CORE" "$action" "$@" 2>&1)
-    python_exit_code=$?
-
-    # Check for Python errors first
+    # Check for Python errors
     if [[ $python_exit_code -ne 0 ]]; then
         log_error "Python execution failed (exit code: $python_exit_code)"
-        if [[ -n "$python_output" ]]; then
-            echo ""
-            log_warning "Python error details:"
-            echo "$python_output" | while IFS= read -r line; do
-                log_info "  $line"
-            done
-            echo ""
-        fi
         return 1
     fi
 
@@ -168,7 +157,7 @@ load_platform_capabilities() {
 # Scan applications using Python core
 scan_applications() {
     log_header "Starting Application Scan"
-    log_info "Scanning directories: apps/, pyapps/, poly_apps/"
+    log_info "Scanning directories: apps/, pyapps/, poly_apps/..."
     echo ""
 
     if call_python_core "scan"; then
