@@ -145,7 +145,7 @@ program
     try {
       console.log(colorText('Fixing execution permissions...', 'blue'));
       await ensureExecutionPermissions();
-      console.log(colorText('✓ Execution permissions fixed successfully!', 'green'));
+      console.log(colorText('[OK] Execution permissions fixed successfully!', 'green'));
     } catch (error: any) {
       console.error(colorText(`Failed to fix permissions: ${error.message}`, 'red'));
       process.exit(1);
@@ -180,7 +180,7 @@ program
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
 
-      console.log(colorText(`✓ Port updated successfully to ${portNumber}`, 'green'));
+      console.log(colorText(`[OK] Port updated successfully to ${portNumber}`, 'green'));
       console.log(colorText(`Updated URL: ${config.url}`, 'blue'));
     } catch (error: any) {
       console.error(colorText(`Failed to update port: ${error.message}`, 'red'));
@@ -193,3 +193,4 @@ program.parse(process.argv);
 // If no command provided, show help
 if (!process.argv.slice(2).length) {
   program.outputHelp();
+}
