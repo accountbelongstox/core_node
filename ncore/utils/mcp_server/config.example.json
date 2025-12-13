@@ -1,0 +1,10 @@
+{
+  "services": {
+    "mcp-chrome": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:12306/mcp",
+      "description": "Chrome browser automation tools (28+ tools)"
+    }
+  }
+}

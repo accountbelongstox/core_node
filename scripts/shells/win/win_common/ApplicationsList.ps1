@@ -1650,18 +1650,6 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
             }
         )
     }
-    WeChatInput    = @{
-        PackageId            = "Tencent.WeType"
-        Exec                = "wetype_service.exe"
-        Name                = "WeChatInput"
-        Description         = "Intelligent input method by WeChat"
-        InstallType         = "winget"
-        ForceToInstallDir   = $false
-        VerifySuffix        = ""
-        AppCustomInstallDir = "C:\Program Files\Tencent\WeType\"
-        AdditionalKeywords  = @("wetype")
-        DesktopShortcuts    = @()
-    }
     Chrome         = @{
         PackageId           = "Google.Chrome"
         Exec               = "chrome.exe"

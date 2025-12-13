@@ -18,6 +18,30 @@ const ToolRegistry = require('./ToolRegistry');
 const DualModeRunner = require('./DualModeRunner');
 const SingleInstanceManager = require('./SingleInstanceManager');
 const MCPConfig = require('./config/mcp_config');
+const { start, stop, getServer } = require('./main');
+const { getInstance: getConfigLoader } = require('./config_loader');
+const ServiceManager = require('./service_manager');
+const StdioServer = require('./stdio_server');
+const HTTPServiceAdapter = require('./adapters/http_adapter');
+const ModuleServiceAdapter = require('./adapters/module_adapter');
+
+/**
+ * ncore MCP Server Module
+ *
+ * This module provides two architectures:
+ *
+ * 1. Original Architecture (MCPServerManager, ToolRegistry, etc.)
+ *    - Single MCP server with tool registration
+ *    - Session management and dual mode support
+ *    - Use: createMCPServer(), createToolRegistry(), etc.
+ *
+ * 2. Universal MCP Aggregator (New)
+ *    - Aggregates multiple MCP services (HTTP, Module)
+ *    - STDIO interface for Claude Desktop
+ *    - Service-based architecture with adapters
+ *    - Use: start(), stop(), getServer()
+ *    - CLI: node ncore/utils/mcp_server/main.js
+ */
 
 module.exports = {
     MCPServerManager,
@@ -26,6 +50,14 @@ module.exports = {
     DualModeRunner,
     SingleInstanceManager,
     MCPConfig,
+    start,
+    stop,
+    getServer,
+    getConfigLoader,
+    ServiceManager,
+    StdioServer,
+    HTTPServiceAdapter,
+    ModuleServiceAdapter,
 
     createMCPServer: (options = {}) => {
         return new MCPServerManager(options);

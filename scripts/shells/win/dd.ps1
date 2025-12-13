@@ -667,12 +667,57 @@ function Show-GitManagementMenu {
         Clear-Host
         Write-Host ""
         Write-ColorMessage -Message "==================== Git Management ====================" -Type "Info"
+
+        # Display current git working directory
+        $gitWorkingDir = $Global:CORE_NODE_DIR
+        $isGitRepo = $false
+
+        Push-Location
+        try {
+            Set-Location $gitWorkingDir
+            git rev-parse --git-dir 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $isGitRepo = $true
+                $currentBranch = git branch --show-current 2>$null
+                if (-not $currentBranch) {
+                    $currentBranch = "detached HEAD"
+                }
+
+                Write-Host ""
+                Write-ColorMessage -Message "Git Working Directory:" -Type "Info"
+                Write-Host "  Path:   $gitWorkingDir" -ForegroundColor Cyan
+                Write-Host "  Branch: $currentBranch" -ForegroundColor Green
+
+                # Show if there are uncommitted changes
+                $statusOutput = git status --porcelain 2>$null
+                if ($statusOutput) {
+                    $changedFiles = ($statusOutput | Measure-Object).Count
+                    Write-Host "  Status: $changedFiles file(s) modified" -ForegroundColor Yellow
+                } else {
+                    Write-Host "  Status: Clean working tree" -ForegroundColor Green
+                }
+            } else {
+                Write-Host ""
+                Write-ColorMessage -Message "Git Working Directory:" -Type "Info"
+                Write-Host "  Path:   $gitWorkingDir" -ForegroundColor Cyan
+                Write-Host "  Status: Not a git repository" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "  Error checking git status" -ForegroundColor Red
+        } finally {
+            Pop-Location
+        }
+
+        Write-Host ""
+        Write-ColorMessage -Message "--------------------------------------------------------" -Type "Info"
         Write-Host "  1. Get the latest git version (backup + commit + pull)"
         Write-Host "  2. Cleanup Git repository with BFG (remove large files)"
-        Write-Host "  3. Git time travel"
-        Write-Host "  4. Back"
+        Write-Host "  3. Git time travel (navigate commits interactively)"
+        Write-Host "  4. View git log"
+        Write-Host "  5. Show git status"
+        Write-Host "  6. Back"
         Write-ColorMessage -Message "========================================================" -Type "Info"
-        $choice = Read-Host "Select an option (1-4)"
+        $choice = Read-Host "Select an option (1-6)"
 
         switch ($choice) {
             "1" {
@@ -691,7 +736,10 @@ function Show-GitManagementMenu {
                     }
 
                     if ($pythonCommand) {
+                        Push-Location
+                        Set-Location $Global:CORE_NODE_DIR
                         & $pythonCommand $gitManagementScript
+                        Pop-Location
                     } else {
                         Write-ColorMessage -Message "Error: Python not found. Please install Python 3.6 or higher." -Type "Error"
                     }
@@ -701,16 +749,59 @@ function Show-GitManagementMenu {
                 Read-Host "Press Enter to return to Git Management menu"
             }
             "3" {
+                if (-not $isGitRepo) {
+                    Write-ColorMessage -Message "Error: Not a git repository. Cannot use git time travel." -Type "Error"
+                    Read-Host "Press Enter to return to Git Management menu"
+                    continue
+                }
+
                 $gitTimeTravelScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_time_travel.ps1"
                 Write-ColorMessage -Message "Launching Git Time Travel..." -Type "Info"
+                Write-ColorMessage -Message "Working directory: $gitWorkingDir" -Type "Info"
+
                 if (Test-Path $gitTimeTravelScript) {
+                    Push-Location
+                    Set-Location $gitWorkingDir
                     & powershell -NoProfile -ExecutionPolicy Bypass -File $gitTimeTravelScript
+                    Pop-Location
                 } else {
                     Write-ColorMessage -Message "Warning: Git time travel script not found at $gitTimeTravelScript" -Type "Warning"
                 }
                 Read-Host "Press Enter to return to Git Management menu"
             }
             "4" {
+                if (-not $isGitRepo) {
+                    Write-ColorMessage -Message "Error: Not a git repository." -Type "Error"
+                    Read-Host "Press Enter to return to Git Management menu"
+                    continue
+                }
+
+                Write-ColorMessage -Message "Git Log (last 20 commits):" -Type "Info"
+                Write-Host ""
+                Push-Location
+                Set-Location $gitWorkingDir
+                git log --oneline --graph --decorate -20
+                Pop-Location
+                Write-Host ""
+                Read-Host "Press Enter to return to Git Management menu"
+            }
+            "5" {
+                if (-not $isGitRepo) {
+                    Write-ColorMessage -Message "Error: Not a git repository." -Type "Error"
+                    Read-Host "Press Enter to return to Git Management menu"
+                    continue
+                }
+
+                Write-ColorMessage -Message "Git Status:" -Type "Info"
+                Write-Host ""
+                Push-Location
+                Set-Location $gitWorkingDir
+                git status
+                Pop-Location
+                Write-Host ""
+                Read-Host "Press Enter to return to Git Management menu"
+            }
+            "6" {
                 return
             }
             default {
