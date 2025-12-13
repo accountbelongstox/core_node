@@ -233,24 +233,35 @@ class TradingController:
                 continue
 
             # Save to SQLite (INSERT OR REPLACE handles duplicates)
-            for candle in candles_data:
-                self.db_manager.insert_historical_candle(coin_symbol, candle)
-            fetched_count = len(candles_data)
+            try:
+                for candle in candles_data:
+                    self.db_manager.insert_historical_candle(coin_symbol, candle)
+                fetched_count = len(candles_data)
 
-            # Load all data to Redis (including existing + new)
-            redis_loaded = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
+                # Load all data to Redis (including existing + new)
+                redis_loaded = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
 
-            print(f"[OK] fetched={fetched_count} loaded_to_redis={redis_loaded}")
-            loaded_count += 1
+                print(f"[OK] fetched={fetched_count} loaded_to_redis={redis_loaded}")
+                sys.stdout.flush()
+                loaded_count += 1
+            except Exception as e:
+                print(f"[FAIL] Error saving/loading: {e}")
+                sys.stdout.flush()
+                failed_count += 1
 
             # Rate limiting
             time.sleep(0.05)
 
         print("\n" + "-"*80)
+        sys.stdout.flush()
         print(f"Initialization complete: {loaded_count} coins loaded, {failed_count} failed")
+        sys.stdout.flush()
         print(f"SQLite: Historical data persisted")
+        sys.stdout.flush()
         print(f"Redis: {loaded_count} coins loaded and ready for calculations")
+        sys.stdout.flush()
         print("="*80 + "\n")
+        sys.stdout.flush()
 
     def _fetch_all_candles(self, inst_id: str, start_time: datetime, end_time: datetime) -> List:
         """
