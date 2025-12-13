@@ -481,6 +481,10 @@ class UnifiedAppManager:
             self.scan_applications()
             self.file_vars.write_status(StatusValues.SCAN_COMPLETE)
 
+        elif action == "interactive":
+            # Interactive menu mode - Python handles all UI
+            self.run_interactive_menu()
+
         elif action == "get_app_command":
             app_index = int(kwargs.get('app_index', 0))
             if 0 <= app_index < len(self.apps):
@@ -512,6 +516,149 @@ class UnifiedAppManager:
                     self.file_vars.write_status(StatusValues.ERROR_INVALID_SCRIPT)
             else:
                 self.file_vars.write_status(StatusValues.ERROR_INVALID_INDEX)
+
+    def run_interactive_menu(self) -> None:
+        """Run interactive menu loop in Python"""
+
+        # Create menu config from platform info
+        menu_config = MenuConfig(
+            enable_systemd=not self.system_info.is_windows,
+            enable_nginx=not self.system_info.is_windows,
+            enable_firewall=not self.system_info.is_windows,
+            enable_domain_proxy=not self.system_info.is_windows
+        )
+
+        # Create menu manager
+        menu = MenuManager(self.apps, menu_config, str(self.root_dir))
+
+        try:
+            while True:
+                # Show menu
+                menu.show_menu()
+
+                # Get user input
+                user_input = menu.get_user_input()
+
+                # Process input
+                action, app_index = menu.process_input(user_input)
+
+                if action == 'quit':
+                    menu.clear_screen()
+                    menu.log_warning("Exiting program")
+                    self.file_vars.write_var(VariableKeys.ACTION, ActionValues.QUIT)
+                    self.file_vars.write_status(StatusValues.MENU_EXIT)
+                    break
+
+                elif action == 'rescan':
+                    menu.clear_screen()
+                    menu.log_header("Rescanning Applications")
+                    print()
+                    self.scan_applications()
+                    menu.log_success(f"Application list refreshed - found {len(self.apps)} applications")
+                    print()
+                    menu.wait_for_key()
+
+                elif action == 'launch':
+                    if app_index is not None and 0 <= app_index < len(self.apps):
+                        app = self.apps[app_index]
+                        command = self.command_gen.generate_command(app)
+
+                        if not command:
+                            menu.show_error(f"No command available for {app.name}")
+                            menu.wait_for_key()
+                            continue
+
+                        # Write command and working directory to file variables
+                        self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                        self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                        self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                        self.file_vars.write_var(VariableKeys.ACTION, ActionValues.LAUNCH)
+                        self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                        menu.clear_screen()
+                        menu.log_header(f"Launching {app.name}")
+                        menu.log_info(f"Type: {app.type}")
+                        menu.log_info(f"Framework: {app.framework}")
+                        menu.log_info(f"Port: {app.port}")
+                        menu.log_info(f"Debug Mode: {app.debug_mode}")
+                        print()
+                        menu.log_info(f"Command: {command}")
+                        print()
+                        menu.log_success("Command prepared for execution")
+                        menu.log_info("Control will return to shell for execution")
+                        print()
+                        break  # Exit menu loop to let shell execute
+
+                elif action == 'service':
+                    if app_index is not None and 0 <= app_index < len(self.apps):
+                        app = self.apps[app_index]
+                        command = self.command_gen.generate_command(app)
+
+                        self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                        self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                        self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                        self.file_vars.write_var(VariableKeys.ACTION, ActionValues.SERVICE_CREATE)
+                        self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                        menu.clear_screen()
+                        menu.log_header("Creating SystemD Service")
+                        menu.log_info(f"App: {app.name}")
+                        menu.log_info(f"Port: {app.port}")
+                        print()
+                        menu.log_success("Service creation command prepared")
+                        print()
+                        break
+
+                elif action == 'proxy':
+                    if app_index is not None and 0 <= app_index < len(self.apps):
+                        app = self.apps[app_index]
+                        command = self.command_gen.generate_command(app)
+
+                        # Get domain from user
+                        print()
+                        domain = input(f"{menu.COLOR_WARNING}Enter domain (e.g., {app.name}.local): {menu.COLOR_RESET}").strip()
+
+                        if not domain:
+                            menu.show_error("Domain is required for proxy setup")
+                            menu.wait_for_key()
+                            continue
+
+                        self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                        self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                        self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                        self.file_vars.write_var(VariableKeys.ACTION, ActionValues.PROXY_CREATE)
+                        self.file_vars.write_var("DOMAIN", domain)
+                        self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                        menu.clear_screen()
+                        menu.log_header("Creating Service with Domain Proxy")
+                        menu.log_info(f"App: {app.name}")
+                        menu.log_info(f"Domain: {domain}")
+                        print()
+                        menu.log_success("Proxy creation command prepared")
+                        print()
+                        break
+
+                elif action == 'select':
+                    menu.log_success(f"Selected app #{app_index + 1}: {self.apps[app_index].name}")
+                    import time
+                    time.sleep(0.5)
+
+                elif action == 'invalid':
+                    available_commands = "L (launch), R (rescan), Q (quit)"
+                    if menu_config.enable_systemd:
+                        available_commands += ", C (create service)"
+                    if menu_config.enable_domain_proxy:
+                        available_commands += ", P (service + proxy)"
+
+                    menu.show_error(f"Unknown command: {user_input}")
+                    menu.log_info(f"Valid commands: {available_commands}")
+                    menu.log_info(f"Or enter an app number (1-{len(self.apps)})")
+                    import time
+                    time.sleep(2)
+
+        finally:
+            menu.restore_terminal()
 
 
 def main():
