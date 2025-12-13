@@ -83,7 +83,28 @@ call_python_core() {
         return 1
     fi
 
-    python3 "$PYTHON_CORE" "$action" "$@"
+    # Capture both stdout and stderr
+    local python_output
+    local python_exit_code
+
+    python_output=$(python3 "$PYTHON_CORE" "$action" "$@" 2>&1)
+    python_exit_code=$?
+
+    # Check for Python errors first
+    if [[ $python_exit_code -ne 0 ]]; then
+        log_error "Python execution failed (exit code: $python_exit_code)"
+        if [[ -n "$python_output" ]]; then
+            echo ""
+            log_warning "Python error details:"
+            echo "$python_output" | while IFS= read -r line; do
+                log_info "  $line"
+            done
+            echo ""
+        fi
+        return 1
+    fi
+
+    # Check status variable
     local status
     status=$(read_global_var "${VARIABLE_KEYS[STATUS]}")
 
@@ -147,13 +168,32 @@ load_platform_capabilities() {
 # Scan applications using Python core
 scan_applications() {
     log_header "Starting Application Scan"
+    log_info "Scanning directories: apps/, pyapps/, poly_apps/"
+    echo ""
 
     if call_python_core "scan"; then
         load_app_data
         load_platform_capabilities
-        log_success "Scan complete - found ${#APPS_NAME[@]} applications"
+
+        if [[ ${#APPS_NAME[@]} -eq 0 ]]; then
+            log_warning "Scan completed but no applications found"
+            log_info "Please check that application directories contain valid entry points"
+            log_info "(e.g., package.json, main.py, composer.json)"
+            echo ""
+            sleep 2
+        else
+            log_success "Scan complete - found ${#APPS_NAME[@]} applications"
+            sleep 0.5
+        fi
     else
-        log_error "Failed to scan applications"
+        log_error "Failed to scan applications - Python core error"
+        log_info "Please check:"
+        log_info "  1. Python 3 is installed and accessible"
+        log_info "  2. Core files exist in: $SCRIPT_PATH/core/"
+        log_info "  3. Configuration file exists: $SCRIPT_PATH/config/unified_config.ini"
+        echo ""
+        log_warning "Press any key to continue..."
+        read -n 1
         return 1
     fi
 }
@@ -167,6 +207,11 @@ show_menu() {
 
     if [[ ${#APPS_NAME[@]} -eq 0 ]]; then
         log_error "No applications found"
+        log_info "Searched directories: apps/, pyapps/, poly_apps/"
+        log_info "Make sure application directories contain valid entry points"
+        echo ""
+        log_warning "Press R to rescan or Q to quit"
+        echo ""
         return
     fi
 
@@ -327,8 +372,17 @@ create_service_with_proxy_for_current_app() {
 # Main program loop
 main() {
     # Initial scan
+    clear
+    log_header "dd.sh Unified App Manager >16 (Python Core)"
+    log_info "Initializing application manager..."
+    echo ""
+
     if ! scan_applications; then
         log_error "Initial application scan failed"
+        log_warning "Please fix the errors above and try again"
+        echo ""
+        log_info "Press any key to exit..."
+        read -n 1
         exit 1
     fi
 
@@ -378,12 +432,17 @@ main() {
             read -n 1
 
         elif [[ "$input_upper" == "R" ]]; then
+            clear
+            log_header "Rescanning Applications"
+            echo ""
             if scan_applications; then
-                log_success "Application list updated"
+                log_success "Application list refreshed successfully"
             else
-                log_error "Failed to rescan applications"
+                log_error "Failed to refresh application list"
             fi
-            sleep 1
+            echo ""
+            log_warning "Press any key to continue..."
+            read -n 1
 
         elif [[ "$input_upper" == "Q" || "$input_upper" == "QUIT" || "$input_upper" == "EXIT" ]]; then
             log_warning "Exiting program"
