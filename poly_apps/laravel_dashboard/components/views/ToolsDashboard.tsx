@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import BentoCard from '../BentoCard';
 import { TOOL_CATEGORIES, TOOL_UI_SCHEMAS } from '../../constants';
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Construction, Grid, Zap, Columns, Rows, UploadCloud, File as FileIcon, X, Trash2, Paperclip, Download } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Construction, Grid, Zap, Columns, Rows, UploadCloud, File as FileIcon, X, Trash2, Paperclip, Download, Star, History, BarChart3, Clock } from "lucide-react";
 import ToolWorkspace from '../tools/ToolWorkspace';
 import AgeCalculator from '../tools/AgeCalculator';
 import HexToRgb from '../tools/HexToRgb';
@@ -27,6 +27,20 @@ const ToolsDashboard: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeToolId, setActiveToolId] = useState<string | null>(null);
+    const [showFavorites, setShowFavorites] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    
+    // Favorites State
+    const [favorites, setFavorites] = useState<string[]>(() => {
+        const saved = localStorage.getItem('tool_favorites');
+        return saved ? JSON.parse(saved) : [];
+    });
+    
+    // History State
+    const [history, setHistory] = useState<Array<{ toolId: string; toolName: string; timestamp: number }>>(() => {
+        const saved = localStorage.getItem('tool_history');
+        return saved ? JSON.parse(saved) : [];
+    });
     
     // Clipboard File State
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([
@@ -68,9 +82,47 @@ const ToolsDashboard: React.FC = () => {
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Toggle favorite
+    const toggleFavorite = (toolId: string, e?: React.MouseEvent) => {
+        if (e) {
+            e.stopPropagation();
+        }
+        setFavorites(prev => {
+            const newFavorites = prev.includes(toolId)
+                ? prev.filter(id => id !== toolId)
+                : [...prev, toolId];
+            localStorage.setItem('tool_favorites', JSON.stringify(newFavorites));
+            return newFavorites;
+        });
+    };
+
+    // Add to history
+    const addToHistory = (toolId: string, toolName: string) => {
+        setHistory(prev => {
+            const filtered = prev.filter(item => item.toolId !== toolId);
+            const newHistory = [{ toolId, toolName, timestamp: Date.now() }, ...filtered].slice(0, 20);
+            localStorage.setItem('tool_history', JSON.stringify(newHistory));
+            return newHistory;
+        });
+    };
+
+    // Handle tool selection
+    const handleToolSelect = (toolId: string) => {
+        setActiveToolId(toolId);
+        const tool = TOOL_CATEGORIES.flatMap(cat => cat.tools).find(t => t.id === toolId);
+        if (tool) {
+            addToHistory(toolId, tool.name);
+        }
+    };
+
     // Filter tools logic
-    const filteredTools = TOOL_CATEGORIES.flatMap(cat => 
+    const allTools = TOOL_CATEGORIES.flatMap(cat => 
         cat.tools.map(tool => ({ ...tool, categoryName: cat.name, categoryIcon: cat.icon }))
+    );
+
+    const filteredTools = (showFavorites 
+        ? allTools.filter(tool => favorites.includes(tool.id))
+        : allTools
     ).filter(tool => {
         const matchesCategory = activeCategory === 'all' || 
             TOOL_CATEGORIES.find(c => c.id === activeCategory)?.tools.some(t => t.id === tool.id);
@@ -279,17 +331,31 @@ const ToolsDashboard: React.FC = () => {
                          {/* Icon Strip */}
                          <div className="w-16 flex-shrink-0 flex flex-col items-center py-2 gap-2 border-r border-white/5 bg-black/20 overflow-y-auto scrollbar-none">
                             <button 
-                                onClick={() => setActiveCategory('all')} 
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
+                                onClick={() => { setActiveCategory('all'); setShowFavorites(false); setShowHistory(false); }} 
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === 'all' && !showFavorites && !showHistory ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
                                 title="All Tools"
                             >
                                 <Grid size={18} />
                             </button>
+                            <button 
+                                onClick={() => { setShowFavorites(true); setShowHistory(false); setActiveCategory('all'); }} 
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showFavorites ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-amber-400 hover:bg-white/5'}`}
+                                title="Favorites"
+                            >
+                                <Star size={18} fill={showFavorites || favorites.length > 0 ? 'currentColor' : 'none'} />
+                            </button>
+                            <button 
+                                onClick={() => { setShowHistory(true); setShowFavorites(false); setActiveCategory('all'); }} 
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showHistory ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:text-emerald-400 hover:bg-white/5'}`}
+                                title="History"
+                            >
+                                <History size={18} />
+                            </button>
                             {TOOL_CATEGORIES.map(cat => (
                                 <button 
                                     key={cat.id} 
-                                    onClick={() => setActiveCategory(cat.id)} 
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === cat.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
+                                    onClick={() => { setActiveCategory(cat.id); setShowFavorites(false); setShowHistory(false); }} 
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === cat.id && !showFavorites && !showHistory ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
                                     title={cat.name}
                                 >
                                     <cat.icon size={18} />
@@ -299,26 +365,76 @@ const ToolsDashboard: React.FC = () => {
 
                          {/* Expanded List */}
                          <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/50">
-                             <div className="mb-2 px-2 pt-2">
+                             <div className="mb-2 px-2 pt-2 flex items-center justify-between">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                    {activeCategory === 'all' ? 'All Utilities' : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
+                                    {showFavorites ? 'Favorites' : 
+                                     showHistory ? 'Recent History' :
+                                     activeCategory === 'all' ? 'All Utilities' : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
                                 </h3>
+                                {showHistory && history.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setHistory([]);
+                                            localStorage.removeItem('tool_history');
+                                        }}
+                                        className="text-[10px] text-slate-500 hover:text-red-400"
+                                        title="Clear History"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                              </div>
                              
                              <div className="space-y-1">
-                                {filteredTools.map(tool => (
-                                    <button
-                                        key={tool.id}
-                                        onClick={() => { setActiveToolId(tool.id); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === tool.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
-                                    >
-                                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeToolId === tool.id ? 'bg-indigo-500' : 'bg-slate-600'}`} />
-                                        <span className="truncate">{tool.name}</span>
-                                    </button>
-                                ))}
-                                {filteredTools.length === 0 && (
+                                {showHistory ? (
+                                    history.length > 0 ? (
+                                        history.map((item, idx) => {
+                                            const tool = allTools.find(t => t.id === item.toolId);
+                                            if (!tool) return null;
+                                            return (
+                                                <button
+                                                    key={`${item.toolId}-${idx}`}
+                                                    onClick={() => handleToolSelect(item.toolId)}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === item.toolId ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                                                >
+                                                    <Clock size={12} className="text-slate-500 flex-shrink-0" />
+                                                    <span className="truncate flex-1">{item.toolName}</span>
+                                                    <button
+                                                        onClick={(e) => toggleFavorite(item.toolId, e)}
+                                                        className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${favorites.includes(item.toolId) ? 'text-amber-400' : 'text-slate-500'}`}
+                                                    >
+                                                        <Star size={12} fill={favorites.includes(item.toolId) ? 'currentColor' : 'none'} />
+                                                    </button>
+                                                </button>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="p-4 text-center text-slate-500 text-xs">
+                                            No history yet.
+                                        </div>
+                                    )
+                                ) : (
+                                    filteredTools.map(tool => (
+                                        <button
+                                            key={tool.id}
+                                            onClick={() => handleToolSelect(tool.id)}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === tool.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                                        >
+                                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeToolId === tool.id ? 'bg-indigo-500' : 'bg-slate-600'}`} />
+                                            <span className="truncate flex-1">{tool.name}</span>
+                                            <button
+                                                onClick={(e) => toggleFavorite(tool.id, e)}
+                                                className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${favorites.includes(tool.id) ? 'text-amber-400' : 'text-slate-500'}`}
+                                                title={favorites.includes(tool.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                            >
+                                                <Star size={12} fill={favorites.includes(tool.id) ? 'currentColor' : 'none'} />
+                                            </button>
+                                        </button>
+                                    ))
+                                )}
+                                {!showHistory && filteredTools.length === 0 && (
                                     <div className="p-4 text-center text-slate-500 text-xs">
-                                        No tools found.
+                                        {showFavorites ? 'No favorites yet.' : 'No tools found.'}
                                     </div>
                                 )}
                              </div>
@@ -326,8 +442,26 @@ const ToolsDashboard: React.FC = () => {
                     </div>
                     
                     {/* Footer Info */}
-                    <div className="p-3 border-t border-white/10 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-slate-600 text-center">
-                        {filteredTools.length} Tools Available
+                    <div className="p-3 border-t border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="text-[10px] text-slate-600 text-center mb-2">
+                            {showHistory ? `${history.length} Recent` : 
+                             showFavorites ? `${favorites.length} Favorites` :
+                             `${filteredTools.length} Tools Available`}
+                        </div>
+                        <div className="flex items-center justify-center gap-3 text-[10px] text-slate-600">
+                            <div className="flex items-center gap-1">
+                                <Star size={10} className={favorites.length > 0 ? 'text-amber-400' : ''} />
+                                <span>{favorites.length}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <History size={10} className={history.length > 0 ? 'text-emerald-400' : ''} />
+                                <span>{history.length}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <BarChart3 size={10} />
+                                <span>{allTools.length}</span>
+                            </div>
+                        </div>
                     </div>
                 </BentoCard>
             </div>
