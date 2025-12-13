@@ -9,18 +9,27 @@ import VocabularyLearning from './components/views/VocabularyLearning';
 import MCPManager from './components/views/MCPManager';
 import OctaneTasks from './components/views/OctaneTasks';
 import ServerManager from './components/views/ServerManager';
+import Settings from './components/views/Settings';
 import LoginModal from './components/LoginModal';
+import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
+import { apiService } from './services/apiService';
 import { ViewType, Language, Theme } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
 import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
 
-const App: React.FC = () => {
-  // Global State
+// Internal App Component (uses ApiConfigContext)
+const AppContent: React.FC = () => {
+  const { config } = useApiConfig();
   const [activeView, setActiveView] = useState<ViewType>(ViewType.MEDIA_BROWSER);
   const [lang, setLang] = useState<Language>('en');
   const [theme, setTheme] = useState<Theme>('dark');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Sync API config to apiService whenever it changes
+  useEffect(() => {
+    apiService.setConfig(config.baseUrl, config.apiKey);
+  }, [config]);
 
   // Apply Theme Effect
   useEffect(() => {
@@ -62,7 +71,7 @@ const App: React.FC = () => {
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
-        return <ToolsDashboard />;
+        return <ToolsDashboard lang={lang} />;
       case ViewType.API_TESTER:
         return <ApiTester />;
       case ViewType.SYSTEM_INFO:
@@ -75,6 +84,8 @@ const App: React.FC = () => {
         return <OctaneTasks lang={lang} />;
       case ViewType.SERVER_MANAGER:
         return <ServerManager lang={lang} />;
+      case ViewType.SETTINGS:
+        return <Settings lang={lang} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -96,6 +107,7 @@ const App: React.FC = () => {
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
       case ViewType.OCTANE_TASKS: return t.header.titles.octane;
       case ViewType.SERVER_MANAGER: return t.header.titles.server;
+      case ViewType.SETTINGS: return t.header.titles.settings;
       default: return APP_NAME;
     }
   };
@@ -214,7 +226,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Login Modal */}
-      <LoginModal 
+      <LoginModal
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)}
         onLogin={handleLoginSuccess}
@@ -222,6 +234,15 @@ const App: React.FC = () => {
       />
 
     </div>
+  );
+};
+
+// Main App Component with ApiConfigProvider
+const App: React.FC = () => {
+  return (
+    <ApiConfigProvider>
+      <AppContent />
+    </ApiConfigProvider>
   );
 };
 

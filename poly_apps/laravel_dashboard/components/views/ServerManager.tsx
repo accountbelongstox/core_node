@@ -112,6 +112,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   });
 
   const t = TRANSLATIONS[lang].server;
+  const messages = t.messages || {};
 
   // Load Nginx Sites
   const loadNginxSites = async () => {
@@ -302,38 +303,38 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         staging
       });
       if (response.success) {
-        alert(response.data?.message || 'Certificate generation started');
+        alert(response.data?.message || messages.cert_generation_started || 'Certificate generation started');
         setShowGenerateCert(false);
         await loadSSLCertificates();
       }
     } catch (error: any) {
-      alert(error.message || 'Failed to generate certificate');
+      alert(error.message || messages.failed_to_generate_cert || 'Failed to generate certificate');
     }
   };
 
   const handleRenewAllCertificates = async () => {
-    if (!confirm('Are you sure you want to renew all certificates?')) return;
+    if (!confirm(messages.confirm_renew_certs || 'Are you sure you want to renew all certificates?')) return;
     try {
       const response = await apiService.renewSSLCertificates(true);
       if (response.success) {
-        alert(response.data?.message || 'Certificate renewal started');
+        alert(response.data?.message || messages.cert_renewal_started || 'Certificate renewal started');
         await loadSSLCertificates();
       }
     } catch (error: any) {
-      alert(error.message || 'Failed to renew certificates');
+      alert(error.message || messages.failed_to_renew_certs || 'Failed to renew certificates');
     }
   };
 
   const handleInstallCertbot = async () => {
-    if (!confirm('Are you sure you want to install Certbot?')) return;
+    if (!confirm(messages.confirm_install_certbot || 'Are you sure you want to install Certbot?')) return;
     try {
       const response = await apiService.installCertbot();
       if (response.success) {
-        alert(response.data?.message || 'Certbot installation started');
+        alert(response.data?.message || messages.certbot_installation_started || 'Certbot installation started');
         await loadCertbotStatus();
       }
     } catch (error: any) {
-      alert(error.message || 'Failed to install Certbot');
+      alert(error.message || messages.failed_to_install_certbot || 'Failed to install Certbot');
     }
   };
 
@@ -387,7 +388,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.reloadNginx();
       if (response.success) {
-        alert(response.data?.message || 'Nginx reloaded successfully');
+        alert(response.data?.message || messages.nginx_reloaded || 'Nginx reloaded successfully');
       }
     } catch (error) {
       console.error('Failed to reload nginx:', error);
@@ -395,12 +396,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   };
 
   const handleDeleteSite = async (siteName: string) => {
-    if (!confirm(`Are you sure you want to delete site: ${siteName}?`)) return;
+    const confirmMsg = (messages.confirm_delete_site || 'Are you sure you want to delete site: {site}?').replace('{site}', siteName);
+    if (!confirm(confirmMsg)) return;
     try {
       const response = await apiService.deleteNginxSite(siteName);
       if (response.success) {
         await loadNginxSites();
-        alert(response.data?.message || 'Site deleted successfully');
+        alert(response.data?.message || messages.site_deleted || 'Site deleted successfully');
       }
     } catch (error) {
       console.error('Failed to delete site:', error);
@@ -412,9 +414,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.testNginxConfig();
       if (response.success && response.data) {
         if (response.data.valid) {
-          alert('Nginx configuration is valid!');
+          alert(messages.nginx_config_valid || 'Nginx configuration is valid!');
         } else {
-          alert(`Configuration errors:\n${response.data.errors.join('\n')}`);
+          alert(`${messages.nginx_config_errors || 'Configuration errors:'}\n${response.data.errors.join('\n')}`);
         }
       }
     } catch (error) {
@@ -1263,13 +1265,14 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     try {
       const response = await apiService.deployUnifiedApp({ app_name: appName, action });
       if (response.success) {
-        alert(`Action ${action} completed`);
+        const actionMsg = (messages.action_completed || 'Action {action} completed').replace('{action}', action);
+        alert(actionMsg);
         if (selectedApp === appName) {
           loadAppStatus(appName);
         }
       }
     } catch (error: any) {
-      alert(error.message || 'Operation failed');
+      alert(error.message || messages.operation_failed || 'Operation failed');
     }
   };
 
