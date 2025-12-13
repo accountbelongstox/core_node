@@ -7,7 +7,12 @@ import {
   Wrench, 
   Server, 
   Settings,
-  Rocket
+  Rocket,
+  Info,
+  BookOpen,
+  Boxes,
+  Timer,
+  Network
 } from "lucide-react";
 
 interface SidebarProps {
@@ -17,10 +22,15 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
   { id: ViewType.MEDIA_BROWSER, icon: Film, labelKey: 'media' },
   { id: ViewType.CODE_BROWSER, icon: Code2, labelKey: 'code' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
-  { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
+  { id: ViewType.SYSTEM_INFO, icon: Info, labelKey: 'system' },
+  { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
+  { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
+  { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
+  { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 

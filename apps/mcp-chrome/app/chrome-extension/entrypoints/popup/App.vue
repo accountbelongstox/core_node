@@ -21,7 +21,7 @@
                 @click="refreshServerStatus"
                 :title="getMessage('refreshStatusButton')"
               >
-                🔄
+                [REFRESH]
               </button>
             </div>
             <div class="status-info">
@@ -112,7 +112,7 @@
         />
         <div v-if="modelInitializationStatus === 'error'" class="error-card">
           <div class="error-content">
-            <div class="error-icon">⚠️</div>
+            <div class="error-icon">[!]</div>
             <div class="error-details">
               <p class="error-title">{{ getMessage('semanticEngineInitFailedStatus') }}</p>
               <p class="error-message">{{
@@ -126,7 +126,7 @@
             @click="retryModelInitialization"
             :disabled="isModelSwitching || isModelDownloading"
           >
-            <span>🔄</span>
+            <span>[RETRY]</span>
             <span>{{ getMessage('retryButton') }}</span>
           </button>
         </div>
@@ -254,7 +254,7 @@
         getMessage('clearDataList3'),
       ]"
       :warning="getMessage('clearDataIrreversibleWarning')"
-      icon="⚠️"
+      icon="[!]"
       :confirm-text="getMessage('confirmClearButton')"
       :cancel-text="getMessage('cancelButton')"
       :confirming-text="getMessage('clearingStatus')"
@@ -552,7 +552,7 @@ const saveSemanticEngineState = async () => {
     // eslint-disable-next-line no-undef
     await chrome.storage.local.set({ semanticEngineState });
   } catch (error) {
-    console.error('保存语义引擎状态失败:', error);
+    console.error('Failed to save semantic engine state:', error);
   }
 };
 
@@ -561,7 +561,7 @@ const initializeSemanticEngine = async () => {
 
   const isReinitialization = semanticEngineStatus.value === 'ready';
   console.log(
-    `🚀 User triggered semantic engine ${isReinitialization ? 'reinitialization' : 'initialization'}`,
+    `[LAUNCH] User triggered semantic engine ${isReinitialization ? 'reinitialization' : 'initialization'}`,
   );
 
   isSemanticEngineInitializing.value = true;
@@ -580,7 +580,7 @@ const initializeSemanticEngine = async () => {
         type: BACKGROUND_MESSAGE_TYPES.INITIALIZE_SEMANTIC_ENGINE,
       })
       .catch((error) => {
-        console.error('❌ Error sending semantic engine initialization request:', error);
+        console.error('[X] Error sending semantic engine initialization request:', error);
       });
 
     startSemanticEngineStatusPolling();
@@ -589,7 +589,7 @@ const initializeSemanticEngine = async () => {
       ? getMessage('processingStatus')
       : getMessage('processingStatus');
   } catch (error: any) {
-    console.error('❌ Failed to send initialization request:', error);
+    console.error('[X] Failed to send initialization request:', error);
     semanticEngineStatus.value = 'error';
     semanticEngineInitProgress.value = `Failed to send initialization request: ${error?.message || 'Unknown error'}`;
 
@@ -665,7 +665,7 @@ const checkSemanticEngineStatus = async () => {
 const retryModelInitialization = async () => {
   if (!currentModel.value) return;
 
-  console.log('🔄 Retrying model initialization...');
+  console.log('[RETRY] Retrying model initialization...');
 
   modelErrorMessage.value = '';
   modelErrorType.value = '';
@@ -689,7 +689,7 @@ const checkNativeConnection = async () => {
     const response = await chrome.runtime.sendMessage({ type: 'ping_native' });
     nativeConnectionStatus.value = response?.connected ? 'connected' : 'disconnected';
   } catch (error) {
-    console.error('检测 Native 连接状态失败:', error);
+    console.error('Failed to check Native connection status:', error);
     nativeConnectionStatus.value = 'disconnected';
   }
 };
@@ -708,7 +708,7 @@ const checkServerStatus = async () => {
       nativeConnectionStatus.value = response.connected ? 'connected' : 'disconnected';
     }
   } catch (error) {
-    console.error('检测服务器状态失败:', error);
+    console.error('Failed to check server status:', error);
   }
 };
 
@@ -726,21 +726,21 @@ const refreshServerStatus = async () => {
       nativeConnectionStatus.value = response.connected ? 'connected' : 'disconnected';
     }
   } catch (error) {
-    console.error('刷新服务器状态失败:', error);
+    console.error('Failed to refresh server status:', error);
   }
 };
 
 const copyMcpConfig = async () => {
   try {
     await navigator.clipboard.writeText(mcpConfigJson.value);
-    copyButtonText.value = '✅' + getMessage('configCopiedNotification');
+    copyButtonText.value = '[OK] ' + getMessage('configCopiedNotification');
 
     setTimeout(() => {
       copyButtonText.value = getMessage('copyConfigButton');
     }, 2000);
   } catch (error) {
-    console.error('复制配置失败:', error);
-    copyButtonText.value = '❌' + getMessage('networkErrorMessage');
+    console.error('Failed to copy configuration:', error);
+    copyButtonText.value = '[X] ' + getMessage('networkErrorMessage');
 
     setTimeout(() => {
       copyButtonText.value = getMessage('copyConfigButton');
@@ -757,7 +757,7 @@ const testNativeConnection = async () => {
       await chrome.runtime.sendMessage({ type: 'disconnect_native' });
       nativeConnectionStatus.value = 'disconnected';
     } else {
-      console.log(`尝试连接到端口: ${nativeServerPort.value}`);
+      console.log(`Attempting to connect to port: ${nativeServerPort.value}`);
       // eslint-disable-next-line no-undef
       const response = await chrome.runtime.sendMessage({
         type: 'connectNative',
@@ -765,15 +765,15 @@ const testNativeConnection = async () => {
       });
       if (response && response.success) {
         nativeConnectionStatus.value = 'connected';
-        console.log('连接成功:', response);
+        console.log('Connection successful:', response);
         await savePortPreference(nativeServerPort.value);
       } else {
         nativeConnectionStatus.value = 'disconnected';
-        console.error('连接失败:', response);
+        console.error('Connection failed:', response);
       }
     }
   } catch (error) {
-    console.error('测试连接失败:', error);
+    console.error('Failed to test connection:', error);
     nativeConnectionStatus.value = 'disconnected';
   } finally {
     isConnecting.value = false;
@@ -792,26 +792,26 @@ const loadModelPreference = async () => {
 
     if (result.selectedModel) {
       const storedModel = result.selectedModel as string;
-      console.log('📋 Stored model from storage:', storedModel);
+      console.log('[INFO] Stored model from storage:', storedModel);
 
       if (PREDEFINED_MODELS[storedModel as ModelPreset]) {
         currentModel.value = storedModel as ModelPreset;
-        console.log(`✅ Loaded valid model: ${currentModel.value}`);
+        console.log(`[OK] Loaded valid model: ${currentModel.value}`);
       } else {
         console.warn(
-          `⚠️ Stored model "${storedModel}" not found in PREDEFINED_MODELS, using default`,
+          `[WARNING] Stored model "${storedModel}" not found in PREDEFINED_MODELS, using default`,
         );
         currentModel.value = 'multilingual-e5-small';
         await saveModelPreference(currentModel.value);
       }
     } else {
-      console.log('⚠️ No model found in storage, using default');
+      console.log('[WARNING] No model found in storage, using default');
       currentModel.value = 'multilingual-e5-small';
       await saveModelPreference(currentModel.value);
     }
 
     selectedVersion.value = 'quantized';
-    console.log('✅ Using quantized version (fixed)');
+    console.log('[OK] Using quantized version (fixed)');
 
     await saveVersionPreference('quantized');
 
@@ -850,7 +850,7 @@ const loadModelPreference = async () => {
       semanticEngineStatus.value = 'idle';
     }
   } catch (error) {
-    console.error('❌ 加载模型偏好失败:', error);
+    console.error('[X] Failed to load model preference:', error);
   }
 };
 
@@ -859,7 +859,7 @@ const saveModelPreference = async (model: ModelPreset) => {
     // eslint-disable-next-line no-undef
     await chrome.storage.local.set({ selectedModel: model });
   } catch (error) {
-    console.error('保存模型偏好失败:', error);
+    console.error('Failed to save model preference:', error);
   }
 };
 
@@ -868,7 +868,7 @@ const saveVersionPreference = async (version: 'full' | 'quantized' | 'compressed
     // eslint-disable-next-line no-undef
     await chrome.storage.local.set({ selectedVersion: version });
   } catch (error) {
-    console.error('保存版本偏好失败:', error);
+    console.error('Failed to save version preference:', error);
   }
 };
 
@@ -876,9 +876,9 @@ const savePortPreference = async (port: number) => {
   try {
     // eslint-disable-next-line no-undef
     await chrome.storage.local.set({ nativeServerPort: port });
-    console.log(`端口偏好已保存: ${port}`);
+    console.log(`Port preference saved: ${port}`);
   } catch (error) {
-    console.error('保存端口偏好失败:', error);
+    console.error('Failed to save port preference:', error);
   }
 };
 
@@ -888,10 +888,10 @@ const loadPortPreference = async () => {
     const result = await chrome.storage.local.get(['nativeServerPort']);
     if (result.nativeServerPort) {
       nativeServerPort.value = result.nativeServerPort;
-      console.log(`端口偏好已加载: ${result.nativeServerPort}`);
+      console.log(`Port preference loaded: ${result.nativeServerPort}`);
     }
   } catch (error) {
-    console.error('加载端口偏好失败:', error);
+    console.error('Failed to load port preference:', error);
   }
 };
 
@@ -906,7 +906,7 @@ const saveModelState = async () => {
     // eslint-disable-next-line no-undef
     await chrome.storage.local.set({ modelState });
   } catch (error) {
-    console.error('保存模型状态失败:', error);
+    console.error('Failed to save model state:', error);
   }
 };
 
@@ -946,7 +946,7 @@ const startModelStatusMonitoring = () => {
         }
       }
     } catch (error) {
-      console.error('获取模型状态失败:', error);
+      console.error('Failed to get model status:', error);
     }
   }, 1000);
 };
@@ -984,7 +984,7 @@ const refreshStorageStats = async () => {
 
   isRefreshingStats.value = true;
   try {
-    console.log('🔄 Refreshing storage statistics...');
+    console.log('[REFRESH] Refreshing storage statistics...');
 
     // eslint-disable-next-line no-undef
     const response = await chrome.runtime.sendMessage({
@@ -999,9 +999,9 @@ const refreshStorageStats = async () => {
         indexSize: response.stats.indexSize || 0,
         isInitialized: response.stats.isInitialized || false,
       };
-      console.log('✅ Storage stats refreshed:', storageStats.value);
+      console.log('[OK] Storage stats refreshed:', storageStats.value);
     } else {
-      console.error('❌ Failed to get storage stats:', response?.error);
+      console.error('[X] Failed to get storage stats:', response?.error);
       storageStats.value = {
         indexedPages: 0,
         totalDocuments: 0,
@@ -1011,7 +1011,7 @@ const refreshStorageStats = async () => {
       };
     }
   } catch (error) {
-    console.error('❌ Error refreshing storage stats:', error);
+    console.error('[X] Error refreshing storage stats:', error);
     storageStats.value = {
       indexedPages: 0,
       totalDocuments: 0,
@@ -1035,7 +1035,7 @@ const confirmClearAllData = async () => {
   clearDataProgress.value = getMessage('clearingStatus');
 
   try {
-    console.log('🗑️ Starting to clear all data...');
+    console.log('[DELETE] Starting to clear all data...');
 
     // eslint-disable-next-line no-undef
     const response = await chrome.runtime.sendMessage({
@@ -1044,7 +1044,7 @@ const confirmClearAllData = async () => {
 
     if (response && response.success) {
       clearDataProgress.value = getMessage('dataClearedNotification');
-      console.log('✅ All data cleared successfully');
+      console.log('[OK] All data cleared successfully');
 
       await refreshStorageStats();
 
@@ -1056,7 +1056,7 @@ const confirmClearAllData = async () => {
       throw new Error(response?.error || 'Failed to clear data');
     }
   } catch (error: any) {
-    console.error('❌ Failed to clear all data:', error);
+    console.error('[X] Failed to clear all data:', error);
     clearDataProgress.value = `Failed to clear data: ${error?.message || 'Unknown error'}`;
 
     setTimeout(() => {
@@ -1068,10 +1068,10 @@ const confirmClearAllData = async () => {
 };
 
 const switchModel = async (newModel: ModelPreset) => {
-  console.log(`🔄 switchModel called with newModel: ${newModel}`);
+  console.log(`[SWITCH] switchModel called with newModel: ${newModel}`);
 
   if (isModelSwitching.value) {
-    console.log('⏸️ Model switch already in progress, skipping');
+    console.log('[PAUSE] Model switch already in progress, skipping');
     return;
   }
 
@@ -1082,7 +1082,7 @@ const switchModel = async (newModel: ModelPreset) => {
   const newModelInfo = getModelInfo(newModel);
   const isDifferentDimension = currentModelInfo.dimension !== newModelInfo.dimension;
 
-  console.log(`📊 Switch analysis:`);
+  console.log(`[STATS] Switch analysis:`);
   console.log(`   - Same model: ${isSameModel} (${currentModel.value} -> ${newModel})`);
   console.log(
     `   - Current dimension: ${currentModelInfo.dimension}, New dimension: ${newModelInfo.dimension}`,
@@ -1090,7 +1090,7 @@ const switchModel = async (newModel: ModelPreset) => {
   console.log(`   - Different dimension: ${isDifferentDimension}`);
 
   if (isSameModel && !isDifferentDimension) {
-    console.log('✅ Same model and dimension - no need to switch');
+    console.log('[OK] Same model and dimension - no need to switch');
     return;
   }
 
@@ -1098,9 +1098,9 @@ const switchModel = async (newModel: ModelPreset) => {
   if (!isSameModel) switchReasons.push('different model');
   if (isDifferentDimension) switchReasons.push('different dimension');
 
-  console.log(`🚀 Switching model due to: ${switchReasons.join(', ')}`);
+  console.log(`[LAUNCH] Switching model due to: ${switchReasons.join(', ')}`);
   console.log(
-    `📋 Model: ${currentModel.value} (${currentModelInfo.dimension}D) -> ${newModel} (${newModelInfo.dimension}D)`,
+    `[INFO] Model: ${currentModel.value} (${currentModelInfo.dimension}D) -> ${newModel} (${newModelInfo.dimension}D)`,
   );
 
   isModelSwitching.value = true;
@@ -1132,7 +1132,7 @@ const switchModel = async (newModel: ModelPreset) => {
       currentModel.value = newModel;
       modelSwitchProgress.value = getMessage('successNotification');
       console.log(
-        '模型切换成功:',
+        'Model switch successful:',
         newModel,
         'version: quantized',
         'dimension:',
@@ -1150,13 +1150,13 @@ const switchModel = async (newModel: ModelPreset) => {
       throw new Error(response?.error || 'Model switch failed');
     }
   } catch (error: any) {
-    console.error('模型切换失败:', error);
+    console.error('Model switch failed:', error);
     modelSwitchProgress.value = `Model switch failed: ${error?.message || 'Unknown error'}`;
 
     modelInitializationStatus.value = 'error';
     isModelDownloading.value = false;
 
-    const errorMessage = error?.message || '未知错误';
+    const errorMessage = error?.message || 'Unknown error';
     if (
       errorMessage.includes('network') ||
       errorMessage.includes('fetch') ||

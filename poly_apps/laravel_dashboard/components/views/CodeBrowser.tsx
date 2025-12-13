@@ -1,9 +1,21 @@
-import React, { useState } from 'react';
-import BentoCard from '../BentoCard';
-import FloatingTaskPlayer from '../FloatingTaskPlayer';
-import { MOCK_CODE_TREE, MOCK_TASKS } from '../../constants';
-import { TaskItem } from '../../types';
-import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../../services/apiService';
+import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../types';
+import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight, ChevronRight, ChevronDown, Eye, Save, Loader2, AlertCircle } from "lucide-react";
+import { commonClasses } from '../../styles/theme';
+
+interface CodeBrowserProps {
+  lang?: Language;
+}
+
+interface FileTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  children?: FileTreeNode[];
+  isOpen?: boolean;
+}
 
 const CodeLine = ({ num, content }: { num: number, content: string }) => (
     <div className="flex hover:bg-white/5 group">
@@ -12,42 +24,35 @@ const CodeLine = ({ num, content }: { num: number, content: string }) => (
     </div>
 );
 
-const MOCK_CODE_CONTENT = `import React, { useState, useEffect } from 'react';
-import { createStore } from './store';
+const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
+    const [fileTree, setFileTree] = useState<AsyncState<ServerFileNode[]>>({
+        data: null,
+        loading: false,
+        error: null,
+        status: 'idle'
+    });
+    const [selectedFile, setSelectedFile] = useState<ServerFileNode | null>(null);
+    const [fileContent, setFileContent] = useState<AsyncState<FilePreview>>({
+        data: null,
+        loading: false,
+        error: null,
+        status: 'idle'
+    });
+    const [tasks, setTasks] = useState<AsyncState<TaskCategory[]>>({
+        data: null,
+        loading: false,
+        error: null,
+        status: 'idle'
+    });
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [categoryTasks, setCategoryTasks] = useState<AsyncState<DispatchTask[]>>({
+        data: null,
+        loading: false,
+        error: null,
+        status: 'idle'
+    });
 
-// Core initialization for the neural interface
-export class NeuralLink {
-  private connected: boolean = false;
-  private readonly synapseId: string;
-
-  constructor(id: string) {
-    this.synapseId = id;
-    this.initializeConnection();
-  }
-
-  /** 
-   * Establishes secure handshake with the core 
-   */
-  private async initializeConnection(): Promise<void> {
-    try {
-      console.log(\`Initializing synapse \${this.synapseId}...\`);
-      await this.handshake();
-      this.connected = true;
-      this.startHeartbeat();
-    } catch (err) {
-      console.error("Critical failure in synapse link", err);
-      // Fallback to local cache
-      this.enableOfflineMode();
-    }
-  }
-
-  public getStatus(): string {
-    return this.connected ? 'ONLINE' : 'OFFLINE';
-  }
-}`;
-
-const CodeBrowser: React.FC = () => {
-    // State for Floating Task Windows
+    // State for Floating Task Windows (kept for potential future use)
     const [openTasks, setOpenTasks] = useState<string[]>([]);
     const [zIndices, setZIndices] = useState<Record<string, number>>({});
     const [topZ, setTopZ] = useState(100);

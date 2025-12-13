@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Redis Cache Manager - High-Performance In-Memory Cache
-Redis缓存管理器 - 高性能内存缓存
+RedisCache Manager - High-Performance In-Memory Cache
 
 Features:
 - Store price data in Redis for fast access

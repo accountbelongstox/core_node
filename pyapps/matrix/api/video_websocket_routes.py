@@ -141,6 +141,30 @@ async def h264_video_stream(websocket: WebSocket, device_id: str):
                     await video_service.resume_stream(streaming_serial, websocket)
                 else:
                     ColorPrint.yellow(f"[VideoWebSocket] Cannot resume - no active stream")
+            elif command == 'request_config':
+                # Client requests cached config frame (for fast reconnection)
+                ColorPrint.blue(f"[VideoWebSocket] Config frame requested by {websocket.client}")
+                if streaming_serial:
+                    await video_service.send_cached_config_frame(streaming_serial, websocket)
+                else:
+                    ColorPrint.yellow(f"[VideoWebSocket] Cannot send config - no active stream")
+                    await websocket.send_json({
+                        "type": "config.not_available",
+                        "message": "No active stream, cannot send config frame"
+                    })
+            elif command == 'request_keyframe':
+                # Client requests keyframe (for fast synchronization after reconnect)
+                ColorPrint.blue(f"[VideoWebSocket] Keyframe requested by {websocket.client}")
+                if streaming_serial:
+                    # Mark this client as needing keyframe sync
+                    # Next keyframe will be sent to this client
+                    video_service.mark_client_needs_keyframe(streaming_serial, websocket)
+                    await websocket.send_json({
+                        "type": "keyframe.requested",
+                        "message": "Next keyframe will be sent to you"
+                    })
+                else:
+                    ColorPrint.yellow(f"[VideoWebSocket] Cannot request keyframe - no active stream")
             elif command == 'stop_stream':
                 ColorPrint.yellow(f"[VideoWebSocket] Stop command received")
                 break
