@@ -94,10 +94,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const [selectionBox, setSelectionBox] = useState<{ start: {x: number, y: number}, end: {x: number, y: number} } | null>(null);
   const deviceRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Interaction State
-  const [activeTouch, setActiveTouch] = useState<string | null>(null); // Device serial currently being touched
-  const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
-
   // Fetch devices using RPC v2 API
   const fetchDevices = async () => {
     try {
@@ -214,7 +210,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   // --- Box Selection Logic ---
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0 || activeTouch) return; // Only left click and if not interacting with a device
+    if (e.button !== 0) return; // Only left click
     
     // Check if we clicked on a device or UI element (prevent selection box start)
     if ((e.target as HTMLElement).closest('.device-card') || (e.target as HTMLElement).closest('button')) {
@@ -286,49 +282,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
       }
     }
     setSelectionBox(null);
-  };
-
-  // --- Advanced Device Interaction Logic ---
-
-  const handleDeviceInteraction = (e: React.MouseEvent, serial: string, type: 'down' | 'move' | 'up' | 'leave' | 'enter' | 'double') => {
-    if (type === 'down') e.stopPropagation();
-
-    const target = e.currentTarget as HTMLDivElement;
-    const rect = target.getBoundingClientRect();
-    
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-
-    const coordsStr = `[${x.toFixed(2)},${y.toFixed(2)}]`;
-
-    if (type === 'enter') {
-        setHoveredDevice(serial);
-    }
-    else if (type === 'leave') {
-        setHoveredDevice(null);
-        if (activeTouch === serial) {
-             setActiveTouch(null);
-             wsService.send('control', 'touch', { serial, action: 'up', x, y, width: rect.width, height: rect.height });
-             addLog('warning', `Device ${serial}: Auto-release (Out of bounds)`);
-        }
-    }
-    else if (type === 'down') {
-      setActiveTouch(serial);
-      wsService.send('control', 'touch', { serial, action: 'down', x, y, width: rect.width, height: rect.height });
-      addLog('success', `Device ${serial}: Touch Down ${coordsStr}`);
-    } 
-    else if (type === 'move') {
-        if (activeTouch === serial) {
-           wsService.send('control', 'touch', { serial, action: 'move', x, y, width: rect.width, height: rect.height });
-        }
-    } 
-    else if (type === 'up') {
-      if (activeTouch === serial) {
-          setActiveTouch(null);
-          wsService.send('control', 'touch', { serial, action: 'up', x, y, width: rect.width, height: rect.height });
-          addLog('info', `Device ${serial}: Touch Up ${coordsStr}`);
-      }
-    }
   };
 
   return (
@@ -410,7 +363,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
               ref={el => { if (el) deviceRefs.current.set(device.serial, el); else deviceRefs.current.delete(device.serial); }}
               className={`
                 device-card group relative bg-[#0a0c10]
-                border rounded-2xl overflow-hidden transition-all duration-300
+                border rounded-2xl transition-all duration-300
                 flex flex-col select-none
                 ${zoomedDeviceId === device.deviceId
                   ? 'fixed inset-4 z-50 w-auto h-auto shadow-[0_0_0_100vmax_rgba(0,0,0,0.8)]'
@@ -421,7 +374,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                 ${selectedIds.has(device.serial)
                   ? 'border-[#00f2ff] shadow-[0_0_0_1px_#00f2ff,0_0_20px_rgba(0,242,255,0.2)]'
                   : 'border-white/10 hover:border-white/30'}
-                ${hoveredDevice === device.serial && !zoomedDeviceId ? 'scale-[1.02]' : ''}
               `}
             >
               {/* Top Info Bar - Clickable for selection */}
@@ -430,7 +382,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                   e.stopPropagation();
                   onSelectDevice(device, e.ctrlKey || e.metaKey);
                 }}
-                className={`bg-[#0d0f14] border-b border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors ${zoomedDeviceId === device.deviceId ? 'h-16' : 'h-[32px]'}`}
+                className={`bg-[#0d0f14] border-b border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors rounded-t-2xl ${zoomedDeviceId === device.deviceId ? 'h-16' : 'h-[32px]'}`}
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {/* Selection Checkbox */}
@@ -473,12 +425,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
 
               {/* Screen Area (Interactive) - Video fills this area */}
               <div
-                className="flex-1 bg-black relative overflow-hidden cursor-crosshair group/video"
-                onMouseEnter={(e) => handleDeviceInteraction(e, device.serial, 'enter')}
-                onMouseLeave={(e) => handleDeviceInteraction(e, device.serial, 'leave')}
-                onMouseDown={(e) => handleDeviceInteraction(e, device.serial, 'down')}
-                onMouseMove={(e) => handleDeviceInteraction(e, device.serial, 'move')}
-                onMouseUp={(e) => handleDeviceInteraction(e, device.serial, 'up')}
+                className="flex-1 bg-black relative overflow-hidden"
               >
                 {device.status === 'online' ? (
                   <DeviceVideoStream
@@ -494,19 +441,6 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                     <span className="text-[10px] font-mono tracking-widest">{t('dashboard.disconnected')}</span>
                   </div>
                 )}
-                
-                {/* Interaction Feedback Point */}
-                {activeTouch === device.serial && (
-                   <div className="absolute inset-0 pointer-events-none z-50">
-                     <div className="absolute top-2 right-2 w-2 h-2 bg-[#ff2a6d] rounded-full animate-ping"></div>
-                     <div className="absolute bottom-2 left-2 text-[9px] font-mono text-[#ff2a6d] bg-black/50 px-1 rounded animate-pulse">TOUCH ACTIVE</div>
-                   </div>
-                )}
-                
-                {/* Hover Feedback */}
-                {hoveredDevice === device.serial && !activeTouch && (
-                   <div className="absolute inset-0 border border-[#00f2ff]/30 pointer-events-none bg-[#00f2ff]/5"></div>
-                )}
 
               </div>
 
@@ -516,7 +450,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                   e.stopPropagation();
                   onSelectDevice(device, e.ctrlKey || e.metaKey);
                 }}
-                className="h-[40px] bg-[#0d0f14] border-t border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors"
+                className="h-[40px] bg-[#0d0f14] border-t border-white/5 flex items-center justify-between px-3 pointer-events-auto shrink-0 cursor-pointer hover:bg-white/5 transition-colors rounded-b-2xl"
               >
                 <div className="flex flex-col flex-1 min-w-0">
                    <span className="text-[10px] font-bold text-slate-200 truncate">{device.name}</span>
@@ -532,8 +466,8 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Enhanced Sidebar Tools Slide-out */}
-              <div className="absolute right-0 top-12 bottom-12 flex flex-col gap-1.5 p-2 translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out z-20 pointer-events-auto">
+              {/* Enhanced Sidebar Tools Slide-out - 在卡片右边外面，不遮挡视频 */}
+              <div className="absolute -right-10 top-12 bottom-12 flex flex-col gap-1.5 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out z-20 pointer-events-none group-hover:pointer-events-auto">
                  {[
                    { 
                      icon: 'ph-arrows-out', 

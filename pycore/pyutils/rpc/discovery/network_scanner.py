@@ -18,9 +18,9 @@ import http.client
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 
-from pycore.pyfoundations.third_party import get_third_package_netifaces
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
-netifaces = get_third_package_netifaces()
+psutil = get_third_package_psutil()
 
 from pycore import ColorPrint
 from pycore.pyutils.rpc.config.rpc_config import get_rpc_config
@@ -31,7 +31,6 @@ from pycore.pyutils.rpc.protocol.rpc_protocol import RPC_STATUS_PATH
 class NetworkHost:
     """
     Network host information
-    
     Attributes:
         ip: IP address
         port: Port number
@@ -49,25 +48,24 @@ class NetworkHost:
 class NetworkScanner:
     """
     RPC Network Scanner - Scans local network for RPC services
-    
+
     Scans local network segments to discover RPC services.
     Uses shared port configuration from RPCConfig.
-    
+
     Features:
     - Local network segment scanning
     - Port-based service discovery
     - Multi-threaded scanning
     - Configurable timeout and intervals
-    
     Usage:
         scanner = NetworkScanner()
         hosts = scanner.scan_network_segment()
     """
-    
+
     def __init__(self, debug: bool = False):
         """
         Initialize Network Scanner
-        
+
         Args:
             debug: Enable debug output
         """
@@ -76,34 +74,36 @@ class NetworkScanner:
         self.port = self.config.get_port()
         self.timeout = self.config.scan_timeout
         self.max_threads = 50  # Maximum concurrent scan threads
-    
+
     def get_local_network_segments(self) -> List[str]:
         """
         Get local network segments to scan
-        
+
         Returns:
             List of network segments (CIDR notation)
         """
         segments = []
-        
+
         # Get local IP addresses
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
-        
-        # Get network interface addresses using netifaces
-        for interface in netifaces.interfaces():
-            addrs = netifaces.ifaddresses(interface)
-            if netifaces.AF_INET in addrs:
-                for addr_info in addrs[netifaces.AF_INET]:
-                    ip = addr_info.get('addr')
-                    netmask = addr_info.get('netmask')
-                    if ip and netmask and not ip.startswith('127.'):
-                        try:
-                            network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
-                            segments.append(str(network))
-                        except Exception:
-                            pass
-        
+
+        # Get network interface addresses using psutil
+        try:
+            for interface, addrs in psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == socket.AF_INET:
+                        ip = addr.address
+                        netmask = addr.netmask
+                        if ip and netmask and not ip.startswith('127.'):
+                            try:
+                                network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                                segments.append(str(network))
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
         # Fallback: use local IP with common subnet
         if not segments:
             try:
@@ -114,14 +114,14 @@ class NetworkScanner:
             except Exception as e:
                 if self.debug:
                     ColorPrint.yellow(f"[NetworkScanner] Error creating network segment: {e}")
-        
+
         if not segments:
             # Final fallback: common local network ranges
             segments = ['192.168.1.0/24', '192.168.0.0/24', '10.0.0.0/24']
-        
+
         if self.debug:
             ColorPrint.blue(f"[NetworkScanner] Network segments to scan: {segments}")
-        
+
         return segments
     
     def scan_network_segment(self, segment: Optional[str] = None) -> List[NetworkHost]:

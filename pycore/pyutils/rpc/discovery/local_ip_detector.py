@@ -8,9 +8,9 @@ Provides methods to detect and confirm local LAN IP address.
 
 import socket
 import ipaddress
-from pycore.pyfoundations.third_party import get_third_package_netifaces
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
-netifaces = get_third_package_netifaces()
+psutil = get_third_package_psutil()
 from typing import Optional
 
 from pycore import ColorPrint
@@ -19,14 +19,14 @@ from pycore import ColorPrint
 def get_local_lan_ip(debug: bool = False) -> Optional[str]:
     """
     Get local LAN IP address (not localhost)
-    
+
     Detects the local IP address on the LAN, excluding:
     - 127.0.0.1 (localhost)
     - 169.254.x.x (link-local)
-    
+
     Args:
         debug: Enable debug output
-    
+
     Returns:
         Local LAN IP address or None
     """
@@ -38,7 +38,6 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
             s.connect(('8.8.8.8', 80))
             local_ip = s.getsockname()[0]
             s.close()
-            
             # Filter out localhost and link-local
             if not local_ip.startswith('127.') and not local_ip.startswith('169.254.'):
                 if debug:
@@ -46,7 +45,6 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
                 return local_ip
         except Exception:
             s.close()
-        
         # Method 2: Use hostname
         try:
             hostname = socket.gethostname()
@@ -57,23 +55,25 @@ def get_local_lan_ip(debug: bool = False) -> Optional[str]:
                 return local_ip
         except Exception:
             pass
-        
-        # Method 3: Use netifaces
-        for interface in netifaces.interfaces():
-            addrs = netifaces.ifaddresses(interface)
-            if netifaces.AF_INET in addrs:
-                for addr_info in addrs[netifaces.AF_INET]:
-                    ip = addr_info.get('addr')
-                    if ip and not ip.startswith('127.') and not ip.startswith('169.254.'):
-                        if debug:
-                            ColorPrint.blue(f"[LocalIPDetector] Detected local LAN IP via netifaces: {ip}")
-                        return ip
-        
+
+        # Method 3: Use psutil to get network interfaces
+        try:
+            for interface, addrs in psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == socket.AF_INET:
+                        ip = addr.address
+                        if ip and not ip.startswith('127.') and not ip.startswith('169.254.'):
+                            if debug:
+                                ColorPrint.blue(f"[LocalIPDetector] Detected local LAN IP via psutil: {ip}")
+                            return ip
+        except Exception:
+            pass
+
         if debug:
             ColorPrint.yellow("[LocalIPDetector] Could not detect local LAN IP")
-        
+
         return None
-    
+
     except Exception as e:
         if debug:
             ColorPrint.red(f"[LocalIPDetector] Error detecting local LAN IP: {e}")

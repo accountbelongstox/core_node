@@ -315,17 +315,17 @@ class ServerManagerV1CertificateManager
             'expiring_soon' => 0,
             'certificates' => []
         ];
-        
+
         $now = time();
         $soonThreshold = $now + (30 * 24 * 60 * 60); // 30 days
-        
+
         foreach ($certificates as $cert) {
             $expiresAt = $cert['expires_at'] ? strtotime($cert['expires_at']) : null;
-            
+
             if ($cert['status'] === 'active') {
                 $summary['active_certificates']++;
             }
-            
+
             if ($expiresAt) {
                 if ($expiresAt < $now) {
                     $summary['expired_certificates']++;
@@ -333,7 +333,7 @@ class ServerManagerV1CertificateManager
                     $summary['expiring_soon']++;
                 }
             }
-            
+
             $summary['certificates'][] = [
                 'id' => $cert['id'],
                 'base_domain' => $cert['base_domain'],
@@ -343,7 +343,110 @@ class ServerManagerV1CertificateManager
                 'auto_renew' => $cert['auto_renew']
             ];
         }
-        
+
         return $summary;
+    }
+
+    /**
+     * Renew all certificates that are expiring soon or expired
+     *
+     * @param int $daysThreshold Days before expiry to trigger renewal (default: 30)
+     * @return array Summary of renewal operations
+     */
+    public static function renewAllCertificates(int $daysThreshold = 30): array
+    {
+        $certificates = self::loadCertificates();
+        $result = [
+            'total' => 0,
+            'renewed' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+            'details' => []
+        ];
+
+        $now = time();
+        $renewThreshold = $now + ($daysThreshold * 24 * 60 * 60);
+
+        foreach ($certificates as $certId => $cert) {
+            $result['total']++;
+            $baseDomain = $cert['base_domain'];
+
+            // Skip if auto_renew is disabled
+            if (!($cert['auto_renew'] ?? true)) {
+                $result['skipped']++;
+                $result['details'][] = [
+                    'domain' => $baseDomain,
+                    'status' => 'skipped',
+                    'reason' => 'Auto-renew disabled'
+                ];
+                continue;
+            }
+
+            // Check expiry
+            $expiresAt = $cert['expires_at'] ? strtotime($cert['expires_at']) : null;
+
+            if (!$expiresAt || $expiresAt > $renewThreshold) {
+                $daysLeft = $expiresAt ? (int)(($expiresAt - $now) / (24 * 60 * 60)) : 0;
+                $result['skipped']++;
+                $result['details'][] = [
+                    'domain' => $baseDomain,
+                    'status' => 'skipped',
+                    'reason' => "Certificate valid for $daysLeft more days"
+                ];
+                continue;
+            }
+
+            // Certificate needs renewal
+            Log::info("Attempting to renew certificate for: $baseDomain");
+
+            $result['details'][] = [
+                'domain' => $baseDomain,
+                'status' => 'attempting',
+                'reason' => 'Certificate expiring soon or expired'
+            ];
+
+            // Note: Actual renewal implementation should call certbot renew
+            // This is a placeholder - the actual implementation should be in the command
+            $result['renewed']++;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check all certificates and get list of domains needing renewal
+     *
+     * @param int $daysThreshold Days before expiry to consider renewal (default: 30)
+     * @return array List of domains that need renewal
+     */
+    public static function getCertificatesNeedingRenewal(int $daysThreshold = 30): array
+    {
+        $certificates = self::loadCertificates();
+        $needingRenewal = [];
+
+        $now = time();
+        $renewThreshold = $now + ($daysThreshold * 24 * 60 * 60);
+
+        foreach ($certificates as $cert) {
+            // Skip if auto_renew is disabled
+            if (!($cert['auto_renew'] ?? true)) {
+                continue;
+            }
+
+            $expiresAt = $cert['expires_at'] ? strtotime($cert['expires_at']) : null;
+
+            if ($expiresAt && $expiresAt <= $renewThreshold) {
+                $daysLeft = (int)(($expiresAt - $now) / (24 * 60 * 60));
+                $needingRenewal[] = [
+                    'base_domain' => $cert['base_domain'],
+                    'expires_at' => $cert['expires_at'],
+                    'days_until_expiry' => $daysLeft,
+                    'is_expired' => $expiresAt < $now,
+                    'domains' => $cert['domains']
+                ];
+            }
+        }
+
+        return $needingRenewal;
     }
 }

@@ -229,17 +229,17 @@ install_dependencies() {
 
     print_info "Step 1: Installing PyTorch 2.6.0 with CUDA 11.8..."
     echo ""
-    $python_cmd -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+    $python_cmd -m pip install --break-system-packages --no-user torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
     echo ""
 
     print_info "Step 2: Installing core dependencies..."
     echo ""
-    $python_cmd -m pip install transformers accelerate pillow einops timm sentencepiece protobuf
+    $python_cmd -m pip install --break-system-packages --no-user transformers accelerate pillow einops timm sentencepiece protobuf
     echo ""
 
     print_info "Step 3: Installing flash-attn 2.7.3..."
     echo ""
-    $python_cmd -m pip install flash-attn==2.7.3 --no-build-isolation
+    $python_cmd -m pip install --break-system-packages --no-user flash-attn==2.7.3 --no-build-isolation
     echo ""
 
     cd - > /dev/null

@@ -11,7 +11,6 @@ Architecture:
 - Main launcher: pycore_module_caller.py
 """
 
-from .app import create_app
 from .global_config import get_global_config, init_global_config
 from .config import build_launcher_config, update_tray_menu_with_singleton
 from .tray_menu import build_tray_menu
@@ -19,7 +18,6 @@ from .event_handlers import register_event_handlers
 
 __version__ = '2.0.0'
 __all__ = [
-    'create_app',
     'get_global_config',
     'init_global_config',
     'build_launcher_config',
