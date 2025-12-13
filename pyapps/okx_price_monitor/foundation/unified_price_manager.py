@@ -54,7 +54,7 @@ class UnifiedPriceManager:
 
     def _init_database(self):
         """Initialize database and create table"""
-        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
 
         cursor = self.conn.cursor()

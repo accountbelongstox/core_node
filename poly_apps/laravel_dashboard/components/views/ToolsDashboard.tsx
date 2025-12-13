@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import BentoCard from '../BentoCard';
-import { TOOL_CATEGORIES, TOOL_UI_SCHEMAS } from '../../constants';
+import { TOOL_CATEGORIES, TOOL_UI_SCHEMAS, TRANSLATIONS } from '../../constants';
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Construction, Grid, Zap, Columns, Rows, UploadCloud, File as FileIcon, X, Trash2, Paperclip, Download, Star, History, BarChart3, Clock } from "lucide-react";
 import ToolWorkspace from '../tools/ToolWorkspace';
 import AgeCalculator from '../tools/AgeCalculator';
@@ -8,7 +8,7 @@ import HexToRgb from '../tools/HexToRgb';
 import PasswordGenerator from '../tools/PasswordGenerator';
 import WordCounter from '../tools/WordCounter';
 import UniversalTool from '../tools/UniversalTool';
-import { LayoutMode } from '../../types';
+import { LayoutMode, Language } from '../../types';
 
 interface UploadedFile {
     name: string;
@@ -16,7 +16,24 @@ interface UploadedFile {
     type: string;
 }
 
-const ToolsDashboard: React.FC = () => {
+const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
+    const t = TRANSLATIONS[lang].tools_dashboard || {
+        search_placeholder: "Search tools...",
+        all_tools: "All Tools",
+        favorites: "Favorites",
+        history: "History",
+        recent_history: "Recent History",
+        all_utilities: "All Utilities",
+        clear_history: "Clear History",
+        clear: "Clear",
+        no_history: "No history yet.",
+        no_favorites: "No favorites yet.",
+        no_tools_found: "No tools found.",
+        tools_available: "Tools Available",
+        recent: "Recent",
+        add_to_favorites: "Add to favorites",
+        remove_from_favorites: "Remove from favorites"
+    };
     // Persistent State for Clipboard Collapse
     const [isClipboardCollapsed, setIsClipboardCollapsed] = useState<boolean>(() => {
         const saved = localStorage.getItem('tool_clipboard_collapsed');
@@ -318,7 +335,7 @@ const ToolsDashboard: React.FC = () => {
                              <Search className="text-slate-500 flex-shrink-0" size={16} />
                              <input 
                                 type="text" 
-                                placeholder="Search tools..." 
+                                placeholder={t.search_placeholder}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
@@ -333,21 +350,21 @@ const ToolsDashboard: React.FC = () => {
                             <button 
                                 onClick={() => { setActiveCategory('all'); setShowFavorites(false); setShowHistory(false); }} 
                                 className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === 'all' && !showFavorites && !showHistory ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
-                                title="All Tools"
+                                title={t.all_tools}
                             >
                                 <Grid size={18} />
                             </button>
                             <button 
                                 onClick={() => { setShowFavorites(true); setShowHistory(false); setActiveCategory('all'); }} 
                                 className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showFavorites ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-amber-400 hover:bg-white/5'}`}
-                                title="Favorites"
+                                title={t.favorites}
                             >
                                 <Star size={18} fill={showFavorites || favorites.length > 0 ? 'currentColor' : 'none'} />
                             </button>
                             <button 
                                 onClick={() => { setShowHistory(true); setShowFavorites(false); setActiveCategory('all'); }} 
                                 className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showHistory ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:text-emerald-400 hover:bg-white/5'}`}
-                                title="History"
+                                title={t.history}
                             >
                                 <History size={18} />
                             </button>
@@ -367,9 +384,9 @@ const ToolsDashboard: React.FC = () => {
                          <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/50">
                              <div className="mb-2 px-2 pt-2 flex items-center justify-between">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                    {showFavorites ? 'Favorites' : 
-                                     showHistory ? 'Recent History' :
-                                     activeCategory === 'all' ? 'All Utilities' : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
+                                    {showFavorites ? t.favorites : 
+                                     showHistory ? t.recent_history :
+                                     activeCategory === 'all' ? t.all_utilities : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
                                 </h3>
                                 {showHistory && history.length > 0 && (
                                     <button
@@ -378,9 +395,9 @@ const ToolsDashboard: React.FC = () => {
                                             localStorage.removeItem('tool_history');
                                         }}
                                         className="text-[10px] text-slate-500 hover:text-red-400"
-                                        title="Clear History"
+                                        title={t.clear_history}
                                     >
-                                        Clear
+                                        {t.clear}
                                     </button>
                                 )}
                              </div>
@@ -392,49 +409,58 @@ const ToolsDashboard: React.FC = () => {
                                             const tool = allTools.find(t => t.id === item.toolId);
                                             if (!tool) return null;
                                             return (
-                                                <button
+                                                <div
                                                     key={`${item.toolId}-${idx}`}
-                                                    onClick={() => handleToolSelect(item.toolId)}
                                                     className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === item.toolId ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
                                                 >
-                                                    <Clock size={12} className="text-slate-500 flex-shrink-0" />
-                                                    <span className="truncate flex-1">{item.toolName}</span>
+                                                    <button
+                                                        onClick={() => handleToolSelect(item.toolId)}
+                                                        className="flex items-center gap-2 flex-1 text-left"
+                                                    >
+                                                        <Clock size={12} className="text-slate-500 flex-shrink-0" />
+                                                        <span className="truncate flex-1">{item.toolName}</span>
+                                                    </button>
                                                     <button
                                                         onClick={(e) => toggleFavorite(item.toolId, e)}
                                                         className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${favorites.includes(item.toolId) ? 'text-amber-400' : 'text-slate-500'}`}
+                                                        title={favorites.includes(item.toolId) ? t.remove_from_favorites : t.add_to_favorites}
                                                     >
                                                         <Star size={12} fill={favorites.includes(item.toolId) ? 'currentColor' : 'none'} />
                                                     </button>
-                                                </button>
+                                                </div>
                                             );
                                         })
                                     ) : (
                                         <div className="p-4 text-center text-slate-500 text-xs">
-                                            No history yet.
+                                            {t.no_history}
                                         </div>
                                     )
                                 ) : (
                                     filteredTools.map(tool => (
-                                        <button
+                                        <div
                                             key={tool.id}
-                                            onClick={() => handleToolSelect(tool.id)}
                                             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === tool.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
                                         >
-                                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeToolId === tool.id ? 'bg-indigo-500' : 'bg-slate-600'}`} />
-                                            <span className="truncate flex-1">{tool.name}</span>
+                                            <button
+                                                onClick={() => handleToolSelect(tool.id)}
+                                                className="flex items-center gap-2 flex-1 text-left"
+                                            >
+                                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeToolId === tool.id ? 'bg-indigo-500' : 'bg-slate-600'}`} />
+                                                <span className="truncate flex-1">{tool.name}</span>
+                                            </button>
                                             <button
                                                 onClick={(e) => toggleFavorite(tool.id, e)}
                                                 className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${favorites.includes(tool.id) ? 'text-amber-400' : 'text-slate-500'}`}
-                                                title={favorites.includes(tool.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                title={favorites.includes(tool.id) ? t.remove_from_favorites : t.add_to_favorites}
                                             >
                                                 <Star size={12} fill={favorites.includes(tool.id) ? 'currentColor' : 'none'} />
                                             </button>
-                                        </button>
+                                        </div>
                                     ))
                                 )}
                                 {!showHistory && filteredTools.length === 0 && (
                                     <div className="p-4 text-center text-slate-500 text-xs">
-                                        {showFavorites ? 'No favorites yet.' : 'No tools found.'}
+                                        {showFavorites ? t.no_favorites : t.no_tools_found}
                                     </div>
                                 )}
                              </div>
@@ -444,9 +470,9 @@ const ToolsDashboard: React.FC = () => {
                     {/* Footer Info */}
                     <div className="p-3 border-t border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="text-[10px] text-slate-600 text-center mb-2">
-                            {showHistory ? `${history.length} Recent` : 
-                             showFavorites ? `${favorites.length} Favorites` :
-                             `${filteredTools.length} Tools Available`}
+                            {showHistory ? `${history.length} ${t.recent}` : 
+                             showFavorites ? `${favorites.length} ${t.favorites}` :
+                             `${filteredTools.length} ${t.tools_available}`}
                         </div>
                         <div className="flex items-center justify-center gap-3 text-[10px] text-slate-600">
                             <div className="flex items-center gap-1">

@@ -68,23 +68,23 @@ async function writeNodePath(): Promise<void> {
 
     console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
     fs.writeFileSync(nodePathFile, nodePath, 'utf8');
-    console.log(colorText('✓ Node.js path written for run_host scripts', 'green'));
+    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
   } catch (error: any) {
-    console.warn(colorText(`⚠️ Failed to write Node.js path: ${error.message}`, 'yellow'));
+    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
   }
 }
 
 /**
- * 确保执行权限（无论是否为全局安装）
+ * Ensure execution permissions (regardless of global installation)
  */
 async function ensureExecutionPermissions(): Promise<void> {
   if (process.platform === 'win32') {
-    // Windows 平台处理
+    // Windows platform handling
     await ensureWindowsFilePermissions();
     return;
   }
 
-  // Unix/Linux 平台处理
+  // Unix/Linux platform handling
   const filesToCheck = [
     path.join(__dirname, '..', 'index.js'),
     path.join(__dirname, '..', 'run_host.sh'),
@@ -96,12 +96,12 @@ async function ensureExecutionPermissions(): Promise<void> {
       try {
         fs.chmodSync(filePath, '755');
         console.log(
-          colorText(`✓ Set execution permissions for ${path.basename(filePath)}`, 'green'),
+          colorText(`[OK] Set execution permissions for ${path.basename(filePath)}`, 'green'),
         );
       } catch (err: any) {
         console.warn(
           colorText(
-            `⚠️ Unable to set execution permissions for ${path.basename(filePath)}: ${err.message}`,
+            `[WARNING] Unable to set execution permissions for ${path.basename(filePath)}: ${err.message}`,
             'yellow',
           ),
         );
@@ -113,7 +113,7 @@ async function ensureExecutionPermissions(): Promise<void> {
 }
 
 /**
- * Windows 平台文件权限处理
+ * Windows platform file permission handling
  */
 async function ensureWindowsFilePermissions(): Promise<void> {
   const filesToCheck = [
@@ -125,26 +125,26 @@ async function ensureWindowsFilePermissions(): Promise<void> {
   for (const filePath of filesToCheck) {
     if (fs.existsSync(filePath)) {
       try {
-        // 检查文件是否为只读，如果是则移除只读属性
+        // Check if file is read-only, if so remove read-only attribute
         const stats = fs.statSync(filePath);
         if (!(stats.mode & parseInt('200', 8))) {
-          // 检查写权限
-          // 尝试移除只读属性
+          // Check write permissions
+          // Try to remove read-only attribute
           fs.chmodSync(filePath, stats.mode | parseInt('200', 8));
           console.log(
-            colorText(`✓ Removed read-only attribute from ${path.basename(filePath)}`, 'green'),
+            colorText(`[OK] Removed read-only attribute from ${path.basename(filePath)}`, 'green'),
           );
         }
 
-        // 验证文件可读性
+        // Verify file accessibility
         fs.accessSync(filePath, fs.constants.R_OK);
         console.log(
-          colorText(`✓ Verified file accessibility for ${path.basename(filePath)}`, 'green'),
+          colorText(`[OK] Verified file accessibility for ${path.basename(filePath)}`, 'green'),
         );
       } catch (err: any) {
         console.warn(
           colorText(
-            `⚠️ Unable to verify file permissions for ${path.basename(filePath)}: ${err.message}`,
+            `[WARNING] Unable to verify file permissions for ${path.basename(filePath)}: ${err.message}`,
             'yellow',
           ),
         );
@@ -190,7 +190,7 @@ async function tryRegisterNativeHost(): Promise<void> {
   } catch (error) {
     console.log(
       colorText(
-        `注册过程中出现错误: ${error instanceof Error ? error.message : String(error)}`,
+        `Error during registration: ${error instanceof Error ? error.message : String(error)}`,
         'red',
       ),
     );
@@ -199,7 +199,7 @@ async function tryRegisterNativeHost(): Promise<void> {
 }
 
 /**
- * 打印手动安装指南
+ * Print manual installation guide
  */
 function printManualInstructions(): void {
   console.log('\n' + colorText('===== Manual Registration Guide =====', 'blue'));
@@ -254,7 +254,7 @@ function printManualInstructions(): void {
 }
 
 /**
- * 主函数
+ * Main function
  */
 async function main(): Promise<void> {
   console.log(colorText(`Installing ${COMMAND_NAME}...`, 'green'));

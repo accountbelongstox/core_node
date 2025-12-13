@@ -18,9 +18,26 @@ export const TRANSLATIONS = {
     nav: {
       media: "Media Browser",
       code: "Code Node",
-      tools: "Tools",
-      api: "API Tester",
-      settings: "Settings",
+    tools: "Tools",
+    api: "API Tester",
+    settings: "Settings",
+    tools_dashboard: {
+      search_placeholder: "Search tools...",
+      all_tools: "All Tools",
+      favorites: "Favorites",
+      history: "History",
+      recent_history: "Recent History",
+      all_utilities: "All Utilities",
+      clear_history: "Clear History",
+      clear: "Clear",
+      no_history: "No history yet.",
+      no_favorites: "No favorites yet.",
+      no_tools_found: "No tools found.",
+      tools_available: "Tools Available",
+      recent: "Recent",
+      add_to_favorites: "Add to favorites",
+      remove_from_favorites: "Remove from favorites"
+    },
       system: "System Info",
       vocabulary: "Vocabulary",
       mcp: "MCP Manager",
@@ -43,7 +60,8 @@ export const TRANSLATIONS = {
         vocabulary: "Vocabulary Learning Center",
         mcp: "MCP Manager",
         octane: "Octane Timer Tasks Monitor",
-        server: "Server Management Dashboard"
+        server: "Server Management Dashboard",
+        settings: "Settings"
       }
     },
     login: {
@@ -100,6 +118,20 @@ export const TRANSLATIONS = {
       completed_tasks: "Completed Tasks",
       failed_tasks: "Failed Tasks"
     },
+    settings: {
+      title: "Settings",
+      api_config: "API Configuration",
+      base_url: "Base URL",
+      api_key: "API Key",
+      save: "Save",
+      reset: "Reset to Default",
+      test_connection: "Test Connection",
+      saved: "Settings saved successfully",
+      reset_success: "Settings reset to default",
+      test_success: "Connection successful",
+      test_error: "Connection failed"
+    }
+  },
     server: {
       title: "Server Manager",
       subtitle: "Nginx sites, SSL certificates, and system management",
@@ -125,13 +157,12 @@ export const TRANSLATIONS = {
         disabled: "Disabled",
         enable: "Enable",
         disable: "Disable",
-        delete: "Delete",
+        delete: "Delete Site",
         view_config: "View Config",
         test_config: "Test Config",
         reload: "Reload Nginx",
         refresh: "Refresh",
         create: "Create Site",
-        delete: "Delete Site",
         update: "Update Site",
         test: "Test Configuration"
       },
@@ -139,6 +170,7 @@ export const TRANSLATIONS = {
         certificates: "SSL Certificates",
         generate: "Generate Certificate",
         renew: "Renew All",
+        renew_all: "Renew All Certificates",
         domain: "Domain",
         expiry_date: "Expiry Date",
         days_until_expiry: "Days Until Expiry",
@@ -146,8 +178,6 @@ export const TRANSLATIONS = {
         ok: "OK",
         warning: "Warning",
         critical: "Critical",
-        generate: "Generate Certificate",
-        renew_all: "Renew All Certificates",
         certbot_detect: "Detect Certbot",
         certbot_install: "Install Certbot"
       },
@@ -194,6 +224,25 @@ export const TRANSLATIONS = {
         logs: "Logs",
         service_name: "Service Name",
         port: "Port"
+      },
+      messages: {
+        confirm_reset: "Are you sure you want to reset to default settings?",
+        confirm_renew_certs: "Are you sure you want to renew all certificates?",
+        confirm_install_certbot: "Are you sure you want to install Certbot?",
+        confirm_delete_site: "Are you sure you want to delete site: {site}?",
+        cert_generation_started: "Certificate generation started",
+        cert_renewal_started: "Certificate renewal started",
+        certbot_installation_started: "Certbot installation started",
+        nginx_reloaded: "Nginx reloaded successfully",
+        site_deleted: "Site deleted successfully",
+        nginx_config_valid: "Nginx configuration is valid!",
+        nginx_config_errors: "Configuration errors:",
+        operation_failed: "Operation failed",
+        action_completed: "Action {action} completed",
+        failed_to_load: "Failed to load",
+        failed_to_generate_cert: "Failed to generate certificate",
+        failed_to_renew_certs: "Failed to renew certificates",
+        failed_to_install_certbot: "Failed to install Certbot"
       }
     }
   },
@@ -226,7 +275,8 @@ export const TRANSLATIONS = {
         vocabulary: "词汇学习中心",
         mcp: "MCP 管理器",
         octane: "Octane 定时任务监控",
-        server: "服务器管理仪表板"
+        server: "服务器管理仪表板",
+        settings: "系统设置"
       }
     },
     login: {
@@ -283,6 +333,21 @@ export const TRANSLATIONS = {
       completed_tasks: "已完成任务",
       failed_tasks: "失败任务"
     },
+    settings: {
+      title: "系统设置",
+      api_config: "API 配置",
+      base_url: "基础 URL",
+      api_key: "API 密钥",
+      save: "保存",
+      reset: "重置为默认",
+      test_connection: "测试连接",
+      saved: "设置保存成功",
+      reset_success: "已重置为默认设置",
+      test_success: "连接成功",
+      test_error: "连接失败"
+    }
+  }
+};
     server: {
       title: "服务器管理",
       subtitle: "Nginx 站点、SSL 证书和系统管理",
@@ -308,13 +373,12 @@ export const TRANSLATIONS = {
         disabled: "已禁用",
         enable: "启用",
         disable: "禁用",
-        delete: "删除",
+        delete: "删除站点",
         view_config: "查看配置",
         test_config: "测试配置",
         reload: "重载 Nginx",
         refresh: "刷新",
         create: "创建站点",
-        delete: "删除站点",
         update: "更新站点",
         test: "测试配置"
       },
@@ -329,7 +393,6 @@ export const TRANSLATIONS = {
         ok: "正常",
         warning: "警告",
         critical: "紧急",
-        generate: "生成证书",
         renew_all: "续期全部证书",
         certbot_detect: "检测 Certbot",
         certbot_install: "安装 Certbot"
@@ -377,6 +440,24 @@ export const TRANSLATIONS = {
         logs: "日志",
         service_name: "服务名称",
         port: "端口"
+      },
+      messages: {
+        confirm_reset: "确定要重置为默认设置吗？",
+        confirm_renew_certs: "确定要续期所有证书吗？",
+        confirm_install_certbot: "确定要安装 Certbot 吗？",
+        confirm_delete_site: "确定要删除站点: {site} 吗？",
+        cert_generation_started: "证书生成已开始",
+        cert_renewal_started: "证书续期已开始",
+        certbot_installation_started: "Certbot 安装已开始",
+        nginx_reloaded: "Nginx 重载成功",
+        site_deleted: "站点删除成功",
+        nginx_config_valid: "Nginx 配置有效！",
+        nginx_config_errors: "配置错误：",
+        operation_failed: "操作失败",
+        action_completed: "操作 {action} 已完成",
+        failed_to_generate_cert: "证书生成失败",
+        failed_to_renew_certs: "证书续期失败",
+        failed_to_install_certbot: "Certbot 安装失败"
       }
     }
   }
