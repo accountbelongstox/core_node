@@ -44,8 +44,16 @@ import {
   CertbotStatus
 } from '../types';
 
-// Default base URL (will be overridden by ApiConfigContext)
-const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
+const getDefaultBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:9000`;
+  }
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
+};
+
+const DEFAULT_BASE_URL = getDefaultBaseUrl();
 
 class ApiService {
   private baseUrl: string = DEFAULT_BASE_URL;
@@ -327,19 +335,19 @@ class ApiService {
 
   // ========== ServerManager - SSL ==========
   async getSSLCertificates(): Promise<ApiResponse<SSLCertificate[]>> {
-    return this.request<SSLCertificate[]>('GET', '/api/servermanager/v1/certificate/list');
+    return this.request<SSLCertificate[]>('GET', '/api/servermanager/v1/certificates/');
   }
 
   async generateSSLCertificate(request: SSLCertificateGenerateRequest): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificate/generate', request);
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificates/generate', request);
   }
 
   async renewSSLCertificates(all: boolean = true): Promise<ApiResponse<{ success: boolean; message: string }>> {
-    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificate/renew', { all });
+    return this.request<{ success: boolean; message: string }>('POST', '/api/servermanager/v1/certificates/renew', { all });
   }
 
   async getSSLCertificateStatus(domain: string): Promise<ApiResponse<SSLCertificate>> {
-    return this.request<SSLCertificate>('GET', `/api/servermanager/v1/certificate/status?domain=${encodeURIComponent(domain)}`);
+    return this.request<SSLCertificate>('GET', `/api/servermanager/v1/certificates/status?domain=${encodeURIComponent(domain)}`);
   }
 
   async detectCertbot(): Promise<ApiResponse<CertbotStatus>> {
@@ -442,6 +450,37 @@ class ApiService {
       ? `/api/servermanager/v1/unified/logs?app_name=${encodeURIComponent(appName)}&lines=${lines}`
       : `/api/servermanager/v1/unified/logs?app_name=${encodeURIComponent(appName)}`;
     return this.request<any>('GET', url);
+  }
+
+  // ========== API Info ==========
+  async getFullApiInfo(app?: string): Promise<ApiResponse<FullApiInfo>> {
+    const url = app ? `/api_info?app=${app}` : '/api_info';
+    return this.request<FullApiInfo>('GET', url);
+  }
+
+  // ========== Static Resources ==========
+  async getStaticResourcesTree(path?: string): Promise<ApiResponse<FileNode[]>> {
+    const url = path
+      ? `/static-resources/file-tree?path=${encodeURIComponent(path)}`
+      : '/static-resources/file-tree';
+    const response = await this.request<any>('GET', url);
+
+    if (response.success && response.data && 'items' in response.data) {
+      return {
+        ...response,
+        data: response.data.items
+      };
+    }
+
+    return response;
+  }
+
+  async uploadStaticResources(files: FileList): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append('files', file);
+    });
+    return this.request<any>('POST', '/static-resources/upload', formData);
   }
 }
 

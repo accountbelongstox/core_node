@@ -575,12 +575,12 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
 
     // --- ServerManager - SSL Certificates ---
     {
-        id: 'ssl1', method: 'GET', path: '/api/servermanager/v1/certificate/list', 
+        id: 'ssl1', method: 'GET', path: '/api/servermanager/v1/certificates/',
         description: 'List SSL certificates', section: 'ServerManager - SSL',
         params: []
     },
     {
-        id: 'ssl2', method: 'POST', path: '/api/servermanager/v1/certificate/generate', 
+        id: 'ssl2', method: 'POST', path: '/api/servermanager/v1/certificates/generate',
         description: 'Generate SSL certificate', section: 'ServerManager - SSL',
         params: [
             { name: 'domain', type: 'string', required: true },
@@ -589,14 +589,14 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         ]
     },
     {
-        id: 'ssl3', method: 'POST', path: '/api/servermanager/v1/certificate/renew', 
+        id: 'ssl3', method: 'POST', path: '/api/servermanager/v1/certificates/renew',
         description: 'Renew SSL certificates', section: 'ServerManager - SSL',
         params: [
             { name: 'all', type: 'boolean', required: false }
         ]
     },
     {
-        id: 'ssl4', method: 'GET', path: '/api/servermanager/v1/certificate/status', 
+        id: 'ssl4', method: 'GET', path: '/api/servermanager/v1/certificates/status',
         description: 'Get SSL certificate status', section: 'ServerManager - SSL',
         params: [
             { name: 'domain', type: 'string', required: true }

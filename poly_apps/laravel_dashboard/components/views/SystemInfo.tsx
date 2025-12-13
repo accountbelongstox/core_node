@@ -88,12 +88,12 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">Server Information</h3>
             <div className="space-y-1">
-              <InfoRow label="OS" value={systemInfo.data.server.os} />
-              <InfoRow label="Architecture" value={systemInfo.data.server.architecture} />
-              <InfoRow label="Hostname" value={systemInfo.data.server.hostname} />
-              <InfoRow label="Web Server" value={systemInfo.data.server.server_software} />
-              <InfoRow label="Protocol" value={systemInfo.data.server.server_protocol} />
-              <InfoRow label="Document Root" value={systemInfo.data.server.document_root} />
+              <InfoRow label="OS" value={systemInfo.data.server?.os || 'N/A'} />
+              <InfoRow label="Architecture" value={systemInfo.data.server?.architecture || 'N/A'} />
+              <InfoRow label="Hostname" value={systemInfo.data.server?.hostname || 'N/A'} />
+              <InfoRow label="Web Server" value={systemInfo.data.server?.server_software || 'N/A'} />
+              <InfoRow label="Protocol" value={systemInfo.data.server?.server_protocol || 'N/A'} />
+              <InfoRow label="Document Root" value={systemInfo.data.server?.document_root || 'N/A'} />
             </div>
           </div>
         );
@@ -103,17 +103,17 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">PHP Configuration</h3>
             <div className="space-y-1">
-              <InfoRow label="Version" value={systemInfo.data.php.version} highlighted />
-              <InfoRow label="Memory Limit" value={systemInfo.data.php.memory_limit} />
-              <InfoRow label="Max Execution Time" value={systemInfo.data.php.max_execution_time} />
-              <InfoRow label="Upload Max Size" value={systemInfo.data.php.upload_max_filesize} />
-              <InfoRow label="Post Max Size" value={systemInfo.data.php.post_max_size} />
-              <InfoRow label="Timezone" value={systemInfo.data.php.timezone} />
-              <InfoRow label="Display Errors" value={systemInfo.data.php.display_errors ? 'Yes' : 'No'} />
+              <InfoRow label="Version" value={systemInfo.data?.php?.version} highlighted />
+              <InfoRow label="Memory Limit" value={systemInfo.data?.php?.memory_limit} />
+              <InfoRow label="Max Execution Time" value={systemInfo.data?.php?.max_execution_time} />
+              <InfoRow label="Upload Max Size" value={systemInfo.data?.php?.upload_max_filesize} />
+              <InfoRow label="Post Max Size" value={systemInfo.data?.php?.post_max_size} />
+              <InfoRow label="Timezone" value={systemInfo.data?.php?.timezone} />
+              <InfoRow label="Display Errors" value={systemInfo.data?.php?.display_errors ? 'Yes' : 'No'} />
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <h4 className="text-sm font-semibold mb-2">Extensions</h4>
                 <div className="flex flex-wrap gap-2">
-                  {systemInfo.data.php.extensions.map((ext, idx) => (
+                  {systemInfo.data?.php?.extensions?.map((ext, idx) => (
                     <span key={idx} className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs">
                       {ext}
                     </span>
@@ -129,20 +129,20 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">Laravel Information</h3>
             <div className="space-y-1">
-              <InfoRow label="Version" value={systemInfo.data.laravel.version} highlighted />
-              <InfoRow label="Environment" value={systemInfo.data.laravel.environment} />
-              <InfoRow label="Debug Mode" value={systemInfo.data.laravel.debug_mode ? 'Enabled' : 'Disabled'} />
-              <InfoRow label="App URL" value={systemInfo.data.laravel.app_url} />
-              <InfoRow label="App Name" value={systemInfo.data.laravel.app_name} />
-              <InfoRow label="Timezone" value={systemInfo.data.laravel.timezone} />
-              <InfoRow label="Locale" value={systemInfo.data.laravel.locale} />
+              <InfoRow label="Version" value={systemInfo.data?.laravel?.version} highlighted />
+              <InfoRow label="Environment" value={systemInfo.data?.laravel?.environment} />
+              <InfoRow label="Debug Mode" value={systemInfo.data?.laravel?.debug_mode ? 'Enabled' : 'Disabled'} />
+              <InfoRow label="App URL" value={systemInfo.data?.laravel?.app_url} />
+              <InfoRow label="App Name" value={systemInfo.data?.laravel?.app_name} />
+              <InfoRow label="Timezone" value={systemInfo.data?.laravel?.timezone} />
+              <InfoRow label="Locale" value={systemInfo.data?.laravel?.locale} />
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <h4 className="text-sm font-semibold mb-2">Cache Status</h4>
                 <div className="space-y-1">
-                  <InfoRow label="Config Cached" value={systemInfo.data.laravel.config_cached ? 'Yes' : 'No'} />
-                  <InfoRow label="Routes Cached" value={systemInfo.data.laravel.routes_cached ? 'Yes' : 'No'} />
-                  <InfoRow label="Events Cached" value={systemInfo.data.laravel.events_cached ? 'Yes' : 'No'} />
-                  <InfoRow label="Views Cached" value={systemInfo.data.laravel.views_cached ? 'Yes' : 'No'} />
+                  <InfoRow label="Config Cached" value={systemInfo.data?.laravel?.config_cached ? 'Yes' : 'No'} />
+                  <InfoRow label="Routes Cached" value={systemInfo.data?.laravel?.routes_cached ? 'Yes' : 'No'} />
+                  <InfoRow label="Events Cached" value={systemInfo.data?.laravel?.events_cached ? 'Yes' : 'No'} />
+                  <InfoRow label="Views Cached" value={systemInfo.data?.laravel?.views_cached ? 'Yes' : 'No'} />
                 </div>
               </div>
             </div>
@@ -154,7 +154,7 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">Database Connections</h3>
             <div className="space-y-4">
-              {systemInfo.data.database.connections.map((conn, idx) => (
+              {systemInfo.data?.database?.connections?.map((conn, idx) => (
                 <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     {conn.connected ? (
@@ -185,8 +185,8 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">Cache Stores</h3>
             <div className="space-y-2">
-              <InfoRow label="Default Driver" value={systemInfo.data.cache.default_driver} highlighted />
-              {systemInfo.data.cache.stores.map((store, idx) => (
+              <InfoRow label="Default Driver" value={systemInfo.data?.cache?.default_driver} highlighted />
+              {systemInfo.data?.cache?.stores?.map((store, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 rounded">
                   <span className="text-sm font-medium">{store.name}</span>
                   <span className="text-xs text-slate-500">({store.driver})</span>
@@ -206,8 +206,8 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
           <div className={commonClasses.card + ' p-6'}>
             <h3 className="text-lg font-semibold mb-4">Queue Connections</h3>
             <div className="space-y-2">
-              <InfoRow label="Default Connection" value={systemInfo.data.queue.default_connection} highlighted />
-              {systemInfo.data.queue.connections.map((conn, idx) => (
+              <InfoRow label="Default Connection" value={systemInfo.data?.queue?.default_connection} highlighted />
+              {systemInfo.data?.queue?.connections?.map((conn, idx) => (
                 <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="font-semibold">{conn.name}</span>
@@ -229,7 +229,7 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
       case 'routes':
         return (
           <div className={commonClasses.card + ' p-6'}>
-            <h3 className="text-lg font-semibold mb-4">Routes ({systemInfo.data.routes.length})</h3>
+            <h3 className="text-lg font-semibold mb-4">Routes ({systemInfo.data?.routes?.length})</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -241,7 +241,7 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {systemInfo.data.routes.slice(0, 50).map((route, idx) => (
+                  {systemInfo.data?.routes?.slice(0, 50).map((route, idx) => (
                     <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
                       <td className="py-2 px-2">
                         <span className={`px-2 py-1 rounded text-xs ${
@@ -302,7 +302,7 @@ const SystemInfo: React.FC<SystemInfoProps> = ({ lang = 'en' }) => {
         {systemInfo.data && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Clock className="w-3 h-3" />
-            <span>{t.last_updated}: {new Date(systemInfo.data.timestamp).toLocaleString()}</span>
+            <span>{t.last_updated}: {new Date(systemInfo.data?.timestamp).toLocaleString()}</span>
           </div>
         )}
       </div>
