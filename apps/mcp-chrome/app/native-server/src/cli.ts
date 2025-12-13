@@ -19,9 +19,9 @@ async function writeNodePath(): Promise<void> {
 
     console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
     fs.writeFileSync(nodePathFile, nodePath, 'utf8');
-    console.log(colorText('✓ Node.js path written for run_host scripts', 'green'));
+    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
   } catch (error: any) {
-    console.warn(colorText(`⚠️ Failed to write Node.js path: ${error.message}`, 'yellow'));
+    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
   }
 }
 
@@ -193,4 +193,3 @@ program.parse(process.argv);
 // If no command provided, show help
 if (!process.argv.slice(2).length) {
   program.outputHelp();
-}

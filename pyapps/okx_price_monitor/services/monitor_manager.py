@@ -132,7 +132,7 @@ class MonitorManager:
                     print(f"  OK {coin:8s} - Table created")
             else:
                 existing_tables.append(coin)
-                print(f"  • {coin:8s} - Table exists")
+                print(f"  * {coin:8s} - Table exists")
 
         print("-"*80)
         print(f"[SUMMARY] Tables: {len(new_tables)} created, {len(existing_tables)} existing")
@@ -160,7 +160,7 @@ class MonitorManager:
                         print(f"  OK {coin:8s} - Real-time table created")
                 else:
                     rt_existing_tables.append(coin)
-                    print(f"  • {coin:8s} - Real-time table exists")
+                    print(f"  * {coin:8s} - Real-time table exists")
 
             print("-"*80)
             print(f"[SUMMARY] Real-time Tables: {len(rt_new_tables)} created, {len(rt_existing_tables)} existing")
@@ -524,7 +524,7 @@ class MonitorManager:
                 ]
 
                 if new_coin_symbols:
-                    print(f"\n[NewCoinDetection] 🆕 Found {len(new_coin_symbols)} new coin(s):")
+                    print(f"\n[NewCoinDetection] NEW Found {len(new_coin_symbols)} new coin(s):")
                     for coin in new_coin_symbols:
                         print(f"[NewCoinDetection]    - {coin}")
 

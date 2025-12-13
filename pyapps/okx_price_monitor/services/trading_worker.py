@@ -196,7 +196,7 @@ class TradingWorker:
 
             if position:
                 self.stats['positions_opened'] += 1
-                print(f"[TradingWorker] 🚀 BUY SIGNAL: {coin_symbol} "
+                print(f"[TradingWorker] LAUNCH BUY SIGNAL: {coin_symbol} "
                       f"(60s change: {change_percent:+.2f}%)")
 
     def _check_exit_positions(self):
