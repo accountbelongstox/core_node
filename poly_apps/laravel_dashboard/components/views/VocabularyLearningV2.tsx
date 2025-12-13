@@ -9,7 +9,9 @@ import {
   FileText,
   LogOut,
   Menu,
-  X as CloseIcon
+  X as CloseIcon,
+  Trophy,
+  Download
 } from 'lucide-react';
 import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
@@ -22,6 +24,10 @@ import UserInitWizard from '../vocabulary/UserInitWizard';
 import LibraryBrowser from '../vocabulary/LibraryBrowser';
 import LearningInterface from '../vocabulary/LearningInterface';
 import DocUploadPanel from '../vocabulary/DocUploadPanel';
+import StatisticsPanel from '../vocabulary/StatisticsPanel';
+import ReviewPanel from '../vocabulary/ReviewPanel';
+import QuizPanel from '../vocabulary/QuizPanel';
+import ExportPanel from '../vocabulary/ExportPanel';
 
 interface VocabularyLearningProps {
   lang?: Language;
@@ -36,6 +42,8 @@ type ViewMode =
   | 'upload'
   | 'statistics'
   | 'review'
+  | 'quiz'
+  | 'export'
   | 'settings';
 
 interface UserProfile {
@@ -142,6 +150,8 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
     { id: 'upload', icon: Upload, label: 'Upload Docs', requiresAuth: true },
     { id: 'statistics', icon: BarChart3, label: 'Statistics', requiresAuth: true },
     { id: 'review', icon: FileText, label: 'Review', requiresAuth: true },
+    { id: 'quiz', icon: Trophy, label: 'Quiz', requiresAuth: true },
+    { id: 'export', icon: Download, label: 'Export', requiresAuth: true },
     { id: 'settings', icon: Settings, label: 'Settings', requiresAuth: true },
   ];
 
@@ -191,60 +201,16 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
         }} />;
 
       case 'statistics':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Learning Statistics</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className={`${commonClasses.card} p-6`}>
-                <h3 className="text-lg font-semibold mb-2">Words Learned</h3>
-                <p className="text-3xl font-bold text-indigo-600">247</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">+23 this week</p>
-              </div>
-              <div className={`${commonClasses.card} p-6`}>
-                <h3 className="text-lg font-semibold mb-2">Study Time</h3>
-                <p className="text-3xl font-bold text-green-600">12.5h</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">+2.3h this week</p>
-              </div>
-              <div className={`${commonClasses.card} p-6`}>
-                <h3 className="text-lg font-semibold mb-2">Accuracy</h3>
-                <p className="text-3xl font-bold text-blue-600">87%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">+5% improvement</p>
-              </div>
-            </div>
-            <div className={`${commonClasses.card} p-6 mt-6`}>
-              <h3 className="text-lg font-semibold mb-4">Progress Chart</h3>
-              <div className="h-64 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded">
-                <p className="text-gray-500">Chart visualization (to be implemented)</p>
-              </div>
-            </div>
-          </div>
-        );
+        return <StatisticsPanel userId={currentUser?.id} />;
 
       case 'review':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Review Mode</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Review words you've learned to reinforce your memory
-            </p>
-            <div className={`${commonClasses.card} p-6`}>
-              <h3 className="text-lg font-semibold mb-4">Due for Review</h3>
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                    <div>
-                      <p className="font-semibold">Word {i}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Last reviewed 3 days ago</p>
-                    </div>
-                    <button className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-sm`}>
-                      Review
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
+        return <ReviewPanel userId={currentUser?.id} />;
+
+      case 'quiz':
+        return <QuizPanel userId={currentUser?.id} libraryId={selectedLibrary?.id} />;
+
+      case 'export':
+        return <ExportPanel userId={currentUser?.id} />;
 
       case 'settings':
         return (
