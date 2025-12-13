@@ -224,6 +224,9 @@ main() {
                 if [ $menu_result -eq 2 ]; then
                     # User chose to launch from script menu
                     launch_current_app
+                elif [ $menu_result -eq 3 ]; then
+                    # User chose to create service from script menu
+                    create_service_for_current_app
                 fi
                 # If menu_result is 0 or 1, just return to main menu
             else
