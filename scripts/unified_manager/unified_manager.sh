@@ -44,7 +44,7 @@ MAX_APP_NAME_WIDTH=0
 SCRIPT_FILES=("start.sh" "install.sh" "deploy.sh")
 
 # Native startup types
-NATIVE_STARTUPS=("ncoreStart" "pycoreStart" "Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart")
+NATIVE_STARTUPS=("Ncore/Pycore/Installer" "pyStart" "flutterStart" "laravelStart" "nuxtStart" "phpStart" "reactNativeStart" "kotlinMultiPlatformStart" "vueStart" "reactStart")
 
 # Debug output for paths
 echo "Script Path: $SCRIPT_PATH"
@@ -122,9 +122,68 @@ get_laravel_start_command() {
 get_nuxt_start_command() {
     local app_path="$1"
     local nuxt_config="$app_path/nuxt.config.ts"
-    
-    if [ -f "$nuxt_config" ]; then
+    local nuxt_config_js="$app_path/nuxt.config.js"
+
+    if [ -f "$nuxt_config" ] || [ -f "$nuxt_config_js" ]; then
         echo "cd \"$app_path\" && npm run dev"
+    fi
+}
+
+# Generate React Native start command
+get_react_native_start_command() {
+    local app_path="$1"
+    local package_json="$app_path/package.json"
+    local android_dir="$app_path/android"
+    local ios_dir="$app_path/ios"
+
+    if [ -f "$package_json" ] && ([ -d "$android_dir" ] || [ -d "$ios_dir" ]); then
+        # Check if it's React Native by looking in package.json
+        if grep -q "react-native" "$package_json" 2>/dev/null; then
+            echo "cd \"$app_path\" && npm run android"
+        fi
+    fi
+}
+
+# Generate Vue.js start command
+get_vue_start_command() {
+    local app_path="$1"
+    local package_json="$app_path/package.json"
+    local vue_config="$app_path/vue.config.js"
+    local vite_config="$app_path/vite.config.js"
+
+    if [ -f "$package_json" ] && ([ -f "$vue_config" ] || [ -f "$vite_config" ] || grep -q "vue" "$package_json" 2>/dev/null); then
+        # Don't detect Vue if it's Nuxt (Nuxt uses Vue but has different commands)
+        if ! grep -q "nuxt" "$package_json" 2>/dev/null; then
+            echo "cd \"$app_path\" && npm run dev"
+        fi
+    fi
+}
+
+# Generate React start command
+get_react_start_command() {
+    local app_path="$1"
+    local package_json="$app_path/package.json"
+
+    if [ -f "$package_json" ] && grep -q "react" "$package_json" 2>/dev/null; then
+        # Exclude React Native and Nuxt
+        if ! grep -q "react-native" "$package_json" 2>/dev/null && ! grep -q "nuxt" "$package_json" 2>/dev/null; then
+            echo "cd \"$app_path\" && npm start"
+        fi
+    fi
+}
+
+# Generate Kotlin Multiplatform start command
+get_kotlin_multiplatform_start_command() {
+    local app_path="$1"
+    local build_gradle="$app_path/build.gradle.kts"
+    local build_gradle_groovy="$app_path/build.gradle"
+
+    if [ -f "$build_gradle" ] || [ -f "$build_gradle_groovy" ]; then
+        # Check if it contains kotlin multiplatform
+        if ([ -f "$build_gradle" ] && grep -q "kotlin.*multiplatform" "$build_gradle" 2>/dev/null) ||
+           ([ -f "$build_gradle_groovy" ] && grep -q "kotlin.*multiplatform" "$build_gradle_groovy" 2>/dev/null); then
+            echo "cd \"$app_path\" && ./gradlew run"
+        fi
     fi
 }
 
@@ -618,7 +677,7 @@ scan_apps() {
 # Show menu
 show_menu() {
     clear
-    echo -e "\033[36m=== Core Node Unified Manager ===\033[0m"
+    echo -e "\033[36m=== dd.sh Unified App Manager >16 ===\033[0m"
     echo -e "\033[90mCurrent directory: $ROOT_DIR\033[0m"
     echo ""
     
