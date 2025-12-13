@@ -54,6 +54,17 @@ case "$ACTION" in
         ;;
     "start"|"dev")
         echo "Starting React application..."
+
+        # Check if node_modules exists, install if not
+        if [ ! -d "node_modules" ]; then
+            echo "node_modules not found. Installing dependencies..."
+            pnpm install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install dependencies"
+                exit 1
+            fi
+        fi
+
         # Check if start script exists
         if grep -q '"start"' "$PACKAGE_JSON" 2>/dev/null; then
             pnpm start
