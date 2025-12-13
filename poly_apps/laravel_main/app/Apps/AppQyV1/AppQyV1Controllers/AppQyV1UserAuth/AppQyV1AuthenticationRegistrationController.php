@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use App\Http\Common\CommonUserGen;
+use App\Models\InviteCode;
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
     /**
