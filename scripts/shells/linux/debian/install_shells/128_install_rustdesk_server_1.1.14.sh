@@ -362,7 +362,7 @@ Wants=network.target
 [Service]
 Type=simple
 WorkingDirectory=$RUSTDESK_DATA_DIR
-ExecStart=$(command -v hbbs || echo "$RUSTDESK_BIN_DIR/hbbs") -p $HBBS_PORT -k _
+ExecStart=$(command -v hbbs || echo "$RUSTDESK_BIN_DIR/hbbs") -r 127.0.0.1:$HBBR_PORT -k _
 Restart=always
 RestartSec=10
 
@@ -400,8 +400,6 @@ EOF
 configure_firewall() {
     print_step_from_common_functions "Configuring firewall for RustDesk Server..."
 
-    # Open required ports according to official documentation
-    # https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/install/
     firewall_allow_port "$HBBS_PORT" "tcp" "RustDesk ID/Rendezvous Server (TCP)" || true
     firewall_allow_port "$HBBS_NAT_PORT" "tcp" "RustDesk NAT Type Test (TCP)" || true
     firewall_allow_port "$HBBS_NAT_PORT" "udp" "RustDesk NAT Type Test (UDP)" || true
@@ -613,7 +611,7 @@ display_connection_info() {
     else
         echo -e "    │ ID Server:    ${YELLOW}<your_server_ip>${NC}                           │"
     fi
-    echo -e "    │ Relay Server: ${GREEN}<leave empty or same as ID Server>${NC}       │"
+    echo -e "    │ Relay Server: ${GREEN}<leave empty>${NC}                            │"
     echo -e "    │ API Server:   ${GREEN}<leave empty>${NC}                            │"
     if [[ -n "$public_key" ]] && [[ "$public_key" != *"not found"* ]]; then
         echo -e "    │ Key:          ${GREEN}$public_key${NC}"
@@ -623,6 +621,7 @@ display_connection_info() {
     echo "    └──────────────────────────────────────────────────────────────┘"
     echo ""
     print_warning_from_common_functions "Important Notes:"
+    echo -e "  • ${RED}DO NOT${NC} add port numbers to ID Server (use IP only)"
     echo -e "  • For ${GREEN}local network${NC} access, use local IP (e.g., 192.168.x.x)"
     echo -e "  • For ${GREEN}internet${NC} access, use public IP"
     echo -e "  • ${YELLOW}Port forwarding${NC} required for internet access (forward ports to this server)"
@@ -826,9 +825,11 @@ IMPORTANT: Configuration Required After Installation
 SERVER CONNECTION DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ID Server:    $public_ip:$HBBS_NAT_PORT
+ID Server:    $public_ip
 Relay Server: (leave empty for auto-detect)
 Public Key:   $public_key
+
+IMPORTANT: Enter ONLY the IP address in ID Server field (no port number).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONFIGURATION STEPS
@@ -855,7 +856,8 @@ Step 4: Enter Server Configuration
 ─────────────────────────────────
 
   Field: ID Server
-  Value: $public_ip:$HBBS_NAT_PORT
+  Value: $public_ip
+  NOTE:  DO NOT add port number, just IP address
 
   Field: Relay Server
   Value: (leave empty)
@@ -982,6 +984,49 @@ install_rustdesk_server() {
     return 0
 }
 
+# Repair/fix existing installation (always run these checks)
+repair_installation() {
+    print_header_from_common_functions "Checking and Repairing RustDesk Server Configuration"
+
+    print_info_from_common_functions "Step 1/5: Verifying directories..."
+    create_directories
+
+    echo ""
+    print_info_from_common_functions "Step 2/5: Updating systemd services..."
+    create_systemd_services
+
+    echo ""
+    print_info_from_common_functions "Step 3/5: Configuring firewall..."
+    configure_firewall
+
+    echo ""
+    print_info_from_common_functions "Step 4/5: Restarting services..."
+    $USE_SUDO systemctl daemon-reload
+    $USE_SUDO systemctl restart rustdesk-hbbs rustdesk-hbbr
+    sleep 3
+
+    local hbbs_status=$($USE_SUDO systemctl is-active rustdesk-hbbs)
+    local hbbr_status=$($USE_SUDO systemctl is-active rustdesk-hbbr)
+
+    if [[ "$hbbs_status" == "active" ]] && [[ "$hbbr_status" == "active" ]]; then
+        print_success_from_common_functions "Services restarted successfully"
+    else
+        print_warning_from_common_functions "Service status: hbbs=$hbbs_status, hbbr=$hbbr_status"
+    fi
+
+    echo ""
+    print_info_from_common_functions "Step 5/5: Updating configuration..."
+    wait_for_key_generation
+    save_installation_info "$RUSTDESK_SERVER_VERSION"
+    save_server_config
+    download_and_configure_clients
+
+    echo ""
+    print_success_from_common_functions "Configuration check and repair completed!"
+    echo ""
+    display_connection_info
+}
+
 # Interactive prompt
 prompt_installation() {
     if is_rustdesk_server_installed; then
@@ -994,21 +1039,9 @@ prompt_installation() {
         fi
 
         echo ""
-        print_info_from_common_functions "Refreshing client configuration..."
+        print_info_from_common_functions "Automatically checking and repairing configuration..."
         echo ""
-
-        # Wait for services and key generation if needed
-        if systemctl is-active --quiet rustdesk-hbbs; then
-            wait_for_key_generation
-        fi
-
-        # Display current connection info
-        display_connection_info
-
-        # Refresh client downloads and configuration
-        save_server_config
-        echo ""
-        download_and_configure_clients
+        repair_installation
 
         echo ""
         echo "───────────────────────────────────────────────────────────────"
@@ -1017,11 +1050,11 @@ prompt_installation() {
 
         case "$response" in
             [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Proceeding with reinstallation/upgrade..."
+                print_info_from_common_functions "Proceeding with full reinstallation/upgrade..."
                 return 0
                 ;;
             *)
-                print_info_from_common_functions "Keeping existing installation"
+                print_info_from_common_functions "Installation kept as is"
                 return 1
                 ;;
         esac
