@@ -722,7 +722,7 @@ export interface SystemStorage {
   mounted_on: string;
 }
 
-export interface FileNode {
+export interface ServerFileNode {
   name: string;
   type: 'file' | 'directory';
   size?: number;

@@ -351,11 +351,11 @@ class ApiService {
   }
 
   // ========== ServerManager - File Management ==========
-  async browseFiles(path?: string): Promise<ApiResponse<FileNode[]>> {
+  async browseFiles(path?: string): Promise<ApiResponse<ServerFileNode[]>> {
     const url = path 
       ? `/api/servermanager/v1/files/browse?path=${encodeURIComponent(path)}`
       : '/api/servermanager/v1/files/browse';
-    return this.request<FileNode[]>('GET', url);
+    return this.request<ServerFileNode[]>('GET', url);
   }
 
   async downloadFile(filePath: string): Promise<Blob> {
