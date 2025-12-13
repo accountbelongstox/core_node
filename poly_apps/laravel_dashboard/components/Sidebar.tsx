@@ -1,18 +1,19 @@
 import React from 'react';
 import { ViewType, NavItem, Language } from '../types';
 import { TRANSLATIONS } from '../constants';
-import { 
-  Film, 
-  Code2, 
-  Wrench, 
-  Server, 
+import {
+  Film,
+  Code2,
+  Wrench,
+  Server,
   Settings,
   Rocket,
   Info,
   BookOpen,
   Boxes,
   Timer,
-  Network
+  Network,
+  Sparkles
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
   { id: ViewType.SYSTEM_INFO, icon: Info, labelKey: 'system' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
+  { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
   { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
   { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },

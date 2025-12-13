@@ -19,6 +19,15 @@ Usage:
 """
 
 from pycore.pyfoundations.color_print import ColorPrint as _OriginalColorPrint
+from pycore.database import get_database_manager
+from pycore.database.models import TableKeys
+from pycore.database.models.common import CommonConfigModel
+from pycore.database.models.util_speech import (
+    SpeechConfigModel,
+    SpeechTTSCacheModel,
+    SpeechSTTCacheModel,
+)
+from pycore.database.models.util_clipboard import ClipboardHistoryModel
 
 # Suppress ColorPrint output in MCP mode
 class ColorPrint:
@@ -78,10 +87,6 @@ class DatabaseInitializer:
         if 'common' in cls._initialized_databases:
             return  # Already initialized
 
-        from pycore.database import get_database_manager
-        from pycore.database.models import TableKeys
-        from pycore.database.models.common import CommonConfigModel
-
         db_manager = get_database_manager()
 
         # Register database
@@ -105,14 +110,6 @@ class DatabaseInitializer:
         """Initialize speech database (TTS/STT cache, speech config)"""
         if 'speech' in cls._initialized_databases:
             return  # Already initialized
-
-        from pycore.database import get_database_manager
-        from pycore.database.models import TableKeys
-        from pycore.database.models.util_speech import (
-            SpeechConfigModel,
-            SpeechTTSCacheModel,
-            SpeechSTTCacheModel,
-        )
 
         db_manager = get_database_manager()
 
@@ -153,10 +150,6 @@ class DatabaseInitializer:
         """Initialize clipboard database (clipboard history)"""
         if 'clipboard' in cls._initialized_databases:
             return  # Already initialized
-
-        from pycore.database import get_database_manager
-        from pycore.database.models import TableKeys
-        from pycore.database.models.util_clipboard import ClipboardHistoryModel
 
         db_manager = get_database_manager()
 
