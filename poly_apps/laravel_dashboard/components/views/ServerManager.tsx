@@ -7,7 +7,13 @@ import {
   AsyncState, 
   Language,
   NginxSiteCreateRequest,
-  NginxSiteConfig
+  NginxSiteConfig,
+  FileNode,
+  PredefinedScript,
+  ScriptExecution,
+  UnifiedApp,
+  UnifiedAppStatus,
+  CertbotStatus
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { TRANSLATIONS } from '../../constants';
@@ -797,3 +803,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+};
+
+export default ServerManager;
+
