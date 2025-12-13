@@ -12,12 +12,16 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # React Framework Launcher
-# Launches React applications with pnpm support
+# Launches React applications with pnpm support and network binding
 
 # Variable Declarations
 APP_PATH="$1"
 APP_NAME="$2"
 ACTION="${3:-start}"
+
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
 
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
@@ -65,16 +69,27 @@ case "$ACTION" in
             fi
         fi
 
+        # Setup host binding for network access
+        setup_host_binding "$APP_PATH"
+
         # Check if start script exists
         if grep -q '"start"' "$PACKAGE_JSON" 2>/dev/null; then
-            pnpm start
+            echo "Launching with pnpm start..."
+            # Add host and port parameters for common React tools
+            HOST=0.0.0.0 pnpm start
         elif grep -q '"dev"' "$PACKAGE_JSON" 2>/dev/null; then
-            pnpm run dev
+            echo "Launching with pnpm run dev..."
+            # Add host and port parameters for Vite and other dev servers
+            HOST=0.0.0.0 pnpm run dev
         else
             echo "No start or dev script found in package.json"
             echo "Available scripts:"
             pnpm run
         fi
+
+        # Show network addresses after launch attempt
+        local port=$(extract_port "$(grep -E '\"(start|dev)\"' "$PACKAGE_JSON")" "3000")
+        get_all_ips "$port"
         ;;
     "build")
         echo "Building React application..."

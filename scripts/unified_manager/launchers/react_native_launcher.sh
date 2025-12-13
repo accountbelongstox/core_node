@@ -19,6 +19,10 @@ APP_PATH="$1"
 APP_NAME="$2"
 ACTION="${3:-start}"
 
+# Load network utils
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/../utils/network_utils.sh"
+
 # Check parameters
 if [ -z "$APP_PATH" ] || [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_path> <app_name> [action]"
@@ -68,7 +72,23 @@ case "$ACTION" in
         ;;
     "start"|"dev")
         echo "Starting React Native Metro bundler..."
+
+        # Check if node_modules exists, install if not
+        if [ ! -d "node_modules" ]; then
+            echo "node_modules not found. Installing dependencies..."
+            pnpm install
+            if [ $? -ne 0 ]; then
+                echo "Failed to install dependencies"
+                exit 1
+            fi
+        fi
+
+        echo "Launching Metro bundler with pnpm start..."
         pnpm start
+
+        # Show network addresses after launch attempt
+        local port=$(extract_port "$(grep -E '\"start\"' "$PACKAGE_JSON")" "8081")
+        get_all_ips "$port"
         ;;
     "android")
         echo "Running on Android..."

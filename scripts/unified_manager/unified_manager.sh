@@ -141,52 +141,51 @@ main() {
     while true; do
         show_menu
 
-        # Read single character
-        read -rsn1 key
+        # Read user input
+        read input
 
-        case "$key" in
-            $'\x1b')  # ESC sequence
-                read -rsn2 key  # Read next 2 chars
-                case "$key" in
-                    '[A')  # Up arrow
-                        navigate_up
-                        save_cache
-                        ;;
-                    '[B')  # Down arrow
-                        navigate_down
-                        save_cache
-                        ;;
-                    '[C')  # Right arrow
-                        toggle_script
-                        ;;
-                    '[D')  # Left arrow
-                        toggle_script
-                        ;;
-                esac
-                ;;
-            '')  # Enter
-                launch_current_app
-                ;;
-            ' ')  # Space
-                toggle_selection
-                ;;
-            'q'|'Q')  # Quit
-                echo -e "\033[33mExiting program\033[0m"
+        # Convert to uppercase for command comparison
+        input_upper=$(echo "$input" | tr '[:lower:]' '[:upper:]')
+
+        # Handle numeric input (app selection)
+        if [[ "$input" =~ ^[0-9]+$ ]]; then
+            local app_num=$input
+            local app_index=$((app_num - 1))
+
+            if [ $app_index -ge 0 ] && [ $app_index -lt ${#APPS_NAME[@]} ]; then
+                CURRENT_INDEX=$app_index
                 save_cache
-                stty "$old_settings"
-                exit 0
-                ;;
-            'r'|'R')  # Rescan
-                scan_apps
-                echo -e "\033[32mApplication list updated\033[0m"
+                echo -e "\033[32mSelected app #$app_num: ${APPS_NAME[$app_index]}\033[0m"
                 sleep 1
-                ;;
-            's'|'S')  # Save
-                save_cache
-                echo -e "\033[32mState saved\033[0m"
+            else
+                echo -e "\033[31mInvalid app number: $app_num\033[0m"
                 sleep 1
-                ;;
-        esac
+            fi
+        # Handle commands
+        elif [ "$input_upper" = "L" ]; then
+            launch_current_app
+        elif [ "$input_upper" = "T" ]; then
+            toggle_script
+        elif [ "$input_upper" = "S" ]; then
+            toggle_selection
+        elif [ "$input_upper" = "R" ]; then
+            scan_apps
+            echo -e "\033[32mApplication list updated\033[0m"
+            sleep 1
+        elif [ "$input_upper" = "Q" ] || [ "$input_upper" = "QUIT" ] || [ "$input_upper" = "EXIT" ]; then
+            echo -e "\033[33mExiting program\033[0m"
+            save_cache
+            stty "$old_settings"
+            exit 0
+        elif [ -z "$input" ]; then
+            # Empty input, launch current app
+            launch_current_app
+        else
+            echo -e "\033[31mUnknown command: $input\033[0m"
+            echo -e "\033[33mValid commands: L (launch), T (toggle script), S (select), R (rescan), Q (quit)\033[0m"
+            echo -e "\033[33mOr enter an app number (1-${#APPS_NAME[@]})\033[0m"
+            sleep 2
+        fi
     done
 }
 
