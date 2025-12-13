@@ -19,6 +19,49 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Set-Location $ProjectRoot
 
 # ======================================
+# Helper Functions
+# ======================================
+
+function Invoke-BuildWithRetry {
+    param(
+        [string]$Command,
+        [string]$ComponentName,
+        [int]$MaxRetries = 2
+    )
+
+    $attempt = 1
+    $success = $false
+
+    while (($attempt -le $MaxRetries) -and (!$success)) {
+        Write-Host "  Building $ComponentName (attempt $attempt/$MaxRetries)..." -ForegroundColor Cyan
+
+        # Execute command and capture result
+        Invoke-Expression $Command
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  ✓ $ComponentName built successfully" -ForegroundColor Green
+            $success = $true
+            return $true
+        }
+        else {
+            Write-Host "  ⚠ Build attempt $attempt failed with exit code $LASTEXITCODE" -ForegroundColor Yellow
+        }
+
+        if ($attempt -lt $MaxRetries) {
+            Write-Host "  ⚠ Retrying in 2 seconds..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        }
+
+        $attempt++
+    }
+
+    if (!$success) {
+        Write-Host "  ✗ ERROR: $ComponentName build failed after $MaxRetries attempts" -ForegroundColor Red
+        return $false
+    }
+}
+
+# ======================================
 # Step 1: Check Dependencies
 # ======================================
 Write-Host "[1/6] Checking dependencies..." -ForegroundColor Yellow
@@ -35,7 +78,8 @@ try {
         Write-Host "  ✗ ERROR: Node.js version too low, requires >= 18.19.0" -ForegroundColor Red
         exit 1
     }
-} catch {
+}
+catch {
     Write-Host "  ✗ ERROR: Node.js not installed" -ForegroundColor Red
     Write-Host "  Please install Node.js >= 18.19.0 from https://nodejs.org/" -ForegroundColor Yellow
     exit 1
@@ -45,7 +89,8 @@ try {
 try {
     $pnpmVersion = pnpm --version
     Write-Host "  ✓ pnpm: v$pnpmVersion" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "  ⚠ pnpm not installed, installing..." -ForegroundColor Yellow
     npm install -g pnpm
     Write-Host "  ✓ pnpm installed successfully" -ForegroundColor Green
@@ -69,7 +114,7 @@ if ($chromeInstalled) {
 Write-Host "`n[2/6] Installing project dependencies..." -ForegroundColor Yellow
 
 # Check if node_modules exists
-if (-Not (Test-Path "node_modules")) {
+if (!(Test-Path "node_modules")) {
     Write-Host "  Installing dependencies (may take a few minutes)..." -ForegroundColor Cyan
     pnpm install
     if ($LASTEXITCODE -ne 0) {
@@ -86,26 +131,16 @@ if (-Not (Test-Path "node_modules")) {
 # ======================================
 Write-Host "`n[3/6] Building shared package..." -ForegroundColor Yellow
 
-Write-Host "  Building chrome-mcp-shared (packages/shared)..." -ForegroundColor Cyan
-pnpm run build:shared
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ✗ ERROR: Shared package build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  ✓ Shared package built successfully" -ForegroundColor Green
+$success = Invoke-BuildWithRetry -Command "pnpm run build:shared" -ComponentName "Shared package"
+if (!$success) { exit 1 }
 
 # ======================================
 # Step 4: Build Native Server
 # ======================================
 Write-Host "`n[4/6] Building Native Server..." -ForegroundColor Yellow
 
-Write-Host "  Building mcp-chrome-bridge (app/native-server)..." -ForegroundColor Cyan
-pnpm run build:native
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ✗ ERROR: Native Server build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  ✓ Native Server built successfully" -ForegroundColor Green
+$success = Invoke-BuildWithRetry -Command "pnpm run build:native" -ComponentName "Native Server"
+if (!$success) { exit 1 }
 
 # Verify run_host.bat exists
 $runHostPath = Join-Path $ProjectRoot "app\native-server\dist\run_host.bat"
@@ -121,13 +156,8 @@ if (Test-Path $runHostPath) {
 # ======================================
 Write-Host "`n[5/6] Building Chrome Extension..." -ForegroundColor Yellow
 
-Write-Host "  Building chrome-mcp-server (app/chrome-extension)..." -ForegroundColor Cyan
-pnpm run build:extension
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ✗ ERROR: Chrome Extension build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  ✓ Chrome Extension built successfully" -ForegroundColor Green
+$success = Invoke-BuildWithRetry -Command "pnpm run build:extension" -ComponentName "Chrome Extension" -MaxRetries 3
+if (!$success) { exit 1 }
 
 # Verify extension output
 $extensionPath = Join-Path $ProjectRoot "app\chrome-extension\.output\chrome-mv3"
@@ -199,7 +229,8 @@ Write-Host "`n  ⚠ Important: Copy the Extension ID after loading" -ForegroundC
 
 Write-Host "`n[STEP 2] Verify Extension ID:" -ForegroundColor Yellow
 Write-Host "  1. In chrome://extensions, find your extension" -ForegroundColor White
-Write-Host "  2. Copy the Extension ID (e.g., hbdgbgagpkpjffpklnamcljpakneikee)" -ForegroundColor White
+Write-Host "  2. Copy the Extension ID" -ForegroundColor White
+Write-Host "     Example: hbdgbgagpkpjffpklnamcljpakneikee" -ForegroundColor DarkGray
 Write-Host "  3. Compare with registered ID in manifest file" -ForegroundColor White
 Write-Host "`n  If IDs don't match, run: pnpm run unregister:local" -ForegroundColor Yellow
 Write-Host "  Then update EXTENSION_ID in these files:" -ForegroundColor Yellow
@@ -286,6 +317,10 @@ Write-Host "       type `"%APPDATA%\Google\Chrome\NativeMessagingHosts\com.chrom
 Write-Host "`n  Port Conflicts:" -ForegroundColor White
 Write-Host "    • Check if port 12306 is in use:" -ForegroundColor White
 Write-Host "      netstat -ano | findstr :12306" -ForegroundColor Cyan
+Write-Host "`n  Build Issues:" -ForegroundColor White
+Write-Host "    • If EPERM errors occur, close all Node.js processes:" -ForegroundColor White
+Write-Host "      taskkill /F /IM node.exe" -ForegroundColor Cyan
+Write-Host "    • Then re-run this script" -ForegroundColor White
 Write-Host "`n  Documentation:" -ForegroundColor White
 Write-Host "    • Local Development Guide: LOCAL_DEVELOPMENT_GUIDE.md" -ForegroundColor Cyan
 Write-Host "    • Configuration Checklist: CONFIGURATION_CHECKLIST.md" -ForegroundColor Cyan

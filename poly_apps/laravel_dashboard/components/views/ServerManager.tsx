@@ -8,12 +8,15 @@ import {
   Language,
   NginxSiteCreateRequest,
   NginxSiteConfig,
-  FileNode,
+  ServerFileNode,
   PredefinedScript,
   ScriptExecution,
   UnifiedApp,
   UnifiedAppStatus,
-  CertbotStatus
+  CertbotStatus,
+  SystemProcess,
+  SystemStorage,
+  SystemServiceStatus
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { TRANSLATIONS } from '../../constants';
@@ -84,6 +87,24 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   // System Info State
   const [systemInfo, setSystemInfo] = useState<AsyncState<SystemInfo>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [systemProcesses, setSystemProcesses] = useState<AsyncState<SystemProcess[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [systemStorage, setSystemStorage] = useState<AsyncState<SystemStorage[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [systemServices, setSystemServices] = useState<AsyncState<SystemServiceStatus[]>>({
     data: null,
     loading: false,
     error: null,
@@ -167,6 +188,72 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const loadSystemProcesses = async () => {
+    setSystemProcesses(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.getSystemProcesses();
+      if (response.success && response.data) {
+        setSystemProcesses({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setSystemProcesses({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadSystemStorage = async () => {
+    setSystemStorage(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.getSystemStorage();
+      if (response.success && response.data) {
+        setSystemStorage({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setSystemStorage({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadSystemServices = async () => {
+    setSystemServices(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.getSystemServices();
+      if (response.success && response.data) {
+        setSystemServices({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setSystemServices({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'nginx') {
       loadNginxSites();
@@ -175,6 +262,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       loadCertbotStatus();
     } else if (activeTab === 'system') {
       loadSystemInfo();
+      loadSystemProcesses();
+      loadSystemStorage();
+      loadSystemServices();
     }
   }, [activeTab]);
 
@@ -420,7 +510,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           )}
           {activeTab === 'system' && (
             <button
-              onClick={loadSystemInfo}
+              onClick={() => {
+                loadSystemInfo();
+                loadSystemProcesses();
+                loadSystemStorage();
+                loadSystemServices();
+              }}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
             >
               <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${systemInfo.loading ? 'animate-spin' : ''}`} />
@@ -696,6 +791,93 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                 </div>
               </div>
             )}
+
+            {/* System Services */}
+            {systemServices.data && systemServices.data.length > 0 && (
+              <div className={`${commonClasses.card} p-4`}>
+                <h3 className="font-semibold mb-3">{t.system.services}</h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {systemServices.data.map((service, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          service.status === 'running' ? 'bg-green-500' :
+                          service.status === 'stopped' ? 'bg-slate-400' :
+                          'bg-red-500'
+                        }`} />
+                        <span className="text-sm font-medium">{service.name}</span>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        service.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        service.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
+                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      }`}>
+                        {service.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* System Storage */}
+            {systemStorage.data && systemStorage.data.length > 0 && (
+              <div className={`${commonClasses.card} p-4`}>
+                <h3 className="font-semibold mb-3">{t.system.storage}</h3>
+                <div className="space-y-2">
+                  {systemStorage.data.map((storage, idx) => (
+                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm">{storage.filesystem}</span>
+                        <span className="text-xs text-slate-500">{storage.use_percent}</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-1">
+                        <div
+                          className="bg-indigo-500 h-2 rounded-full transition-all"
+                          style={{ width: storage.use_percent }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500">
+                        <span>{storage.used} / {storage.size}</span>
+                        <span>{storage.available} available</span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">Mounted on: {storage.mounted_on}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* System Processes */}
+            {systemProcesses.data && systemProcesses.data.length > 0 && (
+              <div className={`${commonClasses.card} p-4`}>
+                <h3 className="font-semibold mb-3">{t.system.processes}</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="text-left p-2">PID</th>
+                        <th className="text-left p-2">User</th>
+                        <th className="text-right p-2">CPU %</th>
+                        <th className="text-right p-2">Memory %</th>
+                        <th className="text-left p-2">Command</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {systemProcesses.data.slice(0, 20).map((process, idx) => (
+                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
+                          <td className="p-2 font-mono text-xs">{process.pid}</td>
+                          <td className="p-2">{process.user}</td>
+                          <td className="p-2 text-right">{process.cpu}%</td>
+                          <td className="p-2 text-right">{process.memory}%</td>
+                          <td className="p-2 font-mono text-xs truncate max-w-xs">{process.command}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -801,6 +983,410 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                 {siteConfig.data.config}
               </pre>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// File Manager Tab Component
+const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
+  const [files, setFiles] = useState<AsyncState<ServerFileNode[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const t = TRANSLATIONS[lang].server.files;
+
+  const loadFiles = async (path?: string) => {
+    setFiles(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.browseFiles(path);
+      if (response.success && response.data) {
+        setFiles({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+        if (path) setCurrentPath(path);
+      }
+    } catch (error: any) {
+      setFiles({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadFiles();
+  }, []);
+
+  const handleDownload = async (filePath: string) => {
+    try {
+      const blob = await apiService.downloadFile(filePath);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filePath.split('/').pop() || 'download';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={currentPath}
+          onChange={(e) => setCurrentPath(e.target.value)}
+          placeholder="Enter path..."
+          className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
+        />
+        <button
+          onClick={() => loadFiles(currentPath || undefined)}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+        >
+          {t.browse}
+        </button>
+      </div>
+
+      {files.loading && (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+        </div>
+      )}
+
+      {files.data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {files.data.map((file, idx) => (
+            <div key={idx} className={`${commonClasses.card} p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800`}>
+              <div className="flex items-center gap-3 mb-2">
+                {file.type === 'directory' ? (
+                  <Folder className="w-5 h-5 text-blue-500" />
+                ) : (
+                  <File className="w-5 h-5 text-slate-500" />
+                )}
+                <span className="font-medium truncate">{file.name}</span>
+              </div>
+              {file.size && (
+                <p className="text-xs text-slate-500 mb-2">{file.size} bytes</p>
+              )}
+              {file.type === 'file' && (
+                <button
+                  onClick={() => handleDownload(file.path)}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.download}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Code Executor Tab Component
+const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
+  const [scripts, setScripts] = useState<AsyncState<PredefinedScript[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [execution, setExecution] = useState<AsyncState<ScriptExecution>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const t = TRANSLATIONS[lang].server.executor;
+
+  const loadScripts = async () => {
+    setScripts(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.listScripts();
+      if (response.success && response.data) {
+        setScripts({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setScripts({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadScripts();
+  }, []);
+
+  const handleExecute = async (scriptId: number) => {
+    setExecution(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.executeScript({ script_id: scriptId });
+      if (response.success && response.data) {
+        setExecution({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setExecution({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {scripts.loading && (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+        </div>
+      )}
+
+      {scripts.data && (
+        <div className="grid grid-cols-1 gap-4">
+          {scripts.data.map(script => (
+            <div key={script.id} className={`${commonClasses.card} p-4`}>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="font-semibold">{script.name}</h3>
+                  <p className="text-sm text-slate-500">{script.category}</p>
+                </div>
+                <button
+                  onClick={() => handleExecute(script.id)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm"
+                >
+                  {t.execute}
+                </button>
+              </div>
+              {script.description && (
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{script.description}</p>
+              )}
+              <div className="flex gap-4 text-xs text-slate-500">
+                <span>{t.timeout}: {script.timeout}s</span>
+                {script.requires_sudo && <span className="text-yellow-600">Requires Sudo</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {execution.data && (
+        <div className={`${commonClasses.card} p-4`}>
+          <h3 className="font-semibold mb-2">{t.output}</h3>
+          <pre className="text-xs bg-slate-50 dark:bg-slate-900 p-4 rounded overflow-x-auto">
+            {execution.data.output}
+          </pre>
+          <div className="mt-2 text-xs text-slate-500">
+            Exit Code: {execution.data.exit_code} | Time: {execution.data.execution_time}s
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Unified Manager Tab Component
+const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
+  const [apps, setApps] = useState<AsyncState<UnifiedApp[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [appStatus, setAppStatus] = useState<AsyncState<UnifiedAppStatus>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const t = TRANSLATIONS[lang].server.unified;
+
+  const loadApps = async () => {
+    setApps(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.getUnifiedApps();
+      if (response.success && response.data) {
+        setApps({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      setApps({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadApps();
+  }, []);
+
+  const handleDeploy = async (appName: string, action: 'deploy' | 'start' | 'stop' | 'restart') => {
+    try {
+      const response = await apiService.deployUnifiedApp({ app_name: appName, action });
+      if (response.success) {
+        alert(`Action ${action} completed`);
+        if (selectedApp === appName) {
+          loadAppStatus(appName);
+        }
+      }
+    } catch (error: any) {
+      alert(error.message || 'Operation failed');
+    }
+  };
+
+  const loadAppStatus = async (appName: string) => {
+    setAppStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await apiService.getUnifiedAppStatus(appName);
+      if (response.success && response.data) {
+        setAppStatus({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+        setSelectedApp(appName);
+      }
+    } catch (error: any) {
+      setAppStatus({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {apps.loading && (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+        </div>
+      )}
+
+      {apps.data && (
+        <div className="grid grid-cols-1 gap-4">
+          {apps.data.map(app => (
+            <div key={app.app_name} className={`${commonClasses.card} p-4`}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold text-lg">{app.app_name}</h3>
+                  <p className="text-sm text-slate-500 font-mono">{app.app_path}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDeploy(app.app_name, 'deploy')}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm"
+                  >
+                    {t.deploy}
+                  </button>
+                  <button
+                    onClick={() => handleDeploy(app.app_name, 'start')}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+                  >
+                    {t.start}
+                  </button>
+                  <button
+                    onClick={() => handleDeploy(app.app_name, 'stop')}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                  >
+                    {t.stop}
+                  </button>
+                  <button
+                    onClick={() => handleDeploy(app.app_name, 'restart')}
+                    className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm"
+                  >
+                    {t.restart}
+                  </button>
+                  <button
+                    onClick={() => loadAppStatus(app.app_name)}
+                    className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white rounded text-sm"
+                  >
+                    {t.status}
+                  </button>
+                </div>
+              </div>
+              {app.service_name && (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {t.service_name}: {app.service_name}
+                </p>
+              )}
+              {app.port && (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {t.port}: {app.port}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {appStatus.data && selectedApp && (
+        <div className={`${commonClasses.card} p-4`}>
+          <h3 className="font-semibold mb-3">{selectedApp} - {t.status}</h3>
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-slate-500">Overall Status:</span>
+              <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                appStatus.data.overall_status === 'running' ? 'bg-green-100 text-green-700' :
+                appStatus.data.overall_status === 'stopped' ? 'bg-slate-100 text-slate-700' :
+                'bg-red-100 text-red-700'
+              }`}>
+                {appStatus.data.overall_status}
+              </span>
+            </div>
+            {appStatus.data.service_status && (
+              <div>
+                <span className="text-slate-500">Service:</span>
+                <span className="ml-2">{appStatus.data.service_status.status}</span>
+              </div>
+            )}
+            {appStatus.data.process_info && (
+              <div>
+                <span className="text-slate-500">Processes:</span>
+                <span className="ml-2">{appStatus.data.process_info.count} running</span>
+              </div>
+            )}
           </div>
         </div>
       )}
