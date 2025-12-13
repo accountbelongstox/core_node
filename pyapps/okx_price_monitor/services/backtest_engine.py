@@ -5,6 +5,7 @@ Backtest Engine - Virtual Trading System
 """
 
 import time
+import threading
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
@@ -116,6 +117,11 @@ class BacktestEngine:
         print(f"[BacktestEngine] Step 5: Redis manager obtained")
         sys.stdout.flush()
 
+        # Thread lock for concurrent access protection
+        self._lock = threading.Lock()
+        print(f"[BacktestEngine] Step 6: Thread lock initialized")
+        sys.stdout.flush()
+
         # Active positions
         self.positions: Dict[str, Position] = {}
 
@@ -132,7 +138,7 @@ class BacktestEngine:
             'peak_balance': self.initial_balance,
         }
 
-        print(f"[BacktestEngine] Initialized")
+        print(f"[BacktestEngine] Initialized (thread-safe)")
         print(f"[BacktestEngine] Initial balance: {self.initial_balance} USDT")
         sys.stdout.flush()
 
@@ -175,37 +181,38 @@ class BacktestEngine:
         Returns:
             Optional[Position]: Created position or None
         """
-        if not self.can_open_position():
-            return None
+        with self._lock:
+            if not self.can_open_position():
+                return None
 
-        if coin_symbol in self.positions:
-            # Already have position for this coin
-            return None
+            if coin_symbol in self.positions:
+                # Already have position for this coin
+                return None
 
-        # Calculate size
-        size = self.calculate_position_size()
+            # Calculate size
+            size = self.calculate_position_size()
 
-        # Create position
-        position = Position(
-            coin_symbol=coin_symbol,
-            entry_price=price,
-            entry_time=timestamp_ms,
-            size=size,
-            side=OrderSide.BUY
-        )
+            # Create position
+            position = Position(
+                coin_symbol=coin_symbol,
+                entry_price=price,
+                entry_time=timestamp_ms,
+                size=size,
+                side=OrderSide.BUY
+            )
 
-        # Deduct from balance
-        self.balance -= size
+            # Deduct from balance (CRITICAL SECTION)
+            self.balance -= size
 
-        # Store position
-        self.positions[coin_symbol] = position
+            # Store position (CRITICAL SECTION)
+            self.positions[coin_symbol] = position
 
-        # Store in Redis
-        self.redis_manager.set_position(coin_symbol, position.to_dict())
+            # Store in Redis
+            self.redis_manager.set_position(coin_symbol, position.to_dict())
 
-        print(f"[BacktestEngine] OPEN {coin_symbol} @ {price:.4f} (size: {size:.2f} USDT)")
+            print(f"[BacktestEngine] OPEN {coin_symbol} @ {price:.4f} (size: {size:.2f} USDT)")
 
-        return position
+            return position
 
     def close_position(self, coin_symbol: str, price: float, timestamp_ms: int) -> Optional[Position]:
         """
@@ -219,46 +226,47 @@ class BacktestEngine:
         Returns:
             Optional[Position]: Closed position or None
         """
-        if coin_symbol not in self.positions:
-            return None
+        with self._lock:
+            if coin_symbol not in self.positions:
+                return None
 
-        # Get position
-        position = self.positions.pop(coin_symbol)
+            # Get position (CRITICAL SECTION)
+            position = self.positions.pop(coin_symbol)
 
-        # Close position
-        position.close(price, timestamp_ms)
+            # Close position
+            position.close(price, timestamp_ms)
 
-        # Add proceeds back to balance
-        proceeds = position.size + position.pnl
-        self.balance += proceeds
+            # Add proceeds back to balance (CRITICAL SECTION)
+            proceeds = position.size + position.pnl
+            self.balance += proceeds
 
-        # Update statistics
-        self.stats['total_trades'] += 1
-        if position.pnl > 0:
-            self.stats['winning_trades'] += 1
-        else:
-            self.stats['losing_trades'] += 1
+            # Update statistics (CRITICAL SECTION)
+            self.stats['total_trades'] += 1
+            if position.pnl > 0:
+                self.stats['winning_trades'] += 1
+            else:
+                self.stats['losing_trades'] += 1
 
-        self.stats['total_pnl'] += position.pnl
+            self.stats['total_pnl'] += position.pnl
 
-        # Update peak balance and drawdown
-        if self.balance > self.stats['peak_balance']:
-            self.stats['peak_balance'] = self.balance
+            # Update peak balance and drawdown
+            if self.balance > self.stats['peak_balance']:
+                self.stats['peak_balance'] = self.balance
 
-        drawdown = (self.stats['peak_balance'] - self.balance) / self.stats['peak_balance'] * 100
-        if drawdown > self.stats['max_drawdown']:
-            self.stats['max_drawdown'] = drawdown
+            drawdown = (self.stats['peak_balance'] - self.balance) / self.stats['peak_balance'] * 100
+            if drawdown > self.stats['max_drawdown']:
+                self.stats['max_drawdown'] = drawdown
 
-        # Add to history
-        self.trade_history.append(position)
+            # Add to history
+            self.trade_history.append(position)
 
-        # Remove from Redis
-        self.redis_manager.delete_position(coin_symbol)
+            # Remove from Redis
+            self.redis_manager.delete_position(coin_symbol)
 
-        print(f"[BacktestEngine] CLOSE {coin_symbol} @ {price:.4f} "
-              f"(P&L: {position.pnl:+.2f} USDT / {position.pnl_percent:+.2f}%)")
+            print(f"[BacktestEngine] CLOSE {coin_symbol} @ {price:.4f} "
+                  f"(P&L: {position.pnl:+.2f} USDT / {position.pnl_percent:+.2f}%)")
 
-        return position
+            return position
 
     def check_exit_conditions(self, coin_symbol: str, current_price: float,
                               current_time_ms: int) -> bool:
@@ -273,29 +281,30 @@ class BacktestEngine:
         Returns:
             bool: True if should exit
         """
-        if coin_symbol not in self.positions:
+        with self._lock:
+            if coin_symbol not in self.positions:
+                return False
+
+            position = self.positions[coin_symbol]
+
+            # Time-based exit (5 minutes after entry)
+            time_elapsed_ms = current_time_ms - position.entry_time
+            if time_elapsed_ms >= strategy_config.SELL_AFTER_MINUTES * 60 * 1000:
+                return True
+
+            # Stop loss
+            if strategy_config.ENABLE_STOP_LOSS:
+                pnl_percent = ((current_price - position.entry_price) / position.entry_price) * 100
+                if pnl_percent <= strategy_config.STOP_LOSS_PERCENT:
+                    return True
+
+            # Take profit
+            if strategy_config.ENABLE_TAKE_PROFIT:
+                pnl_percent = ((current_price - position.entry_price) / position.entry_price) * 100
+                if pnl_percent >= strategy_config.TAKE_PROFIT_PERCENT:
+                    return True
+
             return False
-
-        position = self.positions[coin_symbol]
-
-        # Time-based exit (5 minutes after entry)
-        time_elapsed_ms = current_time_ms - position.entry_time
-        if time_elapsed_ms >= strategy_config.SELL_AFTER_MINUTES * 60 * 1000:
-            return True
-
-        # Stop loss
-        if strategy_config.ENABLE_STOP_LOSS:
-            pnl_percent = ((current_price - position.entry_price) / position.entry_price) * 100
-            if pnl_percent <= strategy_config.STOP_LOSS_PERCENT:
-                return True
-
-        # Take profit
-        if strategy_config.ENABLE_TAKE_PROFIT:
-            pnl_percent = ((current_price - position.entry_price) / position.entry_price) * 100
-            if pnl_percent >= strategy_config.TAKE_PROFIT_PERCENT:
-                return True
-
-        return False
 
     def get_performance_summary(self) -> Dict:
         """
@@ -304,26 +313,27 @@ class BacktestEngine:
         Returns:
             Dict: Performance metrics
         """
-        total_return = self.balance - self.initial_balance
-        total_return_percent = (total_return / self.initial_balance) * 100
+        with self._lock:
+            total_return = self.balance - self.initial_balance
+            total_return_percent = (total_return / self.initial_balance) * 100
 
-        win_rate = 0
-        if self.stats['total_trades'] > 0:
-            win_rate = (self.stats['winning_trades'] / self.stats['total_trades']) * 100
+            win_rate = 0
+            if self.stats['total_trades'] > 0:
+                win_rate = (self.stats['winning_trades'] / self.stats['total_trades']) * 100
 
-        return {
-            'initial_balance': self.initial_balance,
-            'current_balance': self.balance,
-            'total_return': total_return,
-            'total_return_percent': total_return_percent,
-            'total_trades': self.stats['total_trades'],
-            'winning_trades': self.stats['winning_trades'],
-            'losing_trades': self.stats['losing_trades'],
-            'win_rate': win_rate,
-            'total_pnl': self.stats['total_pnl'],
-            'max_drawdown': self.stats['max_drawdown'],
-            'active_positions': len(self.positions),
-        }
+            return {
+                'initial_balance': self.initial_balance,
+                'current_balance': self.balance,
+                'total_return': total_return,
+                'total_return_percent': total_return_percent,
+                'total_trades': self.stats['total_trades'],
+                'winning_trades': self.stats['winning_trades'],
+                'losing_trades': self.stats['losing_trades'],
+                'win_rate': win_rate,
+                'total_pnl': self.stats['total_pnl'],
+                'max_drawdown': self.stats['max_drawdown'],
+                'active_positions': len(self.positions),
+            }
 
     def save_trade_log(self, log_dir: Path = None):
         """
@@ -332,10 +342,15 @@ class BacktestEngine:
         Args:
             log_dir: Directory to save logs
         """
-        if not self.trade_history:
-            print("[BacktestEngine] No trades to save")
-            return
+        with self._lock:
+            if not self.trade_history:
+                print("[BacktestEngine] No trades to save")
+                return
 
+            # Copy trade history to avoid holding lock during file I/O
+            trade_history_copy = list(self.trade_history)
+
+        # File I/O outside of lock
         if log_dir is None:
             from pyapps.okx_price_monitor.core.monitor_config import monitor_config
             log_dir = monitor_config.CACHE_DIR / "backtest_logs"
@@ -351,7 +366,7 @@ class BacktestEngine:
             f.write("Coin,EntryPrice,EntryTime,ExitPrice,ExitTime,Size,PnL,PnL%\n")
 
             # Write trades
-            for trade in self.trade_history:
+            for trade in trade_history_copy:
                 entry_dt = datetime.fromtimestamp(trade.entry_time / 1000).strftime('%Y-%m-%d %H:%M:%S')
                 exit_dt = datetime.fromtimestamp(trade.exit_time / 1000).strftime('%Y-%m-%d %H:%M:%S')
 

@@ -142,20 +142,33 @@ class ControlService:
 
             # Step 6: Create touch event
             print(f"[ControlService] >>> STEP 6: Creating TouchEvent object")
+
+            # Convert action string to TouchAction enum
+            from pycore.pyutils.control.touch_event import TouchAction
+            action_map = {'down': TouchAction.DOWN, 'up': TouchAction.UP, 'move': TouchAction.MOVE}
+            action_enum = action_map.get(event_data["action"].lower(), TouchAction.DOWN)
+
             touch_event = TouchEvent(
-                action=event_data["action"],
-                pointer_id=event_data.get("pointerId", 0),
+                action=action_enum,
                 x=event_data["x"],
                 y=event_data["y"],
                 pressure=event_data.get("pressure", 1.0),
-                screen_width=event_data["screenWidth"],
-                screen_height=event_data["screenHeight"]
+                pointer_id=event_data.get("pointerId", 0)
             )
             print(f"[ControlService]     TouchEvent created: action={touch_event.action}, pos=({touch_event.x}, {touch_event.y})")
 
+            # Get screen dimensions from frontend
+            screen_width = event_data.get("screenWidth", 1080)
+            screen_height = event_data.get("screenHeight", 2340)
+            print(f"[ControlService]     Screen size: {screen_width}x{screen_height}")
+
             # Step 7: Build control message
             print(f"[ControlService] >>> STEP 7: Building scrcpy control message")
-            message = self.message_builder.build_touch_message(touch_event)
+            message = self.message_builder.build_touch_event(
+                touch_event,
+                screen_width,
+                screen_height
+            )
             print(f"[ControlService]     Message built: {len(message)} bytes")
 
             # Step 8: Send to scrcpy-server via control socket

@@ -11,7 +11,7 @@ export const mkdir = promisify(fs.mkdir);
 export const writeFile = promisify(fs.writeFile);
 
 /**
- * 打印彩色文本
+ * Print colored text
  */
 export function colorText(text: string, color: string): string {
   const colors: Record<string, string> = {
@@ -99,19 +99,19 @@ export async function getMainPath(): Promise<string> {
 }
 
 /**
- * 确保关键文件具有执行权限
+ * Ensure critical files have execution permissions
  */
 export async function ensureExecutionPermissions(): Promise<void> {
   try {
     const packageDistDir = path.join(__dirname, '..');
 
     if (process.platform === 'win32') {
-      // Windows 平台处理
+      // Windows platform handling
       await ensureWindowsFilePermissions(packageDistDir);
       return;
     }
 
-    // Unix/Linux 平台处理
+    // Unix/Linux platform handling
     const filesToCheck = [
       path.join(packageDistDir, 'index.js'),
       path.join(packageDistDir, 'run_host.sh'),
@@ -123,27 +123,27 @@ export async function ensureExecutionPermissions(): Promise<void> {
         try {
           fs.chmodSync(filePath, '755');
           console.log(
-            colorText(`✓ Set execution permissions for ${path.basename(filePath)}`, 'green'),
+            colorText(`[OK] Set execution permissions for ${path.basename(filePath)}`, 'green'),
           );
         } catch (err: any) {
           console.warn(
             colorText(
-              `⚠️ Unable to set execution permissions for ${path.basename(filePath)}: ${err.message}`,
+              `[WARNING] Unable to set execution permissions for ${path.basename(filePath)}: ${err.message}`,
               'yellow',
             ),
           );
         }
       } else {
-        console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+        console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
       }
     }
   } catch (error: any) {
-    console.warn(colorText(`⚠️ Error ensuring execution permissions: ${error.message}`, 'yellow'));
+    console.warn(colorText(`[WARNING] Error ensuring execution permissions: ${error.message}`, 'yellow'));
   }
 }
 
 /**
- * Windows 平台文件权限处理
+ * Windows platform file permission handling
  */
 async function ensureWindowsFilePermissions(packageDistDir: string): Promise<void> {
   const filesToCheck = [
@@ -155,32 +155,32 @@ async function ensureWindowsFilePermissions(packageDistDir: string): Promise<voi
   for (const filePath of filesToCheck) {
     if (fs.existsSync(filePath)) {
       try {
-        // 检查文件是否为只读，如果是则移除只读属性
+        // Check if file is read-only, if so remove read-only attribute
         const stats = fs.statSync(filePath);
         if (!(stats.mode & parseInt('200', 8))) {
-          // 检查写权限
-          // 尝试移除只读属性
+          // Check write permissions
+          // Try to remove read-only attribute
           fs.chmodSync(filePath, stats.mode | parseInt('200', 8));
           console.log(
-            colorText(`✓ Removed read-only attribute from ${path.basename(filePath)}`, 'green'),
+            colorText(`[OK] Removed read-only attribute from ${path.basename(filePath)}`, 'green'),
           );
         }
 
-        // 验证文件可读性
+        // Verify file accessibility
         fs.accessSync(filePath, fs.constants.R_OK);
         console.log(
-          colorText(`✓ Verified file accessibility for ${path.basename(filePath)}`, 'green'),
+          colorText(`[OK] Verified file accessibility for ${path.basename(filePath)}`, 'green'),
         );
       } catch (err: any) {
         console.warn(
           colorText(
-            `⚠️ Unable to verify file permissions for ${path.basename(filePath)}: ${err.message}`,
+            `[WARNING] Unable to verify file permissions for ${path.basename(filePath)}: ${err.message}`,
             'yellow',
           ),
         );
       }
     } else {
-      console.warn(colorText(`⚠️ File not found: ${filePath}`, 'yellow'));
+      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
     }
   }
 }
@@ -194,18 +194,18 @@ export async function createManifestContent(): Promise<any> {
   return {
     name: HOST_NAME,
     description: DESCRIPTION,
-    path: mainPath, // Node.js可执行文件路径
+    path: mainPath, // Node.js executable path
     type: 'stdio',
     allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
   };
 }
 
 /**
- * 验证Windows注册表项是否存在
+ * Verify Windows registry entry exists
  */
 function verifyWindowsRegistryEntry(registryKey: string, expectedPath: string): boolean {
   if (os.platform() !== 'win32') {
-    return true; // 非Windows平台跳过验证
+    return true; // Skip verification on non-Windows platforms
   }
 
   try {
@@ -223,19 +223,19 @@ function verifyWindowsRegistryEntry(registryKey: string, expectedPath: string): 
 }
 
 /**
- * 尝试注册用户级别的Native Messaging主机
+ * Try to register user-level Native Messaging host
  */
 export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): Promise<boolean> {
   try {
     console.log(colorText('Attempting to register user-level Native Messaging host...', 'blue'));
 
-    // 1. 确保执行权限
+    // 1. Ensure execution permissions
     await ensureExecutionPermissions();
 
-    // 2. 确定要注册的浏览器
+    // 2. Determine browsers to register
     const browsersToRegister = targetBrowsers || detectInstalledBrowsers();
     if (browsersToRegister.length === 0) {
-      // 如果没有检测到浏览器，默认注册Chrome和Chromium
+      // If no browsers detected, register for Chrome and Chromium by default
       browsersToRegister.push(BrowserType.CHROME, BrowserType.CHROMIUM);
       console.log(
         colorText('No browsers detected, registering for Chrome and Chromium by default', 'yellow'),
@@ -244,26 +244,26 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
       console.log(colorText(`Detected browsers: ${browsersToRegister.join(', ')}`, 'blue'));
     }
 
-    // 3. 创建清单内容
+    // 3. Create manifest content
     const manifest = await createManifestContent();
 
     let successCount = 0;
     const results: { browser: string; success: boolean; error?: string }[] = [];
 
-    // 4. 为每个浏览器注册
+    // 4. Register for each browser
     for (const browserType of browsersToRegister) {
       const config = getBrowserConfig(browserType);
       console.log(colorText(`\nRegistering for ${config.displayName}...`, 'blue'));
 
       try {
-        // 确保目录存在
+        // Ensure directory exists
         await mkdir(path.dirname(config.userManifestPath), { recursive: true });
 
-        // 写入清单文件
+        // Write manifest file
         await writeFile(config.userManifestPath, JSON.stringify(manifest, null, 2));
-        console.log(colorText(`✓ Manifest written to ${config.userManifestPath}`, 'green'));
+        console.log(colorText(`[OK] Manifest written to ${config.userManifestPath}`, 'green'));
 
-        // Windows需要额外注册表项
+        // Windows requires additional registry entries
         if (os.platform() === 'win32' && config.registryKey) {
           try {
             const escapedPath = config.userManifestPath.replace(/\\/g, '\\\\');
@@ -271,7 +271,7 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
             execSync(regCommand, { stdio: 'pipe' });
 
             if (verifyWindowsRegistryEntry(config.registryKey, config.userManifestPath)) {
-              console.log(colorText(`✓ Registry entry created for ${config.displayName}`, 'green'));
+              console.log(colorText(`[OK] Registry entry created for ${config.displayName}`, 'green'));
             } else {
               throw new Error('Registry verification failed');
             }
@@ -282,22 +282,22 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
 
         successCount++;
         results.push({ browser: config.displayName, success: true });
-        console.log(colorText(`✓ Successfully registered ${config.displayName}`, 'green'));
+        console.log(colorText(`[OK] Successfully registered ${config.displayName}`, 'green'));
       } catch (error: any) {
         results.push({ browser: config.displayName, success: false, error: error.message });
         console.log(
-          colorText(`✗ Failed to register ${config.displayName}: ${error.message}`, 'red'),
+          colorText(`[X] Failed to register ${config.displayName}: ${error.message}`, 'red'),
         );
       }
     }
 
-    // 5. 报告结果
+    // 5. Report results
     console.log(colorText('\n===== Registration Summary =====', 'blue'));
     for (const result of results) {
       if (result.success) {
-        console.log(colorText(`✓ ${result.browser}: Success`, 'green'));
+        console.log(colorText(`[OK] ${result.browser}: Success`, 'green'));
       } else {
-        console.log(colorText(`✗ ${result.browser}: Failed - ${result.error}`, 'red'));
+        console.log(colorText(`[X] ${result.browser}: Failed - ${result.error}`, 'red'));
       }
     }
 
@@ -313,60 +313,60 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
   }
 }
 
-// 导入is-admin包（仅在Windows平台使用）
+// Import is-admin package (only used on Windows platform)
 let isAdmin: () => boolean = () => false;
 if (process.platform === 'win32') {
   try {
     isAdmin = require('is-admin');
   } catch (error) {
-    console.warn('缺少is-admin依赖，Windows平台下可能无法正确检测管理员权限');
+    console.warn('Missing is-admin dependency, may not be able to correctly detect administrator permissions on Windows');
     console.warn(error);
   }
 }
 
 /**
- * 使用提升权限注册系统级清单
+ * Register system-level manifest with elevated permissions
  */
 export async function registerWithElevatedPermissions(): Promise<void> {
   try {
     console.log(colorText('Attempting to register system-level manifest...', 'blue'));
 
-    // 1. 确保执行权限
+    // 1. Ensure execution permissions
     await ensureExecutionPermissions();
 
-    // 2. 准备清单内容
+    // 2. Prepare manifest content
     const manifest = await createManifestContent();
 
-    // 3. 获取系统级清单路径
+    // 3. Get system-level manifest path
     const manifestPath = getSystemManifestPath();
 
-    // 4. 创建临时清单文件
+    // 4. Create temporary manifest file
     const tempManifestPath = path.join(os.tmpdir(), `${HOST_NAME}.json`);
     await writeFile(tempManifestPath, JSON.stringify(manifest, null, 2));
 
-    // 5. 检测是否已经有管理员权限
+    // 5. Detect if administrator permissions already exist
     const isRoot = process.getuid && process.getuid() === 0; // Unix/Linux/Mac
-    const hasAdminRights = process.platform === 'win32' ? isAdmin() : false; // Windows平台检测管理员权限
+    const hasAdminRights = process.platform === 'win32' ? isAdmin() : false; // Windows platform administrator permission detection
     const hasElevatedPermissions = isRoot || hasAdminRights;
 
-    // 准备命令
+    // Prepare command
     const command =
       os.platform() === 'win32'
         ? `if not exist "${path.dirname(manifestPath)}" mkdir "${path.dirname(manifestPath)}" && copy "${tempManifestPath}" "${manifestPath}"`
         : `mkdir -p "${path.dirname(manifestPath)}" && cp "${tempManifestPath}" "${manifestPath}" && chmod 644 "${manifestPath}"`;
 
     if (hasElevatedPermissions) {
-      // 已经有管理员权限，直接执行命令
+      // Already have administrator permissions, execute command directly
       try {
-        // 创建目录
+        // Create directory
         if (!fs.existsSync(path.dirname(manifestPath))) {
           fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
         }
 
-        // 复制文件
+        // Copy file
         fs.copyFileSync(tempManifestPath, manifestPath);
 
-        // 设置权限（非Windows平台）
+        // Set permissions (non-Windows platforms)
         if (os.platform() !== 'win32') {
           fs.chmodSync(manifestPath, '644');
         }
@@ -379,9 +379,9 @@ export async function registerWithElevatedPermissions(): Promise<void> {
         throw error;
       }
     } else {
-      // 没有管理员权限，打印手动操作提示
+      // No administrator permissions, print manual operation instructions
       console.log(
-        colorText('⚠️ Administrator privileges required for system-level installation', 'yellow'),
+        colorText('[WARNING] Administrator privileges required for system-level installation', 'yellow'),
       );
       console.log(
         colorText(
@@ -406,10 +406,10 @@ export async function registerWithElevatedPermissions(): Promise<void> {
       throw new Error('Administrator privileges required for system-level installation');
     }
 
-    // 6. Windows特殊处理 - 设置系统级注册表
+    // 6. Windows special handling - set system-level registry
     if (os.platform() === 'win32') {
       const registryKey = `HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
-      // 确保路径使用正确的转义格式
+      // Ensure path uses correct escape format
       const escapedPath = manifestPath.replace(/\\/g, '\\\\');
       const regCommand = `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
 
@@ -417,15 +417,15 @@ export async function registerWithElevatedPermissions(): Promise<void> {
       console.log(colorText(`Manifest path: ${manifestPath}`, 'blue'));
 
       if (hasElevatedPermissions) {
-        // 已经有管理员权限，直接执行注册表命令
+        // Already have administrator permissions, execute registry command directly
         try {
           execSync(regCommand, { stdio: 'pipe' });
 
-          // 验证注册表项是否创建成功
+          // Verify if registry entry was created successfully
           if (verifyWindowsRegistryEntry(registryKey, manifestPath)) {
             console.log(colorText('Windows registry entry created successfully!', 'green'));
           } else {
-            console.log(colorText('⚠️ Registry entry created but verification failed', 'yellow'));
+            console.log(colorText('[WARNING] Registry entry created but verification failed', 'yellow'));
           }
         } catch (error: any) {
           console.error(
@@ -435,10 +435,10 @@ export async function registerWithElevatedPermissions(): Promise<void> {
           throw error;
         }
       } else {
-        // 没有管理员权限，打印手动操作提示
+        // No administrator permissions, print manual operation instructions
         console.log(
           colorText(
-            '⚠️ Administrator privileges required for Windows registry modification',
+            '[WARNING] Administrator privileges required for Windows registry modification',
             'yellow',
           ),
         );
@@ -456,7 +456,7 @@ export async function registerWithElevatedPermissions(): Promise<void> {
       }
     }
   } catch (error: any) {
-    console.error(colorText(`注册失败: ${error.message}`, 'red'));
+    console.error(colorText(`Registration failed: ${error.message}`, 'red'));
     throw error;
   }
 }

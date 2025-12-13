@@ -96,7 +96,10 @@ Route::prefix('servermanager/v1')->group(function () {
     // Nginx Management Routes
     Route::prefix('nginx')->group(function () {
         Route::get('sites', [ServerManagerV1NginxManagerCtl::class, 'listSites']);
+        Route::post('sites', [ServerManagerV1NginxManagerCtl::class, 'createSite']);
         Route::get('config', [ServerManagerV1NginxManagerCtl::class, 'getSiteConfig']);
+        Route::put('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'updateSite']);
+        Route::delete('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'deleteSite']);
         Route::post('enable', [ServerManagerV1NginxManagerCtl::class, 'enableSite']);
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);

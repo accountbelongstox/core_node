@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Unified Price Manager - Single Table for Historical & Realtime Data
-统一价格管理器 - 历史和实时数据单表存储
+Unified Price Manager - Single Table for Historical and Realtime Data
 
 Features:
 - Single table for both historical (1m candles) and realtime (WebSocket) data
@@ -54,7 +54,7 @@ class UnifiedPriceManager:
 
     def _init_database(self):
         """Initialize database and create table"""
-        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
 
         cursor = self.conn.cursor()
@@ -125,7 +125,7 @@ class UnifiedPriceManager:
             timestamp_ms = int(candle_data[0])
             open_price = float(candle_data[1])
             high_price = float(candle_data[2])
-            low_price = float(candle_data[3])  # L作为实际价格
+            low_price = float(candle_data[3])  # L is the actual price
             close_price = float(candle_data[4])
             volume = float(candle_data[5]) if candle_data[5] else 0
             volume_currency = float(candle_data[6]) if candle_data[6] else 0

@@ -345,5 +345,385 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     {
         id: 'static_up', method: 'POST', path: '/static-resources/upload', description: 'Upload Static Files', section: 'Static Resources',
         params: [{ name: 'files', type: 'file', required: true }]
+    },
+
+    // --- Translation API ---
+    {
+        id: 'trans_translate', method: 'POST', path: '/translation/translate', description: 'Translate Text', section: 'Translation',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'source_language', type: 'string', required: false },
+            { name: 'target_language', type: 'string', required: true },
+            { name: 'type', type: 'string', required: false, options: ['general', 'learning', 'technical', 'casual'] }
+        ]
+    },
+    {
+        id: 'trans_batch', method: 'POST', path: '/translation/batch', description: 'Batch Translate', section: 'Translation',
+        params: [
+            { name: 'texts', type: 'array', required: true },
+            { name: 'target_language', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'trans_detect', method: 'POST', path: '/translation/detect', description: 'Detect Language', section: 'Translation',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'target_language', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'trans_languages', method: 'GET', path: '/translation/languages', description: 'Get Supported Languages', section: 'Translation',
+        params: []
+    },
+
+    // --- TTS API ---
+    {
+        id: 'tts_generate', method: 'POST', path: '/tts/generate', description: 'Generate TTS Audio', section: 'TTS',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'language', type: 'string', required: true },
+            { name: 'voice_type', type: 'string', required: false },
+            { name: 'speed', type: 'numeric', required: false },
+            { name: 'pitch', type: 'numeric', required: false },
+            { name: 'volume', type: 'numeric', required: false }
+        ]
+    },
+    {
+        id: 'tts_voices', method: 'GET', path: '/tts/voices', description: 'Get Available Voices', section: 'TTS',
+        params: []
+    },
+    {
+        id: 'tts_check', method: 'POST', path: '/tts/check', description: 'Check TTS Cache', section: 'TTS',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'language', type: 'string', required: true }
+        ]
+    },
+
+    // --- MCP Screenshots Extended ---
+    {
+        id: 'mcp_ss_batch', method: 'POST', path: '/api/mcp/v1/screenshots/upload-batch', description: 'Batch Upload Screenshots', section: 'MCP - Screenshots',
+        params: [{ name: 'images', type: 'file', required: true }]
+    },
+    {
+        id: 'mcp_ss_merge', method: 'POST', path: '/api/mcp/v1/screenshots/upload-merge', description: 'Upload & Merge Screenshots', section: 'MCP - Screenshots',
+        params: [
+            { name: 'images', type: 'file', required: true },
+            { name: 'direction', type: 'string', required: false, options: ['vertical', 'horizontal'] }
+        ]
+    },
+    {
+        id: 'mcp_ss_list_all', method: 'GET', path: '/api/mcp/v1/screenshots/', description: 'Get All Screenshots', section: 'MCP - Screenshots',
+        params: [
+            { name: 'page', type: 'integer', required: false },
+            { name: 'per_page', type: 'integer', required: false }
+        ]
+    },
+    {
+        id: 'mcp_ss_detail', method: 'GET', path: '/api/mcp/v1/screenshots/{id}', description: 'Get Screenshot Detail', section: 'MCP - Screenshots',
+        params: []
+    },
+    {
+        id: 'mcp_ss_delete', method: 'DELETE', path: '/api/mcp/v1/screenshots/{id}', description: 'Delete Screenshot', section: 'MCP - Screenshots',
+        params: []
+    },
+    {
+        id: 'mcp_ss_stats', method: 'GET', path: '/api/mcp/v1/screenshots/stats', description: 'Get Screenshot Stats', section: 'MCP - Screenshots',
+        params: []
+    },
+
+    // --- MCP Task Dispatch Extended ---
+    {
+        id: 'mcp_task_cat_create', method: 'POST', path: '/api/mcp/v1/task-dispatch/categories', description: 'Create Task Category', section: 'MCP - Tasks',
+        params: [
+            { name: 'name', type: 'string', required: true },
+            { name: 'description', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'mcp_task_queue', method: 'GET', path: '/api/mcp/v1/task-dispatch/queue/{categoryId}/tasks', description: 'Get Task Queue', section: 'MCP - Tasks',
+        params: [
+            { name: 'status', type: 'string', required: false },
+            { name: 'limit', type: 'integer', required: false }
+        ]
+    },
+    {
+        id: 'mcp_task_stats', method: 'GET', path: '/api/mcp/v1/task-dispatch/queue/{categoryId}/stats', description: 'Get Queue Stats', section: 'MCP - Tasks',
+        params: []
+    },
+    {
+        id: 'mcp_task_mappings', method: 'GET', path: '/api/mcp/v1/task-dispatch/mappings', description: 'Get Prompt Mappings', section: 'MCP - Tasks',
+        params: []
+    },
+    {
+        id: 'mcp_task_mapping_update', method: 'PUT', path: '/api/mcp/v1/task-dispatch/mappings/{categoryId}', description: 'Update Prompt Mapping', section: 'MCP - Tasks',
+        params: [
+            { name: 'prompt_file_path', type: 'string', required: true },
+            { name: 'prompt_content', type: 'string', required: false }
+        ]
+    },
+
+    // --- MCP Placeholder ---
+    {
+        id: 'mcp_placeholder_gen', method: 'POST', path: '/api/mcp/v1/placeholders/generate', description: 'Generate Placeholder', section: 'MCP - Placeholder',
+        params: [
+            { name: 'width', type: 'integer', required: true },
+            { name: 'height', type: 'integer', required: true },
+            { name: 'text', type: 'string', required: false },
+            { name: 'format', type: 'string', required: false, options: ['png', 'jpg', 'svg', 'webp'] }
+        ]
+    },
+    {
+        id: 'mcp_placeholder_list', method: 'GET', path: '/api/mcp/v1/placeholders/', description: 'Get Placeholders', section: 'MCP - Placeholder',
+        params: []
+    },
+    {
+        id: 'mcp_placeholder_stats', method: 'GET', path: '/api/mcp/v1/placeholders/stats', description: 'Get Placeholder Stats', section: 'MCP - Placeholder',
+        params: []
+    },
+
+    // --- Octane Tasks ---
+    {
+        id: 'octane_status', method: 'GET', path: '/octane-tasks/status', description: 'Get Octane Tasks Status', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_task_detail', method: 'GET', path: '/octane-tasks/task/{taskName}', description: 'Get Task Detail', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_basic', method: 'GET', path: '/octane-tasks/basic', description: 'Get Basic Objects', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_verify', method: 'GET', path: '/octane-tasks/verify', description: 'Verify Initialization', section: 'Octane Tasks',
+        params: []
+    },
+
+    // --- ServerManager - API Info ---
+    {
+        id: 'srvmgr_info', method: 'GET', path: '/api/servermanager/v1/info', 
+        description: 'Get ServerManager API information', section: 'ServerManager - API Info',
+        params: []
+    },
+
+    // --- ServerManager - Nginx Management ---
+    {
+        id: 'nginx1', method: 'GET', path: '/api/servermanager/v1/nginx/sites', 
+        description: 'List all nginx sites', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx2', method: 'POST', path: '/api/servermanager/v1/nginx/sites', 
+        description: 'Create new nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true },
+            { name: 'domain', type: 'string', required: true },
+            { name: 'site_type', type: 'string', required: true, options: ['laravel', 'static', 'proxy', 'nuxt'] },
+            { name: 'www_dir', type: 'string', required: true },
+            { name: 'php_mode', type: 'string', required: false, options: ['fpm', 'swoole'] },
+            { name: 'swoole_port', type: 'integer', required: false },
+            { name: 'ssl_enabled', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'nginx3', method: 'GET', path: '/api/servermanager/v1/nginx/config', 
+        description: 'Get nginx site configuration', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx4', method: 'PUT', path: '/api/servermanager/v1/nginx/sites/{site_name}', 
+        description: 'Update nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true, path: true },
+            { name: 'site_config', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx5', method: 'POST', path: '/api/servermanager/v1/nginx/enable', 
+        description: 'Enable nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx6', method: 'POST', path: '/api/servermanager/v1/nginx/disable', 
+        description: 'Disable nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx7', method: 'POST', path: '/api/servermanager/v1/nginx/test', 
+        description: 'Test nginx configuration', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx8', method: 'POST', path: '/api/servermanager/v1/nginx/reload', 
+        description: 'Reload nginx configuration', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx9', method: 'DELETE', path: '/api/servermanager/v1/nginx/sites/{site_name}', 
+        description: 'Delete nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true, path: true }
+        ]
+    },
+
+    // --- ServerManager - SSL Certificates ---
+    {
+        id: 'ssl1', method: 'GET', path: '/api/servermanager/v1/certificates/',
+        description: 'List SSL certificates', section: 'ServerManager - SSL',
+        params: []
+    },
+    {
+        id: 'ssl2', method: 'POST', path: '/api/servermanager/v1/certificates/generate',
+        description: 'Generate SSL certificate', section: 'ServerManager - SSL',
+        params: [
+            { name: 'domain', type: 'string', required: true },
+            { name: 'provider', type: 'string', required: false, options: ['dnspod', 'cloudflare'] },
+            { name: 'staging', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'ssl3', method: 'POST', path: '/api/servermanager/v1/certificates/renew',
+        description: 'Renew SSL certificates', section: 'ServerManager - SSL',
+        params: [
+            { name: 'all', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'ssl4', method: 'GET', path: '/api/servermanager/v1/certificates/status',
+        description: 'Get SSL certificate status', section: 'ServerManager - SSL',
+        params: [
+            { name: 'domain', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'ssl5', method: 'GET', path: '/api/servermanager/v1/certificates/detect-certbot', 
+        description: 'Detect Certbot installation', section: 'ServerManager - SSL',
+        params: []
+    },
+    {
+        id: 'ssl6', method: 'POST', path: '/api/servermanager/v1/certificates/install-certbot', 
+        description: 'Install Certbot', section: 'ServerManager - SSL',
+        params: []
+    },
+
+    // --- ServerManager - System Info ---
+    {
+        id: 'sysmgr1', method: 'GET', path: '/api/servermanager/v1/system/info', 
+        description: 'Get system information', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr2', method: 'GET', path: '/api/servermanager/v1/system/services', 
+        description: 'Get system services status', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr3', method: 'GET', path: '/api/servermanager/v1/system/processes', 
+        description: 'Get system processes list', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr4', method: 'GET', path: '/api/servermanager/v1/system/storage', 
+        description: 'Get system storage information', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr5', method: 'GET', path: '/api/servermanager/v1/system/permissions', 
+        description: 'Get system permissions check', section: 'ServerManager - System',
+        params: []
+    },
+
+    // --- ServerManager - File Management ---
+    {
+        id: 'file1', method: 'GET', path: '/api/servermanager/v1/files/browse', 
+        description: 'Browse files and directories', section: 'ServerManager - File Management',
+        params: [
+            { name: 'path', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'file2', method: 'GET', path: '/api/servermanager/v1/files/download', 
+        description: 'Download file', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'file3', method: 'GET', path: '/api/servermanager/v1/files/info', 
+        description: 'Get file information', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'file4', method: 'GET', path: '/api/servermanager/v1/files/preview', 
+        description: 'Preview text file content', section: 'ServerManager - File Management',
+        params: [
+            { name: 'file_path', type: 'string', required: true },
+            { name: 'max_lines', type: 'integer', required: false }
+        ]
+    },
+
+    // --- ServerManager - Code Executor ---
+    {
+        id: 'exec1', method: 'GET', path: '/api/servermanager/v1/executor/scripts', 
+        description: 'List predefined scripts', section: 'ServerManager - Code Executor',
+        params: []
+    },
+    {
+        id: 'exec2', method: 'POST', path: '/api/servermanager/v1/executor/run', 
+        description: 'Execute predefined script', section: 'ServerManager - Code Executor',
+        params: [
+            { name: 'script_id', type: 'integer', required: true }
+        ]
+    },
+    {
+        id: 'exec3', method: 'GET', path: '/api/servermanager/v1/executor/logs', 
+        description: 'Get execution logs', section: 'ServerManager - Code Executor',
+        params: [
+            { name: 'execution_id', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'exec4', method: 'GET', path: '/api/servermanager/v1/executor/status', 
+        description: 'Get execution status', section: 'ServerManager - Code Executor',
+        params: []
+    },
+
+    // --- ServerManager - Unified Manager ---
+    {
+        id: 'unified1', method: 'GET', path: '/api/servermanager/v1/unified/apps', 
+        description: 'List applications from unified manager', section: 'ServerManager - Unified Manager',
+        params: []
+    },
+    {
+        id: 'unified2', method: 'POST', path: '/api/servermanager/v1/unified/deploy', 
+        description: 'Deploy application', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'action', type: 'string', required: true, options: ['deploy', 'start', 'stop', 'restart'] }
+        ]
+    },
+    {
+        id: 'unified3', method: 'GET', path: '/api/servermanager/v1/unified/status', 
+        description: 'Get application status', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'unified4', method: 'GET', path: '/api/servermanager/v1/unified/logs', 
+        description: 'Get application logs', section: 'ServerManager - Unified Manager',
+        params: [
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'lines', type: 'integer', required: false }
+        ]
     }
 ];

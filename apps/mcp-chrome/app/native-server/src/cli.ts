@@ -19,9 +19,9 @@ async function writeNodePath(): Promise<void> {
 
     console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
     fs.writeFileSync(nodePathFile, nodePath, 'utf8');
-    console.log(colorText('✓ Node.js path written for run_host scripts', 'green'));
+    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
   } catch (error: any) {
-    console.warn(colorText(`⚠️ Failed to write Node.js path: ${error.message}`, 'yellow'));
+    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
   }
 }
 
@@ -145,7 +145,7 @@ program
     try {
       console.log(colorText('Fixing execution permissions...', 'blue'));
       await ensureExecutionPermissions();
-      console.log(colorText('✓ Execution permissions fixed successfully!', 'green'));
+      console.log(colorText('[OK] Execution permissions fixed successfully!', 'green'));
     } catch (error: any) {
       console.error(colorText(`Failed to fix permissions: ${error.message}`, 'red'));
       process.exit(1);
@@ -180,7 +180,7 @@ program
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
 
-      console.log(colorText(`✓ Port updated successfully to ${portNumber}`, 'green'));
+      console.log(colorText(`[OK] Port updated successfully to ${portNumber}`, 'green'));
       console.log(colorText(`Updated URL: ${config.url}`, 'blue'));
     } catch (error: any) {
       console.error(colorText(`Failed to update port: ${error.message}`, 'red'));
