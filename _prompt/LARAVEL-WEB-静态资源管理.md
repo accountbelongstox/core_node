@@ -48,7 +48,11 @@ unified_manager.sh 尽量放少的代码，作为和一个主入口，使用多�
   的子目录，而不是poly apps中，也就是说 Unified App Manager 是一个管理的多文件复杂的启动系统
    ，通过切换工作目录来管理apps/ pyapps/ poly_apps/
 //--------------------------------------------------------------------------------------------------
-
+ 原来可以左右toggle的菜单，也就是比如 er | N
+ 15 | scrcpy_web_test              | pycoreApp   | Ncore/Pycore/Installer | N
+ 16 | scrcpy_webgl_test            | pycoreApp   | Ncore/Pycore/Installer | N
+ 17 | screen_monitor               | pycoreApp   | Ncore/Pycore/Installer | N
+ 18 | speech_transcribe            | pycoreApp   | Ncore/Pycore/Installer | N 除了先显示默认脚本，会显示项目下的./scripts/*的所有 脚本（根据操作系统），现在改为数字 进入菜单后显示，默认为第一个系统脚本。
 //--------------------------------------------------------------------------------------------------
 
 //--------------------------------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import SystemInfo from './components/views/SystemInfo';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import MCPManager from './components/views/MCPManager';
 import OctaneTasks from './components/views/OctaneTasks';
+import ServerManager from './components/views/ServerManager';
 import LoginModal from './components/LoginModal';
 import { ViewType, Language, Theme } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
@@ -72,6 +73,8 @@ const App: React.FC = () => {
         return <MCPManager lang={lang} />;
       case ViewType.OCTANE_TASKS:
         return <OctaneTasks lang={lang} />;
+      case ViewType.SERVER_MANAGER:
+        return <ServerManager lang={lang} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -92,6 +95,7 @@ const App: React.FC = () => {
       case ViewType.VOCABULARY: return t.header.titles.vocabulary;
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
       case ViewType.OCTANE_TASKS: return t.header.titles.octane;
+      case ViewType.SERVER_MANAGER: return t.header.titles.server;
       default: return APP_NAME;
     }
   };

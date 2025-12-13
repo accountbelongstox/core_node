@@ -24,7 +24,8 @@ export const TRANSLATIONS = {
       system: "System Info",
       vocabulary: "Vocabulary",
       mcp: "MCP Manager",
-      octane: "Octane Tasks"
+      octane: "Octane Tasks",
+      server: "Server Manager"
     },
     header: {
       system_online: "System Online",
@@ -41,7 +42,8 @@ export const TRANSLATIONS = {
         system: "System Information Dashboard",
         vocabulary: "Vocabulary Learning Center",
         mcp: "MCP Manager",
-        octane: "Octane Timer Tasks Monitor"
+        octane: "Octane Timer Tasks Monitor",
+        server: "Server Management Dashboard"
       }
     },
     login: {
@@ -97,6 +99,55 @@ export const TRANSLATIONS = {
       running_tasks: "Running Tasks",
       completed_tasks: "Completed Tasks",
       failed_tasks: "Failed Tasks"
+    },
+    server: {
+      title: "Server Manager",
+      subtitle: "Nginx sites, SSL certificates, and system management",
+      tabs: {
+        nginx: "Nginx Sites",
+        ssl: "SSL Certificates",
+        system: "System Status"
+      },
+      nginx: {
+        sites: "Nginx Sites",
+        create_site: "Create Site",
+        site_name: "Site Name",
+        domain: "Domain",
+        site_type: "Site Type",
+        www_dir: "Web Directory",
+        php_mode: "PHP Mode",
+        swoole_port: "Swoole Port",
+        ssl_enabled: "SSL Enabled",
+        enabled: "Enabled",
+        disabled: "Disabled",
+        enable: "Enable",
+        disable: "Disable",
+        delete: "Delete",
+        view_config: "View Config",
+        test_config: "Test Config",
+        reload: "Reload Nginx",
+        refresh: "Refresh"
+      },
+      ssl: {
+        certificates: "SSL Certificates",
+        generate: "Generate Certificate",
+        renew: "Renew All",
+        domain: "Domain",
+        expiry_date: "Expiry Date",
+        days_until_expiry: "Days Until Expiry",
+        status: "Status",
+        ok: "OK",
+        warning: "Warning",
+        critical: "Critical"
+      },
+      system: {
+        title: "System Status",
+        cpu: "CPU",
+        memory: "Memory",
+        disk: "Disk",
+        services: "Services",
+        refresh: "Refresh"
+      }
     }
   },
   zh: {
@@ -109,7 +160,8 @@ export const TRANSLATIONS = {
       system: "系统信息",
       vocabulary: "词汇学习",
       mcp: "MCP 管理器",
-      octane: "Octane 任务"
+      octane: "Octane 任务",
+      server: "服务器管理"
     },
     header: {
       system_online: "系统在线",
@@ -126,7 +178,8 @@ export const TRANSLATIONS = {
         system: "系统信息仪表板",
         vocabulary: "词汇学习中心",
         mcp: "MCP 管理器",
-        octane: "Octane 定时任务监控"
+        octane: "Octane 定时任务监控",
+        server: "服务器管理仪表板"
       }
     },
     login: {
@@ -182,6 +235,55 @@ export const TRANSLATIONS = {
       running_tasks: "运行中任务",
       completed_tasks: "已完成任务",
       failed_tasks: "失败任务"
+    },
+    server: {
+      title: "服务器管理",
+      subtitle: "Nginx 站点、SSL 证书和系统管理",
+      tabs: {
+        nginx: "Nginx 站点",
+        ssl: "SSL 证书",
+        system: "系统状态"
+      },
+      nginx: {
+        sites: "Nginx 站点",
+        create_site: "创建站点",
+        site_name: "站点名称",
+        domain: "域名",
+        site_type: "站点类型",
+        www_dir: "网站目录",
+        php_mode: "PHP 模式",
+        swoole_port: "Swoole 端口",
+        ssl_enabled: "启用 SSL",
+        enabled: "已启用",
+        disabled: "已禁用",
+        enable: "启用",
+        disable: "禁用",
+        delete: "删除",
+        view_config: "查看配置",
+        test_config: "测试配置",
+        reload: "重载 Nginx",
+        refresh: "刷新"
+      },
+      ssl: {
+        certificates: "SSL 证书",
+        generate: "生成证书",
+        renew: "续期全部",
+        domain: "域名",
+        expiry_date: "到期日期",
+        days_until_expiry: "剩余天数",
+        status: "状态",
+        ok: "正常",
+        warning: "警告",
+        critical: "紧急"
+      },
+      system: {
+        title: "系统状态",
+        cpu: "CPU",
+        memory: "内存",
+        disk: "磁盘",
+        services: "服务",
+        refresh: "刷新"
+      }
     }
   }
 };

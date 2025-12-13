@@ -11,7 +11,8 @@ import {
   Info,
   BookOpen,
   Boxes,
-  Timer
+  Timer,
+  Network
 } from "lucide-react";
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
   { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
+  { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 
