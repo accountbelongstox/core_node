@@ -430,6 +430,17 @@ async function createApp() {
         }
     }
 
+    // Start MCP Chrome Server
+    const { startMCPChromeServer } = require('#@ncore/utils/mcp_chrome');
+    startMCPChromeServer({
+        port: 12306,
+        host: '127.0.0.1'
+    }).then(() => {
+        console.log('[App] MCP Chrome Server started successfully');
+    }).catch((error) => {
+        console.log('[App] Failed to start MCP Chrome Server:', error.message);
+    });
+
     // Startup event
     config.serverRunning = true;
     config.updateNetworkInfo();
