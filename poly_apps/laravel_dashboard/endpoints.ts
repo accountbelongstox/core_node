@@ -498,5 +498,106 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     {
         id: 'octane_verify', method: 'GET', path: '/octane-tasks/verify', description: 'Verify Initialization', section: 'Octane Tasks',
         params: []
+    },
+
+    // --- ServerManager - Nginx Management ---
+    {
+        id: 'nginx1', method: 'GET', path: '/api/servermanager/v1/nginx/sites', 
+        description: 'List all nginx sites', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx2', method: 'POST', path: '/api/servermanager/v1/nginx/sites', 
+        description: 'Create new nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true },
+            { name: 'domain', type: 'string', required: true },
+            { name: 'site_type', type: 'string', required: true, options: ['laravel', 'static', 'proxy', 'nuxt'] },
+            { name: 'www_dir', type: 'string', required: true },
+            { name: 'php_mode', type: 'string', required: false, options: ['fpm', 'swoole'] },
+            { name: 'swoole_port', type: 'integer', required: false },
+            { name: 'ssl_enabled', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'nginx3', method: 'GET', path: '/api/servermanager/v1/nginx/config', 
+        description: 'Get nginx site configuration', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx4', method: 'PUT', path: '/api/servermanager/v1/nginx/sites/{site_name}', 
+        description: 'Update nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true, path: true },
+            { name: 'site_config', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx5', method: 'POST', path: '/api/servermanager/v1/nginx/enable', 
+        description: 'Enable nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx6', method: 'POST', path: '/api/servermanager/v1/nginx/disable', 
+        description: 'Disable nginx site', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site_name', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx7', method: 'POST', path: '/api/servermanager/v1/nginx/test', 
+        description: 'Test nginx configuration', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx8', method: 'POST', path: '/api/servermanager/v1/nginx/reload', 
+        description: 'Reload nginx configuration', section: 'ServerManager - Nginx',
+        params: []
+    },
+
+    // --- ServerManager - SSL Certificates ---
+    {
+        id: 'ssl1', method: 'GET', path: '/api/servermanager/v1/certificate/list', 
+        description: 'List SSL certificates', section: 'ServerManager - SSL',
+        params: []
+    },
+    {
+        id: 'ssl2', method: 'POST', path: '/api/servermanager/v1/certificate/generate', 
+        description: 'Generate SSL certificate', section: 'ServerManager - SSL',
+        params: [
+            { name: 'domain', type: 'string', required: true },
+            { name: 'provider', type: 'string', required: false, options: ['dnspod', 'cloudflare'] },
+            { name: 'staging', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'ssl3', method: 'POST', path: '/api/servermanager/v1/certificate/renew', 
+        description: 'Renew SSL certificates', section: 'ServerManager - SSL',
+        params: [
+            { name: 'all', type: 'boolean', required: false }
+        ]
+    },
+    {
+        id: 'ssl4', method: 'GET', path: '/api/servermanager/v1/certificate/status', 
+        description: 'Get SSL certificate status', section: 'ServerManager - SSL',
+        params: [
+            { name: 'domain', type: 'string', required: true }
+        ]
+    },
+
+    // --- ServerManager - System Info ---
+    {
+        id: 'sysmgr1', method: 'GET', path: '/api/servermanager/v1/system/info', 
+        description: 'Get system information', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr2', method: 'GET', path: '/api/servermanager/v1/system/services', 
+        description: 'Get system services status', section: 'ServerManager - System',
+        params: []
     }
 ];

@@ -15,7 +15,8 @@ export enum ViewType {
   SYSTEM_INFO = 'system',
   VOCABULARY = 'vocabulary',
   MCP_MANAGER = 'mcp',
-  OCTANE_TASKS = 'octane'
+  OCTANE_TASKS = 'octane',
+  SERVER_MANAGER = 'server'
 }
 
 export interface NavItem {
@@ -611,4 +612,95 @@ export interface PaginationInfo {
   total_items: number;
   has_next: boolean;
   has_prev: boolean;
+}
+
+// ========== ServerManager Types ==========
+export interface NginxSite {
+  site_name: string;
+  domain: string;
+  enabled: boolean;
+  site_type: 'laravel' | 'static' | 'proxy' | 'nuxt';
+  www_dir: string;
+  php_mode: 'fpm' | 'swoole';
+  swoole_port?: number;
+  ssl_enabled: boolean;
+  ssl_certificate?: string;
+  ssl_certificate_key?: string;
+  config_path: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NginxSiteConfig {
+  site_name: string;
+  config: string;
+  path: string;
+}
+
+export interface NginxSiteCreateRequest {
+  site_name: string;
+  domain: string;
+  site_type: 'laravel' | 'static' | 'proxy' | 'nuxt';
+  www_dir: string;
+  php_mode?: 'fpm' | 'swoole';
+  swoole_port?: number;
+  ssl_enabled?: boolean;
+}
+
+export interface NginxSiteUpdateRequest {
+  site_config: string;
+}
+
+export interface NginxTestResponse {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface NginxReloadResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface SSLCertificate {
+  domain: string;
+  expiry_date: string;
+  days_until_expiry: number;
+  status: 'ok' | 'warning' | 'critical';
+  certificate_path?: string;
+  key_path?: string;
+}
+
+export interface SSLCertificateGenerateRequest {
+  domain: string;
+  provider?: 'dnspod' | 'cloudflare';
+  staging?: boolean;
+}
+
+export interface SystemServiceStatus {
+  name: string;
+  status: 'running' | 'stopped' | 'failed';
+  active: boolean;
+  since?: string;
+}
+
+export interface SystemInfo {
+  cpu: {
+    usage: number;
+    cores: number;
+    model: string;
+  };
+  memory: {
+    total: number;
+    used: number;
+    free: number;
+    percentage: number;
+  };
+  disk: {
+    total: number;
+    used: number;
+    free: number;
+    percentage: number;
+  };
+  services: SystemServiceStatus[];
 }
