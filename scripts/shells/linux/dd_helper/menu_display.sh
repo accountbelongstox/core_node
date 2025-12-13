@@ -29,9 +29,6 @@ initialize_menu_items() {
     menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
     menu_order+=("Unified App Manager")
 
-    menu_items["Poly Apps Manager"]="text=Poly Apps Manager;values=default;current=0;key=POLY_APPS_MANAGER;action=poly_apps_manager"
-    menu_order+=("Poly Apps Manager")
-
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
     menu_order+=("Set Special Software Environment Variables (like AI)")
 

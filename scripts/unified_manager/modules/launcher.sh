@@ -135,7 +135,8 @@ echo "Starting $app_name with $current_script..."
 echo "Working Directory: \$(pwd)"
 echo ""
 $command
-read -p "Press Enter to exit..."
+echo ""
+echo "Exit code: \$?"
 EOF
             fi
 
@@ -143,16 +144,13 @@ EOF
 
             echo -e "\033[32mLaunching $app_name...\033[0m"
 
-            # Launch in new terminal
-            if command -v gnome-terminal &> /dev/null; then
-                gnome-terminal -- bash -c "$temp_script"
-            elif command -v xterm &> /dev/null; then
-                xterm -e "bash $temp_script" &
-            else
-                bash "$temp_script"
-            fi
+            # Run in current terminal instead of new terminal
+            bash "$temp_script"
 
-            sleep 1
+            # Wait for user input after execution
+            echo ""
+            echo -e "\033[36mApplication finished. Press any key to return to menu...\033[0m"
+            read -n 1 -r
         else
             echo -e "\033[31mFailed to generate startup command\033[0m"
             read -p "Press Enter to continue..."
@@ -175,16 +173,13 @@ EOF
 
             echo -e "\033[32mLaunching $app_name with $current_script...\033[0m"
 
-            # Launch script
-            if command -v gnome-terminal &> /dev/null; then
-                gnome-terminal -- bash -c "bash '$script_path'; read -p 'Press Enter to exit...'"
-            elif command -v xterm &> /dev/null; then
-                xterm -e "bash '$script_path'; read -p 'Press Enter to exit...'" &
-            else
-                bash "$script_path"
-            fi
+            # Run script in current terminal
+            bash "$script_path"
 
-            sleep 1
+            # Wait for user input after script execution
+            echo ""
+            echo -e "\033[36mScript finished. Press any key to return to menu...\033[0m"
+            read -n 1 -r
         else
             echo -e "\033[31mScript not found: $script_path\033[0m"
             read -p "Press Enter to continue..."

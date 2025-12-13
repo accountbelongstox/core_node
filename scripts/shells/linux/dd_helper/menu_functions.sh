@@ -40,12 +40,6 @@ show_service_manager() {
     bash "$SERVICE_MANAGER_SCRIPT_PATH"
 }
 
-poly_apps_manager() {
-    export USE_SUDO
-    local POLY_APP_MANAGER_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/build_scripts/poly_app_manager.sh"
-    bash "$POLY_APP_MANAGER_SCRIPT"
-}
-
 handle_menu_action() {
     local action="$1"
     local value="$2"
@@ -80,9 +74,6 @@ handle_menu_action() {
             ;;
         "unified_manager")
             bash "$UNIFIED_MANAGER_SCRIPT_PATH"
-            ;;
-        "poly_apps_manager")
-            poly_apps_manager
             ;;
                 "push_git")
                     echo "Starting Git Push Operations..."
