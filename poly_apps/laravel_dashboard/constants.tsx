@@ -20,7 +20,11 @@ export const TRANSLATIONS = {
       code: "Code Node",
       tools: "Tools",
       api: "API Tester",
-      settings: "Settings"
+      settings: "Settings",
+      system: "System Info",
+      vocabulary: "Vocabulary",
+      mcp: "MCP Manager",
+      octane: "Octane Tasks"
     },
     header: {
       system_online: "System Online",
@@ -33,7 +37,11 @@ export const TRANSLATIONS = {
         media: "Static Resources - Media Browser",
         code: "Code Browser - Core Node Directory",
         tools: "Developer Utilities",
-        api: "API Testing Interface"
+        api: "API Testing Interface",
+        system: "System Information Dashboard",
+        vocabulary: "Vocabulary Learning Center",
+        mcp: "MCP Manager",
+        octane: "Octane Timer Tasks Monitor"
       }
     },
     login: {
@@ -44,6 +52,51 @@ export const TRANSLATIONS = {
       submit: "Authenticate",
       cancel: "Cancel",
       processing: "Verifying..."
+    },
+    system: {
+      title: "System Information",
+      subtitle: "Real-time system configuration and status",
+      tabs: {
+        server: "Server",
+        php: "PHP",
+        laravel: "Laravel",
+        database: "Database",
+        cache: "Cache",
+        queue: "Queue",
+        routes: "Routes"
+      },
+      refresh: "Refresh",
+      auto_refresh: "Auto Refresh",
+      last_updated: "Last Updated"
+    },
+    vocabulary: {
+      title: "Vocabulary Learning",
+      translate: "Translate",
+      source_lang: "Source Language",
+      target_lang: "Target Language",
+      input_placeholder: "Enter text to translate...",
+      auto_detect: "Auto Detect",
+      clear: "Clear",
+      history: "Translation History"
+    },
+    mcp: {
+      title: "MCP Manager",
+      tabs: {
+        screenshots: "Screenshots",
+        tasks: "Task Dispatch",
+        placeholder: "Placeholder",
+        voice: "Voice Subtitle",
+        settings: "Settings"
+      }
+    },
+    octane: {
+      title: "Octane Timer Tasks",
+      subtitle: "Real-time task scheduling and execution monitoring",
+      timer_status: "Timer Status",
+      total_tasks: "Total Tasks",
+      running_tasks: "Running Tasks",
+      completed_tasks: "Completed Tasks",
+      failed_tasks: "Failed Tasks"
     }
   },
   zh: {
@@ -52,7 +105,11 @@ export const TRANSLATIONS = {
       code: "代码节点",
       tools: "工具箱",
       api: "API 测试",
-      settings: "系统设置"
+      settings: "系统设置",
+      system: "系统信息",
+      vocabulary: "词汇学习",
+      mcp: "MCP 管理器",
+      octane: "Octane 任务"
     },
     header: {
       system_online: "系统在线",
@@ -65,7 +122,11 @@ export const TRANSLATIONS = {
         media: "静态资源 - 媒体浏览器",
         code: "代码浏览器 - 核心节点目录",
         tools: "开发者实用工具",
-        api: "API 测试接口"
+        api: "API 测试接口",
+        system: "系统信息仪表板",
+        vocabulary: "词汇学习中心",
+        mcp: "MCP 管理器",
+        octane: "Octane 定时任务监控"
       }
     },
     login: {
@@ -76,6 +137,51 @@ export const TRANSLATIONS = {
       submit: "验证登录",
       cancel: "取消",
       processing: "验证中..."
+    },
+    system: {
+      title: "系统信息",
+      subtitle: "实时系统配置和状态",
+      tabs: {
+        server: "服务器",
+        php: "PHP",
+        laravel: "Laravel",
+        database: "数据库",
+        cache: "缓存",
+        queue: "队列",
+        routes: "路由"
+      },
+      refresh: "刷新",
+      auto_refresh: "自动刷新",
+      last_updated: "最后更新"
+    },
+    vocabulary: {
+      title: "词汇学习",
+      translate: "翻译",
+      source_lang: "源语言",
+      target_lang: "目标语言",
+      input_placeholder: "输入要翻译的文本...",
+      auto_detect: "自动检测",
+      clear: "清除",
+      history: "翻译历史"
+    },
+    mcp: {
+      title: "MCP 管理器",
+      tabs: {
+        screenshots: "截图",
+        tasks: "任务分发",
+        placeholder: "占位图",
+        voice: "语音字幕",
+        settings: "设置"
+      }
+    },
+    octane: {
+      title: "Octane 定时任务",
+      subtitle: "实时任务调度和执行监控",
+      timer_status: "定时器状态",
+      total_tasks: "总任务数",
+      running_tasks: "运行中任务",
+      completed_tasks: "已完成任务",
+      failed_tasks: "失败任务"
     }
   }
 };

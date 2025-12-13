@@ -345,5 +345,158 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     {
         id: 'static_up', method: 'POST', path: '/static-resources/upload', description: 'Upload Static Files', section: 'Static Resources',
         params: [{ name: 'files', type: 'file', required: true }]
+    },
+
+    // --- Translation API ---
+    {
+        id: 'trans_translate', method: 'POST', path: '/translation/translate', description: 'Translate Text', section: 'Translation',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'source_language', type: 'string', required: false },
+            { name: 'target_language', type: 'string', required: true },
+            { name: 'type', type: 'string', required: false, options: ['general', 'learning', 'technical', 'casual'] }
+        ]
+    },
+    {
+        id: 'trans_batch', method: 'POST', path: '/translation/batch', description: 'Batch Translate', section: 'Translation',
+        params: [
+            { name: 'texts', type: 'array', required: true },
+            { name: 'target_language', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'trans_detect', method: 'POST', path: '/translation/detect', description: 'Detect Language', section: 'Translation',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'target_language', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'trans_languages', method: 'GET', path: '/translation/languages', description: 'Get Supported Languages', section: 'Translation',
+        params: []
+    },
+
+    // --- TTS API ---
+    {
+        id: 'tts_generate', method: 'POST', path: '/tts/generate', description: 'Generate TTS Audio', section: 'TTS',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'language', type: 'string', required: true },
+            { name: 'voice_type', type: 'string', required: false },
+            { name: 'speed', type: 'numeric', required: false },
+            { name: 'pitch', type: 'numeric', required: false },
+            { name: 'volume', type: 'numeric', required: false }
+        ]
+    },
+    {
+        id: 'tts_voices', method: 'GET', path: '/tts/voices', description: 'Get Available Voices', section: 'TTS',
+        params: []
+    },
+    {
+        id: 'tts_check', method: 'POST', path: '/tts/check', description: 'Check TTS Cache', section: 'TTS',
+        params: [
+            { name: 'text', type: 'string', required: true },
+            { name: 'language', type: 'string', required: true }
+        ]
+    },
+
+    // --- MCP Screenshots Extended ---
+    {
+        id: 'mcp_ss_batch', method: 'POST', path: '/api/mcp/v1/screenshots/upload-batch', description: 'Batch Upload Screenshots', section: 'MCP - Screenshots',
+        params: [{ name: 'images', type: 'file', required: true }]
+    },
+    {
+        id: 'mcp_ss_merge', method: 'POST', path: '/api/mcp/v1/screenshots/upload-merge', description: 'Upload & Merge Screenshots', section: 'MCP - Screenshots',
+        params: [
+            { name: 'images', type: 'file', required: true },
+            { name: 'direction', type: 'string', required: false, options: ['vertical', 'horizontal'] }
+        ]
+    },
+    {
+        id: 'mcp_ss_list_all', method: 'GET', path: '/api/mcp/v1/screenshots/', description: 'Get All Screenshots', section: 'MCP - Screenshots',
+        params: [
+            { name: 'page', type: 'integer', required: false },
+            { name: 'per_page', type: 'integer', required: false }
+        ]
+    },
+    {
+        id: 'mcp_ss_detail', method: 'GET', path: '/api/mcp/v1/screenshots/{id}', description: 'Get Screenshot Detail', section: 'MCP - Screenshots',
+        params: []
+    },
+    {
+        id: 'mcp_ss_delete', method: 'DELETE', path: '/api/mcp/v1/screenshots/{id}', description: 'Delete Screenshot', section: 'MCP - Screenshots',
+        params: []
+    },
+    {
+        id: 'mcp_ss_stats', method: 'GET', path: '/api/mcp/v1/screenshots/stats', description: 'Get Screenshot Stats', section: 'MCP - Screenshots',
+        params: []
+    },
+
+    // --- MCP Task Dispatch Extended ---
+    {
+        id: 'mcp_task_cat_create', method: 'POST', path: '/api/mcp/v1/task-dispatch/categories', description: 'Create Task Category', section: 'MCP - Tasks',
+        params: [
+            { name: 'name', type: 'string', required: true },
+            { name: 'description', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'mcp_task_queue', method: 'GET', path: '/api/mcp/v1/task-dispatch/queue/{categoryId}/tasks', description: 'Get Task Queue', section: 'MCP - Tasks',
+        params: [
+            { name: 'status', type: 'string', required: false },
+            { name: 'limit', type: 'integer', required: false }
+        ]
+    },
+    {
+        id: 'mcp_task_stats', method: 'GET', path: '/api/mcp/v1/task-dispatch/queue/{categoryId}/stats', description: 'Get Queue Stats', section: 'MCP - Tasks',
+        params: []
+    },
+    {
+        id: 'mcp_task_mappings', method: 'GET', path: '/api/mcp/v1/task-dispatch/mappings', description: 'Get Prompt Mappings', section: 'MCP - Tasks',
+        params: []
+    },
+    {
+        id: 'mcp_task_mapping_update', method: 'PUT', path: '/api/mcp/v1/task-dispatch/mappings/{categoryId}', description: 'Update Prompt Mapping', section: 'MCP - Tasks',
+        params: [
+            { name: 'prompt_file_path', type: 'string', required: true },
+            { name: 'prompt_content', type: 'string', required: false }
+        ]
+    },
+
+    // --- MCP Placeholder ---
+    {
+        id: 'mcp_placeholder_gen', method: 'POST', path: '/api/mcp/v1/placeholders/generate', description: 'Generate Placeholder', section: 'MCP - Placeholder',
+        params: [
+            { name: 'width', type: 'integer', required: true },
+            { name: 'height', type: 'integer', required: true },
+            { name: 'text', type: 'string', required: false },
+            { name: 'format', type: 'string', required: false, options: ['png', 'jpg', 'svg', 'webp'] }
+        ]
+    },
+    {
+        id: 'mcp_placeholder_list', method: 'GET', path: '/api/mcp/v1/placeholders/', description: 'Get Placeholders', section: 'MCP - Placeholder',
+        params: []
+    },
+    {
+        id: 'mcp_placeholder_stats', method: 'GET', path: '/api/mcp/v1/placeholders/stats', description: 'Get Placeholder Stats', section: 'MCP - Placeholder',
+        params: []
+    },
+
+    // --- Octane Tasks ---
+    {
+        id: 'octane_status', method: 'GET', path: '/octane-tasks/status', description: 'Get Octane Tasks Status', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_task_detail', method: 'GET', path: '/octane-tasks/task/{taskName}', description: 'Get Task Detail', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_basic', method: 'GET', path: '/octane-tasks/basic', description: 'Get Basic Objects', section: 'Octane Tasks',
+        params: []
+    },
+    {
+        id: 'octane_verify', method: 'GET', path: '/octane-tasks/verify', description: 'Verify Initialization', section: 'Octane Tasks',
+        params: []
     }
 ];
