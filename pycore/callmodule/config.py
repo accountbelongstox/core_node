@@ -13,6 +13,39 @@ from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig
 from pycore.callmodule.tray_menu import build_tray_menu
 
+# Import management layer routers
+from pycore.callmodule.routers.management import (
+    status_router,
+    config_router,
+    control_router,
+    logs_router,
+    capabilities_router,
+    local_config_router,
+    local_stats_router,
+    local_test_router,
+)
+
+# Import local processing layer routers (NEW)
+from pycore.callmodule.routers.local import (
+    screenshot_router,
+    image_router,
+    audio_router,
+    file_router,
+    video_router,
+)
+
+# Import upload layer routers (NEW)
+from pycore.callmodule.routers.upload import router as upload_router
+
+# Import client layer routers (NEW)
+from pycore.callmodule.routers.client import router as client_router
+
+# Import legacy routers (from independent files - still active)
+from pycore.callmodule.routers.mcp_router import mcp_router
+from pycore.callmodule.routers.code_sync_router import router as code_sync_router
+from pycore.callmodule.routers.module_call_router import module_call_router
+from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
+
 IS_WINDOWS = platform.system() == 'Windows'
 
 
@@ -29,39 +62,6 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         LauncherConfig instance
     """
     ColorPrint.blue("[ConfigBuilder] Building launcher configuration...")
-
-    # Import management layer routers
-    from pycore.callmodule.routers.management import (
-        status_router,
-        config_router,
-        control_router,
-        logs_router,
-        capabilities_router,
-        local_config_router,
-        local_stats_router,
-        local_test_router,
-    )
-
-    # Import local processing layer routers (NEW)
-    from pycore.callmodule.routers.local import (
-        screenshot_router,
-        image_router,
-        audio_router,
-        file_router,
-        video_router,
-    )
-
-    # Import upload layer routers (NEW)
-    from pycore.callmodule.routers.upload import router as upload_router
-
-    # Import client layer routers (NEW)
-    from pycore.callmodule.routers.client import router as client_router
-
-    # Import legacy routers (from independent files - still active)
-    from pycore.callmodule.routers.mcp_router import mcp_router
-    from pycore.callmodule.routers.code_sync_router import router as code_sync_router
-    from pycore.callmodule.routers.module_call_router import module_call_router
-    from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
 
     # Define static mounts configuration
     PYCORE_ROOT = Path(__file__).parent.parent

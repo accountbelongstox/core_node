@@ -21,7 +21,10 @@ from dataclasses import dataclass, asdict
 # Import centralized variable management
 sys.path.append(str(Path(__file__).parent.parent / "utils"))
 from global_variables import GlobalVariableManager, global_vars
-from variable_keys import VariableKeys, StatusValues
+from variable_keys import VariableKeys, StatusValues, ActionValues
+
+# Import menu manager
+from menu_manager import MenuManager, MenuConfig
 
 
 @dataclass
@@ -56,16 +59,32 @@ class ConfigManager:
     """Manages configuration loading and validation"""
 
     def __init__(self, config_path: str):
+        self.config_path = config_path
         self.config = configparser.ConfigParser()
-        self.config.read(config_path, encoding='utf-8')
+
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+        try:
+            self.config.read(config_path, encoding='utf-8')
+        except Exception as e:
+            raise ValueError(f"Failed to read configuration file {config_path}: {str(e)}")
+
         self._validate_config()
 
     def _validate_config(self) -> None:
         """Validate required configuration sections"""
         required_sections = ['general', 'paths', 'ports', 'frameworks', 'commands']
+
+        available_sections = self.config.sections()
+
         for section in required_sections:
             if not self.config.has_section(section):
-                raise ValueError(f"Missing required config section: {section}")
+                raise ValueError(
+                    f"Missing required config section: {section}\n"
+                    f"Config file: {self.config_path}\n"
+                    f"Available sections: {available_sections}"
+                )
 
     def get(self, section: str, key: str, default: str = "") -> str:
         """Get configuration value"""
@@ -346,7 +365,9 @@ class UnifiedAppManager:
 
     def __init__(self, script_dir: str):
         self.script_dir = Path(script_dir)
-        self.root_dir = self.script_dir.parent.parent
+        # script_dir is core/ directory, so go up 3 levels to reach project root
+        # core/ -> unified_manager/ -> scripts/ -> root/
+        self.root_dir = self.script_dir.parent.parent.parent
 
         # Initialize system info
         self.system_info = SystemInfo(
@@ -359,7 +380,8 @@ class UnifiedAppManager:
         )
 
         # Initialize components
-        config_path = self.script_dir / "config" / "unified_config.ini"
+        # Config file is in unified_manager/config/, not core/config/
+        config_path = self.script_dir.parent / "config" / "unified_config.ini"
         self.config = ConfigManager(str(config_path))
 
         # Set up global variable manager

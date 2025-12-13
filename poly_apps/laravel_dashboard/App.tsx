@@ -6,6 +6,7 @@ import ToolsDashboard from './components/views/ToolsDashboard';
 import ApiTester from './components/views/ApiTester';
 import SystemInfo from './components/views/SystemInfo';
 import VocabularyLearning from './components/views/VocabularyLearning';
+import AITools from './components/views/AITools';
 import MCPManager from './components/views/MCPManager';
 import OctaneTasks from './components/views/OctaneTasks';
 import ServerManager from './components/views/ServerManager';
@@ -78,6 +79,8 @@ const AppContent: React.FC = () => {
         return <SystemInfo lang={lang} />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning lang={lang} />;
+      case ViewType.AI_TOOLS:
+        return <AITools lang={lang} />;
       case ViewType.MCP_MANAGER:
         return <MCPManager lang={lang} />;
       case ViewType.OCTANE_TASKS:
@@ -104,6 +107,7 @@ const AppContent: React.FC = () => {
       case ViewType.API_TESTER: return t.header.titles.api;
       case ViewType.SYSTEM_INFO: return t.header.titles.system;
       case ViewType.VOCABULARY: return t.header.titles.vocabulary;
+      case ViewType.AI_TOOLS: return t.header.titles.ai_tools;
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
       case ViewType.OCTANE_TASKS: return t.header.titles.octane;
       case ViewType.SERVER_MANAGER: return t.header.titles.server;

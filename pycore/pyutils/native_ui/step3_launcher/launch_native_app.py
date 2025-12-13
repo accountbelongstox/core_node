@@ -13,6 +13,7 @@ Provides a single function launch_native_app() that handles everything:
 - Lifecycle management
 """
 
+import time
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from pycore import ColorPrint, THREAD_BUS
@@ -23,6 +24,25 @@ from pycore.pyutils.native_ui.step9_frontend import (
     FrontendConfig,
     start_frontend_if_needed
 )
+from pycore.pylauncher.singleton_detector import SingletonDetector
+from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
+from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+from pycore.pylauncher import LauncherConfig, ServiceLauncher
+from pycore.pyfoundations.third_party import get_third_package_pyside6
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
+from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
+    PySide6Framework,
+    PySide6UIConfig,
+    PySide6TrayMenuItem
+)
+
+try:
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QGuiApplication
+except ImportError:
+    # PySide6 will be installed on demand
+    QApplication = None
+    QGuiApplication = None
 
 if TYPE_CHECKING:
     from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
@@ -105,8 +125,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
             - Dev mode: HTTP health check passes (frontend_thread.py)
             - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
             """
-            import time
-
             # Mark that frontend is ready
             startup_thread_ref['frontend_ready'] = True
 
@@ -214,8 +232,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
     ColorPrint.blue("[NativeLauncher] Registered app.close event handler for THREAD_BUS shutdown")
 
     # ========== Phase 5: Singleton Detection ==========
-    from pycore.pylauncher.singleton_detector import SingletonDetector
-
     # Create singleton detector with shutdown_existing=True
     # This means: if an old instance exists, notify it to shutdown and take over
     detector = SingletonDetector(
@@ -269,8 +285,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # Check if we should show debug window
     if config.show_debug_window:
         # Launch with startup window
-        from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
-
         launch_app_with_startup(
             app_name=config.app_name,
             main_entry=_wrapped_main_entry,
@@ -378,8 +392,6 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
         timer_mgr = get_timer_manager()
         timer_mgr.register_task("my_task", interval=5.0, callback=my_callback)
     """
-    from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
-
     timer_mgr = get_timer_manager()
 
     if not timer_mgr.is_running():
@@ -411,8 +423,6 @@ def _start_rpc_v2_service(
         ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
 
     try:
-        from pycore.pylauncher import LauncherConfig, ServiceLauncher
-
         # ========== 1. 准备静态挂载配置 ==========
         static_mounts = []
 
@@ -516,7 +526,6 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     Integrates callback_manager with PySide6 lifecycle events.
     """
     # Import PySide6 via third_party manager (will auto-install if needed)
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
     get_third_package_pyside6()  # Ensure PySide6 is installed
 
     # CRITICAL: Configure QtWebEngine BEFORE importing PySide6 modules
@@ -525,10 +534,6 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         ColorPrint.blue("=" * 80)
         ColorPrint.blue("[NativeLauncher] CRITICAL: Configuring QtWebEngine BEFORE QApplication...")
         ColorPrint.blue("=" * 80)
-
-        from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import (
-            configure_webengine_all_tiers
-        )
 
         # Apply all tiers of WebEngine configuration with config options
         results = configure_webengine_all_tiers(
@@ -547,12 +552,6 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         ColorPrint.blue("=" * 80)
     else:
         ColorPrint.yellow("[NativeLauncher] QtWebEngine configuration DISABLED (webengine_enable_config=False)")
-
-    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-        PySide6Framework,
-        PySide6UIConfig,
-        PySide6TrayMenuItem
-    )
 
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Phase 7: Creating PySide6 UI...")
@@ -573,9 +572,9 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         window_width, window_height = config.window_size
     elif config.window_size == "fullscreen":
         # Get screen size for fullscreen
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtGui import QGuiApplication
-        screen = QGuiApplication.primaryScreen()
+        screen = None
+        if QApplication and QGuiApplication:
+            screen = QGuiApplication.primaryScreen()
         if screen:
             screen_geometry = screen.availableGeometry()
             window_width, window_height = screen_geometry.width(), screen_geometry.height()

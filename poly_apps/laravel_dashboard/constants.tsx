@@ -40,6 +40,7 @@ export const TRANSLATIONS = {
     },
       system: "System Info",
       vocabulary: "Vocabulary",
+      aiTools: "AI Tools",
       mcp: "MCP Manager",
       octane: "Octane Tasks",
       server: "Server Manager"
@@ -58,6 +59,7 @@ export const TRANSLATIONS = {
         api: "API Testing Interface",
         system: "System Information Dashboard",
         vocabulary: "Vocabulary Learning Center",
+        ai_tools: "AI Tools Suite",
         mcp: "MCP Manager",
         octane: "Octane Timer Tasks Monitor",
         server: "Server Management Dashboard",
