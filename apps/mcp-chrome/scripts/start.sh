@@ -224,16 +224,19 @@ fi
 # Success Summary
 # ======================================
 echo -e "\n${CYAN}========================================${NC}"
-echo -e "${GREEN}  ✅ BUILD & REGISTRATION COMPLETE${NC}"
+echo -e "${GREEN}  [OK] BUILD & REGISTRATION COMPLETE${NC}"
 echo -e "${CYAN}========================================${NC}"
 
 echo -e "\n${YELLOW}[IMPORTANT PATHS]${NC}"
-echo -e "${WHITE}  Chrome Extension:${NC}"
-echo -e "${CYAN}    $EXTENSION_PATH${NC}"
-echo -e "\n${WHITE}  Native Server:${NC}"
-echo -e "${CYAN}    $PROJECT_ROOT/app/native-server/dist${NC}"
-echo -e "\n${WHITE}  MCP STDIO Server:${NC}"
-echo -e "${CYAN}    $PROJECT_ROOT/app/native-server/dist/mcp/mcp-server-stdio.js${NC}"
+echo -e ""
+echo -e "${WHITE}  1) Chrome Extension (Frontend):${NC}"
+echo -e "${CYAN}     $EXTENSION_PATH${NC}"
+echo -e ""
+echo -e "${WHITE}  2) Native Server (Backend):${NC}"
+echo -e "${CYAN}     $PROJECT_ROOT/app/native-server/dist${NC}"
+echo -e ""
+echo -e "${WHITE}  3) MCP STDIO Server:${NC}"
+echo -e "${CYAN}     $PROJECT_ROOT/app/native-server/dist/mcp/mcp-server-stdio.js${NC}"
 
 # ======================================
 # Setup Instructions
@@ -369,6 +372,6 @@ echo -e "${CYAN}    • Local Development Guide: LOCAL_DEVELOPMENT_GUIDE.md${NC}
 echo -e "${CYAN}    • Configuration Checklist: CONFIGURATION_CHECKLIST.md${NC}"
 
 echo -e "\n${CYAN}========================================${NC}"
-echo -e "${GREEN}  ✅ Setup completed successfully!${NC}"
+echo -e "${GREEN}  [OK] Setup completed successfully!${NC}"
 echo -e "${WHITE}  Follow the steps above to complete the installation.${NC}"
 echo -e "${CYAN}========================================\n${NC}"

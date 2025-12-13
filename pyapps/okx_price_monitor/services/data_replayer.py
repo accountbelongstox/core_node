@@ -7,7 +7,7 @@ Replays historical data from SQLite in chronological order,
 simulating real-time price updates for backtesting.
 
 Data Flow (TEST Mode):
-1. Initialize: Load SQLite data → Redis
+1. Initialize: Load SQLite data -> Redis
 2. Replay: Feed data chronologically from start_time
 3. Trading: Execute on replayed data
 """
@@ -174,7 +174,7 @@ class DataReplayer:
 
         if replayed_count > 0:
             current_dt = datetime.fromtimestamp(start_time_ms / 1000)
-            print(f"[DataReplayer] ⏰ {current_dt.strftime('%Y-%m-%d %H:%M')} | "
+            print(f"[DataReplayer] TIME {current_dt.strftime('%Y-%m-%d %H:%M')} | "
                   f"Replayed {replayed_count} data points")
 
         return replayed_count

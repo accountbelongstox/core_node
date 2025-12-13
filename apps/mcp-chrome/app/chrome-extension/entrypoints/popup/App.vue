@@ -21,7 +21,7 @@
                 @click="refreshServerStatus"
                 :title="getMessage('refreshStatusButton')"
               >
-                🔄
+                [REFRESH]
               </button>
             </div>
             <div class="status-info">
@@ -112,7 +112,7 @@
         />
         <div v-if="modelInitializationStatus === 'error'" class="error-card">
           <div class="error-content">
-            <div class="error-icon">⚠️</div>
+            <div class="error-icon">[!]</div>
             <div class="error-details">
               <p class="error-title">{{ getMessage('semanticEngineInitFailedStatus') }}</p>
               <p class="error-message">{{
@@ -126,7 +126,7 @@
             @click="retryModelInitialization"
             :disabled="isModelSwitching || isModelDownloading"
           >
-            <span>🔄</span>
+            <span>[RETRY]</span>
             <span>{{ getMessage('retryButton') }}</span>
           </button>
         </div>
@@ -254,7 +254,7 @@
         getMessage('clearDataList3'),
       ]"
       :warning="getMessage('clearDataIrreversibleWarning')"
-      icon="⚠️"
+      icon="[!]"
       :confirm-text="getMessage('confirmClearButton')"
       :cancel-text="getMessage('cancelButton')"
       :confirming-text="getMessage('clearingStatus')"
@@ -561,7 +561,7 @@ const initializeSemanticEngine = async () => {
 
   const isReinitialization = semanticEngineStatus.value === 'ready';
   console.log(
-    `🚀 User triggered semantic engine ${isReinitialization ? 'reinitialization' : 'initialization'}`,
+    `[LAUNCH] User triggered semantic engine ${isReinitialization ? 'reinitialization' : 'initialization'}`,
   );
 
   isSemanticEngineInitializing.value = true;
@@ -580,7 +580,7 @@ const initializeSemanticEngine = async () => {
         type: BACKGROUND_MESSAGE_TYPES.INITIALIZE_SEMANTIC_ENGINE,
       })
       .catch((error) => {
-        console.error('❌ Error sending semantic engine initialization request:', error);
+        console.error('[X] Error sending semantic engine initialization request:', error);
       });
 
     startSemanticEngineStatusPolling();
@@ -589,7 +589,7 @@ const initializeSemanticEngine = async () => {
       ? getMessage('processingStatus')
       : getMessage('processingStatus');
   } catch (error: any) {
-    console.error('❌ Failed to send initialization request:', error);
+    console.error('[X] Failed to send initialization request:', error);
     semanticEngineStatus.value = 'error';
     semanticEngineInitProgress.value = `Failed to send initialization request: ${error?.message || 'Unknown error'}`;
 
@@ -665,7 +665,7 @@ const checkSemanticEngineStatus = async () => {
 const retryModelInitialization = async () => {
   if (!currentModel.value) return;
 
-  console.log('🔄 Retrying model initialization...');
+  console.log('[RETRY] Retrying model initialization...');
 
   modelErrorMessage.value = '';
   modelErrorType.value = '';
@@ -733,14 +733,14 @@ const refreshServerStatus = async () => {
 const copyMcpConfig = async () => {
   try {
     await navigator.clipboard.writeText(mcpConfigJson.value);
-    copyButtonText.value = '✅' + getMessage('configCopiedNotification');
+    copyButtonText.value = '[OK] ' + getMessage('configCopiedNotification');
 
     setTimeout(() => {
       copyButtonText.value = getMessage('copyConfigButton');
     }, 2000);
   } catch (error) {
     console.error('Failed to copy configuration:', error);
-    copyButtonText.value = '❌' + getMessage('networkErrorMessage');
+    copyButtonText.value = '[X] ' + getMessage('networkErrorMessage');
 
     setTimeout(() => {
       copyButtonText.value = getMessage('copyConfigButton');
@@ -792,26 +792,26 @@ const loadModelPreference = async () => {
 
     if (result.selectedModel) {
       const storedModel = result.selectedModel as string;
-      console.log('📋 Stored model from storage:', storedModel);
+      console.log('[INFO] Stored model from storage:', storedModel);
 
       if (PREDEFINED_MODELS[storedModel as ModelPreset]) {
         currentModel.value = storedModel as ModelPreset;
-        console.log(`✅ Loaded valid model: ${currentModel.value}`);
+        console.log(`[OK] Loaded valid model: ${currentModel.value}`);
       } else {
         console.warn(
-          `⚠️ Stored model "${storedModel}" not found in PREDEFINED_MODELS, using default`,
+          `[WARNING] Stored model "${storedModel}" not found in PREDEFINED_MODELS, using default`,
         );
         currentModel.value = 'multilingual-e5-small';
         await saveModelPreference(currentModel.value);
       }
     } else {
-      console.log('⚠️ No model found in storage, using default');
+      console.log('[WARNING] No model found in storage, using default');
       currentModel.value = 'multilingual-e5-small';
       await saveModelPreference(currentModel.value);
     }
 
     selectedVersion.value = 'quantized';
-    console.log('✅ Using quantized version (fixed)');
+    console.log('[OK] Using quantized version (fixed)');
 
     await saveVersionPreference('quantized');
 
@@ -850,7 +850,7 @@ const loadModelPreference = async () => {
       semanticEngineStatus.value = 'idle';
     }
   } catch (error) {
-    console.error('❌ Failed to load model preference:', error);
+    console.error('[X] Failed to load model preference:', error);
   }
 };
 
@@ -984,7 +984,7 @@ const refreshStorageStats = async () => {
 
   isRefreshingStats.value = true;
   try {
-    console.log('🔄 Refreshing storage statistics...');
+    console.log('[REFRESH] Refreshing storage statistics...');
 
     // eslint-disable-next-line no-undef
     const response = await chrome.runtime.sendMessage({
@@ -999,9 +999,9 @@ const refreshStorageStats = async () => {
         indexSize: response.stats.indexSize || 0,
         isInitialized: response.stats.isInitialized || false,
       };
-      console.log('✅ Storage stats refreshed:', storageStats.value);
+      console.log('[OK] Storage stats refreshed:', storageStats.value);
     } else {
-      console.error('❌ Failed to get storage stats:', response?.error);
+      console.error('[X] Failed to get storage stats:', response?.error);
       storageStats.value = {
         indexedPages: 0,
         totalDocuments: 0,
@@ -1011,7 +1011,7 @@ const refreshStorageStats = async () => {
       };
     }
   } catch (error) {
-    console.error('❌ Error refreshing storage stats:', error);
+    console.error('[X] Error refreshing storage stats:', error);
     storageStats.value = {
       indexedPages: 0,
       totalDocuments: 0,
@@ -1035,7 +1035,7 @@ const confirmClearAllData = async () => {
   clearDataProgress.value = getMessage('clearingStatus');
 
   try {
-    console.log('🗑️ Starting to clear all data...');
+    console.log('[DELETE] Starting to clear all data...');
 
     // eslint-disable-next-line no-undef
     const response = await chrome.runtime.sendMessage({
@@ -1044,7 +1044,7 @@ const confirmClearAllData = async () => {
 
     if (response && response.success) {
       clearDataProgress.value = getMessage('dataClearedNotification');
-      console.log('✅ All data cleared successfully');
+      console.log('[OK] All data cleared successfully');
 
       await refreshStorageStats();
 
@@ -1056,7 +1056,7 @@ const confirmClearAllData = async () => {
       throw new Error(response?.error || 'Failed to clear data');
     }
   } catch (error: any) {
-    console.error('❌ Failed to clear all data:', error);
+    console.error('[X] Failed to clear all data:', error);
     clearDataProgress.value = `Failed to clear data: ${error?.message || 'Unknown error'}`;
 
     setTimeout(() => {
@@ -1068,10 +1068,10 @@ const confirmClearAllData = async () => {
 };
 
 const switchModel = async (newModel: ModelPreset) => {
-  console.log(`🔄 switchModel called with newModel: ${newModel}`);
+  console.log(`[SWITCH] switchModel called with newModel: ${newModel}`);
 
   if (isModelSwitching.value) {
-    console.log('⏸️ Model switch already in progress, skipping');
+    console.log('[PAUSE] Model switch already in progress, skipping');
     return;
   }
 
@@ -1082,7 +1082,7 @@ const switchModel = async (newModel: ModelPreset) => {
   const newModelInfo = getModelInfo(newModel);
   const isDifferentDimension = currentModelInfo.dimension !== newModelInfo.dimension;
 
-  console.log(`📊 Switch analysis:`);
+  console.log(`[STATS] Switch analysis:`);
   console.log(`   - Same model: ${isSameModel} (${currentModel.value} -> ${newModel})`);
   console.log(
     `   - Current dimension: ${currentModelInfo.dimension}, New dimension: ${newModelInfo.dimension}`,
@@ -1090,7 +1090,7 @@ const switchModel = async (newModel: ModelPreset) => {
   console.log(`   - Different dimension: ${isDifferentDimension}`);
 
   if (isSameModel && !isDifferentDimension) {
-    console.log('✅ Same model and dimension - no need to switch');
+    console.log('[OK] Same model and dimension - no need to switch');
     return;
   }
 
@@ -1098,9 +1098,9 @@ const switchModel = async (newModel: ModelPreset) => {
   if (!isSameModel) switchReasons.push('different model');
   if (isDifferentDimension) switchReasons.push('different dimension');
 
-  console.log(`🚀 Switching model due to: ${switchReasons.join(', ')}`);
+  console.log(`[LAUNCH] Switching model due to: ${switchReasons.join(', ')}`);
   console.log(
-    `📋 Model: ${currentModel.value} (${currentModelInfo.dimension}D) -> ${newModel} (${newModelInfo.dimension}D)`,
+    `[INFO] Model: ${currentModel.value} (${currentModelInfo.dimension}D) -> ${newModel} (${newModelInfo.dimension}D)`,
   );
 
   isModelSwitching.value = true;
@@ -1132,7 +1132,7 @@ const switchModel = async (newModel: ModelPreset) => {
       currentModel.value = newModel;
       modelSwitchProgress.value = getMessage('successNotification');
       console.log(
-        '模型切换成功:',
+        'Model switch successful:',
         newModel,
         'version: quantized',
         'dimension:',

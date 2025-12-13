@@ -180,7 +180,7 @@ class TradingController:
 
                 # Check if data is complete and up-to-date
                 has_enough_history = oldest_dt <= start_time
-                is_up_to_date = latest_dt >= end_time - timedelta(hours=1)
+                is_up_to_date = latest_dt >= end_time - timedelta(minutes=5)
 
                 if has_enough_history and is_up_to_date:
                     # Data is complete and recent, just load to Redis
@@ -262,6 +262,14 @@ class TradingController:
         sys.stdout.flush()
         print("="*80 + "\n")
         sys.stdout.flush()
+
+        # Data verification (random sample)
+        ENABLE_VERIFICATION = True  # Control flag
+        if ENABLE_VERIFICATION and loaded_count > 0:
+            from pyapps.okx_price_monitor.services.data_verifier import get_data_verifier
+
+            verifier = get_data_verifier(self.db_manager, max_gap_minutes=10)
+            verifier.verify_random_coin(self.coin_symbols, start_time, end_time)
 
     def _fetch_all_candles(self, inst_id: str, start_time: datetime, end_time: datetime) -> List:
         """
