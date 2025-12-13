@@ -174,7 +174,7 @@ class DataReplayer:
 
         if replayed_count > 0:
             current_dt = datetime.fromtimestamp(start_time_ms / 1000)
-            print(f"[DataReplayer] ⏰ {current_dt.strftime('%Y-%m-%d %H:%M')} | "
+            print(f"[DataReplayer] TIME {current_dt.strftime('%Y-%m-%d %H:%M')} | "
                   f"Replayed {replayed_count} data points")
 
         return replayed_count

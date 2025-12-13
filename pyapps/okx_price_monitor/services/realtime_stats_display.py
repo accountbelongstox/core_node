@@ -415,7 +415,7 @@ class RealtimeStatsDisplay:
             icon = '⚡'
         elif window == '30s':
             color = self.COLORS['magenta']
-            icon = '⚠️'
+            icon = 'WARNING'
         else:  # 1m
             color = self.COLORS['red'] if direction == 'up' else self.COLORS['blue']
             icon = '🔥' if direction == 'up' else '❄️'

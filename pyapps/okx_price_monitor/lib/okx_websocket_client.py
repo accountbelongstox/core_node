@@ -311,7 +311,7 @@ class OKXWebSocketClient:
                     self.invalid_instruments.add(inst_id)
                     self.invalid_instruments_timestamp[inst_id] = time.time()
                     self.stats['invalid_instruments_count'] = len(self.invalid_instruments)
-                    print(f"[WS-{connection_id}] ⚠️  Blacklisted invalid instrument: {inst_id} (code: {code})")
+                    print(f"[WS-{connection_id}] WARNING  Blacklisted invalid instrument: {inst_id} (code: {code})")
                     print(f"[WS-{connection_id}] Will retry after {self.retry_interval}s ({self.retry_interval/3600:.1f}h)")
                     print(f"[WS-{connection_id}] Total invalid instruments: {len(self.invalid_instruments)}")
 

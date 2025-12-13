@@ -68,8 +68,8 @@ class OptimizedCoinAttributeCalculator:
         self.period_duration_ms = self.period_duration_hours * 3600 * 1000
 
         print(f"[OptimizedCalculator] Initialized")
-        print(f"[OptimizedCalculator] NumPy: {'✓' if NUMPY_AVAILABLE else '✗'}")
-        print(f"[OptimizedCalculator] MessagePack: {'✓' if MSGPACK_AVAILABLE else '✗'}")
+        print(f"[OptimizedCalculator] NumPy: {'OK' if NUMPY_AVAILABLE else 'FAIL'}")
+        print(f"[OptimizedCalculator] MessagePack: {'OK' if MSGPACK_AVAILABLE else 'FAIL'}")
 
     def calculate_attributes(self, coin_symbol: str) -> Optional[Dict]:
         """

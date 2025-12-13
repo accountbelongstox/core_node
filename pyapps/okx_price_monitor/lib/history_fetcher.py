@@ -196,7 +196,7 @@ class HistoryFetcher:
                 throttled = rate_info.get('is_throttled', False)
 
                 # Format rate display
-                throttle_mark = "⚠" if throttled else "✓"
+                throttle_mark = "WARNING" if throttled else "OK"
 
                 print(
                     f"[PROGRESS] {inst_id}: Batch {batch_count:3d}, "
