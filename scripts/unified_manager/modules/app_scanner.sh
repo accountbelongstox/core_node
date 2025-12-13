@@ -111,11 +111,55 @@ step5_scan_scripts_directory() {
         local found_scripts=()
 
         if [ -d "$scripts_path" ]; then
+            # Add standard script files
             for script_file in "${SCRIPT_FILES[@]}"; do
                 if [ -f "$scripts_path/$script_file" ]; then
                     found_scripts+=("$script_file")
                 fi
             done
+
+            # Detect OS and scan for OS-specific scripts
+            local os_type=""
+            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                os_type="linux"
+            elif [[ "$OSTYPE" == "darwin"* ]]; then
+                os_type="macos"
+            elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+                os_type="windows"
+            else
+                os_type="linux"  # Default fallback
+            fi
+
+            # Scan for all executable scripts in the scripts directory
+            if command -v find >/dev/null 2>&1; then
+                while IFS= read -r -d '' script_file; do
+                    local basename_script=$(basename "$script_file")
+                    # Skip if already in found_scripts
+                    local skip=false
+                    for existing in "${found_scripts[@]}"; do
+                        if [ "$existing" = "$basename_script" ]; then
+                            skip=true
+                            break
+                        fi
+                    done
+
+                    if [ "$skip" = false ]; then
+                        # Filter by OS type
+                        case "$os_type" in
+                            "linux"|"macos")
+                                if [[ "$basename_script" == *.sh ]] || [[ "$basename_script" == *.py ]]; then
+                                    found_scripts+=("$basename_script")
+                                fi
+                                ;;
+                            "windows")
+                                if [[ "$basename_script" == *.bat ]] || [[ "$basename_script" == *.ps1 ]] || [[ "$basename_script" == *.cmd ]]; then
+                                    found_scripts+=("$basename_script")
+                                fi
+                                ;;
+                        esac
+                    fi
+                done < <(find "$scripts_path" -maxdepth 1 -type f -executable -print0 2>/dev/null)
+            fi
 
             if [ ${#found_scripts[@]} -gt 0 ]; then
                 echo -e "  \033[90m$app_name: ${found_scripts[*]}\033[0m" >&2
