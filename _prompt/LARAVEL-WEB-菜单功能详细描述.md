@@ -85,7 +85,7 @@ API Testing Dashboard 是一个功能完整的 API 测试工具，允许开发�
   - No Auth Required：无需认证
 - **HTTP 方法**：POST、GET、PUT、DELETE 等
 - **功能描述**：详细的 API 功能说明
-- **控制器名称**：处理该 API 的控制器类名
+- **控制器名称**：处理该 API 的控制器类名 
 
 **参数信息区域**：
 - **参数列表**：
