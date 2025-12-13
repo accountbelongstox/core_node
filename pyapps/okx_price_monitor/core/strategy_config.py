@@ -113,6 +113,24 @@ class StrategyConfig:
     REDIS_TTL_ATTR = 3600  # Attribute data kept for 1 hour
 
 
+    # ==================== Realtime Data Update Configuration ====================
+    # Enable realtime data updates after initialization
+    REALTIME_UPDATE_ENABLED = True  # Enable continuous data loading
+
+    # Realtime data update interval (seconds)
+    # 0 = Maximum speed (respecting API rate limits only)
+    # >0 = Wait N seconds between update cycles
+    REALTIME_UPDATE_INTERVAL_SECONDS = 0  # 0 = continuous at max safe speed
+
+    # OKX API rate limit (requests per second)
+    # OKX limit: 20 requests/second per IP
+    # We use 15/s for safety margin (75% of limit)
+    API_RATE_LIMIT_PER_SECOND = 15  # 15 requests/second (safe limit)
+
+    # Number of coins to update per cycle
+    # With 294 coins and 15 req/s: 294/15 = ~20 seconds per full cycle
+    REALTIME_BATCH_SIZE = 15  # Update 15 coins at a time (1 second worth)
+
     # ==================== Database Sync Configuration ====================
     # Sync interval (seconds)
     DB_SYNC_INTERVAL_SECONDS = 30  # Sync every 30 seconds
