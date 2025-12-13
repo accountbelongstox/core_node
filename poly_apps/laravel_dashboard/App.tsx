@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MediaBrowser from './components/views/MediaBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
-import ToolsDashboard from './components/views/ToolsDashboard';
+import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import SystemInfo from './components/views/SystemInfo';
 import VocabularyLearning from './components/views/VocabularyLearning';
@@ -13,7 +13,9 @@ import ServerManager from './components/views/ServerManager';
 import Settings from './components/views/Settings';
 import LoginModal from './components/LoginModal';
 import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
+import { ToastProvider } from './components/admin';
 import { apiService } from './services/apiService';
+import { api } from './core/api';
 import { ViewType, Language, Theme } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
 import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
@@ -27,9 +29,10 @@ const AppContent: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Sync API config to apiService whenever it changes
+  // Sync API config to both apiService and new api singleton whenever it changes
   useEffect(() => {
     apiService.setConfig(config.baseUrl, config.apiKey);
+    api.updateBaseURL(config.baseUrl);
   }, [config]);
 
   // Apply Theme Effect
@@ -72,7 +75,7 @@ const AppContent: React.FC = () => {
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
-        return <ToolsDashboard lang={lang} />;
+        return <UnifiedToolsPage lang={lang} />;
       case ViewType.API_TESTER:
         return <ApiTester />;
       case ViewType.SYSTEM_INFO:
@@ -241,11 +244,13 @@ const AppContent: React.FC = () => {
   );
 };
 
-// Main App Component with ApiConfigProvider
+// Main App Component with ApiConfigProvider and ToastProvider
 const App: React.FC = () => {
   return (
     <ApiConfigProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </ApiConfigProvider>
   );
 };
