@@ -56,7 +56,7 @@ show_menu() {
 
     echo ""
     echo -e "\033[33mControls:\033[0m"
-    echo "Enter app number to select | L: Launch current | T: Toggle script | S: Select/Unselect | R: Rescan | Q: Quit"
+    echo "Enter app number to select | L: Launch current | C: Create service | T: Toggle script | S: Select/Unselect | R: Rescan | Q: Quit"
     echo ""
     echo -ne "\033[36mEnter app number (1-${#APPS_NAME[@]}) or command: \033[0m"
 }
