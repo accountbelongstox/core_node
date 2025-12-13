@@ -46,7 +46,64 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             $email = $request->email ?? "";
             $nickname = $request->nickname ?? "";
             $name = $request->name ?? "";
-            $userData = CommonUserGen::createUser($request->username, $request->password, $email, $nickname, $name, 'AppQyV1');
+            $inviteCode = $request->invite_code ?? $request->registration_code ?? null;
+
+            $roleLevel = 0;
+            $roleName = 'user';
+
+            if ($inviteCode) {
+                $invite = InviteCode::where('code', $inviteCode)->first();
+
+                if (!$invite) {
+                    \Log::warning('[AppQyV1Registration] Invalid invite code', [
+                        'code' => $inviteCode,
+                        'username' => $request->username
+                    ]);
+                    return response()->json([
+                        'message' => 'Invalid invite code',
+                        'code' => 400,
+                        'status' => 'error',
+                    ], 400);
+                }
+
+                if (!$invite->canBeUsed()) {
+                    \Log::warning('[AppQyV1Registration] Invite code cannot be used', [
+                        'code' => $inviteCode,
+                        'username' => $request->username,
+                        'is_active' => $invite->is_active,
+                        'used_count' => $invite->used_count,
+                        'max_uses' => $invite->max_uses,
+                        'expires_at' => $invite->expires_at
+                    ]);
+                    return response()->json([
+                        'message' => 'Invite code is expired or already used',
+                        'code' => 400,
+                        'status' => 'error',
+                    ], 400);
+                }
+
+                $roleLevel = $invite->getRoleLevel();
+                $roleName = $invite->getRoleName();
+
+                \Log::info('[AppQyV1Registration] Using invite code', [
+                    'code' => $inviteCode,
+                    'type' => $invite->type,
+                    'username' => $request->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName
+                ]);
+            }
+
+            $userData = CommonUserGen::createUser(
+                $request->username,
+                $request->password,
+                $email,
+                $nickname,
+                $name,
+                'AppQyV1',
+                $roleLevel,
+                $roleName
+            );
 
             if (!$userData) {
                 \Log::error('[AppQyV1Registration] Registration failed for user', [
@@ -57,6 +114,19 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                     'code' => 500,
                     'status' => 'error',
                 ], 500);
+            }
+
+            if ($inviteCode && isset($invite)) {
+                $user = $userData['user'];
+                $invite->use($user);
+
+                \Log::info('[AppQyV1Registration] Invite code used successfully', [
+                    'code' => $inviteCode,
+                    'user_id' => $user->id,
+                    'username' => $user->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName
+                ]);
             }
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -77,7 +147,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                 'status' => 'error',
             ], 500);
         }
-        
+
         $user = $userData['user'];
         $token = $userData['token'];
         $expiration = $userData['expiration'];
