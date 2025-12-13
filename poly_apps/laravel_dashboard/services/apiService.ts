@@ -44,9 +44,23 @@ import {
   CertbotStatus
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
+// Default base URL (will be overridden by ApiConfigContext)
+const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
 
 class ApiService {
+  private baseUrl: string = DEFAULT_BASE_URL;
+  private apiKey: string | undefined = undefined;
+
+  // Method to update base URL and API key from context
+  public setConfig(baseUrl: string, apiKey?: string) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+  }
+
+  public getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   private async request<T>(
     method: string,
     path: string,
@@ -54,15 +68,22 @@ class ApiService {
     options?: RequestInit
   ): Promise<ApiResponse<T>> {
     const start = Date.now();
-    const url = `${BASE_URL}${path}`;
+    const url = `${this.baseUrl}${path}`;
     
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...options?.headers,
+    };
+
+    // Add API Key if available
+    if (this.apiKey) {
+      headers['X-API-Key'] = this.apiKey;
+    }
+
     const config: RequestInit = {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...options?.headers,
-      },
+      headers,
       ...options,
     };
 
@@ -100,7 +121,7 @@ class ApiService {
   }
 
   // ========== System Information ==========
-  async getSystemInfo(): Promise<ApiResponse<SystemInfo>> {
+  async getApiInfo(): Promise<ApiResponse<SystemInfo>> {
     return this.request<SystemInfo>('GET', '/api_info');
   }
 
@@ -359,12 +380,15 @@ class ApiService {
   }
 
   async downloadFile(filePath: string): Promise<Blob> {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.nexus-orbit.io';
-    const response = await fetch(`${baseUrl}/api/servermanager/v1/files/download?file_path=${encodeURIComponent(filePath)}`, {
+    const headers: HeadersInit = {
+      'Accept': 'application/octet-stream',
+    };
+    if (this.apiKey) {
+      headers['X-API-Key'] = this.apiKey;
+    }
+    const response = await fetch(`${this.baseUrl}/api/servermanager/v1/files/download?file_path=${encodeURIComponent(filePath)}`, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/octet-stream',
-      },
+      headers,
     });
     return response.blob();
   }

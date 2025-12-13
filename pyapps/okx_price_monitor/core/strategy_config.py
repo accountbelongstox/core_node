@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Strategy Configuration - Trading Strategy Parameters
-策略配置 - 交易策略参数
 
 Configurable parameters for backtesting and live trading strategies.
 """
@@ -11,21 +10,20 @@ Configurable parameters for backtesting and live trading strategies.
 class StrategyConfig:
     """
     Trading Strategy Configuration
-    交易策略配置
     """
 
-    # ==================== 运行模式配置 ====================
+    # ==================== Run Mode Configuration ====================
     # Run mode: 'TEST' or 'LIVE'
     # TEST: Replay historical data from 3 days ago (backtest)
     # LIVE: Start from current time (paper trading with virtual money)
     RUN_MODE = 'TEST'  # Default: TEST mode
 
-    # ==================== 数据初始化配置 ====================
+    # ==================== Data Initialization Configuration ====================
     # Historical data initialization (days before start)
-    HISTORY_INIT_DAYS = 3  # 至少初始化3天前的数据
+    HISTORY_INIT_DAYS = 3  # At least 3 days before initialization
 
     # Start backtesting from N days ago (TEST mode only)
-    BACKTEST_START_DAYS = 3  # 从3天前开始扫描
+    BACKTEST_START_DAYS = 3  # Start scanning from 3 days ago
 
     # Data granularity (bar size)
     # Note: Due to OKX API limitations, 1m bars only provide 1 day of history
@@ -33,72 +31,72 @@ class StrategyConfig:
     CANDLE_BAR = '5m'  # 5-minute bars (covers 5 days of history)
 
 
-    # ==================== 24小时分析窗口配置 ====================
+    # ==================== 24-Hour Analysis Window Configuration ====================
     # Time window for attribute calculation (hours)
-    ANALYSIS_WINDOW_HOURS = 24  # 24小时窗口
+    ANALYSIS_WINDOW_HOURS = 24  # 24 hour window
 
     # Number of time periods to split the window into
-    TIME_PERIODS_COUNT = 4  # 将24小时分为4个时段
+    TIME_PERIODS_COUNT = 4  # Split 24 hours into 4 periods
 
     # Each period duration (auto-calculated)
     @property
     def PERIOD_DURATION_HOURS(self):
-        return self.ANALYSIS_WINDOW_HOURS // self.TIME_PERIODS_COUNT  # 6小时/时段
+        return self.ANALYSIS_WINDOW_HOURS // self.TIME_PERIODS_COUNT  # 6 hours per period
 
 
-    # ==================== 币种筛选条件 ====================
+    # ==================== Coin Selection Criteria ====================
     # Coin selection criteria for trading
 
-    # Allowed trend types (整体走向)
+    # Allowed trend types (overall trend)
     ALLOWED_TRENDS = [
-        'stable',      # 平稳
-        'upward',      # 向上
-        # 'downward',  # 向下 (不选择)
-        # 'up_then_down',    # 向上再向下 (不选择)
-        # 'down_then_up',    # 向下再向上 (可选)
+        'stable',      # Stable
+        'upward',      # Upward
+        # 'downward',  # Downward (not selected)
+        # 'up_then_down',    # Up then down (not selected)
+        # 'down_then_up',    # Down then up (optional)
     ]
 
     # Minimum volatility threshold (price range as % of average)
-    # 最小波动率阈值（最高-最低 / 平均价格）
+    # Min volatility threshold (high-low / average price)
     MIN_VOLATILITY_PERCENT = 0.5  # 0.5%
 
     # Maximum volatility threshold
-    # 最大波动率阈值
+    # Max volatility threshold
     MAX_VOLATILITY_PERCENT = 10.0  # 10%
 
 
-    # ==================== 交易信号配置 ====================
-    # Buy signal: 60秒上涨超过1%
-    BUY_SIGNAL_WINDOW_SECONDS = 60  # 60秒窗口
-    BUY_SIGNAL_THRESHOLD_PERCENT = 1.0  # 上涨超过1%
+    # ==================== Trading Signal Configuration ====================
+    # Buy signal: 1% rise in 60 seconds
+    BUY_SIGNAL_WINDOW_SECONDS = 60  # 60 second window
+    BUY_SIGNAL_THRESHOLD_PERCENT = 1.0  # Rise more than 1%
 
-    # Sell signal: 5分钟后卖出
-    SELL_AFTER_MINUTES = 5  # 5分钟后卖出
+    # Sell signal: Sell after 5 minutes
+    SELL_AFTER_MINUTES = 5  # Sell after 5 minutes
 
     # Stop loss (optional)
-    STOP_LOSS_PERCENT = -3.0  # 止损-3%（可选）
-    ENABLE_STOP_LOSS = False  # 是否启用止损
+    STOP_LOSS_PERCENT = -3.0  # Stop loss at -3% (optional)
+    ENABLE_STOP_LOSS = False  # Whether to enable stop loss
 
     # Take profit (optional)
-    TAKE_PROFIT_PERCENT = 5.0  # 止盈5%（可选）
-    ENABLE_TAKE_PROFIT = False  # 是否启用止盈
+    TAKE_PROFIT_PERCENT = 5.0  # Take profit at 5% (optional)
+    ENABLE_TAKE_PROFIT = False  # Whether to enable take profit
 
 
-    # ==================== 虚拟交易配置 ====================
+    # ==================== Virtual Trading Configuration ====================
     # Initial virtual balance
-    INITIAL_BALANCE_USDT = 10000.0  # 初始虚拟余额 10000 USDT
+    INITIAL_BALANCE_USDT = 10000.0  # Initial virtual balance 10000 USDT
 
     # Position sizing (% of balance per trade)
-    POSITION_SIZE_PERCENT = 10.0  # 每次交易使用10%资金
+    POSITION_SIZE_PERCENT = 10.0  # Use 10% of funds per trade
 
     # Maximum simultaneous positions
-    MAX_POSITIONS = 5  # 最多同时持有5个仓位
+    MAX_POSITIONS = 5  # Hold up to 5 positions simultaneously
 
     # Trading fee (%)
-    TRADING_FEE_PERCENT = 0.1  # 交易手续费 0.1%
+    TRADING_FEE_PERCENT = 0.1  # Trading fee 0.1%
 
 
-    # ==================== Redis缓存配置 ====================
+    # ==================== Redis Cache Configuration ====================
     # Redis connection
     REDIS_HOST = 'localhost'
     REDIS_PORT = 6379
@@ -107,45 +105,45 @@ class StrategyConfig:
 
     # Redis key prefixes
     REDIS_PREFIX_PRICE = 'okx:price:'  # okx:price:BTC
-    REDIS_PREFIX_ATTR = 'okx:attr:'    # okx:attr:BTC (24小时属性)
-    REDIS_PREFIX_POSITION = 'okx:pos:'  # okx:pos:BTC (虚拟持仓)
+    REDIS_PREFIX_ATTR = 'okx:attr:'    # okx:attr:BTC (24 hour attributes)
+    REDIS_PREFIX_POSITION = 'okx:pos:'  # okx:pos:BTC (virtual positions)
 
     # Redis TTL (seconds)
-    REDIS_TTL_PRICE = 86400 * 7  # 价格数据保留7天
-    REDIS_TTL_ATTR = 3600  # 属性数据保留1小时
+    REDIS_TTL_PRICE = 86400 * 7  # Price data kept for 7 days
+    REDIS_TTL_ATTR = 3600  # Attribute data kept for 1 hour
 
 
-    # ==================== 数据库同步配置 ====================
+    # ==================== Database Sync Configuration ====================
     # Sync interval (seconds)
-    DB_SYNC_INTERVAL_SECONDS = 30  # 每30秒同步一次
+    DB_SYNC_INTERVAL_SECONDS = 30  # Sync every 30 seconds
 
     # Batch size for sync
-    DB_SYNC_BATCH_SIZE = 100  # 每次同步100个币
+    DB_SYNC_BATCH_SIZE = 100  # Sync 100 coins per batch
 
 
-    # ==================== 计算优化配置 ====================
+    # ==================== Calculation Optimization Configuration ====================
     # Use Redis for all calculations (only read from SQLite on init)
-    CALCULATION_USE_REDIS_ONLY = True  # 计算只和Redis打交道
+    CALCULATION_USE_REDIS_ONLY = True  # Only interact with Redis for calculations
 
     # Update frequency for coin attributes (seconds)
-    ATTR_UPDATE_INTERVAL_SECONDS = 60  # 每60秒更新一次币种属性
+    ATTR_UPDATE_INTERVAL_SECONDS = 60  # Update coin attributes every 60 seconds
 
     # Number of data points to keep in Redis for each coin
-    REDIS_MAX_DATAPOINTS_PER_COIN = 1440 * 3  # 3天 * 1440分钟 = 4320个数据点
+    REDIS_MAX_DATAPOINTS_PER_COIN = 1440 * 3  # 3 days * 1440 minutes = 4320 data points
 
 
-    # ==================== 多线程配置 ====================
+    # ==================== Multi-threading Configuration ====================
     # Thread counts
-    NUM_CALCULATION_THREADS = 2  # 计算线程数量
-    NUM_TRADING_THREADS = 1      # 交易线程数量
-    NUM_SYNC_THREADS = 1         # 同步线程数量
+    NUM_CALCULATION_THREADS = 2  # Number of calculation threads
+    NUM_TRADING_THREADS = 1      # Number of trading threads
+    NUM_SYNC_THREADS = 1         # Number of sync threads
 
     # Thread sleep intervals (seconds)
-    CALCULATION_THREAD_SLEEP = 1  # 计算线程休眠时间
-    TRADING_THREAD_SLEEP = 1      # 交易线程休眠时间
+    CALCULATION_THREAD_SLEEP = 1  # Calculation thread sleep time
+    TRADING_THREAD_SLEEP = 1      # Trading thread sleep time
 
 
-    # ==================== 日志配置 ====================
+    # ==================== Logging Configuration ====================
     # Log trade results
     ENABLE_TRADE_LOGGING = True
     TRADE_LOG_FILE = 'backtest_trades.csv'
@@ -155,7 +153,7 @@ class StrategyConfig:
     PERFORMANCE_LOG_FILE = 'backtest_performance.csv'
 
 
-    # ==================== Debug配置 ====================
+    # ==================== Debug Configuration ====================
     DEBUG_MODE = False
     VERBOSE_LOGGING = True
 

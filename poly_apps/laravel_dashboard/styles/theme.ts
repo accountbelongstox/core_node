@@ -26,7 +26,7 @@ export const colors = {
   surface: '#1e293b',
   surfaceElevated: '#334155',
   border: 'rgba(255, 255, 255, 0.1)',
-  borderLight: 'rgba(255, 255, 255, 0.05)',
+  borderDim: 'rgba(255, 255, 255, 0.05)',
   text: '#e2e8f0',
   textMuted: '#94a3b8',
   textDim: '#64748b',
