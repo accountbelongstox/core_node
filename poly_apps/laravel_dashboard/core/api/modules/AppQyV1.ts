@@ -7,16 +7,24 @@ import { APIResponse } from '../../types';
  */
 export class AppQyV1API extends BaseAPI {
   // ========== 认证 ==========
-  async register(data: { name: string; email: string; password: string; password_confirmation: string }): Promise<APIResponse> {
-    return this.post('/auth/register', data);
+  async register(data: { username: string; password: string; email?: string; nickname?: string; name?: string; registration_code?: string }): Promise<APIResponse> {
+    return this.post('/register', data);
   }
 
-  async login(data: { email: string; password: string }): Promise<APIResponse> {
-    return this.post('/auth/login', data);
+  async login(data: { username: string; password: string }): Promise<APIResponse> {
+    return this.post('/login', data);
   }
 
   async logout(): Promise<APIResponse> {
-    return this.post('/auth/logout');
+    return this.post('/logout');
+  }
+
+  async getCurrentUser(): Promise<APIResponse> {
+    return this.get('/user');
+  }
+
+  async registerWithCode(data: { registration_code: string; referral_source?: string }): Promise<APIResponse> {
+    return this.post('/register-code', data);
   }
 
   // ========== 翻译 ==========

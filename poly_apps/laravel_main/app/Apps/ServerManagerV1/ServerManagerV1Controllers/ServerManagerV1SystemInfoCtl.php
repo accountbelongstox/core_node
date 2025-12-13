@@ -18,10 +18,11 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         if ($validation) {
             return $validation;
         }
-        
+
         try {
             $systemInfo = [
                 'basic_info' => $this->getBasicSystemInfo(),
+                'php_config' => $this->getPhpConfig(),
                 'hardware_info' => $this->getHardwareInfo(),
                 'network_info' => $this->getNetworkInfo(),
                 'directory_status' => $this->getDirectoryStatus(),
@@ -29,9 +30,9 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 'nginx_analysis' => $this->getNginxAnalysis(),
                 'system_status' => $this->getSystemStatus()
             ];
-            
+
             return $this->successResponse($systemInfo, 'System information retrieved successfully');
-            
+
         } catch (\Exception $e) {
             return $this->handleException($e, 'system_info');
         }
@@ -154,7 +155,25 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             'uptime' => $info['uptime']
         ];
     }
-    
+
+    /**
+     * Get PHP configuration
+     */
+    private function getPhpConfig(): array
+    {
+        return [
+            'version' => PHP_VERSION,
+            'memory_limit' => ini_get('memory_limit'),
+            'max_execution_time' => ini_get('max_execution_time'),
+            'upload_max_filesize' => ini_get('upload_max_filesize'),
+            'post_max_size' => ini_get('post_max_size'),
+            'timezone' => ini_get('date.timezone') ?: date_default_timezone_get(),
+            'display_errors' => (bool) ini_get('display_errors'),
+            'error_reporting' => ini_get('error_reporting'),
+            'extensions' => get_loaded_extensions()
+        ];
+    }
+
     /**
      * Get hardware information
      */

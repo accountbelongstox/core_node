@@ -91,10 +91,24 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
       const response = await apiService.getLanguages();
       if (response.success && response.data) {
         // Ensure data is an array
-        const languageData = Array.isArray(response.data)
+        let languageData = Array.isArray(response.data)
           ? response.data
           : ((response.data as any).languages || (response.data as any).items || []);
-        setLanguages(languageData);
+
+        // Double-check it's an array
+        if (!Array.isArray(languageData)) {
+          languageData = [];
+        }
+
+        setLanguages(languageData.length > 0 ? languageData : [
+          { code: 'en', name: 'English', native_name: 'English' },
+          { code: 'zh', name: 'Chinese', native_name: '中文' },
+          { code: 'ja', name: 'Japanese', native_name: '日本語' },
+          { code: 'ko', name: 'Korean', native_name: '한국어' },
+          { code: 'fr', name: 'French', native_name: 'Français' },
+          { code: 'de', name: 'German', native_name: 'Deutsch' },
+          { code: 'es', name: 'Spanish', native_name: 'Español' }
+        ]);
       } else {
         // Fallback to default languages if API fails
         setLanguages([
@@ -396,7 +410,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
               onChange={(e) => setSourceLanguage(e.target.value)}
               className={`${commonClasses.input} text-sm`}
             >
-              {languages.map(lang => (
+              {Array.isArray(languages) && languages.map(lang => (
                 <option key={lang.code} value={lang.code}>
                   {lang.native_name} ({lang.name})
                 </option>
@@ -407,7 +421,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
               onChange={(e) => setTargetLanguage(e.target.value)}
               className={`${commonClasses.input} text-sm`}
             >
-              {languages.map(lang => (
+              {Array.isArray(languages) && languages.map(lang => (
                 <option key={lang.code} value={lang.code}>
                   {lang.native_name} ({lang.name})
                 </option>
