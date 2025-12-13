@@ -74,7 +74,7 @@ A
 
 ### 3.4 pygvar Usage
 - Central location for all constants and variables
-- Import pattern: `from pycore.pygvar import CONSTANT_NAME`
+- Import pattern: `from pycore.pygvar import CONSTANT_NAME` 
 
 ### 3.5 MCP (Model Context Protocol) Rules
 - **Location**: `pycore/pyutils/mcp/` (implementation), `pyapps/mcp/` (application layer)

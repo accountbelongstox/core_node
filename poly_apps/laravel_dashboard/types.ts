@@ -704,3 +704,110 @@ export interface SystemInfo {
   };
   services: SystemServiceStatus[];
 }
+
+export interface SystemProcess {
+  pid: string;
+  user: string;
+  cpu: number;
+  memory: number;
+  command: string;
+}
+
+export interface SystemStorage {
+  filesystem: string;
+  size: string;
+  used: string;
+  available: string;
+  use_percent: string;
+  mounted_on: string;
+}
+
+export interface ServerFileNode {
+  name: string;
+  type: 'file' | 'directory';
+  size?: number;
+  permissions?: string;
+  modified?: string;
+  path: string;
+}
+
+export interface FileInfo {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number;
+  permissions: string;
+  modified: string;
+  owner: string;
+  group: string;
+}
+
+export interface FilePreview {
+  content: string;
+  lines: number;
+  encoding: string;
+}
+
+export interface PredefinedScript {
+  id: number;
+  name: string;
+  category: string;
+  description?: string;
+  command: string;
+  timeout: number;
+  requires_sudo: boolean;
+}
+
+export interface ScriptExecution {
+  execution_id: string;
+  script_name: string;
+  output: string;
+  execution_time: number;
+  exit_code: number;
+  started_at: string;
+  completed_at?: string;
+}
+
+export interface ScriptExecutionRequest {
+  script_id: number;
+}
+
+export interface UnifiedApp {
+  app_name: string;
+  app_path: string;
+  service_name?: string;
+  port?: number;
+  status?: 'running' | 'stopped' | 'failed';
+}
+
+export interface UnifiedAppDeployRequest {
+  app_name: string;
+  action: 'deploy' | 'start' | 'stop' | 'restart';
+}
+
+export interface UnifiedAppStatus {
+  app_name: string;
+  service_status?: {
+    service_name: string;
+    active: boolean;
+    status: string;
+    since?: string;
+  };
+  process_info?: {
+    running: boolean;
+    pids: string[];
+    count: number;
+  };
+  port_info?: {
+    expected_port: number;
+    listening: boolean;
+    port?: number;
+  };
+  overall_status: 'running' | 'stopped' | 'failed';
+}
+
+export interface CertbotStatus {
+  installed: boolean;
+  version?: string;
+  path?: string;
+}
