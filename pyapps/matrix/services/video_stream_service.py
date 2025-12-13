@@ -625,6 +625,55 @@ class VideoStreamService:
             payload = self._pack_frame(serial, config_frame)
             await websocket.send_bytes(payload)
 
+    async def send_cached_config_frame(self, serial: str, websocket: WebSocket):
+        """
+        Send cached config frame to specific client (for fast reconnection)
+
+        This allows clients to immediately restore their decoder configuration
+        after reconnection without waiting for the next natural config frame.
+        """
+        ColorPrint.blue(f"[VideoStreamService] Client requested config frame for {serial}")
+
+        if serial in self.cached_config_frames:
+            config_frame = self.cached_config_frames[serial]
+            payload = self._pack_frame(serial, config_frame)
+            await websocket.send_bytes(payload)
+            ColorPrint.green(f"[VideoStreamService] ✓ Sent cached config frame to {websocket.client}")
+            await websocket.send_json({
+                "type": "config.sent",
+                "message": "Config frame sent from cache"
+            })
+        else:
+            ColorPrint.yellow(f"[VideoStreamService] No cached config frame for {serial}")
+            await websocket.send_json({
+                "type": "config.not_available",
+                "message": "Config frame not cached yet, please wait for next config frame"
+            })
+
+    def mark_client_needs_keyframe(self, serial: str, websocket: WebSocket):
+        """
+        Mark client as needing keyframe synchronization
+
+        When a client reconnects or explicitly requests a keyframe,
+        we mark it as needing synchronization. The next keyframe will
+        be guaranteed to be sent to this client (via smart dropping logic).
+
+        This is handled automatically by the smart dropping logic in _broadcast_frame:
+        - New clients automatically wait for keyframe
+        - Failed sends reset keyframe state
+        """
+        ColorPrint.blue(f"[VideoStreamService] Marking client as needing keyframe for {serial}")
+
+        # Initialize keyframe tracking if needed
+        if serial not in self.client_keyframe_received:
+            self.client_keyframe_received[serial] = {}
+
+        # Mark this client as NOT having received keyframe yet
+        # Next keyframe will be sent to this client
+        self.client_keyframe_received[serial][websocket] = False
+
+        ColorPrint.green(f"[VideoStreamService] ✓ Client will receive next keyframe for {serial}")
+
     async def _stream_video_loop(self, serial: str, device, stop_event: asyncio.Event):
         """
         Background streaming task (scrcpy_web_test pattern)
