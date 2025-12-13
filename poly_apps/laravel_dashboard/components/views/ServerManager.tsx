@@ -44,6 +44,7 @@ import {
   Clock
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import NginxSiteModal from '../server-manager/NginxSiteModal';
 
 interface ServerManagerProps {
   lang?: Language;
@@ -62,6 +63,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [showCreateSite, setShowCreateSite] = useState(false);
+  const [editingSite, setEditingSite] = useState<NginxSite | null>(null);
   const [selectedSite, setSelectedSite] = useState<NginxSite | null>(null);
   const [siteConfig, setSiteConfig] = useState<AsyncState<NginxSiteConfig>>({
     data: null,
@@ -395,6 +397,32 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const handleCreateOrUpdateSite = async (data: NginxSiteCreateRequest) => {
+    try {
+      let response;
+      if (editingSite) {
+        response = await apiService.updateNginxSite(editingSite.site_name, data);
+      } else {
+        response = await apiService.createNginxSite(data);
+      }
+
+      if (response.success) {
+        await loadNginxSites();
+        alert(response.data?.message || (editingSite ? 'Site updated successfully' : 'Site created successfully'));
+        setShowCreateSite(false);
+        setEditingSite(null);
+      }
+    } catch (error) {
+      console.error('Failed to save site:', error);
+      throw error;
+    }
+  };
+
+  const handleEditSite = (site: NginxSite) => {
+    setEditingSite(site);
+    setShowCreateSite(true);
+  };
+
   const handleDeleteSite = async (siteName: string) => {
     const confirmMsg = (messages.confirm_delete_site || 'Are you sure you want to delete site: {site}?').replace('{site}', siteName);
     if (!confirm(confirmMsg)) return;
@@ -588,6 +616,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                             <Power className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleEditSite(site)}
+                          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                          title={t.nginx.update}
+                        >
+                          <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        </button>
                         <button
                           onClick={() => handleViewConfig(site.site_name)}
                           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
@@ -1393,6 +1428,18 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           </div>
         </div>
       )}
+
+      {/* Nginx Site Create/Edit Modal */}
+      <NginxSiteModal
+        isOpen={showCreateSite}
+        onClose={() => {
+          setShowCreateSite(false);
+          setEditingSite(null);
+        }}
+        onSave={handleCreateOrUpdateSite}
+        site={editingSite}
+        lang={lang}
+      />
     </div>
   );
 };
