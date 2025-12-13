@@ -5,7 +5,9 @@ import {
   TTSGenerateResponse, 
   LanguageInfo, 
   AsyncState,
-  Language 
+  Language,
+  VocabularyTask,
+  VocabularyWord
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { TRANSLATIONS } from '../../constants';
@@ -54,11 +56,28 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // Learning Tasks State
+  const [tasks, setTasks] = useState<AsyncState<VocabularyTask[]>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [selectedTask, setSelectedTask] = useState<VocabularyTask | null>(null);
+  const [vocabularyWords, setVocabularyWords] = useState<VocabularyWord[]>([]);
+
   const t = TRANSLATIONS[lang].vocabulary;
 
   useEffect(() => {
     loadLanguages();
+    loadTasks();
   }, []);
+
+  useEffect(() => {
+    if (selectedTask) {
+      setVocabularyWords(selectedTask.words);
+    }
+  }, [selectedTask]);
 
   useEffect(() => {
     if (tts.data?.audio_url && audioRef.current) {
@@ -76,6 +95,105 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
     } catch (error) {
       console.error('Failed to load languages:', error);
     }
+  };
+
+  const loadTasks = async () => {
+    setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      // Mock data for now - replace with actual API call when available
+      const mockTasks: VocabularyTask[] = [
+        {
+          id: 'task_1',
+          title: 'Daily Vocabulary - Day 1',
+          description: 'Learn 10 common English words',
+          words: [
+            {
+              id: 'word_1',
+              word: 'apple',
+              translation: '苹果',
+              phonetic: 'ˈæpl',
+              part_of_speech: 'noun',
+              definition: 'A round fruit with red, green, or yellow skin',
+              example_sentences: ['I eat an apple every day.'],
+              learned: false,
+              proficiency: 0
+            },
+            {
+              id: 'word_2',
+              word: 'book',
+              translation: '书',
+              phonetic: 'bʊk',
+              part_of_speech: 'noun',
+              definition: 'A written or printed work',
+              example_sentences: ['I love reading books.'],
+              learned: false,
+              proficiency: 0
+            }
+          ],
+          status: 'in_progress',
+          progress: 20,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ];
+      
+      setTasks({
+        data: mockTasks,
+        loading: false,
+        error: null,
+        status: 'success'
+      });
+      
+      if (mockTasks.length > 0 && !selectedTask) {
+        setSelectedTask(mockTasks[0]);
+      }
+    } catch (error) {
+      setTasks({
+        data: null,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to load tasks',
+        status: 'error'
+      });
+    }
+  };
+
+  const toggleWordLearned = (wordId: string) => {
+    setVocabularyWords(prev => 
+      prev.map(word => 
+        word.id === wordId 
+          ? { ...word, learned: !word.learned, proficiency: word.learned ? 0 : 50 }
+          : word
+      )
+    );
+    
+    if (selectedTask) {
+      const updatedTask = {
+        ...selectedTask,
+        words: selectedTask.words.map(word =>
+          word.id === wordId
+            ? { ...word, learned: !word.learned, proficiency: word.learned ? 0 : 50 }
+            : word
+        ),
+        progress: calculateProgress(selectedTask.words.map(word =>
+          word.id === wordId
+            ? { ...word, learned: !word.learned, proficiency: word.learned ? 0 : 50 }
+            : word
+        ))
+      };
+      setSelectedTask(updatedTask);
+      setTasks(prev => ({
+        ...prev,
+        data: prev.data?.map(task =>
+          task.id === selectedTask.id ? updatedTask : task
+        ) || null
+      }));
+    }
+  };
+
+  const calculateProgress = (words: VocabularyWord[]): number => {
+    if (words.length === 0) return 0;
+    const learnedCount = words.filter(w => w.learned).length;
+    return Math.round((learnedCount / words.length) * 100);
   };
 
   const handleTranslate = async () => {
@@ -469,19 +587,169 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
           )}
         </div>
 
-        {/* Right Panel - Learning Tasks (Placeholder) */}
+        {/* Right Panel - Learning Tasks */}
         <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Learning Tasks</h3>
-            <BookOpen className="w-5 h-5 text-indigo-500" />
-          </div>
-          <div className="flex-1 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <CheckCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Coming Soon</p>
-              <p className="text-xs">Vocabulary learning tasks will be available here</p>
+            <h3 className="font-semibold">{t.learning_tasks || 'Learning Tasks'}</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadTasks}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                title="Refresh tasks"
+              >
+                <RefreshCw className="w-4 h-4 text-slate-500" />
+              </button>
+              <BookOpen className="w-5 h-5 text-indigo-500" />
             </div>
           </div>
+
+          {tasks.loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+            </div>
+          ) : tasks.error ? (
+            <div className="flex-1 flex items-center justify-center text-red-500 text-sm">
+              {tasks.error}
+            </div>
+          ) : tasks.data && tasks.data.length > 0 ? (
+            <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+              {/* Task List */}
+              <div className="flex-shrink-0">
+                <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">Tasks</h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {tasks.data.map(task => (
+                    <button
+                      key={task.id}
+                      onClick={() => setSelectedTask(task)}
+                      className={`w-full text-left p-2 rounded-lg border transition-colors ${
+                        selectedTask?.id === task.id
+                          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium">{task.title}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          task.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          task.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        }`}>
+                          {task.status}
+                        </span>
+                      </div>
+                      {task.description && (
+                        <p className="text-xs text-slate-500 mb-1">{task.description}</p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-500 transition-all"
+                            style={{ width: `${task.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">{task.progress}%</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vocabulary Words */}
+              {selectedTask && vocabularyWords.length > 0 && (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">
+                    Vocabulary ({vocabularyWords.filter(w => w.learned).length}/{vocabularyWords.length})
+                  </h4>
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+                    {vocabularyWords.map(word => (
+                      <div
+                        key={word.id}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          word.learned
+                            ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-base">{word.word}</span>
+                              {word.phonetic && (
+                                <span className="text-xs text-slate-500">[{word.phonetic}]</span>
+                              )}
+                              {word.part_of_speech && (
+                                <span className="text-xs px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-400">
+                                  {word.part_of_speech}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                              {word.translation}
+                            </p>
+                            {word.definition && (
+                              <p className="text-xs text-slate-500 mt-1">{word.definition}</p>
+                            )}
+                            {word.example_sentences && word.example_sentences.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {word.example_sentences.map((sentence, idx) => (
+                                  <p key={idx} className="text-xs italic text-slate-600 dark:text-slate-400">
+                                    "{sentence}"
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => toggleWordLearned(word.id)}
+                            className={`ml-2 p-1.5 rounded transition-colors ${
+                              word.learned
+                                ? 'bg-green-500 text-white hover:bg-green-600'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'
+                            }`}
+                            title={word.learned ? 'Mark as unlearned' : 'Mark as learned'}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {word.proficiency !== undefined && word.proficiency > 0 && (
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-green-500 transition-all"
+                                  style={{ width: `${word.proficiency}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-slate-500">{word.proficiency}%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedTask && vocabularyWords.length === 0 && (
+                <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+                  No vocabulary words in this task
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-slate-400">
+              <div className="text-center">
+                <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No tasks available</p>
+                <button
+                  onClick={loadTasks}
+                  className="mt-2 text-xs text-indigo-500 hover:text-indigo-400"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
