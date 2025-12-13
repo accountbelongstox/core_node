@@ -4,6 +4,10 @@ import MediaBrowser from './components/views/MediaBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
 import ToolsDashboard from './components/views/ToolsDashboard';
 import ApiTester from './components/views/ApiTester';
+import SystemInfo from './components/views/SystemInfo';
+import VocabularyLearning from './components/views/VocabularyLearning';
+import MCPManager from './components/views/MCPManager';
+import OctaneTasks from './components/views/OctaneTasks';
 import LoginModal from './components/LoginModal';
 import { ViewType, Language, Theme } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
@@ -60,6 +64,14 @@ const App: React.FC = () => {
         return <ToolsDashboard />;
       case ViewType.API_TESTER:
         return <ApiTester />;
+      case ViewType.SYSTEM_INFO:
+        return <SystemInfo lang={lang} />;
+      case ViewType.VOCABULARY:
+        return <VocabularyLearning lang={lang} />;
+      case ViewType.MCP_MANAGER:
+        return <MCPManager lang={lang} />;
+      case ViewType.OCTANE_TASKS:
+        return <OctaneTasks lang={lang} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -76,6 +88,10 @@ const App: React.FC = () => {
       case ViewType.CODE_BROWSER: return t.header.titles.code;
       case ViewType.TOOLS: return t.header.titles.tools;
       case ViewType.API_TESTER: return t.header.titles.api;
+      case ViewType.SYSTEM_INFO: return t.header.titles.system;
+      case ViewType.VOCABULARY: return t.header.titles.vocabulary;
+      case ViewType.MCP_MANAGER: return t.header.titles.mcp;
+      case ViewType.OCTANE_TASKS: return t.header.titles.octane;
       default: return APP_NAME;
     }
   };
