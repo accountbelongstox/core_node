@@ -54,7 +54,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [categories, setCategories] = useState<AsyncState<TaskCategory[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'

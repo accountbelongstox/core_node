@@ -56,11 +56,11 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/hash', data);
   }
 
-  async bcryptHash(data: { text: string; rounds?: number }): Promise<APIResponse> {
+  async bcryptHash(data: { password: string; rounds?: number }): Promise<APIResponse> {
     return this.post('/crypto/bcrypt/hash', data);
   }
 
-  async bcryptVerify(data: { text: string; hash: string }): Promise<APIResponse> {
+  async bcryptVerify(data: { password: string; hash: string }): Promise<APIResponse> {
     return this.post('/crypto/bcrypt/verify', data);
   }
 
