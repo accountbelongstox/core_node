@@ -482,6 +482,220 @@ class ApiService {
     });
     return this.request<any>('POST', '/static-resources/upload', formData);
   }
+
+  // ========== AppQyV1 - User Authentication ==========
+  async appQyV1Register(data: { name: string; email: string; password: string; password_confirmation: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/register', data);
+  }
+
+  async appQyV1Login(data: { email: string; password: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/login', data);
+  }
+
+  async appQyV1Logout(): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/logout');
+  }
+
+  async appQyV1GetUser(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/user');
+  }
+
+  async appQyV1ForgotPassword(data: { email: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/forgot-password', data);
+  }
+
+  async appQyV1ResetPassword(data: { token: string; email: string; password: string; password_confirmation: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/reset-password', data);
+  }
+
+  // ========== AppQyV1 - System ==========
+  async appQyV1SystemInitialize(): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/system/initialize');
+  }
+
+  async appQyV1InitializationStatus(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/system/initialization-status');
+  }
+
+  async appQyV1ProcessVocabulary(): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/system/process-vocabulary');
+  }
+
+  async appQyV1VocabularyStatus(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/system/vocabulary-status');
+  }
+
+  async appQyV1DictionaryStatistics(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/system/dictionary-statistics');
+  }
+
+  async appQyV1GetSupportedLanguages(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/system/supported-languages');
+  }
+
+  async appQyV1GetLanguageDetails(code: string): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', `/api/dict/v1/system/supported-languages/${code}`);
+  }
+
+  // ========== AppQyV1 - Vocabulary Libraries ==========
+  async appQyV1GetRecommendedLibraries(params?: { language?: string; limit?: number }): Promise<ApiResponse<any>> {
+    const query = new URLSearchParams();
+    if (params?.language) query.append('language', params.language);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    const url = query.toString() ? `/api/dict/v1/vocabulary/libraries/recommended?${query}` : '/api/dict/v1/vocabulary/libraries/recommended';
+    return this.request<any>('GET', url);
+  }
+
+  async appQyV1GetVocabularyLibraries(params?: { page?: number; per_page?: number; language?: string; category?: string; difficulty?: string; search?: string }): Promise<ApiResponse<any>> {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.per_page) query.append('per_page', params.per_page.toString());
+    if (params?.language) query.append('language', params.language);
+    if (params?.category) query.append('category', params.category);
+    if (params?.difficulty) query.append('difficulty', params.difficulty);
+    if (params?.search) query.append('search', params.search);
+    const url = query.toString() ? `/api/dict/v1/vocabulary/libraries?${query}` : '/api/dict/v1/vocabulary/libraries';
+    return this.request<any>('GET', url);
+  }
+
+  async appQyV1DeleteLibrary(libraryId: string): Promise<ApiResponse<any>> {
+    return this.request<any>('DELETE', `/api/dict/v1/learning/libraries/${libraryId}`);
+  }
+
+  // ========== AppQyV1 - Learning ==========
+  async appQyV1GetLearningLanguages(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/learning/languages');
+  }
+
+  async appQyV1SetLearningLanguages(data: { languages: string[] }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/learning/languages', data);
+  }
+
+  async appQyV1GetUserLibraries(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/learning/libraries');
+  }
+
+  async appQyV1SelectLibrary(data: { library_id: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/learning/libraries/select', data);
+  }
+
+  async appQyV1GetRecommendations(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/learning/recommendations');
+  }
+
+  async appQyV1SelectCollection(data: { collection_id: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/learning/collections/select', data);
+  }
+
+  async appQyV1GetSelectedCollections(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/learning/collections/selected');
+  }
+
+  async appQyV1GetLearningWords(params?: { limit?: number; offset?: number }): Promise<ApiResponse<any>> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+    const url = query.toString() ? `/api/dict/v1/learning/words?${query}` : '/api/dict/v1/learning/words';
+    return this.request<any>('GET', url);
+  }
+
+  async appQyV1UpdateProgress(data: { word_id: string; status: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/learning/progress', data);
+  }
+
+  async appQyV1GetLearningStats(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/learning/stats');
+  }
+
+  async appQyV1UploadDocument(file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<any>('POST', '/api/dict/v1/learning/upload', formData);
+  }
+
+  // ========== AppQyV1 - Words ==========
+  async appQyV1GetDailyWord(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/words/daily');
+  }
+
+  async appQyV1GetWordDetails(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', `/api/words/${id}`);
+  }
+
+  async appQyV1MarkWordLearned(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/words/${id}/learn`);
+  }
+
+  async appQyV1MarkWordReview(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/words/${id}/review`);
+  }
+
+  async appQyV1ToggleFavorite(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/words/${id}/favorite`);
+  }
+
+  async appQyV1SearchWord(query: string): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', `/api/words/search/${encodeURIComponent(query)}`);
+  }
+
+  async appQyV1PublicWordQuery(word: string): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', `/api/words/public/${encodeURIComponent(word)}`);
+  }
+
+  async appQyV1EnhancedWordQuery(word: string): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', `/api/dict/v1/word/${encodeURIComponent(word)}/enhanced`);
+  }
+
+  // ========== AppQyV1 - Untranslated Words ==========
+  async appQyV1GetUntranslatedWords(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/untranslated');
+  }
+
+  async appQyV1GetUntranslatedByPriority(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/untranslated/priority');
+  }
+
+  async appQyV1SubmitTranslation(word: string, data: { translation: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/dict/v1/word/${encodeURIComponent(word)}/translation`, data);
+  }
+
+  async appQyV1SubmitAudio(word: string, data: { audio: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/dict/v1/word/${encodeURIComponent(word)}/audio`, data);
+  }
+
+  async appQyV1SubmitImages(word: string, data: { images: string[] }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/dict/v1/word/${encodeURIComponent(word)}/images`, data);
+  }
+
+  async appQyV1SubmitCompleteData(word: string, data: any): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', `/api/dict/v1/word/${encodeURIComponent(word)}/complete`, data);
+  }
+
+  // ========== AppQyV1 - User Initialization ==========
+  async appQyV1GetUserInitStatus(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/dict/v1/user/initialization-status');
+  }
+
+  async appQyV1CompleteUserInit(data: { learning_languages: string[]; occupation?: string; daily_words_target?: number; daily_study_time?: number; preferences?: any }): Promise<ApiResponse<any>> {
+    return this.request<any>('POST', '/api/dict/v1/user/initialize', data);
+  }
+
+  // ========== AppQyV1 - User Profile ==========
+  async appQyV1GetUserProgress(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/user/progress');
+  }
+
+  async appQyV1GetUserStats(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/user/stats');
+  }
+
+  async appQyV1GetUserProfile(): Promise<ApiResponse<any>> {
+    return this.request<any>('GET', '/api/user/profile');
+  }
+
+  async appQyV1UpdateUserProfile(data: { displayName?: string; avatar?: string }): Promise<ApiResponse<any>> {
+    return this.request<any>('PUT', '/api/user/profile', data);
+  }
 }
 
 export const apiService = new ApiService();
