@@ -218,15 +218,19 @@ check_native_files() {
     local has_composer=0
     local has_nuxt_config=0
     local has_index_php=0
-    
+    local has_package_json=0
+    local has_gradle=0
+
     [ -f "$app_path/main.py" ] && has_main_py=1
     [ -f "$app_path/main.js" ] && has_main_js=1
     [ -f "$app_path/pubspec.yaml" ] && has_pubspec=1
     [ -f "$app_path/composer.json" ] && has_composer=1
-    [ -f "$app_path/nuxt.config.ts" ] && has_nuxt_config=1
+    [ -f "$app_path/nuxt.config.ts" ] || [ -f "$app_path/nuxt.config.js" ] && has_nuxt_config=1
     [ -f "$app_path/index.php" ] && has_index_php=1
-    
-    echo "$has_main_py $has_main_js $has_pubspec $has_composer $has_nuxt_config $has_index_php"
+    [ -f "$app_path/package.json" ] && has_package_json=1
+    [ -f "$app_path/build.gradle.kts" ] || [ -f "$app_path/build.gradle" ] && has_gradle=1
+
+    echo "$has_main_py $has_main_js $has_pubspec $has_composer $has_nuxt_config $has_index_php $has_package_json $has_gradle"
 }
 
 # Step 1: Scan ncoreApps
@@ -325,7 +329,7 @@ step3_generate_native_startup() {
         local found_native=0
         
         # Check native files
-        read -r has_main_py has_main_js has_pubspec has_composer has_nuxt_config has_index_php <<< "$(check_native_files "$app_path")"
+        read -r has_main_py has_main_js has_pubspec has_composer has_nuxt_config has_index_php has_package_json has_gradle <<< "$(check_native_files "$app_path")"
         
         # Priority 1: Removed - ncoreStart&Installer merged into Ncore/Pycore/Installer
         # Priority 1.5: Removed - pycoreStart&Installer merged into Ncore/Pycore/Installer
@@ -388,7 +392,7 @@ step3_generate_native_startup() {
                     echo -e "  \033[35m$app_name: nuxtStart - $cmd\033[0m" >&2
                 fi
             fi
-            
+
             # PHP (plain)
             if [ "$has_index_php" -eq 1 ] && [ "$has_composer" -eq 0 ]; then
                 local cmd="$(get_php_start_command "$app_path")"
@@ -402,6 +406,70 @@ step3_generate_native_startup() {
                         available_scripts+=("phpStart")
                     fi
                     echo -e "  \033[35m$app_name: phpStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # React Native
+            if [ "$has_package_json" -eq 1 ]; then
+                local cmd="$(get_react_native_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("reactNativeStart")
+                        current_script="reactNativeStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("reactNativeStart")
+                    fi
+                    echo -e "  \033[35m$app_name: reactNativeStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # Vue.js
+            if [ "$has_package_json" -eq 1 ]; then
+                local cmd="$(get_vue_start_command "$app_path")"
+                if [ -n "$cmd" ] && [ "$found_native" -eq 0 ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("vueStart")
+                        current_script="vueStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("vueStart")
+                    fi
+                    echo -e "  \033[35m$app_name: vueStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # React
+            if [ "$has_package_json" -eq 1 ]; then
+                local cmd="$(get_react_start_command "$app_path")"
+                if [ -n "$cmd" ] && [ "$found_native" -eq 0 ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("reactStart")
+                        current_script="reactStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("reactStart")
+                    fi
+                    echo -e "  \033[35m$app_name: reactStart - $cmd\033[0m" >&2
+                fi
+            fi
+
+            # Kotlin Multiplatform
+            if [ "$has_gradle" -eq 1 ]; then
+                local cmd="$(get_kotlin_multiplatform_start_command "$app_path")"
+                if [ -n "$cmd" ]; then
+                    if [ "$found_native" -eq 0 ]; then
+                        available_scripts+=("kotlinMultiPlatformStart")
+                        current_script="kotlinMultiPlatformStart"
+                        script_index=0
+                        found_native=1
+                    else
+                        available_scripts+=("kotlinMultiPlatformStart")
+                    fi
+                    echo -e "  \033[35m$app_name: kotlinMultiPlatformStart - $cmd\033[0m" >&2
                 fi
             fi
         fi
@@ -841,6 +909,22 @@ launch_current_app() {
                 ;;
             "nuxtStart")
                 command="$(get_nuxt_start_command "$app_path")"
+                working_dir="$app_path"
+                ;;
+            "reactNativeStart")
+                command="$(get_react_native_start_command "$app_path")"
+                working_dir="$app_path"
+                ;;
+            "vueStart")
+                command="$(get_vue_start_command "$app_path")"
+                working_dir="$app_path"
+                ;;
+            "reactStart")
+                command="$(get_react_start_command "$app_path")"
+                working_dir="$app_path"
+                ;;
+            "kotlinMultiPlatformStart")
+                command="$(get_kotlin_multiplatform_start_command "$app_path")"
                 working_dir="$app_path"
                 ;;
             "phpStart")
