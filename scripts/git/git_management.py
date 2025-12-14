@@ -51,7 +51,7 @@ class GitManagement:
         os.system('cls' if self.is_windows else 'clear')
         print()
         print("\033[36m==================== Git Management ====================\033[0m")
-        print("  1. Get the latest git version (backup + commit + pull)")
+        print("  1. Get the latest git version (commit + pull)")
         print("  2. Force overwrite local with remote (backup local first)")
         print("  3. Cleanup Git repository with BFG (remove large files)")
         print("  4. Remove directories from Git history (e.g., .venv, node_modules)")
