@@ -21,7 +21,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryControl
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordSubmit\AppQyV1WordDataSubmissionController;
 
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->group(function () {
     

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Language, AsyncState, OctaneTasksStatus, OctaneTask } from '../../types';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { 
   Timer, 
@@ -58,7 +58,7 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
   const loadStatus = async () => {
     setStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getOctaneTasksStatus();
+      const response = await api.serverManager.getOctaneTasksStatus();
       if (response.success && response.data) {
         setStatus({
           data: response.data,

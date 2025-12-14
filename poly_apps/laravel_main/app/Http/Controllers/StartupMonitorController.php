@@ -3,19 +3,27 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Utils\StartupLogger;
+use App\Traits\ApiResponse;
 
-class StartupMonitorController
+/**
+ * Startup Monitor Controller
+ * Uses standardized ApiResponse trait
+ */
+class StartupMonitorController extends Controller
 {
-    public function getLogs(Request $request)
+    use ApiResponse;
+
+    public function getLogs(Request $request): JsonResponse
     {
         $logs = StartupLogger::getLogContents();
 
-        return response()->json([
+        return $this->success([
             'logs' => $logs,
             'total_count' => count($logs),
             'log_file' => StartupLogger::getLogPath()
-        ]);
+        ], 'Logs retrieved successfully');
     }
 
     public function viewLogs(Request $request)
@@ -199,14 +207,14 @@ class StartupMonitorController
         return response($html)->header('Content-Type', 'text/html');
     }
 
-    public function healthCheck(Request $request)
+    public function healthCheck(Request $request): JsonResponse
     {
         StartupLogger::checkpoint('HEALTH_CHECK', 'Health check endpoint hit');
 
-        return response()->json([
+        return $this->success([
             'status' => 'ok',
             'timestamp' => date('Y-m-d H:i:s'),
             'server_time' => microtime(true)
-        ]);
+        ], 'Health check passed');
     }
 }

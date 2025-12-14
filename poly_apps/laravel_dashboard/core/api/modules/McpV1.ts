@@ -11,21 +11,18 @@ export class McpV1API extends BaseAPI {
     return this.get('/screenshots', { page, limit });
   }
 
-  async uploadScreenshot(data: { image: File; description?: string }): Promise<APIResponse> {
+  async uploadScreenshot(data: { image: File; description?: string; keywords?: string[]; id?: string; replace?: boolean }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
-    if (data.description) {
-      formData.append('description', data.description);
-    }
+    if (data.description) formData.append('description', data.description);
+    if (data.keywords) formData.append('keywords', JSON.stringify(data.keywords));
+    if (data.id) formData.append('id', data.id);
+    if (data.replace !== undefined) formData.append('replace', String(data.replace));
 
-    // 特殊处理FormData
     return this.request({
       url: '/screenshots/upload',
       method: 'POST',
-      data: formData,
-      headers: {
-        // 移除Content-Type，让浏览器自动设置
-      }
+      data: formData
     } as any);
   }
 
@@ -35,15 +32,19 @@ export class McpV1API extends BaseAPI {
 
   // ========== 任务管理 ==========
   async getTaskCategories(): Promise<APIResponse> {
-    return this.get('/tasks/categories', undefined, true, 600000);
+    return this.get('/task-dispatch/categories', undefined, true, 600000);
   }
 
   async getTaskQueue(categoryId: string): Promise<APIResponse> {
-    return this.get(`/tasks/queue/${categoryId}`);
+    return this.get(`/task-dispatch/queue/${categoryId}/tasks`);
   }
 
-  async addTask(data: { category_id: string; content: string; priority?: number }): Promise<APIResponse> {
-    return this.post('/tasks', data);
+  async getQueueStats(categoryId: string): Promise<APIResponse> {
+    return this.get(`/task-dispatch/queue/${categoryId}/stats`);
+  }
+
+  async addTask(data: { category_id: string; content: string; file_name?: string; priority?: number }): Promise<APIResponse> {
+    return this.post('/task-dispatch/queue/add-file', data);
   }
 
   async executeTask(taskId: string): Promise<APIResponse> {
@@ -52,26 +53,39 @@ export class McpV1API extends BaseAPI {
 
   // ========== 提示词管理 ==========
   async getPromptMappings(): Promise<APIResponse> {
-    return this.get('/prompt-mappings');
+    return this.get('/task-dispatch/mappings');
   }
 
   async updatePromptMapping(categoryId: string, promptFilePath: string, promptContent?: string): Promise<APIResponse> {
-    return this.put(`/prompt-mappings/${categoryId}`, {
+    return this.put(`/task-dispatch/mappings/${categoryId}`, {
       prompt_file_path: promptFilePath,
       prompt_content: promptContent
     });
   }
 
   // ========== Placeholder生成器 ==========
+  async getPlaceholders(): Promise<APIResponse> {
+    return this.get('/placeholders');
+  }
+
   async generatePlaceholder(data: {
     width: number;
     height: number;
     text?: string;
-    bgColor?: string;
-    textColor?: string;
+    bg_color?: string;
+    text_color?: string;
     format?: 'png' | 'jpg' | 'svg' | 'webp';
+    mode?: 'simple' | 'real';
   }): Promise<APIResponse> {
-    return this.post('/placeholder/generate', data);
+    return this.post('/placeholders/generate', data);
+  }
+
+  async deletePlaceholder(uuid: string): Promise<APIResponse> {
+    return this.delete(`/placeholders/${uuid}`);
+  }
+
+  async getPlaceholderStats(): Promise<APIResponse> {
+    return this.get('/placeholders/stats');
   }
 
   // ========== OCR 识别 ==========
@@ -90,8 +104,8 @@ export class McpV1API extends BaseAPI {
 
   async ocrBatch(data: { images: File[] }): Promise<APIResponse> {
     const formData = new FormData();
-    data.images.forEach((image, index) => {
-      formData.append(`images[${index}]`, image);
+    data.images.forEach((image) => {
+      formData.append('images[]', image);
     });
     return this.request({ url: '/ocr/batch', method: 'POST', data: formData } as any);
   }
@@ -127,6 +141,28 @@ export class McpV1API extends BaseAPI {
     if (data.title) formData.append('title', data.title);
     if (data.group) formData.append('group', data.group);
     return this.request({ url: '/voice-subtitle/add-voice', method: 'POST', data: formData } as any);
+  }
+
+  async uploadMerge(data: { images: File[]; descriptions?: string[]; keyword?: string; id?: string; replace?: boolean }): Promise<APIResponse> {
+    const formData = new FormData();
+    data.images.forEach((image) => {
+      formData.append('images[]', image);
+    });
+    if (data.descriptions) formData.append('descriptions', JSON.stringify(data.descriptions));
+    if (data.keyword) formData.append('keyword', data.keyword);
+    if (data.id) formData.append('id', data.id);
+    if (data.replace !== undefined) formData.append('replace', String(data.replace));
+    return this.request({ url: '/screenshots/upload-merge', method: 'POST', data: formData } as any);
+  }
+
+  async uploadBatch(data: { images: File[]; descriptions?: string[]; keyword?: string }): Promise<APIResponse> {
+    const formData = new FormData();
+    data.images.forEach((image) => {
+      formData.append('images[]', image);
+    });
+    if (data.descriptions) formData.append('descriptions', JSON.stringify(data.descriptions));
+    if (data.keyword) formData.append('keyword', data.keyword);
+    return this.request({ url: '/screenshots/upload-batch', method: 'POST', data: formData } as any);
   }
 
   async vsGetQueue(params?: { page?: number; limit?: number }): Promise<APIResponse> {

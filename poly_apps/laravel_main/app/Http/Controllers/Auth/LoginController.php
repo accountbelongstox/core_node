@@ -21,53 +21,56 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Controller;
 use Laravolt\Avatar\Avatar;
+use App\Traits\ApiResponse;
 
+/**
+ * NO try-catch allowed - trust Laravel validation
+ * NO ?? or || allowed - use explicit if statements
+ */
 class LoginController extends Controller
 {
+    use ApiResponse;
+
     public function login(Request $request)
     {
-        try {
-            $credentials = $request->validate([
-                'username' => 'required|string',
-                'password' => 'required|string',
-            ]);
-            if (!$credentials) {
-                return response()->json([
-                    'message' => 'Invalid credentials',
-                    'errors' => "must be required username and password",
-                ], 422);
-            }
+        $credentials = $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
+        ]);
 
-            $user = User::where('username', $request->username)->first();
-
-            if (!$user || !Hash::check($request->password, $user->password)) {
-                throw ValidationException::withMessages([
-                    'username' => [__('auth.failed')],
-                ]);
-            }
-
-            if (!Auth::attempt(['username' => $request->username, 'password' => $request->password], $request->boolean('remember'))) {
-                throw ValidationException::withMessages([
-                    'username' => [__('auth.failed')],
-                ]);
-            }
-            $user = AvatarPublic::createAvatar($user,true);
-            $token = $user->createToken('auth_token')->plainTextToken;
-            return response()->json([
-                'token' => $token,
-                'token_type' => 'Bearer',
-                "expiration" => config('sanctum.expiration'),
-                'user' => $user,
-            ]);
-        } catch (ValidationException $e) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'message' => 'Invalid credentials or username or password',
-                    'errors' => $e->errors(),
-                ], 422);
-            }
-            throw $e;
+        if (!$credentials) {
+            return $this->validationError("must be required username and password", 'Invalid credentials');
         }
+
+        $user = User::where('username', $request->username)->first();
+
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'username' => [__('auth.failed')],
+            ]);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'username' => [__('auth.failed')],
+            ]);
+        }
+
+        if (!Auth::attempt(['username' => $request->username, 'password' => $request->password], $request->boolean('remember'))) {
+            throw ValidationException::withMessages([
+                'username' => [__('auth.failed')],
+            ]);
+        }
+
+        $user = AvatarPublic::createAvatar($user, true);
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return $this->success([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expiration' => config('sanctum.expiration'),
+            'user' => $user,
+        ], 'Login successful');
     }
 
     public function logout(Request $request)

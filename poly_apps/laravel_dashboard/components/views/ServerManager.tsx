@@ -18,7 +18,7 @@ import {
   SystemStorage,
   SystemServiceStatus
 } from '../../types';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { 
   Network, 
@@ -120,7 +120,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadNginxSites = async () => {
     setNginxSites(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getNginxSites();
+      const response = await api.serverManagerV1.getNginxSites();
       if (response.success && response.data) {
         setNginxSites({
           data: Array.isArray(response.data) ? response.data : [],
@@ -145,7 +145,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadSSLCertificates = async () => {
     setSSLCertificates(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSSLCertificates();
+      const response = await api.serverManagerV1.getSSLCertificates();
       if (response.success && response.data) {
         setSSLCertificates({
           data: Array.isArray(response.data) ? response.data : [],
@@ -170,7 +170,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadSystemInfo = async () => {
     setSystemInfo(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSystemInfo();
+      const response = await api.serverManagerV1.getSystemInfo();
       if (response.success && response.data) {
         setSystemInfo({
           data: response.data,
@@ -194,7 +194,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadSystemProcesses = async () => {
     setSystemProcesses(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSystemProcesses();
+      const response = await api.serverManagerV1.getSystemProcesses();
       if (response.success && response.data) {
         setSystemProcesses({
           data: Array.isArray(response.data) ? response.data : [],
@@ -216,7 +216,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadSystemStorage = async () => {
     setSystemStorage(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSystemStorage();
+      const response = await api.serverManagerV1.getSystemStorage();
       if (response.success && response.data) {
         setSystemStorage({
           data: Array.isArray(response.data) ? response.data : [],
@@ -238,7 +238,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadSystemServices = async () => {
     setSystemServices(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getSystemServices();
+      const response = await api.serverManagerV1.getSystemServices();
       if (response.success && response.data) {
         setSystemServices({
           data: Array.isArray(response.data) ? response.data : [],
@@ -275,7 +275,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const loadCertbotStatus = async () => {
     setCertbotStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.detectCertbot();
+      const response = await api.serverManagerV1.detectCertbot();
       if (response.success && response.data) {
         setCertbotStatus({
           data: response.data,
@@ -299,7 +299,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   // SSL Actions
   const handleGenerateCertificate = async (domain: string, provider?: string, staging?: boolean) => {
     try {
-      const response = await apiService.generateSSLCertificate({
+      const response = await api.serverManagerV1.generateSSLCertificate({
         domain,
         provider: provider as 'dnspod' | 'cloudflare' | undefined,
         staging
@@ -317,7 +317,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const handleRenewAllCertificates = async () => {
     if (!confirm(messages.confirm_renew_certs || 'Are you sure you want to renew all certificates?')) return;
     try {
-      const response = await apiService.renewSSLCertificates(true);
+      const response = await api.serverManagerV1.renewSSLCertificates(true);
       if (response.success) {
         alert(response.data?.message || messages.cert_renewal_started || 'Certificate renewal started');
         await loadSSLCertificates();
@@ -330,7 +330,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const handleInstallCertbot = async () => {
     if (!confirm(messages.confirm_install_certbot || 'Are you sure you want to install Certbot?')) return;
     try {
-      const response = await apiService.installCertbot();
+      const response = await api.serverManagerV1.installCertbot();
       if (response.success) {
         alert(response.data?.message || messages.certbot_installation_started || 'Certbot installation started');
         await loadCertbotStatus();
@@ -343,7 +343,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   // Nginx Site Actions
   const handleEnableSite = async (siteName: string) => {
     try {
-      const response = await apiService.enableNginxSite(siteName);
+      const response = await api.serverManagerV1.enableNginxSite(siteName);
       if (response.success) {
         await loadNginxSites();
       }
@@ -354,7 +354,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   const handleDisableSite = async (siteName: string) => {
     try {
-      const response = await apiService.disableNginxSite(siteName);
+      const response = await api.serverManagerV1.disableNginxSite(siteName);
       if (response.success) {
         await loadNginxSites();
       }
@@ -366,7 +366,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const handleViewConfig = async (siteName: string) => {
     setSiteConfig({ data: null, loading: true, error: null, status: 'loading' });
     try {
-      const response = await apiService.getNginxSiteConfig(siteName);
+      const response = await api.serverManagerV1.getNginxSiteConfig(siteName);
       if (response.success && response.data) {
         setSiteConfig({
           data: response.data,
@@ -388,7 +388,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   const handleReloadNginx = async () => {
     try {
-      const response = await apiService.reloadNginx();
+      const response = await api.serverManagerV1.reloadNginx();
       if (response.success) {
         alert(response.data?.message || messages.nginx_reloaded || 'Nginx reloaded successfully');
       }
@@ -401,9 +401,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       let response;
       if (editingSite) {
-        response = await apiService.updateNginxSite(editingSite.site_name, data);
+        response = await api.serverManagerV1.updateNginxSite(editingSite.site_name, data);
       } else {
-        response = await apiService.createNginxSite(data);
+        response = await api.serverManagerV1.createNginxSite(data);
       }
 
       if (response.success) {
@@ -427,7 +427,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     const confirmMsg = (messages.confirm_delete_site || 'Are you sure you want to delete site: {site}?').replace('{site}', siteName);
     if (!confirm(confirmMsg)) return;
     try {
-      const response = await apiService.deleteNginxSite(siteName);
+      const response = await api.serverManagerV1.deleteNginxSite(siteName);
       if (response.success) {
         await loadNginxSites();
         alert(response.data?.message || messages.site_deleted || 'Site deleted successfully');
@@ -439,7 +439,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   const handleTestConfig = async () => {
     try {
-      const response = await apiService.testNginxConfig();
+      const response = await api.serverManagerV1.testNginxConfig();
       if (response.success && response.data) {
         if (response.data?.valid) {
           alert(messages.nginx_config_valid || 'Nginx configuration is valid!');
@@ -1047,7 +1047,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const loadFiles = async (path?: string) => {
     setFiles(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.browseFiles(path);
+      const response = await api.serverManagerV1.browseFiles(path);
       if (response.success && response.data) {
         setFiles({
           data: Array.isArray(response.data) ? response.data : [],
@@ -1073,7 +1073,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
   const handleDownload = async (filePath: string) => {
     try {
-      const blob = await apiService.downloadFile(filePath);
+      const blob = await api.serverManagerV1.downloadFile(filePath);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1162,7 +1162,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const loadScripts = async () => {
     setScripts(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.listScripts();
+      const response = await api.serverManagerV1.listScripts();
       if (response.success && response.data) {
         setScripts({
           data: Array.isArray(response.data) ? response.data : [],
@@ -1188,7 +1188,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const handleExecute = async (scriptId: number) => {
     setExecution(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.executeScript({ script_id: scriptId });
+      const response = await api.serverManagerV1.executeScript({ script_id: scriptId });
       if (response.success && response.data) {
         setExecution({
           data: response.data,
@@ -1278,7 +1278,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const loadApps = async () => {
     setApps(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getUnifiedApps();
+      const response = await api.serverManagerV1.getUnifiedApps();
       if (response.success && response.data) {
         setApps({
           data: Array.isArray(response.data) ? response.data : [],
@@ -1303,7 +1303,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
   const handleDeploy = async (appName: string, action: 'deploy' | 'start' | 'stop' | 'restart') => {
     try {
-      const response = await apiService.deployUnifiedApp({ app_name: appName, action });
+      const response = await api.serverManagerV1.deployUnifiedApp({ app_name: appName, action });
       if (response.success) {
         const actionMsg = (messages.action_completed || 'Action {action} completed').replace('{action}', action);
         alert(actionMsg);
@@ -1319,7 +1319,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const loadAppStatus = async (appName: string) => {
     setAppStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getUnifiedAppStatus(appName);
+      const response = await api.serverManagerV1.getUnifiedAppStatus(appName);
       if (response.success && response.data) {
         setAppStatus({
           data: response.data,

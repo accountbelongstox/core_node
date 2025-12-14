@@ -15,7 +15,8 @@ import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
 import BentoCard from '../BentoCard';
 import { commonClasses } from '../../styles/theme';
-import { api } from '../../core/api';
+import { appQyV1Model } from '../../core/models';
+import { extractArrayFromResponse, safeFilter } from '../../utils/arrayUtils';
 
 /**
  * TTSForm - Text-to-Speech using centralized architecture
@@ -39,12 +40,12 @@ const TTSForm: React.FC = () => {
   const [text, setText] = useState('');
   const [language, setLanguage] = useState('en');
   const [voice, setVoice] = useState('');
-  const [speed, setSpeed] = useState(1.0);
-  const [pitch, setPitch] = useState(1.0);
+  const [speed, setSpeed] = useState(0);
+  const [pitch, setPitch] = useState(0);
 
-  // Voice data
-  const [voices, setVoices] = useState<any[]>([]);
-  const [loadingVoices, setLoadingVoices] = useState(true);
+  // TTS Options from backend
+  const [ttsOptions, setTtsOptions] = useState<any>(null);
+  const [loadingOptions, setLoadingOptions] = useState(true);
 
   // Audio playback
   const [currentAudio, setCurrentAudio] = useState<string | null>(null);
@@ -54,32 +55,42 @@ const TTSForm: React.FC = () => {
   // History display
   const [showHistory, setShowHistory] = useState(false);
 
-  // Load voices on mount
+  // Load TTS options on mount
   useEffect(() => {
-    loadVoices();
+    loadOptions();
   }, []);
 
-  const loadVoices = async () => {
-    setLoadingVoices(true);
+  const loadOptions = async () => {
+    setLoadingOptions(true);
     try {
-      const response = await api.appQyV1.getVoices();
-      if (response.success && response.data) {
-        setVoices(response.data);
-        if (response.data.length > 0) {
-          setVoice(response.data[0].id);
+      const result = await appQyV1Model.aiTools.tts.getOptions();
+
+      if (result.success && result.data) {
+        setTtsOptions(result.data);
+
+        // Set default language if available
+        if (result.data.languages?.length > 0) {
+          const defaultLang = result.data.languages.includes('en') ? 'en' : result.data.languages[0];
+          setLanguage(defaultLang);
+
+          // Set default voice for selected language
+          if (result.data.voices && result.data.voices[defaultLang]) {
+            setVoice(result.data.voices[defaultLang]);
+          }
+        }
+
+        // Set default speed and pitch
+        if (result.data.speed?.default !== undefined) {
+          setSpeed(result.data.speed.default);
+        }
+        if (result.data.pitch?.default !== undefined) {
+          setPitch(result.data.pitch.default);
         }
       }
     } catch (err) {
-      console.warn('Failed to load voices, using fallback');
-      const fallbackVoices = [
-        { id: 'en-US-standard', name: 'US English (Standard)', language: 'en' },
-        { id: 'en-GB-standard', name: 'British English', language: 'en' },
-        { id: 'zh-CN-standard', name: 'Chinese (Mandarin)', language: 'zh' }
-      ];
-      setVoices(fallbackVoices);
-      setVoice(fallbackVoices[0].id);
+      console.error('Failed to load TTS options:', err);
     } finally {
-      setLoadingVoices(false);
+      setLoadingOptions(false);
     }
   };
 
@@ -89,16 +100,16 @@ const TTSForm: React.FC = () => {
     clearError();
 
     try {
-      const result = await execute({
-        text: text.trim(),
-        language,
-        voice,
-        speed,
-        pitch
+      const result = await appQyV1Model.aiTools.tts.generate(text.trim(), language, {
+        type: 'sentence',
+        options: {
+          rate: `${speed >= 0 ? '+' : ''}${speed}%`,
+          pitch: `${pitch >= 0 ? '+' : ''}${pitch}Hz`,
+        }
       });
 
-      if (result && result.audio_url) {
-        setCurrentAudio(result.audio_url);
+      if (result.success && result.data?.audio_url) {
+        setCurrentAudio(result.data.audio_url);
         setText(''); // Clear input on success
       }
     } catch (err) {
@@ -127,17 +138,34 @@ const TTSForm: React.FC = () => {
     link.click();
   };
 
-  const filteredVoices = voices.filter(v => v.language === language);
+  // Language name mapping
+  const languageNames: Record<string, string> = {
+    'af': 'Afrikaans', 'am': 'Amharic', 'ar': 'Arabic', 'as': 'Assamese',
+    'az': 'Azerbaijani', 'bg': 'Bulgarian', 'bn': 'Bengali', 'bs': 'Bosnian',
+    'ca': 'Catalan', 'cs': 'Czech', 'cy': 'Welsh', 'da': 'Danish',
+    'de': 'German', 'el': 'Greek', 'en': 'English', 'es': 'Spanish',
+    'et': 'Estonian', 'eu': 'Basque', 'fa': 'Persian', 'fi': 'Finnish',
+    'fil': 'Filipino', 'fr': 'French', 'ga': 'Irish', 'gl': 'Galician',
+    'gu': 'Gujarati', 'he': 'Hebrew', 'hi': 'Hindi', 'hr': 'Croatian',
+    'hu': 'Hungarian', 'hy': 'Armenian', 'id': 'Indonesian', 'is': 'Icelandic',
+    'it': 'Italian', 'ja': 'Japanese', 'jv': 'Javanese', 'ka': 'Georgian',
+    'kk': 'Kazakh', 'km': 'Khmer', 'kn': 'Kannada', 'ko': 'Korean',
+    'lo': 'Lao', 'lt': 'Lithuanian', 'lv': 'Latvian', 'mk': 'Macedonian',
+    'ml': 'Malayalam', 'mn': 'Mongolian', 'mr': 'Marathi', 'ms': 'Malay',
+    'mt': 'Maltese', 'my': 'Burmese', 'nb': 'Norwegian', 'ne': 'Nepali',
+    'nl': 'Dutch', 'or': 'Odia', 'pa': 'Punjabi', 'pl': 'Polish',
+    'ps': 'Pashto', 'pt': 'Portuguese', 'ro': 'Romanian', 'ru': 'Russian',
+    'si': 'Sinhala', 'sk': 'Slovak', 'sl': 'Slovenian', 'so': 'Somali',
+    'sq': 'Albanian', 'sr': 'Serbian', 'su': 'Sundanese', 'sv': 'Swedish',
+    'sw': 'Swahili', 'ta': 'Tamil', 'te': 'Telugu', 'th': 'Thai',
+    'tr': 'Turkish', 'uk': 'Ukrainian', 'ur': 'Urdu', 'uz': 'Uzbek',
+    'vi': 'Vietnamese', 'wuu': 'Wu Chinese', 'yue': 'Cantonese', 'zh': 'Chinese',
+    'zu': 'Zulu'
+  };
 
-  const languageOptions = [
-    { value: 'en', label: 'English' },
-    { value: 'zh', label: 'Chinese' },
-    { value: 'ja', label: 'Japanese' },
-    { value: 'ko', label: 'Korean' },
-    { value: 'es', label: 'Spanish' },
-    { value: 'fr', label: 'French' },
-    { value: 'de', label: 'German' }
-  ];
+  const availableLanguages = ttsOptions?.languages || [];
+  const speedConfig = ttsOptions?.speed || { min: -50, max: 100, step: 10, default: 0 };
+  const pitchConfig = ttsOptions?.pitch || { min: -50, max: 50, step: 5, default: 0 };
 
   return (
     <ToolWrapper
@@ -180,45 +208,46 @@ const TTSForm: React.FC = () => {
           <BentoCard title="Voice Settings">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Language</label>
-                <select
-                  value={language}
-                  onChange={(e) => {
-                    setLanguage(e.target.value);
-                    const voicesForLang = voices.filter(v => v.language === e.target.value);
-                    if (voicesForLang.length > 0) {
-                      setVoice(voicesForLang[0].id);
-                    }
-                  }}
-                  className={commonClasses.input}
-                >
-                  {languageOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium mb-2">
-                  Voice ({filteredVoices.length} available)
+                  Language ({availableLanguages.length} available)
                 </label>
-                {loadingVoices ? (
+                {loadingOptions ? (
                   <div className="flex items-center justify-center p-4">
                     <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
                   </div>
                 ) : (
                   <select
-                    value={voice}
-                    onChange={(e) => setVoice(e.target.value)}
+                    value={language}
+                    onChange={(e) => {
+                      const newLang = e.target.value;
+                      setLanguage(newLang);
+                      if (ttsOptions?.voices && ttsOptions.voices[newLang]) {
+                        setVoice(ttsOptions.voices[newLang]);
+                      }
+                    }}
                     className={commonClasses.input}
                   >
-                    {filteredVoices.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} {v.gender ? `(${v.gender})` : ''}
+                    {availableLanguages.map((lang: string) => (
+                      <option key={lang} value={lang}>
+                        {languageNames[lang] || lang} ({lang})
                       </option>
                     ))}
                   </select>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Voice</label>
+                <input
+                  type="text"
+                  value={voice}
+                  readOnly
+                  className={`${commonClasses.input} bg-slate-50 dark:bg-slate-800`}
+                  placeholder="Auto-selected based on language"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Voice is automatically selected for the chosen language
+                </p>
               </div>
             </div>
           </BentoCard>
@@ -228,39 +257,41 @@ const TTSForm: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Speed: {speed.toFixed(1)}x
+                  Speed: {speed >= 0 ? '+' : ''}{speed}{speedConfig.unit}
                 </label>
                 <input
                   type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.1"
+                  min={speedConfig.min}
+                  max={speedConfig.max}
+                  step={speedConfig.step}
                   value={speed}
-                  onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                  onChange={(e) => setSpeed(parseInt(e.target.value))}
                   className="w-full"
+                  disabled={loadingOptions}
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Slower</span>
-                  <span>Faster</span>
+                  <span>Slower ({speedConfig.min}{speedConfig.unit})</span>
+                  <span>Faster ({speedConfig.max}{speedConfig.unit})</span>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Pitch: {pitch.toFixed(1)}
+                  Pitch: {pitch >= 0 ? '+' : ''}{pitch}{pitchConfig.unit}
                 </label>
                 <input
                   type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.1"
+                  min={pitchConfig.min}
+                  max={pitchConfig.max}
+                  step={pitchConfig.step}
                   value={pitch}
-                  onChange={(e) => setPitch(parseFloat(e.target.value))}
+                  onChange={(e) => setPitch(parseInt(e.target.value))}
                   className="w-full"
+                  disabled={loadingOptions}
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Lower</span>
-                  <span>Higher</span>
+                  <span>Lower ({pitchConfig.min}{pitchConfig.unit})</span>
+                  <span>Higher ({pitchConfig.max}{pitchConfig.unit})</span>
                 </div>
               </div>
             </div>
@@ -271,7 +302,7 @@ const TTSForm: React.FC = () => {
         <div className="flex justify-center">
           <button
             onClick={handleGenerate}
-            disabled={!text.trim() || loading || loadingVoices}
+            disabled={!text.trim() || loading || loadingOptions}
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2`}
           >
             {loading ? (

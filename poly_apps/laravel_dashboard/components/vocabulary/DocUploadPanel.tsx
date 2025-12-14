@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface DocUploadPanelProps {
@@ -79,7 +79,7 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
         formData.append('file', file);
         formData.append('extract_mode', extractMode);
 
-        const result = await apiService.appQyV1.uploadDocument(formData);
+        const result = await api.appQyV1.uploadDocument(formData);
 
         setFiles(prev => prev.map(f =>
           f.id === fileId
@@ -88,9 +88,9 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
         ));
 
         if (extractMode === 'sentences') {
-          await apiService.appQyV1.extractSentences(result.documentId);
+          await api.appQyV1.extractSentences(result.data?.documentId || result.documentId);
         } else {
-          await apiService.appQyV1.extractWords(result.documentId);
+          await api.appQyV1.extractWords(result.data?.documentId || result.documentId);
         }
 
         setFiles(prev => prev.map(f =>

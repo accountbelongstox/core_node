@@ -12,7 +12,7 @@ import {
   Languages,
   Eye
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 import BentoCard from '../BentoCard';
 
@@ -112,7 +112,7 @@ const OCRPanel: React.FC<OCRPanelProps> = ({ onExtractionComplete }) => {
 
       if (uploadMode === 'file' && selectedImage) {
         // Upload screenshot first
-        const uploadResponse = await apiService.uploadScreenshot({
+        const uploadResponse = await api.mcpV1.uploadScreenshot({
           image: selectedImage,
           description: 'OCR extraction'
         });

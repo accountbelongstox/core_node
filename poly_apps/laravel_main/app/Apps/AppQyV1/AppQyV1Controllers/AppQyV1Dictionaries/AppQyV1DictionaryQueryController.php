@@ -18,9 +18,17 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
+use App\Traits\ApiResponse;
 
 class AppQyV1DictionaryQueryController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Find dictionary entries that don't exist from a provided list
      * 
@@ -44,7 +52,6 @@ class AppQyV1DictionaryQueryController extends BaseController
             ], 422);
         }
 
-        try {
             $contents = [];
             
             // Handle either a string with delimiter or an array of contents
@@ -94,16 +101,6 @@ class AppQyV1DictionaryQueryController extends BaseController
                 'has_voice' => $hasVoice
             ]);
             
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to process dictionary query',
-                'error' => $e->getMessage(),
-                'all_records' => $allRecords,
-                'has_translation' => $hasTranslation,
-                'has_voice' => $hasVoice
-            ], 500);
-        }
     }
 }
 

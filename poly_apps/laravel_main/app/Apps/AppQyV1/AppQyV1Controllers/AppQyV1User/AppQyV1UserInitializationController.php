@@ -9,9 +9,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\ApiResponse;
 
 class AppQyV1UserInitializationController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private AppQyV1UserInitializationService $service;
     private array $allowedOccupations = [
         'student',
@@ -98,7 +106,6 @@ class AppQyV1UserInitializationController extends Controller
 
         $payload['preferences'] = $this->mergePreferences($payload['preferences'] ?? []);
 
-        try {
             $result = $this->service->updateInitialization($request->user(), $payload);
 
             return response()->json([
@@ -106,17 +113,6 @@ class AppQyV1UserInitializationController extends Controller
                 'message' => 'Initialization completed successfully',
                 'data' => $result['status'],
             ]);
-        } catch (\Throwable $e) {
-            Log::error('[AppQyV1UserInitialization] Failed to save initialization data', [
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to save initialization data',
-            ], 500);
-        }
     }
 
     private function validateLearningLanguages(array $languages): array

@@ -87,23 +87,7 @@ class AppQyV1VocabularyCoverService
 
     public function getDefaultCoverUrl(): string
     {
-        $record = AppQyV1VocabularyCoverModel::query()->firstOrCreate(
-            ['library_id' => 0],
-            [
-                'cover_filename' => $this->defaultFilename,
-                'prompt' => $this->buildDefaultPrompt(),
-                'description' => 'Default vocabulary library cover art',
-                'status' => 'pending',
-                'priority' => 10,
-            ]
-        );
-
-        if (!$this->hasCoverFile($record->cover_filename) && $record->status !== 'pending') {
-            $record->status = 'pending';
-            $record->save();
-        }
-
-        return $this->buildCoverUrl($record->cover_filename);
+        return $this->buildCoverUrl($this->defaultFilename);
     }
 
     public function getCoverPath(string $filename): string

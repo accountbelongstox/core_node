@@ -21,9 +21,17 @@ use App\Utils\ArrTool;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupDeletionController 
+class AppQyV1WordGroupDeletionController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public function isGroupNameExist($gname,$gid=null)
     {
         $uid = Auth::id();
@@ -65,7 +73,6 @@ class AppQyV1WordGroupDeletionController
     public function deleteDictGroupByGid(Request $request)
     {
         $supported_params = ['gid'];
-        try {
             $validator = Validator::make($request->all(), [
                 'gid' => 'required|string',
             ]);
@@ -91,13 +98,6 @@ class AppQyV1WordGroupDeletionController
                 'message' => 'Group deleted successfully',
                 'supported_params' => $supported_params,
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 }
 

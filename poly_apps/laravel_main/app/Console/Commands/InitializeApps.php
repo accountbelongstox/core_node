@@ -56,6 +56,33 @@ class InitializeApps extends Command
         $this->runSafeMigrations();
         $this->newLine();
 
+        $this->info('Creating invite code tables...');
+        $inviteCodeResults = \App\Services\InviteCodeInitializer::ensureTablesExist();
+        foreach (['invite_codes', 'invite_code_usage', 'default_codes'] as $key) {
+            if (isset($inviteCodeResults[$key])) {
+                $status = $inviteCodeResults[$key];
+                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+                $this->line("  {$icon} {$key}: {$status}");
+            }
+        }
+
+        if (isset($inviteCodeResults['codes'])) {
+            $this->line("  <fg=cyan>Generated Invite Codes:</>");
+            foreach ($inviteCodeResults['codes'] as $type => $code) {
+                $this->line("    • {$type}: {$code}");
+            }
+        }
+
+        if (isset($inviteCodeResults['error'])) {
+            $this->error("  ❌ Error: {$inviteCodeResults['error']}");
+        }
+
+        $inviteStats = \App\Services\InviteCodeInitializer::getTableStats();
+        if (!isset($inviteStats['error'])) {
+            $this->line("  <fg=gray>Stats: {$inviteStats['invite_codes']['total']} codes ({$inviteStats['invite_codes']['active']} active), {$inviteStats['invite_code_usage']['total']} usages</>");
+        }
+        $this->newLine();
+
         $results = \App\Services\UserSyncService::ensureUserTablesExist();
         
         $this->info('Database initialization results:');

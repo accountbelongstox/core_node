@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewType, NavItem, Language } from '../types';
 import { TRANSLATIONS } from '../constants';
+import { useUserRole } from '../hooks/useUserRole';
 import {
   Film,
   Code2,
@@ -13,7 +14,8 @@ import {
   Boxes,
   Timer,
   Network,
-  Sparkles
+  Sparkles,
+  KeyRound
 } from "lucide-react";
 
 interface SidebarProps {
@@ -36,44 +38,54 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { id: ViewType.INVITE_CODE_MANAGER, icon: KeyRound, labelKey: 'inviteCodes' },
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => {
   const t = TRANSLATIONS[lang].nav;
+  const { canManageInviteCodes } = useUserRole();
+
+  const visibleNavItems = [
+    ...NAV_ITEMS,
+    ...(canManageInviteCodes ? ADMIN_NAV_ITEMS : [])
+  ];
 
   return (
-    <aside className="w-16 md:w-20 h-screen flex flex-col items-center py-6 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
+    <aside className="w-14 md:w-16 h-screen flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
       {/* Brand Logo / Rocket */}
-      <div className="mb-8 p-3 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 dark:border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] dark:shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-        <Rocket size={24} />
+      <div className="mb-4 p-2 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 dark:border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] dark:shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+        <Rocket size={20} />
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 flex flex-col gap-6 w-full px-2">
-        {NAV_ITEMS.map((item) => {
+      <nav className="flex-1 flex flex-col gap-2 w-full px-1.5">
+        {visibleNavItems.map((item) => {
           const isActive = activeView === item.id;
           // Dynamically fetch label
           const label = t[item.labelKey as keyof typeof t] || item.labelKey;
-          
+
           return (
             <button
               key={item.id}
               onClick={() => onViewChange(item.id)}
               className={`
-                group relative flex items-center justify-center w-full aspect-square rounded-xl transition-all duration-300
-                ${isActive 
-                  ? 'bg-gradient-to-br from-indigo-500/10 to-transparent dark:from-white/20 dark:to-white/5 text-indigo-600 dark:text-white shadow-lg border border-indigo-500/20 dark:border-white/20' 
+                group relative flex items-center justify-center w-full aspect-square rounded-lg transition-all duration-300
+                ${isActive
+                  ? 'bg-gradient-to-br from-indigo-500/10 to-transparent dark:from-white/20 dark:to-white/5 text-indigo-600 dark:text-white shadow-lg border border-indigo-500/20 dark:border-white/20'
                   : 'text-slate-500 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}
               `}
               title={label}
             >
-              <item.icon size={22} className={`transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'group-hover:scale-105'}`} />
-              
+              <item.icon size={18} className={`transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'group-hover:scale-105'}`} />
+
               {/* Active Indicator Line */}
               {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(99,102,241,0.8)]" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(99,102,241,0.8)]" />
               )}
 
               {/* Tooltip */}
-              <span className="absolute left-full ml-4 px-2 py-1 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-black/10 dark:border-white/10 pointer-events-none z-50 shadow-xl">
+              <span className="absolute left-full ml-3 px-2 py-1 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-black/10 dark:border-white/10 pointer-events-none z-50 shadow-xl">
                 {label}
               </span>
             </button>
@@ -82,8 +94,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
       </nav>
 
       {/* Bottom Profile/Status */}
-      <div className="mt-auto">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-cyan-500 border-2 border-white dark:border-slate-900 shadow-lg cursor-pointer hover:scale-105 transition-transform" />
+      <div className="mt-2">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-400 to-cyan-500 border-2 border-white dark:border-slate-900 shadow-lg cursor-pointer hover:scale-105 transition-transform" />
       </div>
     </aside>
   );

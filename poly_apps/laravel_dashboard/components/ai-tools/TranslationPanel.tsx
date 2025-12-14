@@ -10,7 +10,8 @@ import {
   Trash2,
   Globe
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
+import { useLoadingError } from '../../hooks';
 import { commonClasses } from '../../styles/theme';
 import BentoCard from '../BentoCard';
 
@@ -89,16 +90,12 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({ onTranslationComple
     try {
       let response;
       if (sourceLang === 'auto') {
-        response = await apiService.detectAndTranslate(sourceText, targetLang);
+        response = await api.appQyV1.detectAndTranslate(sourceText, targetLang);
         if (response.success && response.data) {
           setDetectedLang(response.data.detected_language);
         }
       } else {
-        response = await apiService.translate({
-          text: sourceText,
-          source_language: sourceLang,
-          target_language: targetLang
-        });
+        response = await api.appQyV1.translate(sourceText, sourceLang, targetLang);
       }
 
       if (response.success && response.data) {

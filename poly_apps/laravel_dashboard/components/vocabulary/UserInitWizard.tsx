@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface UserInitWizardProps {
@@ -23,7 +23,7 @@ const UserInitWizard: React.FC<UserInitWizardProps> = ({ onComplete }) => {
 
   const loadLanguages = async () => {
     try {
-      const response = await apiService.appQyV1GetSupportedLanguages();
+      const response = await api.appQyV1.getSupportedLanguages();
       if (response.success && response.data) {
         setLanguages(response.data.languages || response.data);
       }
@@ -42,7 +42,7 @@ const UserInitWizard: React.FC<UserInitWizardProps> = ({ onComplete }) => {
     setError(null);
 
     try {
-      const response = await apiService.appQyV1CompleteUserInit({
+      const response = await api.appQyV1.completeUserInit({
         learning_languages: selectedLanguages,
         occupation,
         daily_words_target: dailyWordsTarget,

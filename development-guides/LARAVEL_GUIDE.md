@@ -141,3 +141,17 @@ MCP applications follow these differentiated rules:
     - **Prohibited** from writing any functionality related to Laravel Web frontend, including **Blade templates, Vite configuration, CSS/JS resource files**, etc. However, existing vite/babel/web and other frontend configurations and web files cannot be deleted, because Laravel needs these basics to correctly start in headless mode.
     - **Prohibited** from adding new helper functions to `app/Helpers`, unless the function is absolutely necessary and globally common.
     - **Prohibited** from deleting files without authorization.
+
+## API Response Standards (MANDATORY for ALL Controllers)
+
+**All backend controllers MUST use standardized response format:**
+1. Use `App\Traits\ApiResponse` trait in all controllers
+2. Use `App\Helpers\AuthHelper` for authentication checks
+3. NO try-catch blocks - trust framework validation and database operations
+4. Response methods: `success()`, `error()`, `unauthorized()`, `forbidden()`, `notFound()`
+5. Authentication pattern: `$user = AuthHelper::requireAdmin($request); if (!$user) return $this->forbidden();`
+6. NO duplicate response()->json() blocks - always use trait methods
+7. Example: `return $this->success($data, 'Success message');`
+8. All child apps and modules MUST follow this standard
+9. **Frontend MUST use Data Models** - Create TypeScript models (e.g., `ServerManagerModel`) that handle all API calls, validation, and state management; components should NEVER directly call APIs or handle response validation - models encapsulate ALL business logic and return typed results
+10. **ServerManager Auto-Detect** - Use `POST /api/server-manager/restart` to auto-restart current Laravel service (localhost only, no service name needed, auto-detects via `ServerManagerV1OctaneServiceManager::getCurrentOctaneServiceName()`)

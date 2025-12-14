@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, ChevronDown, X, Loader2, AlertCircle, Clock } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../types';
 import { parseFeatureString, generateExampleParams } from '../../utils/apiInfoParser';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -36,7 +36,7 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiService.getFullApiInfo();
+      const response = await api.systemConfig.getFullApiInfo();
       if (response.success && response.data) {
         setFullApiInfo(response.data);
         const apps = Object.keys(response.data.api_reference || {});

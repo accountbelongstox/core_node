@@ -1,37 +1,37 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  TranslationResponse, 
-  TTSGenerateResponse, 
-  LanguageInfo, 
+import {
+  TranslationResponse,
+  TTSGenerateResponse,
+  LanguageInfo,
   AsyncState,
   Language,
   VocabularyTask,
   VocabularyWord
 } from '../../types';
-import { apiService } from '../../services/apiService';
+// Note: This component now uses the new centralized api from core/api
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
-import { 
-  Languages, 
-  ArrowLeftRight, 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
-  Volume2, 
-  Copy, 
+import {
+  Languages,
+  ArrowLeftRight,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  Copy,
   RefreshCw,
   X,
   BookOpen,
   CheckCircle
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import { extractArrayFromResponse } from '../../utils/arrayUtils';
+import { useAppState } from '../../contexts/AppStateContext';
 
-interface VocabularyLearningProps {
-  lang?: Language;
-}
-
-const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) => {
+const VocabularyLearning: React.FC = () => {
+  const { lang } = useAppState();
   const [translation, setTranslation] = useState<AsyncState<TranslationResponse>>({
     data: null,
     loading: false,
@@ -66,12 +66,27 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
   const [selectedTask, setSelectedTask] = useState<VocabularyTask | null>(null);
   const [vocabularyWords, setVocabularyWords] = useState<VocabularyWord[]>([]);
 
+  // Vocabulary Libraries State
+  const [libraries, setLibraries] = useState<any[]>([]);
+  const [loadingLibraries, setLoadingLibraries] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
+
+  // Statistics State
+  const [statistics, setStatistics] = useState<any>(null);
+  const [loadingStatistics, setLoadingStatistics] = useState(false);
+
   const t = TRANSLATIONS[lang].vocabulary;
 
   useEffect(() => {
     loadLanguages();
     loadTasks();
+    loadLibraries();
+    loadStatistics();
   }, []);
+
+  useEffect(() => {
+    loadLibraries();
+  }, [selectedLanguage]);
 
   useEffect(() => {
     if (selectedTask) {
@@ -88,42 +103,23 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
 
   const loadLanguages = async () => {
     try {
-      const response = await apiService.getLanguages();
-      if (response.success && response.data) {
-        // Ensure data is an array
-        let languageData = Array.isArray(response.data)
-          ? response.data
-          : ((response.data as any).languages || (response.data as any).items || []);
+      const response = await api.appQyV1.getTranslationLanguages();
 
-        // Double-check it's an array
-        if (!Array.isArray(languageData)) {
-          languageData = [];
-        }
+      const defaultLanguages = [
+        { code: 'en', name: 'English', native_name: 'English' },
+        { code: 'zh', name: 'Chinese', native_name: '中文' },
+        { code: 'ja', name: 'Japanese', native_name: '日本語' },
+        { code: 'ko', name: 'Korean', native_name: '한국어' },
+        { code: 'fr', name: 'French', native_name: 'Français' },
+        { code: 'de', name: 'German', native_name: 'Deutsch' },
+        { code: 'es', name: 'Spanish', native_name: 'Español' }
+      ];
 
-        setLanguages(languageData.length > 0 ? languageData : [
-          { code: 'en', name: 'English', native_name: 'English' },
-          { code: 'zh', name: 'Chinese', native_name: '中文' },
-          { code: 'ja', name: 'Japanese', native_name: '日本語' },
-          { code: 'ko', name: 'Korean', native_name: '한국어' },
-          { code: 'fr', name: 'French', native_name: 'Français' },
-          { code: 'de', name: 'German', native_name: 'Deutsch' },
-          { code: 'es', name: 'Spanish', native_name: 'Español' }
-        ]);
-      } else {
-        // Fallback to default languages if API fails
-        setLanguages([
-          { code: 'en', name: 'English', native_name: 'English' },
-          { code: 'zh', name: 'Chinese', native_name: '中文' },
-          { code: 'ja', name: 'Japanese', native_name: '日本語' },
-          { code: 'ko', name: 'Korean', native_name: '한국어' },
-          { code: 'fr', name: 'French', native_name: 'Français' },
-          { code: 'de', name: 'German', native_name: 'Deutsch' },
-          { code: 'es', name: 'Spanish', native_name: 'Español' }
-        ]);
-      }
+      const languageData = extractArrayFromResponse(response, defaultLanguages);
+
+      setLanguages(languageData);
     } catch (error) {
       console.error('Failed to load languages:', error);
-      // Fallback to default languages on error
       setLanguages([
         { code: 'en', name: 'English', native_name: 'English' },
         { code: 'zh', name: 'Chinese', native_name: '中文' },
@@ -193,6 +189,47 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
     }
   };
 
+  const loadLibraries = async () => {
+    setLoadingLibraries(true);
+    try {
+      const response = await api.appQyV1.getLibraries({
+        language: selectedLanguage,
+        page: 1,
+        per_page: 20
+      });
+
+      if (response.success && response.data) {
+        const librariesData = response.data.libraries || response.data || [];
+        setLibraries(Array.isArray(librariesData) ? librariesData : []);
+      } else {
+        setLibraries([]);
+      }
+    } catch (error) {
+      console.error('Failed to load libraries:', error);
+      setLibraries([]);
+    } finally {
+      setLoadingLibraries(false);
+    }
+  };
+
+  const loadStatistics = async () => {
+    setLoadingStatistics(true);
+    try {
+      const response = await api.appQyV1.getVocabularyStatistics();
+
+      if (response.success && response.data) {
+        setStatistics(response.data);
+      } else {
+        setStatistics(null);
+      }
+    } catch (error) {
+      console.error('Failed to load statistics:', error);
+      setStatistics(null);
+    } finally {
+      setLoadingStatistics(false);
+    }
+  };
+
   const toggleWordLearned = (wordId: string) => {
     setVocabularyWords(prev => 
       prev.map(word => 
@@ -237,7 +274,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
 
     setTranslation(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.translate({
+      const response = await api.appQyV1.translate({
         text: inputText,
         source_language: sourceLanguage,
         target_language: targetLanguage,
@@ -270,7 +307,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
 
     setTranslation(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.detectAndTranslate(inputText, targetLanguage);
+      const response = await api.appQyV1.detectAndTranslate(inputText, targetLanguage);
       if (response.success && response.data) {
         setTranslation({
           data: response.data,
@@ -300,7 +337,7 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
 
     setTTS(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.generateTTS({
+      const response = await api.appQyV1.generateTTS({
         text: translation.data.translated_text,
         language: targetLanguage,
         voice_type: 'female',
@@ -386,6 +423,195 @@ const VocabularyLearning: React.FC<VocabularyLearningProps> = ({ lang = 'en' }) 
       <div className="mb-4">
         <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Translate, learn, and practice vocabulary</p>
+      </div>
+
+      {/* Statistics Section */}
+      {statistics && (
+        <div className={`${commonClasses.card} p-4 mb-4`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">System Statistics</h3>
+            <button
+              onClick={loadStatistics}
+              disabled={loadingStatistics}
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+            >
+              <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">
+                {statistics.summary?.total_languages || 0}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Languages Supported</div>
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                {(statistics.summary?.total_libraries || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Total Libraries</div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                {(statistics.summary?.total_words || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Total Words</div>
+            </div>
+            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                {statistics.summary?.tts_percentage || 0}%
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">TTS Coverage</div>
+            </div>
+          </div>
+
+          {/* Language Breakdown */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Language Breakdown</h4>
+            {statistics.languages && statistics.languages.map((lang: any, idx: number) => (
+              <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold text-sm">{lang.language}</div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">
+                      {lang.total_words?.toLocaleString()} words
+                    </span>
+                    <span className="text-slate-600 dark:text-slate-400">
+                      {lang.libraries_count || 0} libraries
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
+                    <div className="text-green-600 dark:text-green-400 font-semibold">
+                      {lang.tts_percentage || 0}%
+                    </div>
+                    <div className="text-slate-500">TTS</div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
+                    <div className="text-blue-600 dark:text-blue-400 font-semibold">
+                      {lang.images_percentage || 0}%
+                    </div>
+                    <div className="text-slate-500">Images</div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
+                    <div className="text-purple-600 dark:text-purple-400 font-semibold">
+                      {lang.review_percentage || 0}%
+                    </div>
+                    <div className="text-slate-500">AI Reviewed</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Vocabulary Libraries Section */}
+      <div className={`${commonClasses.card} p-4 mb-4`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Vocabulary Libraries
+          </h3>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              className={`${commonClasses.input} text-sm`}
+            >
+              <option value="english">English</option>
+              <option value="chinese">Chinese</option>
+              <option value="japanese">Japanese</option>
+              <option value="korean">Korean</option>
+              <option value="french">French</option>
+              <option value="german">German</option>
+              <option value="spanish">Spanish</option>
+            </select>
+            <button
+              onClick={loadLibraries}
+              disabled={loadingLibraries}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingLibraries ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {loadingLibraries ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+          </div>
+        ) : libraries.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {libraries.map((library: any) => (
+              <div
+                key={library.id}
+                className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
+              >
+                {library.image_url && (
+                  <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                    <img
+                      src={library.image_url}
+                      alt={library.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                <h4 className="font-semibold text-sm mb-1">{library.name}</h4>
+                {library.description && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 line-clamp-2">
+                    {library.description}
+                  </p>
+                )}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 dark:text-slate-400">
+                    {library.word_count || 0} words
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {library.difficulty && (
+                      <span className={`px-2 py-0.5 rounded text-xs ${
+                        library.difficulty === 'beginner'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : library.difficulty === 'intermediate'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                      }`}>
+                        {library.difficulty}
+                      </span>
+                    )}
+                    {library.is_recommended && (
+                      <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {library.category && (
+                  <div className="mt-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Category: {library.category}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8 text-slate-400">
+            <div className="text-center">
+              <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No libraries available for {selectedLanguage}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content - Three Panel Layout */}
