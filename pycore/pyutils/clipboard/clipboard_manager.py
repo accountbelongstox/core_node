@@ -11,7 +11,6 @@ from __future__ import annotations
 import ctypes
 import platform
 import shutil
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from typing import Callable, Optional

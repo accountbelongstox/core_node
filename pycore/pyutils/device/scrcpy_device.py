@@ -9,7 +9,6 @@ import sys
 import random
 import socket
 import struct
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
@@ -30,6 +29,7 @@ from pathlib import Path
 from pycore.pyutils.device.android_device import AndroidDevice
 from pycore.pyutils.device.device_info import DeviceInfo, Resolution
 from pycore.pyutils.device.server_params import ServerParams, VideoCodec
+import subprocess
 
 
 class ScrcpyDevice(AndroidDevice):

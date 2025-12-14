@@ -4,11 +4,11 @@ Supports auto-dependency installation, 9-grid region recognition, and offset cal
 Uses CnOCR engine for Chinese OCR recognition
 """
 import sys
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
 import importlib.util
+import subprocess
 
 # Add parent directory to path for ColorPrint
 pytools_dir = Path(__file__).parent.parent

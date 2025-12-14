@@ -7,7 +7,6 @@ to scrcpy-server for video streaming and device control.
 
 import socket
 import struct
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
@@ -17,6 +16,7 @@ from pathlib import Path
 from .android_device import AndroidDevice
 from .device_info import DeviceInfo, Resolution
 from .server_params import ServerParams, VideoCodec
+import subprocess
 
 
 class ScrcpyDevice(AndroidDevice):

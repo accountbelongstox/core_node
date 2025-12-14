@@ -9,7 +9,6 @@ import os
 import sys
 import time
 import threading
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass

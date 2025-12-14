@@ -5,7 +5,6 @@ This module safely kills old instances of the design documentation server
 without affecting other processes.
 """
 
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 import platform

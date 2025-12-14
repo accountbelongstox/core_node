@@ -9,7 +9,6 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 # Get logger

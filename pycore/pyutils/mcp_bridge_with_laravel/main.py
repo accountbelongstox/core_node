@@ -27,7 +27,6 @@ import json
 import logging
 import os
 import sys
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import importlib
 import time
@@ -38,6 +37,7 @@ import threading
 
 # FastMCP framework
 from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_pypdf
+import subprocess
 
 FastMCP = get_third_package_FastMCP()
 pypdf_lib = get_third_package_pypdf()

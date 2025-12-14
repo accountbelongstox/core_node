@@ -14,7 +14,6 @@ Features:
 - Task-level and queue-level callbacks
 """
 
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import queue
@@ -25,6 +24,7 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+import subprocess
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()

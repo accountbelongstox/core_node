@@ -9,7 +9,6 @@ Provides Edge TTS integration with Windows/Linux compatibility.
 import os
 import sys
 import platform
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import shutil
 from pathlib import Path

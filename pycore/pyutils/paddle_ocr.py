@@ -18,7 +18,6 @@ Pitfalls encountered during development:
 
 import os
 import sys
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import time
 import json
@@ -26,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from threading import Thread
 from queue import Queue
+import subprocess
 
 # Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent

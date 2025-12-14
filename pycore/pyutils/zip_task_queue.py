@@ -1,7 +1,6 @@
 import os
 import threading
 import time
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from queue import Queue, Empty
 from typing import Callable, Optional, List, Dict, Any
@@ -10,6 +9,7 @@ from enum import Enum
 import logging
 
 from pycore.pyfoundations.third_party import get_third_package_psutil
+import subprocess
 
 psutil = get_third_package_psutil()
 
