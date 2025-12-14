@@ -1,0 +1,5 @@
+{
+  "name": "OKX Price Monitor",
+  "description": "A real-time cryptocurrency price monitoring dashboard connecting to an RPC v2 backend, featuring live updates, alerts, and system statistics.",
+  "requestFramePermissions": []
+}
