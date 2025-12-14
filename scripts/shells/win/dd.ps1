@@ -688,7 +688,7 @@ function Show-GitManagementMenu {
 
         Write-Host ""
         Write-ColorMessage -Message "--------------------------------------------------------" -Type "Info"
-        Write-Host "  1. Get the latest git version (backup + commit + pull)"
+        Write-Host "  1. Get the latest git version (commit + pull)"
         Write-Host "  2. Cleanup Git repository with BFG (remove large files)"
         Write-Host "  3. Git time travel (navigate commits interactively)"
         Write-Host "  4. View git log"
