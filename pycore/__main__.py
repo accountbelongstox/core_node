@@ -13,7 +13,6 @@ It performs two main functions:
 
 import sys
 import os
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 # Dependencies are automatically checked when third_party module is imported
 # Import third_party to trigger dependency check
