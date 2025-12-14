@@ -20,11 +20,12 @@ from enum import Enum
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS
+    from pycore import THREAD_BUS, ColorPrint
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
+    from pycore import ColorPrint
 
 # Import window state manager
 from .window_state import WindowStateManager
@@ -128,7 +129,6 @@ class PySide6MainWindow(QMainWindow):
             if not icon.isNull():
                 self.setWindowIcon(icon)
             else:
-                from pycore import ColorPrint
                 ColorPrint.red(f"[MainWindow] Failed to load window icon from: {self._icon_path}")
 
         # Load cached window state if available
@@ -155,7 +155,6 @@ class PySide6MainWindow(QMainWindow):
             max_width = screen_geometry.width()
             max_height = screen_geometry.height()
             self.setMaximumSize(max_width, max_height)
-            from pycore import ColorPrint
             ColorPrint.print_info(f"[MainWindow] Maximum size set to screen: {max_width}x{max_height}")
 
         # Enable frameless if configured
