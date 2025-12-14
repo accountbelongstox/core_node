@@ -11,19 +11,45 @@ import shutil
 import datetime
 import json
 import glob
+import argparse
+import time
 from pathlib import Path
 from typing import List, Dict, Set
 
-# Add project root and pycore to path for imports
-script_dir = Path(__file__).parent  # scripts/pytools/pybackup/core_node
-project_root = script_dir.parent.parent.parent.parent  # core_node root
+# Simple color printing without external dependencies
+class SimpleColors:
+    """Lightweight color printing for terminal"""
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    GRAY = '\033[90m'
+    RESET = '\033[0m'
 
-# Ensure pycore (imported as package pycore.*) resolves when launched from PowerShell
-sys.path.insert(0, str(project_root))
-pycore_path = project_root / "pycore"
-sys.path.insert(0, str(pycore_path))
+    @staticmethod
+    def print_color(message: str, color: str = ''):
+        """Print colored message"""
+        print(f"{color}{message}{SimpleColors.RESET}", flush=True)
 
-from pyfoundations.color_print import ColorPrint
+    @staticmethod
+    def blue(message: str):
+        SimpleColors.print_color(message, SimpleColors.BLUE)
+
+    @staticmethod
+    def green(message: str):
+        SimpleColors.print_color(message, SimpleColors.GREEN)
+
+    @staticmethod
+    def yellow(message: str):
+        SimpleColors.print_color(message, SimpleColors.YELLOW)
+
+    @staticmethod
+    def red(message: str):
+        SimpleColors.print_color(message, SimpleColors.RED)
+
+    @staticmethod
+    def gray(message: str):
+        SimpleColors.print_color(message, SimpleColors.GRAY)
 
 class BackupManager:
     def __init__(self):
@@ -78,30 +104,13 @@ class BackupManager:
         }
 
     def show_main_menu(self):
-        """Display the main backup menu"""
-        while True:
-            print("\n" + "="*50)
-            print("Core Node Backup Manager")
-            print("="*50)
-            print("1. Start Backup")
-            print("2. Restore Backup")
-            print("3. List Available Backups")
-            print("4. Exit")
-            print("="*50)
-            
-            choice = input("Please select an option (1-4): ").strip()
-            
-            if choice == '1':
-                self.start_backup()
-            elif choice == '2':
-                self.restore_backup()
-            elif choice == '3':
-                self.list_backups()
-            elif choice == '4':
-                print("Exiting...")
-                break
-            else:
-                print("Invalid option. Please try again.")
+        """Display the main backup menu (deprecated - use command line args)"""
+        SimpleColors.yellow("Interactive menu mode is deprecated.")
+        SimpleColors.yellow("Please use command line arguments:")
+        SimpleColors.yellow("  --action backup    : Start backup")
+        SimpleColors.yellow("  --action restore   : Restore backup")
+        SimpleColors.yellow("  --action list      : List available backups")
+        sys.exit(1)
 
     def refresh_backup_destination(self) -> None:
         """Generate a new timestamped backup path each time backup starts"""
@@ -110,25 +119,21 @@ class BackupManager:
         self.backup_path = self.backup_parent_dir / self.backup_name
 
     def start_backup(self):
-        """Start the backup process"""
-        ColorPrint.blue(f"\nStarting backup of {self.project_root}")
-        
-        # Print skip information
-        ColorPrint.yellow("\nSkipping the following directories and files:")
-        ColorPrint.gray("Directories: " + ", ".join(sorted(self.skip_dirs)))
-        ColorPrint.gray("File extensions: " + ", ".join(sorted(self.skip_extensions)))
-        ColorPrint.gray("Compilation directories: " + ", ".join(sorted(self.compilation_dirs)))
-        ColorPrint.gray("Note: .git directory will be included")
-        
-        # Confirm backup
-        confirm = input("\nDo you want to proceed? (y/n): ").strip().lower()
-        if confirm != 'y':
-            ColorPrint.red("Backup cancelled.")
-            return
-        
-        # Generate a fresh backup path only when backup actually starts
+        """Start the backup process (no user confirmation - handled by shell)"""
+        self._perform_backup()
+
+    def start_backup_auto(self):
+        """Start the backup process (alias for compatibility)"""
+        self._perform_backup()
+
+    def _perform_backup(self):
+        """Internal method to perform backup"""
+        SimpleColors.blue(f"\nStarting backup of {self.project_root}")
+
+        # Generate a fresh backup path
         self.refresh_backup_destination()
-        ColorPrint.blue(f"Backup will be saved to: {self.backup_path}")
+        SimpleColors.blue(f"Backup destination: {self.backup_path}")
+        SimpleColors.blue(f"Timestamp: {self.timestamp}\n")
         
         try:
             # Create backup directory
@@ -146,74 +151,128 @@ class BackupManager:
             }
             
             # Count total files first for progress display
-            ColorPrint.blue("Scanning files for backup...")
+            SimpleColors.blue("Scanning files for backup...")
+            start_scan_time = time.time()
             total_files = 0
+            total_size = 0
             for root, dirs, files in os.walk(self.project_root):
                 dirs[:] = [d for d in dirs if not self.should_skip_directory(d)]
                 for file in files:
                     if not self.should_skip_file(file):
                         total_files += 1
-            
-            ColorPrint.green(f"Found {total_files} files to backup")
-            
+                        try:
+                            file_path = Path(root) / file
+                            total_size += file_path.stat().st_size
+                        except:
+                            pass
+
+            scan_time = time.time() - start_scan_time
+            total_size_mb = total_size / (1024 * 1024)
+            SimpleColors.green(f"Scan completed in {scan_time:.2f}s")
+            SimpleColors.green(f"Found {total_files} files ({total_size_mb:.2f} MB) to backup\n")
+
             # Start backup process
+            SimpleColors.blue("=" * 60)
+            SimpleColors.blue("Starting backup process...")
+            SimpleColors.blue("=" * 60)
+
+            start_backup_time = time.time()
             files_copied = 0
             dirs_created = 0
-            
+            bytes_copied = 0
+            last_update_time = start_backup_time
+
             for root, dirs, files in os.walk(self.project_root):
                 # Skip directories
                 dirs[:] = [d for d in dirs if not self.should_skip_directory(d)]
-                
+
                 # Create relative path
                 rel_path = Path(root).relative_to(self.project_root)
                 if rel_path == Path('.'):
                     backup_dir = self.backup_path
                 else:
                     backup_dir = self.backup_path / rel_path
-                
+
                 # Create directory if it doesn't exist
                 if not backup_dir.exists():
                     backup_dir.mkdir(parents=True, exist_ok=True)
                     dirs_created += 1
-                
+
                 # Copy files
                 for file in files:
                     if not self.should_skip_file(file):
                         src_file = Path(root) / file
                         dst_file = backup_dir / file
-                        
+
                         try:
+                            file_size = src_file.stat().st_size
                             shutil.copy2(src_file, dst_file)
                             files_copied += 1
-                            
-                            # Real-time progress with file path
-                            progress = f"[{files_copied}/{total_files}]"
-                            file_path = str(src_file.relative_to(self.project_root))
-                            ColorPrint.print_progress(files_copied, total_files, f"Copying: {file_path}")
-                            
+                            bytes_copied += file_size
+
+                            # Update progress (every file or every 0.5 seconds)
+                            current_time = time.time()
+                            if current_time - last_update_time >= 0.5 or files_copied == total_files:
+                                last_update_time = current_time
+
+                                # Calculate progress
+                                percentage = (files_copied / total_files * 100) if total_files > 0 else 0
+                                elapsed_time = current_time - start_backup_time
+                                speed = files_copied / elapsed_time if elapsed_time > 0 else 0
+                                eta = (total_files - files_copied) / speed if speed > 0 else 0
+
+                                # Format file path (truncate if too long)
+                                file_rel_path = str(src_file.relative_to(self.project_root))
+                                max_path_len = 50
+                                if len(file_rel_path) > max_path_len:
+                                    file_rel_path = "..." + file_rel_path[-(max_path_len-3):]
+
+                                # Print progress line
+                                progress_msg = f"Progress: [{files_copied}/{total_files}] {percentage:.1f}% | {file_rel_path}"
+                                if eta < 3600:
+                                    progress_msg += f" | ETA: {int(eta)}s"
+
+                                # Use print with carriage return for updating same line
+                                print(f"\r{progress_msg}".ljust(100), end='', flush=True)
+
                         except Exception as e:
-                            ColorPrint.red(f"Warning: Could not copy {src_file}: {e}")
+                            print()  # New line before error
+                            SimpleColors.red(f"Warning: Could not copy {src_file}: {e}")
+
+            # Print final newline
+            print()
+            SimpleColors.blue("=" * 60)
             
             # Update metadata
+            total_backup_time = time.time() - start_backup_time
             metadata['files_count'] = files_copied
             metadata['directories_count'] = dirs_created
-            
+            metadata['backup_duration_seconds'] = total_backup_time
+            metadata['bytes_copied'] = bytes_copied
+
             # Save metadata
             metadata_file = self.backup_path / 'backup_metadata.json'
             with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
-            
-            ColorPrint.green(f"\nBackup completed successfully!")
-            ColorPrint.green(f"Files copied: {files_copied}")
-            ColorPrint.green(f"Directories created: {dirs_created}")
-            ColorPrint.green(f"Backup location: {self.backup_path}")
+
+            # Display summary
+            SimpleColors.green(f"\nBackup completed successfully!")
+            SimpleColors.blue("=" * 60)
+            SimpleColors.green(f"Files copied:       {files_copied}")
+            SimpleColors.green(f"Directories:        {dirs_created}")
+            SimpleColors.green(f"Total size:         {bytes_copied / (1024 * 1024):.2f} MB")
+            SimpleColors.green(f"Duration:           {total_backup_time:.2f}s")
+            SimpleColors.green(f"Speed:              {files_copied / total_backup_time:.1f} files/s")
+            SimpleColors.blue("=" * 60)
+            SimpleColors.blue(f"Backup location:    {self.backup_path}")
+            SimpleColors.blue("=" * 60)
             
         except Exception as e:
-            ColorPrint.red(f"Error during backup: {e}")
+            SimpleColors.red(f"Error during backup: {e}")
             # Clean up failed backup
             if self.backup_path.exists():
                 shutil.rmtree(self.backup_path)
-                ColorPrint.yellow("Cleaned up failed backup directory.")
+                SimpleColors.yellow("Cleaned up failed backup directory.")
 
     def should_skip_directory(self, dir_name: str) -> bool:
         """Check if directory should be skipped"""
@@ -382,13 +441,30 @@ class BackupManager:
 
 def main():
     """Main entry point"""
+    parser = argparse.ArgumentParser(description='Core Node Backup Manager')
+    parser.add_argument('--action', choices=['backup', 'restore', 'list'],
+                       required=True,
+                       help='Action to perform: backup, restore, or list')
+
+    args = parser.parse_args()
+
     try:
         manager = BackupManager()
-        manager.show_main_menu()
+
+        if args.action == 'backup':
+            manager.start_backup()
+        elif args.action == 'restore':
+            manager.restore_backup()
+        elif args.action == 'list':
+            manager.list_backups()
+
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
+        sys.exit(1)
     except Exception as e:
-        print(f"Error: {e}")
+        SimpleColors.red(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":

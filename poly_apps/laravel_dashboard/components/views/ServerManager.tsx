@@ -57,7 +57,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   
   // Nginx Sites State
   const [nginxSites, setNginxSites] = useState<AsyncState<NginxSite[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -74,7 +74,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   // SSL Certificates State
   const [sslCertificates, setSSLCertificates] = useState<AsyncState<SSLCertificate[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -95,19 +95,19 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [systemProcesses, setSystemProcesses] = useState<AsyncState<SystemProcess[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
   });
   const [systemStorage, setSystemStorage] = useState<AsyncState<SystemStorage[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
   });
   const [systemServices, setSystemServices] = useState<AsyncState<SystemServiceStatus[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -123,7 +123,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.getNginxSites();
       if (response.success && response.data) {
         setNginxSites({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -133,7 +133,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       setNginxSites({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -148,7 +148,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.getSSLCertificates();
       if (response.success && response.data) {
         setSSLCertificates({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -158,7 +158,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       setSSLCertificates({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -197,7 +197,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.getSystemProcesses();
       if (response.success && response.data) {
         setSystemProcesses({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -205,7 +205,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       setSystemProcesses({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -219,7 +219,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.getSystemStorage();
       if (response.success && response.data) {
         setSystemStorage({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -227,7 +227,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       setSystemStorage({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -241,7 +241,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await apiService.getSystemServices();
       if (response.success && response.data) {
         setSystemServices({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -249,7 +249,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       setSystemServices({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -441,10 +441,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await apiService.testNginxConfig();
       if (response.success && response.data) {
-        if (response.data.valid) {
+        if (response.data?.valid) {
           alert(messages.nginx_config_valid || 'Nginx configuration is valid!');
         } else {
-          alert(`${messages.nginx_config_errors || 'Configuration errors:'}\n${response.data.errors.join('\n')}`);
+          const errors = Array.isArray(response.data?.errors) ? response.data.errors : [];
+          alert(`${messages.nginx_config_errors || 'Configuration errors:'}\n${errors.join('\n')}`);
         }
       }
     } catch (error) {
@@ -779,53 +780,57 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                 <p className="text-red-600 dark:text-red-400">{systemInfo.error}</p>
               </div>
             )}
-            {systemInfo.data && (
+            {systemInfo.data && systemInfo.data.cpu && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className={`${commonClasses.card} p-4`}>
                   <h3 className="font-semibold mb-3">{t.system.cpu}</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                      <span className="text-sm font-mono">{systemInfo.data.cpu.usage}%</span>
+                      <span className="text-sm font-mono">{systemInfo.data.cpu?.usage || 0}%</span>
                     </div>
                     <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                       <div
                         className="bg-indigo-500 h-2 rounded-full transition-all"
-                        style={{ width: `${systemInfo.data.cpu.usage}%` }}
+                        style={{ width: `${systemInfo.data.cpu?.usage || 0}%` }}
                       />
                     </div>
                   </div>
                 </div>
-                <div className={`${commonClasses.card} p-4`}>
-                  <h3 className="font-semibold mb-3">{t.system.memory}</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                      <span className="text-sm font-mono">{systemInfo.data.memory.percentage}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                      <div
-                        className="bg-indigo-500 h-2 rounded-full transition-all"
-                        style={{ width: `${systemInfo.data.memory.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className={`${commonClasses.card} p-4`}>
-                  <h3 className="font-semibold mb-3">{t.system.disk}</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                      <span className="text-sm font-mono">{systemInfo.data.disk.percentage}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                      <div
-                        className="bg-indigo-500 h-2 rounded-full transition-all"
-                        style={{ width: `${systemInfo.data.disk.percentage}%` }}
-                      />
+                {systemInfo.data.memory && (
+                  <div className={`${commonClasses.card} p-4`}>
+                    <h3 className="font-semibold mb-3">{t.system.memory}</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
+                        <span className="text-sm font-mono">{systemInfo.data.memory?.percentage || 0}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                        <div
+                          className="bg-indigo-500 h-2 rounded-full transition-all"
+                          style={{ width: `${systemInfo.data.memory?.percentage || 0}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+                {systemInfo.data.disk && (
+                  <div className={`${commonClasses.card} p-4`}>
+                    <h3 className="font-semibold mb-3">{t.system.disk}</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
+                        <span className="text-sm font-mono">{systemInfo.data.disk?.percentage || 0}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                        <div
+                          className="bg-indigo-500 h-2 rounded-full transition-all"
+                          style={{ width: `${systemInfo.data.disk?.percentage || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1030,7 +1035,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 // File Manager Tab Component
 const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const [files, setFiles] = useState<AsyncState<ServerFileNode[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -1045,7 +1050,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       const response = await apiService.browseFiles(path);
       if (response.success && response.data) {
         setFiles({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -1054,7 +1059,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       }
     } catch (error: any) {
       setFiles({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -1141,7 +1146,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 // Code Executor Tab Component
 const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const [scripts, setScripts] = useState<AsyncState<PredefinedScript[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -1160,7 +1165,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
       const response = await apiService.listScripts();
       if (response.success && response.data) {
         setScripts({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -1168,7 +1173,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
       }
     } catch (error: any) {
       setScripts({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -1256,7 +1261,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
 // Unified Manager Tab Component
 const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   const [apps, setApps] = useState<AsyncState<UnifiedApp[]>>({
-    data: null,
+    data: [],
     loading: false,
     error: null,
     status: 'idle'
@@ -1276,7 +1281,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       const response = await apiService.getUnifiedApps();
       if (response.success && response.data) {
         setApps({
-          data: response.data,
+          data: Array.isArray(response.data) ? response.data : [],
           loading: false,
           error: null,
           status: 'success'
@@ -1284,7 +1289,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       }
     } catch (error: any) {
       setApps({
-        data: null,
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'

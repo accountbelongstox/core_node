@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
-import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../types';
+import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask, TaskItem } from '../../types';
 import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight, ChevronRight, ChevronDown, Eye, Save, Loader2, AlertCircle } from "lucide-react";
 import { commonClasses } from '../../styles/theme';
+import BentoCard from '../BentoCard';
+import FloatingTaskPlayer from '../FloatingTaskPlayer';
+import { MOCK_TASKS } from '../../constants';
 
 interface CodeBrowserProps {
   lang?: Language;

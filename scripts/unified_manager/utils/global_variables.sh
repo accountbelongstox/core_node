@@ -28,6 +28,10 @@ VARIABLE_KEYS=(
 
     [STATUS]="STATUS"
     [LAUNCH_COMMAND]="LAUNCH_COMMAND"
+    [EXECUTE_COMMAND]="EXECUTE_COMMAND"
+    [WORKING_DIRECTORY]="WORKING_DIRECTORY"
+    [SELECTED_APP_INDEX]="SELECTED_APP_INDEX"
+    [ACTION]="ACTION"
 
     [CURRENT_INDEX]="CURRENT_INDEX"
     [MAX_APP_NAME_WIDTH]="MAX_APP_NAME_WIDTH"
@@ -38,6 +42,9 @@ STATUS_VALUES=(
     [SCAN_COMPLETE]="scan_complete"
     [COMMAND_READY]="command_ready"
     [SELECTION_UPDATED]="selection_updated"
+    [MENU_EXIT]="menu_exit"
+    [MENU_RESCAN]="menu_rescan"
+    [EXECUTE_READY]="execute_ready"
     [ERROR_INVALID_INDEX]="error_invalid_index"
     [ERROR_INVALID_SCRIPT]="error_invalid_script"
 )
@@ -65,36 +72,40 @@ initialize_global_variables() {
         return 0
     fi
 
-    # Try system-wide directory first (with more robust permission handling)
-    local system_dir="/var/_core_node/_build_global_vars"
-    local user_home="$HOME"
-    local user_dir="$user_home/.core_node/.build_global_vars"
+    # Detect platform and set appropriate path
+    case "$(uname -s)" in
+        Linux*)
+            # Linux: /var/_core_node/_build_global_vars/
+            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
+            ;;
+        MINGW*|CYGWIN*|MSYS*)
+            # Windows: C:\Users\用户名\.core_node\.build_global_vars
+            GLOBAL_VARS_DIR="$HOME/.core_node/.build_global_vars"
+            ;;
+        Darwin*)
+            # macOS: /var/_core_node/_build_global_vars/
+            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
+            ;;
+        *)
+            # Default fallback
+            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
+            ;;
+    esac
 
-    # Try user directory first for better reliability
-    if has_write_permission "$(dirname "$user_dir")"; then
-        GLOBAL_VARS_DIR="$user_dir"
-        if ! mkdir -p "$GLOBAL_VARS_DIR" 2>/dev/null; then
+    # Create directory if it doesn't exist
+    if ! mkdir -p "$GLOBAL_VARS_DIR" 2>/dev/null; then
+        # Try with sudo if mkdir fails
+        if command -v sudo >/dev/null 2>&1; then
+            sudo mkdir -p "$GLOBAL_VARS_DIR" 2>/dev/null
+            sudo chmod 777 "$GLOBAL_VARS_DIR" 2>/dev/null
+        else
             echo "Error: Cannot create variables directory: $GLOBAL_VARS_DIR" >&2
             return 1
         fi
-        chmod 755 "$GLOBAL_VARS_DIR" 2>/dev/null
-    elif has_write_permission "$(dirname "$system_dir")"; then
-        GLOBAL_VARS_DIR="$system_dir"
-        if ! mkdir -p "$GLOBAL_VARS_DIR" 2>/dev/null; then
-            echo "Error: Cannot create variables directory: $GLOBAL_VARS_DIR" >&2
-            return 1
-        fi
-        chmod 755 "$GLOBAL_VARS_DIR" 2>/dev/null
-    else
-        # Final fallback to temp directory
-        local temp_dir="/tmp/.core_node_vars_${USER}_$$"
-        GLOBAL_VARS_DIR="$temp_dir"
-        if ! mkdir -p "$GLOBAL_VARS_DIR" 2>/dev/null; then
-            echo "Error: Cannot create variables directory: $GLOBAL_VARS_DIR" >&2
-            return 1
-        fi
-        chmod 700 "$GLOBAL_VARS_DIR" 2>/dev/null
     fi
+
+    # Ensure directory is writable
+    chmod 777 "$GLOBAL_VARS_DIR" 2>/dev/null || sudo chmod 777 "$GLOBAL_VARS_DIR" 2>/dev/null
 
     return 0
 }

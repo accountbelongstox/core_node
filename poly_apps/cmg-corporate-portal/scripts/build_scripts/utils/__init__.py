@@ -1,5 +1,4 @@
 """Utility modules for build system"""
-from .file_var_system_new import FileVarSystem
 from .init_build_config import (
     generate_app_name,
     generate_package_id,
@@ -46,7 +45,6 @@ from .key_center import (
 from .web_preview_server import show_preview
 
 __all__ = [
-    'FileVarSystem',
     'generate_app_name',
     'generate_package_id',
     'generate_display_name',

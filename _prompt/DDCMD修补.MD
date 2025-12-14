@@ -55,3 +55,10 @@ windows/liunx都只使用 入口作为调用py,最后命令会到shell中执行�
 跳过别的。 
 
 
+
+ dd.sh调用边中 > Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH)
+ 不加入一个菜单，调用 ./scripts/unified_manager/ 
+中的服务管理脚本，对于unified_manager 
+安装的脚本需要有识别误解，使用其中的管理可以重装／启动等。 
+
+给其设置，y

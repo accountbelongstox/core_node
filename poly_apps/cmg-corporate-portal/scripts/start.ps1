@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $BuildScriptsPath = Join-Path $ScriptDir "build_scripts"
 $MainController = Join-Path $BuildScriptsPath "main_controller.py"
-$WindowsExecutor = Join-Path $BuildScriptsPath "execute_commands_windows_new.ps1"
+$WindowsExecutor = Join-Path $BuildScriptsPath "execute_commands_windows.ps1"
 
 # ============================================
 # UTILITY FUNCTIONS
