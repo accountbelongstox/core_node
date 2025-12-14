@@ -71,10 +71,10 @@ for file_rel in files:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
             count += 1
-            print(f"✓ {file_rel}")
+            print(f"[OK] {file_rel}")
         else:
-            print(f"- {file_rel} (no change)")
+            print(f"[--] {file_rel} (no change)")
     except Exception as e:
-        print(f"✗ {file_rel}: {e}")
+        print(f"[ERR] {file_rel}: {e}")
 
 print(f"\n{count} files updated")

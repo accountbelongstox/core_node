@@ -10,7 +10,6 @@ Handles:
 - Process cleanup on shutdown
 """
 
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
@@ -19,6 +18,7 @@ from typing import Optional, Dict, List
 from pathlib import Path
 from dataclasses import dataclass
 from pycore import ColorPrint
+import subprocess
 
 
 @dataclass

@@ -15,7 +15,6 @@ Main Functions:
 """
 
 import sys
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 from typing import Dict, Optional

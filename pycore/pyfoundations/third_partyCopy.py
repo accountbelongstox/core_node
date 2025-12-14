@@ -14,7 +14,6 @@ The module automatically checks and installs missing packages on first import.
 
 import os
 import sys
-import subprocess
 import importlib
 import importlib.util
 import platform

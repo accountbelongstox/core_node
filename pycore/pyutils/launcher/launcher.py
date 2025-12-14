@@ -10,6 +10,7 @@ import platform
 import os
 import tempfile
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+import subprocess
 
 # Add project root to Python path to enable pycore imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent

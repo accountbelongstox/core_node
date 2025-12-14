@@ -6,7 +6,6 @@ Provides detailed installation guidance and device information
 
 import os
 import sys
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import platform
 from typing import Optional, Tuple, Dict

@@ -9,7 +9,6 @@ Provides status checking and diagnostic tools for Device Sync.
 import sys
 import os
 import socket
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile

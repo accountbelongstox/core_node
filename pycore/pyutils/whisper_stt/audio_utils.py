@@ -14,7 +14,6 @@ Dependencies:
 """
 
 import os
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import tempfile
 import platform

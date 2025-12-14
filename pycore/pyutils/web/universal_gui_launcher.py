@@ -14,6 +14,7 @@ import webbrowser
 from typing import Dict, List, Callable, Optional, Any
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
+import subprocess
 
 
 class SystemTrayManager:

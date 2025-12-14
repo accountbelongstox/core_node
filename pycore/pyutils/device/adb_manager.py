@@ -12,7 +12,6 @@ Design Principles:
 - Type-safe interfaces
 """
 
-import subprocess
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import re
 import shlex
@@ -21,6 +20,7 @@ from typing import List, Optional, Tuple
 import time
 
 from pycore.pyutils.device.adb_types import (
+import subprocess
     ADBDeviceBasic,
     ADBDeviceState,
     ADBExecuteResult,
