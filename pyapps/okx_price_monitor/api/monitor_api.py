@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from pyapps.okx_price_monitor.services.monitor_manager import get_monitor_manager
 from pyapps.okx_price_monitor.core.monitor_config import monitor_config
+from pyapps.okx_price_monitor.services.backtest_engine import get_backtest_engine
 
 
 class MonitorAPI:
@@ -208,6 +209,110 @@ class MonitorAPI:
         }
 
 
+class TradingAPI:
+    """
+    Trading API Handler
+
+    Provides all RPC endpoints for simulated trading.
+    """
+
+    def __init__(self):
+        """Initialize API"""
+        self.engine = get_backtest_engine()
+
+    async def get_trading_summary(self, params: Dict, request_id: str, context: Dict) -> Dict:
+        """
+        Get trading performance summary
+
+        Returns:
+            Dict: Trading performance metrics
+        """
+        summary = self.engine.get_performance_summary()
+
+        return {
+            'success': True,
+            'data': summary
+        }
+
+    async def get_active_positions(self, params: Dict, request_id: str, context: Dict) -> Dict:
+        """
+        Get all active positions
+
+        Returns:
+            Dict: Active positions list
+        """
+        positions = []
+
+        for coin_symbol, position in self.engine.positions.items():
+            positions.append({
+                'coin': coin_symbol,
+                'entry_price': position.entry_price,
+                'entry_time': position.entry_time,
+                'size': position.size,
+                'side': position.side.value
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'count': len(positions),
+                'positions': positions
+            }
+        }
+
+    async def get_trade_history(self, params: Dict, request_id: str, context: Dict) -> Dict:
+        """
+        Get trade history
+
+        Args:
+            params: {'limit': 100}
+
+        Returns:
+            Dict: Trade history
+        """
+        limit = params.get('limit', 100)
+
+        # Get recent trades
+        trades = []
+        for trade in reversed(self.engine.trade_history[-limit:]):
+            trades.append({
+                'coin': trade.coin_symbol,
+                'entry_price': trade.entry_price,
+                'entry_time': trade.entry_time,
+                'exit_price': trade.exit_price,
+                'exit_time': trade.exit_time,
+                'size': trade.size,
+                'pnl': trade.pnl,
+                'pnl_percent': trade.pnl_percent,
+                'side': trade.side.value
+            })
+
+        return {
+            'success': True,
+            'data': {
+                'count': len(trades),
+                'trades': trades
+            }
+        }
+
+    async def get_balance(self, params: Dict, request_id: str, context: Dict) -> Dict:
+        """
+        Get current balance
+
+        Returns:
+            Dict: Balance information
+        """
+        return {
+            'success': True,
+            'data': {
+                'initial_balance': self.engine.initial_balance,
+                'current_balance': self.engine.balance,
+                'profit_loss': self.engine.balance - self.engine.initial_balance,
+                'profit_loss_percent': ((self.engine.balance - self.engine.initial_balance) / self.engine.initial_balance) * 100
+            }
+        }
+
+
 def register_monitor_routes(server):
     """
     Register all monitor API routes
@@ -216,7 +321,9 @@ def register_monitor_routes(server):
         server: FastAPIRPCServer instance
     """
     api = MonitorAPI()
+    trading_api = TradingAPI()
 
+    # Monitor routes
     server.route("monitor.stats", api.get_stats, description="Get system statistics")
     server.route("monitor.coins_list", api.get_coins_list, description="Get all coins with record counts")
     server.route("monitor.coin_summary", api.get_coin_summary, description="Get specific coin summary")
@@ -227,4 +334,10 @@ def register_monitor_routes(server):
     server.route("monitor.start", api.start_monitoring, description="Start monitoring")
     server.route("monitor.stop", api.stop_monitoring, description="Stop monitoring")
 
-    print("[API] Registered 9 monitor routes")
+    # Trading routes
+    server.route("trading.summary", trading_api.get_trading_summary, description="Get trading performance summary")
+    server.route("trading.positions", trading_api.get_active_positions, description="Get active positions")
+    server.route("trading.history", trading_api.get_trade_history, description="Get trade history")
+    server.route("trading.balance", trading_api.get_balance, description="Get current balance")
+
+    print("[API] Registered 9 monitor routes + 4 trading routes")

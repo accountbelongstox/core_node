@@ -54,7 +54,7 @@ window.AppMenu = (function() {
      * Render left menu
      */
     function renderLeftMenu() {
-        const container = document.getElementById('left-nav-items');
+        const container = document.getElementById('left-menu-items');
 
         if (!container) {
             console.warn('[Menu] Left menu container not found');

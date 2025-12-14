@@ -26,7 +26,7 @@ param(
 
 .PARAMETER SkipInitialization
     When this switch is provided, the script will skip Process-PsFiles and Process-Directories operations.
-    This parameter is used when returning from other scripts (like unified_manager.ps1) to avoid redundant processing
+    This parameter is used when returning from other scripts (like unified_manager_windows.ps1) to avoid redundant processing
     and provide faster menu display.
 
 .EXAMPLE
@@ -173,7 +173,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager.ps1"
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager_windows.ps1"
             $shellCandidates = @('pwsh', 'powershell')
             $shellExecutable = $null
 
@@ -185,7 +185,7 @@ $script:MenuItems = @(
             }
 
             if ($null -eq $shellExecutable) {
-                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager.ps1" -Type "Error"
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager_windows.ps1" -Type "Error"
                 Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
                 return
