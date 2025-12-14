@@ -18,6 +18,7 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
+use App\Traits\ApiResponse;
 
 /**
  * Untranslated Words Query Controller
@@ -25,6 +26,13 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
  */
 class AppQyV1UntranslatedWordsController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     protected $markerManager;
 
     public function __construct()
@@ -57,7 +65,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
         $limit = min(max($limit, 1), 500); // Between 1 and 500
         $offset = max($offset, 0);
 
-        try {
             // Build query based on filter criteria
             $query = AppQyV1DictionaryModel::query();
 
@@ -220,12 +227,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to retrieve untranslated words: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -236,7 +237,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
      */
     protected function getUntranslatedStatistics(): array
     {
-        try {
             $totalWords = AppQyV1DictionaryModel::count();
             
             $missingTranslation = AppQyV1DictionaryModel::where(function ($q) {
@@ -297,11 +297,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
                 ]
             ];
 
-        } catch (\Exception $e) {
-            return [
-                'error' => 'Failed to calculate statistics: ' . $e->getMessage()
-            ];
-        }
     }
 
     /**
@@ -315,7 +310,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
         $limit = $request->input('limit', 50);
         $minPriority = $request->input('min_priority', 5.0);
 
-        try {
             $words = AppQyV1DictionaryModel::select([
                 'id',
                 'content',
@@ -366,12 +360,6 @@ class AppQyV1UntranslatedWordsController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to get priority words: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**

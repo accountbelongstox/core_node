@@ -21,8 +21,16 @@ use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryPublicController as PDAPublic;
-class AppQyV1PersonalDictionaryCreationController 
+use App\Traits\ApiResponse;
+class AppQyV1PersonalDictionaryCreationController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
 
     public function createPersonalDictionary(Request $request)
     {   

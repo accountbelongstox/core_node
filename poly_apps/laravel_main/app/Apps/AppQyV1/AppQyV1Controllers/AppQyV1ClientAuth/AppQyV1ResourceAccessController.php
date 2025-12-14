@@ -16,9 +16,17 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1ClientAuth;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
+use App\Traits\ApiResponse;
 
 class AppQyV1ResourceAccessController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Validate resource access key
      */

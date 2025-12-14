@@ -6,7 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VocabularyUploadC
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VocabularyRecommendationController;
 
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function () {
 

@@ -20,8 +20,17 @@ use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use App\Http\Common\CommonUserGen;
 use App\Models\InviteCode;
+use App\Traits\ApiResponse;
+
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Handle an incoming registration request.
      *
@@ -29,7 +38,6 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
      */
     public function apiStore(Request $request): Response | JsonResponse
     {
-        try {
             $request->validate([
                 'username' => ['required', 'string', 'max:255'],
                 'password' => ['required', 'string', 'min:6', 'max:255'],
@@ -43,10 +51,22 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                 ], 400);
             }
 
-            $email = $request->email ?? "";
-            $nickname = $request->nickname ?? "";
-            $name = $request->name ?? "";
-            $inviteCode = $request->invite_code ?? $request->registration_code ?? null;
+            $email = "";
+            if (isset($request->email)) {
+                $email = $request->email;
+            }
+            $nickname = "";
+            if (isset($request->nickname)) {
+                $nickname = $request->nickname;
+            }
+            $name = "";
+            if (isset($request->name)) {
+                $name = $request->name;
+            }
+            $inviteCode = $request->registration_code ?? null;
+            if (isset($request->invite_code)) {
+                $inviteCode = $request->invite_code;
+            }
 
             $roleLevel = 0;
             $roleName = 'user';
@@ -128,25 +148,6 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                     'role_name' => $roleName
                 ]);
             }
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-                'code' => 422,
-                'status' => 'error',
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('[AppQyV1Registration] Unexpected error', [
-                'username' => $request->username ?? 'unknown',
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'message' => 'Registration failed: ' . $e->getMessage(),
-                'code' => 500,
-                'status' => 'error',
-            ], 500);
-        }
 
         $user = $userData['user'];
         $token = $userData['token'];

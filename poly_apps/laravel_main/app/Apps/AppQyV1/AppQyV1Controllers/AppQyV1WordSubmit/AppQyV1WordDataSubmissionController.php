@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\File;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
+use App\Traits\ApiResponse;
 
 /**
  * Word Data Submission Controller
@@ -28,6 +29,13 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
  */
 class AppQyV1WordDataSubmissionController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     protected $storageManager;
     protected $markerManager;
 
@@ -74,7 +82,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
             ], 422);
         }
 
-        try {
             // Find or create word entry
             $dictionary = AppQyV1DictionaryModel::findByContent($word);
             
@@ -133,12 +140,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to submit translation: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -175,7 +176,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
             ], 422);
         }
 
-        try {
             $audioFile = $request->file('audio');
             $audioType = $request->input('type', 'word');
             $audioQuality = $request->input('quality', 'medium');
@@ -252,12 +252,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to upload audio: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -294,7 +288,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
             ], 422);
         }
 
-        try {
             $images = $request->file('images');
             $descriptions = $request->input('descriptions', []);
             $uploadedImages = [];
@@ -362,12 +355,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to upload images: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -399,7 +386,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
             ], 422);
         }
 
-        try {
             $results = [];
 
             // Submit translation first
@@ -425,12 +411,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
                 'results' => $results
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to submit complete word data: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -442,7 +422,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
      */
     protected function validateAudioFile($audioFile): array
     {
-        try {
             $path = $audioFile->getPathName();
             $size = $audioFile->getSize();
             $mimeType = $audioFile->getMimeType();
@@ -460,12 +439,11 @@ class AppQyV1WordDataSubmissionController extends BaseController
             // Try to get audio duration (optional)
             $duration = null;
             if (function_exists('getid3_analyze')) {
-                try {
-                    $getID3 = new \getID3();
-                    $fileInfo = $getID3->analyze($path);
-                    $duration = $fileInfo['playtime_seconds'] ?? null;
-                } catch (\Exception $e) {
-                    // Duration extraction failed, but file might still be valid
+                $getID3 = new \getID3();
+                $fileInfo = $getID3->analyze($path);
+                $duration = null;
+                if (isset($fileInfo['playtime_seconds'])) {
+                    $duration = $fileInfo['playtime_seconds'];
                 }
             }
 
@@ -475,10 +453,6 @@ class AppQyV1WordDataSubmissionController extends BaseController
                 'size' => $size,
                 'mime_type' => $mimeType
             ];
-
-        } catch (\Exception $e) {
-            return ['valid' => false, 'error' => 'File validation failed: ' . $e->getMessage()];
-        }
     }
 
     /**

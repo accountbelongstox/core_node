@@ -7,6 +7,9 @@
  * - JSON Formatter
  * - Base64 Converter
  * - And more...
+ *
+ * Note: All IT Tools components now use centralized ITToolsModel from core/models
+ * for consistent API calls and state management
  */
 
 export { HashGenerator } from './HashGenerator';

@@ -21,11 +21,22 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Utils\ParameterTool;
+use App\Traits\ApiResponse;
 class AppQyV1WordGroupQueryPublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static function valideGidGname($gname, $gid, )
     {
-        $gcredential = $gname ?? $gid;
+        $gcredential = $gid;
+        if (isset($gname)) {
+            $gcredential = $gname;
+        }
         $isGname = $gname ? true : false;
         $status = "success";
         $success = true;
@@ -62,7 +73,10 @@ class AppQyV1WordGroupQueryPublicController
             }
             if (!$existGroup && $queryByGname == true) {
                 $newGid = Str::uuid()->toString();
-                $newGname = $gcredential ?? StrTool::genGnameByTimeAndUUID();
+                $newGname = StrTool::genGnameByTimeAndUUID();
+                if (isset($gcredential)) {
+                    $newGname = $gcredential;
+                }
                 $isNewGroup = true;
                 $existGroup = new WordGroup([
                     'gid' => $newGid,
@@ -187,7 +201,10 @@ class AppQyV1WordGroupQueryPublicController
         $gcontent = $request->input('gcontent');
         $gwords = $request->input('gwords');
         $gid = $request->input('gid');
-        $sort_by = $request->input('sort_by') ?? 'read';
+        $sort_by = 'read';
+        if ($request->has('sort_by')) {
+            $sort_by = $request->input('sort_by');
+        }
         $sort_asc = ParameterTool::getBoolPriorityTrue($request, 'sort_asc');
         $sort_frequency = ParameterTool::getBoolPriorityTrue($request, 'sort_frequency');
         $query_soft_delete = ParameterTool::getBoolPriorityFalse($request, 'query_soft_delete');

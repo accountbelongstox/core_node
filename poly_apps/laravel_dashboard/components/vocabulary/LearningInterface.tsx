@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle, RefreshCw, Star, Volume2, ArrowLeft, ArrowRight, TrendingUp } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface LearningInterfaceProps {
@@ -23,7 +23,7 @@ const LearningInterface: React.FC<LearningInterfaceProps> = ({ onBack }) => {
   const loadWords = async () => {
     setLoading(true);
     try {
-      const response = await apiService.appQyV1GetLearningWords({ limit: 20 });
+      const response = await api.appQyV1.getLearningWords({ limit: 20 });
       if (response.success && response.data) {
         setWords(response.data.words || response.data);
       }
@@ -36,7 +36,7 @@ const LearningInterface: React.FC<LearningInterfaceProps> = ({ onBack }) => {
 
   const loadStats = async () => {
     try {
-      const response = await apiService.appQyV1GetLearningStats();
+      const response = await api.appQyV1.getStats();
       if (response.success && response.data) {
         setStats(response.data);
       }
@@ -50,7 +50,7 @@ const LearningInterface: React.FC<LearningInterfaceProps> = ({ onBack }) => {
 
     setUpdating(true);
     try {
-      const response = await apiService.appQyV1UpdateProgress({
+      const response = await api.appQyV1.updateProgress({
         word_id: words[currentIndex].id,
         status
       });
