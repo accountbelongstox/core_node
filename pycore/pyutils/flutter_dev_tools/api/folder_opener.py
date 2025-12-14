@@ -1,6 +1,7 @@
 """Folder opener for different operating systems"""
 
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from pathlib import Path
 from typing import Dict, Any

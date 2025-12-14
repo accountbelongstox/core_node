@@ -28,6 +28,7 @@ import logging
 import os
 import sys
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import importlib
 import time
 from pathlib import Path
@@ -119,7 +120,7 @@ class PackageManager:
 
                     try:
                         stdout, stderr = process.communicate(timeout=timeout)
-                        if process.returncode == 0:
+                        if process.return_code == 0:
                             logger.info(f"[OK] {package_name} installed successfully")
                             PackageManager._installation_status[package_name] = True
                             return True

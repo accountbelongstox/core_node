@@ -8,11 +8,11 @@ Provides unified command execution with real-time output and result collection
 import os
 import sys
 import platform
-import subprocess
 import shutil
 import re
 from typing import Optional, Union, List, Tuple
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.safe_subprocess import subprocess
 
 
 class CommandResult:
@@ -110,6 +110,8 @@ class Commander:
                 executable="/bin/bash",
                 bufsize=1,
                 universal_newlines=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=cwd
             )
         else:
@@ -124,6 +126,8 @@ class Commander:
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 universal_newlines=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=cwd
             )
     
@@ -296,4 +300,76 @@ def exec_capture(command: Union[str, List], info: bool = True, cwd: Optional[str
 def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str] = None) -> CommandResult:
     """Execute command silently but still collect results"""
     return Commander.exec_silent(command, info, cwd)
+
+
+def exec_check(command: Union[str, List], cwd: Optional[str] = None) -> str:
+    """
+    Execute command and return stdout if successful, raise exception if failed
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+
+    Returns:
+        stdout as string
+
+    Raises:
+        RuntimeError: If command fails
+    """
+    result = Commander.exec_silent(command, info=False, cwd=cwd)
+    if not result.success:
+        raise RuntimeError(f"Command failed with code {result.return_code}: {result.stderr}")
+    return result.stdout
+
+
+def command_exists(command: str) -> bool:
+    """
+    Check if a command exists in PATH
+
+    Args:
+        command: Command name to check
+
+    Returns:
+        True if command exists
+    """
+    executable = Commander._get_executable(command)
+    return executable is not None
+
+
+def get_command_output(command: Union[str, List], cwd: Optional[str] = None) -> str:
+    """
+    Execute command and return stdout (silent mode)
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+
+    Returns:
+        stdout as string
+    """
+    result = Commander.exec_silent(command, info=False, cwd=cwd)
+    return result.stdout
+
+
+def run_background(command: Union[str, List], cwd: Optional[str] = None) -> subprocess.Popen:
+    """
+    Run command in background (detached process)
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+
+    Returns:
+        Popen process object
+    """
+    command_str, executable = Commander._prepare_command(command)
+
+    return subprocess.Popen(
+        command_str,
+        shell=True,
+        cwd=cwd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL
+    )
 

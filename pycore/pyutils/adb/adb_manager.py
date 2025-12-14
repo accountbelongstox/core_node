@@ -1,6 +1,7 @@
 """ADB 管理器 - 无状态工具类"""
 
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import re
 from pathlib import Path
 from typing import List, Optional
@@ -44,7 +45,7 @@ class ADBManager:
             ADBCommandFailedException: 命令执行失败
         """
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 command,
                 capture_output=True,
                 text=True,
@@ -52,10 +53,10 @@ class ADBManager:
                 timeout=timeout
             )
 
-            if check and result.returncode != 0:
+            if check and result.return_code != 0:
                 raise ADBCommandFailedException(
                     command=' '.join(command),
-                    return_code=result.returncode,
+                    return_code=result.return_code,
                     stderr=result.stderr
                 )
 
@@ -188,7 +189,7 @@ class ADBManager:
             str(local_path), remote_path
         ], check=False)
 
-        return result.returncode == 0
+        return result.return_code == 0
 
     @classmethod
     def execute_shell(

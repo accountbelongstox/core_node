@@ -15,6 +15,7 @@ Strategy:
 import json
 import socket
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import platform
 from typing import Optional, Dict
 from pathlib import Path
@@ -286,20 +287,20 @@ class NetworkCache:
         try:
             if system == 'windows':
                 # Windows: ping -n 1 -w 1000 192.168.1.1
-                result = subprocess.run(
+                result = exec_silent(
                     ['ping', '-n', '1', '-w', str(timeout * 1000), ip],
                     capture_output=True,
                     timeout=timeout + 1
                 )
             else:
                 # Linux/Mac: ping -c 1 -W 1 192.168.1.1
-                result = subprocess.run(
+                result = exec_silent(
                     ['ping', '-c', '1', '-W', str(timeout), ip],
                     capture_output=True,
                     timeout=timeout + 1
                 )
 
-            return result.returncode == 0
+            return result.return_code == 0
 
         except Exception as e:
             logger.debug(f"Ping {ip} failed: {e}")

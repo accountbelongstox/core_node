@@ -5,6 +5,7 @@ Executes batch files via explorer to ensure independent processes
 """
 
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import os
 from pathlib import Path
 

@@ -17,10 +17,10 @@ Features:
 import os
 import sys
 import platform
-import subprocess
 import stat
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from pycore.pyfoundations.pybasecommon import exec_silent
 
 
 @dataclass
@@ -83,12 +83,8 @@ def get_screen_resolution() -> Optional[ScreenInfo]:
 
     elif system == 'Linux':
         # Try xrandr first
-        result = subprocess.run(
-            ['xrandr'],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
+        result = exec_silent(['xrandr'], info=False)
+        if result.return_code == 0:
             for line in result.stdout.split('\n'):
                 if ' connected' in line and 'primary' in line:
                     # Parse line like: "eDP-1 connected primary 1920x1080+0+0"
@@ -100,12 +96,8 @@ def get_screen_resolution() -> Optional[ScreenInfo]:
                             return ScreenInfo(width=int(width), height=int(height))
 
         # Fallback: Try xdpyinfo
-        result = subprocess.run(
-            ['xdpyinfo'],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
+        result = exec_silent(['xdpyinfo'], info=False)
+        if result.return_code == 0:
             width, height = None, None
             for line in result.stdout.split('\n'):
                 if 'dimensions:' in line:
@@ -234,13 +226,9 @@ def get_linux_disk_info() -> List[DiskInfo]:
     disks = []
 
     # Run df -h
-    result = subprocess.run(
-        ['df', '-h'],
-        capture_output=True,
-        text=True
-    )
+    result = exec_silent(['df', '-h'], info=False)
 
-    if result.returncode == 0:
+    if result.return_code == 0:
         lines = result.stdout.strip().split('\n')
 
         # Skip header line

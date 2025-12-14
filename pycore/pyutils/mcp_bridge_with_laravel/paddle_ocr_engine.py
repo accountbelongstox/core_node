@@ -15,6 +15,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 import tempfile
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 from ocr_config import OCRLimits, APIKeys
 
@@ -340,13 +341,13 @@ def install_paddleocr_dependencies() -> Dict[str, Any]:
         print("Installing PaddleOCR dependencies...")
 
         # Install PaddlePaddle CPU version first
-        result1 = subprocess.run([
+        result1 = exec_silent([
             sys.executable, "-m", "pip", "install",
             "paddlepaddle==3.0.0",
             "-i", "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
         ], capture_output=True, text=True, timeout=300)
 
-        if result1.returncode != 0:
+        if result1.return_code != 0:
             return {
                 "success": False,
                 "error": "Failed to install PaddlePaddle",
@@ -354,11 +355,11 @@ def install_paddleocr_dependencies() -> Dict[str, Any]:
             }
 
         # Install PaddleOCR
-        result2 = subprocess.run([
+        result2 = exec_silent([
             sys.executable, "-m", "pip", "install", "paddleocr"
         ], capture_output=True, text=True, timeout=300)
 
-        if result2.returncode != 0:
+        if result2.return_code != 0:
             return {
                 "success": False,
                 "error": "Failed to install PaddleOCR",

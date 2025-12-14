@@ -51,6 +51,7 @@ class DesktopIconGenerator:
             try:
                 # Try to install Pillow
                 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
                 import sys
                 print("[INFO] Installing Pillow for PNG to ICO conversion...")
                 subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])

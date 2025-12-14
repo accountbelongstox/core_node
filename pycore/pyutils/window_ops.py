@@ -5,6 +5,7 @@ import ctypes
 import ctypes.wintypes
 import time
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any, Union

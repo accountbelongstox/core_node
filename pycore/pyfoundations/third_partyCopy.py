@@ -176,14 +176,14 @@ def check_system_package_installed(package_name: str) -> bool:
     """
     try:
         # Use dpkg to check if package is installed
-        result = subprocess.run(
+        result = exec_silent(
             ["dpkg", "-l", package_name],
             capture_output=True,
             text=True,
             check=False
         )
         # If package is installed, dpkg -l will show it (exit code 0 and output contains package)
-        return result.returncode == 0 and package_name in result.stdout
+        return result.return_code == 0 and package_name in result.stdout
     except (FileNotFoundError, subprocess.SubprocessError):
         # dpkg not available or error occurred
         return False
@@ -205,7 +205,7 @@ def install_system_packages():
     
     # Check if apt-get is available
     try:
-        subprocess.run(["which", "apt-get"], capture_output=True, check=True)
+        exec_silent(["which", "apt-get"], capture_output=True, check=True)
     except (FileNotFoundError, subprocess.SubprocessError):
         ColorPrint.blue("[INFO] apt-get not available, skipping system package check")
         return
@@ -217,12 +217,12 @@ def install_system_packages():
     else:
         # Check if sudo is available and we can use it
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 ["sudo", "-n", "true"],
                 capture_output=True,
                 check=False
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 has_sudo = True
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
@@ -247,14 +247,14 @@ def install_system_packages():
             # Fix broken packages first (if any)
             ColorPrint.blue("[INFO] Checking for broken packages and fixing if needed...")
             fix_cmd = ["sudo", "apt", "--fix-broken", "install", "-y"]
-            fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, check=False)
-            if fix_result.returncode == 0:
+            fix_result = exec_silent(fix_cmd, capture_output=True, text=True, check=False)
+            if fix_result.return_code == 0:
                 ColorPrint.green("[OK] Broken packages fixed (or none found)")
             else:
                 # Try alternative command
                 fix_cmd2 = ["sudo", "apt", "-f", "install", "-y"]
-                fix_result2 = subprocess.run(fix_cmd2, capture_output=True, text=True, check=False)
-                if fix_result2.returncode == 0:
+                fix_result2 = exec_silent(fix_cmd2, capture_output=True, text=True, check=False)
+                if fix_result2.return_code == 0:
                     ColorPrint.green("[OK] Broken packages fixed (or none found)")
                 else:
                     ColorPrint.yellow("[WARNING] Could not fix broken packages, continuing anyway...")
@@ -262,12 +262,12 @@ def install_system_packages():
             # Update package list
             ColorPrint.blue("[INFO] Updating package list...")
             update_cmd = ["sudo", "apt-get", "update", "-qq"]
-            subprocess.run(update_cmd, check=True)
+            exec_silent(update_cmd, check=True)
             
             # Install missing packages
             install_cmd = ["sudo", "apt-get", "install", "-y"] + missing_packages
             ColorPrint.blue(f"[INFO] Installing system packages: {', '.join(missing_packages)}")
-            result = subprocess.run(install_cmd, check=True)
+            result = exec_silent(install_cmd, check=True)
             
             ColorPrint.green(f"[SUCCESS] Successfully installed system packages: {', '.join(missing_packages)}")
         except subprocess.CalledProcessError as e:
@@ -287,7 +287,7 @@ def build_pip_install_command(package_name: str) -> list:
         package_name: The package name to install
     
     Returns:
-        List of command arguments for subprocess.run()
+        List of command arguments for exec_silent()
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]

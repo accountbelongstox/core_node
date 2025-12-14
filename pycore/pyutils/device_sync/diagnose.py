@@ -9,6 +9,7 @@ import sys
 import os
 import socket
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
 
@@ -64,7 +65,7 @@ def check_process():
     print("[3] Checking for pythonw.exe process...")
 
     try:
-        result = subprocess.run(
+        result = exec_silent(
             ['tasklist', '/FI', 'IMAGENAME eq pythonw.exe', '/FO', 'CSV'],
             capture_output=True,
             text=True,

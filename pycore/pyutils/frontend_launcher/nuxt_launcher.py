@@ -9,6 +9,7 @@ import sys
 import time
 import platform
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import tempfile
 from pathlib import Path
 from typing import Optional

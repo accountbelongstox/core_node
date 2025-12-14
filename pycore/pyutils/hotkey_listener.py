@@ -10,6 +10,7 @@ import sys
 import time
 import threading
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
@@ -35,14 +36,14 @@ def _auto_install_dependencies():
             ColorPrint.blue(f"[AUTO-INSTALL] Installing {package}...")
             try:
                 # Use python -m pip install to ensure we use the correct pip
-                result = subprocess.run(
+                result = exec_silent(
                     [python_exe, '-m', 'pip', 'install', package],
                     capture_output=True,
                     text=True,
                     timeout=60  # 60 second timeout
                 )
                 
-                if result.returncode == 0:
+                if result.return_code == 0:
                     ColorPrint.green(f"[AUTO-INSTALL] Successfully installed {package}")
                 else:
                     ColorPrint.red(f"[AUTO-INSTALL] Failed to install {package}: {result.stderr}")

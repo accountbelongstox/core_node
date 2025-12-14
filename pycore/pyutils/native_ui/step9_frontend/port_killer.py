@@ -9,9 +9,9 @@ Supports Windows and Linux/macOS.
 
 import os
 import platform
-import subprocess
 from typing import List, Optional
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon import exec_silent
 
 
 def kill_process_on_port(port: int, force: bool = True) -> bool:
@@ -49,14 +49,9 @@ def _kill_port_windows(port: int, force: bool) -> bool:
         ColorPrint.blue(f"[PortKiller] [Windows] Finding process on port {port}...")
 
         # netstat -ano | findstr :<port>
-        result = subprocess.run(
-            ["netstat", "-ano"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = exec_silent("netstat -ano", info=False)
 
-        if result.returncode != 0:
+        if result.return_code != 0:
             ColorPrint.yellow(f"[PortKiller] netstat failed: {result.stderr}")
             return False
 
@@ -88,14 +83,9 @@ def _kill_port_windows(port: int, force: bool) -> bool:
                     cmd.insert(1, "/F")
 
                 ColorPrint.blue(f"[PortKiller] Killing PID {pid}...")
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                result = exec_silent(cmd, info=False)
 
-                if result.returncode == 0:
+                if result.return_code == 0:
                     ColorPrint.green(f"[PortKiller] Successfully killed PID {pid}")
                     killed_count += 1
                 else:
@@ -132,14 +122,9 @@ def _kill_port_unix(port: int, force: bool) -> bool:
         ColorPrint.blue(f"[PortKiller] [Unix] Finding process on port {port}...")
 
         # lsof -ti :<port>
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = exec_silent(["lsof", "-ti", f":{port}"], info=False)
 
-        if result.returncode != 0:
+        if result.return_code != 0:
             # Port is free (lsof returns 1 if nothing found)
             ColorPrint.green(f"[PortKiller] Port {port} is free")
             return True
@@ -165,14 +150,9 @@ def _kill_port_unix(port: int, force: bool) -> bool:
             try:
                 # kill -9/-15 <pid>
                 ColorPrint.blue(f"[PortKiller] Killing PID {pid} (signal {signal})...")
-                result = subprocess.run(
-                    ["kill", signal, str(pid)],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                result = exec_silent(["kill", signal, str(pid)], info=False)
 
-                if result.returncode == 0:
+                if result.return_code == 0:
                     ColorPrint.green(f"[PortKiller] Successfully killed PID {pid}")
                     killed_count += 1
                 else:
@@ -212,14 +192,9 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
     try:
         if system == "Windows":
             # netstat -ano | findstr :<port>
-            result = subprocess.run(
-                ["netstat", "-ano"],
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
+            result = exec_silent("netstat -ano", info=False)
 
-            if result.returncode != 0:
+            if result.return_code != 0:
                 return True  # Command failed, assume available
 
             # Check if port appears in LISTENING state
@@ -232,15 +207,10 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
 
         else:
             # Unix: lsof -ti :<port>
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
+            result = exec_silent(["lsof", "-ti", f":{port}"], info=False)
 
             # lsof returns 1 if nothing found (port available)
-            return result.returncode != 0
+            return result.return_code != 0
 
     except FileNotFoundError:
         ColorPrint.yellow("[PortKiller] Command not found, assuming port available")

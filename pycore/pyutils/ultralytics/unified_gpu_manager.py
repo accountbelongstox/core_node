@@ -19,6 +19,7 @@ Features:
 
 import sys
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import platform
 import importlib.util
 from typing import Optional, Dict, Tuple, List
@@ -139,13 +140,13 @@ class UnifiedGPUManager:
     def _detect_nvidia_gpu(self) -> bool:
         """Detect NVIDIA GPU via nvidia-smi"""
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 lines = result.stdout.strip().split('\n')
                 if lines:
                     parts = lines[0].split(',')
@@ -164,13 +165,13 @@ class UnifiedGPUManager:
     def _detect_amd_gpu(self) -> bool:
         """Detect AMD GPU via rocm-smi"""
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 ["rocm-smi", "--showproductname"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 self.gpu_type = 'amd'
                 self.gpu_name = result.stdout.strip()
                 return True
@@ -312,13 +313,13 @@ class UnifiedGPUManager:
             self._print(f"[INFO] Installing PyTorch for CUDA {cuda_version:.1f}")
 
             # Uninstall existing PyTorch
-            subprocess.run(
+            exec_silent(
                 [sys.executable, "-m", "pip", "uninstall", "-y", "torch", "torchvision", "torchaudio"],
                 check=False
             )
 
             # Install PyTorch with CUDA
-            result = subprocess.run(
+            result = exec_silent(
                 [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
                  "--index-url", index_url],
                 check=True,
@@ -344,13 +345,13 @@ class UnifiedGPUManager:
             self._print("[INFO] Installing PyTorch with ROCm support")
 
             # Uninstall existing PyTorch
-            subprocess.run(
+            exec_silent(
                 [sys.executable, "-m", "pip", "uninstall", "-y", "torch", "torchvision", "torchaudio"],
                 check=False
             )
 
             # Install PyTorch with ROCm
-            result = subprocess.run(
+            result = exec_silent(
                 [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
                  "--index-url", "https://download.pytorch.org/whl/rocm6.0"],
                 check=True,
@@ -375,7 +376,7 @@ class UnifiedGPUManager:
         try:
             self._print("[INFO] Installing PyTorch (CPU version)")
 
-            result = subprocess.run(
+            result = exec_silent(
                 [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio"],
                 check=True,
                 capture_output=True,
@@ -391,13 +392,13 @@ class UnifiedGPUManager:
     def _get_cuda_version_from_driver(self) -> float:
         """Extract CUDA version from driver version"""
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 driver_version = result.stdout.strip()
                 # Driver version mapping to CUDA version (approximate)
                 # https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/
