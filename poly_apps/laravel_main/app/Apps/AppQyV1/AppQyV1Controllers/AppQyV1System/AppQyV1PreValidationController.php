@@ -20,9 +20,17 @@ use Illuminate\Support\Facades\File;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
+use App\Traits\ApiResponse;
 
 class AppQyV1PreValidationController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     protected $storageManager;
     protected $markerManager;
 
@@ -37,7 +45,6 @@ class AppQyV1PreValidationController extends Controller
      */
     public function getPreValidationStatus(Request $request)
     {
-        try {
             $audioDirectoryStatus = $this->checkAudioDirectory();
             $databaseStatus = $this->checkDatabaseStatus();
             $pythonStatus = $this->checkPythonStatus();
@@ -67,14 +74,6 @@ class AppQyV1PreValidationController extends Controller
                 'checked_at' => now()->toISOString()
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'overall_status' => ['ready' => false, 'message' => 'Validation check failed'],
-                'can_serve_resources' => false,
-                'error' => $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -117,11 +116,7 @@ class AppQyV1PreValidationController extends Controller
         $legacyCopied = $this->markerManager->isDatabaseProcessed();
         $wordCount = 0;
 
-        try {
             $wordCount = AppQyV1DictionaryModel::count();
-        } catch (\Exception $e) {
-            // Database might not be initialized yet
-        }
 
         return [
             'status' => $legacyCopied && $wordCount > 0 ? 'ready' : ($legacyExists ? 'warning' : 'error'),

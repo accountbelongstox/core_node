@@ -21,8 +21,16 @@ use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Auth\AvatarPublic;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
 use App\Utils\StrTool;
+use App\Traits\ApiResponse;
 class AppQyV1AuthenticationUserLoginController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Handle an incoming registration request.
      *

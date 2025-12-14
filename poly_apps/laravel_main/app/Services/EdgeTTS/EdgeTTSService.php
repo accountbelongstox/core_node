@@ -389,6 +389,14 @@ class EdgeTTSService
     }
 
     /**
+     * Get list of supported language codes
+     */
+    public function getSupportedLanguages(): array
+    {
+        return array_keys(self::VOICES);
+    }
+
+    /**
      * Get audio file path
      */
     public function getAudioPath(string $relativePath): ?string

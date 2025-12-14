@@ -20,7 +20,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupDeletionCon
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryManagementController as AddDController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryQueryController as QueryDController;
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::middleware(['custom.authenticate'])->group(function () {
         Route::any('/create_group', [DGAController::class, 'createDictGroup']);

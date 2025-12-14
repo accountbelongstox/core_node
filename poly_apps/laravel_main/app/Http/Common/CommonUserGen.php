@@ -23,7 +23,7 @@ use App\Http\Common\CommonAvatarPublic;
 use App\Utils\StrTool;
 class CommonUserGen
 {
-    public static function createUser($username, $password, $email="", $nickname="", $name="", $subAppConnection = null)
+    public static function createUser($username, $password, $email="", $nickname="", $name="", $subAppConnection = null, $roleLevel = 0, $roleName = 'user')
     {
         $credentials = [
             'username' => $username,
@@ -31,6 +31,8 @@ class CommonUserGen
             'phone' => null,
             'name' => !empty($name) ? $name : null,
             'password' => $password,
+            'rolelevel' => $roleLevel,
+            'rolename' => $roleName,
             'sub_app_data' => [
                 'nickname' => !empty($nickname) ? $nickname : null,
                 'credit' => 0,
@@ -46,7 +48,7 @@ class CommonUserGen
             ]);
             return null;
         }
-        
+
         $user = $result['user'];
         $user = CommonAvatarPublic::createAvatar($user);
         event(new Registered($user));

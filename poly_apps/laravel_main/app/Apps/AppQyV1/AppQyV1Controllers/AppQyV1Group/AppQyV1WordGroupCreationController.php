@@ -22,8 +22,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryPublicController as PDAPublic;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
-class AppQyV1WordGroupCreationController 
+use App\Traits\ApiResponse;
+class AppQyV1WordGroupCreationController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
    
     public function appendWordToGroup($gwords, $group)
     {
@@ -63,7 +71,6 @@ class AppQyV1WordGroupCreationController
     public function createDictGroup(Request $request)
     {
         $supported_params = ['gname', 'gcontent', 'gwords','sort'];
-        try {
             $validator = Validator::make($request->all(), [
                 'gname' => 'required|string|max:255',
                 'gcontent' => 'required|string',
@@ -84,7 +91,10 @@ class AppQyV1WordGroupCreationController
             $gname = $request->input('gname');
             $gcontent = $request->input('gcontent');
             $gwords = $request->input('gwords');
-            $sort = $request->input('sort') ?? true;
+            $sort = true;
+            if ($request->has('sort')) {
+                $sort = $request->input('sort');
+            }
             $existGroupResult = DGroupAPublic::isGroupNameExist($gname);
             $existGroup = $existGroupResult['group'];
             $isNewGroup = $existGroupResult['isNewGroup'];
@@ -130,14 +140,6 @@ class AppQyV1WordGroupCreationController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to create dictionary group',
-                'error' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 
 }

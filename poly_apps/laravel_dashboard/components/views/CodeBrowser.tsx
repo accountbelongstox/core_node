@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask, TaskItem } from '../../types';
 import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight, ChevronRight, ChevronDown, Eye, Save, Loader2, AlertCircle } from "lucide-react";
 import { commonClasses } from '../../styles/theme';
@@ -29,7 +29,7 @@ const CodeLine = ({ num, content }: { num: number, content: string }) => (
 
 const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     const [fileTree, setFileTree] = useState<AsyncState<ServerFileNode[]>>({
-        data: null,
+        data: [],
         loading: false,
         error: null,
         status: 'idle'
@@ -59,6 +59,84 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     const [openTasks, setOpenTasks] = useState<string[]>([]);
     const [zIndices, setZIndices] = useState<Record<string, number>>({});
     const [topZ, setTopZ] = useState(100);
+
+    const [rootPath, setRootPath] = useState<string>('');
+    const [authRequired, setAuthRequired] = useState<boolean>(false);
+
+    // NO try-catch allowed - backend must return consistent data
+    useEffect(() => {
+        const loadPathMapping = async () => {
+            const response = await api.systemConfig.getPathMapping('code_browser');
+
+            if (response.success && response.data) {
+                setRootPath(response.data.path);
+                await loadFileTree(response.data.path);
+            } else {
+                // Check if authentication required (401/403)
+                if (response.status === 401 || response.status === 403) {
+                    setAuthRequired(true);
+                }
+                setFileTree({
+                    data: [],
+                    loading: false,
+                    error: response.error,
+                    status: 'error'
+                });
+            }
+        };
+        loadPathMapping();
+    }, []);
+
+    const loadFileTree = async (path?: string) => {
+        setFileTree(prev => ({ ...prev, loading: true, status: 'loading' }));
+
+        // NO try-catch - backend handles errors
+        const browsePath = path;
+        if (!browsePath) {
+            setFileTree({
+                data: [],
+                loading: false,
+                error: 'Path configuration not loaded',
+                status: 'error'
+            });
+            return;
+        }
+
+        const response = await api.serverManagerV1.browseFiles(browsePath);
+
+        if (response.success && response.data) {
+            setFileTree({
+                data: response.data,
+                loading: false,
+                error: null,
+                status: 'success'
+            });
+        } else {
+            // Check if authentication required (401/403)
+            if (response.status === 401 || response.status === 403) {
+                setAuthRequired(true);
+            }
+            setFileTree({
+                data: [],
+                loading: false,
+                error: response.error,
+                status: 'error'
+            });
+        }
+    };
+
+    const toggleFolder = (node: ServerFileNode) => {
+        if (node.type !== 'directory') return;
+
+        setFileTree(prev => ({
+            ...prev,
+            data: prev.data.map(item =>
+                item.path === node.path
+                    ? { ...item, isOpen: !item.isOpen }
+                    : item
+            )
+        }));
+    };
 
     const handleOpenTask = (taskId: string) => {
         if (!openTasks.includes(taskId)) {
@@ -132,16 +210,31 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
                     <div className="flex-1 flex min-h-0">
                         {/* File Tree (Simplified inline for layout match) */}
                         <div className="w-64 border-r border-white/5 p-2 hidden md:block overflow-y-auto">
-                            <div className="flex items-center gap-2 px-2 py-1 text-slate-400 hover:bg-white/5 rounded cursor-pointer">
-                                <FolderOpen size={14} className="text-yellow-500/80" />
-                                <span className="text-sm font-mono">core_node</span>
-                            </div>
-                            {['.analysis_reports', '.augment', '.cache', '.claude', '.codebuddy', '.compliance', '.cursor', '.install_state', '.opencode'].map(folder => (
-                                <div key={folder} className="flex items-center gap-2 px-2 py-1 ml-4 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded cursor-pointer transition-colors">
-                                    <Folder size={14} className="text-slate-600" />
-                                    <span className="text-sm font-mono">{folder}</span>
+                            {authRequired ? (
+                                <div className="flex flex-col items-center justify-center h-full p-4">
+                                    <AlertCircle className="w-12 h-12 text-amber-500 mb-4" />
+                                    <h3 className="text-sm font-semibold text-slate-200 mb-2">Authentication Required</h3>
+                                    <p className="text-xs text-slate-400 text-center mb-4">
+                                        This feature requires login. Please sign in to access the code browser.
+                                    </p>
+                                    <button className={`${commonClasses.button} text-xs px-4 py-2`}>
+                                        Sign In
+                                    </button>
                                 </div>
-                            ))}
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2 px-2 py-1 text-slate-400 hover:bg-white/5 rounded cursor-pointer">
+                                        <FolderOpen size={14} className="text-yellow-500/80" />
+                                        <span className="text-sm font-mono">core_node</span>
+                                    </div>
+                                    {['.analysis_reports', '.augment', '.cache', '.claude', '.codebuddy', '.compliance', '.cursor', '.install_state', '.opencode'].map(folder => (
+                                        <div key={folder} className="flex items-center gap-2 px-2 py-1 ml-4 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded cursor-pointer transition-colors">
+                                            <Folder size={14} className="text-slate-600" />
+                                            <span className="text-sm font-mono">{folder}</span>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         </div>
 
                         {/* Editor Content */}

@@ -8,8 +8,8 @@ import {
   Menu,
   X as CloseIcon
 } from 'lucide-react';
-import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
+import { useAppState } from '../../contexts/AppStateContext';
 import { commonClasses } from '../../styles/theme';
 
 // Import new centralized architecture components
@@ -18,13 +18,10 @@ import TTSForm from '../tools/TTSForm';
 import OCRForm from '../tools/OCRForm';
 import PromptForm from '../tools/PromptForm';
 
-interface AIToolsProps {
-  lang?: Language;
-}
-
 type ToolView = 'translation' | 'tts' | 'ocr' | 'prompts';
 
-const AITools: React.FC<AIToolsProps> = ({ lang = 'en' }) => {
+const AITools: React.FC = () => {
+  const { lang } = useAppState();
   const [currentView, setCurrentView] = useState<ToolView>('translation');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 

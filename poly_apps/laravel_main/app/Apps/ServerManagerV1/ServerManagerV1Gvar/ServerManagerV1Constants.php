@@ -26,6 +26,7 @@ class ServerManagerV1Constants
         return [
             PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
             PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
+            '/www/programing/core_node', // Allow access to programming directory
             PathMapper::mapWebPath('laravel_data_dir'),
             '/var/log',
             PathMapper::mapWebPath('nginx'),

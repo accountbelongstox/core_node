@@ -54,6 +54,18 @@ require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
 
+// InviteCode Controller
+use App\Http\Controllers\InviteCodeController;
+
+// Invite Code Routes
+Route::post('/invite-codes/validate', [InviteCodeController::class, 'validate']);
+
+Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+    Route::get('/invite-codes', [InviteCodeController::class, 'index']);
+    Route::post('/invite-codes', [InviteCodeController::class, 'create']);
+    Route::post('/invite-codes/{id}/deactivate', [InviteCodeController::class, 'deactivate']);
+});
+
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1ApiInfoCtl;
@@ -66,16 +78,20 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1Certifica
 // ServerManagerV1 API Routes
 Route::prefix('servermanager/v1')->group(function () {
 
-    // API Information Route
+    // API Information Route (Public)
     Route::get('info', [ServerManagerV1ApiInfoCtl::class, 'getApiInfo']);
 
-    // System Information Routes
+    // System Information Routes (Public for basic info, protected for sensitive ops)
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
-        Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
-        Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
-        Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
-        Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+
+        // Protected system routes
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
+            Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
+            Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
+            Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+        });
     });
 
     // File Management Routes
@@ -173,4 +189,16 @@ Route::prefix('worker')->group(function () {
     Route::post('tasks/result', [WorkerController::class, 'submitResult']);
     Route::get('list', [WorkerController::class, 'list']);
     Route::get('stats', [WorkerController::class, 'stats']);
+});
+
+use App\Http\Controllers\PathConfigController;
+
+Route::prefix('config')->group(function () {
+    Route::get('paths', [PathConfigController::class, 'getPaths']);
+    Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
+});
+
+// Debug route - test if api routes are loaded
+Route::get('debug/test', function () {
+    return response()->json(['message' => 'API routes loaded successfully']);
 });

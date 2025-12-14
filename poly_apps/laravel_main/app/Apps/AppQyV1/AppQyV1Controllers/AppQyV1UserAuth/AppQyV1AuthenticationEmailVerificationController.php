@@ -18,9 +18,17 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
+use App\Traits\ApiResponse;
 
 class AppQyV1AuthenticationEmailVerificationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Mark the authenticated user's email address as verified.
      */

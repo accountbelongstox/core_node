@@ -48,12 +48,24 @@ export class AppQyV1API extends BaseAPI {
   }
 
   // ========== TTS ==========
-  async getVoices(): Promise<APIResponse> {
+  async getTTSLanguages(): Promise<APIResponse> {
+    return this.get('/ai_tools/tts/languages', undefined, true, 3600000);
+  }
+
+  async getTTSVoices(): Promise<APIResponse> {
     return this.get('/ai_tools/tts/voices', undefined, true, 3600000);
   }
 
-  async generateTTS(data: { text: string; language: string; voice?: string; speed?: number; pitch?: number }): Promise<APIResponse> {
+  async getTTSOptions(): Promise<APIResponse> {
+    return this.get('/ai_tools/tts/options', undefined, true, 3600000);
+  }
+
+  async generateTTS(data: { text: string; language: string; type?: string; options?: any }): Promise<APIResponse> {
     return this.post('/ai_tools/tts/generate', data);
+  }
+
+  async batchGenerateTTS(items: Array<{ text: string; language: string; type?: string; options?: any }>): Promise<APIResponse> {
+    return this.post('/ai_tools/tts/batch-generate', { items });
   }
 
   // ========== 图像生成 ==========
@@ -76,8 +88,16 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/words/learning', params);
   }
 
-  async getLibraries(): Promise<APIResponse> {
-    return this.get('/libraries', undefined, true, 600000); // 缓存10分钟
+  async getLibraries(params?: { language?: string; category?: string; difficulty?: string; search?: string; page?: number; per_page?: number }): Promise<APIResponse> {
+    return this.get('/vocabulary/libraries', params, true, 600000); // 缓存10分钟
+  }
+
+  async getRecommendedLibraries(params?: { language?: string; limit?: number }): Promise<APIResponse> {
+    return this.get('/vocabulary/libraries/recommended', params, true, 600000); // 缓存10分钟
+  }
+
+  async getVocabularyStatistics(): Promise<APIResponse> {
+    return this.get('/vocabulary/statistics', undefined, true, 300000); // 缓存5分钟
   }
 
   async updateProgress(data: { word_id: string; status: string }): Promise<APIResponse> {
@@ -86,6 +106,71 @@ export class AppQyV1API extends BaseAPI {
 
   async getStats(): Promise<APIResponse> {
     return this.get('/user/stats');
+  }
+
+  async updateWordReview(wordId: string, data: { correct: boolean; reviewDate: string }): Promise<APIResponse> {
+    return this.post(`/vocabulary/words/${wordId}/review`, data);
+  }
+
+  // ========== 文档处理 ==========
+  async uploadDocument(formData: FormData): Promise<APIResponse> {
+    return this.request({ url: '/vocabulary/document/upload', method: 'POST', data: formData } as any);
+  }
+
+  async extractSentences(documentId: string): Promise<APIResponse> {
+    return this.post(`/vocabulary/document/${documentId}/extract-sentences`);
+  }
+
+  async extractWords(documentId: string): Promise<APIResponse> {
+    return this.post(`/vocabulary/document/${documentId}/extract-words`);
+  }
+
+  // ========== 系统初始化 ==========
+  async getInitializationStatus(): Promise<APIResponse> {
+    return this.get('/system/initialization/status');
+  }
+
+  async getDictionaryStatistics(): Promise<APIResponse> {
+    return this.get('/vocabulary/dictionary/statistics', undefined, true, 300000);
+  }
+
+  async initializeSystem(): Promise<APIResponse> {
+    return this.post('/system/initialization/initialize');
+  }
+
+  async getSupportedLanguages(): Promise<APIResponse> {
+    return this.get('/system/languages', undefined, true, 3600000); // 缓存1小时
+  }
+
+  async completeUserInit(data: {
+    learning_languages: string[];
+    occupation?: string;
+    daily_words_target: number;
+    daily_study_time: number;
+    preferences: any;
+  }): Promise<APIResponse> {
+    return this.post('/user/initialization/complete', data);
+  }
+
+  // ========== 导出功能 ==========
+  async exportToCSV(options: any): Promise<APIResponse> {
+    return this.post('/vocabulary/export/csv', options);
+  }
+
+  async exportToJSON(options: any): Promise<APIResponse> {
+    return this.post('/vocabulary/export/json', options);
+  }
+
+  async exportToAnki(options: any): Promise<APIResponse> {
+    return this.post('/vocabulary/export/anki', options);
+  }
+
+  async exportToPDF(options: any): Promise<APIResponse> {
+    return this.post('/vocabulary/export/pdf', options);
+  }
+
+  async exportToText(options: any): Promise<APIResponse> {
+    return this.post('/vocabulary/export/text', options);
   }
 
   // ========== 用户 ==========

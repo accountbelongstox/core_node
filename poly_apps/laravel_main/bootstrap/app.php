@@ -17,18 +17,20 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ClientTokenAuth;
 use App\Http\Middleware\CustomAuthenticate;
 use App\Http\Middleware\GoLatency;
-
+use App\Http\Middleware\LocalAccessOnly;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        api: __DIR__.'/../routes/api.php',
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        apiPrefix: 'api',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -46,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'client.token' => ClientTokenAuth::class,
             'custom.authenticate' => CustomAuthenticate::class,
+            'local.only' => LocalAccessOnly::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

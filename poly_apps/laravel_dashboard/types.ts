@@ -17,7 +17,8 @@ export enum ViewType {
   MCP_MANAGER = 'mcp',
   OCTANE_TASKS = 'octane',
   SERVER_MANAGER = 'server',
-  AI_TOOLS = 'ai_tools'
+  AI_TOOLS = 'ai_tools',
+  INVITE_CODE_MANAGER = 'invite_codes'
 }
 
 export interface NavItem {
