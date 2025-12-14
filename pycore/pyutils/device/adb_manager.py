@@ -20,7 +20,6 @@ from typing import List, Optional, Tuple
 import time
 
 from pycore.pyutils.device.adb_types import (
-import subprocess
     ADBDeviceBasic,
     ADBDeviceState,
     ADBExecuteResult,
@@ -28,6 +27,7 @@ import subprocess
     ADBDeviceBattery,
     ADBForwardSpec
 )
+import subprocess
 from pycore.pyutils.device.adb_device import ADBDevice
 
 
