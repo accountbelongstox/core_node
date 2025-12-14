@@ -148,6 +148,16 @@ class PySide6MainWindow(QMainWindow):
         # Set minimum size
         self.setMinimumSize(self._min_width, self._min_height)
 
+        # Set maximum size to screen size to prevent window from exceeding screen
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            max_width = screen_geometry.width()
+            max_height = screen_geometry.height()
+            self.setMaximumSize(max_width, max_height)
+            from pycore import ColorPrint
+            ColorPrint.print_info(f"[MainWindow] Maximum size set to screen: {max_width}x{max_height}")
+
         # Enable frameless if configured
         if self._frameless:
             self.setWindowFlags(

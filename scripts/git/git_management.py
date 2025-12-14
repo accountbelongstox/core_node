@@ -70,7 +70,7 @@ class GitManagement:
     def handle_safe_pull(self):
         """Handle option 1: Safe git pull"""
         print("\n\033[36m=== Safe Git Pull ===\033[0m")
-        print("This will backup local changes, commit them, and pull from remote.")
+        print("This will commit local changes and pull from remote.")
         print()
 
         # Get region setting to determine remote
