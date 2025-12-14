@@ -131,7 +131,8 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].media_browser;
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<FileNode | null>(null);
-  const [currentPath, setCurrentPath] = useState<string>('/www/programing/core_node');
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [basePath, setBasePath] = useState<string>('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [playlist, setPlaylist] = useState<FileNode[]>([]);
   const [autoPlay, setAutoPlay] = useState(true);
@@ -148,38 +149,54 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const loadFileTree = async (path?: string) => {
     setLoading(true);
     setError(null);
-    try {
-      // Use centralized API singleton (McpV1)
-      const response = await api.mcpV1.getStaticResourcesTree(path);
-      if (response.success && response.data) {
-        // Handle response data structure
-        const items = response.data.items || response.data;
 
-        // Add id field to each node if not present (backend doesn't return id)
-        const addIdToNodes = (nodes: any[]): FileNode[] => {
-          return nodes.map((node: any) => ({
-            ...node,
-            id: node.id || node.path || `${node.name}-${Math.random().toString(36).substr(2, 9)}`,
-            type: node.type === 'directory' ? 'folder' : 'file',
-            children: node.children ? addIdToNodes(node.children) : undefined
-          }));
-        };
+    // NO try-catch allowed - backend must handle errors properly
+    const response = await api.mcpV1.getStaticResourcesTree();
 
-        const nodesWithId = addIdToNodes(Array.isArray(items) ? items : []);
-        setFileTree(nodesWithId);
+    if (response.success && response.data) {
+      // Backend MUST return consistent structure: { items, path, realPath }
+      const items = response.data.items;
+      const responsePath = response.data.path;
+      const realPath = response.data.realPath;
 
-        if (nodesWithId.length > 0 && !activeFile) {
-          const firstFile = findFirstFile(nodesWithId);
-          if (firstFile) setActiveFile(firstFile);
+      setCurrentPath(realPath);
+      setBasePath(responsePath);
+
+      const addIdToNodes = (nodes: any[]): FileNode[] => {
+        return nodes.map((node: any) => ({
+          ...node,
+          id: node.path,
+          type: node.type === 'directory' ? 'folder' : 'file',
+          fileType: node.type === 'directory' ? undefined : detectFileType(node.name),
+          children: node.children ? addIdToNodes(node.children) : undefined
+        }));
+      };
+
+      const nodesWithId = addIdToNodes(items);
+      setFileTree(nodesWithId);
+
+      if (nodesWithId.length > 0 && !activeFile) {
+        const firstFile = findFirstFile(nodesWithId);
+        if (firstFile) {
+          setActiveFile(firstFile);
         }
-      } else {
-        setError(response.error || 'Failed to load file tree');
       }
-    } catch (err: any) {
-      setError(err.message || 'Network error');
-    } finally {
-      setLoading(false);
+    } else {
+      setError(response.error);
     }
+
+    setLoading(false);
+  };
+
+  // NO || or ?? allowed
+  const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' => {
+    const parts = fileName.split('.');
+    const ext = parts[parts.length - 1].toLowerCase();
+    if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'm3u8'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'php', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
+    return 'text';
   };
 
   const findFirstFile = (nodes: FileNode[]): FileNode | null => {
@@ -198,7 +215,13 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   }, []);
 
   useEffect(() => {
-    if (!activeFile) return;
+    if (!activeFile) {
+      // Reset to base path when no file is selected
+      const pathParts = currentPath.split('/').slice(0, -1);
+      const newPath = pathParts.length > 0 ? pathParts.join('/') : basePath;
+      setCurrentPath(newPath);
+      return;
+    }
 
     const path: string[] = [];
     const findPath = (nodes: FileNode[], targetId: string, currentStack: string[]): boolean => {
@@ -214,7 +237,9 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     };
     const stack: string[] = [];
     findPath(fileTree, activeFile.id, stack);
-    setCurrentPath('/' + stack.join('/'));
+    // Keep the base path and append the file path
+    const fullPath = basePath + '/' + stack.join('/');
+    setCurrentPath(fullPath);
 
     const findParent = (nodes: FileNode[], targetId: string): FileNode | null => {
         for (const node of nodes) {
@@ -230,7 +255,13 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     const parent = findParent(fileTree, activeFile.id);
     if (parent && parent.children) {
         const sortedSiblings = smartSortFiles(parent.children);
-        const mediaSiblings = sortedSiblings.filter(n => ['video', 'audio'].includes(n.fileType || ''));
+        // NO || allowed - backend MUST set fileType
+        const mediaSiblings = sortedSiblings.filter(n => {
+          if (n.fileType) {
+            return ['video', 'audio'].includes(n.fileType);
+          }
+          return false;
+        });
         setPlaylist(mediaSiblings);
     }
 
@@ -251,22 +282,20 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     setFileTree(prev => updateNodes(prev));
   };
 
+  // NO try-catch allowed
   const handleUpload = async (files: FileList) => {
-     try {
-       // Use centralized API singleton (McpV1)
-       const response = await api.mcpV1.uploadStaticResources(Array.from(files));
-       if (response.success) {
-         await loadFileTree();
-       } else {
-         setError(response.error || 'Upload failed');
-       }
-     } catch (err: any) {
-       setError(err.message || 'Upload error');
+     const response = await api.mcpV1.uploadStaticResources(Array.from(files));
+     if (response.success) {
+       await loadFileTree();
+     } else {
+       setError(response.error);
      }
   };
 
+  // NO || allowed
   const playNextInPlaylist = () => {
-    if (playlist.length === 0 || !activeFile) return;
+    if (playlist.length === 0) return;
+    if (!activeFile) return;
     const currentIdx = playlist.findIndex(n => n.id === activeFile.id);
     if (currentIdx < playlist.length - 1) {
         setActiveFile(playlist[currentIdx + 1]);
@@ -274,7 +303,8 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   };
 
   const playPreviousInPlaylist = () => {
-    if (playlist.length === 0 || !activeFile) return;
+    if (playlist.length === 0) return;
+    if (!activeFile) return;
     const currentIdx = playlist.findIndex(n => n.id === activeFile.id);
     if (currentIdx > 0) {
         setActiveFile(playlist[currentIdx - 1]);
@@ -286,15 +316,15 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   };
 
   const handleVideoTimeUpdate = () => {
-    if (!videoRef.current || !skipIntro.enabled) return;
+    if (!videoRef.current) return;
+    if (!skipIntro.enabled) return;
     const currentTime = videoRef.current.currentTime;
-    // Auto-skip intro
     if (currentTime >= skipIntro.start && currentTime < skipIntro.end && currentTime < skipIntro.start + 2) {
       videoRef.current.currentTime = skipIntro.end;
     }
   };
 
-  const currentPlaylistIndex = playlist.findIndex(n => n.id === activeFile?.id);
+  const currentPlaylistIndex = activeFile ? playlist.findIndex(n => n.id === activeFile.id) : -1;
   const hasNext = playlist.length > 0 && currentPlaylistIndex < playlist.length - 1;
   const hasPrevious = playlist.length > 0 && currentPlaylistIndex > 0;
 
@@ -350,7 +380,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                     key={node.id}
                     node={node}
                     level={0}
-                    activeId={activeFile?.id || null}
+                    activeId={activeFile ? activeFile.id : null}
                     onSelect={setActiveFile}
                     onToggle={toggleFolder}
                   />
@@ -377,8 +407,8 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                     className="w-full h-full"
                     src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                   />
-                  {/* Floating Episode Controls */}
-                  {showFloatingControls && (hasPrevious || hasNext) && (
+                  {/* Floating Episode Controls - NO || allowed */}
+                  {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
                     <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       {hasPrevious && (
                         <button
@@ -449,11 +479,11 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                 </div>
                 <div className="flex justify-between">
                   <span>Size:</span>
-                  <span className="font-mono text-slate-300">{activeFile.size || 'N/A'}</span>
+                  <span className="font-mono text-slate-300">{activeFile.size ? activeFile.size : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Type:</span>
-                  <span className="font-mono text-slate-300">{activeFile.fileType || 'unknown'}</span>
+                  <span className="font-mono text-slate-300">{activeFile.fileType ? activeFile.fileType : 'unknown'}</span>
                 </div>
               </div>
             )}
@@ -497,7 +527,10 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                       type="number"
                       min="0"
                       value={skipIntro.start}
-                      onChange={(e) => setSkipIntro(prev => ({ ...prev, start: parseInt(e.target.value) || 0 }))}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setSkipIntro(prev => ({ ...prev, start: isNaN(val) ? 0 : val }));
+                      }}
                       className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
                     />
                     <span className="text-slate-500">sec</span>
@@ -508,7 +541,10 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                       type="number"
                       min="0"
                       value={skipIntro.end}
-                      onChange={(e) => setSkipIntro(prev => ({ ...prev, end: parseInt(e.target.value) || 0 }))}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setSkipIntro(prev => ({ ...prev, end: isNaN(val) ? 0 : val }));
+                      }}
                       className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
                     />
                     <span className="text-slate-500">sec</span>

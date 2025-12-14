@@ -92,6 +92,8 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  rolelevel?: number;
+  rolename?: string;
   preferences?: UserPreferences;
 }
 

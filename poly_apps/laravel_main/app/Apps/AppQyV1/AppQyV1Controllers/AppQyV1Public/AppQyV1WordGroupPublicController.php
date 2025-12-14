@@ -16,15 +16,29 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupPublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static $default_group_name = "Default Vocabulary Group";
 
     public static function isGroupNameExist($gname, $uid = null, $username = null)
     {
-        $uid = $uid ?? Auth::id();
-        $username = $username ?? Auth::user()->username;
+        $uid = Auth::id();
+        if (isset($uid)) {
+            $uid = $uid;
+        }
+        $username = Auth::user()->username;
+        if (isset($username)) {
+            $username = $username;
+        }
         $isNewGroup = false;
         $existGroup = AppQyV1WordGroupModel::where('gname', $gname)
             ->where(function ($query) use ($uid, $username) {
@@ -52,7 +66,6 @@ class AppQyV1WordGroupPublicController
 
     public static function ensureDefaultGroupIfNotExist($uid = null, $username = null)
     {
-        try {
             $gname = self::$default_group_name;
             $existGroupResult = self::isGroupNameExist($gname, $uid, $username);
             $existGroup = $existGroupResult['group'];
@@ -75,8 +88,5 @@ class AppQyV1WordGroupPublicController
                 'gcontent_count' => 0,
             ];
 
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

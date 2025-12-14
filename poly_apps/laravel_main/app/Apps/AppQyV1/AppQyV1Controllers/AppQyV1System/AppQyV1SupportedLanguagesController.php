@@ -5,9 +5,17 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Traits\ApiResponse;
 
 class AppQyV1SupportedLanguagesController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private static $languages = [
         'af' => ['name' => 'Afrikaans', 'native_name' => 'Afrikaans', 'voice_id' => 'af-ZA-AdriNeural'],
         'am' => ['name' => 'Amharic', 'native_name' => 'አማርኛ', 'voice_id' => 'am-ET-MekdesNeural'],

@@ -16,9 +16,17 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Welcome;
 
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponse;
 
 class AppQyV1WelcomeController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static function getStatus()
     {
         return [

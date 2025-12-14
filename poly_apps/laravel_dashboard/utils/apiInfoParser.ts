@@ -9,6 +9,18 @@ import { ApiInfoEndpoint, ApiInfoParsedEndpoint, ApiInfoParam, ApiInfoResponse }
  */
 export const parseFeatureString = (endpoint: ApiInfoEndpoint, index: number): ApiInfoParsedEndpoint => {
   const { path, feature } = endpoint;
+
+  if (!feature || typeof feature !== 'string') {
+    return {
+      id: `api_${index}`,
+      path,
+      method: 'GET',
+      authType: 'unknown',
+      description: 'No feature information available',
+      controller: 'unknown'
+    };
+  }
+
   const parts = feature.split('|');
 
   const authMethod = parts[0] || '';

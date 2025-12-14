@@ -11,7 +11,7 @@ import {
   TrendingUp,
   RotateCcw
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface ReviewPanelProps {
@@ -141,7 +141,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ userId }) => {
 
     // Update word review data
     try {
-      await apiService.appQyV1.updateWordReview(currentWord.id, {
+      await api.appQyV1.updateWordReview(currentWord.id, {
         correct: true,
         reviewDate: new Date().toISOString()
       });
@@ -163,7 +163,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ userId }) => {
 
     // Update word review data
     try {
-      await apiService.appQyV1.updateWordReview(currentWord.id, {
+      await api.appQyV1.updateWordReview(currentWord.id, {
         correct: false,
         reviewDate: new Date().toISOString()
       });

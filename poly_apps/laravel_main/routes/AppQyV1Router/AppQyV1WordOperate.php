@@ -17,7 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordReadingSta
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordWeightController as WWeightController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordReviewStatusController as WReviewedController;
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
     // Route::any('/query_words', [QueryWordsController::class, 'queryWords']);
     Route::middleware(['custom.authenticate'])->group(function () {

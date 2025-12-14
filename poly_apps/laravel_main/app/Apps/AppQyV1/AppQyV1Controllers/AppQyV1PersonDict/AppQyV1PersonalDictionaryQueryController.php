@@ -22,13 +22,24 @@ use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
+use App\Traits\ApiResponse;
 
-class AppQyV1PersonalDictionaryQueryController 
+class AppQyV1PersonalDictionaryQueryController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public function queryPDictionary(Request $request)
     {
         $supported_params = ['query_soft_delete'];
-        $isQueryAlreadSoftDelete  = $request->input('query_soft_delete') ?? false;
+        $isQueryAlreadSoftDelete = false;
+        if ($request->has('query_soft_delete')) {
+            $isQueryAlreadSoftDelete = $request->input('query_soft_delete');
+        }
         $queryResult = PDQBasePublic::queryPersonalDictionary($isQueryAlreadSoftDelete);
         return response()->json([
             'status' => 'success',

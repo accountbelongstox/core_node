@@ -9,7 +9,6 @@ import {
   List,
   AlertCircle
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
 import { commonClasses } from '../../styles/theme';
 
 interface QuizPanelProps {

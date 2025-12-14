@@ -11,3 +11,6 @@ export { StatsCard, StatsGrid, type StatsCardProps, type StatsGridProps } from '
 // Overlays
 export { Modal, ConfirmModal, type ModalProps, type ConfirmModalProps } from './Modal';
 export { ToastProvider, useToast, type Toast, type ToastType } from './Toast';
+
+// Admin Management
+export { default as InviteCodeManager } from './InviteCodeManager';

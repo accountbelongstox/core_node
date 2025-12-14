@@ -8,9 +8,17 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
+use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyUploadController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $importer;
 
     public function __construct()
@@ -33,7 +41,6 @@ class AppQyV1VocabularyUploadController extends Controller
         $langCode = $request->input('lang_code');
         $description = $request->input('description');
 
-        try {
             $words = $this->importer->extractWordsFromDocument($document, $langCode);
 
             if (empty($words)) {
@@ -66,24 +73,12 @@ class AppQyV1VocabularyUploadController extends Controller
                 ], 500);
             }
 
-        } catch (\Exception $e) {
-            Log::error('[AppQyV1VocabularyUpload] Error uploading document', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to create vocabulary collection: ' . $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function deleteLibrary(Request $request, $library_id)
     {
         $user = Auth::user();
 
-        try {
             $collection = AppQyV1VocabularyCollectionModel::find($library_id);
 
             if (!$collection) {
@@ -107,17 +102,5 @@ class AppQyV1VocabularyUploadController extends Controller
                 'message' => 'Collection deleted successfully',
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('[AppQyV1VocabularyUpload] Error deleting library', [
-                'user_id' => $user->id,
-                'library_id' => $library_id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to delete collection: ' . $e->getMessage(),
-            ], 500);
-        }
     }
 }

@@ -1,97 +1,38 @@
 'use client';
 
 import React, { useState } from 'react';
-import { api } from '@/core/api';
-import { useToast } from '@/components/admin';
-import { Copy, RefreshCw } from 'lucide-react';
+import { itToolsModel } from '../../core/models';
+import { useToolOperation, useClipboard } from '../../hooks';
+import { ToolContainer, CodeDisplay } from '../common';
+import { RefreshCw } from 'lucide-react';
 
-/**
- * UUID Generator Tool
- *
- * Generate UUIDs with different versions:
- * - UUID v1 (timestamp-based)
- * - UUID v4 (random)
- * - UUID v5 (namespace + name)
- * - ULID (Universally Unique Lexicographically Sortable Identifier)
- */
 export function UuidGenerator() {
   const [version, setVersion] = useState<number>(4);
-  const [result, setResult] = useState('');
-  const [results, setResults] = useState<string[]>([]);
   const [count, setCount] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const toast = useToast();
+  const { loading, result, execute } = useToolOperation();
+  const { copy, copyMultiple } = useClipboard();
 
-  async function handleGenerate() {
-    setLoading(true);
-    try {
-      const generated: string[] = [];
+  const handleGenerate = () => {
+    execute(() => itToolsModel.crypto.uuid(count), {
+      successMessage: `${count} UUID${count > 1 ? 's' : ''} generated`
+    });
+  };
 
-      for (let i = 0; i < count; i++) {
-        const res = await api.itToolsV1.generateUuid({ version });
-        if (res.success) {
-          generated.push(res.data.uuid);
-        }
-      }
+  const handleGenerateUlid = () => {
+    execute(() => itToolsModel.crypto.ulid(1), {
+      successMessage: 'ULID generated successfully'
+    });
+  };
 
-      if (generated.length === 1) {
-        setResult(generated[0]);
-        setResults([]);
-      } else {
-        setResults(generated);
-        setResult('');
-      }
-
-      toast.success(`${generated.length} UUID${generated.length > 1 ? 's' : ''} generated`);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to generate UUID');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGenerateUlid() {
-    setLoading(true);
-    try {
-      const res = await api.itToolsV1.generateUlid();
-      if (res.success) {
-        setResult(res.data.ulid);
-        setResults([]);
-        toast.success('ULID generated successfully');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to generate ULID');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCopy(text: string) {
-    await navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
-  }
-
-  async function handleCopyAll() {
-    if (results.length > 0) {
-      await navigator.clipboard.writeText(results.join('\n'));
-      toast.success(`Copied ${results.length} UUIDs`);
-    } else if (result) {
-      await navigator.clipboard.writeText(result);
-      toast.success('Copied to clipboard');
-    }
-  }
+  const uuids = result ? (result.uuids || (result.uuid ? [result.uuid] : result.ulids ? result.ulids : [])) : [];
+  const singleResult = uuids.length === 1 ? uuids[0] : '';
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">UUID Generator</h2>
-          <p className="text-gray-600 mt-1">
-            Generate UUIDs (v1, v4, v5) and ULIDs
-          </p>
-        </div>
-
-        <div className="space-y-4">
+    <ToolContainer
+      title="UUID Generator"
+      description="Generate UUIDs (v1, v4, v5) and ULIDs"
+    >
+      <div className="space-y-4">
           {/* Version Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -177,58 +118,36 @@ export function UuidGenerator() {
               )}
             </button>
 
-            {(result || results.length > 0) && (
-              <button
-                onClick={handleCopyAll}
-                className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <Copy className="w-4 h-4" />
-                Copy All
-              </button>
-            )}
           </div>
 
-          {/* Single Result */}
-          {result && !results.length && (
+          {singleResult && <CodeDisplay value={singleResult} label="Generated UUID" />}
+
+          {uuids.length > 1 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Generated UUID
-              </label>
-              <div className="relative">
-                <div className="bg-gray-50 border rounded-lg p-4 pr-12 font-mono text-sm break-all">
-                  {result}
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Generated UUIDs ({uuids.length})
+                </label>
                 <button
-                  onClick={() => handleCopy(result)}
-                  className="absolute top-3 right-3 p-2 hover:bg-gray-200 rounded transition-colors"
-                  title="Copy to clipboard"
+                  onClick={() => copyMultiple(uuids)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  <Copy className="w-4 h-4 text-gray-600" />
+                  Copy All
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Multiple Results */}
-          {results.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Generated UUIDs ({results.length})
-              </label>
-              <div className="bg-gray-50 border rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-4 max-h-96 overflow-y-auto">
                 <div className="space-y-2">
-                  {results.map((uuid, index) => (
+                  {uuids.map((uuid, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between bg-white border rounded p-2 hover:bg-gray-50 group"
+                      className="flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 hover:bg-gray-50 dark:hover:bg-gray-750 group"
                     >
                       <span className="font-mono text-sm flex-1">{uuid}</span>
                       <button
-                        onClick={() => handleCopy(uuid)}
-                        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-all"
-                        title="Copy"
+                        onClick={() => copy(uuid)}
+                        className="text-xs text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <Copy className="w-3 h-3 text-gray-600" />
+                        Copy
                       </button>
                     </div>
                   ))}
@@ -237,7 +156,6 @@ export function UuidGenerator() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ToolContainer>
   );
 }

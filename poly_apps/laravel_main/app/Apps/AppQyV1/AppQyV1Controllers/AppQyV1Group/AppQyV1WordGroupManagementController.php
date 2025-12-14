@@ -22,9 +22,17 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
+use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupManagementController 
+class AppQyV1WordGroupManagementController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
 
     public function isGroupNameExist($gname)
     {
@@ -52,7 +60,6 @@ class AppQyV1WordGroupManagementController
             ], 400);
         }
         $gid = $request->input(key: 'gid');
-        try {
             $user = Auth::user();
 
             if (!$user) {
@@ -97,13 +104,6 @@ class AppQyV1WordGroupManagementController
                     'words_frequency' => $group->words_frequency,
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 
     /**
@@ -115,7 +115,6 @@ class AppQyV1WordGroupManagementController
     public function getGroupByName(Request $request): JsonResponse
     {
         $supported_params = ['gname',];
-        try {
             $validator = Validator::make($request->all(), [
                 'gname' => 'required|string',
             ]);
@@ -180,13 +179,6 @@ class AppQyV1WordGroupManagementController
                     'words_frequency' => $group->words_frequency,
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 
     public function getGFrequency(Request $request): JsonResponse
@@ -287,12 +279,17 @@ class AppQyV1WordGroupManagementController
     public function getAllGroupByManager(Request $request): JsonResponse
     {
         $supported_params = ['start', 'limit'];
-        try {
             $user = Auth::user();
             $level = $user->rolelevel;
 
-            $start = $request->input(key: 'start') ?? 0;
-            $limit = $request->input(key: 'limit') ?? 1000;
+            $start = 0;
+            if ($request->input(key: 'start') !== null) {
+                $start = $request->input(key: 'start');
+            }
+            $limit = 1000;
+            if ($request->input(key: 'limit') !== null) {
+                $limit = $request->input(key: 'limit');
+            }
             if (!$user || $level != 1) {
                 return response()->json([
                     'status' => 'error',
@@ -335,13 +332,6 @@ class AppQyV1WordGroupManagementController
                     // 'personal_words' => $personal_words,
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 }
 

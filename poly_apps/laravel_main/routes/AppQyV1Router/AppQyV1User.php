@@ -25,7 +25,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1UserInitializationCon
 */
 
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('user')->middleware('auth:sanctum')->group(function () {

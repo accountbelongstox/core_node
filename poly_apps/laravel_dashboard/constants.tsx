@@ -43,7 +43,8 @@ export const TRANSLATIONS = {
       aiTools: "AI Tools",
       mcp: "MCP Manager",
       octane: "Octane Tasks",
-      server: "Server Manager"
+      server: "Server Manager",
+      inviteCodes: "Invite Codes"
     },
     header: {
       system_online: "System Online",
@@ -63,6 +64,7 @@ export const TRANSLATIONS = {
         mcp: "MCP Manager",
         octane: "Octane Timer Tasks Monitor",
         server: "Server Management Dashboard",
+        invite_codes: "Invite Code Management",
         settings: "Settings"
       }
     },
@@ -230,7 +232,14 @@ export const TRANSLATIONS = {
       test_success: "Connection successful",
       test_error: "Connection failed",
       current_origin: "Current origin",
-      browser_origin: "Browser Origin"
+      browser_origin: "Browser Origin",
+      auth_required: "Settings page requires authentication. Please login to continue."
+    },
+    invite_codes: {
+      auth_required: "Invite Code Manager requires admin access. Please login with admin account."
+    },
+    server_manager: {
+      auth_required: "Server Manager requires authentication. Please login to continue."
     },
     server: {
       title: "Server Manager",
@@ -357,7 +366,8 @@ export const TRANSLATIONS = {
       vocabulary: "词汇学习",
       mcp: "MCP 管理器",
       octane: "Octane 任务",
-      server: "服务器管理"
+      server: "服务器管理",
+      inviteCodes: "邀请码管理"
     },
     header: {
       system_online: "系统在线",
@@ -376,6 +386,7 @@ export const TRANSLATIONS = {
         mcp: "MCP 管理器",
         octane: "Octane 定时任务监控",
         server: "服务器管理仪表板",
+        invite_codes: "邀请码管理",
         settings: "系统设置"
       }
     },
@@ -543,7 +554,14 @@ export const TRANSLATIONS = {
       test_success: "连接成功",
       test_error: "连接失败",
       current_origin: "当前源",
-      browser_origin: "浏览器源"
+      browser_origin: "浏览器源",
+      auth_required: "设置页面需要身份验证。请登录后继续。"
+    },
+    invite_codes: {
+      auth_required: "邀请码管理需要管理员权限。请使用管理员账户登录。"
+    },
+    server_manager: {
+      auth_required: "服务器管理需要身份验证。请登录后继续。"
     },
     server: {
       title: "服务器管理",

@@ -5,11 +5,19 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private AppQyV1VocabularyCoverService $coverService;
 
     public function __construct(AppQyV1VocabularyCoverService $coverService)
@@ -33,10 +41,32 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             ->map(fn ($library) => $this->transformLibrary($library))
             ->values();
 
-        return response()->json([
-            'success' => true,
-            'data' => $libraries,
+        return $this->success([
+            'libraries' => $libraries,
         ]);
+    }
+
+    public function getStatistics(Request $request): JsonResponse
+    {
+        $language = $request->query('language', 'english');
+
+        $stats = [
+            'total_libraries' => AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->forLanguage($language)
+                ->count(),
+            'total_words' => AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->forLanguage($language)
+                ->sum('total_words'),
+            'recommended_count' => AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->forLanguage($language)
+                ->where('is_recommended', true)
+                ->count(),
+        ];
+
+        return $this->success($stats);
     }
 
     public function getLibraries(Request $request): JsonResponse
@@ -75,17 +105,14 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             ->map(fn ($library) => $this->transformLibrary($library))
             ->values();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'libraries' => $libraries,
-                'pagination' => [
-                    'current_page' => $page,
-                    'per_page' => $perPage,
-                    'total' => $total,
-                    'last_page' => $lastPage,
-                    'has_more' => $page < $lastPage,
-                ],
+        return $this->success([
+            'libraries' => $libraries,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'has_more' => $page < $lastPage,
             ],
         ]);
     }
@@ -97,7 +124,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             $cover = [];
         }
 
-        $imageUrl = $cover['url'] ?? $this->coverService->getDefaultCoverUrl();
+        $imageUrl = $this->coverService->getDefaultCoverUrl();
+        if (isset($cover['url'])) {
+            $imageUrl = $cover['url'];
+        }
 
         return [
             'id' => (int) $library->id,
