@@ -587,14 +587,7 @@ function Show-GitSourceSubMenu {
 }
 
 function Invoke-GitBackupPrompt {
-    $backupChoice = Read-Host "Run Backup Management before git operation? (yes/no)"
-    if ($backupChoice -eq "yes") {
-        $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
-        Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
-    } else {
-        Write-ColorMessage -Message "Skipping backup before git operation." -Type "Warning"
-    }
+    Write-ColorMessage -Message "Auto-skipping backup (non-interactive mode)." -Type "Info"
 }
 
 function Invoke-GitCommitAllChanges {
@@ -604,18 +597,9 @@ function Invoke-GitCommitAllChanges {
     Set-Location $CORE_NODE_DIR
     $statusOutput = git status --porcelain
     if (-not [string]::IsNullOrWhiteSpace($statusOutput)) {
-        Write-ColorMessage -Message "Local changes detected. Preparing to add and commit before pull." -Type "Info"
-        $shouldCommit = Read-Host "Stage and commit all changes? (yes/no)"
-        if ($shouldCommit -eq "yes") {
-            $commitMessage = Read-Host "Commit message (default: $DefaultMessage)"
-            if ([string]::IsNullOrWhiteSpace($commitMessage)) {
-                $commitMessage = $DefaultMessage
-            }
-            git add .
-            git commit -m $commitMessage
-        } else {
-            Write-ColorMessage -Message "Skipping commit; pull may fail if conflicts occur." -Type "Warning"
-        }
+        Write-ColorMessage -Message "Local changes detected. Auto-committing..." -Type "Info"
+        git add .
+        git commit -m $DefaultMessage
     } else {
         Write-ColorMessage -Message "No local changes detected. Continuing." -Type "Info"
     }
@@ -642,14 +626,8 @@ function Invoke-RegionAwarePull {
 }
 
 function Get-LatestGitVersion {
-    $confirm = Read-Host "Are you sure you want to safely pull the latest git version? (yes/no)"
-    if ($confirm -ne "yes") {
-        Write-ColorMessage -Message "Git pull cancelled." -Type "Warning"
-        return
-    }
-    
-    Write-ColorMessage -Message "Starting region-aware git pull with pre-checks..." -Type "Info"
-    
+    Write-ColorMessage -Message "Auto-executing git pull (non-interactive mode)..." -Type "Info"
+
     Invoke-GitBackupPrompt
     Invoke-GitCommitAllChanges
     Invoke-RegionAwarePull

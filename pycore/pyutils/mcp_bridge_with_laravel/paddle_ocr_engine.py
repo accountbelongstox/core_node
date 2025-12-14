@@ -15,7 +15,6 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 import tempfile
 import subprocess
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 from ocr_config import OCRLimits, APIKeys
 

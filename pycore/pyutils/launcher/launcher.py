@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import os
 import tempfile
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 # Add project root to Python path to enable pycore imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -353,10 +354,6 @@ def launch_device_sync():
     - Windows: Uses pythonw.exe
     - Linux: Uses subprocess with start_new_session=True
     """
-    import subprocess
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-    import platform
-
     print("[Launcher] Starting Device Sync in background...")
 
     # Get project root directory

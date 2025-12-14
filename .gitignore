@@ -21,7 +21,7 @@ webpack_dist/
 **/secret_keys/raw/**
 **/storage/**
 **/.app-backups/**
-# Deployment configs should be committed (contains encrypted files)
+# Deployment configs should be committed (contains encrypted files) 
 .AppleDouble
 .LSOverride
 public/uploads/*
@@ -31,7 +31,7 @@ public/uploads/*
 .strapi-cloud.json
 pyenv_*/
 **/.dart_tool-dev/
-app.*.symbols
+app.*.symbols 
 **/*.vsix
 **/*.test/
 **/test/
