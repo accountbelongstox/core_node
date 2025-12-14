@@ -44,10 +44,6 @@ class Config:
         Returns:
             ADB executable path
         """
-        import shutil
-        from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
-        from pycore import ColorPrint
-
         # 1. Try to get from user data directory (auto-extracts if needed)
         try:
             ColorPrint.blue("[Config] Initializing ADB from scrcpy_init...")
@@ -58,7 +54,6 @@ class Config:
             else:
                 ColorPrint.yellow(f"[Config] ADB initialization returned: {adb_path}")
         except Exception as e:
-            import traceback
             ColorPrint.red(f"[Config] Failed to get ADB from scrcpy_init: {e}")
             traceback.print_exc()
 
