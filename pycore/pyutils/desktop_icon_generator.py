@@ -9,6 +9,7 @@ from pathlib import Path
 import os
 import shutil
 import tempfile
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 try:
     import win32com.client
@@ -50,11 +51,10 @@ class DesktopIconGenerator:
         except ImportError:
             try:
                 # Try to install Pillow
-                import subprocess
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-                import sys
                 print("[INFO] Installing Pillow for PNG to ICO conversion...")
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])
+                result = exec_silent([sys.executable, "-m", "pip", "install", "Pillow"], info=False)
+                if result.return_code != 0:
+                    raise RuntimeError(f"Failed to install Pillow: {result.stderr}")
                 from PIL import Image
                 print("[INFO] Pillow installed successfully")
             except Exception as e:

@@ -310,7 +310,6 @@ class UniversalGUILauncher:
 
         # Restart process
         import subprocess
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
         subprocess.Popen([sys.executable] + sys.argv)
         sys.exit(0)
 
