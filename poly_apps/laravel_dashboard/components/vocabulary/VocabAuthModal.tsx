@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, LogIn, UserPlus, Loader2 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface VocabAuthModalProps {
@@ -28,7 +28,7 @@ const VocabAuthModal: React.FC<VocabAuthModalProps> = ({ isOpen, onClose, onSucc
     setError(null);
 
     try {
-      const response = await apiService.appQyV1Login(loginData);
+      const response = await api.appQyV1.login({ username: loginData.email, password: loginData.password });
       if (response.success && response.data) {
         onSuccess(response.data);
         onClose();
@@ -53,7 +53,12 @@ const VocabAuthModal: React.FC<VocabAuthModalProps> = ({ isOpen, onClose, onSucc
     setError(null);
 
     try {
-      const response = await apiService.appQyV1Register(registerData);
+      const response = await api.appQyV1.register({
+        username: registerData.email,
+        password: registerData.password,
+        name: registerData.name,
+        email: registerData.email
+      });
       if (response.success && response.data) {
         onSuccess(response.data);
         onClose();

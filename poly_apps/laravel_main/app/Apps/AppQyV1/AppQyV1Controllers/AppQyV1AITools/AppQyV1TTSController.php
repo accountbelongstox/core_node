@@ -4,11 +4,19 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class AppQyV1TTSController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $ttsService;
     
     public function __construct()
@@ -98,11 +106,56 @@ class AppQyV1TTSController extends Controller
         ]);
     }
     
+    public function getLanguages(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'languages' => $this->ttsService->getSupportedLanguages(),
+            ],
+        ]);
+    }
+
     public function getVoices(Request $request): JsonResponse
     {
         return response()->json([
             'success' => true,
-            'voices' => $this->ttsService->getAvailableVoices(),
+            'data' => [
+                'voices' => $this->ttsService->getAvailableVoices(),
+            ],
+        ]);
+    }
+
+    public function getOptions(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'languages' => $this->ttsService->getSupportedLanguages(),
+                'voices' => $this->ttsService->getAvailableVoices(),
+                'text_types' => ['sentence', 'word', 'letter'],
+                'speed' => [
+                    'min' => -50,
+                    'max' => 100,
+                    'step' => 10,
+                    'default' => 0,
+                    'unit' => '%',
+                ],
+                'volume' => [
+                    'min' => -50,
+                    'max' => 100,
+                    'step' => 10,
+                    'default' => 0,
+                    'unit' => '%',
+                ],
+                'pitch' => [
+                    'min' => -50,
+                    'max' => 50,
+                    'step' => 5,
+                    'default' => 0,
+                    'unit' => 'Hz',
+                ],
+            ],
         ]);
     }
 }

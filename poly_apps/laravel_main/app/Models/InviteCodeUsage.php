@@ -12,7 +12,10 @@ class InviteCodeUsage extends Model
     protected $fillable = [
         'invite_code_id',
         'user_id',
+        'device_id',
         'used_at',
+        'ip_address',
+        'user_agent',
     ];
 
     protected $casts = [

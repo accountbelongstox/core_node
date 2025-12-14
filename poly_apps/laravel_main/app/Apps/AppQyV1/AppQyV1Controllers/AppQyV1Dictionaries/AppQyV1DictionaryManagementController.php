@@ -20,9 +20,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Utils\StrTool;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
+use App\Traits\ApiResponse;
 
 class AppQyV1DictionaryManagementController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Add a new dictionary entry or multiple entries
      * 
@@ -55,7 +63,6 @@ class AppQyV1DictionaryManagementController extends BaseController
             ], 422);
         }
 
-        try {
             // Prepare data
             $content = $request->input('content');
             
@@ -102,13 +109,6 @@ class AppQyV1DictionaryManagementController extends BaseController
                 'id' => $dictionary->id
             ]);
             
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to add dictionary entry',
-                'error' => $e->getMessage()
-            ], 500);
-        }
     }
     
     /**
@@ -144,7 +144,6 @@ class AppQyV1DictionaryManagementController extends BaseController
             ], 422);
         }
 
-        try {
             $entries = $request->input('entries');
             $results = [];
             
@@ -173,17 +172,50 @@ class AppQyV1DictionaryManagementController extends BaseController
                 $dictionary = new AppQyV1DictionaryModel();
                 $dictionary->content = $content;
                 $dictionary->md5 = md5($content);
-                $dictionary->translation = $entry['translation'] ?? '{}';
-                $dictionary->isTranslation = $entry['isTranslation'] ?? false;
-                $dictionary->translation_provider = $entry['translation_provider'] ?? 0;
-                $dictionary->usPhonetic = $entry['usPhonetic'] ?? null;
-                $dictionary->ukPhonetic = $entry['ukPhonetic'] ?? null;
-                $dictionary->voice_files = $entry['voice_files'] ?? '{}';
-                $dictionary->image_files = $entry['image_files'] ?? '{}';
-                $dictionary->isExistLocal = $entry['isExistLocal'] ?? false;
-                $dictionary->voice_files_provider = $entry['voice_files_provider'] ?? 0;
-                $dictionary->image_files_provider = $entry['image_files_provider'] ?? 0;
-                $dictionary->hasOperations = $entry['hasOperations'] ?? true;
+                $dictionary->translation = '{}';
+                if (isset($entry['translation'])) {
+                    $dictionary->translation = $entry['translation'];
+                }
+                $dictionary->isTranslation = false;
+                if (isset($entry['isTranslation'])) {
+                    $dictionary->isTranslation = $entry['isTranslation'];
+                }
+                $dictionary->translation_provider = 0;
+                if (isset($entry['translation_provider'])) {
+                    $dictionary->translation_provider = $entry['translation_provider'];
+                }
+                $dictionary->usPhonetic = null;
+                if (isset($entry['usPhonetic'])) {
+                    $dictionary->usPhonetic = $entry['usPhonetic'];
+                }
+                $dictionary->ukPhonetic = null;
+                if (isset($entry['ukPhonetic'])) {
+                    $dictionary->ukPhonetic = $entry['ukPhonetic'];
+                }
+                $dictionary->voice_files = '{}';
+                if (isset($entry['voice_files'])) {
+                    $dictionary->voice_files = $entry['voice_files'];
+                }
+                $dictionary->image_files = '{}';
+                if (isset($entry['image_files'])) {
+                    $dictionary->image_files = $entry['image_files'];
+                }
+                $dictionary->isExistLocal = false;
+                if (isset($entry['isExistLocal'])) {
+                    $dictionary->isExistLocal = $entry['isExistLocal'];
+                }
+                $dictionary->voice_files_provider = 0;
+                if (isset($entry['voice_files_provider'])) {
+                    $dictionary->voice_files_provider = $entry['voice_files_provider'];
+                }
+                $dictionary->image_files_provider = 0;
+                if (isset($entry['image_files_provider'])) {
+                    $dictionary->image_files_provider = $entry['image_files_provider'];
+                }
+                $dictionary->hasOperations = true;
+                if (isset($entry['hasOperations'])) {
+                    $dictionary->hasOperations = $entry['hasOperations'];
+                }
                 $dictionary->queryCount = 1;
                 $dictionary->lastModified = now();
                 $dictionary->lastInsertTime = now();
@@ -207,15 +239,6 @@ class AppQyV1DictionaryManagementController extends BaseController
                 'results' => $results
             ]);
             
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to process dictionary entries',
-                'error' => $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -239,7 +262,6 @@ class AppQyV1DictionaryManagementController extends BaseController
             ], 422);
         }
 
-        try {
             $entries = $request->input('entries');
             
             // Extract all contents from the entries
@@ -296,9 +318,8 @@ class AppQyV1DictionaryManagementController extends BaseController
             
             if (!empty($newEntries)) {
                 DB::beginTransaction();
-                
-                try {
-                    foreach ($newEntries as $entry) {
+
+                foreach ($newEntries as $entry) {
                         $content = $entry['content'];
                         $md5 = md5($content);
                         
@@ -306,17 +327,50 @@ class AppQyV1DictionaryManagementController extends BaseController
                         $dictionary = new AppQyV1DictionaryModel();
                         $dictionary->content = $content;
                         $dictionary->md5 = $md5;
-                        $dictionary->translation = $entry['translation'] ?? '{}';
-                        $dictionary->isTranslation = $entry['isTranslation'] ?? false;
-                        $dictionary->translation_provider = $entry['translation_provider'] ?? 0;
-                        $dictionary->usPhonetic = $entry['usPhonetic'] ?? null;
-                        $dictionary->ukPhonetic = $entry['ukPhonetic'] ?? null;
-                        $dictionary->voice_files = $entry['voice_files'] ?? '{}';
-                        $dictionary->image_files = $entry['image_files'] ?? '{}';
-                        $dictionary->isExistLocal = $entry['isExistLocal'] ?? false;
-                        $dictionary->voice_files_provider = $entry['voice_files_provider'] ?? 0;
-                        $dictionary->image_files_provider = $entry['image_files_provider'] ?? 0;
-                        $dictionary->hasOperations = $entry['hasOperations'] ?? true;
+                        $dictionary->translation = '{}';
+                        if (isset($entry['translation'])) {
+                            $dictionary->translation = $entry['translation'];
+                        }
+                        $dictionary->isTranslation = false;
+                        if (isset($entry['isTranslation'])) {
+                            $dictionary->isTranslation = $entry['isTranslation'];
+                        }
+                        $dictionary->translation_provider = 0;
+                        if (isset($entry['translation_provider'])) {
+                            $dictionary->translation_provider = $entry['translation_provider'];
+                        }
+                        $dictionary->usPhonetic = null;
+                        if (isset($entry['usPhonetic'])) {
+                            $dictionary->usPhonetic = $entry['usPhonetic'];
+                        }
+                        $dictionary->ukPhonetic = null;
+                        if (isset($entry['ukPhonetic'])) {
+                            $dictionary->ukPhonetic = $entry['ukPhonetic'];
+                        }
+                        $dictionary->voice_files = '{}';
+                        if (isset($entry['voice_files'])) {
+                            $dictionary->voice_files = $entry['voice_files'];
+                        }
+                        $dictionary->image_files = '{}';
+                        if (isset($entry['image_files'])) {
+                            $dictionary->image_files = $entry['image_files'];
+                        }
+                        $dictionary->isExistLocal = false;
+                        if (isset($entry['isExistLocal'])) {
+                            $dictionary->isExistLocal = $entry['isExistLocal'];
+                        }
+                        $dictionary->voice_files_provider = 0;
+                        if (isset($entry['voice_files_provider'])) {
+                            $dictionary->voice_files_provider = $entry['voice_files_provider'];
+                        }
+                        $dictionary->image_files_provider = 0;
+                        if (isset($entry['image_files_provider'])) {
+                            $dictionary->image_files_provider = $entry['image_files_provider'];
+                        }
+                        $dictionary->hasOperations = true;
+                        if (isset($entry['hasOperations'])) {
+                            $dictionary->hasOperations = $entry['hasOperations'];
+                        }
                         $dictionary->queryCount = 1;
                         $dictionary->lastModified = now();
                         $dictionary->lastInsertTime = now();
@@ -330,15 +384,11 @@ class AppQyV1DictionaryManagementController extends BaseController
                             'status' => 'created',
                             'id' => $dictionary->id
                         ];
-                    }
-                    
-                    DB::commit();
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    throw $e;
                 }
+
+                DB::commit();
             }
-            
+
             // Format the response according to the required structure
             return response()->json([
                 'status' => 'success',
@@ -351,18 +401,6 @@ class AppQyV1DictionaryManagementController extends BaseController
                     "filtered_count" => count($existingDetails)
                 ]
             ]);
-            
-        } catch (\Exception $e) {
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
-            
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to process dictionary entries',
-                'error' => $e->getMessage()
-            ], 500);
-        }
     }
 }
 

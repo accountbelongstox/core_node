@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface SystemInitPanelProps {
@@ -24,8 +24,8 @@ const SystemInitPanel: React.FC<SystemInitPanelProps> = ({ onComplete }) => {
 
     try {
       const [statusRes, statsRes] = await Promise.all([
-        apiService.appQyV1InitializationStatus(),
-        apiService.appQyV1DictionaryStatistics()
+        api.appQyV1.getInitializationStatus(),
+        api.appQyV1.getDictionaryStatistics()
       ]);
 
       if (statusRes.success && statusRes.data) {
@@ -50,7 +50,7 @@ const SystemInitPanel: React.FC<SystemInitPanelProps> = ({ onComplete }) => {
     setError(null);
 
     try {
-      const response = await apiService.appQyV1SystemInitialize();
+      const response = await api.appQyV1.initializeSystem();
       if (response.success) {
         await checkStatus();
       } else {

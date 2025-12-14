@@ -18,9 +18,17 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Traits\ApiResponse;
 
 class AppQyV1AuthenticationEmailVerificationNotificationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Send a new email verification notification.
      */

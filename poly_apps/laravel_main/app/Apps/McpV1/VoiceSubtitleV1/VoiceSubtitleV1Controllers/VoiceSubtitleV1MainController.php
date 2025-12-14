@@ -10,9 +10,17 @@ use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleProcessor;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\SubtitleQueueManager;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\UserSettingsManager;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleTaskManager;
+use App\Traits\ApiResponse;
 
 class VoiceSubtitleV1MainController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private const REQUEST_CACHED_FILES_KEY = '_voice_subtitle_cached_files';
 
     private $processor;
@@ -263,7 +271,6 @@ class VoiceSubtitleV1MainController
         string $group,
         array $cachedFiles = []
     ): void {
-        try {
             $this->taskManager->updateStatus($taskId, 'processing');
             $this->processor->setProgressReporter(function ($step, $status, $message = null, $meta = []) use ($taskId) {
                 $this->taskManager->markStep($taskId, $step, $status, $message, $meta);
@@ -288,17 +295,6 @@ class VoiceSubtitleV1MainController
                 'queue_length' => $this->queueManager->getQueueLength(),
             ], $sanitizedQueueItem);
 
-        } catch (\Throwable $e) {
-            $this->taskManager->failTask($taskId, $e->getMessage());
-            Log::error('[VoiceSubtitleV1] Task processing failed', [
-                'task_id' => $taskId,
-                'error' => $e->getMessage(),
-            ]);
-
-        } finally {
-            $this->processor->setProgressReporter(null);
-            $this->cleanupCachedFiles($cachedFiles);
-        }
     }
 
     public function getQueue(Request $request)
@@ -349,7 +345,10 @@ class VoiceSubtitleV1MainController
         $queue = $this->sanitizeQueueItems($this->queueManager->getQueue());
 
         $items = array_filter($queue, function ($item) use ($today) {
-            $created = $item['created_at'] ?? $item['added_at'] ?? '';
+            $created = $item['added_at'] ?? '';
+            if (isset($item['created_at'])) {
+                $created = $item['created_at'];
+            }
             return strpos($created, $today) === 0;
         });
 
@@ -385,8 +384,14 @@ class VoiceSubtitleV1MainController
 
     private function applyPlayFilters(array $queue, array $settings): array
     {
-        $playMode = $settings['play_mode'] ?? 'all';
-        $playLimit = $settings['play_limit'] ?? 300;
+        $playMode = 'all';
+        if (isset($settings['play_mode'])) {
+            $playMode = $settings['play_mode'];
+        }
+        $playLimit = 300;
+        if (isset($settings['play_limit'])) {
+            $playLimit = $settings['play_limit'];
+        }
         $playGroup = $settings['play_group'];
         $playLanguage = $settings['play_language'];
 
@@ -395,7 +400,10 @@ class VoiceSubtitleV1MainController
         if ($playMode === 'today') {
             $today = date('Y-m-d');
             $filtered = array_filter($filtered, function($item) use ($today) {
-                $createdAt = $item['created_at'] ?? $item['added_at'] ?? '';
+                $createdAt = $item['added_at'] ?? '';
+                if (isset($item['created_at'])) {
+                    $createdAt = $item['created_at'];
+                }
                 return strpos($createdAt, $today) === 0;
             });
         }
@@ -421,7 +429,6 @@ class VoiceSubtitleV1MainController
 
     public function getCurrent(Request $request)
     {
-        try {
             $current = $this->queueManager->getCurrentItem();
 
             if (!$current) {
@@ -437,17 +444,10 @@ class VoiceSubtitleV1MainController
                 'current' => $this->sanitizeQueueItem($current),
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function next(Request $request)
     {
-        try {
             $next = $this->queueManager->moveToNext();
 
             return response()->json([
@@ -456,17 +456,10 @@ class VoiceSubtitleV1MainController
                 'current_index' => $this->queueManager->getCurrentIndex(),
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function previous(Request $request)
     {
-        try {
             $previous = $this->queueManager->moveToPrevious();
 
             return response()->json([
@@ -475,17 +468,10 @@ class VoiceSubtitleV1MainController
                 'current_index' => $this->queueManager->getCurrentIndex(),
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function setIndex(Request $request)
     {
-        try {
             $index = $request->input('index');
 
             if ($index === null) {
@@ -504,12 +490,6 @@ class VoiceSubtitleV1MainController
                 'current_index' => $this->queueManager->getCurrentIndex(),
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function incrementPlayCount(Request $request)
@@ -537,7 +517,6 @@ class VoiceSubtitleV1MainController
 
     public function removeItem(Request $request)
     {
-        try {
             $index = $request->input('index');
 
             if ($index === null) {
@@ -554,12 +533,6 @@ class VoiceSubtitleV1MainController
                 'queue_length' => $this->queueManager->getQueueLength(),
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function removeItems(Request $request)
@@ -588,7 +561,6 @@ class VoiceSubtitleV1MainController
 
     public function clearQueue(Request $request)
     {
-        try {
             $this->queueManager->clearQueue();
 
             return response()->json([
@@ -596,17 +568,10 @@ class VoiceSubtitleV1MainController
                 'message' => 'Queue cleared',
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function getStats(Request $request)
     {
-        try {
             $stats = $this->processor->getStats();
 
             return response()->json([
@@ -614,12 +579,6 @@ class VoiceSubtitleV1MainController
                 'stats' => $stats,
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     public function serveAudio(string $filename)
@@ -923,7 +882,10 @@ class VoiceSubtitleV1MainController
             $audioPath = $item['tts_files'][0]['file_path'];
         }
 
-        $created = $item['created_at'] ?? $item['added_at'] ?? date('Y-m-d H:i:s');
+        $created = $item['added_at'] ?? date('Y-m-d H:i:s');
+        if (isset($item['created_at'])) {
+            $created = $item['created_at'];
+        }
 
         $formatted = [
             'text' => $item['translated_text'] ?? $item['original_text'] ?? '',
@@ -971,11 +933,7 @@ class VoiceSubtitleV1MainController
 
         $filename = basename($filePath);
 
-        try {
             return route('mcp.v1.voice-subtitle.audio', ['filename' => $filename], true);
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 
     private function resolveTargetLanguage($override, string $fallback): string
@@ -1027,23 +985,18 @@ class VoiceSubtitleV1MainController
 
     private function downloadRemoteFile(string $url, string $prefix): ?string
     {
-        try {
             $response = Http::timeout(20)->get($url);
             if (!$response->successful()) {
                 return null;
             }
 
             $contentType = $response->header('Content-Type');
-            $extension = $this->guessExtensionFromMime($contentType) ?? pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
+            $extension = pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
+            if ($this->guessExtensionFromMime($contentType) !== null) {
+                $extension = $this->guessExtensionFromMime($contentType);
+            }
 
             return $this->cacheBinaryContent($response->body(), $prefix, $extension);
-        } catch (\Throwable $e) {
-            Log::warning('[VoiceSubtitleV1] Failed to download remote file', [
-                'url' => $url,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
     }
 
     private function cacheBase64Payload(string $payload, string $prefix): ?string

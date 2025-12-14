@@ -24,8 +24,16 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryP
 use Illuminate\Support\Str;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Utils\ParameterTool;
+use App\Traits\ApiResponse;
 class AppQyV1GroupPolymerizationController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Create a new dictionary group
      *

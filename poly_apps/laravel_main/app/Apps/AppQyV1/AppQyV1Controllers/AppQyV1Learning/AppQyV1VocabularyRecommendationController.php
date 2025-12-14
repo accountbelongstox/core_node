@@ -6,9 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyRecommendationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private static $recommendedCollections = [
         'en' => [
             ['id' => 1, 'name' => 'TOEFL Core Vocabulary', 'total_words' => 3000, 'level' => 'B2-C1', 'category' => 'exam'],

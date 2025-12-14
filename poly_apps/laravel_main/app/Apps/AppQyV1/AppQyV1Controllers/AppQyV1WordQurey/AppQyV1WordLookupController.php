@@ -6,9 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponse;
 
 class AppQyV1WordLookupController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $ttsService;
     
     public function __construct()

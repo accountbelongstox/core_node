@@ -76,11 +76,11 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/token/generate', data);
   }
 
-  async generateRsaKeyPair(data: { bits?: number }): Promise<APIResponse> {
+  async generateRsaKeyPair(data: { keySize?: number; format?: string }): Promise<APIResponse> {
     return this.post('/crypto/rsa/generate', data);
   }
 
-  async generateBip39(data: { words?: number }): Promise<APIResponse> {
+  async generateBip39(data: { strength?: number; count?: number }): Promise<APIResponse> {
     return this.post('/crypto/bip39/generate', data);
   }
 
@@ -159,8 +159,12 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/converter/xml-to-json', data);
   }
 
-  async convertTemperature(data: { value: number; from: string; to: string }): Promise<APIResponse> {
+  async temperature(data: { value: number; from: string; to: string }): Promise<APIResponse> {
     return this.post('/converter/temperature', data);
+  }
+
+  async convertTemperature(data: { value: number; from: string; to: string }): Promise<APIResponse> {
+    return this.temperature(data);
   }
 
   async convertDateTime(data: { datetime: string; from?: string; to?: string }): Promise<APIResponse> {
@@ -507,7 +511,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/unified/uuid', data);
   }
 
-  async generateHmac(data: { algorithm: string; key: string; message: string }): Promise<APIResponse> {
+  async generateHmac(data: { text: string; secret: string; algorithm: string }): Promise<APIResponse> {
     return this.post('/crypto/hmac', data);
   }
 

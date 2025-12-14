@@ -10,7 +10,7 @@ import {
   PlaceholderGenerateRequest,
   VoiceQueueItem
 } from '../../types';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { 
   Image, 
@@ -146,7 +146,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadScreenshots = async () => {
     setScreenshots(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getScreenshots(1, 20);
+      const response = await api.mcpV1.getScreenshots(1, 20);
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const screenshotsData = Array.isArray(response.data)
@@ -176,7 +176,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadCategories = async () => {
     setCategories(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getTaskCategories();
+      const response = await api.mcpV1.getTaskCategories();
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const categoriesData = Array.isArray(response.data)
@@ -212,7 +212,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadTasks = async (categoryId: string) => {
     setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getTaskQueue(categoryId);
+      const response = await api.mcpV1.getTaskQueue(categoryId);
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const tasksData = Array.isArray(response.data)
@@ -242,7 +242,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadQueueStats = async (categoryId: string) => {
     setQueueStats(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getQueueStats(categoryId);
+      const response = await api.mcpV1.getQueueStats(categoryId);
       if (response.success && response.data) {
         setQueueStats({
           data: response.data,
@@ -260,7 +260,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     if (!selectedCategory || !newTaskContent.trim()) return;
 
     try {
-      const response = await apiService.addTask({
+      const response = await api.mcpV1.addTask({
         category_id: selectedCategory,
         content: newTaskContent,
         file_name: newTaskFileName || undefined,
@@ -282,7 +282,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadPromptMapping = async (categoryId: string) => {
     setPromptMapping(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getPromptMappings();
+      const response = await api.mcpV1.getPromptMappings();
       if (response.success && response.data) {
         const mapping = response.data.find((m: any) => m.category_id === categoryId);
         if (mapping) {
@@ -317,7 +317,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     if (!selectedCategory || !promptFilePath.trim()) return;
 
     try {
-      const response = await apiService.updatePromptMapping(
+      const response = await api.mcpV1.updatePromptMapping(
         selectedCategory,
         promptFilePath,
         promptContent
@@ -335,7 +335,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
     try {
       const file = files[0];
-      const response = await apiService.uploadScreenshot({
+      const response = await api.mcpV1.uploadScreenshot({
         image: file,
         description: ''
       });
@@ -736,7 +736,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const loadPlaceholderHistory = async () => {
     try {
-      const response = await apiService.getPlaceholders();
+      const response = await api.mcpV1.getPlaceholders();
       if (response.success && response.data) {
         setPlaceholderHistory(response.data);
       }
@@ -757,7 +757,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         format: placeholderFormat,
         mode: placeholderMode
       };
-      const response = await apiService.generatePlaceholder(request);
+      const response = await api.mcpV1.generatePlaceholder(request);
       if (response.success && response.data) {
         setGeneratedPlaceholder({
           data: response.data,
@@ -782,7 +782,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadVoiceQueue = async () => {
     setVoiceQueue(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.getVoiceQueue();
+      const response = await api.mcpV1.getVoiceQueue();
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const voiceQueueData = Array.isArray(response.data)
@@ -811,7 +811,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const loadCurrentVoiceTrack = async () => {
     try {
-      const response = await apiService.getCurrentVoiceTrack();
+      const response = await api.mcpV1.getCurrentVoiceTrack();
       if (response.success && response.data) {
         setCurrentVoiceTrack({
           data: response.data,
@@ -835,7 +835,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         language: newVoiceLanguage,
         auto_play: false
       };
-      const response = await apiService.addToVoiceQueue(request);
+      const response = await api.mcpV1.addToVoiceQueue(request);
       if (response.success) {
         setNewVoiceContent('');
         loadVoiceQueue();
@@ -1197,13 +1197,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => apiService.playPreviousVoice()}
+                      onClick={() => api.mcpV1.playPreviousVoice()}
                       className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                       <SkipBack className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => apiService.playNextVoice()}
+                      onClick={() => api.mcpV1.playNextVoice()}
                       className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                       <SkipForward className="w-4 h-4" />

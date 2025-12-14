@@ -17,8 +17,16 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDQBasePublic;
+use App\Traits\ApiResponse;
 class AppQyV1PersonalDictionaryProcessPublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
 
     public static function updateReviewedPDByWords($words, $safeUpdate = false)
     {
@@ -112,7 +120,10 @@ class AppQyV1PersonalDictionaryProcessPublicController
             }
             $upPropertyResult[$word] = [];
             foreach ($upArray as $property_name => $operationAndValue) {
-                $operation = $operationAndValue['op'] ?? 'set';
+                $operation = 'set';
+                if (isset($operationAndValue['op'])) {
+                    $operation = $operationAndValue['op'];
+                }
                 $value = $operationAndValue['value'];
                 if ($operation == "plus" && !$value) {
                     $value = 1;
