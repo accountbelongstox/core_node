@@ -1,123 +1,50 @@
 'use client';
 
 import React, { useState } from 'react';
-import { api } from '@/core/api';
-import { useToast } from '@/components/admin';
-import { Copy, ArrowRight, ArrowLeft } from 'lucide-react';
+import { itToolsModel } from '../../core/models';
+import { useToolOperation, useClipboard } from '../../hooks';
+import { ToolContainer, TextAreaInput, CodeDisplay } from '../common';
+import { ArrowRight } from 'lucide-react';
 
-/**
- * Base64 Converter Tool
- *
- * Encode and decode Base64 strings:
- * - Text to Base64
- * - Base64 to Text
- * - File to Base64
- * - Base64 to File
- */
 export function Base64Converter() {
   const [mode, setMode] = useState<'encode' | 'decode'>('encode');
   const [input, setInput] = useState('');
-  const [output, setOutput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const toast = useToast();
+  const { loading, result, execute, setResult } = useToolOperation();
+  const { copy } = useClipboard();
 
-  async function handleEncode() {
-    if (!input.trim()) {
-      toast.warning('Please enter text to encode');
-      return;
-    }
+  const handleConvert = () => {
+    const operation = mode === 'encode'
+      ? () => itToolsModel.converter.base64.encode(input)
+      : () => itToolsModel.converter.base64.decode(input);
 
-    setLoading(true);
-    try {
-      const res = await api.itToolsV1.base64Encode({ text: input });
-      if (res.success) {
-        setOutput(res.data.encoded);
-        toast.success('Text encoded successfully');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to encode');
-    } finally {
-      setLoading(false);
-    }
-  }
+    execute(operation, {
+      validateInput: () => input.trim() ? true : `Please enter ${mode === 'encode' ? 'text' : 'Base64'} to ${mode}`,
+      successMessage: `${mode === 'encode' ? 'Encoded' : 'Decoded'} successfully`
+    });
+  };
 
-  async function handleDecode() {
-    if (!input.trim()) {
-      toast.warning('Please enter Base64 to decode');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await api.itToolsV1.base64Decode({ text: input });
-      if (res.success) {
-        setOutput(res.data.decoded);
-        toast.success('Base64 decoded successfully');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to decode');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleConvert() {
-    if (mode === 'encode') {
-      await handleEncode();
-    } else {
-      await handleDecode();
-    }
-  }
-
-  async function handleCopy(text: string) {
-    await navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
-  }
-
-  function handleClear() {
+  const handleClear = () => {
     setInput('');
-    setOutput('');
-  }
+    setResult(null);
+  };
 
-  function handleSwap() {
-    const newMode = mode === 'encode' ? 'decode' : 'encode';
-    setMode(newMode);
-    if (output) {
-      setInput(output);
-      setOutput('');
+  const handleSwap = () => {
+    setMode(mode === 'encode' ? 'decode' : 'encode');
+    if (result) {
+      setInput(result.encoded || result.decoded || '');
+      setResult(null);
     }
-  }
+  };
 
-  async function handleFileEncode(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setLoading(true);
-    try {
-      const res = await api.itToolsV1.base64FileEncode({ file });
-      if (res.success) {
-        setOutput(res.data.encoded);
-        setInput(file.name);
-        toast.success('File encoded to Base64');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to encode file');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const output = result ? (result.encoded || result.decoded || '') : '';
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Base64 Converter</h2>
-          <p className="text-gray-600 mt-1">
-            Encode and decode Base64 strings
-          </p>
-        </div>
-
-        <div className="space-y-4">
+    <ToolContainer
+      title="Base64 Converter"
+      description="Encode and decode Base64 strings"
+      maxWidth="6xl"
+    >
+      <div className="space-y-4">
           {/* Mode Selection */}
           <div className="flex items-center justify-center gap-2">
             <button
@@ -151,82 +78,32 @@ export function Base64Converter() {
             </button>
           </div>
 
-          {/* File Upload (Encode Only) */}
-          {mode === 'encode' && (
-            <div className="border-2 border-dashed rounded-lg p-4 text-center">
-              <input
-                type="file"
-                onChange={handleFileEncode}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer"
-              >
-                <div className="text-gray-600">
-                  <p className="font-medium">Upload a file to encode</p>
-                  <p className="text-sm mt-1">Click to select or drag and drop</p>
-                </div>
-              </label>
-            </div>
-          )}
-
-          {/* Input/Output Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Input */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  {mode === 'encode' ? 'Plain Text' : 'Base64'}
-                </label>
-                <span className="text-xs text-gray-500">
-                  {input.length} characters
-                </span>
-              </div>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={mode === 'encode' ? 'Enter text to encode...' : 'Enter Base64 to decode...'}
-                rows={16}
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-              />
-            </div>
+            <TextAreaInput
+              value={input}
+              onChange={setInput}
+              label={mode === 'encode' ? 'Plain Text' : 'Base64'}
+              placeholder={mode === 'encode' ? 'Enter text to encode...' : 'Enter Base64 to decode...'}
+              rows={16}
+            />
 
-            {/* Output */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  {mode === 'encode' ? 'Base64' : 'Plain Text'}
-                </label>
-                <div className="flex items-center gap-2">
-                  {output && (
-                    <>
-                      <span className="text-xs text-gray-500">
-                        {output.length} characters
-                      </span>
-                      <button
-                        onClick={() => handleCopy(output)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Copy"
-                      >
-                        <Copy className="w-4 h-4 text-gray-600" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-              <textarea
+            {output ? (
+              <CodeDisplay
                 value={output}
-                readOnly
+                label={mode === 'encode' ? 'Base64' : 'Plain Text'}
+              />
+            ) : (
+              <TextAreaInput
+                value=""
+                onChange={() => {}}
+                label={mode === 'encode' ? 'Base64' : 'Plain Text'}
                 placeholder="Result will appear here..."
                 rows={16}
-                className="w-full px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
+                readOnly
               />
-            </div>
+            )}
           </div>
 
-          {/* Actions */}
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={handleConvert}
@@ -235,16 +112,14 @@ export function Base64Converter() {
             >
               {loading ? 'Processing...' : mode === 'encode' ? 'Encode' : 'Decode'}
             </button>
-
             <button
               onClick={handleClear}
-              className="px-8 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              className="px-8 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Clear
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ToolContainer>
   );
 }

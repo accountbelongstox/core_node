@@ -7,11 +7,19 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
 use App\Services\OpenRouterClient;
 use App\Services\DeepSeekClient;
 use App\Services\GeminiClient;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class AppQyV1TranslationController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $translationService;
     
     public function __construct()
@@ -227,7 +235,6 @@ class AppQyV1TranslationController extends Controller
         $results = [];
 
         foreach ($targetLanguages as $targetLang) {
-            try {
                 $translation = $this->translationService->translateWithModel(
                     text: $text,
                     targetLanguage: $targetLang,
@@ -255,11 +262,6 @@ class AppQyV1TranslationController extends Controller
                         'error' => $translation['error'] ?? 'Translation failed',
                     ];
                 }
-            } catch (\Exception $e) {
-                $results[$targetLang] = [
-                    'error' => $e->getMessage(),
-                ];
-            }
         }
 
         return response()->json([

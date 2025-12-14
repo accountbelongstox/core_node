@@ -15,8 +15,16 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 use Illuminate\Routing\Controller as BaseController;
 use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
+use App\Traits\ApiResponse;
 class AppQyV1ApiDocumentationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static function apiDocs()
     {
         $apiVersion = 'v1';

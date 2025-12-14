@@ -1,10 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApiConfig } from '../../contexts/ApiConfigContext';
+import { useAppState } from '../../contexts/AppStateContext';
 import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
-import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import { useUser } from '../../hooks/useUser';
+import { useUserRole } from '../../hooks/useUserRole';
+import { api } from '../../core/api';
 
 interface SettingsProps {
   lang?: Language;
@@ -17,15 +21,23 @@ const getOriginUrl = (): string => {
   return 'http://localhost:8000';
 };
 
-const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
+const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
+  // 使用中心化状态管理
+  const { lang } = useAppState();
   const { config, updateConfig, resetConfig } = useApiConfig();
+  const { user } = useUser();
+  const { isAdmin, isSuperAdmin, roleLevel, roleName } = useUserRole();
+
+  // 组件状态
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
   const [apiKey, setApiKey] = useState(config.apiKey || '');
   const [port, setPort] = useState(config.port || 9000);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
-  const t = TRANSLATIONS[lang].settings || {
+  // 使用中心化状态的语言或prop传入的语言
+  const currentLang = langProp || lang;
+  const t = TRANSLATIONS[currentLang].settings || {
     title: 'Settings',
     api_config: 'API Configuration',
     base_url: 'Base URL',
@@ -92,22 +104,30 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
   const handleTestConnection = async () => {
     setTestStatus('testing');
     try {
+      // 临时更新API baseURL以测试连接
       const testUrl = baseUrl.trim() || config.baseUrl;
-      const response = await fetch(`${testUrl}/api_info`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          ...(apiKey.trim() ? { 'X-API-Key': apiKey.trim() } : {})
-        }
-      });
-      
-      if (response.ok) {
+      const oldBaseURL = api.systemConfig['baseURL'];
+
+      // 临时设置测试URL
+      api.systemConfig['baseURL'] = testUrl;
+      if (apiKey.trim()) {
+        api.systemConfig.setHeader('X-API-Key', apiKey.trim());
+      }
+
+      // 使用中心化API测试连接
+      const response = await api.systemConfig.getApiInfo();
+
+      // 恢复原始配置
+      api.systemConfig['baseURL'] = oldBaseURL;
+
+      if (response.success) {
         setTestStatus('success');
         setTimeout(() => setTestStatus('idle'), 3000);
       } else {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(response.error || 'Connection failed');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Connection test failed:', error);
       setTestStatus('error');
       setTimeout(() => setTestStatus('idle'), 3000);
     }
@@ -125,6 +145,33 @@ const Settings: React.FC<SettingsProps> = ({ lang = 'en' }) => {
           Configure API endpoints and application settings
         </p>
       </div>
+
+      {/* User Role Info */}
+      {user && (
+        <div className={`${commonClasses.card} p-4 mb-6`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                {isSuperAdmin ? <Shield className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />}
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 dark:text-white">{user.username}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                {roleName}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Level: {roleLevel}
+                {isAdmin && <span className="ml-2 text-indigo-500">• Admin</span>}
+                {isSuperAdmin && <span className="ml-2 text-purple-500">• Super Admin</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* API Configuration Section */}
       <div className={`${commonClasses.card} p-6 mb-6`}>

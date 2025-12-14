@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../types';
 import {
   Folder,
@@ -51,7 +51,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // File browsing state
-  const [rootPath, setRootPath] = useState('/www/programing/core_node');
+  const [rootPath, setRootPath] = useState<string>('');
   const [fileTree, setFileTree] = useState<AsyncState<FileTreeNode[]>>({
     data: null,
     loading: false,
@@ -94,14 +94,23 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   // Load initial data
   useEffect(() => {
     checkAuthStatus();
+    loadPathConfig();
   }, []);
 
   useEffect(() => {
-    if (auth.isAuthenticated) {
+    if (auth.isAuthenticated && rootPath) {
       loadFileTree();
       loadTaskCategories();
     }
   }, [auth.isAuthenticated, rootPath]);
+
+  // NO try-catch allowed
+  const loadPathConfig = async () => {
+    const response = await api.systemConfig.getPathMapping('code_browser');
+    if (response.success && response.data) {
+      setRootPath(response.data.path);
+    }
+  };
 
   useEffect(() => {
     if (selectedCategory) {
@@ -162,7 +171,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const loadFileTree = async () => {
     setFileTree(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.serverManager.browseFiles(rootPath);
+      const response = await api.serverManagerV1.browseFiles(rootPath);
       if (response.success && response.data) {
         const treeData = buildFileTree(response.data);
         setFileTree({
@@ -243,7 +252,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     setFileContent(prev => ({ ...prev, loading: true, status: 'loading' }));
 
     try {
-      const response = await apiService.serverManager.previewFile(file.path);
+      const response = await api.serverManagerV1.previewFile(file.path);
       if (response.success && response.data) {
         setFileContent({
           data: response.data,
@@ -291,7 +300,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const loadTaskCategories = async () => {
     setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.serverManager.getTaskCategories();
+      const response = await api.serverManagerV1.getTaskCategories();
       if (response.success && response.data) {
         setTasks({
           data: response.data,
@@ -315,7 +324,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const loadCategoryTasks = async (category: string) => {
     setCategoryTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await apiService.serverManager.getCategoryTasks(category);
+      const response = await api.serverManagerV1.getCategoryTasks(category);
       if (response.success && response.data) {
         setCategoryTasks({
           data: response.data,

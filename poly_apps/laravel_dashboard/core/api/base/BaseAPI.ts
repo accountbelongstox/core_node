@@ -103,22 +103,31 @@ export class BaseAPI {
    */
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url);
+    const isFormData = config.data instanceof FormData;
+
     const requestConfig: RequestInit = {
       method: config.method,
       headers: {
-        'Content-Type': 'application/json',
         ...this.headers,
         ...config.headers
       },
       signal: AbortSignal.timeout(config.timeout || this.timeout)
     };
 
+    // Only set Content-Type for non-FormData requests
+    if (!isFormData) {
+      requestConfig.headers = {
+        'Content-Type': 'application/json',
+        ...requestConfig.headers
+      };
+    }
+
     // 添加query参数
     const url = config.params ? this.addQueryParams(fullURL, config.params) : fullURL;
 
     // 添加body
     if (config.data) {
-      requestConfig.body = JSON.stringify(config.data);
+      requestConfig.body = isFormData ? config.data : JSON.stringify(config.data);
     }
 
     try {

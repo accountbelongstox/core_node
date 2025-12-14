@@ -9,7 +9,7 @@ import {
   Settings,
   Filter
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 
 interface ExportPanelProps {
@@ -89,19 +89,19 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ userId }) => {
       let result;
       switch (options.format) {
         case 'csv':
-          result = await apiService.appQyV1.exportToCSV(options);
+          result = await api.appQyV1.exportToCSV(options);
           break;
         case 'json':
-          result = await apiService.appQyV1.exportToJSON(options);
+          result = await api.appQyV1.exportToJSON(options);
           break;
         case 'anki':
-          result = await apiService.appQyV1.exportToAnki(options);
+          result = await api.appQyV1.exportToAnki(options);
           break;
         case 'pdf':
-          result = await apiService.appQyV1.exportToPDF(options);
+          result = await api.appQyV1.exportToPDF(options);
           break;
         case 'txt':
-          result = await apiService.appQyV1.exportToText(options);
+          result = await api.appQyV1.exportToText(options);
           break;
       }
 

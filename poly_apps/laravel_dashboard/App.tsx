@@ -15,13 +15,14 @@ import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
 import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
-import { ToastProvider } from './components/admin';
-import { apiService } from './services/apiService';
+import { ToastProvider, InviteCodeManager } from './components/admin';
 import { api } from './core/api';
 import { useUser } from './hooks/useUser';
 import { ViewType } from './types';
 import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
 import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
+import { ApiEndpointSwitcher } from './components/ApiEndpointSwitcher';
+import { apiManager } from './services/ApiManager';
 
 const AppContent: React.FC = () => {
   const { config } = useApiConfig();
@@ -39,8 +40,23 @@ const AppContent: React.FC = () => {
 
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Initialize API Manager on mount
   useEffect(() => {
-    apiService.setConfig(config.baseUrl, config.apiKey);
+    const initializeApi = async () => {
+      await apiManager.initialize({
+        autoDetect: true,
+        timeout: 1000
+      });
+
+      const baseUrl = apiManager.getCurrentBaseUrl();
+      api.updateBaseURL(baseUrl);
+      console.log('[ApiManager] Initialized with:', baseUrl);
+    };
+
+    initializeApi();
+  }, []);
+
+  useEffect(() => {
     api.updateBaseURL(config.baseUrl);
   }, [config]);
 
@@ -67,6 +83,12 @@ const AppContent: React.FC = () => {
 
   const t = TRANSLATIONS[lang];
 
+  // NO ?? or || allowed - backend MUST return complete translation structure
+  const settingsAuthRequired = t.settings.auth_required;
+  const serverManagerAuthRequired = t.server_manager.auth_required;
+  const inviteCodesAuthRequired = t.invite_codes.auth_required;
+  const inviteCodesTitle = t.header.titles.invite_codes;
+
   const renderView = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
@@ -78,26 +100,46 @@ const AppContent: React.FC = () => {
       case ViewType.API_TESTER:
         return <ApiTester />;
       case ViewType.SYSTEM_INFO:
-        return <SystemInfo lang={lang} />;
+        return <SystemInfo />;
       case ViewType.VOCABULARY:
-        return <VocabularyLearning lang={lang} />;
+        return <VocabularyLearning />;
       case ViewType.AI_TOOLS:
-        return <AITools lang={lang} />;
+        return <AITools />;
       case ViewType.MCP_MANAGER:
         return <MCPManager lang={lang} />;
       case ViewType.OCTANE_TASKS:
         return <OctaneTasks lang={lang} />;
       case ViewType.SERVER_MANAGER:
-        return <ServerManager lang={lang} />;
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={true}
+            fallbackMessage={serverManagerAuthRequired}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <ServerManager lang={lang} />
+          </AuthGuard>
+        );
       case ViewType.SETTINGS:
         return (
           <AuthGuard
             lang={lang}
             requireAuth={true}
-            fallbackMessage={t.settings?.auth_required || 'Settings page requires authentication. Please login to continue.'}
+            fallbackMessage={settingsAuthRequired}
             onLoginRequest={() => setShowLoginModal(true)}
           >
             <Settings lang={lang} />
+          </AuthGuard>
+        );
+      case ViewType.INVITE_CODE_MANAGER:
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={true}
+            fallbackMessage={inviteCodesAuthRequired}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <InviteCodeManager lang={lang} />
           </AuthGuard>
         );
       default:
@@ -122,6 +164,7 @@ const AppContent: React.FC = () => {
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
       case ViewType.OCTANE_TASKS: return t.header.titles.octane;
       case ViewType.SERVER_MANAGER: return t.header.titles.server;
+      case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
       case ViewType.SETTINGS: return t.header.titles.settings;
       default: return APP_NAME;
     }
@@ -176,8 +219,11 @@ const AppContent: React.FC = () => {
 
                 {/* Controls */}
                 <div className="flex items-center gap-2">
+                    {/* API Endpoint Switcher */}
+                    <ApiEndpointSwitcher />
+
                     {/* Language Switcher */}
-                    <button 
+                    <button
                       onClick={toggleLang}
                       className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Switch Language"
@@ -186,7 +232,7 @@ const AppContent: React.FC = () => {
                     </button>
 
                     {/* Theme Switcher */}
-                    <button 
+                    <button
                       onClick={toggleTheme}
                       className="p-2 rounded-lg text-slate-500 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Toggle Theme"

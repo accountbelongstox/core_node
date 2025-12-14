@@ -13,7 +13,7 @@ import {
   Star,
   Code
 } from 'lucide-react';
-import { apiService } from '../../services/apiService';
+import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
 import BentoCard from '../BentoCard';
 

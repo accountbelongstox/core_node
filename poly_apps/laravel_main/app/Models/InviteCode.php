@@ -51,7 +51,7 @@ class InviteCode extends Model
         return true;
     }
 
-    public function use(User $user): bool
+    public function use(User $user, ?string $deviceId = null, ?string $ipAddress = null, ?string $userAgent = null): bool
     {
         if (!$this->canBeUsed()) {
             return false;
@@ -60,7 +60,10 @@ class InviteCode extends Model
         InviteCodeUsage::create([
             'invite_code_id' => $this->id,
             'user_id' => $user->id,
+            'device_id' => $deviceId,
             'used_at' => now(),
+            'ip_address' => $ipAddress,
+            'user_agent' => $userAgent,
         ]);
 
         $this->increment('used_count');

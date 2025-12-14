@@ -25,8 +25,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Auth\AvatarPublic;
+use App\Traits\ApiResponse;
+
+/**
+ * NO ?? or || allowed - use explicit if statements
+ */
 class RegisteredUserController extends Controller
 {
+    use ApiResponse;
     /**
      * Handle an incoming registration request.
      *
@@ -40,11 +46,7 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'string', 'max:255'],
         ]);
         if ($this->checkUsernameIsExist($request->username)) {
-            return response()->json([
-                'message' => 'Username already exists',
-                'code' => 400,
-                'status' => 'error',
-            ], 400);
+            return $this->error('Username already exists', 400);
         }
         $user = User::create([
             'username' => $request->username,
@@ -57,16 +59,13 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         $token = $user->createToken('auth_token')->plainTextToken;
-        return response()->json([
+        return $this->success([
             'token' => $token,
             'token_type' => 'Bearer',
-            "expiration" => config('sanctum.expiration'),
+            'expiration' => config('sanctum.expiration'),
             'uid' => $user->id,
-            "user" => $user,
-            'message' => 'User registered successfully',
-            'code' => 200,
-            'status' => 'success',
-        ], 200);
+            'user' => $user,
+        ], 'User registered successfully');
     }
 
     public function checkUsernameIsExist($username)
@@ -96,14 +95,13 @@ class RegisteredUserController extends Controller
         $invitationCodeFile = \App\Providers\PathMapper::getLaravelDataDir() . '/app_qy_v1_invitation_code.json';
         if (file_exists($invitationCodeFile)) {
             $data = json_decode(file_get_contents($invitationCodeFile), true);
-            $validCode = $data['invitation_code'] ?? 'APPQY2025';
-            
+            $validCode = 'APPQY2025';
+            if (isset($data['invitation_code'])) {
+                $validCode = $data['invitation_code'];
+            }
+
             if ($request->invitation_code !== $validCode) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid invitation code',
-                    'errors' => ['invitation_code' => ['Invalid invitation code']],
-                ], 422);
+                return $this->validationError(['invitation_code' => ['Invalid invitation code']], 'Invalid invitation code');
             }
         }
         
@@ -124,24 +122,17 @@ class RegisteredUserController extends Controller
         ];
         
         $result = \App\Services\UnifiedAuthService::register($credentials, 'appqyv1');
-        
+
         if (!$result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['error'],
-            ], 422);
+            return $this->error($result['error'], 422);
         }
-        
+
         $user = $result['user'];
         event(new Registered($user));
         Auth::login($user);
-        
+
         if ($request->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Registration successful',
-                'user' => $user,
-            ]);
+            return $this->success(['user' => $user], 'Registration successful');
         }
 
         return response()->noContent();
