@@ -12,6 +12,7 @@ import ctypes
 import platform
 import shutil
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from typing import Callable, Optional
 
@@ -86,7 +87,7 @@ def _copy_with_powershell(text: str) -> bool:
         return False
     script = "Set-Clipboard -Value ([Console]::In.ReadToEnd())"
     try:
-        subprocess.run(
+        exec_silent(
             ["powershell", "-NoProfile", "-Command", script],
             input=text,
             text=True,
@@ -103,7 +104,7 @@ def _copy_with_clip_command(text: str) -> bool:
     clip_cmd = shutil.which("clip") or shutil.which("clip.exe")
     cmd = [clip_cmd] if clip_cmd else ["cmd", "/c", "clip"]
     try:
-        subprocess.run(
+        exec_silent(
             cmd,
             input=text,
             text=True,
@@ -138,7 +139,7 @@ def _read_with_powershell() -> Optional[str]:
     if not sys.platform.startswith("win"):
         return None
     try:
-        result = subprocess.run(
+        result = exec_silent(
             ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
             capture_output=True,
             text=True,

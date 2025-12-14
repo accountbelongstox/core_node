@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 # Get logger
 logger = logging.getLogger(__name__)
@@ -266,13 +267,13 @@ class CnOCREngine:
             logger.info("Installing CnOCR dependencies...")
 
             # Install CnOCR
-            result = subprocess.run([
+            result = exec_silent([
                 sys.executable, "-m", "pip", "install",
                 "cnocr[ort-cpu]",
                 "-i", "https://mirrors.aliyun.com/pypi/simple"
             ], capture_output=True, text=True, timeout=300)
 
-            if result.returncode != 0:
+            if result.return_code != 0:
                 logger.error(f"CnOCR installation failed: {result.stderr}")
                 return False
 

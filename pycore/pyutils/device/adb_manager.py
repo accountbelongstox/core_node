@@ -13,6 +13,7 @@ Design Principles:
 """
 
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import re
 import shlex
 from pathlib import Path
@@ -73,7 +74,7 @@ class ADBManager:
         cmd.extend(args)
 
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -83,10 +84,10 @@ class ADBManager:
             )
 
             return ADBExecuteResult(
-                success=(result.returncode == 0),
+                success=(result.return_code == 0),
                 stdout=result.stdout,
                 stderr=result.stderr,
-                returncode=result.returncode
+                returncode=result.return_code
             )
 
         except subprocess.TimeoutExpired:

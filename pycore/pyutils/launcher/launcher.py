@@ -354,6 +354,7 @@ def launch_device_sync():
     - Linux: Uses subprocess with start_new_session=True
     """
     import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
     import platform
 
     print("[Launcher] Starting Device Sync in background...")

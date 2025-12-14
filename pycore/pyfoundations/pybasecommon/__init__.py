@@ -11,6 +11,10 @@ from pycore.pyfoundations.pybasecommon.commander import (
     exec_realtime,
     exec_capture,
     exec_silent,
+    exec_check,
+    command_exists,
+    get_command_output,
+    run_background,
 )
 
 __all__ = [
@@ -20,5 +24,9 @@ __all__ = [
     'exec_realtime',
     'exec_capture',
     'exec_silent',
+    'exec_check',
+    'command_exists',
+    'get_command_output',
+    'run_background',
 ]
 

@@ -8,6 +8,7 @@ Centralized logging setup for device sync components.
 import logging
 import sys
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import platform
 from pathlib import Path
 from datetime import datetime

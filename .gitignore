@@ -36,6 +36,7 @@ app.*.symbols
 **/*.test/
 **/test/
 **/tests/
+**/.nuxt/
 /test/
 /tests/
 /.venv/

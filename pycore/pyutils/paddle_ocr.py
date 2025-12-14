@@ -19,6 +19,7 @@ Pitfalls encountered during development:
 import os
 import sys
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import time
 import json
 from pathlib import Path
@@ -188,11 +189,11 @@ class PaddleOCREngine:
 
             process.wait()
 
-            if process.returncode == 0:
+            if process.return_code == 0:
                 ColorPrint.green(f"[SUCCESS] {package_name} installed successfully")
                 return True
             else:
-                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.returncode}")
+                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.return_code}")
                 return False
 
         except Exception as e:

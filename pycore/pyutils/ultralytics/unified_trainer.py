@@ -11,6 +11,7 @@ import time
 import traceback
 import platform
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime

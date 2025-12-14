@@ -24,6 +24,7 @@ import re
 import sys
 import platform
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 from typing import Optional, Tuple, List
 

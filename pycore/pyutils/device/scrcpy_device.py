@@ -10,6 +10,7 @@ import random
 import socket
 import struct
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
 from typing import Optional, Callable
@@ -333,7 +334,7 @@ class ScrcpyDevice(AndroidDevice):
             "--remove-all"
         ]
         try:
-            subprocess.run(cmd, capture_output=True, timeout=5)
+            exec_silent(cmd, capture_output=True, timeout=5)
             print(f"[ScrcpyDevice] [OK] Cleaned up old reverse tunnels for {self.serial}")
         except subprocess.TimeoutExpired:
             print(f"[ScrcpyDevice] [WARN] Timeout cleaning reverse tunnels for {self.serial}")
@@ -346,7 +347,7 @@ class ScrcpyDevice(AndroidDevice):
             "pkill -f com.genymobile.scrcpy.Server"
         ]
         try:
-            subprocess.run(cmd, capture_output=True, timeout=5)
+            exec_silent(cmd, capture_output=True, timeout=5)
             print(f"[ScrcpyDevice] [OK] Killed old scrcpy-server processes on {self.serial}")
         except subprocess.TimeoutExpired:
             print(f"[ScrcpyDevice] [WARN] Timeout killing old processes for {self.serial}")
@@ -378,9 +379,9 @@ class ScrcpyDevice(AndroidDevice):
             f"localabstract:{device_socket_name}",
             f"tcp:{local_port}"
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = exec_silent(cmd, capture_output=True, text=True)
 
-        if result.returncode != 0:
+        if result.return_code != 0:
             raise RuntimeError(f"adb reverse failed: {result.stderr}")
 
         print(f"[ScrcpyDevice] [OK] Reverse tunnel: localabstract:{device_socket_name} -> tcp:{local_port}")
@@ -404,7 +405,7 @@ class ScrcpyDevice(AndroidDevice):
             f"tcp:{local_port}",
             remote
         ]
-        subprocess.run(cmd, check=True, capture_output=True)
+        exec_silent(cmd, check=True, capture_output=True)
 
     def _remove_reverse_tunnel(self, device_socket_name: str):
         """Remove ADB reverse tunnel"""
@@ -415,7 +416,7 @@ class ScrcpyDevice(AndroidDevice):
             "--remove",
             f"localabstract:{device_socket_name}"
         ]
-        subprocess.run(cmd, capture_output=True)
+        exec_silent(cmd, capture_output=True)
 
     def _remove_port_forward(self, local_port: int):
         """Remove ADB port forwarding"""
@@ -426,7 +427,7 @@ class ScrcpyDevice(AndroidDevice):
             "--remove",
             f"tcp:{local_port}"
         ]
-        subprocess.run(cmd, capture_output=True)
+        exec_silent(cmd, capture_output=True)
 
     def _connect_to_port(self, port: int) -> socket.socket:
         """Connect to local port with timeout"""
@@ -565,8 +566,8 @@ class ScrcpyDevice(AndroidDevice):
     def _get_device_dpi(self) -> int:
         """Get device screen DPI via ADB"""
         cmd = [self.adb_path, "-s", self.serial, "shell", "wm", "density"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
+        result = exec_silent(cmd, capture_output=True, text=True, timeout=5)
+        if result.return_code == 0:
             # Output format: "Physical density: 440"
             output = result.stdout.strip()
             if ":" in output:
@@ -577,15 +578,15 @@ class ScrcpyDevice(AndroidDevice):
     def _get_android_version(self) -> str:
         """Get Android version via ADB"""
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.release"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
+        result = exec_silent(cmd, capture_output=True, text=True, timeout=5)
+        if result.return_code == 0:
             return result.stdout.strip()
         return "Unknown"
 
     def _get_sdk_version(self) -> int:
         """Get Android SDK version via ADB"""
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.sdk"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
+        result = exec_silent(cmd, capture_output=True, text=True, timeout=5)
+        if result.return_code == 0:
             return int(result.stdout.strip())
         return 0  # Unknown SDK version

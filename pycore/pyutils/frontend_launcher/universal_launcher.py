@@ -17,6 +17,7 @@ import os
 import re
 import socket
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
 from dataclasses import dataclass

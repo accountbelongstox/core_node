@@ -1556,10 +1556,11 @@ def _replay_text_with_tts(text: str, language: str, speech_manager):
                 os.startfile(str(temp_file))
             elif CURRENT_PLATFORM == 'Darwin':  # macOS
                 import subprocess
-                subprocess.run(['afplay', str(temp_file)])
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+                exec_silent(['afplay', str(temp_file)])
             elif CURRENT_PLATFORM == 'Linux':
                 import subprocess
-                subprocess.run(['mpg123', str(temp_file)])
+                exec_silent(['mpg123', str(temp_file)])
         else:
             ColorPrint.red("[TTS] Failed to generate speech")
 

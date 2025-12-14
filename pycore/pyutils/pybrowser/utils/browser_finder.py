@@ -10,6 +10,7 @@ import os
 import platform
 import shutil
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 from typing import Optional, List, Dict
 from pycore import ColorPrint
@@ -98,14 +99,14 @@ class BrowserFinder:
         if not browser_path:
             return None
 
-        result = subprocess.run(
+        result = exec_silent(
             [browser_path, '--version'],
             capture_output=True,
             text=True,
             timeout=10
         )
 
-        if result.returncode == 0:
+        if result.return_code == 0:
             return result.stdout.strip()
 
         return None
@@ -156,13 +157,13 @@ class EdgeFinder(BrowserFinder):
         """Find Edge using which command"""
         commands = ['microsoft-edge', 'microsoft-edge-stable', 'msedge', 'edge']
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 ['which', cmd],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 path = result.stdout.strip()
                 if path and os.path.exists(path):
                     ColorPrint.green(f"Found Edge via which: {path}")
@@ -253,13 +254,13 @@ class EdgeFinder(BrowserFinder):
 
     def wide_range_search_windows(self) -> Optional[str]:
         """Windows wide range search"""
-        result = subprocess.run(
+        result = exec_silent(
             ['where', 'msedge'],
             capture_output=True,
             text=True,
             timeout=10
         )
-        if result.returncode == 0:
+        if result.return_code == 0:
             paths = result.stdout.strip().split('\n')
             for path in paths:
                 path = path.strip()
@@ -277,14 +278,14 @@ class EdgeFinder(BrowserFinder):
         ]
 
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=15
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 paths = result.stdout.strip().split('\n')
                 for path in paths:
                     path = path.strip()
@@ -302,14 +303,14 @@ class EdgeFinder(BrowserFinder):
         ]
 
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=15
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 paths = result.stdout.strip().split('\n')
                 for path in paths:
                     path = path.strip()
@@ -368,13 +369,13 @@ class ChromeFinder(BrowserFinder):
         """Find Chrome using which command"""
         commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium', 'chrome']
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 ['which', cmd],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 path = result.stdout.strip()
                 if path and os.path.exists(path):
                     ColorPrint.green(f"Found Chrome via which: {path}")
@@ -465,13 +466,13 @@ class ChromeFinder(BrowserFinder):
 
     def wide_range_search_windows(self) -> Optional[str]:
         """Windows wide range search"""
-        result = subprocess.run(
+        result = exec_silent(
             ['where', 'chrome'],
             capture_output=True,
             text=True,
             timeout=10
         )
-        if result.returncode == 0:
+        if result.return_code == 0:
             paths = result.stdout.strip().split('\n')
             for path in paths:
                 path = path.strip()
@@ -489,14 +490,14 @@ class ChromeFinder(BrowserFinder):
         ]
 
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=15
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 paths = result.stdout.strip().split('\n')
                 for path in paths:
                     path = path.strip()
@@ -514,14 +515,14 @@ class ChromeFinder(BrowserFinder):
         ]
 
         for cmd in commands:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=15
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 paths = result.stdout.strip().split('\n')
                 for path in paths:
                     path = path.strip()

@@ -11,6 +11,7 @@ Handles:
 """
 
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
 import socket

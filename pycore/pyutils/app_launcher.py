@@ -1,5 +1,6 @@
 import os
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 import time
 from pathlib import Path
@@ -20,7 +21,7 @@ class AppLauncher:
         basename = os.path.basename(exe_path)
         print(f"Killing {basename} process...")
         try:
-            subprocess.run(f'taskkill /F /IM "{basename}"', shell=True, check=True)
+            exec_silent(f'taskkill /F /IM "{basename}"', shell=True, check=True)
             print(f"Successfully killed {basename} process")
             return True
         except subprocess.CalledProcessError as e:

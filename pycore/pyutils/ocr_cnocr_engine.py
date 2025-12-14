@@ -5,6 +5,7 @@ Uses CnOCR engine for Chinese OCR recognition
 """
 import sys
 import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
 import importlib.util
@@ -99,14 +100,14 @@ class CnOCREngine:
 
             process.wait()
 
-            if process.returncode == 0:
+            if process.return_code == 0:
                 ColorPrint.green(f"\n{'=' * 60}")
                 ColorPrint.green(f"Package {package_spec} installed successfully!")
                 ColorPrint.green(f"{'=' * 60}\n")
                 return True
             else:
                 ColorPrint.red(f"\n{'=' * 60}")
-                ColorPrint.red(f"Package {package_spec} installation failed with code {process.returncode}")
+                ColorPrint.red(f"Package {package_spec} installation failed with code {process.return_code}")
                 ColorPrint.red(f"{'=' * 60}\n")
                 return False
 
