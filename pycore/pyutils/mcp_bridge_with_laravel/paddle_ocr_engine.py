@@ -175,7 +175,7 @@ class PaddleOCREngine:
         """Create a simple test image for initialization testing"""
         from pycore.pyfoundations.third_party import get_third_package_PIL
 
-PIL = get_third_package_PIL()
+        PIL = get_third_package_PIL()
         Image = PIL.Image
         ImageDraw = PIL.ImageDraw
         ImageFont = PIL.ImageFont
