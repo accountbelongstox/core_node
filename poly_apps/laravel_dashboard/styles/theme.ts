@@ -158,6 +158,8 @@ export const commonClasses = {
   buttonPrimary: 'bg-indigo-600 hover:bg-indigo-700 text-white',
   buttonSecondary: 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200',
   input: 'px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+  textarea: 'px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none',
+  select: 'px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500',
   badge: 'px-2 py-1 rounded-full text-xs font-medium',
   badgeSuccess: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
   badgeWarning: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',

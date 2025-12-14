@@ -33,16 +33,8 @@ class GlobalVariableManager:
             user_home = Path.home()
             vars_dir = user_home / ".core_node" / ".build_global_vars"
         else:
-            # Try user directory first for better reliability
-            user_home = Path.home()
-            vars_dir = user_home / ".core_node" / ".build_global_vars"
-
-            # Only try system directory if user specifically requests it
-            # or if we're running as root
-            if os.geteuid() == 0:
-                system_dir = Path("/var/_core_node/_build_global_vars")
-                if self._has_write_permission(system_dir):
-                    vars_dir = system_dir
+            # Linux: Always use /var/_core_node/_build_global_vars/
+            vars_dir = Path("/var/_core_node/_build_global_vars")
 
         return vars_dir
 

@@ -14,8 +14,30 @@
 # Service Manager Module (Refactored)
 # Uses core library for service management and configuration
 
+# Get script directory and root directory
+# IMPORTANT: When sourced, use ROOT_DIR from parent if available
+if [ -z "$ROOT_DIR" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    echo -e "\033[33m[service_manager.sh] ROOT_DIR not set, calculated: $ROOT_DIR\033[0m" >&2
+else
+    echo -e "\033[32m[service_manager.sh] Using ROOT_DIR from parent: $ROOT_DIR\033[0m" >&2
+fi
+
+# Save ROOT_DIR before sourcing core_lib (which may reset it)
+SAVED_ROOT_DIR="$ROOT_DIR"
+
 # Source core library
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/core_lib.sh"
+CORE_LIB="$ROOT_DIR/scripts/unified_manager/lib/core_lib.sh"
+if [ -f "$CORE_LIB" ]; then
+    source "$CORE_LIB"
+else
+    echo -e "\033[31m[service_manager.sh] Core library not found: $CORE_LIB\033[0m" >&2
+fi
+
+# Restore ROOT_DIR after sourcing
+ROOT_DIR="$SAVED_ROOT_DIR"
+export ROOT_DIR
 
 # Get fixed port for specific app (using core library)
 get_app_fixed_port() {
@@ -414,6 +436,74 @@ create_unified_service() {
     # Auto-replace existing compiled services if in debug mode
     auto_replace_debug_service "$app_name" "$app_path" "$framework_type" "$port" "$domain" "$debug_mode"
 
+    # Generate launcher script using Python launcher generator FIRST
+    echo ""
+    echo -e "\033[36m=== Generating Launcher Script ===\033[0m"
+    echo -e "\033[90mROOT_DIR: $ROOT_DIR\033[0m"
+
+    local launcher_generator="$ROOT_DIR/scripts/unified_manager/core/launcher_generator.py"
+    local launcher_script=""
+    local working_dir="$app_path"
+
+    # Check if launcher_generator exists
+    if [ ! -f "$launcher_generator" ]; then
+        echo -e "\033[31mLauncher generator not found: $launcher_generator\033[0m"
+        return 1
+    fi
+
+    echo -e "\033[90mLauncher generator: $launcher_generator\033[0m"
+
+    # Convert bash boolean to Python boolean
+    local python_debug_mode="False"
+    if [ "$debug_mode" = "true" ] || [ "$debug_mode" = "True" ]; then
+        python_debug_mode="True"
+    fi
+
+    echo -e "\033[90mDebug mode (bash): $debug_mode -> Python: $python_debug_mode\033[0m"
+
+    # Call Python launcher generator using python3 with proper PYTHONPATH
+    # Use export to ensure PYTHONPATH is set in subshell
+    export PYTHONPATH="$ROOT_DIR/scripts/unified_manager/core:$PYTHONPATH"
+    launcher_script=$(python3 -c "
+from launcher_generator import LauncherGenerator
+
+generator = LauncherGenerator()
+launcher_path = generator.generate_launcher(
+    service_name='$service_name',
+    app_path='$app_path',
+    framework_type='$framework_type',
+    port=$port,
+    debug_mode=$python_debug_mode
+)
+print(launcher_path)
+" 2>&1)
+
+    local gen_result=$?
+
+    if [ $gen_result -ne 0 ] || [ -z "$launcher_script" ]; then
+        echo -e "\033[31mFailed to generate launcher script\033[0m"
+        echo -e "\033[90mError output: $launcher_script\033[0m"
+        return 1
+    fi
+
+    if [ ! -f "$launcher_script" ]; then
+        echo -e "\033[31mLauncher script was not created: $launcher_script\033[0m"
+        return 1
+    fi
+
+    echo -e "\033[32m✓ Launcher script generated\033[0m"
+    echo -e "\033[90mService Name: $service_name\033[0m"
+    echo -e "\033[90mLauncher Script: $launcher_script\033[0m"
+    echo ""
+
+    # Display launcher script content
+    echo -e "\033[36m=== Launcher Script Content ===\033[0m"
+    echo -e "\033[90m$(cat "$launcher_script")\033[0m"
+    echo ""
+
+    # Service command points to launcher script
+    local service_command="$launcher_script"
+
     # Source common service manager
     local common_service_manager="$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
     if [ ! -f "$common_service_manager" ]; then
@@ -428,59 +518,6 @@ create_unified_service() {
         source "$firewall_manager"
         echo -e "\033[32mFirewall manager loaded\033[0m"
     fi
-
-    # Generate service command based on framework type
-    local service_command=""
-    local working_dir="$app_path"
-
-    case "$framework_type" in
-        "reactStart"|"vueStart")
-            if [ "$debug_mode" = "true" ]; then
-                service_command="bash $ROOT_DIR/scripts/unified_manager/launchers/react_launcher.sh \"$app_path\" \"$app_name\" start"
-            else
-                service_command="bash -c 'cd \"$app_path\" && pnpm run build && pnpm run start'"
-            fi
-            ;;
-        "nuxtStart")
-            if [ "$debug_mode" = "true" ]; then
-                service_command="bash $ROOT_DIR/scripts/unified_manager/launchers/nuxt_launcher.sh \"$app_path\" \"$app_name\" start"
-            else
-                service_command="bash -c 'cd \"$app_path\" && pnpm run build && pnpm run start'"
-            fi
-            ;;
-        "laravelStart")
-            if [ "$debug_mode" = "true" ]; then
-                service_command="bash -c 'cd \"$app_path\" && php artisan serve --host=0.0.0.0 --port=$port'"
-            else
-                service_command="bash -c 'cd \"$app_path\" && php artisan serve --host=0.0.0.0 --port=$port --env=production'"
-            fi
-            ;;
-        "flutterStart")
-            if [ "$debug_mode" = "true" ]; then
-                service_command="bash -c 'cd \"$app_path\" && flutter run -d web-server --web-hostname=0.0.0.0 --web-port=$port'"
-            else
-                service_command="bash -c 'cd \"$app_path\" && flutter build web && python3 -m http.server $port --bind 0.0.0.0 --directory build/web'"
-            fi
-            ;;
-        *)
-            if [ -f "$app_path/package.json" ]; then
-                if grep -q '"dev"' "$app_path/package.json" 2>/dev/null; then
-                    service_command="bash -c 'cd \"$app_path\" && HOST=0.0.0.0 PORT=$port pnpm run dev'"
-                elif grep -q '"start"' "$app_path/package.json" 2>/dev/null; then
-                    service_command="bash -c 'cd \"$app_path\" && HOST=0.0.0.0 PORT=$port pnpm start'"
-                fi
-            fi
-            ;;
-    esac
-
-    if [ -z "$service_command" ]; then
-        echo -e "\033[31mFailed to generate service command for $framework_type\033[0m"
-        return 1
-    fi
-
-    echo -e "\033[90mService Name: $service_name\033[0m"
-    echo -e "\033[90mService Command: $service_command\033[0m"
-    echo ""
 
     # Create service using common service manager
     local service_description="$app_name ($framework_type) - Auto-generated by Unified Manager"

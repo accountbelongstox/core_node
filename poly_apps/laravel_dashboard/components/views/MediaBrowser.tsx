@@ -2,15 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import BentoCard from '../BentoCard';
 import { FileNode, Language } from '../../types';
-import { apiService } from '../../services/apiService';
-import { useApiConfig } from '../../contexts/ApiConfigContext';
+import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';
 import {
     Folder, FolderOpen, FileVideo, File, ChevronRight, ChevronDown,
-    Play, SkipForward, Maximize2, RefreshCw, Film, UploadCloud,
+    Play, SkipForward, SkipBack, Maximize2, RefreshCw, Film, UploadCloud,
     FolderPlus, Music, Image as ImageIcon, Code2, AlertCircle, X,
-    FileText, Loader2
+    FileText, Loader2, Settings, FastForward
 } from "lucide-react";
 
 const FileTreeItem: React.FC<{
@@ -130,7 +129,6 @@ interface MediaBrowserProps {
 
 const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].media_browser;
-  const { config } = useApiConfig();
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<FileNode | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('/www/programing/core_node');
@@ -139,16 +137,39 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const [autoPlay, setAutoPlay] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [skipIntro, setSkipIntro] = useState<{ enabled: boolean; start: number; end: number }>({
+    enabled: false,
+    start: 0,
+    end: 90
+  });
+  const [showFloatingControls, setShowFloatingControls] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const loadFileTree = async (path?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiService.getStaticResourcesTree(path);
+      // Use centralized API singleton (McpV1)
+      const response = await api.mcpV1.getStaticResourcesTree(path);
       if (response.success && response.data) {
-        setFileTree(response.data);
-        if (response.data.length > 0 && !activeFile) {
-          const firstFile = findFirstFile(response.data);
+        // Handle response data structure
+        const items = response.data.items || response.data;
+
+        // Add id field to each node if not present (backend doesn't return id)
+        const addIdToNodes = (nodes: any[]): FileNode[] => {
+          return nodes.map((node: any) => ({
+            ...node,
+            id: node.id || node.path || `${node.name}-${Math.random().toString(36).substr(2, 9)}`,
+            type: node.type === 'directory' ? 'folder' : 'file',
+            children: node.children ? addIdToNodes(node.children) : undefined
+          }));
+        };
+
+        const nodesWithId = addIdToNodes(Array.isArray(items) ? items : []);
+        setFileTree(nodesWithId);
+
+        if (nodesWithId.length > 0 && !activeFile) {
+          const firstFile = findFirstFile(nodesWithId);
           if (firstFile) setActiveFile(firstFile);
         }
       } else {
@@ -232,7 +253,8 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
 
   const handleUpload = async (files: FileList) => {
      try {
-       const response = await apiService.uploadStaticResources(files);
+       // Use centralized API singleton (McpV1)
+       const response = await api.mcpV1.uploadStaticResources(Array.from(files));
        if (response.success) {
          await loadFileTree();
        } else {
@@ -251,9 +273,30 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const playPreviousInPlaylist = () => {
+    if (playlist.length === 0 || !activeFile) return;
+    const currentIdx = playlist.findIndex(n => n.id === activeFile.id);
+    if (currentIdx > 0) {
+        setActiveFile(playlist[currentIdx - 1]);
+    }
+  };
+
   const handleVideoEnd = () => {
     if (autoPlay) playNextInPlaylist();
   };
+
+  const handleVideoTimeUpdate = () => {
+    if (!videoRef.current || !skipIntro.enabled) return;
+    const currentTime = videoRef.current.currentTime;
+    // Auto-skip intro
+    if (currentTime >= skipIntro.start && currentTime < skipIntro.end && currentTime < skipIntro.start + 2) {
+      videoRef.current.currentTime = skipIntro.end;
+    }
+  };
+
+  const currentPlaylistIndex = playlist.findIndex(n => n.id === activeFile?.id);
+  const hasNext = playlist.length > 0 && currentPlaylistIndex < playlist.length - 1;
+  const hasPrevious = playlist.length > 0 && currentPlaylistIndex > 0;
 
   return (
     <div className="h-full flex flex-col md:flex-row gap-6 p-6 overflow-hidden">
@@ -321,16 +364,59 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
       <div className="w-full md:w-[400px] flex flex-col gap-6">
         <BentoCard title="Preview" icon={Play} glowing className="flex-shrink-0">
           <div className="space-y-4">
-            <div className="aspect-video bg-black/60 border border-white/10 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="aspect-video bg-black/60 border border-white/10 rounded-lg flex items-center justify-center overflow-hidden relative group">
               {activeFile?.fileType === 'video' ? (
-                <video
-                  key={activeFile.id}
-                  controls
-                  autoPlay
-                  onEnded={handleVideoEnd}
-                  className="w-full h-full"
-                  src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    key={activeFile.id}
+                    controls
+                    autoPlay
+                    onEnded={handleVideoEnd}
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    className="w-full h-full"
+                    src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
+                  />
+                  {/* Floating Episode Controls */}
+                  {showFloatingControls && (hasPrevious || hasNext) && (
+                    <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {hasPrevious && (
+                        <button
+                          onClick={playPreviousInPlaylist}
+                          className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                          title="Previous Episode"
+                        >
+                          <SkipBack size={20} />
+                        </button>
+                      )}
+                      {hasNext && (
+                        <button
+                          onClick={playNextInPlaylist}
+                          className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                          title="Next Episode"
+                        >
+                          <SkipForward size={20} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {/* Skip Intro Button */}
+                  {skipIntro.enabled && videoRef.current && videoRef.current.currentTime >= skipIntro.start && videoRef.current.currentTime < skipIntro.end && (
+                    <div className="absolute top-4 right-4">
+                      <button
+                        onClick={() => {
+                          if (videoRef.current) {
+                            videoRef.current.currentTime = skipIntro.end;
+                          }
+                        }}
+                        className="px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white text-sm rounded-lg shadow-lg transition-all hover:scale-105 flex items-center gap-2"
+                      >
+                        <FastForward size={16} />
+                        Skip Intro
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : activeFile?.fileType === 'audio' ? (
                 <audio
                   key={activeFile.id}
@@ -338,11 +424,11 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                   autoPlay
                   onEnded={handleVideoEnd}
                   className="w-full"
-                  src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
+                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                 />
               ) : activeFile?.fileType === 'image' ? (
                 <img
-                  src={`${config.baseUrl}/static-resources/stream-file?path=${encodeURIComponent(currentPath)}`}
+                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
                   alt={activeFile.name}
                   className="max-w-full max-h-full object-contain"
                 />
@@ -372,14 +458,64 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
               </div>
             )}
 
-            <div className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={autoPlay}
-                onChange={(e) => setAutoPlay(e.target.checked)}
-                className="rounded"
-              />
-              <label className="text-slate-400">Auto-play next ({playlist.length} in queue)</label>
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={autoPlay}
+                  onChange={(e) => setAutoPlay(e.target.checked)}
+                  className="rounded"
+                />
+                <label className="text-slate-400">Auto-play next ({playlist.length} in queue)</label>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={showFloatingControls}
+                  onChange={(e) => setShowFloatingControls(e.target.checked)}
+                  className="rounded"
+                />
+                <label className="text-slate-400">Show floating episode controls</label>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={skipIntro.enabled}
+                  onChange={(e) => setSkipIntro(prev => ({ ...prev, enabled: e.target.checked }))}
+                  className="rounded"
+                />
+                <label className="text-slate-400">Auto-skip intro</label>
+              </div>
+
+              {skipIntro.enabled && (
+                <div className="ml-5 space-y-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-500 w-12">Start:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={skipIntro.start}
+                      onChange={(e) => setSkipIntro(prev => ({ ...prev, start: parseInt(e.target.value) || 0 }))}
+                      className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
+                    />
+                    <span className="text-slate-500">sec</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-500 w-12">End:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={skipIntro.end}
+                      onChange={(e) => setSkipIntro(prev => ({ ...prev, end: parseInt(e.target.value) || 0 }))}
+                      className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-slate-300"
+                    />
+                    <span className="text-slate-500">sec</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600">Skip intro from {skipIntro.start}s to {skipIntro.end}s</p>
+                </div>
+              )}
             </div>
           </div>
         </BentoCard>

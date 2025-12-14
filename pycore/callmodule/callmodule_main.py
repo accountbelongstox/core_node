@@ -33,6 +33,40 @@ from pycore import ColorPrint
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
 from pycore.callmodule.callmodule_config import Config
 
+# Import all routers
+# Management Layer (8 routers)
+from pycore.callmodule.routers.management import (
+    status_router,
+    config_router,
+    control_router,
+    logs_router,
+    capabilities_router,
+    local_config_router,
+    local_stats_router,
+    local_test_router,
+)
+
+# Local Processing Layer (5 routers)
+from pycore.callmodule.routers.local import (
+    screenshot_router,
+    image_router,
+    audio_router,
+    file_router,
+    video_router,
+)
+
+# Upload Layer (1 router)
+from pycore.callmodule.routers.upload import router as upload_router
+
+# Client Layer (1 router)
+from pycore.callmodule.routers.client import router as client_router
+
+# Legacy Routers (4 routers)
+from pycore.callmodule.routers.mcp_router import mcp_router
+from pycore.callmodule.routers.code_sync_router import router as code_sync_router
+from pycore.callmodule.routers.module_call_router import module_call_router
+from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
+
 
 def callmodule_main_entry():
     """
@@ -63,43 +97,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     Config.RPC_HOST = host
     Config.RPC_PORT = port
 
-    # Import all routers (from existing config.py router list)
-    ColorPrint.blue("[Callmodule] Importing routers...")
-
-    # Management Layer (8 routers)
-    from pycore.callmodule.routers.management import (
-        status_router,
-        config_router,
-        control_router,
-        logs_router,
-        capabilities_router,
-        local_config_router,
-        local_stats_router,
-        local_test_router,
-    )
-
-    # Local Processing Layer (5 routers)
-    from pycore.callmodule.routers.local import (
-        screenshot_router,
-        image_router,
-        audio_router,
-        file_router,
-        video_router,
-    )
-
-    # Upload Layer (1 router)
-    from pycore.callmodule.routers.upload import router as upload_router
-
-    # Client Layer (1 router)
-    from pycore.callmodule.routers.client import router as client_router
-
-    # Legacy Routers (4 routers)
-    from pycore.callmodule.routers.mcp_router import mcp_router
-    from pycore.callmodule.routers.code_sync_router import router as code_sync_router
-    from pycore.callmodule.routers.module_call_router import module_call_router
-    from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
-
-    ColorPrint.green("[Callmodule] 19 routers imported")
+    ColorPrint.green("[Callmodule] 19 routers available")
 
     # Resource paths
     resources_dir = Path(__file__).parent / "resources"

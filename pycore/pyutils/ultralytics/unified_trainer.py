@@ -4,14 +4,37 @@
 Unified Trainer - Merge Multiple Projects into One Model
 """
 
+import ast
 import json
+import shutil
+import time
+import traceback
+import platform
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Any
+from datetime import datetime
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None
 
 from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
 from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
 from pycore.pyutils.ultralytics.device_manager import get_device_manager
 from pycore.pyutils.ultralytics.gpu_image_processor import get_gpu_processor
+from pycore.pyutils.ultralytics.ultralytics_trainer import process_image_config
 
 
 def print_dataset_info(
@@ -94,7 +117,6 @@ def print_dataset_info(
                         value = value.strip()
                         # Try to evaluate lists
                         if value.startswith('[') and value.endswith(']'):
-                            import ast
                             try:
                                 value = ast.literal_eval(value)
                             except:
@@ -237,7 +259,6 @@ class UnifiedClassificationTrainer:
             if any_auto_generated:
                 # Auto-generated: always delete and regenerate
                 print(f"Auto-generated data detected, removing old data: {self.processed_dir}")
-                import shutil
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
                 print(f"Old data removed, will regenerate from source")
             elif not force:
@@ -248,7 +269,6 @@ class UnifiedClassificationTrainer:
             else:
                 # force=True: delete and regenerate
                 print(f"Force regeneration requested, removing old data: {self.processed_dir}")
-                import shutil
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
 
         # Create output directories
@@ -301,7 +321,6 @@ class UnifiedClassificationTrainer:
                         new_name = f"{project_name}_{img_file.name}"
                         src = img_file
                         dst = yes_dir / new_name
-                        import shutil
                         shutil.copy2(src, dst)
                         total_positive += 1
 
@@ -313,19 +332,16 @@ class UnifiedClassificationTrainer:
                         new_name = f"{project_name}_{img_file.name}"
                         src = img_file
                         dst = no_dir / new_name
-                        import shutil
                         shutil.copy2(src, dst)
                         total_negative += 1
 
                 # Clean up temp directory
-                import shutil
                 shutil.rmtree(trainer.processed_dir.parent, ignore_errors=True)
 
                 print(f"  OK: Project {project_name} completed")
 
             except Exception as e:
                 print(f"  ERROR: Failed to process {project_name}: {e}")
-                import traceback
                 traceback.print_exc()
                 continue
 
@@ -345,7 +361,6 @@ class UnifiedClassificationTrainer:
             print(f"{'='*80}\n")
 
             # Clean up empty directory
-            import shutil
             if self.processed_dir.exists():
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
 
@@ -394,9 +409,6 @@ class UnifiedClassificationTrainer:
         Returns:
             Training results
         """
-        from ultralytics import YOLO
-        from datetime import datetime
-        import time
 
         # Auto-generate name with timestamp if not provided
         if name is None:
@@ -510,7 +522,6 @@ class UnifiedClassificationTrainer:
         Args:
             model_type: Type of model ("classification" or "detection")
         """
-        import time
 
         models_dir = self.model_output_dir.parent
 
@@ -571,8 +582,6 @@ class UnifiedClassificationTrainer:
 
     def _open_in_explorer(self, directory: Path):
         """Open directory in file explorer (cross-platform)"""
-        import platform
-        import subprocess
 
         try:
             system = platform.system()
@@ -676,7 +685,6 @@ class UnifiedDetectionTrainer:
             if any_auto_generated:
                 # Auto-generated: always delete and regenerate
                 print(f"Auto-generated data detected, removing old data: {self.processed_dir}")
-                import shutil
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
                 print(f"Old data removed, will regenerate from source")
             elif not force:
@@ -687,7 +695,6 @@ class UnifiedDetectionTrainer:
             else:
                 # force=True: delete and regenerate
                 print(f"Force regeneration requested, removing old data: {self.processed_dir}")
-                import shutil
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
 
         # Create output directories
@@ -727,8 +734,6 @@ class UnifiedDetectionTrainer:
                 background_image_config = metadata.get('background_images', [])
                 patch_image_config = metadata.get('patch_images', [])
 
-                from pycore.pyutils.ultralytics.ultralytics_trainer import process_image_config
-                import cv2
 
                 # Mode 1: Coordinate mode - Extract patches from background images
                 if coordinates and background_image_config:
@@ -790,7 +795,6 @@ class UnifiedDetectionTrainer:
 
             except Exception as e:
                 print(f"  ERROR: Failed to process {project_name}: {e}")
-                import traceback
                 traceback.print_exc()
                 continue
 
@@ -802,7 +806,6 @@ class UnifiedDetectionTrainer:
             print(f"{'='*80}\n")
 
             # Clean up empty directory
-            import shutil
             if self.processed_dir.exists():
                 shutil.rmtree(self.processed_dir, ignore_errors=True)
 
@@ -815,7 +818,6 @@ class UnifiedDetectionTrainer:
             public_dir = self.source_dirs[0].parent.parent / "shared" / "backgrounds"
 
             if public_dir.exists():
-                import cv2
                 for img_path in public_dir.glob("*.png"):
                     img = cv2.imread(str(img_path))
                     if img is not None:
@@ -832,7 +834,6 @@ class UnifiedDetectionTrainer:
                 print(f"{'='*80}\n")
 
                 # Clean up empty directory
-                import shutil
                 if self.processed_dir.exists():
                     shutil.rmtree(self.processed_dir, ignore_errors=True)
 
@@ -921,8 +922,6 @@ class UnifiedDetectionTrainer:
             num_images: Total number of images to generate
             required_images_per_project: Dict mapping project_name -> minimum required images
         """
-        import cv2
-        import numpy as np
 
         # Initialize GPU image processor for acceleration
         gpu_processor = get_gpu_processor(verbose=False)  # Don't print during init
@@ -1239,8 +1238,6 @@ class UnifiedDetectionTrainer:
 
     def _open_in_explorer(self, directory: Path):
         """Open directory in file explorer (cross-platform)"""
-        import platform
-        import subprocess
 
         try:
             system = platform.system()
@@ -1290,8 +1287,6 @@ class UnifiedDetectionTrainer:
         Returns:
             Training results
         """
-        from ultralytics import YOLO
-        from datetime import datetime
 
         # Auto-generate name with timestamp if not provided
         if name is None:
@@ -1405,7 +1400,6 @@ class UnifiedDetectionTrainer:
         Args:
             model_type: Type of model ("classification" or "detection")
         """
-        import time
 
         models_dir = self.model_output_dir.parent
 

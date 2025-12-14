@@ -9,3 +9,9 @@ MCP 工具中有 监听一段语音（同时监听 麦克风）：1分钟，10�
  改进现有的 chrome_console 工具,默认是输出所有信息，包括error信息给ai 
 
 也就是音频流可以由ai工具获取，也可以由 插件管理面板开启后推流给API服务器，并可以开启实时推流，推送录制文件。API 服务器可以设置多个。并可以对每个进行单独设计推流方式。
+
+再次核对，同时确认现在我启动 ncore_module_caller.js 会启动MCP。 
+
+
+        "type": "streamableHttp",
+        "url": "http://127.0.0.1:xxxxx/mcp"查看启动后这个url是否会存在。

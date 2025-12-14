@@ -1748,22 +1748,7 @@
                 </Shortcut>
             </DesktopShortcuts>
         </BaiduNetDisk>
-        
-        <WeChatInput>
-            <PackageId>Tencent.WeType</PackageId>
-            <Exec>wetype_service.exe</Exec>
-            <Name>WeChatInput</Name>
-            <Description>Intelligent input method by WeChat</Description>
-            <InstallType>winget</InstallType>
-            <ForceToInstallDir>false</ForceToInstallDir>
-            <VerifySuffix></VerifySuffix>
-            <AppCustomInstallDir>C:\Program Files\Tencent\WeType\</AppCustomInstallDir>
-            <AdditionalKeywords>
-                <Keyword>wetype</Keyword>
-            </AdditionalKeywords>
-            <DesktopShortcuts></DesktopShortcuts>
-        </WeChatInput>
-        
+
         <Chrome>
             <PackageId>Google.Chrome</PackageId>
             <Exec>chrome.exe</Exec>
