@@ -8,9 +8,9 @@ timeout management, and result parsing.
 """
 
 import re
-import subprocess
 from typing import Optional, List, Tuple, Dict
 from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon import exec_silent
 
 
 class ADBExecutor:
@@ -54,24 +54,17 @@ class ADBExecutor:
         timeout_val = timeout or self.timeout
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout_val,
-                encoding='utf-8',
-                errors='replace'
-            )
-
+            result = exec_silent(cmd, info=False)
+            
             stdout = result.stdout.strip()
             stderr = result.stderr.strip()
-            success = result.returncode == 0
+            success = result.return_code == 0
 
             return success, stdout, stderr
 
-        except subprocess.TimeoutExpired:
-            return False, "", f"Timeout after {timeout_val}s"
         except Exception as e:
+            if 'timeout' in str(e).lower():
+                return False, "", f"Timeout after {timeout_val}s"
             return False, "", str(e)
 
     def get_devices(self) -> List[Tuple[str, str]]:

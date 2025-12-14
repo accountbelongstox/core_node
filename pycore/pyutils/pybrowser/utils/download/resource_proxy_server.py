@@ -153,7 +153,6 @@ class ResourceProxyHandler(BaseHTTPRequestHandler):
             'size': len(buffer)
         }
         self.wfile.write(json.dumps(response).encode())
-            self.wfile.write(json.dumps({'success': False, 'error': str(error)}).encode())
 
     def handle_status_check(self, download_id: str):
         """Handle download status check"""

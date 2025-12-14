@@ -81,7 +81,9 @@ def matrix_main_entry():
 
     # Initialize ADB Heartbeat Service (not a thread)
     ColorPrint.blue("[Matrix] Initializing ADB Heartbeat Service...")
-    _adb_service = init_adb_heartbeat_service(adb_path="adb")
+    adb_path = Config.get_adb_path()
+    ColorPrint.blue(f"[Matrix] Using ADB path: {adb_path}")
+    _adb_service = init_adb_heartbeat_service(adb_path=adb_path)
 
     # Attach RPC server if available
     if _rpc_server:
