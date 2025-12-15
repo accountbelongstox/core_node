@@ -6,16 +6,18 @@ Main entry point for launching multiple windows in grid layout
 
 import sys
 from pathlib import Path
-import platform
-import os
-import tempfile
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-import subprocess
 
 # Add project root to Python path to enable pycore imports
+# This MUST be done before importing from pycore
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Now import remaining stdlib and pycore modules
+import platform
+import os
+import tempfile
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime, run_background
 
 from pycore.pyutils.launcher.screen_manager import ScreenManager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
@@ -352,8 +354,8 @@ def launch_device_sync():
     - File synchronization control
 
     The process runs in background (detached from launcher):
-    - Windows: Uses pythonw.exe
-    - Linux: Uses subprocess with start_new_session=True
+    - Windows: Uses pythonw.exe with DETACHED_PROCESS flags
+    - Linux: Uses start_new_session for proper process detachment
     """
     print("[Launcher] Starting Device Sync in background...")
 
@@ -369,108 +371,41 @@ def launch_device_sync():
         print(f"[Launcher] Project root: {project_root}")
         print(f"[Launcher] Log file: {log_file}")
 
+        # Determine Python executable (use pythonw.exe on Windows if available)
+        python_exe = sys.executable
         if platform.system() == 'Windows':
-            # Windows: Use pythonw.exe for no console window
             python_dir = Path(sys.executable).parent
             pythonw_exe = python_dir / 'pythonw.exe'
-
-            print(f"[Launcher] Python directory: {python_dir}")
-            print(f"[Launcher] pythonw.exe exists: {pythonw_exe.exists()}")
-
             if pythonw_exe.exists():
-                cmd = [str(pythonw_exe), '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
-
-                print(f"[Launcher] Command: {' '.join(cmd)}")
-
-                # Set up environment with PYTHONPATH
-                env = os.environ.copy()
-
-                # Add project root to PYTHONPATH
-                pythonpath = str(project_root)
-                if 'PYTHONPATH' in env:
-                    pythonpath = f"{pythonpath};{env['PYTHONPATH']}"
-                env['PYTHONPATH'] = pythonpath
-
-                print(f"[Launcher] PYTHONPATH: {pythonpath}")
-
-                # Start detached process with log file
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-
-                log_handle = open(log_file, 'w', encoding='utf-8')
-
-                proc = subprocess.Popen(
-                    cmd,
-                    env=env,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                    close_fds=True,
-                    stdin=subprocess.DEVNULL,
-                    stdout=log_handle,
-                    stderr=log_handle
-                )
-
-                print(f"[Launcher] Process started with PID: {proc.pid}")
+                python_exe = str(pythonw_exe)
+                print(f"[Launcher] Using pythonw.exe for no console window")
             else:
-                # Fallback: Use python.exe
                 print("[Launcher] WARNING: pythonw.exe not found, using python.exe")
-                cmd = [sys.executable, '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
 
-                print(f"[Launcher] Command: {' '.join(cmd)}")
+        # Build command
+        cmd = [python_exe, '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
+        print(f"[Launcher] Command: {' '.join(cmd)}")
 
-                # Set up environment with PYTHONPATH
-                env = os.environ.copy()
+        # Set up environment with PYTHONPATH
+        env = os.environ.copy()
 
-                # Add project root to PYTHONPATH
-                pythonpath = str(project_root)
-                if 'PYTHONPATH' in env:
-                    pythonpath = f"{pythonpath};{env['PYTHONPATH']}"
-                env['PYTHONPATH'] = pythonpath
+        # Add project root to PYTHONPATH (platform-specific separator)
+        pythonpath = str(project_root)
+        if 'PYTHONPATH' in env:
+            separator = ';' if platform.system() == 'Windows' else ':'
+            pythonpath = f"{pythonpath}{separator}{env['PYTHONPATH']}"
+        env['PYTHONPATH'] = pythonpath
+        print(f"[Launcher] PYTHONPATH: {pythonpath}")
 
-                print(f"[Launcher] PYTHONPATH: {pythonpath}")
+        # Launch process in background using pybasecommon
+        proc = run_background(
+            cmd,
+            env=env,
+            log_file=str(log_file),
+            detached=True
+        )
 
-                log_handle = open(log_file, 'w', encoding='utf-8')
-
-                proc = subprocess.Popen(
-                    cmd,
-                    env=env,
-                    close_fds=True,
-                    stdout=log_handle,
-                    stderr=log_handle
-                )
-
-                print(f"[Launcher] Process started with PID: {proc.pid}")
-
-        else:
-            # Linux/Unix: Use subprocess with start_new_session
-            cmd = [sys.executable, '-m', 'pycore.pyutils.launcher.device_sync', str(project_root)]
-
-            print(f"[Launcher] Command: {' '.join(cmd)}")
-
-            # Set up environment with PYTHONPATH
-            env = os.environ.copy()
-
-            # Add project root to PYTHONPATH (Linux uses : separator)
-            pythonpath = str(project_root)
-            if 'PYTHONPATH' in env:
-                pythonpath = f"{pythonpath}:{env['PYTHONPATH']}"
-            env['PYTHONPATH'] = pythonpath
-
-            print(f"[Launcher] PYTHONPATH: {pythonpath}")
-
-            log_handle = open(log_file, 'w', encoding='utf-8')
-
-            proc = subprocess.Popen(
-                cmd,
-                env=env,
-                start_new_session=True,
-                close_fds=True,
-                stdin=subprocess.DEVNULL,
-                stdout=log_handle,
-                stderr=log_handle
-            )
-
-            print(f"[Launcher] Process started with PID: {proc.pid}")
-
+        print(f"[Launcher] Process started with PID: {proc.pid}")
         print("[Launcher] Device Sync started in background")
         print("[Launcher] Process will continue running after launcher exits")
 

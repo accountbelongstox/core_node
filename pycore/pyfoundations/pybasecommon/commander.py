@@ -351,25 +351,80 @@ def get_command_output(command: Union[str, List], cwd: Optional[str] = None) -> 
     return result.stdout
 
 
-def run_background(command: Union[str, List], cwd: Optional[str] = None) -> subprocess.Popen:
+def run_background(
+    command: Union[str, List],
+    cwd: Optional[str] = None,
+    env: Optional[dict] = None,
+    log_file: Optional[str] = None,
+    detached: bool = True
+) -> subprocess.Popen:
     """
     Run command in background (detached process)
 
     Args:
         command: Command to execute
         cwd: Working directory
+        env: Environment variables (if None, inherits from current process)
+        log_file: Path to log file for stdout/stderr (if None, uses DEVNULL)
+        detached: Whether to fully detach process (default: True)
+                  On Windows: uses DETACHED_PROCESS and CREATE_NEW_PROCESS_GROUP
+                  On Linux: uses start_new_session=True
 
     Returns:
         Popen process object
     """
     command_str, executable = Commander._prepare_command(command)
 
-    return subprocess.Popen(
-        command_str,
-        shell=True,
-        cwd=cwd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL
-    )
+    # Determine stdout/stderr
+    if log_file:
+        log_handle = open(log_file, 'w', encoding='utf-8')
+        stdout_target = log_handle
+        stderr_target = log_handle
+    else:
+        stdout_target = subprocess.DEVNULL
+        stderr_target = subprocess.DEVNULL
+
+    # Platform-specific process creation
+    system = platform.system()
+
+    if system == "Windows" and detached:
+        # Windows: Use detached process flags
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
+    elif system == "Linux" and detached:
+        # Linux: Use start_new_session for proper detachment
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            start_new_session=True,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
+    else:
+        # Other platforms or non-detached
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
 
