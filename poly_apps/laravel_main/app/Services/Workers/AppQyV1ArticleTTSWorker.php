@@ -16,8 +16,13 @@ namespace App\Services\Workers;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Str;
 use App\Models\GlobalTask;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
 
 class AppQyV1ArticleTTSWorker
 {
@@ -36,6 +41,8 @@ class AppQyV1ArticleTTSWorker
      */
     public function processTask(GlobalTask $task): void
     {
+        $this->ensureTablesExist();
+
         Log::info('[AppQyV1ArticleTTSWorker] Starting task processing', [
             'task_id' => $task->task_id,
         ]);
@@ -149,14 +156,39 @@ class AppQyV1ArticleTTSWorker
             Cache::put($cacheKey, $articleData, 3600);
         }
 
+        $articleId = 'article_' . Str::uuid();
+
+        try {
+            $article = AppQyV1Article::createFromTaskData($articleId, $task->task_id, $articleData);
+
+            AppQyV1ArticleWord::createFromArticleWords(
+                $articleId,
+                $articleData['words'],
+                $articleData['word_frequency'],
+                $language
+            );
+
+            Log::info('[AppQyV1ArticleTTSWorker] Article saved to database', [
+                'task_id' => $task->task_id,
+                'article_id' => $articleId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1ArticleTTSWorker] Failed to save article to database', [
+                'task_id' => $task->task_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Log::info('[AppQyV1ArticleTTSWorker] Task completed successfully', [
             'task_id' => $task->task_id,
+            'article_id' => $articleId,
             'sentence_audio_count' => count($articleData['sentence_audio_urls']),
             'word_audio_count' => count($articleData['word_audio_urls']),
         ]);
 
         $task->complete([
             'message' => 'Article TTS generation completed',
+            'article_id' => $articleId,
             'sentence_audio_count' => count($articleData['sentence_audio_urls']),
             'word_audio_count' => count($articleData['word_audio_urls']),
         ]);
@@ -207,5 +239,68 @@ class AppQyV1ArticleTTSWorker
         $ttsService = app(EdgeTTSService::class);
         $worker = new self($ttsService);
         $worker->processTask($task);
+    }
+
+    /**
+     * Ensure article tables exist
+     *
+     * @return void
+     */
+    private function ensureTablesExist(): void
+    {
+        $connection = 'AppQyV1';
+
+        if (!Schema::connection($connection)->hasTable('app_qy_v1_articles')) {
+            Schema::connection($connection)->create('app_qy_v1_articles', function (Blueprint $table) {
+                $table->id();
+                $table->string('article_id', 64)->unique()->comment('Unique article identifier');
+                $table->unsignedBigInteger('user_id')->comment('User ID who created this article');
+                $table->string('title')->nullable()->comment('Article title');
+                $table->text('content')->comment('Article content');
+                $table->string('language', 20)->default('english')->comment('Article language');
+                $table->string('article_type', 50)->default('general')->comment('Article type for categorization');
+                $table->string('source')->nullable()->comment('Source of the article');
+                $table->string('difficulty_level', 20)->nullable()->comment('Difficulty level');
+                $table->integer('word_count')->default(0)->comment('Total word count');
+                $table->integer('unique_word_count')->default(0)->comment('Unique word count');
+                $table->integer('sentence_count')->default(0)->comment('Total sentence count');
+                $table->boolean('is_daily_reading')->default(false)->comment('Is daily reading article');
+                $table->date('reading_date')->nullable()->comment('Date for daily reading');
+                $table->string('task_id', 64)->nullable()->comment('Associated task ID');
+                $table->boolean('tts_generated')->default(false)->comment('TTS audio generated');
+                $table->json('metadata')->nullable()->comment('Additional metadata');
+                $table->timestamps();
+
+                $table->index('article_id');
+                $table->index('user_id');
+                $table->index('language');
+                $table->index('article_type');
+                $table->index('is_daily_reading');
+                $table->index('reading_date');
+                $table->index('task_id');
+            });
+
+            Log::info('[AppQyV1ArticleTTSWorker] Created app_qy_v1_articles table');
+        }
+
+        if (!Schema::connection($connection)->hasTable('app_qy_v1_article_words')) {
+            Schema::connection($connection)->create('app_qy_v1_article_words', function (Blueprint $table) {
+                $table->id();
+                $table->string('article_id', 64)->comment('Article ID reference');
+                $table->string('word_md5', 32)->comment('Word MD5 from dictionary');
+                $table->string('word', 255)->comment('The actual word text');
+                $table->string('language', 20)->comment('Word language');
+                $table->integer('frequency')->default(1)->comment('Frequency in article');
+                $table->boolean('is_new_for_user')->default(false)->comment('Is new word for user');
+                $table->timestamps();
+
+                $table->index('article_id');
+                $table->index('word_md5');
+                $table->index('language');
+                $table->unique(['article_id', 'word_md5']);
+            });
+
+            Log::info('[AppQyV1ArticleTTSWorker] Created app_qy_v1_article_words table');
+        }
     }
 }

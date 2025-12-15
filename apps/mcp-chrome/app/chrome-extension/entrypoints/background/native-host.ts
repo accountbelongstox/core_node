@@ -180,10 +180,7 @@ export const initNativeHostListener = () => {
   chrome.runtime.onStartup.addListener(connectNativeHost);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (
-      message === NativeMessageType.CONNECT_NATIVE ||
-      message.type === NativeMessageType.CONNECT_NATIVE
-    ) {
+    if (message.type === NativeMessageType.CONNECT_NATIVE) {
       const port =
         typeof message === 'object' && message.port ? message.port : NATIVE_HOST.DEFAULT_PORT;
       connectNativeHost(port);

@@ -238,6 +238,41 @@
       <div class="section">
         <AudioRecordingPanel />
       </div>
+
+      <!-- Debug Panel -->
+      <div class="section">
+        <h2 class="section-title">Debug Information</h2>
+        <div class="debug-panel">
+          <button class="debug-toggle" @click="showDebugInfo = !showDebugInfo">
+            {{ showDebugInfo ? '[HIDE DEBUG]' : '[SHOW DEBUG]' }}
+          </button>
+          <div v-if="showDebugInfo" class="debug-content">
+            <div class="debug-section">
+              <h3>Connection Status</h3>
+              <pre>{{ JSON.stringify({
+                nativeConnectionStatus: nativeConnectionStatus,
+                isConnecting: isConnecting,
+                port: nativeServerPort
+              }, null, 2) }}</pre>
+            </div>
+            <div class="debug-section">
+              <h3>Server Status</h3>
+              <pre>{{ JSON.stringify(serverStatus, null, 2) }}</pre>
+            </div>
+            <div class="debug-section">
+              <h3>Debug Logs</h3>
+              <div class="debug-logs">
+                <div v-for="(log, index) in debugLogs" :key="index" class="debug-log-entry">
+                  <span class="debug-log-time">{{ log.time }}</span>
+                  <span :class="'debug-log-level-' + log.level">{{ log.level }}</span>
+                  <span class="debug-log-message">{{ log.message }}</span>
+                </div>
+              </div>
+              <button class="debug-clear-button" @click="clearDebugLogs">[CLEAR LOGS]</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="footer">
@@ -305,6 +340,23 @@ const serverStatus = ref<{
   isRunning: false,
   lastUpdated: Date.now(),
 });
+
+// Debug related
+const showDebugInfo = ref(false);
+const debugLogs = ref<Array<{ time: string; level: string; message: string }>>([]);
+
+const addDebugLog = (level: string, message: string) => {
+  const time = new Date().toLocaleTimeString();
+  debugLogs.value.unshift({ time, level, message });
+  if (debugLogs.value.length > 100) {
+    debugLogs.value = debugLogs.value.slice(0, 100);
+  }
+  console.log(`[${level}] ${time} - ${message}`);
+};
+
+const clearDebugLogs = () => {
+  debugLogs.value = [];
+};
 
 const showMcpConfig = computed(() => {
   return nativeConnectionStatus.value === 'connected' && serverStatus.value.isRunning;
@@ -753,26 +805,33 @@ const testNativeConnection = async () => {
   isConnecting.value = true;
   try {
     if (nativeConnectionStatus.value === 'connected') {
+      addDebugLog('INFO', 'Disconnecting from native host');
       // eslint-disable-next-line no-undef
       await chrome.runtime.sendMessage({ type: 'disconnect_native' });
       nativeConnectionStatus.value = 'disconnected';
+      addDebugLog('INFO', 'Disconnected successfully');
     } else {
+      addDebugLog('INFO', `Attempting to connect to port: ${nativeServerPort.value}`);
       console.log(`Attempting to connect to port: ${nativeServerPort.value}`);
       // eslint-disable-next-line no-undef
       const response = await chrome.runtime.sendMessage({
-        type: 'connectNative',
+        type: 'connect_native',
         port: nativeServerPort.value,
       });
+      addDebugLog('INFO', `Received response: ${JSON.stringify(response)}`);
       if (response && response.success) {
         nativeConnectionStatus.value = 'connected';
+        addDebugLog('SUCCESS', `Connected successfully to port ${response.port}`);
         console.log('Connection successful:', response);
         await savePortPreference(nativeServerPort.value);
       } else {
         nativeConnectionStatus.value = 'disconnected';
+        addDebugLog('ERROR', `Connection failed: ${JSON.stringify(response)}`);
         console.error('Connection failed:', response);
       }
     }
   } catch (error) {
+    addDebugLog('ERROR', `Failed to test connection: ${error}`);
     console.error('Failed to test connection:', error);
     nativeConnectionStatus.value = 'disconnected';
   } finally {
@@ -1927,5 +1986,123 @@ onUnmounted(() => {
   .stats-value {
     font-size: 24px;
   }
+}
+
+/* Debug Panel Styles */
+.debug-panel {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.debug-toggle {
+  width: 100%;
+  padding: 8px 12px;
+  background: #334155;
+  color: #f1f5f9;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.debug-toggle:hover {
+  background: #475569;
+}
+
+.debug-content {
+  margin-top: 12px;
+}
+
+.debug-section {
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.debug-section h3 {
+  color: #60a5fa;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+.debug-section pre {
+  background: #000;
+  color: #22c55e;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  overflow-x: auto;
+  margin: 0;
+  font-family: 'Courier New', monospace;
+}
+
+.debug-logs {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #000;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.debug-log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.debug-log-time {
+  color: #64748b;
+  min-width: 80px;
+}
+
+.debug-log-level-INFO {
+  color: #60a5fa;
+  min-width: 60px;
+}
+
+.debug-log-level-SUCCESS {
+  color: #22c55e;
+  min-width: 60px;
+}
+
+.debug-log-level-ERROR {
+  color: #ef4444;
+  min-width: 60px;
+}
+
+.debug-log-level-WARN {
+  color: #fbbf24;
+  min-width: 60px;
+}
+
+.debug-log-message {
+  color: #f1f5f9;
+  flex: 1;
+}
+
+.debug-clear-button {
+  width: 100%;
+  padding: 6px;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  transition: background 0.2s;
+}
+
+.debug-clear-button:hover {
+  background: #6d28d9;
 }
 </style>

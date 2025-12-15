@@ -19,13 +19,37 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const NATIVE_SERVER_DIST = path.join(PROJECT_ROOT, 'app', 'native-server', 'dist');
 
 /**
+ * Get real user home directory (handle sudo case)
+ */
+function getRealUserHome() {
+  // If running as root via sudo, use the real user's home
+  if (process.platform !== 'win32' && process.getuid && process.getuid() === 0) {
+    const sudoUser = process.env.SUDO_USER;
+    if (sudoUser && sudoUser !== 'root') {
+      try {
+        const userInfo = execSync(`getent passwd ${sudoUser}`, { encoding: 'utf8' }).trim();
+        const homeDir = userInfo.split(':')[5];
+        if (homeDir && homeDir !== '/root') {
+          return homeDir;
+        }
+      } catch (err) {
+        // Fallback to default
+      }
+    }
+  }
+  return os.homedir();
+}
+
+/**
  * Get user-level manifest file path
  */
 function getUserManifestPath() {
+  const userHome = getRealUserHome();
+
   if (os.platform() === 'win32') {
     // Windows: %APPDATA%\Google\Chrome\NativeMessagingHosts\
     return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+      process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming'),
       'Google',
       'Chrome',
       'NativeMessagingHosts',
@@ -34,7 +58,7 @@ function getUserManifestPath() {
   } else if (os.platform() === 'darwin') {
     // macOS: ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
     return path.join(
-      os.homedir(),
+      userHome,
       'Library',
       'Application Support',
       'Google',
@@ -45,7 +69,7 @@ function getUserManifestPath() {
   } else {
     // Linux: ~/.config/google-chrome/NativeMessagingHosts/
     return path.join(
-      os.homedir(),
+      userHome,
       '.config',
       'google-chrome',
       'NativeMessagingHosts',
@@ -58,16 +82,18 @@ function getUserManifestPath() {
  * Get Chromium user-level manifest path
  */
 function getChromiumUserManifestPath() {
+  const userHome = getRealUserHome();
+
   if (os.platform() === 'win32') {
     return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+      process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming'),
       'Chromium',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else if (os.platform() === 'darwin') {
     return path.join(
-      os.homedir(),
+      userHome,
       'Library',
       'Application Support',
       'Chromium',
@@ -76,7 +102,7 @@ function getChromiumUserManifestPath() {
     );
   } else {
     return path.join(
-      os.homedir(),
+      userHome,
       '.config',
       'chromium',
       'NativeMessagingHosts',
@@ -114,7 +140,7 @@ function createManifestContent() {
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
-    console.log(`✓ Created directory: ${dirPath}`);
+    console.log(`[OK] Created directory: ${dirPath}`);
   }
 }
 
@@ -136,12 +162,33 @@ function setExecutionPermissions() {
     if (fs.existsSync(filePath)) {
       try {
         fs.chmodSync(filePath, '755');
-        console.log(`✓ Set execution permissions: ${path.basename(filePath)}`);
+        console.log(`[OK] Set execution permissions: ${path.basename(filePath)}`);
       } catch (err) {
-        console.warn(`⚠️  Failed to set permissions for ${path.basename(filePath)}: ${err.message}`);
+        console.warn(`[WARN] Failed to set permissions for ${path.basename(filePath)}: ${err.message}`);
       }
     }
   });
+}
+
+/**
+ * Fix file ownership for real user (when running as root/sudo)
+ */
+function fixOwnership(filePath) {
+  if (os.platform() === 'win32') {
+    return; // Windows doesn't need this
+  }
+
+  if (process.getuid && process.getuid() === 0) {
+    const sudoUser = process.env.SUDO_USER;
+    if (sudoUser && sudoUser !== 'root') {
+      try {
+        execSync(`chown ${sudoUser}:${sudoUser} "${filePath}"`, { stdio: 'pipe' });
+        console.log(`[OK] Fixed ownership for: ${path.basename(filePath)}`);
+      } catch (err) {
+        console.warn(`[WARN] Failed to fix ownership for ${path.basename(filePath)}: ${err.message}`);
+      }
+    }
+  }
 }
 
 /**
@@ -155,7 +202,11 @@ function registerForBrowser(manifestPath, browserName, registryKey = null) {
     // Create manifest
     const manifest = createManifestContent();
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-    console.log(`✓ Manifest written: ${manifestPath}`);
+    console.log(`[OK] Manifest written: ${manifestPath}`);
+
+    // Fix file ownership if running as root
+    fixOwnership(manifestPath);
+    fixOwnership(path.dirname(manifestPath));
 
     // Windows registry entry
     if (os.platform() === 'win32' && registryKey) {
@@ -163,16 +214,16 @@ function registerForBrowser(manifestPath, browserName, registryKey = null) {
         const escapedPath = manifestPath.replace(/\\/g, '\\\\');
         const regCommand = `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
         execSync(regCommand, { stdio: 'pipe' });
-        console.log(`✓ Registry entry created for ${browserName}`);
+        console.log(`[OK] Registry entry created for ${browserName}`);
       } catch (err) {
-        console.warn(`⚠️  Registry entry failed for ${browserName}: ${err.message}`);
+        console.warn(`[WARN] Registry entry failed for ${browserName}: ${err.message}`);
       }
     }
 
-    console.log(`✅ Successfully registered ${browserName}\n`);
+    console.log(`[SUCCESS] Successfully registered ${browserName}\n`);
     return true;
   } catch (err) {
-    console.error(`❌ Failed to register ${browserName}: ${err.message}\n`);
+    console.error(`[ERROR] Failed to register ${browserName}: ${err.message}\n`);
     return false;
   }
 }
@@ -190,7 +241,7 @@ function main() {
 
   // Check if dist exists
   if (!fs.existsSync(NATIVE_SERVER_DIST)) {
-    console.error(`❌ Error: Dist folder not found at ${NATIVE_SERVER_DIST}`);
+    console.error(`[ERROR] Error: Dist folder not found at ${NATIVE_SERVER_DIST}`);
     console.error('Please build the native server first:');
     console.error('  cd apps/mcp-chrome');
     console.error('  pnpm run build:native\n');
@@ -200,7 +251,7 @@ function main() {
   // Check if run_host script exists
   const runHostScript = getMainPath();
   if (!fs.existsSync(runHostScript)) {
-    console.error(`❌ Error: Run host script not found at ${runHostScript}`);
+    console.error(`[ERROR] Error: Run host script not found at ${runHostScript}`);
     console.error('Please build the native server first.\n');
     process.exit(1);
   }
@@ -232,15 +283,15 @@ function main() {
   console.log('=================================================\n');
 
   if (chromeSuccess) {
-    console.log(`✅ Chrome: ${chromeManifestPath}`);
+    console.log(`[SUCCESS] Chrome: ${chromeManifestPath}`);
   } else {
-    console.log(`❌ Chrome: Failed`);
+    console.log(`[FAILED] Chrome: Failed`);
   }
 
   if (chromiumSuccess) {
-    console.log(`✅ Chromium: ${chromiumManifestPath}`);
+    console.log(`[SUCCESS] Chromium: ${chromiumManifestPath}`);
   } else {
-    console.log(`❌ Chromium: Failed`);
+    console.log(`[FAILED] Chromium: Failed`);
   }
 
   console.log('\n=================================================');
