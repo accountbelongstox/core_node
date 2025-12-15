@@ -15,7 +15,7 @@ Main Functions:
 """
 
 import sys
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -145,14 +145,14 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
         print(f"[SECRET_MANAGER] Decrypting: {encrypted_file.name} -> {key_name}")
 
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 ['node', str(encrypted_file), 'pwd', password, str(raw_dir)],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
 
-            if result.returncode == 0:
+            if result.return_code == 0:
                 print(f"[SECRET_MANAGER]   SUCCESS: {key_name}")
                 success_count += 1
             else:

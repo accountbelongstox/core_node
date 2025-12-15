@@ -65,7 +65,7 @@ class FormPlugin(IPlugin):
         script = f"""
         const form = document.querySelector('{form_selector}');
         const formData = new FormData(form);
-        const result = {};
+        const result = {{}};
         for (let [key, value] of formData.entries()) {{
             result[key] = value;
         }}

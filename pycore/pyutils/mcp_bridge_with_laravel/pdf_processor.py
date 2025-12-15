@@ -299,19 +299,19 @@ class PDFProcessor:
         
         try:
             # Convert PDF to images
-                images = convert_from_path(pdf_path, dpi=dpi)
-                image_paths = []
+            images = convert_from_path(pdf_path, dpi=dpi)
+            image_paths = []
 
-                for i, image in enumerate(images):
-                    # Generate image path
-                    pdf_name = Path(pdf_path).stem
-                    temp_dir = tempfile.gettempdir()
-                    image_path = os.path.join(temp_dir, f"{pdf_name}_page_{i+1}.png")
+            for i, image in enumerate(images):
+                # Generate image path
+                pdf_name = Path(pdf_path).stem
+                temp_dir = tempfile.gettempdir()
+                image_path = os.path.join(temp_dir, f"{pdf_name}_page_{i+1}.png")
 
-                    # Save image
-                    image.save(image_path, 'PNG')
-                    image_paths.append(image_path)
-                    self.temp_files.append(image_path)
+                # Save image
+                image.save(image_path, 'PNG')
+                image_paths.append(image_path)
+                self.temp_files.append(image_path)
 
             logger.info(f"Converted PDF to {len(image_paths)} images")
             return image_paths

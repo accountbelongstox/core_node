@@ -13,9 +13,9 @@ Detection methods:
 """
 
 import os
-import subprocess
 import platform
 from typing import Dict, Optional, Tuple
+from pycore.pyfoundations.pybasecommon import exec_silent
 
 
 class CUDADetector:
@@ -107,15 +107,9 @@ class CUDADetector:
         """
         try:
             # Try to run nvidia-smi
-            result = subprocess.run(
-                ['nvidia-smi', '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False
-            )
+            result = exec_silent(['nvidia-smi', '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'], info=False)
 
-            if result.returncode == 0 and result.stdout.strip():
+            if result.return_code == 0 and result.stdout.strip():
                 gpus = []
                 for line in result.stdout.strip().split('\n'):
                     parts = [p.strip() for p in line.split(',')]
@@ -129,14 +123,8 @@ class CUDADetector:
                 # Get CUDA version
                 cuda_version = None
                 try:
-                    cuda_result = subprocess.run(
-                        ['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader'],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                        check=False
-                    )
-                    if cuda_result.returncode == 0:
+                    cuda_result = exec_silent(['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader'], info=False)
+                    if cuda_result.return_code == 0:
                         cuda_version = cuda_result.stdout.strip().split('\n')[0] if cuda_result.stdout else None
                 except Exception:
                     pass
@@ -147,14 +135,8 @@ class CUDADetector:
                     'driver_version': gpus[0]['driver_version'] if gpus else None,
                     'cuda_version': cuda_version,
                 }
-        except FileNotFoundError:
-            # nvidia-smi not found
-            pass
-        except subprocess.TimeoutExpired:
-            # nvidia-smi timed out
-            pass
         except Exception:
-            # Other errors
+            # Error running nvidia-smi
             pass
 
         return None

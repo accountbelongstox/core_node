@@ -8,7 +8,7 @@ Handles all click-related operations for Battle.net interface
 import os
 import sys
 import time
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import random
 import math
 from datetime import datetime

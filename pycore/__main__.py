@@ -13,7 +13,7 @@ It performs two main functions:
 
 import sys
 import os
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 # Dependencies are automatically checked when third_party module is imported
 # Import third_party to trigger dependency check
 from pycore.pyfoundations import third_party
@@ -74,12 +74,10 @@ def main():
     
     # 4. Execute the command.
     try:
-        # Using subprocess.run to execute the script and wait for it to complete.
-        # This streams stdout/stderr directly to the console.
-        result = subprocess.run(command, check=False) # check=False to handle non-zero exits gracefully
+        result = exec_silent(command, check=False)
         
         # Propagate the exit code from the child script.
-        sys.exit(result.returncode)
+        sys.exit(result.return_code)
         
     except FileNotFoundError:
         print(f"[ERROR] Script not found: {script_path}", file=sys.stderr)

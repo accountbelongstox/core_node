@@ -26,6 +26,12 @@ window.AppConfig = {
         startMonitoring: 'monitor.start',
         stopMonitoring: 'monitor.stop',
 
+        // Trading routes
+        tradingSummary: 'trading.summary',
+        tradingPositions: 'trading.positions',
+        tradingHistory: 'trading.history',
+        tradingBalance: 'trading.balance',
+
         // Legacy routes (for compatibility)
         coinsStats: 'monitor.stats',
         coinsSummaries: 'monitor.all_summaries',
@@ -48,6 +54,12 @@ window.AppConfig = {
                 page: 'monitoring',
                 label: 'Real-time Monitor',
                 icon: '📈'
+            },
+            {
+                id: 'trading',
+                page: 'trading',
+                label: 'Simulated Trading',
+                icon: '💰'
             },
             {
                 id: 'alerts',

@@ -20,11 +20,12 @@ from enum import Enum
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS
+    from pycore import THREAD_BUS, ColorPrint
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
+    from pycore import ColorPrint
 
 # Import window state manager
 from .window_state import WindowStateManager
@@ -128,7 +129,6 @@ class PySide6MainWindow(QMainWindow):
             if not icon.isNull():
                 self.setWindowIcon(icon)
             else:
-                from pycore import ColorPrint
                 ColorPrint.red(f"[MainWindow] Failed to load window icon from: {self._icon_path}")
 
         # Load cached window state if available
@@ -147,6 +147,15 @@ class PySide6MainWindow(QMainWindow):
 
         # Set minimum size
         self.setMinimumSize(self._min_width, self._min_height)
+
+        # Set maximum size to screen size to prevent window from exceeding screen
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            max_width = screen_geometry.width()
+            max_height = screen_geometry.height()
+            self.setMaximumSize(max_width, max_height)
+            ColorPrint.print_info(f"[MainWindow] Maximum size set to screen: {max_width}x{max_height}")
 
         # Enable frameless if configured
         if self._frameless:
@@ -173,14 +182,37 @@ class PySide6MainWindow(QMainWindow):
             self._center_window()
 
     def _center_window(self):
-        """Center window on screen."""
+        """Center window on screen if position is negative."""
         screen = QApplication.primaryScreen()
         if screen:
             screen_geometry = screen.availableGeometry()
             window_geometry = self.frameGeometry()
-            center_point = screen_geometry.center()
-            window_geometry.moveCenter(center_point)
-            self.move(window_geometry.topLeft())
+            current_pos = window_geometry.topLeft()
+
+            # Only adjust if position is negative (outside screen bounds)
+            if current_pos.x() < 0 or current_pos.y() < 0:
+                # Check if window size is equal or greater than screen size (fullscreen mode)
+                if (window_geometry.width() >= screen_geometry.width() - 20 and
+                    window_geometry.height() >= screen_geometry.height() - 20):
+                    # Fullscreen or near-fullscreen: position at screen origin
+                    self.move(screen_geometry.topLeft())
+                    ColorPrint.print_info(
+                        f"[MainWindow] Position negative, fullscreen detected, "
+                        f"positioning at screen origin: {screen_geometry.topLeft()}"
+                    )
+                else:
+                    # Normal window: center on screen
+                    center_point = screen_geometry.center()
+                    window_geometry.moveCenter(center_point)
+                    self.move(window_geometry.topLeft())
+                    ColorPrint.print_info(
+                        f"[MainWindow] Position negative, centering window"
+                    )
+            else:
+                # Position is valid (>= 0), keep as is
+                ColorPrint.print_info(
+                    f"[MainWindow] Position valid ({current_pos.x()}, {current_pos.y()}), keeping original position"
+                )
 
     def _create_ui(self):
         """Create UI components."""

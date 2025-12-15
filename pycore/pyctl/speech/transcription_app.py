@@ -26,6 +26,7 @@ from pycore.pyutils.audio_utils import SilenceDetector
 from pycore.pyutils.clipboard import clipboard_manager, add_recognition_to_clipboard
 from pycore.pyutils.hotkey import HotkeyListener
 from pycore.pyutils.common import speech_config
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 # Platform detection
 CURRENT_PLATFORM = platform.system()  # 'Windows', 'Linux', 'Darwin' (macOS)
@@ -1555,11 +1556,9 @@ def _replay_text_with_tts(text: str, language: str, speech_manager):
                 import os
                 os.startfile(str(temp_file))
             elif CURRENT_PLATFORM == 'Darwin':  # macOS
-                import subprocess
-                subprocess.run(['afplay', str(temp_file)])
+                exec_silent(['afplay', str(temp_file)])
             elif CURRENT_PLATFORM == 'Linux':
-                import subprocess
-                subprocess.run(['mpg123', str(temp_file)])
+                exec_silent(['mpg123', str(temp_file)])
         else:
             ColorPrint.red("[TTS] Failed to generate speech")
 

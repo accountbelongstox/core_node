@@ -9,7 +9,7 @@ Provides status checking and diagnostic tools for Device Sync.
 import sys
 import os
 import socket
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
 
@@ -90,7 +90,7 @@ def check_process(verbose=True):
     try:
         if sys.platform == 'win32':
             # Windows
-            result = subprocess.run(
+            result = exec_silent(
                 ['tasklist', '/FI', 'IMAGENAME eq pythonw.exe', '/FO', 'CSV'],
                 capture_output=True,
                 text=True,
@@ -108,13 +108,13 @@ def check_process(verbose=True):
                 return False
         else:
             # Linux
-            result = subprocess.run(
+            result = exec_silent(
                 ['pgrep', '-f', 'device_sync'],
                 capture_output=True,
                 text=True
             )
 
-            if result.returncode == 0:
+            if result.return_code == 0:
                 if verbose:
                     print("    ✓ Device Sync process found")
                 return True

@@ -6,7 +6,7 @@ Handles process management including starting, stopping, and monitoring processe
 """
 
 import os
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 import time
 from pathlib import Path
@@ -75,7 +75,7 @@ class ProcessManager:
 
             # Execute explorer command
             try:
-                subprocess.run(['explorer', launch_path],
+                exec_silent(['explorer', launch_path],
                              capture_output=True, text=True, timeout=30)
                 ColorPrint.blue(f"[EXEC] Explorer command executed for: {process_name}")
             except subprocess.TimeoutExpired:
@@ -122,9 +122,9 @@ class ProcessManager:
             if force:
                 cmd.append('/F')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = exec_silent(cmd, capture_output=True, text=True, timeout=30)
             
-            if result.returncode == 0:
+            if result.return_code == 0:
                 ColorPrint.green(f"✅ Successfully killed: {process_name}")
                 return True
             else:
@@ -157,9 +157,9 @@ class ProcessManager:
             if force:
                 cmd.append('/F')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = exec_silent(cmd, capture_output=True, text=True, timeout=30)
             
-            if result.returncode == 0:
+            if result.return_code == 0:
                 ColorPrint.green(f"✅ Successfully killed PID: {pid}")
                 return True
             else:

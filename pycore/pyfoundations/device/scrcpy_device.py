@@ -7,7 +7,7 @@ to scrcpy-server for video streaming and device control.
 
 import socket
 import struct
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import time
 from typing import Optional, Callable
@@ -16,6 +16,7 @@ from pathlib import Path
 from .android_device import AndroidDevice
 from .device_info import DeviceInfo, Resolution
 from .server_params import ServerParams, VideoCodec
+import subprocess
 
 
 class ScrcpyDevice(AndroidDevice):
@@ -241,7 +242,7 @@ class ScrcpyDevice(AndroidDevice):
             f"tcp:{local_port}",
             remote
         ]
-        subprocess.run(cmd, check=True, capture_output=True)
+        exec_silent(cmd, check=True, capture_output=True)
 
     def _remove_port_forward(self, local_port: int):
         """Remove ADB port forwarding"""
@@ -252,7 +253,7 @@ class ScrcpyDevice(AndroidDevice):
             "--remove",
             f"tcp:{local_port}"
         ]
-        subprocess.run(cmd, capture_output=True)
+        exec_silent(cmd, capture_output=True)
 
     def _connect_to_port(self, port: int) -> socket.socket:
         """Connect to local port"""

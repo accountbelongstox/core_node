@@ -133,7 +133,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         const result = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: (promptText: string) => {
-            // Find input textarea
+            // Find input textarea (supports both Chinese and English interfaces)
             const input = document.querySelector(
               'textarea[placeholder*="输入"], textarea[placeholder*="Ask"], textarea[data-id="chat-input"]'
             ) as HTMLTextAreaElement;
