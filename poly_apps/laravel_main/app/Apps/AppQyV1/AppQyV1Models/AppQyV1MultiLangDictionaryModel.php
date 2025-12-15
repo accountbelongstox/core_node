@@ -127,22 +127,32 @@ class AppQyV1MultiLangDictionaryModel extends Model
     {
         $md5Field = AppQyV1TableMaps::getDictionaryFieldName('md5');
         $contentField = AppQyV1TableMaps::getDictionaryFieldName('content');
-        
+
         if (!isset($data['md5'])) {
             $data['md5'] = md5($data['content']);
         }
-        
+
         $existing = self::forLanguage($langCode)->where($md5Field, $data['md5'])->first();
-        
+
         if ($existing) {
             $existing->update($data);
             return $existing;
         }
-        
+
+        if (!isset($data['has_translation'])) {
+            $data['has_translation'] = false;
+        }
+        if (!isset($data['translations'])) {
+            $data['translations'] = null;
+        }
+        if (!isset($data['tts_files'])) {
+            $data['tts_files'] = [];
+        }
+
         $instance = self::forLanguage($langCode);
         $instance->fill($data);
         $instance->save();
-        
+
         return $instance;
     }
 

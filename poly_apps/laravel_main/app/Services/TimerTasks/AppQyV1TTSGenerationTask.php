@@ -6,6 +6,8 @@ use App\Services\EdgeTTS\EdgeTTSService;
 use App\CallPycoreUtils\PycoreGoogleTranslateUtil;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Services\Workers\AppQyV1ArticleTTSWorker;
+use App\Models\GlobalTask;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -34,6 +36,8 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
+            $this->processArticleTasks();
+
             $this->logInfo('Starting TTS and translation batch generation');
 
             $languageCodes = ['en', 'ja', 'ko', 'vi', 'lo'];
@@ -205,5 +209,44 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function isEnabled(): bool
     {
         return env('APPQYV1_TTS_AUTO_GENERATION', true);
+    }
+
+    /**
+     * Process article TTS generation tasks
+     * Process one task at a time as requested
+     */
+    private function processArticleTasks(): void
+    {
+        $task = GlobalTask::where('app_name', 'AppQyV1')
+            ->where('task_type', 'article_tts_generation')
+            ->where('execution_type', GlobalTask::EXECUTION_LOCAL_TIMER)
+            ->pending()
+            ->orderBy('priority', 'desc')
+            ->orderBy('created_at', 'asc')
+            ->first();
+
+        if (!$task) {
+            return;
+        }
+
+        $this->logInfo('[ArticleTTS] Processing article task', [
+            'task_id' => $task->task_id,
+        ]);
+
+        try {
+            AppQyV1ArticleTTSWorker::process($task->task_id);
+
+            $this->logInfo('[ArticleTTS] Article task completed', [
+                'task_id' => $task->task_id,
+            ]);
+        } catch (\Throwable $e) {
+            $this->logError('[ArticleTTS] Article task failed', [
+                'task_id' => $task->task_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $task->fail($e->getMessage());
+        }
     }
 }

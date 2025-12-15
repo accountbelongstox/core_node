@@ -1,9 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
 import { TRANSLATIONS } from '../constants';
 import { Language } from '../types';
 import { useUser } from '../hooks/useUser';
+import { api } from '../core/api';
+import { InviteCode } from '../core/api/modules/InviteCodeAPI';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -24,11 +26,33 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     registrationCode: ''
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const [availableCodes, setAvailableCodes] = useState<InviteCode[]>([]);
 
   const t = TRANSLATIONS[lang].login;
   const error = localError || userError;
 
+  // Fetch available invite codes when in register mode
+  useEffect(() => {
+    if (isRegisterMode && isOpen) {
+      api.inviteCode.listPublic()
+        .then(codes => {
+          if (codes && Array.isArray(codes)) {
+            setAvailableCodes(codes.filter(c => c.is_active && c.used_count < c.max_uses));
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to fetch invite codes:', err);
+          setAvailableCodes([]);
+        });
+    }
+  }, [isRegisterMode, isOpen]);
+
   if (!isOpen) return null;
+
+  const maskCode = (code: string): string => {
+    if (code.length <= 8) return code;
+    return `${code.slice(0, 4)}...${code.slice(-4)}`;
+  };
 
   const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
@@ -190,6 +214,31 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                       className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     />
                   </div>
+                  {/* Available Codes Hint */}
+                  {availableCodes.length > 0 && (
+                    <div className="mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/30 rounded-lg">
+                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mb-1 font-medium">
+                        {lang === 'zh' ? '可用邀请码:' : 'Available Codes:'}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {availableCodes.slice(0, 3).map(code => (
+                          <button
+                            key={code.id}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, registrationCode: code.code }))}
+                            className="px-2 py-1 text-[10px] font-mono bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 rounded text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                          >
+                            {maskCode(code.code)}
+                          </button>
+                        ))}
+                        {availableCodes.length > 3 && (
+                          <span className="px-2 py-1 text-[10px] text-indigo-500 dark:text-indigo-400">
+                            +{availableCodes.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
