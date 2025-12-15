@@ -9,13 +9,13 @@ import { getTaskQueueManager, TaskStatus, type DeepSeekTask, type TaskResult } f
  * DeepSeek UI selectors
  */
 const DEEPSEEK_SELECTORS = {
-  // Text input area (matches Chinese "输入" and English "Ask")
+  // Text input area (supports both Chinese and English interfaces)
   INPUT: 'textarea[placeholder*="输入"], textarea[placeholder*="Ask"], textarea[data-id="chat-input"]',
 
   // Send button
   SEND_BUTTON: 'button[type="submit"], button[aria-label*="Send"]',
 
-  // Stop generating button (indicates generating, matches Chinese "停止" and English "Stop")
+  // Stop generating button (indicates response is being generated, supports Chinese and English)
   STOP_BUTTON: 'button:has-text("停止"), button:has-text("Stop"), button[aria-label*="Stop"]',
 
   // Response container

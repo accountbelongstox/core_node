@@ -18,13 +18,14 @@ Pitfalls encountered during development:
 
 import os
 import sys
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import time
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from threading import Thread
 from queue import Queue
+import subprocess
 
 # Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
@@ -188,11 +189,11 @@ class PaddleOCREngine:
 
             process.wait()
 
-            if process.returncode == 0:
+            if process.return_code == 0:
                 ColorPrint.green(f"[SUCCESS] {package_name} installed successfully")
                 return True
             else:
-                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.returncode}")
+                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.return_code}")
                 return False
 
         except Exception as e:

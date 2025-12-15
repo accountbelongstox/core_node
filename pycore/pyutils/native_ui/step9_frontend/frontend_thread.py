@@ -17,15 +17,16 @@ import sys
 import time
 import socket
 import threading
-import subprocess
 import platform
 from pathlib import Path
 from typing import Optional, List
 
 from pycore import THREAD_BUS
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon import exec_realtime, exec_silent
 from .frontend_config import FrontendConfig
 from .frontend_singleton_detector import FrontendSingletonDetector
+import subprocess
 
 
 def _resolve_command_for_platform(command: List[str]) -> List[str]:
@@ -245,6 +246,8 @@ class FrontendLauncherThread(threading.Thread):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             bufsize=1
         )
 
@@ -341,6 +344,8 @@ class FrontendLauncherThread(threading.Thread):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             bufsize=1
         )
 

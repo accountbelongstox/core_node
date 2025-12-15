@@ -27,7 +27,7 @@ import json
 import logging
 import os
 import sys
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import importlib
 import time
 from pathlib import Path
@@ -37,6 +37,7 @@ import threading
 
 # FastMCP framework
 from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_pypdf
+import subprocess
 
 FastMCP = get_third_package_FastMCP()
 pypdf_lib = get_third_package_pypdf()
@@ -119,7 +120,7 @@ class PackageManager:
 
                     try:
                         stdout, stderr = process.communicate(timeout=timeout)
-                        if process.returncode == 0:
+                        if process.return_code == 0:
                             logger.info(f"[OK] {package_name} installed successfully")
                             PackageManager._installation_status[package_name] = True
                             return True

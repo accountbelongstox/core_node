@@ -14,7 +14,7 @@ Dependencies:
 """
 
 import os
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import tempfile
 import platform
 from pathlib import Path
@@ -55,13 +55,13 @@ def get_ffmpeg_path() -> Optional[str]:
     ffmpeg_cmd = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
 
     # Try to find ffmpeg
-    result = subprocess.run(
+    result = exec_silent(
         ["where" if platform.system() == "Windows" else "which", ffmpeg_cmd],
         capture_output=True,
         text=True
     )
 
-    if result.returncode == 0:
+    if result.return_code == 0:
         return result.stdout.strip().split('\n')[0]
 
     ColorPrint.red("[AudioUtils] ffmpeg not found in PATH")
@@ -116,9 +116,9 @@ def convert_to_whisper_format(
 
     ColorPrint.blue(f"[AudioUtils] Converting {input_path.name} to Whisper format...")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = exec_silent(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
+    if result.return_code != 0:
         ColorPrint.red(f"[AudioUtils] Conversion failed: {result.stderr}")
         return None
 
@@ -174,9 +174,9 @@ def extract_audio_from_video(
 
     ColorPrint.blue(f"[AudioUtils] Extracting audio from {video_path.name}...")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = exec_silent(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
+    if result.return_code != 0:
         ColorPrint.red(f"[AudioUtils] Audio extraction failed: {result.stderr}")
         return None
 
@@ -265,9 +265,9 @@ def get_audio_duration(audio_path: Path) -> Optional[float]:
         str(audio_path)
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = exec_silent(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
+    if result.return_code != 0:
         return None
 
     return float(result.stdout.strip())

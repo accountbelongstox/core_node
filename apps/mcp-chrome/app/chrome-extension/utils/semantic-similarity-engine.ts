@@ -16,7 +16,7 @@ import { ModelCacheManager } from './model-cache-manager';
 async function getCachedModelData(modelUrl: string): Promise<ArrayBuffer> {
   const cacheManager = ModelCacheManager.getInstance();
 
-  // 1. 尝试从缓存获取数据
+  // 1. Try to get data from cache
   const cachedData = await cacheManager.getCachedModelData(modelUrl);
   if (cachedData) {
     return cachedData;
@@ -25,14 +25,14 @@ async function getCachedModelData(modelUrl: string): Promise<ArrayBuffer> {
   console.log('Model not found in cache or expired. Fetching from network...');
 
   try {
-    // 2. 从网络获取数据
+    // 2. Fetch data from network
     const response = await fetch(modelUrl);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch model: ${response.status} ${response.statusText}`);
     }
 
-    // 3. 获取数据并存储到缓存
+    // 3. Get data and store to cache
     const arrayBuffer = await response.arrayBuffer();
     await cacheManager.storeModelData(modelUrl, arrayBuffer);
 
@@ -43,7 +43,7 @@ async function getCachedModelData(modelUrl: string): Promise<ArrayBuffer> {
     return arrayBuffer;
   } catch (error) {
     console.error(`Error fetching or caching model:`, error);
-    // 如果获取失败，清理可能不完整的缓存条目
+    // If fetching fails, clean up potentially incomplete cache entries
     await cacheManager.deleteCacheEntry(modelUrl);
     throw error;
   }

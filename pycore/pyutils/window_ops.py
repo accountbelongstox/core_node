@@ -4,7 +4,7 @@
 import ctypes
 import ctypes.wintypes
 import time
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any, Union
@@ -12,6 +12,7 @@ from pathlib import Path
 from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
 
 from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
+import subprocess
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()

@@ -7,7 +7,7 @@ Check if Device Sync is running and diagnose issues.
 
 import sys
 import socket
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
 def check_ipc_server():
     """Check if IPC server is running."""
@@ -49,7 +49,7 @@ def check_process():
     try:
         if sys.platform == 'win32':
             # Windows
-            result = subprocess.run(
+            result = exec_silent(
                 ['tasklist', '/FI', 'IMAGENAME eq pythonw.exe'],
                 capture_output=True,
                 text=True
@@ -63,13 +63,13 @@ def check_process():
                 return False
         else:
             # Linux
-            result = subprocess.run(
+            result = exec_silent(
                 ['pgrep', '-f', 'device_sync'],
                 capture_output=True,
                 text=True
             )
 
-            if result.returncode == 0:
+            if result.return_code == 0:
                 print("[Check] ✓ Device Sync process found")
                 return True
             else:

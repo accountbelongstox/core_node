@@ -13,7 +13,6 @@ The module automatically checks and installs missing packages on first import.
 
 import os
 import sys
-import subprocess
 import importlib
 import importlib.util
 import platform
@@ -218,7 +217,7 @@ def build_pip_install_command(package_name: str) -> list:
         package_name: The package name to install
 
     Returns:
-        List of command arguments for subprocess.run()
+        List of command arguments for exec_silent()
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]

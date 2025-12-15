@@ -6,9 +6,13 @@ Centralized configuration management following pycore standards
 
 import os
 import platform
+import shutil
+import traceback
 from pathlib import Path
 
 from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
+from pycore import ColorPrint
+from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
 
 
 class Config:
@@ -40,25 +44,29 @@ class Config:
         Returns:
             ADB executable path
         """
-        import shutil
-        from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
-
         # 1. Try to get from user data directory (auto-extracts if needed)
         try:
+            ColorPrint.blue("[Config] Initializing ADB from scrcpy_init...")
             adb_path = get_init_adb_path()
             if adb_path and adb_path.exists():
+                ColorPrint.green(f"[Config] ADB found at: {adb_path}")
                 return str(adb_path)
+            else:
+                ColorPrint.yellow(f"[Config] ADB initialization returned: {adb_path}")
         except Exception as e:
-            print(f"[Config] Warning: Failed to get ADB from scrcpy_init: {e}")
+            ColorPrint.red(f"[Config] Failed to get ADB from scrcpy_init: {e}")
+            traceback.print_exc()
 
         # 2. Check system PATH
         system = platform.system()
         adb_exe = "adb.exe" if system == 'Windows' else "adb"
         adb_in_path = shutil.which(adb_exe)
         if adb_in_path:
+            ColorPrint.green(f"[Config] ADB found in system PATH: {adb_in_path}")
             return adb_in_path
 
         # 3. Fallback
+        ColorPrint.yellow("[Config] ADB not found, using fallback 'adb' (may fail)")
         return "adb"
 
     # scrcpy-server configuration (must match scrcpy_source version)

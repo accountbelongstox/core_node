@@ -5,7 +5,7 @@ This module safely kills old instances of the design documentation server
 without affecting other processes.
 """
 
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 import platform
 from pathlib import Path
@@ -70,7 +70,7 @@ def _get_process_windows(port: int) -> Optional[Dict[str, str]]:
     """Get process info on Windows using netstat and tasklist"""
     try:
         # Find PID using netstat
-        result = subprocess.run(
+        result = exec_silent(
             ["netstat", "-ano"],
             capture_output=True,
             text=True,
@@ -88,7 +88,7 @@ def _get_process_windows(port: int) -> Optional[Dict[str, str]]:
             return None
 
         # Get process details using tasklist
-        result = subprocess.run(
+        result = exec_silent(
             ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/V"],
             capture_output=True,
             text=True,
@@ -108,7 +108,7 @@ def _get_process_windows(port: int) -> Optional[Dict[str, str]]:
                 # Method 1: Try PowerShell (more reliable)
                 try:
                     ps_cmd = f'(Get-WmiObject Win32_Process -Filter "ProcessId = {pid}").CommandLine'
-                    ps_result = subprocess.run(
+                    ps_result = exec_silent(
                         ["powershell", "-NoProfile", "-Command", ps_cmd],
                         capture_output=True,
                         text=True,
@@ -123,7 +123,7 @@ def _get_process_windows(port: int) -> Optional[Dict[str, str]]:
                 # Method 2: Fallback to wmic if PowerShell failed
                 if not cmdline:
                     try:
-                        wmic_result = subprocess.run(
+                        wmic_result = exec_silent(
                             ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine"],
                             capture_output=True,
                             text=True,
@@ -155,7 +155,7 @@ def _get_process_unix(port: int) -> Optional[Dict[str, str]]:
     """Get process info on Linux/macOS using lsof"""
     try:
         # Use lsof to find process
-        result = subprocess.run(
+        result = exec_silent(
             ["lsof", "-i", f":{port}", "-t"],
             capture_output=True,
             text=True,
@@ -167,7 +167,7 @@ def _get_process_unix(port: int) -> Optional[Dict[str, str]]:
             return None
 
         # Get process details using ps
-        ps_result = subprocess.run(
+        ps_result = exec_silent(
             ["ps", "-p", pid, "-o", "comm=,args="],
             capture_output=True,
             text=True,
@@ -272,8 +272,8 @@ def kill_process(pid: str, force: bool = True) -> bool:
             signal = "-9" if force else "-15"
             cmd = ["kill", signal, pid]
 
-        result = subprocess.run(cmd, capture_output=True, timeout=5)
-        return result.returncode == 0
+        result = exec_silent(cmd, capture_output=True, timeout=5)
+        return result.return_code == 0
 
     except Exception as e:
         print(f"[ERROR] Failed to kill process {pid}: {e}")

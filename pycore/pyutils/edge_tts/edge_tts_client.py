@@ -9,7 +9,7 @@ Provides Edge TTS integration with Windows/Linux compatibility.
 import os
 import sys
 import platform
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -67,8 +67,8 @@ class EdgeTTSClient:
         python_exe = sys.executable
         test_cmd = [python_exe, '-m', 'edge_tts', '--version']
         
-        result = subprocess.run(test_cmd, capture_output=True, text=True)
-        if result.returncode == 0:
+        result = exec_silent(test_cmd, capture_output=True, text=True)
+        if result.return_code == 0:
             self._edge_tts_binary = python_exe
             return python_exe
         
@@ -131,9 +131,9 @@ class EdgeTTSClient:
                 return []
             
             cmd = [binary, '--list-voices'] if binary != 'python' else [binary, '-m', 'edge_tts', '--list-voices']
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = exec_silent(cmd, capture_output=True, text=True)
             
-            if result.returncode != 0:
+            if result.return_code != 0:
                 ColorPrint.red(f"[EdgeTTS] Failed to get voices: {result.stderr}")
                 return []
             
@@ -217,8 +217,8 @@ class EdgeTTSClient:
             if binary == 'python':
                 cmd = [binary, '-m', 'edge_tts'] + cmd[1:]
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
+            result = exec_silent(cmd, capture_output=True, text=True)
+            if result.return_code != 0:
                 ColorPrint.red(f"[EdgeTTS] Synthesis failed: {result.stderr}")
                 return False
             return True

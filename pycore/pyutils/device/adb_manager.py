@@ -12,7 +12,7 @@ Design Principles:
 - Type-safe interfaces
 """
 
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import re
 import shlex
 from pathlib import Path
@@ -27,6 +27,7 @@ from pycore.pyutils.device.adb_types import (
     ADBDeviceBattery,
     ADBForwardSpec
 )
+import subprocess
 from pycore.pyutils.device.adb_device import ADBDevice
 
 
@@ -73,7 +74,7 @@ class ADBManager:
         cmd.extend(args)
 
         try:
-            result = subprocess.run(
+            result = exec_silent(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -83,10 +84,10 @@ class ADBManager:
             )
 
             return ADBExecuteResult(
-                success=(result.returncode == 0),
+                success=(result.return_code == 0),
                 stdout=result.stdout,
                 stderr=result.stderr,
-                returncode=result.returncode
+                returncode=result.return_code
             )
 
         except subprocess.TimeoutExpired:

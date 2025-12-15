@@ -14,7 +14,7 @@ Features:
 - Task-level and queue-level callbacks
 """
 
-import subprocess
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import queue
 import time
@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+import subprocess
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -192,13 +193,13 @@ class MediaCompressor:
         # Try nvidia-smi as fallback
         if not self.cuda_available:
             try:
-                result = subprocess.run(
+                result = exec_silent(
                     ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
                     capture_output=True,
                     text=True,
                     timeout=5
                 )
-                if result.returncode == 0:
+                if result.return_code == 0:
                     lines = result.stdout.strip().split('\n')
                     if lines:
                         parts = lines[0].split(',')
@@ -222,25 +223,25 @@ class MediaCompressor:
         """Detect FFmpeg availability and CUDA support"""
         try:
             # Check if ffmpeg exists
-            result = subprocess.run(
+            result = exec_silent(
                 ["ffmpeg", "-version"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0:
+            if result.return_code == 0:
                 self.ffmpeg_available = True
                 self._print("✅ FFmpeg detected")
 
                 # Check for NVIDIA codec support
                 if self.cuda_available:
-                    codec_result = subprocess.run(
+                    codec_result = exec_silent(
                         ["ffmpeg", "-hide_banner", "-encoders"],
                         capture_output=True,
                         text=True,
                         timeout=5
                     )
-                    if codec_result.returncode == 0:
+                    if codec_result.return_code == 0:
                         output = codec_result.stdout
                         # Check for NVIDIA hardware encoders
                         if 'h264_nvenc' in output or 'hevc_nvenc' in output:
@@ -488,8 +489,8 @@ class MediaCompressor:
             if self.verbose:
                 print()  # New line after progress
 
-            if process.returncode != 0:
-                ColorPrint.red(f"FFmpeg process failed with code {process.returncode}")
+            if process.return_code != 0:
+                ColorPrint.red(f"FFmpeg process failed with code {process.return_code}")
                 return CompressionStats()
 
         except subprocess.TimeoutExpired:
