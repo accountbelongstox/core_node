@@ -1,9 +1,20 @@
-import { stdin, stdout } from 'process';
+import { stdin, stdout, stderr } from 'process';
 import { Server } from './server';
 import { v4 as uuidv4 } from 'uuid';
 import { NativeMessageType } from 'chrome-mcp-shared';
 import { TIMEOUTS } from './constant';
 import fileHandler from './file-handler';
+
+// Log function for debugging
+function log(level: string, message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [NativeHost] [${level}] ${message}`;
+  if (data) {
+    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
+  } else {
+    stderr.write(`${logMessage}\n`);
+  }
+}
 
 interface PendingRequest {
   resolve: (value: any) => void;
@@ -22,8 +33,11 @@ export class NativeMessagingHost {
   // add message handler to wait for start server
   public start(): void {
     try {
+      log('INFO', 'Native Messaging Host starting...');
       this.setupMessageHandling();
+      log('INFO', 'Native Messaging Host started, waiting for messages from Chrome Extension');
     } catch (error: any) {
+      log('ERROR', 'Failed to start Native Messaging Host', { error: error.message });
       process.exit(1);
     }
   }
@@ -92,23 +106,29 @@ export class NativeMessagingHost {
 
     // Handle directive messages from Chrome
     try {
+      log('INFO', 'Received message from Chrome Extension', { type: message.type, payload: message.payload });
       switch (message.type) {
         case NativeMessageType.START:
+          log('INFO', `START message received, port: ${message.payload?.port || 3000}`);
           await this.startServer(message.payload?.port || 3000);
           break;
         case NativeMessageType.STOP:
+          log('INFO', 'STOP message received');
           await this.stopServer();
           break;
         // Keep ping/pong for simple liveness detection, but this differs from request-response pattern
         case 'ping_from_extension':
+          log('INFO', 'PING received from extension');
           this.sendMessage({ type: 'pong_to_extension' });
           break;
         case 'file_operation':
+          log('INFO', 'FILE_OPERATION message received');
           await this.handleFileOperation(message);
           break;
         default:
           // Double check when message type is not supported
           if (!message.responseToRequestId) {
+            log('WARN', `Unknown message type: ${message.type || 'no type'}`);
             this.sendError(
               `Unknown message type or non-response message: ${message.type || 'no type'}`,
             );
@@ -193,12 +213,15 @@ export class NativeMessagingHost {
    * Start Fastify server (now accepts Server instance)
    */
   private async startServer(port: number): Promise<void> {
+    log('INFO', `startServer called with port: ${port}`);
     if (!this.associatedServer) {
+      log('ERROR', 'Server instance not set');
       this.sendError('Internal error: server instance not set');
       return;
     }
     try {
       if (this.associatedServer.isRunning) {
+        log('WARN', 'Server is already running');
         this.sendMessage({
           type: NativeMessageType.ERROR,
           payload: { message: 'Server is already running' },
@@ -206,14 +229,19 @@ export class NativeMessagingHost {
         return;
       }
 
+      log('INFO', `Starting Fastify HTTP server on port ${port}...`);
       await this.associatedServer.start(port, this);
+      log('SUCCESS', `Fastify HTTP server started successfully on port ${port}`);
 
+      log('INFO', 'Sending SERVER_STARTED message to Chrome Extension');
       this.sendMessage({
         type: NativeMessageType.SERVER_STARTED,
         payload: { port },
       });
+      log('INFO', 'SERVER_STARTED message sent successfully');
 
     } catch (error: any) {
+      log('ERROR', `Failed to start server: ${error.message}`, { stack: error.stack });
       this.sendError(`Failed to start server: ${error.message}`);
     }
   }

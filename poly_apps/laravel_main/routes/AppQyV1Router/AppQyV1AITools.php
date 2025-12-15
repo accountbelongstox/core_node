@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Providers\PathMapper;
 
 Route::prefix('app_qy_v1')->group(function () {
@@ -48,6 +49,10 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/audio/{language}/{type}/{speed}/{filename}', [AppQyV1TTSController::class, 'serveAudioWithSpeed']);
         Route::get('/audio/{language}/{type}/{filename}', [AppQyV1TTSController::class, 'serveAudio']);
     });
+
+    Route::prefix('article')->group(function () {
+        Route::get('/task/{taskId}', [AppQyV1ArticleController::class, 'getTaskStatus']);
+    });
 });
 
 Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function () {
@@ -64,5 +69,10 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     Route::prefix('tts')->group(function () {
         Route::post('/generate', [AppQyV1TTSController::class, 'generate']);
         Route::post('/batch-generate', [AppQyV1TTSController::class, 'batchGenerate']);
+    });
+
+    Route::prefix('article')->group(function () {
+        Route::post('/submit', [AppQyV1ArticleController::class, 'submitArticle']);
+        Route::post('/preview', [AppQyV1ArticleController::class, 'previewParsing']);
     });
 });

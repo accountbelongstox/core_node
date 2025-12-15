@@ -112,51 +112,69 @@ if [ ! -d "node_modules" ]; then
     $PKG_MANAGER install
 fi
 
-# Auto-fix Vite config to use environment PORT
+# ============================================
+# Auto-fix Vite Configuration (Idempotent Steps)
+# ============================================
 echo "Checking Vite configuration..."
+
+# STEP 1: Backup original config (one-time, idempotent)
+if [ -f "vite.config.ts" ] && [ ! -f "vite.config.ts.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.ts && grep -q "port:[[:space:]]*[0-9]" vite.config.ts; then
+        echo "[1/3] Backing up original vite.config.ts..."
+        cp vite.config.ts vite.config.ts.original
+        echo "✓ Original config backed up"
+    fi
+elif [ -f "vite.config.js" ] && [ ! -f "vite.config.js.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.js && grep -q "port:[[:space:]]*[0-9]" vite.config.js; then
+        echo "[1/3] Backing up original vite.config.js..."
+        cp vite.config.js vite.config.js.original
+        echo "✓ Original config backed up"
+    fi
+fi
+
+# STEP 2: Fix hardcoded port in vite.config.ts (idempotent)
 if [ -f "vite.config.ts" ]; then
-    # Check if port is NOT reading from environment variable
     if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.ts; then
-        # Check if port is hardcoded
         if grep -q "port:[[:space:]]*[0-9]" vite.config.ts; then
-            echo "Detected hardcoded port in vite.config.ts, applying auto-fix..."
-            # Backup original config
-            if [ -f "vite.config.ts" ] && [ ! -f "vite.config.ts.backup" ]; then
-                cp vite.config.ts vite.config.ts.backup
-            fi
-            # Fix: Replace hardcoded port with environment variable
+            echo "[2/3] Fixing hardcoded port in vite.config.ts..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT || process.env.VITE_PORT || "3000")/' vite.config.ts
-            echo "✓ Vite config auto-fixed to use PORT environment variable"
-            # Clean vite cache after config change
-            if [ -d "node_modules/.vite-temp" ]; then
-                rm -rf node_modules/.vite-temp
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment PORT variable"
+            else
+                echo "✗ Failed to fix config"
             fi
-            if [ -d "node_modules/.vite" ]; then
-                rm -rf node_modules/.vite
-            fi
-            echo "✓ Cleared Vite cache"
         fi
     fi
-elif [ -f "vite.config.js" ]; then
-    # Check if port is NOT reading from environment variable
+fi
+
+# STEP 2: Fix hardcoded port in vite.config.js (idempotent)
+if [ -f "vite.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" vite.config.js; then
-            echo "Detected hardcoded port in vite.config.js, applying auto-fix..."
-            if [ -f "vite.config.js" ] && [ ! -f "vite.config.js.backup" ]; then
-                cp vite.config.js vite.config.js.backup
-            fi
+            echo "[2/3] Fixing hardcoded port in vite.config.js..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT || process.env.VITE_PORT || "3000")/' vite.config.js
-            echo "✓ Vite config auto-fixed to use PORT environment variable"
-            # Clean vite cache after config change
-            if [ -d "node_modules/.vite-temp" ]; then
-                rm -rf node_modules/.vite-temp
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment PORT variable"
+            else
+                echo "✗ Failed to fix config"
             fi
-            if [ -d "node_modules/.vite" ]; then
-                rm -rf node_modules/.vite
-            fi
-            echo "✓ Cleared Vite cache"
         fi
     fi
+fi
+
+# STEP 3: Clear Vite cache (idempotent, always check)
+echo "[3/3] Checking Vite cache..."
+CACHE_CLEARED=false
+if [ -d "node_modules/.vite" ]; then
+    rm -rf node_modules/.vite && CACHE_CLEARED=true
+fi
+if [ -d "node_modules/.vite-temp" ]; then
+    rm -rf node_modules/.vite-temp && CACHE_CLEARED=true
+fi
+if [ "$CACHE_CLEARED" = "true" ]; then
+    echo "✓ Vite cache cleared"
+else
+    echo "✓ Vite cache already clean"
 fi
 
 # Set environment variables for Vite/React/Vue
@@ -258,30 +276,69 @@ if [ ! -d "node_modules" ]; then
     $PKG_MANAGER install
 fi
 
-# Auto-fix Nuxt config to use environment PORT
+# ============================================
+# Auto-fix Nuxt Configuration (Idempotent Steps)
+# ============================================
 echo "Checking Nuxt configuration..."
+
+# STEP 1: Backup original config (one-time, idempotent)
+if [ -f "nuxt.config.ts" ] && [ ! -f "nuxt.config.ts.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts && grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
+        echo "[1/3] Backing up original nuxt.config.ts..."
+        cp nuxt.config.ts nuxt.config.ts.original
+        echo "✓ Original config backed up"
+    fi
+elif [ -f "nuxt.config.js" ] && [ ! -f "nuxt.config.js.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js && grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
+        echo "[1/3] Backing up original nuxt.config.js..."
+        cp nuxt.config.js nuxt.config.js.original
+        echo "✓ Original config backed up"
+    fi
+fi
+
+# STEP 2: Fix hardcoded port in nuxt.config.ts (idempotent)
 if [ -f "nuxt.config.ts" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
-            echo "Detected hardcoded port in nuxt.config.ts, applying auto-fix..."
-            if [ -f "nuxt.config.ts" ] && [ ! -f "nuxt.config.ts.backup" ]; then
-                cp nuxt.config.ts nuxt.config.ts.backup
-            fi
+            echo "[2/3] Fixing hardcoded port in nuxt.config.ts..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.ts
-            echo "✓ Nuxt config auto-fixed to use NUXT_PORT environment variable"
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment NUXT_PORT variable"
+            else
+                echo "✗ Failed to fix config"
+            fi
         fi
     fi
-elif [ -f "nuxt.config.js" ]; then
+fi
+
+# STEP 2: Fix hardcoded port in nuxt.config.js (idempotent)
+if [ -f "nuxt.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
-            echo "Detected hardcoded port in nuxt.config.js, applying auto-fix..."
-            if [ -f "nuxt.config.js" ] && [ ! -f "nuxt.config.js.backup" ]; then
-                cp nuxt.config.js nuxt.config.js.backup
-            fi
+            echo "[2/3] Fixing hardcoded port in nuxt.config.js..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.js
-            echo "✓ Nuxt config auto-fixed to use NUXT_PORT environment variable"
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment NUXT_PORT variable"
+            else
+                echo "✗ Failed to fix config"
+            fi
         fi
     fi
+fi
+
+# STEP 3: Clear Nuxt cache (idempotent, always check)
+echo "[3/3] Checking Nuxt cache..."
+CACHE_CLEARED=false
+if [ -d ".nuxt" ]; then
+    rm -rf .nuxt && CACHE_CLEARED=true
+fi
+if [ -d "node_modules/.cache/nuxt" ]; then
+    rm -rf node_modules/.cache/nuxt && CACHE_CLEARED=true
+fi
+if [ "$CACHE_CLEARED" = "true" ]; then
+    echo "✓ Nuxt cache cleared"
+else
+    echo "✓ Nuxt cache already clean"
 fi
 
 # Set environment variables for Nuxt
@@ -327,30 +384,69 @@ if [ ! -d "node_modules" ]; then
     $PKG_MANAGER install
 fi
 
-# Auto-fix Nuxt config to use environment PORT
+# ============================================
+# Auto-fix Nuxt Configuration (Idempotent Steps)
+# ============================================
 echo "Checking Nuxt configuration..."
+
+# STEP 1: Backup original config (one-time, idempotent)
+if [ -f "nuxt.config.ts" ] && [ ! -f "nuxt.config.ts.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts && grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
+        echo "[1/3] Backing up original nuxt.config.ts..."
+        cp nuxt.config.ts nuxt.config.ts.original
+        echo "✓ Original config backed up"
+    fi
+elif [ -f "nuxt.config.js" ] && [ ! -f "nuxt.config.js.original" ]; then
+    if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js && grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
+        echo "[1/3] Backing up original nuxt.config.js..."
+        cp nuxt.config.js nuxt.config.js.original
+        echo "✓ Original config backed up"
+    fi
+fi
+
+# STEP 2: Fix hardcoded port in nuxt.config.ts (idempotent)
 if [ -f "nuxt.config.ts" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
-            echo "Detected hardcoded port in nuxt.config.ts, applying auto-fix..."
-            if [ -f "nuxt.config.ts" ] && [ ! -f "nuxt.config.ts.backup" ]; then
-                cp nuxt.config.ts nuxt.config.ts.backup
-            fi
+            echo "[2/3] Fixing hardcoded port in nuxt.config.ts..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.ts
-            echo "✓ Nuxt config auto-fixed to use NUXT_PORT environment variable"
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment NUXT_PORT variable"
+            else
+                echo "✗ Failed to fix config"
+            fi
         fi
     fi
-elif [ -f "nuxt.config.js" ]; then
+fi
+
+# STEP 2: Fix hardcoded port in nuxt.config.js (idempotent)
+if [ -f "nuxt.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
-            echo "Detected hardcoded port in nuxt.config.js, applying auto-fix..."
-            if [ -f "nuxt.config.js" ] && [ ! -f "nuxt.config.js.backup" ]; then
-                cp nuxt.config.js nuxt.config.js.backup
-            fi
+            echo "[2/3] Fixing hardcoded port in nuxt.config.js..."
             sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.js
-            echo "✓ Nuxt config auto-fixed to use NUXT_PORT environment variable"
+            if [ $? -eq 0 ]; then
+                echo "✓ Config fixed to use environment NUXT_PORT variable"
+            else
+                echo "✗ Failed to fix config"
+            fi
         fi
     fi
+fi
+
+# STEP 3: Clear Nuxt cache (idempotent, always check)
+echo "[3/3] Checking Nuxt cache..."
+CACHE_CLEARED=false
+if [ -d ".nuxt" ]; then
+    rm -rf .nuxt && CACHE_CLEARED=true
+fi
+if [ -d "node_modules/.cache/nuxt" ]; then
+    rm -rf node_modules/.cache/nuxt && CACHE_CLEARED=true
+fi
+if [ "$CACHE_CLEARED" = "true" ]; then
+    echo "✓ Nuxt cache cleared"
+else
+    echo "✓ Nuxt cache already clean"
 fi
 
 # Build if .output directory doesn't exist

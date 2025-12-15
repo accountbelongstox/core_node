@@ -8,7 +8,7 @@ export enum NATIVE_MESSAGE_TYPE {
   ERROR = 'error',
 }
 
-export const NATIVE_SERVER_PORT = 56889;
+export const NATIVE_SERVER_PORT = 12306;
 
 // Timeout constants (in milliseconds)
 export const TIMEOUTS = {

@@ -8,9 +8,15 @@ config({ path: resolve(process.cwd(), '.env.local') });
 
 const CHROME_EXTENSION_KEY = process.env.CHROME_EXTENSION_KEY;
 
+// Configure output directory using relative path (cross-platform compatible)
+// From: /www/programing/core_node/apps/mcp-chrome/app/chrome-extension
+// To: /www/programing/_build_dir
+const OUTPUT_DIR = resolve(__dirname, '../../../../../_build_dir');
+
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
+  outDir: OUTPUT_DIR,
   runner: {
     // 方案1: 禁用自动启动（推荐）
     disabled: true,

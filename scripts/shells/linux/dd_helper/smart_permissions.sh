@@ -66,10 +66,18 @@ fix_core_node_permissions_essential() {
     echo "[INFO] Project root: $project_root"
     echo "[INFO] Real user: $real_user"
 
+    # Calculate build directory path dynamically (no hardcoding)
+    # project_root: /www/programing/core_node
+    # parent: /www/programing
+    # build_dir: /www/programing/_build_dir
+    local parent_dir="$(dirname "$project_root")"
+    local build_dir="$parent_dir/_build_dir"
+
     # Essential directories for basic operation - 777 permissions
     local essential_dirs=(
         "$project_root"
         "$project_root/scripts"
+        "$build_dir"
     )
 
     # Print directories to be scanned
@@ -87,12 +95,18 @@ fix_core_node_permissions_essential() {
 
         # Fix essential directories - set 777 for all users
         for dir in "${essential_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+                echo "[INFO] Creating directory: $dir"
+                mkdir -p "$dir" 2>/dev/null
+            fi
             if [ -d "$dir" ]; then
                 echo "[INFO] Setting 777 permissions for: $dir"
                 chmod -R 777 "$dir" 2>/dev/null
                 chown -R "$real_user:$real_user" "$dir" 2>/dev/null
                 # Ensure all .sh files in scripts are executable
                 find "$dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
+            else
+                echo "[WARNING] Failed to create/access directory: $dir"
             fi
         done
         
