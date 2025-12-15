@@ -644,6 +644,19 @@ function Get-LatestGitVersion {
         Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
         Make-PsExecutable
     } else {
+        Write-ColorMessage -Message "Git pull operation failed" -Type "Error"
+    }
+}
+
+function Show-InstallerSubMenu {
+    $subItems = @(
+        @{
+            Text = "Run DevInstaller";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = "INSTALL_TYPE";
+            Action = {
+                $installType = $subItems[0].Values[$subItems[0].CurrentValueIndex]
                 Write-ColorMessage -Message "Installation type set to: $installType" -Type "Info"
                 & $script:LOCAL_INSTALLER_SCRIPT
             } 

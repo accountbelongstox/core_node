@@ -106,9 +106,7 @@ const PlaylistPage = () => {
     if (listRef.current && playlistSettings.autoScroll) {
       const item = listRef.current.children[index] as HTMLElement;
       if (item) {
-        // Use 'auto' (instant) if animations are disabled, otherwise 'smooth'
-        const behavior = playlistSettings.showAnimation ? 'smooth' : 'auto';
-        item.scrollIntoView({ behavior, block: 'center' });
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   };
@@ -175,12 +173,11 @@ const PlaylistPage = () => {
                key={`${word.id}-${i}`}
                onClick={() => handleManualClick(i)}
                className={`
-                 relative p-4 rounded-2xl cursor-pointer border
-                 ${animate ? 'transition-all duration-300' : ''}
+                 relative p-4 rounded-2xl transition-all duration-300 cursor-pointer border
                  ${isActive 
-                    ? `z-10 border-blue-400 ${
+                    ? `z-10 scale-[1.02] shadow-xl border-blue-400 ${
                         animate 
-                          ? 'scale-[1.02] shadow-xl bg-white dark:bg-blue-900/40 animate-pulse-slow' 
+                          ? 'bg-white dark:bg-blue-900/40 animate-pulse-slow' 
                           : 'bg-blue-50 dark:bg-blue-900/60 ring-2 ring-blue-500 dark:ring-blue-400'
                       }` 
                     : 'bg-white/60 dark:bg-slate-800/40 border-transparent hover:bg-white/80'}

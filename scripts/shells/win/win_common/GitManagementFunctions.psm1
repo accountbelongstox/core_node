@@ -123,7 +123,7 @@ function Show-GitManagementMenu {
         if ($operationStatus -eq "cancelled") {
             Write-Host ""
             Write-ColorMessage -Message "Operation cancelled." -Type "Warning"
-            Read-Host "Press Enter to return to Git Management menu"
+            Read-Host 'Press Enter to return to Git Management menu'
             continue
         }
 
@@ -131,7 +131,7 @@ function Show-GitManagementMenu {
             $errorMsg = Read-GitVar -Key "git_operation_message" -Default "Unknown error"
             Write-Host ""
             Write-ColorMessage -Message "Operation failed: $errorMsg" -Type "Error"
-            Read-Host "Press Enter to return to Git Management menu"
+            Read-Host 'Press Enter to return to Git Management menu'
             continue
         }
 
@@ -141,9 +141,9 @@ function Show-GitManagementMenu {
 
             if ($shellScript) {
                 Write-Host ""
-                Write-ColorMessage -Message "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -Type "Info"
+                Write-ColorMessage -Message "================================================================" -Type "Info"
                 Write-ColorMessage -Message "Executing Git operation..." -Type "Info"
-                Write-ColorMessage -Message "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -Type "Info"
+                Write-ColorMessage -Message "================================================================" -Type "Info"
                 Write-Host ""
 
                 # Change to project directory
@@ -159,7 +159,7 @@ function Show-GitManagementMenu {
                     if ($execResult -eq 0 -or $null -eq $execResult) {
                         Write-GitVar -Key "git_operation_status" -Value "success"
                         Write-Host ""
-                        Write-ColorMessage -Message "✓ Operation completed successfully!" -Type "Success"
+                        Write-ColorMessage -Message "[OK] Operation completed successfully!" -Type "Success"
 
                         # Show backup branch info for force overwrite
                         if ($operationType -eq "force_overwrite") {
@@ -172,19 +172,19 @@ function Show-GitManagementMenu {
                     } else {
                         Write-GitVar -Key "git_operation_status" -Value "failed"
                         Write-Host ""
-                        Write-ColorMessage -Message "✗ Operation failed." -Type "Error"
+                        Write-ColorMessage -Message "[ERROR] Operation failed." -Type "Error"
                         Write-ColorMessage -Message "Please check the output above for details." -Type "Warning"
                     }
                 } catch {
                     Write-GitVar -Key "git_operation_status" -Value "failed"
                     Write-Host ""
-                    Write-ColorMessage -Message "✗ Operation failed with exception: $_" -Type "Error"
+                    Write-ColorMessage -Message "[ERROR] Operation failed with exception: $_" -Type "Error"
                 } finally {
                     Set-Location $originalLocation
                 }
 
                 Write-Host ""
-                Write-ColorMessage -Message "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -Type "Info"
+                Write-ColorMessage -Message "================================================================" -Type "Info"
             } else {
                 Write-Host ""
                 Write-ColorMessage -Message "Error: No shell command generated." -Type "Error"
@@ -194,7 +194,7 @@ function Show-GitManagementMenu {
 
         # Pause before returning to menu
         Write-Host ""
-        Read-Host "Press Enter to return to Git Management menu"
+        Read-Host 'Press Enter to return to Git Management menu'
     }
 }
 
