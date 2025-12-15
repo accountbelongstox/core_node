@@ -51,6 +51,11 @@ export class InviteCodeAPI extends BaseAPI {
     return response.data;
   }
 
+  async listPublic(): Promise<InviteCode[]> {
+    const response = await this.get('/invite-codes/public');
+    return response.data;
+  }
+
   async create(data: CreateInviteCodeRequest): Promise<InviteCode> {
     const response = await this.post('/admin/invite-codes', data);
     return response.data;
