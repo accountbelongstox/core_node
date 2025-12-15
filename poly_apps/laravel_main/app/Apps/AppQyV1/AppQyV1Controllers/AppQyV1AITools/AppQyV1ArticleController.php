@@ -18,10 +18,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\Utils\AppQyV1ArticleTextParser;
 use App\Services\TaskManagerService;
 use App\Models\GlobalTask;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
 
 class AppQyV1ArticleController
 {
@@ -66,6 +70,12 @@ class AppQyV1ArticleController
             'language' => 'nullable|string|in:english,chinese,spanish,french,german,japanese,korean',
             'generate_sentence_audio' => 'nullable|boolean',
             'generate_word_audio' => 'nullable|boolean',
+            'title' => 'nullable|string|max:255',
+            'article_type' => 'nullable|string|max:50',
+            'source' => 'nullable|string|max:255',
+            'difficulty_level' => 'nullable|string|in:beginner,intermediate,advanced',
+            'is_daily_reading' => 'nullable|boolean',
+            'reading_date' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -94,48 +104,131 @@ class AppQyV1ArticleController
 
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
 
-        $timeoutSeconds = 120 + (count($parsedResult['sentences']) * 5) + (count($parsedResult['words']) * 2);
-        if ($timeoutSeconds > 3600) {
-            $timeoutSeconds = 3600;
+        $articleId = 'article_' . Str::uuid();
+        $userId = $request->user()->id;
+
+        $article = null;
+        $task = null;
+
+        try {
+            DB::connection('AppQyV1')->transaction(function () use (
+                $articleId,
+                $userId,
+                $request,
+                $articleText,
+                $language,
+                $parsedResult,
+                &$article
+            ) {
+                $article = AppQyV1Article::create([
+                    'article_id' => $articleId,
+                    'user_id' => $userId,
+                    'title' => $request->input('title'),
+                    'content' => $articleText,
+                    'language' => $language,
+                    'article_type' => $request->input('article_type', 'general'),
+                    'source' => $request->input('source'),
+                    'difficulty_level' => $request->input('difficulty_level'),
+                    'word_count' => $parsedResult['total_words'],
+                    'unique_word_count' => $parsedResult['unique_words'],
+                    'sentence_count' => $parsedResult['total_sentences'],
+                    'is_daily_reading' => $request->input('is_daily_reading', false),
+                    'reading_date' => $request->input('reading_date'),
+                    'task_id' => null,
+                    'tts_generated' => false,
+                    'metadata' => [
+                        'generate_sentence_audio' => $generateSentenceAudio,
+                        'generate_word_audio' => $generateWordAudio,
+                    ],
+                ]);
+
+                AppQyV1ArticleWord::createFromArticleWords(
+                    $articleId,
+                    $parsedResult['words'],
+                    $parsedResult['word_frequency'],
+                    $language
+                );
+            });
+
+            if ($generateSentenceAudio || $generateWordAudio) {
+                $timeoutSeconds = 120 + (count($parsedResult['sentences']) * 5) + (count($parsedResult['words']) * 2);
+                if ($timeoutSeconds > 3600) {
+                    $timeoutSeconds = 3600;
+                }
+
+                $task = $this->taskManager->createTask(
+                    'AppQyV1',
+                    'article_tts_generation',
+                    GlobalTask::EXECUTION_LOCAL_TIMER,
+                    [
+                        'article_id' => $articleId,
+                        'language' => $language,
+                        'generate_sentence_audio' => $generateSentenceAudio,
+                        'generate_word_audio' => $generateWordAudio,
+                    ],
+                    $timeoutSeconds,
+                    50,
+                    3
+                );
+
+                $article->update(['task_id' => $task->task_id]);
+
+                $cacheKey = "article_task:{$task->task_id}";
+                Cache::put($cacheKey, [
+                    'article_id' => $articleId,
+                    'user_id' => $userId,
+                    'article_text' => $articleText,
+                    'language' => $language,
+                    'sentences' => $parsedResult['sentences'],
+                    'sentences_with_md5' => $parsedResult['sentences_with_md5'],
+                    'words' => $parsedResult['words'],
+                    'word_frequency' => $parsedResult['word_frequency'],
+                    'total_sentences' => $parsedResult['total_sentences'],
+                    'total_words' => $parsedResult['total_words'],
+                    'unique_words' => $parsedResult['unique_words'],
+                    'generate_sentence_audio' => $generateSentenceAudio,
+                    'generate_word_audio' => $generateWordAudio,
+                    'sentence_audio_urls' => [],
+                    'word_audio_urls' => [],
+                ], 3600);
+            }
+
+            $sentencesData = array_map(function($sentence) {
+                return [
+                    'text' => $sentence,
+                    'audio_url' => null,
+                    'status' => 'pending',
+                ];
+            }, $parsedResult['sentences']);
+
+            $wordsData = array_map(function($word) use ($parsedResult) {
+                return [
+                    'word' => $word,
+                    'frequency' => $parsedResult['word_frequency'][$word] ?? 1,
+                    'audio_url' => null,
+                    'status' => 'pending',
+                ];
+            }, $parsedResult['words']);
+
+            return $this->success([
+                'article_id' => $articleId,
+                'task_id' => $task ? $task->task_id : null,
+                'tts_status' => $task ? 'processing' : 'not_requested',
+                'article' => [
+                    'title' => $article->title,
+                    'language' => $language,
+                    'article_type' => $article->article_type,
+                    'total_sentences' => $parsedResult['total_sentences'],
+                    'total_words' => $parsedResult['total_words'],
+                    'unique_words' => $parsedResult['unique_words'],
+                ],
+                'sentences' => $generateSentenceAudio ? $sentencesData : [],
+                'words' => $generateWordAudio ? $wordsData : [],
+            ], 'Article saved successfully. TTS generation in progress.');
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to save article: ' . $e->getMessage(), 500);
         }
-
-        $task = $this->taskManager->createTask(
-            'AppQyV1',
-            'article_tts_generation',
-            GlobalTask::EXECUTION_LOCAL_TIMER,
-            [
-                'language' => $language,
-                'generate_sentence_audio' => $generateSentenceAudio,
-                'generate_word_audio' => $generateWordAudio,
-            ],
-            $timeoutSeconds,
-            50,
-            3
-        );
-
-        $cacheKey = "article_task:{$task->task_id}";
-        Cache::put($cacheKey, [
-            'article_text' => $articleText,
-            'language' => $language,
-            'sentences' => $parsedResult['sentences'],
-            'sentences_with_md5' => $parsedResult['sentences_with_md5'],
-            'words' => $parsedResult['words'],
-            'word_frequency' => $parsedResult['word_frequency'],
-            'total_sentences' => $parsedResult['total_sentences'],
-            'total_words' => $parsedResult['total_words'],
-            'unique_words' => $parsedResult['unique_words'],
-            'generate_sentence_audio' => $generateSentenceAudio,
-            'generate_word_audio' => $generateWordAudio,
-            'sentence_audio_urls' => [],
-            'word_audio_urls' => [],
-        ], 3600);
-
-        return $this->success([
-            'task_id' => $task->task_id,
-            'total_sentences' => $parsedResult['total_sentences'],
-            'total_words' => $parsedResult['total_words'],
-            'unique_words' => $parsedResult['unique_words'],
-        ], 'Article submitted for processing');
     }
 
     /**
@@ -171,12 +264,17 @@ class AppQyV1ArticleController
         $cacheKey = "article_task:{$taskId}";
         $articleData = Cache::get($cacheKey);
 
+        $article = null;
         if (!$articleData) {
-            return $this->error('Article data not found in cache', 404);
+            $article = AppQyV1Article::where('task_id', $taskId)->first();
+            if (!$article) {
+                return $this->error('Article data not found', 404);
+            }
         }
 
         $responseData = [
             'task_id' => $task->task_id,
+            'article_id' => $task->result['article_id'] ?? ($articleData['article_id'] ?? $article?->article_id),
             'status' => $task->status,
             'progress' => $task->progress,
             'error' => null,
@@ -187,24 +285,33 @@ class AppQyV1ArticleController
         }
 
         if ($task->status === GlobalTask::STATUS_COMPLETED) {
-            $responseData['article_data'] = [
-                'article_text' => $articleData['article_text'],
-                'language' => $articleData['language'],
-                'sentences' => $articleData['sentences'],
-                'words' => $articleData['words'],
-                'word_frequency' => $articleData['word_frequency'],
-                'total_sentences' => $articleData['total_sentences'],
-                'total_words' => $articleData['total_words'],
-                'unique_words' => $articleData['unique_words'],
-                'sentence_audio_urls' => $articleData['sentence_audio_urls'],
-                'word_audio_urls' => $articleData['word_audio_urls'],
-            ];
+            if ($articleData) {
+                $responseData['sentences'] = array_map(function($item) {
+                    return [
+                        'text' => $item['sentence'],
+                        'audio_url' => $item['audio_url'],
+                        'status' => 'completed',
+                    ];
+                }, $articleData['sentence_audio_urls'] ?? []);
+
+                $responseData['words'] = array_map(function($item) {
+                    return [
+                        'word' => $item['word'],
+                        'audio_url' => $item['audio_url'],
+                        'status' => 'completed',
+                    ];
+                }, $articleData['word_audio_urls'] ?? []);
+            } else {
+                $responseData['sentences'] = [];
+                $responseData['words'] = [];
+                $responseData['note'] = 'TTS data cached expired, query article directly for audio URLs';
+            }
         } else {
-            $responseData['article_data'] = [
-                'total_sentences' => $articleData['total_sentences'],
-                'total_words' => $articleData['total_words'],
-                'unique_words' => $articleData['unique_words'],
-            ];
+            if ($articleData) {
+                $responseData['total_sentences'] = $articleData['total_sentences'];
+                $responseData['total_words'] = $articleData['total_words'];
+                $responseData['unique_words'] = $articleData['unique_words'];
+            }
         }
 
         return $this->success($responseData, 'Task status retrieved successfully');
