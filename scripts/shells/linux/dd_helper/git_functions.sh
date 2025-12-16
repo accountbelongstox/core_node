@@ -111,7 +111,7 @@ show_git_management_menu() {
                 if [ $exec_result -eq 0 ]; then
                     write_git_var "git_operation_status" "success"
                     echo ""
-                    echo -e "\033[32mâœ“ Operation completed successfully!\033[0m"
+                    echo -e "\033[32mâœ?Operation completed successfully!\033[0m"
 
                     # Make shell scripts executable after pull operations
                     if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
@@ -129,7 +129,7 @@ show_git_management_menu() {
                 else
                     write_git_var "git_operation_status" "failed"
                     echo ""
-                    echo -e "\033[31mâœ— Operation failed.\033[0m"
+                    echo -e "\033[31mâœ?Operation failed.\033[0m"
                     echo "Please check the output above for details."
                 fi
 
