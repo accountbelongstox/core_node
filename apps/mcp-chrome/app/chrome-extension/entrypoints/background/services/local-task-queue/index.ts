@@ -8,3 +8,6 @@ export * from './ITaskHandler';
 export * from './LocalTaskQueue';
 export * from './handlers/BingDictionaryHandler';
 export * from './handlers/DeepSeekHandler';
+export * from './LocalTaskQueueService';
+export * from './messages';
+export * from './message-handler';

@@ -11,12 +11,25 @@ import { initBingDictionaryClientListener } from './bing-dictionary-client-liste
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
+import { getLocalTaskQueueService, setupQueueMessageListener } from './services/local-task-queue';
 
 /**
  * Background script entry point
  * Initializes all background services and listeners
  */
 export default defineBackground(() => {
+  // Initialize Local Task Queue (Unified Queue System)
+  console.log('🎯 Initializing Local Task Queue...');
+  setupQueueMessageListener();
+  getLocalTaskQueueService()
+    .initialize()
+    .then(() => {
+      console.log('✅ Local Task Queue initialized');
+    })
+    .catch((error) => {
+      console.error('❌ Failed to initialize Local Task Queue:', error);
+    });
+
   // Initialize Unified Task Center (State Center)
   console.log('🎯 Initializing Unified Task Center...');
   taskCenter.initialize();

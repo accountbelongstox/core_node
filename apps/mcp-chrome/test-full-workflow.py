@@ -91,28 +91,37 @@ def process_task(task):
 
     log(f'Processing task #{TASK_COUNTER}: {task_id[:20]}...')
     log(f"  Words: {payload['word_count']}")
-    log(f"  Demo mode: {payload['is_demo_mode']}")
+    log(f"  Language: {payload['language']}")
 
     print('\n' + '='*70)
     print(f"TASK #{TASK_COUNTER}")
     print('='*70)
     print(f"Task ID: {task_id}")
     print(f"Type: {task['task_type']}")
+    print(f"Language: {payload['language']}")
     print(f"Word Count: {payload['word_count']}")
-    print(f"Demo Mode: {payload['is_demo_mode']}")
+    print(f"Demo Mode: True (Frontend-controlled)")
 
     # Generate fake translations
     explanations = []
 
     print("\nGenerating fake translations...")
     for word_data in payload['words']:
-        word = word_data['word']
-        word_md5 = word_data['md5']
+        word = word_data.get('word')
+        word_md5 = word_data.get('md5')
+
+        if not word:
+            print(f"  ✗ Skipping null word")
+            continue
 
         fake_translation = generate_fake_translation(word, word_md5)
         explanations.append(fake_translation)
 
         print(f"  ✓ {word}: {fake_translation['explanation'].split(chr(10))[0]}")
+
+    if not explanations:
+        log('[WARNING] No valid words in task, skipping')
+        return None
 
     return explanations
 
@@ -185,6 +194,11 @@ def main():
 
             # Process task (generate fake translations)
             explanations = process_task(task)
+
+            if explanations is None:
+                log('[SKIP] Task has no valid words, skipping submission', 'WARNING')
+                time.sleep(1)
+                continue
 
             # Simulate processing time
             log('Simulating translation time (2s)...')

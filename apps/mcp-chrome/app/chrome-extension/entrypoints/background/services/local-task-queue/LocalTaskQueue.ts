@@ -406,11 +406,61 @@ export class LocalTaskQueue {
 
   /**
    * Generate cache key for deduplication
+   * 使用稳定的 key 生成，避免 JSON.stringify 的属性顺序问题
    */
   private generateCacheKey(task: Task): string {
-    // Simple: type + JSON of details
-    // Can be customized per task type if needed
-    return `${task.type}:${JSON.stringify(task.details)}`;
+    // 基于任务类型的自定义 key 生成
+    switch (task.type) {
+      case TaskType.BING_DICTIONARY: {
+        const details = task.details as any;
+        const words = (details.words || [])
+          .map((w: any) => w.word)
+          .sort()
+          .join(',');
+        const language = details.language || 'english';
+        return `bing:${language}:${words}`;
+      }
+
+      case TaskType.DEEPSEEK_CHAT: {
+        const details = task.details as any;
+        // DeepSeek 任务按 prompt 去重
+        return `deepseek:${details.prompt}`;
+      }
+
+      case TaskType.TRANSLATION: {
+        const details = task.details as any;
+        return `translation:${details.sourceLanguage}:${details.targetLanguage}:${details.text}`;
+      }
+
+      case TaskType.TTS: {
+        const details = task.details as any;
+        return `tts:${details.language}:${details.text}`;
+      }
+
+      case TaskType.WEB_SCRAPING: {
+        const details = task.details as any;
+        return `scraping:${details.url}:${details.selector || ''}`;
+      }
+
+      default:
+        // 默认：排序 keys 后 stringify
+        return `${task.type}:${JSON.stringify(this.sortObjectKeys(task.details))}`;
+    }
+  }
+
+  /**
+   * 排序对象的 keys，确保 JSON.stringify 的稳定性
+   */
+  private sortObjectKeys(obj: any): any {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.sortObjectKeys(item));
+
+    return Object.keys(obj)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = this.sortObjectKeys(obj[key]);
+        return result;
+      }, {} as any);
   }
 
   /**

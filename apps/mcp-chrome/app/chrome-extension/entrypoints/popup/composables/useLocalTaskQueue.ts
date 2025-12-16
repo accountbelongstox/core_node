@@ -1,48 +1,42 @@
 /**
- * Local Task Queue Composable
- * Vue composable for managing the unified local task queue
+ * Local Task Queue Composable (Popup)
+ * 通过消息通信与 Background 中的队列交互
  */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
-  LocalTaskQueue,
-  BingDictionaryHandler,
-  DeepSeekHandler,
+  MessageType,
   TaskType,
   TaskStatus,
-  TaskEventType,
   type Task,
   type TaskQueueStats,
   type BingDictionaryTaskDetails,
   type DeepSeekTaskDetails,
+  type MessageResponse,
+  type QueueEventMessage,
+  isEventMessage,
 } from '@/entrypoints/background/services/local-task-queue';
 
-// Singleton queue instance
-let queueInstance: LocalTaskQueue | null = null;
-
-function getQueueInstance(): LocalTaskQueue {
-  if (!queueInstance) {
-    queueInstance = new LocalTaskQueue({
-      maxConcurrent: 1, // Serial processing
-      autoStart: true, // Auto-start when task added
-      enableDeduplication: true, // Prevent duplicates
-      taskTimeout: 300000, // 5 minutes
-      maxRetries: 3,
+/**
+ * 发送消息到 Background
+ */
+async function sendMessage<T = any>(message: any): Promise<MessageResponse<T>> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response: MessageResponse<T>) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (!response) {
+        reject(new Error('No response from background'));
+      } else if (!response.success) {
+        reject(new Error(response.error || 'Unknown error'));
+      } else {
+        resolve(response);
+      }
     });
-
-    // Register handlers
-    queueInstance.registerHandler(new BingDictionaryHandler());
-    queueInstance.registerHandler(new DeepSeekHandler());
-
-    console.log('[useLocalTaskQueue] Queue initialized');
-  }
-
-  return queueInstance;
+  });
 }
 
 export function useLocalTaskQueue() {
-  const queue = getQueueInstance();
-
   // Reactive state
   const stats = ref<TaskQueueStats>({
     total: 0,
@@ -62,11 +56,38 @@ export function useLocalTaskQueue() {
   const hasProcessingTasks = computed(() => stats.value.processing > 0);
   const isActive = computed(() => isRunning.value || hasProcessingTasks.value);
 
-  // Update stats and tasks
-  const updateState = () => {
-    stats.value = queue.getStats();
-    tasks.value = queue.getAllTasks();
-    isRunning.value = queue.isQueueRunning();
+  // Update state from background
+  const updateState = async () => {
+    try {
+      // Get stats
+      const statsResponse = await sendMessage<{ stats: TaskQueueStats }>({
+        type: MessageType.QUEUE_GET_STATS,
+      });
+
+      if (statsResponse.data) {
+        stats.value = statsResponse.data.stats;
+      }
+
+      // Get tasks
+      const tasksResponse = await sendMessage<{ tasks: Task[] }>({
+        type: MessageType.QUEUE_GET_TASKS,
+      });
+
+      if (tasksResponse.data) {
+        tasks.value = tasksResponse.data.tasks;
+      }
+
+      // Get running status
+      const runningResponse = await sendMessage<{ isRunning: boolean }>({
+        type: MessageType.QUEUE_IS_RUNNING,
+      });
+
+      if (runningResponse.data) {
+        isRunning.value = runningResponse.data.isRunning;
+      }
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to update state:', error);
+    }
   };
 
   // Add Bing Dictionary task
@@ -78,28 +99,39 @@ export function useLocalTaskQueue() {
       priority?: number;
     } = {},
   ): Promise<boolean> => {
-    const taskDetails: BingDictionaryTaskDetails = {
-      words,
-      language: options.language || 'english',
-      batchSize: options.batchSize || 1,
-      provider: 'bing',
-    };
+    try {
+      const taskDetails: BingDictionaryTaskDetails = {
+        words,
+        language: options.language || 'english',
+        batchSize: options.batchSize || 1,
+        provider: 'bing',
+      };
 
-    const task: Task<BingDictionaryTaskDetails> = {
-      id: `bing-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      type: TaskType.BING_DICTIONARY,
-      status: TaskStatus.PENDING,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      details: taskDetails,
-      metadata: {
-        priority: options.priority || 0,
-      },
-    };
+      const task: Task<BingDictionaryTaskDetails> = {
+        id: `bing-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        type: TaskType.BING_DICTIONARY,
+        status: TaskStatus.PENDING,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        details: taskDetails,
+        metadata: {
+          priority: options.priority || 0,
+        },
+      };
 
-    const added = await queue.addTask(task);
-    updateState();
-    return added;
+      const response = await sendMessage<{ added: boolean }>({
+        type: MessageType.TASK_ADD,
+        task,
+      });
+
+      // Update state after adding
+      await updateState();
+
+      return response.data?.added || false;
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to add Bing task:', error);
+      return false;
+    }
   };
 
   // Add DeepSeek task
@@ -114,66 +146,126 @@ export function useLocalTaskQueue() {
       priority?: number;
     } = {},
   ): Promise<boolean> => {
-    const taskDetails: DeepSeekTaskDetails = {
-      prompt,
-      conversationId: options.conversationId,
-      model: options.model,
-      attachments: options.attachments,
-      options: {
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-      },
-    };
+    try {
+      const taskDetails: DeepSeekTaskDetails = {
+        prompt,
+        conversationId: options.conversationId,
+        model: options.model,
+        attachments: options.attachments,
+        options: {
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+        },
+      };
 
-    const task: Task<DeepSeekTaskDetails> = {
-      id: `deepseek-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      type: TaskType.DEEPSEEK_CHAT,
-      status: TaskStatus.PENDING,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      details: taskDetails,
-      metadata: {
-        priority: options.priority || 0,
-      },
-    };
+      const task: Task<DeepSeekTaskDetails> = {
+        id: `deepseek-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        type: TaskType.DEEPSEEK_CHAT,
+        status: TaskStatus.PENDING,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        details: taskDetails,
+        metadata: {
+          priority: options.priority || 0,
+        },
+      };
 
-    const added = await queue.addTask(task);
-    updateState();
-    return added;
+      const response = await sendMessage<{ added: boolean }>({
+        type: MessageType.TASK_ADD,
+        task,
+      });
+
+      // Update state after adding
+      await updateState();
+
+      return response.data?.added || false;
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to add DeepSeek task:', error);
+      return false;
+    }
   };
 
   // Start queue
   const start = async () => {
-    await queue.start();
-    updateState();
+    try {
+      await sendMessage({
+        type: MessageType.QUEUE_START,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to start queue:', error);
+    }
   };
 
   // Stop queue
-  const stop = () => {
-    queue.stop();
-    updateState();
+  const stop = async () => {
+    try {
+      await sendMessage({
+        type: MessageType.QUEUE_STOP,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to stop queue:', error);
+    }
   };
 
   // Cancel task
   const cancelTask = async (taskId: string) => {
-    await queue.cancelTask(taskId);
-    updateState();
+    try {
+      await sendMessage({
+        type: MessageType.TASK_CANCEL,
+        taskId,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to cancel task:', error);
+    }
   };
 
   // Clear completed tasks
-  const clearCompleted = () => {
-    queue.clearCompletedTasks();
-    updateState();
+  const clearCompleted = async () => {
+    try {
+      await sendMessage({
+        type: MessageType.QUEUE_CLEAR_COMPLETED,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to clear completed tasks:', error);
+    }
   };
 
   // Get tasks by status
-  const getTasksByStatus = (status: TaskStatus): Task[] => {
-    return queue.getTasksByStatus(status);
+  const getTasksByStatus = async (status: TaskStatus): Promise<Task[]> => {
+    try {
+      const response = await sendMessage<{ tasks: Task[] }>({
+        type: MessageType.QUEUE_GET_TASKS_BY_STATUS,
+        status,
+      });
+
+      return response.data?.tasks || [];
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to get tasks by status:', error);
+      return [];
+    }
   };
 
   // Get tasks by type
-  const getTasksByType = (type: TaskType): Task[] => {
-    return queue.getTasksByType(type);
+  const getTasksByType = async (type: TaskType): Promise<Task[]> => {
+    try {
+      const response = await sendMessage<{ tasks: Task[] }>({
+        type: MessageType.QUEUE_GET_TASKS_BY_TYPE,
+        taskType: type,
+      });
+
+      return response.data?.tasks || [];
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to get tasks by type:', error);
+      return [];
+    }
   };
 
   // Format timestamp
@@ -211,31 +303,28 @@ export function useLocalTaskQueue() {
     return names[type] || type;
   };
 
-  // Subscribe to events
-  let unsubscribers: Array<() => void> = [];
+  // Listen for events from background
+  const handleBackgroundEvent = (message: any) => {
+    if (isEventMessage(message)) {
+      // Queue event received, update state
+      updateState();
+    }
+  };
 
+  // Setup and cleanup
   onMounted(() => {
-    // Subscribe to all task events
-    unsubscribers.push(
-      queue.on(TaskEventType.ADDED, () => updateState()),
-      queue.on(TaskEventType.STARTED, () => updateState()),
-      queue.on(TaskEventType.PROGRESS, () => updateState()),
-      queue.on(TaskEventType.COMPLETED, () => updateState()),
-      queue.on(TaskEventType.FAILED, () => updateState()),
-      queue.on(TaskEventType.CANCELLED, () => updateState()),
-      queue.on(TaskEventType.QUEUE_EMPTY, () => updateState()),
-    );
+    // Listen to background events
+    chrome.runtime.onMessage.addListener(handleBackgroundEvent);
 
     // Initial state update
     updateState();
 
-    // Periodic state update
-    const interval = setInterval(updateState, 1000);
+    // Periodic state update (fallback)
+    const interval = setInterval(updateState, 2000);
 
     onUnmounted(() => {
       clearInterval(interval);
-      unsubscribers.forEach(unsub => unsub());
-      unsubscribers = [];
+      chrome.runtime.onMessage.removeListener(handleBackgroundEvent);
     });
   });
 

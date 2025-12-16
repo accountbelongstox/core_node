@@ -69,7 +69,7 @@ class AppQyV1TranslationTaskService
         $task = $this->taskManager->createTask(
             'AppQyV1',
             $taskType,
-            GlobalTask::EXECUTION_REMOTE_CLIENT,
+            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
             $payload,
             $timeoutSeconds,
             50,
@@ -132,58 +132,56 @@ class AppQyV1TranslationTaskService
         }
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
         $processed = 0;
         $failed = 0;
 
         foreach ($explanations as $explanation) {
-            $word = null;
-            if (isset($explanation['word'])) {
-                $word = $explanation['word'];
-            }
+            $word = $explanation['word'] ?? null;
+            $explanationText = $explanation['explanation'] ?? $explanation['translation'] ?? null;
 
-            $md5 = null;
-            if (isset($explanation['md5'])) {
-                $md5 = $explanation['md5'];
-            }
-
-            $explanationText = null;
-            if (isset($explanation['explanation'])) {
-                $explanationText = $explanation['explanation'];
-            }
-
-            if (!$word) {
-                $failed++;
-                continue;
-            }
-            if (!$md5) {
-                $failed++;
-                continue;
-            }
-            if (!$explanationText) {
+            if (!$word || !$explanationText) {
                 $failed++;
                 continue;
             }
 
-            $updateData = [
-                'translations' => $explanationText,
-                'has_translation' => true,
-            ];
+            try {
+                $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
 
-            if (isset($explanation['phonetic'])) {
-                $updateData['phonetic'] = $explanation['phonetic'];
-            }
-            if (isset($explanation['us_phonetic'])) {
-                $updateData['us_phonetic'] = $explanation['us_phonetic'];
-            }
-            if (isset($explanation['uk_phonetic'])) {
-                $updateData['uk_phonetic'] = $explanation['uk_phonetic'];
-            }
-            if (isset($explanation['provider'])) {
-                $updateData['translation_provider'] = $explanation['provider'];
-            }
+                if (!$entry) {
+                    $failed++;
+                    continue;
+                }
 
-            AppQyV1MultiLangDictionaryModel::updateWord($langCode, $md5, $updateData);
-            $processed++;
+                $updateData = [];
+
+                if ($isEnglish) {
+                    $updateData['translation'] = $explanationText;
+                    if (isset($explanation['us_phonetic'])) {
+                        $updateData['us_phonetic'] = $explanation['us_phonetic'];
+                    }
+                    if (isset($explanation['uk_phonetic'])) {
+                        $updateData['uk_phonetic'] = $explanation['uk_phonetic'];
+                    }
+                } else {
+                    $updateData['meaning_en'] = $explanationText;
+                    if (isset($explanation['meaning_zh'])) {
+                        $updateData['meaning_zh'] = $explanation['meaning_zh'];
+                    }
+                    if (isset($explanation['pronunciation'])) {
+                        $updateData['pronunciation'] = $explanation['pronunciation'];
+                    }
+                }
+
+                $entry->update($updateData);
+                $processed++;
+            } catch (\Exception $e) {
+                Log::error('[AppQyV1TranslationTaskService] Failed to update word', [
+                    'word' => $word,
+                    'error' => $e->getMessage(),
+                ]);
+                $failed++;
+            }
         }
 
         Log::info('[AppQyV1TranslationTaskService] Explanation result processed', [
