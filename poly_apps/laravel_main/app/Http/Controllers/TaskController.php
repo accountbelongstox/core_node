@@ -34,7 +34,7 @@ class TaskController extends Controller
         $validated = $request->validate([
             'app_name' => 'required|string',
             'task_type' => 'required|string',
-            'execution_type' => 'required|string|in:local_timer,remote_compute,remote_ocr,remote_translation,remote_video,remote_io',
+            'execution_type' => 'required|string|in:local_timer,remote_client,remote_compute,remote_ocr,remote_translation,remote_video,remote_io',
             'payload' => 'nullable|array',
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
             'priority' => 'nullable|integer|min:0|max:100',
@@ -186,5 +186,39 @@ class TaskController extends Controller
         $stats = $this->taskManager->getTaskStats();
 
         return $this->success(['stats' => $stats], 'Task stats retrieved successfully');
+    }
+
+    /**
+     * Clean invalid tasks (tasks with null payload)
+     *
+     * POST /api/task/clean-invalid
+     */
+    public function cleanInvalid(): JsonResponse
+    {
+        $deletedCount = GlobalTask::whereNull('payload')->delete();
+
+        return $this->success([
+            'deleted_count' => $deletedCount
+        ], 'Invalid tasks cleaned successfully');
+    }
+
+    /**
+     * Reset all assigned tasks back to pending
+     *
+     * POST /api/task/reset-assigned
+     */
+    public function resetAssigned(): JsonResponse
+    {
+        $updatedCount = GlobalTask::where('status', GlobalTask::STATUS_ASSIGNED)
+            ->update([
+                'status' => GlobalTask::STATUS_PENDING,
+                'assigned_to' => null,
+                'assigned_at' => null,
+                'timeout_at' => null,
+            ]);
+
+        return $this->success([
+            'reset_count' => $updatedCount
+        ], 'Assigned tasks reset successfully');
     }
 }

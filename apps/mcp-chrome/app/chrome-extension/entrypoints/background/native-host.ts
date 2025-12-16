@@ -72,10 +72,19 @@ function broadcastServerStatusChange(status: ServerStatus): void {
 
 /**
  * Connect to the native messaging host
+ * @param port - The port number to use for the server
+ * @param forceReconnect - If true, disconnect and reconnect even if already connected
  */
-export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT) {
+export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, forceReconnect: boolean = false) {
   if (nativePort) {
-    return;
+    if (!forceReconnect) {
+      console.log(`Already connected to native host, skipping connection`);
+      return;
+    }
+    // Force reconnect: disconnect first
+    console.log(`Force reconnecting to native host with new port ${port}`);
+    nativePort.disconnect();
+    nativePort = null;
   }
 
   try {
@@ -153,14 +162,31 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT) {
       }
     });
 
-    nativePort.onDisconnect.addListener(() => {
-      console.error(ERROR_MESSAGES.NATIVE_DISCONNECTED, chrome.runtime.lastError);
+    nativePort.onDisconnect.addListener(async () => {
+      const errorMsg = chrome.runtime.lastError?.message || 'Unknown error';
+      console.error(ERROR_MESSAGES.NATIVE_DISCONNECTED, errorMsg);
       nativePort = null;
+
+      // Update connection status but keep server status if it was running
+      // The server process might still be alive even if the connection dropped
+      broadcastServerStatusChange(currentServerStatus);
+
+      // Don't auto-reconnect here - let the next Service Worker wake-up handle it
+      // This prevents rapid reconnection loops if the host is actually crashing
     });
 
-    nativePort.postMessage({ type: NativeMessageType.START, payload: { port } });
+    // Only send START message if server is not already reported as running
+    // This prevents unnecessary restarts when Service Worker wakes from sleep
+    if (!currentServerStatus.isRunning) {
+      nativePort.postMessage({ type: NativeMessageType.START, payload: { port } });
+      console.log(`Sent START message to native host with port ${port}`);
+    } else {
+      console.log(`Reconnected to native host, server already running on port ${currentServerStatus.port}`);
+    }
   } catch (error) {
     console.error(ERROR_MESSAGES.NATIVE_CONNECTION_FAILED, error);
+    // Broadcast connection failure to UI
+    broadcastServerStatusChange(currentServerStatus);
   }
 }
 
@@ -172,18 +198,31 @@ export const initNativeHostListener = () => {
   loadServerStatus()
     .then((status) => {
       currentServerStatus = status;
+      // Auto-connect on service worker initialization
+      // This ensures connection is re-established when service worker wakes up
+      if (!nativePort) {
+        const port = status.port || NATIVE_HOST.DEFAULT_PORT;
+        connectNativeHost(port);
+        console.log(`Auto-connecting to native host on port ${port}`);
+      }
     })
     .catch((error) => {
       console.error(ERROR_MESSAGES.SERVER_STATUS_LOAD_FAILED, error);
     });
 
-  chrome.runtime.onStartup.addListener(connectNativeHost);
+  // onStartup: connect using stored port preference
+  chrome.runtime.onStartup.addListener(() => {
+    const port = currentServerStatus.port || NATIVE_HOST.DEFAULT_PORT;
+    connectNativeHost(port);
+  });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === NativeMessageType.CONNECT_NATIVE) {
       const port =
         typeof message === 'object' && message.port ? message.port : NATIVE_HOST.DEFAULT_PORT;
-      connectNativeHost(port);
+      // Force reconnect if port is different or if explicitly requested
+      const forceReconnect = message.forceReconnect || (currentServerStatus.port !== undefined && currentServerStatus.port !== port);
+      connectNativeHost(port, forceReconnect);
       sendResponse({ success: true, port });
       return true;
     }

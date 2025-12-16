@@ -19,6 +19,7 @@ import DisplaySettings from './pages/Settings/Display';
 import NotificationSettings from './pages/Settings/Notifications';
 import DataSyncPage from './pages/Settings/DataSync';
 import AboutPage from './pages/Settings/About';
+import ApiServerSettings from './pages/Settings/ApiServer';
 // New Pages
 import FlashcardRunPage from './pages/Flashcards/Run';
 import CoursesPage from './pages/Library/Courses';
@@ -55,6 +56,7 @@ const AppRouter = () => {
       case 'settings_notifications': return <NotificationSettings />;
       case 'settings_data': return <DataSyncPage />;
       case 'settings_about': return <AboutPage />;
+      case 'settings_api_server': return <ApiServerSettings />;
       case 'courses': return <CoursesPage />;
       case 'course_detail': return <CourseDetailPage />;
       case 'upload': return <UploadPage />;

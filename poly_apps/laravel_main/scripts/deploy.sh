@@ -378,6 +378,120 @@ up_20251206_install_faker() {
 }
 
 # ============================================================================
+# UP: 20251215_install_reverb
+# Date: 2025-12-15
+# Description: Install Laravel Reverb for WebSocket support
+# Idempotent: Can be run multiple times safely
+# ============================================================================
+up_20251215_install_reverb() {
+    local version="20251215_install_reverb"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-12-15${NC}"
+    echo -e "${CYAN}[UP] Description: Install Laravel Reverb for WebSocket${NC}"
+
+    if is_up_applied "$version"; then
+        echo -e "${BLUE}[UP] Note: Already applied before, re-running for idempotency${NC}"
+    fi
+
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
+        return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    if ! command -v composer &> /dev/null; then
+        echo -e "${RED}[UP] Composer not found${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[UP] OK Composer found${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Installing Pusher PHP Server (Reverb dependency)...${NC}"
+    if $USE_SUDO composer show | grep -q "pusher/pusher-php-server"; then
+        echo -e "${BLUE}[UP] Pusher PHP Server already installed${NC}"
+    else
+        echo -e "${BLUE}[UP] Installing pusher/pusher-php-server...${NC}"
+        $USE_SUDO composer require pusher/pusher-php-server --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Installing/Updating Laravel Reverb...${NC}"
+    if $USE_SUDO composer show | grep -q "laravel/reverb"; then
+        echo -e "${BLUE}[UP] Laravel Reverb already installed, ensuring latest version...${NC}"
+        $USE_SUDO composer update laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Nothing)" || true
+    else
+        echo -e "${BLUE}[UP] Installing Laravel Reverb...${NC}"
+        $USE_SUDO composer require laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 4: Publishing Reverb configuration...${NC}"
+    if [ -f "$laravel_dir/config/reverb.php" ]; then
+        echo -e "${BLUE}[UP] Reverb config already exists, skipping publish${NC}"
+    else
+        $USE_SUDO php artisan reverb:install --no-interaction 2>&1 | grep -v "npm install" || true
+    fi
+
+    if [ -f "$laravel_dir/config/reverb.php" ]; then
+        echo -e "${GREEN}[UP] OK Reverb config file exists${NC}"
+    else
+        echo -e "${YELLOW}[UP] WARNING Reverb config not found${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 5: Verifying installation...${NC}"
+    if $USE_SUDO composer show | grep -q "laravel/reverb"; then
+        echo -e "${GREEN}[UP] OK Laravel Reverb package installed${NC}"
+    else
+        echo -e "${RED}[UP] ERROR Laravel Reverb package not found${NC}"
+        return 1
+    fi
+
+    echo -e "${BLUE}[UP] Step 6: Updating .env for Reverb...${NC}"
+    if [ -f "$laravel_dir/.env" ]; then
+        if ! grep -q "^BROADCAST_CONNECTION=" "$laravel_dir/.env"; then
+            echo "BROADCAST_CONNECTION=reverb" >> "$laravel_dir/.env"
+            echo -e "${GREEN}[UP] OK Added BROADCAST_CONNECTION=reverb${NC}"
+        elif grep -q "^BROADCAST_CONNECTION=log" "$laravel_dir/.env"; then
+            sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' "$laravel_dir/.env"
+            echo -e "${GREEN}[UP] OK Updated BROADCAST_CONNECTION to reverb${NC}"
+        else
+            echo -e "${BLUE}[UP] BROADCAST_CONNECTION already configured${NC}"
+        fi
+
+        if ! grep -q "^REVERB_APP_ID=" "$laravel_dir/.env"; then
+            echo "" >> "$laravel_dir/.env"
+            echo "REVERB_APP_ID=task-system" >> "$laravel_dir/.env"
+            echo "REVERB_APP_KEY=reverb-key-$(date +%s)" >> "$laravel_dir/.env"
+            echo "REVERB_APP_SECRET=reverb-secret-$(date +%s)" >> "$laravel_dir/.env"
+            echo "REVERB_HOST=0.0.0.0" >> "$laravel_dir/.env"
+            echo "REVERB_PORT=8080" >> "$laravel_dir/.env"
+            echo "REVERB_SCHEME=http" >> "$laravel_dir/.env"
+            echo -e "${GREEN}[UP] OK Added Reverb configuration to .env${NC}"
+        else
+            echo -e "${BLUE}[UP] Reverb env variables already configured${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[UP] WARNING .env file not found${NC}"
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
 # REUSABLE FUNCTIONS - Can be called from other scripts
 # ============================================================================
 
@@ -564,6 +678,7 @@ run_all_ups() {
     up_20251115_install_octane || failed=1
     up_20251127_install_chokidar || failed=1
     up_20251206_install_faker || failed=1
+    up_20251215_install_reverb || failed=1
 
     if [ $failed -eq 0 ]; then
         echo -e "${GREEN}[UP] All updates applied successfully${NC}"

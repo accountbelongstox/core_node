@@ -4,6 +4,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { SettingsLayout, SettingItem } from './Layout';
 import { api } from '../../services/api';
 import { SupportedLanguage } from '../../types';
+import { LanguageCenter } from '../../i18n/LanguageCenter';
 
 const LanguageSettings = () => {
   const { settings, updateSettings, user, setUser } = useContext(AppContext);
@@ -29,7 +30,12 @@ const LanguageSettings = () => {
       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2 mb-2 pl-2">App Interface</div>
       {langs.map(l => (
         <SettingItem key={`ui-${l.code}`} label={l.name} value={l.flag} type="radio" 
-           onClick={() => { updateSettings({ language: { ...settings.language, appInterface: l.code }}); api.setLanguage(l.code); }} 
+           onClick={() => {
+             updateSettings({ language: { ...settings.language, appInterface: l.code } });
+             api.setLanguage(l.code);
+             LanguageCenter.setLanguage(l.code as any);
+             window.location.reload();
+           }} 
            active={settings.language.appInterface === l.code} 
         />
       ))}

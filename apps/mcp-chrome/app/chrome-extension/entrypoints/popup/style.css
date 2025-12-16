@@ -1,3 +1,6 @@
+/* Import Tailwind CSS v4 */
+@import "tailwindcss";
+
 /* 现代化全局样式 */
 :root {
   /* 字体系统 */
@@ -70,20 +73,27 @@
   padding: 0;
 }
 
+html {
+  width: 1400px;
+  min-height: 900px;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
-  width: 400px;
-  min-height: 500px;
-  max-height: 600px;
-  overflow: hidden;
+  width: 1400px;
+  min-width: 1400px;
+  min-height: 900px;
+  overflow-x: hidden;
   font-family: inherit;
   background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
 #app {
-  width: 100%;
+  width: 1400px;
+  min-width: 1400px;
   height: 100%;
   margin: 0;
   padding: 0;
@@ -215,18 +225,7 @@ select:focus {
   }
 }
 
-/* 响应式断点 */
-@media (max-width: 420px) {
-  :root {
-    --spacing-xs: 3px;
-    --spacing-sm: 6px;
-    --spacing-md: 10px;
-    --spacing-lg: 14px;
-    --spacing-xl: 18px;
-    --spacing-2xl: 22px;
-    --spacing-3xl: 28px;
-  }
-}
+/* 响应式断点 - 已禁用以支持大尺寸面板 */
 
 /* 高对比度模式支持 */
 @media (prefers-contrast: high) {

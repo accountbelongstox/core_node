@@ -16,9 +16,11 @@
         "laravel/framework": "^12.0",
         "laravel/mcp": "^0.4.2",
         "laravel/octane": "^2.13",
+        "laravel/reverb": "^1.6",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
         "laravolt/avatar": "^6.1",
+        "pusher/pusher-php-server": "^7.2",
         "tightenco/ziggy": "^2.4"
     },
     "require-dev": {
