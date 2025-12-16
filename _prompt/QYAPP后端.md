@@ -4,6 +4,10 @@
 务系统不停的生成语言，𥩝前端提交后得到一个任务ID和resraul，如果没有完成将不停
 的查询，交更新数据。注意使用全局缓存。
 
+AppQyV1TTSGenerationTask.php 
+集成到其中每个任务添加将立即进处理，每次只处理一个任务，建立数据表，对文章作
+为每日阅读。同进，单词将与词库联动，同时扩展文章类型，目前先支持英文。 
+
 __misc__\_pycore 在旧代码中找到文章转词组的方法，然后先给php扩展公共方法。
 
 根据代码检查，AppQyV1 后端目前没有完整的文章提交并生成语音的功能，但已经有
@@ -116,3 +120,131 @@ __misc__\_pycore 在旧代码中找到文章转词组的方法，然后先给php
   preg_split('/[\s\-_,?.!;:]+/', $text, -1, PREG_SPLIT_NO_EMPTY)
 
   需要我开始实现这个功能吗？
+
+从单词解析，解析后到词库查询翻译（不存在则添加词库），查找语音缓存（使用句
+  子孙为单位），查找不到添加定时心跳任务，并给出任务码。任务是一个列表，不是
+  一个句子孙。当添加一个文章时要立即返回，并给出文章是否完成，以及完成部份和
+  缺少部份的占位。让前端好在后续更新。
+
+
+TTS 交给 TTS处理， TTS自动处理缓存，只是负责添加到任务定时器，共用一个心跳
+  系统，则任务定时器自动调用TTS。中间是没有耦合的。 提交后将立即查询词库得到词的列表，没有的则添加到库库，标记为未翻译，所以查看现在的词库类库是否扩展足够。
+所有代码码都要遵守规范。development-guides\LARAVEL_GUIDE.md
+
+词库 需要单独的类库，针对不同的语言处理，因为如果有未翻译，词库类库也要处理
+先查看这一点。 
+
+A dedicated service class for dictionary operations with:
+
+  - Language Support: English, Chinese, Spanish, French, German, Japanese,
+  Korean, Vietnamese, Lao
+  - Core Methods:
+    - queryAndAdd() - Atomic operation to query words and add missing ones
+    - queryWords() - Check word status (existing/missing/untranslated)
+    - addWords() - Batch add new words marked as untranslated
+    - getStatistics() - Dictionary stats per language
+    - getUntranslatedWords() - Get words needing translation
+    - processTextByLanguage() - Language-specific text processing
+
+  2. Integrated into AppQyV1ArticleWord.php
+
+  Updated createFromArticleWords() method at line 72:
+  $dictionaryInfo = AppQyV1DictionaryService::queryAndAdd($language, $words);
+
+  This ensures:
+  - Words are queried from dictionary immediately after parsing
+  - Missing words are added automatically
+  - New words are marked as has_translation = false
+  - Returns dictionary status for each word
+
+  3. Data Flow
+
+  Article Submit → Parse Text → Extract Words
+                                      ↓
+                            Query Dictionary (immediate)
+                                      ↓
+                      Add Missing Words (marked untranslated)
+                                      ↓
+                        Save Article + Words (transaction)
+                                      ↓
+                          Create TTS Task (async)
+                                      ↓
+                      Return Immediately with Placeholders
+
+  4. Key Features
+
+  ✅ Immediate Return: Article saved and returned instantly, TTS processes in
+   background
+  ✅ Dictionary Integration: Words automatically added to dictionary on
+  submission
+  ✅ Untranslated Tracking: New words marked with has_translation = false
+  ✅ Transaction Safety: Article and words saved atomically
+  ✅ Batch Optimization: Single insert for all words (not loop)
+  ✅ Hot Reload: No service restart needed
+  ✅ Code Compliance: Follows LARAVEL_GUIDE.md conventions
+
+  The dictionary service is now fully integrated and operational. The system
+  will automatically populate the dictionary with new words as articles are
+  submitted.
+
+
+查看词库，以前旧代码，是否有接口提供给第三客户端，对词库中没有翻译的词进行翻译然后回传 加传翻译、词的对应图片（如果有）、语的语音（如果有），同时查看所有语言的数据 表是否支持，同时配合 
+···
+同时 GlobalTask 现在，其中的任务要扩展为两种，一种是由laravel调用定时器处理的，type另一种为远程客户端处理的（比如需要运算的）
+不要只考虑qy app v1 现在任务系统 是全局的，所有APP中可用。同时每个任务都可以客户端请求表，同时有一个处理时间，智能分配系统 系统 ，当一个任务被 请求后请在超时期内等待客户端回传，如果超过时间则可以继续 分配（当然回传任务时要检测可能又被处理）。
+需要由websockt通信，同时你要调用一下mcp查看官方的WEBSOCKT方案，然后扫描本项目，查看规范，再继续给出第二版的设计
+
+词库API系统完善 - 已有完整的第三方客户端接口，支持获取未翻译词、提交翻译
+  /图片/语音，支持9种语言
+  2. GlobalTask架构成熟 -
+  已有Worker注册、任务分配、超时重试、智能匹配等完整机制
+  3. WebSocket基础就绪 - Octane/Swoole配置完成，只需启用Reverb
+
+  🎯 核心设计
+
+  架构原则：
+  - 利用现有GlobalTask系统，不重构
+  - 添加EXECUTION_REMOTE_CLIENT作为通用远程客户端任务类型
+  - Laravel Reverb提供实时WebSocket推送
+  - 保持HTTP API向后兼容
+
+  关键流程：
+  APP创建任务 → GlobalTask存储(pending)
+                      ↓
+  Worker监听WebSocket → 收到任务分配事件
+                      ↓
+  HTTP API接受任务 → 处理 → 提交进度 → 完成
+                      ↓
+  WebSocket广播进度 → 前端实时更新
+
+  技术栈：
+  - Laravel 12 + Octane + Swoole
+  - Laravel Reverb (WebSocket服务器)
+  - GlobalTask + Worker系统
+  - Redis (Reverb横向扩展)
+
+  实施周期： 10-16天（已分5个阶段）
+
+  📦 交付物
+
+  上述完整设计方案包含：
+  - 架构图和流程图
+  - 数据库设计（无需修改现有表）
+  - WebSocket集成方案
+  - Python客户端SDK示例
+  - 配置模板和部署指南
+  - 实施路线图
+
+  下一步建议： 如果方案获批，可以开始Phase
+  1（WebSocket基础设施搭建，1-2天）。
+
+> 实现，并写一个客户端，测试请求服务端的未翻译记记事，然后回传dome数据，注意
+后端扩展dome，dome不存入数据库。 
+
+● 收到！我将实现完整的WebSocket任务系统，并创建Python客户端进行端到端测试。重
+  点是demo模式不写数据库。
+
+
+不要直接操作服务，而是在./scripts/deploy.sh中写补丁包，以及添加 srtian 
+sys:init 中的必要注册。development-guides\LARAVEL_GUIDE.md 
+查看其中的权限重启服务方式。 
