@@ -266,9 +266,9 @@ class AppQyV1DictionaryService
         $result = [];
         foreach ($words as $word) {
             $result[] = [
-                'word' => $word->content,
-                'md5' => $word->md5,
-                'query_count' => $word->query_count ?? 0,
+                'word' => $word->word,
+                'md5' => md5(strtolower($word->word)),
+                'query_count' => 0,
             ];
         }
 
