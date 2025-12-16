@@ -1,8 +1,8 @@
 <template>
-  <div class="language-selector">
-    <label class="selector-label">
-      <span class="label-text">{{ getMessage('languageSelectorLabel') }}</span>
-      <select v-model="currentLanguage" @change="changeLanguage" class="language-select">
+  <div class="flex items-center gap-2">
+    <label class="flex items-center gap-2">
+      <span class="text-sm font-medium text-white">{{ getMessage('languageSelectorLabel') }}</span>
+      <select v-model="currentLanguage" @change="changeLanguage" class="px-3 py-1.5 bg-white bg-opacity-20 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium cursor-pointer hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all">
         <option value="en">English</option>
         <option value="zh_CN">简体中文</option>
         <option value="zh_TW">繁體中文</option>
@@ -65,45 +65,3 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.language-selector {
-  padding: 8px 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-
-.selector-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.label-text {
-  font-size: 13px;
-  font-weight: 500;
-  color: #64748b;
-}
-
-.language-select {
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.language-select:hover {
-  border-color: #8b5cf6;
-}
-
-.language-select:focus {
-  outline: none;
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
-}
-</style>

@@ -34,6 +34,7 @@ class InitializeApps extends Command
         $this->info('Creating external storage directories...');
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
+            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . '/appqyv1',
             'uploads' => \App\Providers\PathMapper::getLaravelUploadsDir(),
             'static' => \App\Providers\PathMapper::getLaravelStaticDir(),
             'cache' => \App\Providers\PathMapper::getLaravelCacheDir(),
@@ -260,6 +261,31 @@ class InitializeApps extends Command
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
         }
+        $this->newLine();
+
+        $this->info('Checking Laravel Reverb installation...');
+        if (file_exists(base_path('vendor/laravel/reverb'))) {
+            $this->line("  ✅ Laravel Reverb installed");
+
+            if (file_exists(base_path('config/reverb.php'))) {
+                $this->line("  ✅ Reverb configuration published");
+            } else {
+                $this->line("  ⚠️  Reverb configuration not found, run deploy.sh");
+            }
+
+            $broadcastConnection = config('broadcasting.default', 'log');
+            if ($broadcastConnection === 'reverb') {
+                $this->line("  ✅ Broadcasting connection: reverb");
+                $this->line("     WebSocket server: " . config('reverb.servers.reverb.host', '0.0.0.0') . ":" . config('reverb.servers.reverb.port', '8080'));
+            } else {
+                $this->line("  ⚠️  Broadcasting connection: {$broadcastConnection} (not reverb)");
+                $this->line("     Set BROADCAST_CONNECTION=reverb in .env to enable WebSocket");
+            }
+        } else {
+            $this->line("  ⏭️  Laravel Reverb not installed (optional WebSocket support)");
+            $this->line("     Run: bash scripts/deploy.sh to install");
+        }
+
         $this->newLine();
 
         $this->info('Verifying Octane Timer tasks...');

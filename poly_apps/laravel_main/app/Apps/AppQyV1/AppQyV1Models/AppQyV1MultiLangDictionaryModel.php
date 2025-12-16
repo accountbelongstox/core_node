@@ -7,6 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
+/**
+ * Multi-language Word Dictionary Model
+ * Uses sys:init table structure (app_qy_v1_words_*)
+ *
+ * Table structure:
+ * - English: word, word_id, us_phonetic, uk_phonetic, translation(JSON), sample_images
+ * - Others: word, word_id, pronunciation, meaning_en, meaning_zh
+ * - All: ai_reviewed, tts_generated, created_at, updated_at
+ */
 class AppQyV1MultiLangDictionaryModel extends Model
 {
     use HasFactory;
@@ -16,42 +25,30 @@ class AppQyV1MultiLangDictionaryModel extends Model
     protected $langCode;
 
     protected $fillable = [
-        'content',
-        'md5',
-        'translations',
-        'has_translation',
-        'translation_provider',
-        'phonetic',
+        'word_id',
+        'word',
+        'pronunciation',
         'us_phonetic',
         'uk_phonetic',
-        'tts_files',
-        'tts_provider',
-        'image_files',
-        'image_provider',
-        'word_details',
-        'is_exist_local',
-        'has_operations',
-        'query_count',
-        'last_modified',
-        'last_query_time',
+        'translation',
+        'meaning_en',
+        'meaning_zh',
+        'sample_images',
+        'ai_reviewed',
+        'tts_generated',
     ];
 
     protected $casts = [
-        'translations' => 'json',
-        'tts_files' => 'json',
-        'image_files' => 'json',
-        'word_details' => 'json',
-        'has_translation' => 'boolean',
-        'is_exist_local' => 'boolean',
-        'has_operations' => 'boolean',
-        'last_modified' => 'datetime',
-        'last_query_time' => 'datetime',
+        'translation' => 'json',
+        'sample_images' => 'json',
+        'ai_reviewed' => 'boolean',
+        'tts_generated' => 'boolean',
     ];
 
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        
+
         if (isset($attributes['lang_code'])) {
             $this->setLanguage($attributes['lang_code']);
         }
@@ -60,12 +57,13 @@ class AppQyV1MultiLangDictionaryModel extends Model
     public function setLanguage(string $langCode): self
     {
         $this->langCode = strtolower($langCode);
-        
-        if (!AppQyV1TableMaps::isLanguageSupported($this->langCode)) {
-            throw new \InvalidArgumentException("Language code '{$this->langCode}' is not supported");
+
+        try {
+            $this->table = AppQyV1TableMaps::getWordTableName($this->langCode);
+        } catch (\InvalidArgumentException $e) {
+            throw new \InvalidArgumentException("Language code '{$this->langCode}' does not have word table");
         }
-        
-        $this->table = AppQyV1TableMaps::getDictionaryTableName($this->langCode);
+
         return $this;
     }
 
@@ -86,67 +84,121 @@ class AppQyV1MultiLangDictionaryModel extends Model
         return self::forLanguage($langCode)->count();
     }
 
+    /**
+     * Count words with translation/meaning
+     * English: checks translation field (JSON not null)
+     * Others: checks meaning_en field (not null)
+     */
     public static function countByTranslation(string $langCode): int
     {
-        $hasTranslationField = AppQyV1TableMaps::getDictionaryFieldName('has_translation');
-        return self::forLanguage($langCode)->where($hasTranslationField, true)->count();
+        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
+
+        if ($isEnglish) {
+            return self::forLanguage($langCode)
+                ->whereNotNull('translation')
+                ->where('translation', '!=', '')
+                ->where('translation', '!=', '[]')
+                ->count();
+        } else {
+            return self::forLanguage($langCode)
+                ->whereNotNull('meaning_en')
+                ->where('meaning_en', '!=', '')
+                ->count();
+        }
     }
 
-    public function incrementQueryCount()
+    /**
+     * Find word by exact match (case insensitive)
+     */
+    public static function findByWord(string $langCode, string $word)
     {
-        $queryCountField = AppQyV1TableMaps::getDictionaryFieldName('query_count');
-        $lastQueryTimeField = AppQyV1TableMaps::getDictionaryFieldName('last_query_time');
-        
-        $this->increment($queryCountField);
-        $this->update([$lastQueryTimeField => now()]);
+        return self::forLanguage($langCode)
+            ->whereRaw('LOWER(word) = ?', [strtolower($word)])
+            ->first();
     }
 
+    /**
+     * Legacy method for compatibility
+     * @deprecated Use findByWord instead
+     */
     public static function findByContent(string $langCode, string $content)
     {
-        $contentField = AppQyV1TableMaps::getDictionaryFieldName('content');
-        return self::forLanguage($langCode)->where($contentField, $content)->first();
+        return self::findByWord($langCode, $content);
     }
 
+    /**
+     * Legacy method for compatibility
+     * @deprecated Use findByWord instead
+     */
     public static function findByMd5(string $langCode, string $md5)
     {
-        $md5Field = AppQyV1TableMaps::getDictionaryFieldName('md5');
-        return self::forLanguage($langCode)->where($md5Field, $md5)->first();
+        return null;
     }
 
-    public static function findMissingEntries(string $langCode, array $contentArray): array
+    /**
+     * Find missing words in table
+     */
+    public static function findMissingEntries(string $langCode, array $wordArray): array
     {
-        $contentField = AppQyV1TableMaps::getDictionaryFieldName('content');
-        $existingEntries = self::forLanguage($langCode)
-            ->whereIn($contentField, $contentArray)
-            ->pluck($contentField)
+        $existing = self::forLanguage($langCode)
+            ->whereIn(DB::raw('LOWER(word)'), array_map('strtolower', $wordArray))
+            ->pluck('word')
+            ->map(function($w) { return strtolower($w); })
             ->toArray();
-        return array_diff($contentArray, $existingEntries);
+
+        $lowercaseWords = array_map('strtolower', $wordArray);
+        $missing = array_diff($lowercaseWords, $existing);
+
+        $result = [];
+        foreach ($wordArray as $word) {
+            if (in_array(strtolower($word), $missing)) {
+                $result[] = $word;
+            }
+        }
+        return $result;
     }
 
+    /**
+     * Create or update word entry
+     */
     public static function createOrUpdate(string $langCode, array $data): self
     {
-        $md5Field = AppQyV1TableMaps::getDictionaryFieldName('md5');
-        $contentField = AppQyV1TableMaps::getDictionaryFieldName('content');
-
-        if (!isset($data['md5'])) {
-            $data['md5'] = md5($data['content']);
+        if (!isset($data['word'])) {
+            throw new \InvalidArgumentException("Word field is required");
         }
 
-        $existing = self::forLanguage($langCode)->where($md5Field, $data['md5'])->first();
+        $existing = self::findByWord($langCode, $data['word']);
 
         if ($existing) {
             $existing->update($data);
             return $existing;
         }
 
-        if (!isset($data['has_translation'])) {
-            $data['has_translation'] = false;
+        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
+
+        if ($isEnglish) {
+            if (!isset($data['translation'])) {
+                $data['translation'] = null;
+            }
+        } else {
+            if (!isset($data['meaning_en'])) {
+                $data['meaning_en'] = null;
+            }
+            if (!isset($data['meaning_zh'])) {
+                $data['meaning_zh'] = null;
+            }
         }
-        if (!isset($data['translations'])) {
-            $data['translations'] = null;
+
+        if (!isset($data['ai_reviewed'])) {
+            $data['ai_reviewed'] = false;
         }
-        if (!isset($data['tts_files'])) {
-            $data['tts_files'] = [];
+        if (!isset($data['tts_generated'])) {
+            $data['tts_generated'] = false;
+        }
+
+        $nextWordId = self::forLanguage($langCode)->max('word_id') + 1;
+        if (!isset($data['word_id'])) {
+            $data['word_id'] = $nextWordId;
         }
 
         $instance = self::forLanguage($langCode);
@@ -156,99 +208,73 @@ class AppQyV1MultiLangDictionaryModel extends Model
         return $instance;
     }
 
+    /**
+     * Batch create or update words
+     */
     public static function batchCreateOrUpdate(string $langCode, array $items): array
     {
         $results = [];
         foreach ($items as $item) {
-            $results[] = self::createOrUpdate($langCode, $item);
+            try {
+                $results[] = self::createOrUpdate($langCode, $item);
+            } catch (\Exception $e) {
+                continue;
+            }
         }
         return $results;
     }
 
+    /**
+     * Get words needing translation
+     * English: translation is null or empty
+     * Others: meaning_en is null or empty
+     */
     public static function getWordsNeedingTranslation(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
     {
-        return self::forLanguage($langCode)
-            ->where(function($query) {
-                $query->where('has_translation', false)
-                    ->orWhereNull('translations');
-            })
-            ->orderBy('query_count', 'desc')
-            ->limit($limit)
-            ->get();
+        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
+
+        if ($isEnglish) {
+            return self::forLanguage($langCode)
+                ->where(function($query) {
+                    $query->whereNull('translation')
+                        ->orWhere('translation', '')
+                        ->orWhere('translation', '[]');
+                })
+                ->limit($limit)
+                ->get();
+        } else {
+            return self::forLanguage($langCode)
+                ->where(function($query) {
+                    $query->whereNull('meaning_en')
+                        ->orWhere('meaning_en', '');
+                })
+                ->limit($limit)
+                ->get();
+        }
     }
 
+    /**
+     * Get words needing TTS
+     */
     public static function getWordsNeedingTTS(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
     {
         return self::forLanguage($langCode)
-            ->where(function($query) {
-                $query->whereJsonLength('tts_files', '=', 0)
-                    ->orWhereNull('tts_files');
-            })
-            ->orderBy('query_count', 'desc')
+            ->where('tts_generated', false)
             ->limit($limit)
             ->get();
     }
 
-    public static function updateWord(string $langCode, string $md5, array $data): bool
+    /**
+     * Check if word has translation
+     */
+    public function hasTranslation(): bool
     {
-        $word = self::findByMd5($langCode, $md5);
-        if ($word) {
-            $word->update($data);
-            return true;
+        $isEnglish = in_array(strtolower($this->langCode), ['en', 'english']);
+
+        if ($isEnglish) {
+            return !empty($this->translation) && $this->translation !== '[]';
+        } else {
+            return !empty($this->meaning_en);
         }
-        return false;
-    }
-
-    public static function getTopQueried(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
-    {
-        $queryCountField = AppQyV1TableMaps::getDictionaryFieldName('query_count');
-        return self::forLanguage($langCode)
-            ->orderBy($queryCountField, 'desc')
-            ->limit($limit)
-            ->get();
-    }
-
-    public static function searchByContent(string $langCode, string $keyword, int $limit = 50): \Illuminate\Database\Eloquent\Collection
-    {
-        $contentField = AppQyV1TableMaps::getDictionaryFieldName('content');
-        return self::forLanguage($langCode)
-            ->where($contentField, 'LIKE', "%{$keyword}%")
-            ->limit($limit)
-            ->get();
-    }
-
-    public function addTranslation(string $targetLang, string $translation, ?string $provider = null): self
-    {
-        $translations = $this->translations ?? [];
-        
-        $translations[$targetLang] = [
-            'text' => $translation,
-            'provider' => $provider,
-            'updated_at' => now()->toDateTimeString()
-        ];
-        
-        $this->translations = $translations;
-        $this->has_translation = true;
-        $this->save();
-        
-        return $this;
-    }
-
-    public function addTTSFile(string $filePath, ?string $provider = null, array $metadata = []): self
-    {
-        $ttsFiles = $this->tts_files ?? [];
-        
-        $ttsFiles[] = [
-            'path' => $filePath,
-            'provider' => $provider,
-            'metadata' => $metadata,
-            'created_at' => now()->toDateTimeString()
-        ];
-        
-        $this->tts_files = $ttsFiles;
-        $this->tts_provider = $provider;
-        $this->save();
-        
-        return $this;
     }
 }
