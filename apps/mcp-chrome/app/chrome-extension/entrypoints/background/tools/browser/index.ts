@@ -19,6 +19,7 @@ export {
   audioStatusTool,
   audioDurationTool,
 } from './audio';
+export { bingDictionaryTool } from './bing-dictionary';
 export {
   deepseekSendPromptTool,
   deepseekGetTaskStatusTool,

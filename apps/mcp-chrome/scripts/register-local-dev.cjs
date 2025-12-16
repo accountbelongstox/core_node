@@ -11,7 +11,7 @@ const os = require('os');
 const { execSync } = require('child_process');
 
 const HOST_NAME = 'com.chromemcp.nativehost';
-const EXTENSION_ID = 'hbdgbgagpkpjffpklnamcljpakneikee';
+const EXTENSION_ID = 'lmngnnnghipjfcbbhpaknlnbjcbabblm';
 const DESCRIPTION = 'Node.js Host for Browser Bridge Extension (Local Development)';
 
 // Project root directory (this script is in apps/mcp-chrome/scripts/)
@@ -19,95 +19,57 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const NATIVE_SERVER_DIST = path.join(PROJECT_ROOT, 'app', 'native-server', 'dist');
 
 /**
- * Get real user home directory (handle sudo case)
+ * Get system-level manifest file path (accessible by all users)
  */
-function getRealUserHome() {
-  // If running as root via sudo, use the real user's home
-  if (process.platform !== 'win32' && process.getuid && process.getuid() === 0) {
-    const sudoUser = process.env.SUDO_USER;
-    if (sudoUser && sudoUser !== 'root') {
-      try {
-        const userInfo = execSync(`getent passwd ${sudoUser}`, { encoding: 'utf8' }).trim();
-        const homeDir = userInfo.split(':')[5];
-        if (homeDir && homeDir !== '/root') {
-          return homeDir;
-        }
-      } catch (err) {
-        // Fallback to default
-      }
-    }
-  }
-  return os.homedir();
-}
-
-/**
- * Get user-level manifest file path
- */
-function getUserManifestPath() {
-  const userHome = getRealUserHome();
-
+function getManifestPath() {
   if (os.platform() === 'win32') {
-    // Windows: %APPDATA%\Google\Chrome\NativeMessagingHosts\
+    // Windows: C:\Program Files\Google\Chrome\NativeMessagingHosts\
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
     return path.join(
-      process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming'),
+      programFiles,
       'Google',
       'Chrome',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else if (os.platform() === 'darwin') {
-    // macOS: ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
+    // macOS: /Library/Google/Chrome/NativeMessagingHosts/
     return path.join(
-      userHome,
-      'Library',
-      'Application Support',
+      '/Library',
       'Google',
       'Chrome',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else {
-    // Linux: ~/.config/google-chrome/NativeMessagingHosts/
+    // Linux: /etc/opt/chrome/native-messaging-hosts/
     return path.join(
-      userHome,
-      '.config',
-      'google-chrome',
-      'NativeMessagingHosts',
+      '/etc',
+      'opt',
+      'chrome',
+      'native-messaging-hosts',
       `${HOST_NAME}.json`
     );
   }
 }
 
 /**
- * Get Chromium user-level manifest path
+ * Get Chromium system-level manifest path
  */
-function getChromiumUserManifestPath() {
-  const userHome = getRealUserHome();
-
+function getChromiumManifestPath() {
   if (os.platform() === 'win32') {
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
     return path.join(
-      process.env.APPDATA || path.join(userHome, 'AppData', 'Roaming'),
+      programFiles,
       'Chromium',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else if (os.platform() === 'darwin') {
-    return path.join(
-      userHome,
-      'Library',
-      'Application Support',
-      'Chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
+    return `/Library/Application Support/Chromium/NativeMessagingHosts/${HOST_NAME}.json`;
   } else {
-    return path.join(
-      userHome,
-      '.config',
-      'chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
+    // Linux: /etc/chromium/native-messaging-hosts/
+    return `/etc/chromium/native-messaging-hosts/${HOST_NAME}.json`;
   }
 }
 
@@ -171,23 +133,20 @@ function setExecutionPermissions() {
 }
 
 /**
- * Fix file ownership for real user (when running as root/sudo)
+ * Fix permissions for system directory (readable by all users)
  */
-function fixOwnership(filePath) {
+function fixSystemPermissions(dirPath) {
   if (os.platform() === 'win32') {
-    return; // Windows doesn't need this
+    return; // Windows handles permissions differently
   }
 
-  if (process.getuid && process.getuid() === 0) {
-    const sudoUser = process.env.SUDO_USER;
-    if (sudoUser && sudoUser !== 'root') {
-      try {
-        execSync(`chown ${sudoUser}:${sudoUser} "${filePath}"`, { stdio: 'pipe' });
-        console.log(`[OK] Fixed ownership for: ${path.basename(filePath)}`);
-      } catch (err) {
-        console.warn(`[WARN] Failed to fix ownership for ${path.basename(filePath)}: ${err.message}`);
-      }
-    }
+  try {
+    // Set directory and files to be readable by all users (755 for dirs, 644 for files)
+    execSync(`chmod 755 "${dirPath}" 2>/dev/null`, { stdio: 'pipe' });
+    execSync(`chmod 644 "${dirPath}"/*.json 2>/dev/null`, { stdio: 'pipe' });
+    console.log(`[OK] Set permissions for system directory (755/644)`);
+  } catch (err) {
+    console.warn(`[WARN] Failed to set permissions: ${err.message}`);
   }
 }
 
@@ -204,9 +163,8 @@ function registerForBrowser(manifestPath, browserName, registryKey = null) {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`[OK] Manifest written: ${manifestPath}`);
 
-    // Fix file ownership if running as root
-    fixOwnership(manifestPath);
-    fixOwnership(path.dirname(manifestPath));
+    // Fix permissions for system directory
+    fixSystemPermissions(path.dirname(manifestPath));
 
     // Windows registry entry
     if (os.platform() === 'win32' && registryKey) {
@@ -261,18 +219,18 @@ function main() {
 
   console.log('Registering local development version...\n');
 
-  // Register for Chrome
-  const chromeManifestPath = getUserManifestPath();
+  // Register for Chrome (system-level)
+  const chromeManifestPath = getManifestPath();
   const chromeRegistryKey = os.platform() === 'win32'
-    ? `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`
+    ? `HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`
     : null;
 
   const chromeSuccess = registerForBrowser(chromeManifestPath, 'Chrome', chromeRegistryKey);
 
-  // Register for Chromium
-  const chromiumManifestPath = getChromiumUserManifestPath();
+  // Register for Chromium (system-level)
+  const chromiumManifestPath = getChromiumManifestPath();
   const chromiumRegistryKey = os.platform() === 'win32'
-    ? `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`
+    ? `HKLM\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`
     : null;
 
   const chromiumSuccess = registerForBrowser(chromiumManifestPath, 'Chromium', chromiumRegistryKey);

@@ -72,8 +72,13 @@ class UnifiedAuthService
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('[UnifiedAuth] Registration failed: ' . $e->getMessage());
-            
+            Log::error('[UnifiedAuth] Registration exception: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),

@@ -1,12 +1,12 @@
 import { defineConfig } from 'wxt';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { config } from 'dotenv';
 import { resolve } from 'path';
+import tailwindcss from '@tailwindcss/vite';
 
-config({ path: resolve(process.cwd(), '.env') });
-config({ path: resolve(process.cwd(), '.env.local') });
-
-const CHROME_EXTENSION_KEY = process.env.CHROME_EXTENSION_KEY;
+// Load configuration from config.cjs
+const configPath = resolve(__dirname, 'config.cjs');
+const config = require(configPath);
+const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
 
 // Configure output directory using relative path (cross-platform compatible)
 // From: /www/programing/core_node/apps/mcp-chrome/app/chrome-extension
@@ -17,6 +17,8 @@ const OUTPUT_DIR = resolve(__dirname, '../../../../../_build_dir');
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   outDir: OUTPUT_DIR,
+  // Disable automatic .env loading since we use config.js
+  env: {},
   runner: {
     // 方案1: 禁用自动启动（推荐）
     disabled: true,
@@ -74,6 +76,7 @@ export default defineConfig({
   },
   vite: (env) => ({
     plugins: [
+      tailwindcss(),
       viteStaticCopy({
         targets: [
           {

@@ -2,6 +2,13 @@ import React, { createContext, useState, useEffect } from 'react';
 import { User, AppSettings, DEFAULT_SETTINGS, PlaylistSettings, DEFAULT_PLAYLIST_SETTINGS } from '../types';
 import { api } from '../services/api';
 import { I18N_DICT } from '../services/mockData';
+import { apiManager } from '../services/ApiManager';
+import { SettingsCenter } from '../services/SettingsCenter';
+import { LanguageCenter } from '../i18n/LanguageCenter';
+import { StorageCenter, StorageKey } from '../services/StorageCenter';
+import { StateManager, GlobalState } from '../services/StateManager';
+import { AuthModel } from '../models/AuthModel';
+import { UserProfileEnsurer } from '../services/UserProfileEnsurer';
 
 interface AppContextType {
   user: User | null;
@@ -23,47 +30,80 @@ interface AppContextType {
 export const AppContext = createContext<AppContextType>({} as any);
 
 export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [playlistSettings, setPlaylistSettings] = useState<PlaylistSettings>(DEFAULT_PLAYLIST_SETTINGS);
-  const [activeGroupId, setActiveGroupId] = useState<string>('g1'); // Default to first group
+  const [activeGroupId, setActiveGroupId] = useState<string>('g1');
   const [currentPage, setCurrentPage] = useState('login');
   const [currentParams, setCurrentParams] = useState<any>({});
 
+  // Initialize all centers
   useEffect(() => {
-    // Theme System
-    const theme = settings.display.theme;
-    if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [settings.display.theme]);
+    console.log('[AppContext] Initializing...');
 
-  // Initial Auth Check
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-       api.setToken(token);
-       api.getUserProfile()
-          .then(u => {
-            setUser(u);
-            setCurrentPage('home');
-          })
-          .catch(() => setCurrentPage('login'));
-    }
-    
-    // Load Playlist Settings
-    const savedPlaylist = localStorage.getItem('playlist_settings');
+    // 1. Initialize API Manager
+    apiManager.initialize({ autoDetect: true, timeout: 1000 }).catch(err => {
+      console.error('[AppContext] Failed to initialize API Manager:', err);
+    });
+
+    // 2. Initialize Settings Center
+    const initialSettings = SettingsCenter.initialize();
+    setSettings(initialSettings);
+
+    // 3. Subscribe to settings changes
+    const unsubscribeSettings = SettingsCenter.onChange((newSettings) => {
+      setSettings(newSettings);
+    });
+
+    // 4. Subscribe to language changes
+    const unsubscribeLang = LanguageCenter.subscribe((lang) => {
+      console.log('[AppContext] Language changed to:', lang);
+    });
+
+    // 5. Load user from storage and validate
+    const initAuth = async () => {
+      const storedUser = StorageCenter.auth.getUser();
+      const storedToken = StorageCenter.auth.getToken();
+
+      if (storedUser && storedToken) {
+        console.log('[AppContext] Found stored user:', storedUser.username);
+        setUserState(storedUser);
+        StateManager.set(GlobalState.USER, storedUser);
+        StateManager.set(GlobalState.IS_LOGGED_IN, true);
+
+        // Validate session
+        const isValid = await AuthModel.validateSession();
+        if (isValid) {
+          console.log('[AppContext] Session valid, navigating to home');
+          setCurrentPage('home');
+        } else {
+          console.log('[AppContext] Session invalid, staying on login');
+          setUserState(null);
+          setCurrentPage('login');
+        }
+      } else {
+        console.log('[AppContext] No stored auth, staying on login');
+        setCurrentPage('login');
+      }
+    };
+
+    initAuth();
+
+    // 6. Load playlist settings from Storage Center
+    const savedPlaylist = StorageCenter.settings.getPlaylist();
     if (savedPlaylist) {
-        try {
-            setPlaylistSettings({ ...DEFAULT_PLAYLIST_SETTINGS, ...JSON.parse(savedPlaylist) });
-        } catch(e) {}
+      setPlaylistSettings({ ...DEFAULT_PLAYLIST_SETTINGS, ...savedPlaylist });
     }
 
-    // Load Active Group
-    const savedGroup = localStorage.getItem('active_group_id');
-    if (savedGroup) setActiveGroupId(savedGroup);
+    // 7. Load active group
+    const savedGroup = StorageCenter.settings.getActiveGroupId();
+    setActiveGroupId(savedGroup);
+
+    // Cleanup
+    return () => {
+      unsubscribeSettings();
+      unsubscribeLang();
+    };
   }, []);
 
   const navigate = (page: string, params?: any) => {
@@ -73,42 +113,88 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   const handleSetActiveGroup = (id: string) => {
-      setActiveGroupId(id);
-      localStorage.setItem('active_group_id', id);
+    setActiveGroupId(id);
+    StorageCenter.settings.setActiveGroupId(id);
   };
 
   const updateSettings = (partial: Partial<AppSettings>) => {
-    const newSettings = { ...settings };
-    if (partial.language) newSettings.language = { ...settings.language, ...partial.language };
-    if (partial.audio) newSettings.audio = { ...settings.audio, ...partial.audio };
-    if (partial.display) newSettings.display = { ...settings.display, ...partial.display };
-    if (partial.learning) newSettings.learning = { ...settings.learning, ...partial.learning };
-    if (partial.notifications) newSettings.notifications = { ...settings.notifications, ...partial.notifications };
-    
-    setSettings(newSettings);
-    api.syncSettings(newSettings);
+    SettingsCenter.update(partial);
+    // Settings will be updated via the subscription
   };
 
   const updatePlaylistSettings = (partial: Partial<PlaylistSettings>) => {
-      const newSettings = { ...playlistSettings, ...partial };
-      setPlaylistSettings(newSettings);
-      localStorage.setItem('playlist_settings', JSON.stringify(newSettings));
+    const newSettings = { ...playlistSettings, ...partial };
+    setPlaylistSettings(newSettings);
+    StorageCenter.settings.setPlaylist(newSettings);
   };
 
   const t = (key: string) => {
-    const lang = settings.language.appInterface;
-    return I18N_DICT[lang]?.[key] || I18N_DICT['en'][key] || key;
+    return LanguageCenter.t(key);
   };
 
-  const login = (u: User) => {
-    setUser(u);
+  const login = async (u: User) => {
+    console.log('[AppContext] Login called with user:', u);
+    console.log('[AppContext] User username:', u?.username);
+
+    if (!u) {
+      console.error('[AppContext] Login called with null/undefined user!');
+      return;
+    }
+
+    // Save to state
+    console.log('[AppContext] Setting user state...');
+    setUserState(u);
+
+    // Save to Storage Center
+    console.log('[AppContext] Saving to StorageCenter...');
+    StorageCenter.auth.setUser(u);
+
+    // Save to State Manager
+    console.log('[AppContext] Saving to StateManager...');
+    StateManager.set(GlobalState.USER, u);
+    StateManager.set(GlobalState.IS_LOGGED_IN, true);
+
+    // Ensure profile completeness (nickname, avatar)
+    console.log('[AppContext] Ensuring profile completeness...');
+    UserProfileEnsurer.ensureUserProfile(u).then(result => {
+      if (result.updated && result.user) {
+        console.log('[AppContext] Profile updated with fields:', result.fields);
+        setUserState(result.user);
+        StorageCenter.auth.setUser(result.user);
+        StateManager.set(GlobalState.USER, result.user);
+      }
+    }).catch(err => {
+      console.error('[AppContext] Profile ensure failed:', err);
+    });
+
+    // Navigate to home
+    console.log('[AppContext] Navigating to home page...');
+    console.log('[AppContext] Current page before:', currentPage);
     setCurrentPage('home');
+    console.log('[AppContext] setCurrentPage("home") called');
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('auth_token');
+    console.log('[AppContext] Logout called');
+
+    // Clear state
+    setUserState(null);
+
+    // Clear storage
+    StorageCenter.auth.clearAuth();
+
+    // Clear State Manager
+    StateManager.set(GlobalState.USER, null);
+    StateManager.set(GlobalState.IS_LOGGED_IN, false);
+
+    // Navigate to login
     setCurrentPage('login');
+  };
+
+  const setUser = (u: User) => {
+    setUserState(u);
+    StorageCenter.auth.setUser(u);
+    StateManager.set(GlobalState.USER, u);
   };
 
   return (

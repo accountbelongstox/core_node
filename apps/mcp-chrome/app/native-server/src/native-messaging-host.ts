@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { NativeMessageType } from 'chrome-mcp-shared';
 import { TIMEOUTS } from './constant';
 import fileHandler from './file-handler';
+import { SingletonDetector } from './server/singleton';
 
 // Log function for debugging
 function log(level: string, message: string, data?: any) {
@@ -25,6 +26,7 @@ interface PendingRequest {
 export class NativeMessagingHost {
   private associatedServer: Server | null = null;
   private pendingRequests: Map<string, PendingRequest> = new Map();
+  private keepAliveTimer: NodeJS.Timeout | null = null;
 
   public setServer(serverInstance: Server): void {
     this.associatedServer = serverInstance;
@@ -72,11 +74,23 @@ export class NativeMessagingHost {
     });
 
     stdin.on('end', () => {
-      this.cleanup();
+      log('WARN', 'stdin ended - Chrome Extension Service Worker may have stopped');
+      log('INFO', 'Server will continue running - use STOP message to shut down');
+      // Don't call cleanup() - let server continue running
+      // Service Worker in MV3 may stop after inactivity, but server should persist
+
+      // Keep process alive by setting up a persistent interval if server is running
+      if (!this.keepAliveTimer && this.associatedServer) {
+        this.keepAliveTimer = setInterval(() => {
+          // Heartbeat to keep process alive - do nothing
+        }, 30000); // 30 seconds
+        log('INFO', 'Keep-alive timer started to prevent process exit');
+      }
     });
 
-    stdin.on('error', () => {
-      this.cleanup();
+    stdin.on('error', (err) => {
+      log('ERROR', 'stdin error occurred', { error: err });
+      // Don't call cleanup() automatically - only STOP message should shutdown
     });
   }
 
@@ -214,36 +228,49 @@ export class NativeMessagingHost {
    */
   private async startServer(port: number): Promise<void> {
     log('INFO', `startServer called with port: ${port}`);
+
     if (!this.associatedServer) {
-      log('ERROR', 'Server instance not set');
-      this.sendError('Internal error: server instance not set');
+      const error = 'Server instance not set';
+      log('ERROR', error);
+      this.sendError(`Internal error: ${error}`);
       return;
     }
-    try {
-      if (this.associatedServer.isRunning) {
-        log('WARN', 'Server is already running');
-        this.sendMessage({
-          type: NativeMessageType.ERROR,
-          payload: { message: 'Server is already running' },
-        });
-        return;
-      }
 
-      log('INFO', `Starting Fastify HTTP server on port ${port}...`);
-      await this.associatedServer.start(port, this);
-      log('SUCCESS', `Fastify HTTP server started successfully on port ${port}`);
-
-      log('INFO', 'Sending SERVER_STARTED message to Chrome Extension');
+    if (this.associatedServer.isRunning) {
+      log('WARN', 'Server is already running');
       this.sendMessage({
-        type: NativeMessageType.SERVER_STARTED,
-        payload: { port },
+        type: NativeMessageType.ERROR,
+        payload: { message: 'Server is already running' },
       });
-      log('INFO', 'SERVER_STARTED message sent successfully');
-
-    } catch (error: any) {
-      log('ERROR', `Failed to start server: ${error.message}`, { stack: error.stack });
-      this.sendError(`Failed to start server: ${error.message}`);
+      return;
     }
+
+    // Singleton detection: check for existing instances
+    log('INFO', `Performing singleton detection for port ${port}...`);
+    const detector = new SingletonDetector('chrome-mcp-native-server', port, 2000, true);
+    const detectionResult = await detector.detect();
+
+    if (!detectionResult.canStart) {
+      const errorMsg = `Cannot start server: ${detectionResult.message}`;
+      log('ERROR', errorMsg);
+      this.sendError(errorMsg);
+      return;
+    }
+
+    if (detectionResult.isExisting) {
+      log('INFO', `Existing instance (PID ${detectionResult.existingPid}) was shut down successfully`);
+    }
+
+    log('INFO', `Starting Fastify HTTP server on port ${port}...`);
+    await this.associatedServer.start(port, this);
+    log('SUCCESS', `Fastify HTTP server started successfully on port ${port}`);
+
+    log('INFO', 'Sending SERVER_STARTED message to Chrome Extension');
+    this.sendMessage({
+      type: NativeMessageType.SERVER_STARTED,
+      payload: { port },
+    });
+    log('INFO', 'SERVER_STARTED message sent successfully');
   }
 
   /**
@@ -254,47 +281,28 @@ export class NativeMessagingHost {
       this.sendError('Internal error: server instance not set');
       return;
     }
-    try {
-      // Check status through associatedServer
-      if (!this.associatedServer.isRunning) {
-        this.sendMessage({
-          type: NativeMessageType.ERROR,
-          payload: { message: 'Server is not running' },
-        });
-        return;
-      }
 
-      await this.associatedServer.stop();
-      // this.serverStarted = false; // Server should update its own status after successful stop
-
-      this.sendMessage({ type: NativeMessageType.SERVER_STOPPED }); // Distinguish from previous 'stopped'
-    } catch (error: any) {
-      this.sendError(`Failed to stop server: ${error.message}`);
+    if (!this.associatedServer.isRunning) {
+      this.sendMessage({
+        type: NativeMessageType.ERROR,
+        payload: { message: 'Server is not running' },
+      });
+      return;
     }
+
+    await this.associatedServer.stop();
+    this.sendMessage({ type: NativeMessageType.SERVER_STOPPED });
   }
 
   /**
    * Send message to Chrome extension
    */
   public sendMessage(message: any): void {
-    try {
-      const messageString = JSON.stringify(message);
-      const messageBuffer = Buffer.from(messageString);
-      const headerBuffer = Buffer.alloc(4);
-      headerBuffer.writeUInt32LE(messageBuffer.length, 0);
-      // Ensure atomic write
-      stdout.write(Buffer.concat([headerBuffer, messageBuffer]), (err) => {
-        if (err) {
-          // Consider how to handle write failure, may affect request completion
-        } else {
-          // Message sent successfully, no action needed
-        }
-      });
-    } catch (error: any) {
-      // Catch JSON.stringify or Buffer operation errors
-      // If preparation stage fails, associated request may never be sent
-      // Need to consider whether to reject corresponding Promise (if called within sendRequestToExtensionAndWait)
-    }
+    const messageString = JSON.stringify(message);
+    const messageBuffer = Buffer.from(messageString);
+    const headerBuffer = Buffer.alloc(4);
+    headerBuffer.writeUInt32LE(messageBuffer.length, 0);
+    stdout.write(Buffer.concat([headerBuffer, messageBuffer]));
   }
 
   /**
@@ -313,6 +321,12 @@ export class NativeMessagingHost {
    * Clean up resources
    */
   private cleanup(): void {
+    // Clear keep-alive timer
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+
     // Reject all pending requests
     this.pendingRequests.forEach((pending) => {
       clearTimeout(pending.timeoutId);

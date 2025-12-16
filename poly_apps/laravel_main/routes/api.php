@@ -35,6 +35,7 @@ Route::get('/health', function (): JsonResponse {
 
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
+require_once __DIR__ . '/files.php';
 
 // Octane Timer Status API Routes
 require_once __DIR__ . '/api/octane_timer.php';
@@ -173,22 +174,27 @@ require_once __DIR__ . '/McpV1Router/api.php';
 // Global Task System Routes
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkerController;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-Route::prefix('task')->group(function () {
-    Route::post('create', [TaskController::class, 'create']);
-    Route::get('{taskId}/status', [TaskController::class, 'status']);
-    Route::get('list', [TaskController::class, 'list']);
-    Route::get('stats', [TaskController::class, 'stats']);
-});
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
+    Route::prefix('task')->group(function () {
+        Route::post('create', [TaskController::class, 'create']);
+        Route::get('{taskId}/status', [TaskController::class, 'status']);
+        Route::get('list', [TaskController::class, 'list']);
+        Route::get('stats', [TaskController::class, 'stats']);
+        Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
+        Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+    });
 
-Route::prefix('worker')->group(function () {
-    Route::post('register', [WorkerController::class, 'register']);
-    Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
-    Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
-    Route::post('tasks/accept', [WorkerController::class, 'acceptTask']);
-    Route::post('tasks/result', [WorkerController::class, 'submitResult']);
-    Route::get('list', [WorkerController::class, 'list']);
-    Route::get('stats', [WorkerController::class, 'stats']);
+    Route::prefix('worker')->group(function () {
+        Route::post('register', [WorkerController::class, 'register']);
+        Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
+        Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
+        Route::post('tasks/accept', [WorkerController::class, 'acceptTask']);
+        Route::post('tasks/result', [WorkerController::class, 'submitResult']);
+        Route::get('list', [WorkerController::class, 'list']);
+        Route::get('stats', [WorkerController::class, 'stats']);
+    });
 });
 
 use App\Http\Controllers\PathConfigController;
