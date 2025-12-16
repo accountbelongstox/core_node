@@ -127,7 +127,7 @@ auto_replace_debug_service() {
 
     echo -e "\033[33mFound existing compiled services:\033[0m"
     for service in "${found_services[@]}"; do
-        echo -e "  \033[90mâ€¢ $service.service\033[0m"
+        echo -e "  \033[90mâ€?$service.service\033[0m"
     done
 
     # Automatically stop and replace with debug version
@@ -145,7 +145,7 @@ auto_replace_debug_service() {
         fi
     done
 
-    echo -e "\033[32mâœ“ Compiled services stopped\033[0m"
+    echo -e "\033[32mâœ?Compiled services stopped\033[0m"
     echo -e "\033[32mCreating debug service replacement...\033[0m"
 
     return 0
@@ -172,7 +172,7 @@ create_nginx_config() {
 
     if [ -f "$ssl_cert_path" ] && [ -f "$ssl_key_path" ]; then
         ssl_available=true
-        echo -e "\033[32mâœ“ SSL certificate found for $domain\033[0m"
+        echo -e "\033[32mâœ?SSL certificate found for $domain\033[0m"
     else
         echo -e "\033[33m! No SSL certificate found, creating HTTP-only configuration\033[0m"
         echo -e "\033[90m  SSL files would be: $ssl_cert_path, $ssl_key_path\033[0m"
@@ -330,7 +330,7 @@ EOF
         # Test nginx configuration
         if sudo nginx -t 2>/dev/null; then
             sudo systemctl reload nginx
-            echo -e "\033[32mâœ“ Nginx configuration created and loaded\033[0m"
+            echo -e "\033[32mâœ?Nginx configuration created and loaded\033[0m"
 
             if [ "$ssl_available" = true ]; then
                 echo -e "\033[36mðŸ”’ HTTPS: https://$domain\033[0m"
@@ -341,11 +341,11 @@ EOF
             fi
             echo -e "\033[90mðŸ“ Config: $nginx_config\033[0m"
         else
-            echo -e "\033[31mâœ— Nginx configuration test failed\033[0m"
+            echo -e "\033[31mâœ?Nginx configuration test failed\033[0m"
             sudo rm -f "$nginx_config" "$nginx_enabled"
         fi
     else
-        echo -e "\033[33mâš  Could not create nginx configuration (permissions?)\033[0m"
+        echo -e "\033[33mâš?Could not create nginx configuration (permissions?)\033[0m"
     fi
 
     rm -f "/tmp/$domain.conf"
@@ -414,7 +414,7 @@ create_unified_service() {
     # Check if service already exists and handle it
     if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
         echo ""
-        echo -e "\033[33mâš  Service $service_name already exists\033[0m"
+        echo -e "\033[33mâš?Service $service_name already exists\033[0m"
         echo -ne "\033[36mReplace existing service? (Y/n): \033[0m"
         read replace_choice
 
@@ -426,7 +426,7 @@ create_unified_service() {
             echo -e "\033[90mRemoving existing service file...\033[0m"
             sudo rm -f "/etc/systemd/system/$service_name.service"
             sudo systemctl daemon-reload
-            echo -e "\033[32mâœ“ Existing service cleaned up\033[0m"
+            echo -e "\033[32mâœ?Existing service cleaned up\033[0m"
         else
             echo -e "\033[33mKeeping existing service, operation cancelled\033[0m"
             return 0
@@ -491,7 +491,7 @@ print(launcher_path)
         return 1
     fi
 
-    echo -e "\033[32mâœ“ Launcher script generated\033[0m"
+    echo -e "\033[32mâœ?Launcher script generated\033[0m"
     echo -e "\033[90mService Name: $service_name\033[0m"
     echo -e "\033[90mLauncher Script: $launcher_script\033[0m"
     echo ""
@@ -532,7 +532,7 @@ print(launcher_path)
     echo ""
     echo -e "\033[36m=== Service Creation Status ===\033[0m"
     if [ $result -eq 0 ]; then
-        echo -e "\033[32mâœ“ Service created successfully\033[0m"
+        echo -e "\033[32mâœ?Service created successfully\033[0m"
 
         # Display service file content
         local service_file="/etc/systemd/system/$service_name.service"
@@ -547,9 +547,9 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Registration Check ===\033[0m"
         if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
-            echo -e "\033[32mâœ“ Service registered in systemd\033[0m"
+            echo -e "\033[32mâœ?Service registered in systemd\033[0m"
         else
-            echo -e "\033[31mâœ— Service not found in systemd\033[0m"
+            echo -e "\033[31mâœ?Service not found in systemd\033[0m"
         fi
 
         # Add firewall rule for port
@@ -558,10 +558,10 @@ print(launcher_path)
             echo -e "\033[36m=== Configuring Firewall ===\033[0m"
             echo -e "\033[90mOpening port $port for $app_name service...\033[0m"
             firewall_allow_port "$port" "tcp" "$app_name service"
-            echo -e "\033[32mâœ“ Firewall rule configured\033[0m"
+            echo -e "\033[32mâœ?Firewall rule configured\033[0m"
         else
             echo ""
-            echo -e "\033[33mâš  Firewall manager function not available\033[0m"
+            echo -e "\033[33mâš?Firewall manager function not available\033[0m"
             echo -e "\033[90mManual firewall configuration may be required for port $port\033[0m"
         fi
 
@@ -585,11 +585,11 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Status Check ===\033[0m"
         if systemctl is-active "$service_name" >/dev/null 2>&1; then
-            echo -e "\033[32mâœ“ Service is running\033[0m"
+            echo -e "\033[32mâœ?Service is running\033[0m"
             local status_output=$(systemctl status "$service_name" --no-pager -l | head -10)
             echo -e "\033[90m$status_output\033[0m"
         else
-            echo -e "\033[31mâœ— Service failed to start\033[0m"
+            echo -e "\033[31mâœ?Service failed to start\033[0m"
             echo -e "\033[33mChecking logs...\033[0m"
             local error_logs=$(sudo journalctl -u "$service_name" --no-pager -l --since="1 minute ago" | tail -5)
             echo -e "\033[90m$error_logs\033[0m"
@@ -613,7 +613,7 @@ print(launcher_path)
 
         return 0
     else
-        echo -e "\033[31mâœ— Failed to create service\033[0m"
+        echo -e "\033[31mâœ?Failed to create service\033[0m"
         return 1
     fi
 }
