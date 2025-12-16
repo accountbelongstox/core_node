@@ -1,10 +1,12 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { SettingItem } from './Layout';
 import { Button, Icons } from '../../components/UI';
+import { ApiTestingCenter } from '../../components/ApiTestingCenter';
 
 const SettingsIndex = () => {
   const { navigate, user, logout } = useContext(AppContext);
+  const [showApiTesting, setShowApiTesting] = useState(false);
   return (
     <div className="h-full flex flex-col pt-safe animate-slide-up-fade">
        {/* Floating Title */}
@@ -40,8 +42,10 @@ const SettingsIndex = () => {
            <SettingItem label="Language & Audio" value="En" onClick={() => navigate('settings_lang')} />
            <SettingItem label="Learning Goals" value="20/day" onClick={() => navigate('settings_learning')} />
            <SettingItem label="Display & Theme" value="Auto" onClick={() => navigate('settings_display')} />
-           
+
            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-4 mt-8 mb-1">System</div>
+           <SettingItem label="API Server" value="Auto" onClick={() => navigate('settings_api_server')} />
+           <SettingItem label="API Testing Center" value="" onClick={() => setShowApiTesting(true)} />
            <SettingItem label="Notifications" value="On" onClick={() => navigate('settings_notifications')} />
            <SettingItem label="Data & Sync" value="Active" onClick={() => navigate('settings_data')} />
            <SettingItem label="Privacy & Security" value="" onClick={() => navigate('settings_privacy')} />
@@ -53,6 +57,11 @@ const SettingsIndex = () => {
             <p className="text-center text-xs text-slate-400 mt-6 font-mono opacity-50">ID: {user?.id} • BUILT WITH GEMINI</p>
          </div>
        </div>
+
+       {/* API Testing Center Modal */}
+       {showApiTesting && (
+         <ApiTestingCenter onClose={() => setShowApiTesting(false)} />
+       )}
     </div>
   );
 };

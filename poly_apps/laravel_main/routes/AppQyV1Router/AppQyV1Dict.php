@@ -19,6 +19,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupQueryContro
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupDeletionController as DGDController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryManagementController as AddDController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryQueryController as QueryDController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryTaskController as TaskDController;
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
@@ -36,6 +37,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         // Dictionary Routes
         // Route::any('/add_dictionary', [AddDController::class, 'addDictionary']);
         // Route::any('/add_dictionary_list', [AddDController::class, 'addDictionaryList']);
+
+        // Dictionary Task Routes
+        Route::any('/dictionary/tasks/create-explanation', [TaskDController::class, 'createExplanationTask']);
+        Route::any('/dictionary/tasks/untranslated-words', [TaskDController::class, 'getUntranslatedWordsCount']);
     });
     
     // Client Token Auth Routes - Protected by client.token middleware

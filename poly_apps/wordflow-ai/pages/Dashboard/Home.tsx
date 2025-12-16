@@ -46,7 +46,7 @@ const DashboardPage = () => {
                  {user ? t('start_learning') : 'Guest Mode'}
             </span>
             <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400">
-                {user ? `Hi, ${user.name.split(' ')[0]}` : 'Welcome Guest'}
+                {user ? `Hi, ${(user.name || user.nickname || user.username || 'User').split(' ')[0]}` : 'Welcome Guest'}
             </h1>
         </div>
 

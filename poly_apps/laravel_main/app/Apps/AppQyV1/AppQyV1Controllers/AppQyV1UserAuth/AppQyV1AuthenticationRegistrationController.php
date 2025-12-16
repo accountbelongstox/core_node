@@ -20,7 +20,9 @@ use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
 use App\Http\Common\CommonUserGen;
 use App\Models\InviteCode;
+use App\Models\User;
 use App\Traits\ApiResponse;
+use App\Services\UnifiedAuthService;
 
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
@@ -38,131 +40,162 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
      */
     public function apiStore(Request $request): Response | JsonResponse
     {
-            $request->validate([
-                'username' => ['required', 'string', 'max:255'],
-                'password' => ['required', 'string', 'min:6', 'max:255'],
-            ]);
+        \Log::info('[AppQyV1Registration] Registration request received', [
+            'username' => $request->username,
+            'has_email' => $request->has('email'),
+            'has_invite_code' => $request->has('invite_code') || $request->has('registration_code'),
+            'request_id' => uniqid('reg_', true)
+        ]);
 
-            if (CommonUserGen::checkUsernameIsExist($request->username)) {
-                return response()->json([
-                    'message' => 'Username already exists',
-                    'code' => 400,
-                    'status' => 'error',
-                ], 400);
+        $request->validate([
+            'username' => ['required', 'string', 'max:255'],
+            'password' => ['required', 'string', 'min:6', 'max:255'],
+        ]);
+
+        if (CommonUserGen::checkUsernameIsExist($request->username)) {
+            \Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
+            return $this->error('Username already exists', 400);
+        }
+
+        $email = "";
+        if (isset($request->email)) {
+            $email = $request->email;
+        }
+        $nickname = "";
+        if (isset($request->nickname)) {
+            $nickname = $request->nickname;
+        }
+        $name = "";
+        if (isset($request->name)) {
+            $name = $request->name;
+        }
+
+        if ($email === "") {
+            if (filter_var($request->username, FILTER_VALIDATE_EMAIL)) {
+                $email = $request->username;
             }
+        }
 
-            $email = "";
-            if (isset($request->email)) {
-                $email = $request->email;
+        $phone = null;
+        if ($request->has('phone')) {
+            $phone = $request->input('phone');
+        } else {
+            $usernameValue = $request->username;
+            if (preg_match('/^[0-9+\-\s]{6,}$/', $usernameValue)) {
+                $phone = $usernameValue;
             }
-            $nickname = "";
-            if (isset($request->nickname)) {
-                $nickname = $request->nickname;
-            }
-            $name = "";
-            if (isset($request->name)) {
-                $name = $request->name;
-            }
-            $inviteCode = $request->registration_code ?? null;
-            if (isset($request->invite_code)) {
-                $inviteCode = $request->invite_code;
-            }
+        }
 
-            $roleLevel = 0;
-            $roleName = 'user';
+        $inviteCode = $request->registration_code ?? null;
+        if (isset($request->invite_code)) {
+            $inviteCode = $request->invite_code;
+        }
 
-            if ($inviteCode) {
-                $invite = InviteCode::where('code', $inviteCode)->first();
+        $roleLevel = 0;
+        $roleName = 'user';
 
-                if (!$invite) {
-                    \Log::warning('[AppQyV1Registration] Invalid invite code', [
-                        'code' => $inviteCode,
-                        'username' => $request->username
-                    ]);
-                    return response()->json([
-                        'message' => 'Invalid invite code',
-                        'code' => 400,
-                        'status' => 'error',
-                    ], 400);
-                }
+        if ($inviteCode) {
+            $invite = InviteCode::where('code', $inviteCode)->first();
 
-                if (!$invite->canBeUsed()) {
-                    \Log::warning('[AppQyV1Registration] Invite code cannot be used', [
-                        'code' => $inviteCode,
-                        'username' => $request->username,
-                        'is_active' => $invite->is_active,
-                        'used_count' => $invite->used_count,
-                        'max_uses' => $invite->max_uses,
-                        'expires_at' => $invite->expires_at
-                    ]);
-                    return response()->json([
-                        'message' => 'Invite code is expired or already used',
-                        'code' => 400,
-                        'status' => 'error',
-                    ], 400);
-                }
-
-                $roleLevel = $invite->getRoleLevel();
-                $roleName = $invite->getRoleName();
-
-                \Log::info('[AppQyV1Registration] Using invite code', [
+            if (!$invite) {
+                \Log::warning('[AppQyV1Registration] Invalid invite code', [
                     'code' => $inviteCode,
-                    'type' => $invite->type,
-                    'username' => $request->username,
-                    'role_level' => $roleLevel,
-                    'role_name' => $roleName
-                ]);
-            }
-
-            $userData = CommonUserGen::createUser(
-                $request->username,
-                $request->password,
-                $email,
-                $nickname,
-                $name,
-                'AppQyV1',
-                $roleLevel,
-                $roleName
-            );
-
-            if (!$userData) {
-                \Log::error('[AppQyV1Registration] Registration failed for user', [
                     'username' => $request->username
                 ]);
-                return response()->json([
-                    'message' => 'Registration failed. Please check the logs or try again.',
-                    'code' => 500,
-                    'status' => 'error',
-                ], 500);
+                return $this->error('Invalid invite code', 400);
             }
 
-            if ($inviteCode && isset($invite)) {
-                $user = $userData['user'];
-                $invite->use($user);
-
-                \Log::info('[AppQyV1Registration] Invite code used successfully', [
+            if (!$invite->canBeUsed()) {
+                \Log::warning('[AppQyV1Registration] Invite code cannot be used', [
                     'code' => $inviteCode,
-                    'user_id' => $user->id,
-                    'username' => $user->username,
-                    'role_level' => $roleLevel,
-                    'role_name' => $roleName
+                    'username' => $request->username,
+                    'is_active' => $invite->is_active,
+                    'used_count' => $invite->used_count,
+                    'max_uses' => $invite->max_uses,
+                    'expires_at' => $invite->expires_at
                 ]);
+                return $this->error('Invite code is expired or already used', 400);
             }
 
-        $user = $userData['user'];
-        $token = $userData['token'];
-        $expiration = $userData['expiration'];
-        $uid = $userData['uid'];
-        return response()->json([
+            $roleLevel = $invite->getRoleLevel();
+            $roleName = $invite->getRoleName();
+
+            \Log::info('[AppQyV1Registration] Using invite code', [
+                'code' => $inviteCode,
+                'type' => $invite->type,
+                'username' => $request->username,
+                'role_level' => $roleLevel,
+                'role_name' => $roleName
+            ]);
+        }
+
+        $credentials = [
+            'username' => $request->username,
+            'email' => !empty($email) ? $email : null,
+            'phone' => $phone,
+            'name' => !empty($name) ? $name : null,
+            'password' => $request->password,
+            'rolelevel' => $roleLevel,
+            'rolename' => $roleName,
+            'sub_app_data' => [
+                'nickname' => !empty($nickname) ? $nickname : null,
+                'credit' => 0,
+            ],
+        ];
+
+        $unifiedResult = UnifiedAuthService::register($credentials, 'AppQyV1');
+
+        if (!$unifiedResult['success']) {
+            $errorMessage = $unifiedResult['error'];
+
+            \Log::error('[AppQyV1Registration] Registration failed', [
+                'username' => $request->username,
+                'email' => $email,
+                'error' => $errorMessage,
+            ]);
+
+            if (strpos(strtolower($errorMessage), 'already exists') !== false) {
+                if (!empty($email) && User::where('email', $email)->exists()) {
+                    $errorMessage = 'Email already exists';
+                } else {
+                    $errorMessage = 'Username already exists';
+                }
+            }
+
+            return $this->error($errorMessage, 400);
+        }
+
+        $user = $unifiedResult['user'];
+        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user);
+        event(new \Illuminate\Auth\Events\Registered($user));
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        if ($inviteCode && isset($invite)) {
+            $invite->use($user);
+
+            \Log::info('[AppQyV1Registration] Invite code used successfully', [
+                'code' => $inviteCode,
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'role_level' => $roleLevel,
+                'role_name' => $roleName
+            ]);
+        }
+
+        \Log::info('[AppQyV1Registration] Registration successful', [
+            'user_id' => $user->id,
+            'username' => $user->username,
+            'role_level' => $roleLevel,
+            'role_name' => $roleName
+        ]);
+
+        return $this->success([
             'token' => $token,
             'token_type' => 'Bearer',
-            "expiration" => $expiration,
-            'uid' => $uid,
-            "user" => $user,
-            'message' => 'User registered successfully',
-            'code' => 200,
-            'status' => 'success',
-        ], 200);
+            'expiration' => config('sanctum.expiration'),
+            'uid' => $user->id,
+            'user' => $user,
+        ], 'User registered successfully');
     }
 }
-

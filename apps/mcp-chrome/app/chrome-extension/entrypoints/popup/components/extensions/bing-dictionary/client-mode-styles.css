@@ -1,0 +1,345 @@
+/**
+ * Bing Dictionary Client Mode Styles
+ * Styles for auto-translate service configuration (230 lines)
+ */
+
+/* ==========================================================================
+   Client Mode Section
+   ========================================================================== */
+
+.client-mode-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.client-config-card {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #fbbf24;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+/* ==========================================================================
+   Config Header
+   ========================================================================== */
+
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.config-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #78350f;
+}
+
+.config-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   Status Indicators
+   ========================================================================== */
+
+.status-indicator {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.status-indicator.running {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-indicator.stopped {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* ==========================================================================
+   Service Button
+   ========================================================================== */
+
+.service-button {
+  padding: 5px 12px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.service-button:hover:not(:disabled) {
+  background: #d97706;
+}
+
+.service-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Config Form
+   ========================================================================== */
+
+.config-form {
+  background: white;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.form-group {
+  margin-bottom: 10px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.form-input,
+.form-input-small {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #f8fafc;
+}
+
+.form-input:focus,
+.form-input-small:focus {
+  outline: none;
+  border-color: #f59e0b;
+  background: white;
+}
+
+/* ==========================================================================
+   Service Stats - Bento Layout
+   ========================================================================== */
+
+.service-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: white;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* Bento Grid for Queue Stats */
+.stats-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bento-card {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  border: 2px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.bento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.bento-card.bento-primary {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  border-color: #3b82f6;
+}
+
+.bento-card.bento-success {
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  border-color: #22c55e;
+}
+
+.bento-card.bento-warning {
+  background: linear-gradient(135deg, #fed7aa, #fdba74);
+  border-color: #f97316;
+}
+
+.bento-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.bento-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.bento-value.bento-highlight {
+  animation: pulseScale 1.5s ease-in-out infinite;
+}
+
+/* Traditional Stats Grid */
+.stats-traditional {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.stat-worker-id {
+  font-size: 11px;
+  font-family: monospace;
+  color: #6366f1;
+}
+
+.stat-online.online {
+  color: #16a34a;
+}
+
+.stat-online.offline {
+  color: #64748b;
+}
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+
+@media (max-width: 360px) {
+  .client-config-card {
+    padding: 12px;
+  }
+
+  .config-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .config-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .stats-bento-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-traditional {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .form-group {
+    margin-bottom: 8px;
+  }
+
+  .bento-value {
+    font-size: 20px;
+  }
+}
+
+/* ==========================================================================
+   Animation Effects
+   ========================================================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.client-mode-section {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.status-indicator.running {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulseScale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.bento-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.bento-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.5s;
+}
+
+.bento-card:hover::before {
+  left: 100%;
+}

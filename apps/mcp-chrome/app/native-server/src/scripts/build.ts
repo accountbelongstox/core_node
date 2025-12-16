@@ -24,6 +24,25 @@ fs.mkdirSync(distDir, { recursive: true });
 fs.mkdirSync(path.join(distDir, 'logs'), { recursive: true }); // Create logs directory
 console.log('dist and dist/logs directories created/verified');
 
+// Create and fix permissions for global log directory
+const globalLogDir = '/var/_core_node/mcp_chrome/logs';
+console.log('Setting up global log directory...');
+try {
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(globalLogDir)) {
+    fs.mkdirSync(globalLogDir, { recursive: true, mode: 0o777 });
+    console.log(`Created global log directory: ${globalLogDir}`);
+  }
+
+  // Fix permissions (777 to ensure all users can write)
+  fs.chmodSync(globalLogDir, 0o777);
+  console.log(`Set permissions (777) for: ${globalLogDir}`);
+} catch (err: any) {
+  // Non-blocking: if we can't create/chmod, the wrapper script will try again at runtime
+  console.warn(`[WARNING] Could not set up global log directory: ${err.message}`);
+  console.warn('[INFO] The wrapper script will attempt to create it at runtime');
+}
+
 // Compile TypeScript
 console.log('Compiling TypeScript...');
 execSync('tsc', { stdio: 'inherit' });

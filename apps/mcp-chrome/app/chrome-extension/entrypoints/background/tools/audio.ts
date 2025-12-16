@@ -259,12 +259,12 @@ export async function handleAudioStop(params?: {
 export async function handleAudioStatus(): Promise<{
   success: boolean;
   error?: string;
-  data?: any;
+  status?: any;
 }> {
   try {
     return {
       success: true,
-      data: {
+      status: {
         isRecording: currentRecordingStatus.isRecording,
         duration: currentRecordingStatus.duration,
         chunkCount: currentRecordingStatus.chunkCount,

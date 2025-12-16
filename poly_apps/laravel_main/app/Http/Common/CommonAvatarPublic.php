@@ -1,44 +1,79 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Common;
 
-use Laravolt\Avatar\Avatar;
+use App\Services\AvatarService;
 use App\Providers\PathMapper;
+use Illuminate\Support\Facades\Log;
 
 class CommonAvatarPublic
 {
     public static function createAvatar($user, $save = false)
     {
+        if (!$user) {
+            return $user;
+        }
+
         $avatarDir = PathMapper::getLaravelAvatarsDir();
         if (!file_exists($avatarDir)) {
             mkdir($avatarDir, 0755, true);
         }
-        if (!$user->avatar) {
-            $avatarFileName = $user->id . '.png';
-            $avatarFullPath = $avatarDir . '/' . $avatarFileName;
-            if (!file_exists($avatarFullPath)) {
-                $avatarCreator = new Avatar();
-                $avatarCreator->create($user->username);
-                $avatarCreator->save($avatarFullPath, 80);
-            }
-            $user->avatar = 'avatars/' . $avatarFileName;
+
+        $needsAvatar = false;
+        if (!$user->avatar || $user->avatar === '' || $user->avatar === 'null') {
+            $needsAvatar = true;
+        } else if (stripos($user->avatar, 'avatars/1.png') !== false || stripos($user->avatar, 'default') !== false) {
+            $needsAvatar = true;
         }
+
+        if ($needsAvatar) {
+            $seed = $user->username;
+            if (!$seed) {
+                $seed = $user->email;
+            }
+            if (!$seed) {
+                $seed = 'user' . $user->id;
+            }
+
+            Log::info('[CommonAvatarPublic] Generating avatar for user', [
+                'user_id' => $user->id,
+                'seed' => $seed,
+            ]);
+
+            $avatarPath = AvatarService::generateAndSave($seed, $user->id, 'appqyv1');
+
+            if ($avatarPath) {
+                $user->avatar = $avatarPath;
+
+                Log::info('[CommonAvatarPublic] Avatar created', [
+                    'user_id' => $user->id,
+                    'avatar_path' => $avatarPath,
+                ]);
+            } else {
+                Log::error('[CommonAvatarPublic] Failed to generate avatar, using fallback', [
+                    'user_id' => $user->id,
+                ]);
+
+                $gravatarHash = md5(strtolower(trim($seed)));
+                $gravatarUrl = "https://www.gravatar.com/avatar/{$gravatarHash}?s=200&d=mp";
+                $user->avatar = $gravatarUrl;
+            }
+        }
+
+        if (empty($user->nickname)) {
+            $nickname = AvatarService::generateNickname($user->username ?? $user->email ?? 'user' . $user->id);
+            $user->nickname = $nickname;
+
+            Log::info('[CommonAvatarPublic] Nickname generated', [
+                'user_id' => $user->id,
+                'nickname' => $nickname,
+            ]);
+        }
+
         if ($save) {
             $user->save();
         }
+
         return $user;
     }
-
 }

@@ -295,8 +295,41 @@ if [ -f "$mcp_run_host_sh" ]; then
     echo -e "${GREEN}  [OK] Native Server built successfully${NC}"
     chmod +x "$mcp_run_host_sh"
 
+    # Create and fix permissions for global log directory
+    MCP_GLOBAL_LOG_DIR="/var/_core_node/mcp_chrome/logs"
+    echo -e "${CYAN}  Setting up global log directory: $MCP_GLOBAL_LOG_DIR${NC}"
+    mkdir -p "$MCP_GLOBAL_LOG_DIR" 2>/dev/null || {
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p "$MCP_GLOBAL_LOG_DIR"
+        fi
+    }
+    if [ -d "$MCP_GLOBAL_LOG_DIR" ]; then
+        chmod 777 "$MCP_GLOBAL_LOG_DIR" 2>/dev/null || {
+            if [ "$(id -u)" -eq 0 ]; then
+                chmod 777 "$MCP_GLOBAL_LOG_DIR"
+            fi
+        }
+        echo -e "${GREEN}  [OK] Global log directory ready: $MCP_GLOBAL_LOG_DIR${NC}"
+    else
+        echo -e "${YELLOW}  [WARN] Could not create global log directory (will be created at runtime)${NC}"
+    fi
+
     # Fix permissions for native server dist
     mcp_fix_build_permissions "$mcp_native_path"
+
+    # Auto-register Native Host for local development (system-level requires root)
+    echo -e "${CYAN}  Auto-registering Native Host to system directory...${NC}"
+    if [ "$(id -u)" -eq 0 ]; then
+        # Already root, run directly
+        node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
+            echo -e "${GREEN}  [OK] Native Host registered successfully${NC}" || \
+            echo -e "${YELLOW}  [WARN] Auto-registration failed${NC}"
+    else
+        # Not root, try with sudo
+        sudo node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
+            echo -e "${GREEN}  [OK] Native Host registered successfully (with sudo)${NC}" || \
+            echo -e "${YELLOW}  [WARN] Auto-registration failed (run with sudo for system-level registration)${NC}"
+    fi
 fi
 
 # Step 5: Build Chrome Extension
@@ -394,12 +427,16 @@ mcp_cmd_register=$(mcp_get_var "$VAR_KEY_CMD_REGISTER")
 echo -e "${CYAN}  Using local development registration...${NC}"
 eval "$mcp_cmd_register"
 
-mcp_manifest_path=$(mcp_get_var "$VAR_KEY_MANIFEST_PATH")
+# Verify system-level registration
 echo ""
 echo -e "${CYAN}  Registration Verification:${NC}"
-if [ -f "$mcp_manifest_path" ]; then
-    echo -e "${GREEN}  [OK] Chrome manifest registered${NC}"
-    echo -e "${DARK_GRAY}    Location: $mcp_manifest_path${NC}"
+mcp_system_manifest_path="/etc/opt/chrome/native-messaging-hosts/com.chromemcp.nativehost.json"
+if [ -f "$mcp_system_manifest_path" ]; then
+    echo -e "${GREEN}  [OK] Chrome manifest registered (system-level)${NC}"
+    echo -e "${DARK_GRAY}    Location: $mcp_system_manifest_path${NC}"
+else
+    echo -e "${YELLOW}  [WARN] System-level manifest not found${NC}"
+    echo -e "${DARK_GRAY}    Expected: $mcp_system_manifest_path${NC}"
 fi
 
 # ======================================
