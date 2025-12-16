@@ -30,7 +30,7 @@ mac路径： /Users/xxx/Library/Application\ Support/Google/Chrome/NativeMessagi
   "description": "Node.js Host for Browser Bridge Extension",
   "path": "/Users/xxx/Library/pnpm/global/5/.pnpm/mcp-chrome-bridge@1.0.23/node_modules/mcp-chrome-bridge/dist/run_host.sh",
   "type": "stdio",
-  "allowed_origins": ["chrome-extension://hbdgbgagpkpjffpklnamcljpakneikee/"]
+  "allowed_origins": ["chrome-extension://lmngnnnghipjfcbbhpaknlnbjcbabblm/"]
 }
 ```
 

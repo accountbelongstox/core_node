@@ -1,9 +1,8 @@
 
 import { MOCK_USER, MOCK_WORD_GROUPS, MOCK_WORDS_EN, MOCK_WORDS_JP, SUPPORTED_LANGUAGES, MOCK_QUIZ_QUESTIONS, MOCK_RETENTION_STATS } from './mockData';
 import { User, Word, WordGroup, AppSettings, QuizQuestion, RetentionStat, CourseAnalysis } from '../types';
+import { apiManager } from './ApiManager';
 
-// Laravel API Endpoint
-const API_BASE_URL = 'http://192.168.50.2:9000/api/v1';
 const USE_MOCK_FALLBACK = true;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -27,7 +26,9 @@ class ApiService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500); // Fast fail to mock
 
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const baseUrl = apiManager.getCurrentBaseUrl();
+
+      const response = await fetch(`${baseUrl}/api/app_qy_v1${endpoint}`, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +93,7 @@ class ApiService {
 
   // Public Methods
   async login(email: string, password: string) {
-    return this.request<{token: string, user: User}>('/auth/login', {
+    return this.request<{token: string, user: User}>('/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });

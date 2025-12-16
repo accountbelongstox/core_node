@@ -667,7 +667,7 @@ function Show-InstallerSubMenu {
             CurrentValueIndex = 0;
             Key = "SELECTED_TEST_STEP";
             Action = {
-                Show-DynamicTestInstaller
+                & $script:LOCAL_TEST_INSTALLER_SCRIPT
             }
         },
         @{

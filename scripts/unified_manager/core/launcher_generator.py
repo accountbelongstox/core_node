@@ -106,10 +106,22 @@ else
     exit 1
 fi
 
-# Check and install dependencies
+# Check and install dependencies (smart detection)
+NEED_INSTALL=false
+
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found, installing dependencies..."
-    $PKG_MANAGER install
+    NEED_INSTALL=true
+elif [ -f "package.json" ]; then
+    # Check if package.json is newer than node_modules
+    if [ "package.json" -nt "node_modules" ]; then
+        echo "package.json updated, reinstalling dependencies..."
+        NEED_INSTALL=true
+    fi
+fi
+
+if [ "$NEED_INSTALL" = "true" ]; then
+    $PKG_MANAGER install --no-frozen-lockfile
 fi
 
 # ============================================
@@ -137,7 +149,7 @@ if [ -f "vite.config.ts" ]; then
     if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.ts; then
         if grep -q "port:[[:space:]]*[0-9]" vite.config.ts; then
             echo "[2/3] Fixing hardcoded port in vite.config.ts..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT || process.env.VITE_PORT || "3000")/' vite.config.ts
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' vite.config.ts
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment PORT variable"
             else
@@ -152,7 +164,7 @@ if [ -f "vite.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.PORT\\\\|process\\\\.env\\\\.VITE_PORT" vite.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" vite.config.js; then
             echo "[2/3] Fixing hardcoded port in vite.config.js..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT || process.env.VITE_PORT || "3000")/' vite.config.js
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' vite.config.js
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment PORT variable"
             else
@@ -212,10 +224,22 @@ else
     exit 1
 fi
 
-# Check and install dependencies
+# Check and install dependencies (smart detection)
+NEED_INSTALL=false
+
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found, installing dependencies..."
-    $PKG_MANAGER install
+    NEED_INSTALL=true
+elif [ -f "package.json" ]; then
+    # Check if package.json is newer than node_modules
+    if [ "package.json" -nt "node_modules" ]; then
+        echo "package.json updated, reinstalling dependencies..."
+        NEED_INSTALL=true
+    fi
+fi
+
+if [ "$NEED_INSTALL" = "true" ]; then
+    $PKG_MANAGER install --no-frozen-lockfile
 fi
 
 # Build if dist/build directory doesn't exist
@@ -270,10 +294,22 @@ else
     exit 1
 fi
 
-# Check and install dependencies
+# Check and install dependencies (smart detection)
+NEED_INSTALL=false
+
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found, installing dependencies..."
-    $PKG_MANAGER install
+    NEED_INSTALL=true
+elif [ -f "package.json" ]; then
+    # Check if package.json is newer than node_modules
+    if [ "package.json" -nt "node_modules" ]; then
+        echo "package.json updated, reinstalling dependencies..."
+        NEED_INSTALL=true
+    fi
+fi
+
+if [ "$NEED_INSTALL" = "true" ]; then
+    $PKG_MANAGER install --no-frozen-lockfile
 fi
 
 # ============================================
@@ -301,7 +337,7 @@ if [ -f "nuxt.config.ts" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
             echo "[2/3] Fixing hardcoded port in nuxt.config.ts..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.ts
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' nuxt.config.ts
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment NUXT_PORT variable"
             else
@@ -316,7 +352,7 @@ if [ -f "nuxt.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
             echo "[2/3] Fixing hardcoded port in nuxt.config.js..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.js
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' nuxt.config.js
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment NUXT_PORT variable"
             else
@@ -378,10 +414,22 @@ else
     exit 1
 fi
 
-# Check and install dependencies
+# Check and install dependencies (smart detection)
+NEED_INSTALL=false
+
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found, installing dependencies..."
-    $PKG_MANAGER install
+    NEED_INSTALL=true
+elif [ -f "package.json" ]; then
+    # Check if package.json is newer than node_modules
+    if [ "package.json" -nt "node_modules" ]; then
+        echo "package.json updated, reinstalling dependencies..."
+        NEED_INSTALL=true
+    fi
+fi
+
+if [ "$NEED_INSTALL" = "true" ]; then
+    $PKG_MANAGER install --no-frozen-lockfile
 fi
 
 # ============================================
@@ -409,7 +457,7 @@ if [ -f "nuxt.config.ts" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.ts; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.ts; then
             echo "[2/3] Fixing hardcoded port in nuxt.config.ts..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.ts
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' nuxt.config.ts
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment NUXT_PORT variable"
             else
@@ -424,7 +472,7 @@ if [ -f "nuxt.config.js" ]; then
     if ! grep -q "process\\\\.env\\\\.NUXT_PORT\\\\|process\\\\.env\\\\.PORT" nuxt.config.js; then
         if grep -q "port:[[:space:]]*[0-9]" nuxt.config.js; then
             echo "[2/3] Fixing hardcoded port in nuxt.config.js..."
-            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.NUXT_PORT || process.env.PORT || "3000")/' nuxt.config.js
+            sed -i 's/port:[[:space:]]*[0-9]\\\\+/port: parseInt(process.env.PORT)/' nuxt.config.js
             if [ $? -eq 0 ]; then
                 echo "✓ Config fixed to use environment NUXT_PORT variable"
             else
@@ -749,10 +797,22 @@ else
     fi
 fi
 
-# Check and install dependencies
+# Check and install dependencies (smart detection)
+NEED_INSTALL=false
+
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found, installing dependencies..."
-    $PKG_MANAGER install
+    NEED_INSTALL=true
+elif [ -f "package.json" ]; then
+    # Check if package.json is newer than node_modules
+    if [ "package.json" -nt "node_modules" ]; then
+        echo "package.json updated, reinstalling dependencies..."
+        NEED_INSTALL=true
+    fi
+fi
+
+if [ "$NEED_INSTALL" = "true" ]; then
+    $PKG_MANAGER install --no-frozen-lockfile
 fi
 
 # Set environment variables

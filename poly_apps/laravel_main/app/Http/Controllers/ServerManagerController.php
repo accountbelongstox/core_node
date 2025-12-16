@@ -150,6 +150,12 @@ class ServerManagerController extends Controller
             return $this->error('No Octane service found for current Laravel installation', 404);
         }
 
+        $laravelPath = base_path();
+        $cacheOutput = [];
+        exec("cd {$laravelPath} && php artisan config:clear 2>&1", $cacheOutput);
+        exec("cd {$laravelPath} && php artisan route:clear 2>&1", $cacheOutput);
+        exec("cd {$laravelPath} && php artisan cache:clear 2>&1", $cacheOutput);
+
         $output = [];
         $returnCode = 0;
 
@@ -160,6 +166,7 @@ class ServerManagerController extends Controller
                 'service_name' => $serviceName,
                 'status' => $this->getServiceStatus($serviceName),
                 'output' => implode("\n", $output),
+                'cache_cleared' => true,
             ], 'Current service restarted successfully');
         }
 

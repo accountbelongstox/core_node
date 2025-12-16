@@ -154,4 +154,5 @@ MCP applications follow these differentiated rules:
 7. Example: `return $this->success($data, 'Success message');`
 8. All child apps and modules MUST follow this standard
 9. **Frontend MUST use Data Models** - Create TypeScript models (e.g., `ServerManagerModel`) that handle all API calls, validation, and state management; components should NEVER directly call APIs or handle response validation - models encapsulate ALL business logic and return typed results
-10. **ServerManager Auto-Detect** - Use `POST /api/server-manager/restart` to auto-restart current Laravel service (localhost only, no service name needed, auto-detects via `ServerManagerV1OctaneServiceManager::getCurrentOctaneServiceName()`)
+10. **ServerManager Auto-Detect** - Use `POST /api/server-manager/restart` to auto-restart current Laravel service (localhost only, no service name needed, auto-detects via `ServerManagerV1OctaneServiceManager::getCurrentOctaneServiceName()`). Automatically clears config/route/cache before restart
+11. **Error Messages MUST Be Specific** - ALL error messages MUST state the exact reason (e.g., "Email already exists" NOT "Registration failed"). Generic messages like "Registration failed. Please check the logs" are PROHIBITED - always return the actual error from the exception or validation failure

@@ -37,7 +37,7 @@ class WorkerController extends Controller
             'worker_id' => 'required|string',
             'worker_name' => 'required|string',
             'processor_types' => 'required|array',
-            'processor_types.*' => 'string|in:remote_compute,remote_ocr,remote_translation,remote_video,remote_io',
+            'processor_types.*' => 'string|in:remote_compute,remote_ocr,remote_translation,remote_video,remote_io,remote_client',
             'hostname' => 'nullable|string',
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
@@ -94,6 +94,7 @@ class WorkerController extends Controller
 
     /**
      * Pull tasks for worker (long polling)
+     * Tasks are automatically assigned to worker atomically
      *
      * GET /api/worker/tasks/pull
      */
@@ -121,7 +122,7 @@ class WorkerController extends Controller
         $tasks = [];
 
         while (time() - $startTime < $timeout) {
-            $tasks = $this->taskManager->pullTasksForWorker($workerId, $limit);
+            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
 
             if (!empty($tasks)) {
                 break;
@@ -150,7 +151,7 @@ class WorkerController extends Controller
                     'created_at' => $createdAt,
                 ];
             }, $tasks),
-        ], 'Tasks pulled successfully');
+        ], 'Tasks pulled and assigned successfully');
     }
 
     /**
