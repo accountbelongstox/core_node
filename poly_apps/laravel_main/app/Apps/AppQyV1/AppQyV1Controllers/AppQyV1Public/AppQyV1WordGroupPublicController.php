@@ -31,13 +31,14 @@ class AppQyV1WordGroupPublicController
 
     public static function isGroupNameExist($gname, $uid = null, $username = null)
     {
-        $uid = Auth::id();
-        if (isset($uid)) {
-            $uid = $uid;
+        if ($uid === null) {
+            $uid = Auth::id();
         }
-        $username = Auth::user()->username;
-        if (isset($username)) {
-            $username = $username;
+        if ($username === null) {
+            $authUser = Auth::user();
+            if ($authUser !== null) {
+                $username = $authUser->username;
+            }
         }
         $isNewGroup = false;
         $existGroup = AppQyV1WordGroupModel::where('gname', $gname)

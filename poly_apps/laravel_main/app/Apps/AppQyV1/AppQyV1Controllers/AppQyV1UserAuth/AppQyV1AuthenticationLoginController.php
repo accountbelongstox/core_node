@@ -376,7 +376,12 @@ class AppQyV1AuthenticationLoginController extends BaseController
             $response['data']['user']['learning_languages'] = $learningLanguages;
             $response['data']['user']['native_language'] = $nativeLanguage;
             $response['data']['user']['learning_stats'] = $learningStats;
-            
+
+            // Add avatar_url using AvatarService
+            if (isset($user->avatar)) {
+                $response['data']['user']['avatar_url'] = \App\Services\AvatarService::getAvatarUrl($user->avatar);
+            }
+
             // Add stats to top level for compatibility
             if (isset($learningStats['stats'])) {
                 $stats = $learningStats['stats'];
@@ -389,7 +394,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
                 $response['data']['user']['streak_days'] = $stats['streak_days'] ?? 0;
                 $response['data']['user']['study_days'] = $stats['study_days'] ?? 0;
             }
-            
+
             return response()->json($response);
             
     }

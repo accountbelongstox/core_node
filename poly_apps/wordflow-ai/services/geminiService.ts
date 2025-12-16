@@ -2,7 +2,6 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { TEXT_MODEL, IMAGE_GEN_MODEL, VISION_MODEL, CHAT_SYSTEM_INSTRUCTION } from "../constants";
 
 // Initialize the client
-// Using a getter ensures we always pick up the environment variable if it changes (though usually static in React apps)
 const getAiClient = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };

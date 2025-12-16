@@ -50,11 +50,13 @@ class GlobalTask extends Model
     const STATUS_ASSIGNED = 'assigned';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
+    const STATUS_COMPLETED_DEMO = 'completed_demo';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';
 
     // Execution type constants
     const EXECUTION_LOCAL_TIMER = 'local_timer';
+    const EXECUTION_REMOTE_CLIENT = 'remote_client';
     const EXECUTION_REMOTE_COMPUTE = 'remote_compute';
     const EXECUTION_REMOTE_OCR = 'remote_ocr';
     const EXECUTION_REMOTE_TRANSLATION = 'remote_translation';

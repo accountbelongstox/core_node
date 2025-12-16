@@ -70,6 +70,9 @@ export const TOOL_MESSAGE_TYPES = {
   // Semantic similarity engine
   SIMILARITY_ENGINE_INIT: 'similarityEngineInit',
   SIMILARITY_ENGINE_COMPUTE_BATCH: 'similarityEngineComputeBatch',
+
+  // Bing Dictionary
+  BING_DICTIONARY_FETCH_TRANSLATION: 'bingDictionaryFetchTranslation',
 } as const;
 
 // Type unions for type safety

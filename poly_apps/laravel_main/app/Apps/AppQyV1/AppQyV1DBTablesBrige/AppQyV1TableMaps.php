@@ -205,13 +205,59 @@ class AppQyV1TableMaps
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
     }
     
-    public static function getDictionaryTableName(string $langCode): string
+    /**
+     * Get word table name for language code
+     * Uses sys:init table structure (app_qy_v1_words_*)
+     *
+     * @param string $langCode Language code (en, ja, ko, vi, lo)
+     * @return string Table name
+     */
+    public static function getWordTableName(string $langCode): string
     {
         $langCode = strtolower($langCode);
-        if (!in_array($langCode, self::SUPPORTED_LANGUAGES)) {
-            throw new \InvalidArgumentException("Language code '{$langCode}' is not supported");
+
+        $languageMapping = [
+            'en' => 'english',
+            'ja' => 'japanese',
+            'ko' => 'korean',
+            'vi' => 'vietnamese',
+            'lo' => 'lao',
+            'english' => 'english',
+            'japanese' => 'japanese',
+            'korean' => 'korean',
+            'vietnamese' => 'vietnamese',
+            'lao' => 'lao',
+        ];
+
+        if (!isset($languageMapping[$langCode])) {
+            throw new \InvalidArgumentException("Language code '{$langCode}' does not have word table");
         }
-        return "app_qy_v1_{$langCode}_dictionaries";
+
+        return "app_qy_v1_words_{$languageMapping[$langCode]}";
+    }
+
+    /**
+     * Get all available word tables
+     *
+     * @return array Array of [langCode => tableName]
+     */
+    public static function getAllWordTables(): array
+    {
+        return [
+            'en' => 'app_qy_v1_words_english',
+            'ja' => 'app_qy_v1_words_japanese',
+            'vi' => 'app_qy_v1_words_vietnamese',
+            'lo' => 'app_qy_v1_words_lao',
+        ];
+    }
+
+    /**
+     * Legacy method - redirects to getWordTableName
+     * @deprecated Use getWordTableName instead
+     */
+    public static function getDictionaryTableName(string $langCode): string
+    {
+        return self::getWordTableName($langCode);
     }
 
     /**

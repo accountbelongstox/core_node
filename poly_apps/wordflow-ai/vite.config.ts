@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 3000,
+        port: parseInt(process.env.PORT),
         host: '0.0.0.0',
       },
       plugins: [react()],

@@ -13,6 +13,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1UserInitializationController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -62,39 +63,8 @@ Route::prefix($apiVersionPrefix)->group(function () {
         });
 
         // User profile
-        Route::get('/profile', function () {
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'id' => auth()->id(),
-                    'displayName' => auth()->user()->display_name ?? 'User',
-                    'avatar' => auth()->user()->avatar,
-                    'studyLevel' => 'Beginner',
-                    'joinDate' => auth()->user()->created_at->toDateString()
-                ]
-            ]);
-        });
-
-        // Update profile
-        Route::put('/profile', function (\Illuminate\Http\Request $request) {
-            $request->validate([
-                'displayName' => 'string|max:255',
-                'avatar' => 'string|url|nullable'
-            ]);
-
-            $user = auth()->user();
-            if ($request->has('displayName')) {
-                $user->display_name = $request->input('displayName');
-            }
-            if ($request->has('avatar')) {
-                $user->avatar = $request->input('avatar');
-            }
-            $user->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Profile updated successfully'
-            ]);
-        });
+        Route::get('/profile', [AppQyV1ProfileController::class, 'getProfile']);
+        Route::put('/profile', [AppQyV1ProfileController::class, 'updateProfile']);
+        Route::post('/profile', [AppQyV1ProfileController::class, 'updateProfile']);
     });
 });

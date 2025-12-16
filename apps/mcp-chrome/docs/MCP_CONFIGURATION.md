@@ -233,7 +233,7 @@ Chrome MCP Server supports **two connection methods**:
   "path": "D:\\programing\\core_node\\apps\\mcp-chrome\\app\\native-server\\dist\\run_host.bat",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://hbdgbgagpkpjffpklnamcljpakneikee/"
+    "chrome-extension://lmngnnnghipjfcbbhpaknlnbjcbabblm/"
   ]
 }
 ```

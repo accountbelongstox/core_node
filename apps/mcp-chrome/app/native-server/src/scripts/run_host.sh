@@ -6,8 +6,23 @@ LOG_RETENTION_COUNT=5
 
 # Setup paths
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_DIR="${SCRIPT_DIR}/logs"
-mkdir -p "${LOG_DIR}"
+LOG_DIR="/var/_core_node/mcp_chrome/logs"
+
+# Create log directory with proper permissions
+if [ ! -d "${LOG_DIR}" ]; then
+    mkdir -p "${LOG_DIR}" 2>/dev/null || {
+        echo "ERROR: Cannot create log directory ${LOG_DIR}" >&2
+        exit 1
+    }
+fi
+
+# Ensure log directory is writable
+if [ ! -w "${LOG_DIR}" ]; then
+    chmod 777 "${LOG_DIR}" 2>/dev/null || {
+        echo "ERROR: Cannot write to log directory ${LOG_DIR}" >&2
+        exit 1
+    }
+fi
 
 # Log rotation
 if [ "${ENABLE_LOG_ROTATION}" = "true" ]; then
