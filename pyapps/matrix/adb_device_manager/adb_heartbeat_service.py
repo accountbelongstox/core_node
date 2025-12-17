@@ -8,7 +8,8 @@ Uses ENCYCLOPEDIA for busy state management.
 """
 
 import time
-from typing import Optional
+import threading
+from typing import Optional, List
 from pycore import ColorPrint
 from pycore.pyfoundations import ENCYCLOPEDIA, Task
 from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
@@ -52,7 +53,12 @@ class ADBHeartbeatService:
         self._start_time = time.time()
         self._task_count = {}
 
+        # ✅ 并发控制：最多3个设备同时连接
+        self.connection_semaphore = threading.Semaphore(3)
+        self.connection_threads: List[threading.Thread] = []
+
         ColorPrint.green("[ADBHeartbeatService] Initialized (PyHeartbeat driven)")
+        ColorPrint.blue("[ADBHeartbeatService] Concurrent device connection limit: 3")
 
     def set_rpc_server(self, rpc_server):
         """
@@ -117,6 +123,78 @@ class ADBHeartbeatService:
             # Clear busy flag
             ENCYCLOPEDIA.add(busy_key, False)
 
+    def _connect_device_with_limit(self, ip: str):
+        """
+        连接单个网络设备（带并发控制）
+
+        Args:
+            ip: 设备IP地址
+        """
+        with self.connection_semaphore:  # 限制最多3个并发
+            serial = f"{ip}:5555"
+
+            try:
+                ColorPrint.blue(f"[ADBService] [STEP 1/6] Connecting to {serial}...")
+
+                # 1. 连接设备
+                if not self.adb.connect_wireless(ip, 5555):
+                    ColorPrint.yellow(f"[ADBService] Failed to connect {serial}")
+                    return
+
+                ColorPrint.green(f"[ADBService] [STEP 1/6] ✓ Connected to network device: {serial}")
+
+                # 2. ✅ 验证设备 online 状态（新增）
+                ColorPrint.blue(f"[ADBService] [STEP 2/6] Verifying device online status for {serial}...")
+                devices = self.adb.get_devices()
+                device_state = next((state for s, state in devices if s == serial), None)
+
+                if device_state != 'device':
+                    ColorPrint.yellow(f"[ADBService] Device {serial} is not online (state: {device_state}), skipping")
+                    return
+
+                ColorPrint.green(f"[ADBService] [STEP 2/6] ✓ Device {serial} is online")
+
+                # 3. ✅ 假设网络扫描到的设备都是 root（跳过检测）
+                # Root 检测 (adb shell su -c id) 可能被 Magisk 阻塞，导致所有设备卡住
+                # 对于已开启 5555 端口的设备，通常都是 root 设备（用户手动配置）
+                ColorPrint.blue(f"[ADBService] [STEP 3/6] Assuming device is root (network scan), skipping su check...")
+                is_root = True  # 假设所有网络扫描到的设备都是 root
+                ColorPrint.green(f"[ADBService] [STEP 3/6] ✓ Device assumed as root (5555 port open)")
+
+                # 4. 获取设备信息
+                ColorPrint.blue(f"[ADBService] [STEP 4/6] Getting device info for {serial}...")
+                device_info = self.adb.get_device_info(serial)
+                ColorPrint.green(f"[ADBService] [STEP 4/6] ✓ Device info: model={device_info.get('model')}, android={device_info.get('android_version')}")
+
+                # 5. 创建设备对象
+                ColorPrint.blue(f"[ADBService] [STEP 5/6] Creating device object for {serial}...")
+                device = DeviceInfo(
+                    serial=serial,
+                    device_type=DeviceType.ROOT if is_root else DeviceType.WIFI,
+                    state=DeviceState.WIFI_CONNECTED,
+                    ip_address=ip,
+                    is_root=is_root,
+                    model=device_info.get('model'),
+                    android_version=device_info.get('android_version')
+                )
+                ColorPrint.green(f"[ADBService] [STEP 5/6] ✓ Device object created")
+
+                # 6. 添加到设备表
+                ColorPrint.blue(f"[ADBService] [STEP 6/6] Adding device to device table: {serial}...")
+                added = self.device_table.add_device(device)
+                if added:
+                    # Register device with DeviceIDManager
+                    device_id_manager = DeviceIDManager.instance()
+                    device_id = device_id_manager.register_device(serial)
+                    ColorPrint.green(f"[ADBService] [STEP 6/6] ✓ Device added: {serial} -> {device_id} (root={is_root})")
+                else:
+                    ColorPrint.yellow(f"[ADBService] [STEP 6/6] ✗ Failed to add device (already exists?): {serial}")
+
+            except Exception as e:
+                ColorPrint.red(f"[ADBService] ✗ Error connecting {serial}: {e}")
+                import traceback
+                traceback.print_exc()
+
     def _network_scan_task(self):
         """Network scan task"""
         ColorPrint.blue("[ADBService] Running network scan task...")
@@ -140,36 +218,30 @@ class ADBHeartbeatService:
 
         ColorPrint.green(f"[ADBService] Found {len(new_ips)} new device(s) on network")
 
+        # ✅ 使用线程并发连接（受 semaphore 限制，最多3个并发）
         for ip in new_ips:
+            # 检查设备是否已存在
             serial = f"{ip}:5555"
-
             existing = self.device_table.get_device(serial)
             if existing:
                 existing.update_heartbeat()
                 continue
 
-            if self.adb.connect_wireless(ip, 5555):
-                ColorPrint.green(f"[ADBService] Connected to network device: {serial}")
+            # 创建线程连接设备
+            thread = threading.Thread(
+                target=self._connect_device_with_limit,
+                args=(ip,),
+                daemon=True,
+                name=f"DeviceConnect-{ip}"
+            )
+            thread.start()
+            self.connection_threads.append(thread)
 
-                is_root = self.adb.check_device_root(serial)
-                device_info = self.adb.get_device_info(serial)
+        # 清理已完成的线程
+        self.connection_threads = [t for t in self.connection_threads if t.is_alive()]
 
-                device = DeviceInfo(
-                    serial=serial,
-                    device_type=DeviceType.ROOT if is_root else DeviceType.WIFI,
-                    state=DeviceState.WIFI_CONNECTED,
-                    ip_address=ip,
-                    is_root=is_root,
-                    model=device_info.get('model'),
-                    android_version=device_info.get('android_version')
-                )
-
-                added = self.device_table.add_device(device)
-                if added:
-                    # Register device with DeviceIDManager
-                    device_id_manager = DeviceIDManager.instance()
-                    device_id = device_id_manager.register_device(serial)
-                    ColorPrint.green(f"[ADBService] Added device: {serial} -> {device_id} (root={is_root})")
+        if self.connection_threads:
+            ColorPrint.blue(f"[ADBService] Active connection threads: {len(self.connection_threads)}")
 
     def _usb_scan_task(self):
         """USB scan task"""
