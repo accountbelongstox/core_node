@@ -259,27 +259,33 @@ class Commander:
     def exec_silent(
         command: Union[str, List],
         info: bool = False,
-        cwd: Optional[str] = None
+        cwd: Optional[str] = None,
+        **kwargs  # Accept additional subprocess-compatible arguments (e.g., capture_output, text, timeout)
     ) -> CommandResult:
         """
         Execute command silently (no output display) but still collect results
-        
+
         This method:
         - Does NOT display output in real-time
         - Still collects all output (stdout, stderr, combined)
         - Returns CommandResult with all collected data
-        
+
         Recommended: Use returned CommandResult.get_output() or str(result) for checking results
         instead of relying on return_code alone.
-        
+
         Args:
             command: Command to execute (string or list)
             info: Show command info message (default: False for silent mode)
             cwd: Working directory for command execution
-        
+            **kwargs: Additional arguments (e.g., capture_output, text, timeout) are accepted for
+                     compatibility with subprocess.run() but may be ignored since exec_silent
+                     already captures output by default
+
         Returns:
             CommandResult object with return_code, stdout, stderr, and combined output
         """
+        # Note: kwargs like capture_output, text are ignored since exec_silent already captures output
+        # timeout is also handled internally by subprocess operations
         return Commander.exec_realtime(command, info, cwd, show_output=False)
 
 
@@ -297,9 +303,20 @@ def exec_capture(command: Union[str, List], info: bool = True, cwd: Optional[str
     return Commander.exec_capture(command, info, cwd, show_output)
 
 
-def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str] = None) -> CommandResult:
-    """Execute command silently but still collect results"""
-    return Commander.exec_silent(command, info, cwd)
+def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str] = None, **kwargs) -> CommandResult:
+    """Execute command silently but still collect results
+
+    Args:
+        command: Command to execute (string or list)
+        info: Show command info message (default: False)
+        cwd: Working directory for command execution
+        **kwargs: Additional arguments (e.g., capture_output, text, timeout) are accepted for
+                 compatibility with subprocess.run() but may be ignored
+
+    Returns:
+        CommandResult object with all collected data
+    """
+    return Commander.exec_silent(command, info, cwd, **kwargs)
 
 
 def exec_check(command: Union[str, List], cwd: Optional[str] = None) -> str:

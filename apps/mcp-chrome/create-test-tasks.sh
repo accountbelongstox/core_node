@@ -52,10 +52,10 @@ while true; do
     if [ "$STATUS" = "true" ]; then
         TASK_ID=$(echo "$RESPONSE" | jq -r '.data.task_id' 2>/dev/null)
         WORD_COUNT=$(echo "$RESPONSE" | jq -r '.data.word_count' 2>/dev/null)
-        echo "  âœ“ Task created: $TASK_ID ($WORD_COUNT words)"
+        echo "  âœ?Task created: $TASK_ID ($WORD_COUNT words)"
     else
         MESSAGE=$(echo "$RESPONSE" | jq -r '.message' 2>/dev/null)
-        echo "  âœ— Failed: $MESSAGE"
+        echo "  âœ?Failed: $MESSAGE"
     fi
 
     echo ""
