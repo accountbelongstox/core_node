@@ -28,6 +28,8 @@ export const en = {
     password: 'Password',
     confirmPassword: 'Confirm Password',
     email: 'Email',
+    nickname: 'Nickname (optional)',
+    inviteCode: 'Invite Code (optional)',
     forgotPassword: 'Forgot Password?',
     rememberMe: 'Remember Me',
     loginSuccess: 'Login successful',
@@ -38,7 +40,7 @@ export const en = {
     invalidCredentials: 'Invalid username or password',
     usernameRequired: 'Username is required',
     passwordRequired: 'Password is required',
-    passwordTooShort: 'Password must be at least 6 characters',
+    passwordTooShort: 'Password is required', // [Deprecated] No minimum length - kept for compatibility
     passwordMismatch: 'Passwords do not match',
     usernameExists: 'Username already exists',
     emailExists: 'This email is already registered. Please use a different email or try logging in.',
@@ -57,6 +59,10 @@ export const en = {
     listening: 'Listening',
     profile: 'Profile',
     settings: 'Settings',
+    // Bottom Tab Navigation
+    practice: 'Practice',
+    tools: 'Tools',
+    mine: 'Mine',
   },
 
   home: {
@@ -278,7 +284,7 @@ export const en = {
     // Errors
     allFieldsRequired: 'All fields are required',
     passwordsNotMatch: 'New passwords do not match',
-    passwordTooShort: 'Password must be at least 6 characters',
+    passwordTooShort: 'Password is required', // [Deprecated] No minimum length - kept for compatibility
     selectImageFile: 'Please select an image file',
     imageTooLarge: 'Image size must be less than 5MB',
     uploadFailed: 'Upload failed',
@@ -362,6 +368,32 @@ export const en = {
     website: 'Website',
     twitter: 'Twitter',
     contactSupport: 'Contact Support',
+
+    // DataSync Page - i18n extension
+    autoSync: 'Auto Sync',
+    syncOnlyWifi: 'Sync only on Wi-Fi',
+    lastBackup: 'Last Backup',
+    storage: 'Storage',
+    usedStorage: 'Used Storage',
+    clearCache: 'Clear Cache',
+
+    // Notifications Page - i18n extension
+    reviewAlerts: 'Review Alerts',
+    achievementBadges: 'Achievement Badges',
+    newCourseAlerts: 'New Course Alerts',
+    reminderTime: 'Reminder Time',
+
+    // ApiServer Page - i18n extension
+    backendApiConfig: 'Backend API Configuration',
+    backendApiDescription: 'The app will automatically detect and connect to the first available API server based on priority. You can manually switch servers if needed.',
+    howItWorks: 'How It Works',
+    serversTestedInOrder: 'Servers are tested in priority order on startup',
+    firstWorkingSelected: 'First working server is automatically selected',
+    healthChecksRun: 'Health checks run periodically in the background',
+    manualSelectionPersists: 'Manual selection persists across app restarts',
+    healthChecksVerify: 'Health checks verify server availability via GET /api/health',
+    responseTimesMeasured: 'Response times are measured to help identify performance',
+    endpointSavedLocalStorage: 'Selected endpoint is saved to localStorage',
   },
 
   words: {

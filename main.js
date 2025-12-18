@@ -176,10 +176,12 @@ class Main {
                 process.exit(1);
             }
 
-            // Search and launch executable files in app directory using explorer
+            // Search and launch executable files in app directory using launcher
             // This allows parallel startup of other apps/projects without blocking main process
             this.logger.info(`Searching for executable files in app directory: ${this.appdir}`);
-            await this.explorer.searchAndLaunchAppExecutables(this.appdir, this.appname);
+            const { getAppExecutableLauncher } = require('#@ncore/launcher');
+            const executableLauncher = getAppExecutableLauncher();
+            await executableLauncher.searchAndLaunchAppExecutables(this.appdir, this.appname);
 
             // Continue with normal app/main.js startup logic
             const appentryLoaded = require(this.appentry);

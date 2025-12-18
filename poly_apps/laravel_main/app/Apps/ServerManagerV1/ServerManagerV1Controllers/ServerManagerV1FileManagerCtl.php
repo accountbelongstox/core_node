@@ -20,45 +20,71 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         if ($validation) {
             return $validation;
         }
-        
-        try {
-            $path = $request->input('path', '/');
-            $path = ServerManagerV1Utils::sanitizePath($path);
-            
-            // Security check: validate path is allowed
-            if (!ServerManagerV1Utils::isPathAllowed($path)) {
-                ServerManagerV1Utils::logFileAccess('browse', $path, false, 'Path not in whitelist');
-                return $this->errorResponse(
-                    'Access denied. Path not in allowed whitelist.',
-                    ServerManagerV1Constants::RESPONSE_FORBIDDEN
-                );
+
+        // Get allowed paths
+        $allowedPaths = ServerManagerV1Constants::getAllowedDownloadPaths();
+
+        // Find first existing allowed path as default
+        $defaultPath = '/www/programing/core_node';  // Fallback
+        foreach ($allowedPaths as $allowedPath) {
+            if (is_dir($allowedPath) && file_exists($allowedPath)) {
+                $defaultPath = $allowedPath;
+                break;
             }
-            
-            if (!is_dir($path)) {
-                ServerManagerV1Utils::logFileAccess('browse', $path, false, 'Path is not a directory');
-                return $this->errorResponse(
-                    'Path is not a directory or does not exist.',
-                    ServerManagerV1Constants::RESPONSE_NOT_FOUND
-                );
-            }
-            
-            $items = ServerManagerV1Utils::getDirectoryListing($path);
-            
-            // Log successful access
-            ServerManagerV1Utils::logFileAccess('browse', $path, true);
-            
-            return $this->successResponse([
-                'path' => $path,
-                'items' => $items,
-                'total_items' => count($items),
-                'allowed_paths' => ServerManagerV1Constants::getAllowedDownloadPaths()
-            ], 'Directory listing retrieved successfully');
-            
-        } catch (\Exception $e) {
-            return $this->handleException($e, 'file_browse');
         }
+
+        $path = $request->input('path', $defaultPath);
+        $path = ServerManagerV1Utils::sanitizePath($path);
+
+        // Resolve real path for security check
+        $realPath = realpath($path);
+        if ($realPath === false) {
+            ServerManagerV1Utils::logFileAccess('browse', $path, false, 'Path does not exist or cannot be resolved');
+            return $this->errorResponse(
+                'Path does not exist or cannot be resolved.',
+                ServerManagerV1Constants::RESPONSE_NOT_FOUND,
+                [
+                    'path' => $path,
+                    'allowed_paths' => $allowedPaths
+                ]
+            );
+        }
+
+        // Security check: validate path is allowed
+        if (!ServerManagerV1Utils::isPathAllowed($realPath)) {
+            ServerManagerV1Utils::logFileAccess('browse', $realPath, false, 'Path not in whitelist');
+            return $this->errorResponse(
+                'Access denied. Path not in allowed whitelist.',
+                ServerManagerV1Constants::RESPONSE_FORBIDDEN,
+                [
+                    'path' => $realPath,
+                    'allowed_paths' => $allowedPaths
+                ]
+            );
+        }
+
+        if (!is_dir($realPath)) {
+            ServerManagerV1Utils::logFileAccess('browse', $realPath, false, 'Path is not a directory');
+            return $this->errorResponse(
+                'Path is not a directory.',
+                ServerManagerV1Constants::RESPONSE_NOT_FOUND,
+                ['path' => $realPath]
+            );
+        }
+
+        $items = ServerManagerV1Utils::getDirectoryListing($realPath);
+
+        // Log successful access
+        ServerManagerV1Utils::logFileAccess('browse', $realPath, true);
+
+        return $this->successResponse([
+            'path' => $realPath,
+            'items' => $items,
+            'total_items' => count($items),
+            'allowed_paths' => $allowedPaths
+        ], 'Directory listing retrieved successfully');
     }
-    
+
     /**
      * Download files from server with security restrictions
      */

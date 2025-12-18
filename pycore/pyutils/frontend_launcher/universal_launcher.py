@@ -11,20 +11,26 @@ Features:
 - Output-based success detection (no exit code reliance)
 - Smart build detection in production mode
 - Relative path resolution
+
+THREAD_BUS Integration:
+- Checks is_shutdown_requested() in wait loops
+- Registers shutdown handler for static server if started
+- No persistent service threads (utility class)
+- Backwards compatible: keeps existing functionality
 """
 
 import os
 import re
 import socket
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.color_print import ColorPrint
 import threading
 import time
 from dataclasses import dataclass
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List, Optional, Tuple
-
-from pycore.pyfoundations.color_print import ColorPrint
 import subprocess
 
 
@@ -162,7 +168,12 @@ class UniversalFrontendLauncher:
         return output_exists and static_exists
 
     def start_static_server(self, port: int, host: str = "0.0.0.0") -> bool:
-        """Serve built static files via built-in HTTP server."""
+        """
+        Serve built static files via built-in HTTP server.
+
+        THREAD_BUS Integration:
+        - Registers shutdown handler to stop static server gracefully
+        """
         if not self.config.static_dir.exists():
             ColorPrint.red(f"[UniversalFrontend] Cannot start static server, static_dir missing: {self.config.static_dir}")
             return False
@@ -172,6 +183,16 @@ class UniversalFrontendLauncher:
         thread = threading.Thread(target=server.serve_forever, name="UniversalFrontendStaticServer", daemon=True)
         thread.start()
         self._static_http_thread = thread
+
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=60 for auxiliary services (stops before main services)
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=60,
+            name=f"universal_frontend_static_{self.config.app_name}"
+        )
+        ColorPrint.blue(f"[UniversalFrontend] Registered THREAD_BUS shutdown handler (priority=60)")
+
         ColorPrint.green(f"[UniversalFrontend] Static server running at http://{host}:{port}")
         return True
 
@@ -239,11 +260,22 @@ class UniversalFrontendLauncher:
         return env
 
     def _wait_for_http_ready(self) -> bool:
+        """
+        Wait for HTTP server to become ready
+
+        THREAD_BUS Integration:
+        - Checks is_shutdown_requested() to exit early during shutdown
+        """
         deadline = time.time() + self.config.health_check_timeout
         path = self.config.health_path or "/"
         host = self.config.host
         port = self.config.port
         while time.time() < deadline:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[UniversalFrontend] THREAD_BUS shutdown detected, stopping health check...")
+                return False
+
             if self._http_ok(host, port, path):
                 ColorPrint.green(f"[UniversalFrontend] Frontend ready at http://{host}:{port}{path}")
                 return True

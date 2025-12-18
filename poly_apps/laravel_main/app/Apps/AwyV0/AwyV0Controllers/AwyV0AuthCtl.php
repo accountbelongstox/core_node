@@ -37,7 +37,8 @@ class AwyV0AuthCtl extends Controller
         $validator = Validator::make($request->all(), [
             'username' => 'required|string|unique:users',
             'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:6',
+            // [Removed] Password 'min:6' validation removed - no minimum requirement
+            'password' => 'required|string',
             'name' => 'string|nullable'
         ]);
 
@@ -287,7 +288,8 @@ class AwyV0AuthCtl extends Controller
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'token' => 'required|string',
-            'password' => 'required|string|min:6'
+            // [Removed] Password 'min:6' validation removed - no minimum requirement
+            'password' => 'required|string'
         ]);
 
         if ($validator->fails()) {

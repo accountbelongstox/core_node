@@ -107,6 +107,15 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'command' => 'bash ' . \App\Providers\PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/unified_manager/deploy_apps.sh --list',
                 'timeout' => 30,
                 'requires_sudo' => false
+            ],
+            11 => [
+                'id' => 11,
+                'name' => 'Restart Laravel Octane Server',
+                'category' => 'system_maintenance',
+                'description' => 'Restart the octane-poly-9000 Octane service to reload code changes',
+                'command' => 'systemctl restart octane-poly-9000',
+                'timeout' => 30,
+                'requires_sudo' => false
             ]
         ];
     }

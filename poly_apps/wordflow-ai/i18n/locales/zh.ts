@@ -30,6 +30,8 @@ export const zh: TranslationKey = {
     password: '密码',
     confirmPassword: '确认密码',
     email: '邮箱',
+    nickname: '昵称（可选）',
+    inviteCode: '邀请码（可选）',
     forgotPassword: '忘记密码？',
     rememberMe: '记住我',
     loginSuccess: '登录成功',
@@ -40,7 +42,7 @@ export const zh: TranslationKey = {
     invalidCredentials: '用户名或密码错误',
     usernameRequired: '请输入用户名',
     passwordRequired: '请输入密码',
-    passwordTooShort: '密码至少需要6个字符',
+    passwordTooShort: '请输入密码', // [已弃用] 无最小长度限制 - 保留以兼容
     passwordMismatch: '两次输入的密码不一致',
     usernameExists: '用户名已存在',
     emailExists: '该邮箱已被注册，请使用其他邮箱或尝试登录。',
@@ -59,6 +61,10 @@ export const zh: TranslationKey = {
     listening: '听力',
     profile: '个人',
     settings: '设置',
+    // Bottom Tab Navigation
+    practice: '练习',
+    tools: '工具',
+    mine: '我的',
   },
 
   home: {
@@ -280,7 +286,7 @@ export const zh: TranslationKey = {
     // Errors
     allFieldsRequired: '所有字段都是必填的',
     passwordsNotMatch: '两次输入的新密码不一致',
-    passwordTooShort: '密码至少需要6个字符',
+    passwordTooShort: '请输入密码', // [已弃用] 无最小长度限制 - 保留以兼容
     selectImageFile: '请选择图片文件',
     imageTooLarge: '图片大小不能超过 5MB',
     uploadFailed: '上传失败',
@@ -364,6 +370,32 @@ export const zh: TranslationKey = {
     website: '官方网站',
     twitter: '推特',
     contactSupport: '联系客服',
+
+    // DataSync Page - i18n extension
+    autoSync: '自动同步',
+    syncOnlyWifi: '仅在Wi-Fi下同步',
+    lastBackup: '上次备份',
+    storage: '存储空间',
+    usedStorage: '已使用空间',
+    clearCache: '清除缓存',
+
+    // Notifications Page - i18n extension
+    reviewAlerts: '复习提醒',
+    achievementBadges: '成就徽章',
+    newCourseAlerts: '新课程提醒',
+    reminderTime: '提醒时间',
+
+    // ApiServer Page - i18n extension
+    backendApiConfig: '后端API配置',
+    backendApiDescription: '应用将根据优先级自动检测并连接到第一个可用的API服务器。如有需要，您可以手动切换服务器。',
+    howItWorks: '工作原理',
+    serversTestedInOrder: '启动时按优先级顺序测试服务器',
+    firstWorkingSelected: '自动选择第一个正常工作的服务器',
+    healthChecksRun: '定期在后台运行健康检查',
+    manualSelectionPersists: '手动选择的服务器在应用重启后保持',
+    healthChecksVerify: '健康检查通过 GET /api/health 验证服务器可用性',
+    responseTimesMeasured: '测量响应时间以帮助识别性能',
+    endpointSavedLocalStorage: '选定的端点保存到 localStorage',
   },
 
   words: {
@@ -399,6 +431,20 @@ export const zh: TranslationKey = {
     studyTime: '学习时间',
     accuracy: '准确率',
     retention: '记忆率',
+  },
+
+  // Social Pages - i18n extension
+  social: {
+    friends: '好友',
+    add: '+ 添加',
+    activeNow: '在线好友',
+    activityFeed: '动态',
+    inviteFriends: '邀请好友',
+    getProFree: '免费获得1个月Pro会员！',
+    community: '社区',
+    rank: '排行',
+    badges: '徽章',
+    unlocked: '已解锁',
   },
 
   header: {

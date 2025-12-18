@@ -114,7 +114,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Write configuration file
             if (file_put_contents($configFile, $nginxConfig) === false) {
-                return $this->errorResponse("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -176,7 +176,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if ($content === false) {
                 return $this->errorResponse(
                     "Failed to read site configuration: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             
@@ -229,12 +229,12 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             // Backup current configuration
             $backupFile = $nginxPaths['backup_path'] . '/' . $siteName . '_' . date('Y-m-d_H-i-s') . '.backup';
             if (!copy($configFile, $backupFile)) {
-                return $this->errorResponse("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Write new configuration
             if (file_put_contents($configFile, $siteConfig) === false) {
-                return $this->errorResponse("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -297,7 +297,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Delete configuration file
             if (!unlink($configFile)) {
-                return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             Log::info('ServerManagerV1: Nginx site deleted', [
@@ -365,7 +365,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!symlink($availableFile, $enabledFile)) {
                 return $this->errorResponse(
                     "Failed to enable site: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             
@@ -427,7 +427,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!unlink($enabledFile)) {
                 return $this->errorResponse(
                     "Failed to disable site: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             

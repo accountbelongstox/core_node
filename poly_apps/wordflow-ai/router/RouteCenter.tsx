@@ -7,6 +7,8 @@ import React from 'react';
 
 // Pages - Auth
 import LoginPage from '../pages/Auth/Login';
+import ForgotPasswordPage from '../pages/Auth/ForgotPassword';
+import ResetPasswordPage from '../pages/Auth/ResetPassword';
 
 // Pages - Dashboard
 import DashboardPage from '../pages/Dashboard/Home';
@@ -37,6 +39,7 @@ import ApiServerSettings from '../pages/Settings/ApiServer';
 import CoursesPage from '../pages/Library/Courses';
 import CourseDetailPage from '../pages/Library/CourseDetail';
 import WordDetailPage from '../pages/Library/WordDetail';
+import RecommendationsPage from '../pages/Library/Recommendations';
 
 // Pages - Documents
 import UploadPage from '../pages/Documents/Upload';
@@ -64,6 +67,28 @@ import PlaylistConfigPage from '../pages/Learning/PlaylistConfig';
 // Pages - History
 import HistoryPage from '../pages/Stats/History';
 
+// Pages - Tools
+import ToolsHubPage from '../pages/Tools/Index';
+import ToolsDictionaryPage from '../pages/Tools/Dictionary';
+import ToolsAIAssistantPage from '../pages/Tools/AIAssistant';
+import ToolsAnalyticsPage from '../pages/Tools/Analytics';
+import PersonalDictionaryPage from '../pages/Tools/PersonalDictionary';
+import VocabularyBrowserPage from '../pages/Tools/VocabularyBrowser';
+import TranslationToolsPage from '../pages/Tools/TranslationTools';
+import TTSToolsPage from '../pages/Tools/TTSTools';
+import ArticleProcessorPage from '../pages/Tools/ArticleProcessor';
+
+// Pages - Learn Module (New Design)
+import LearnHomePage from '../pages/Learn/Home';
+import LearnLibraryPage from '../pages/Learn/Library';
+import LearnPracticePage from '../pages/Learn/Practice';
+import LearnReviewPage from '../pages/Learn/Review';
+
+// Pages - Mine Module (New Design)
+import MineIndexPage from '../pages/Mine/Index';
+import MineProgressPage from '../pages/Mine/Progress';
+import MineSocialPage from '../pages/Mine/Social';
+
 /**
  * Route Configuration Interface
  */
@@ -89,27 +114,101 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     category: 'auth',
     isProtected: false,
   },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+    name: 'Forgot Password',
+    category: 'auth',
+    isProtected: false,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
+    name: 'Reset Password',
+    category: 'auth',
+    isProtected: false,
+  },
 
   // Dashboard Routes
   {
     path: '/',
     element: <DashboardPage />,
-    name: 'Dashboard',
+    name: 'Home Dashboard',
     category: 'dashboard',
-    isProtected: true,
+    isProtected: false,
   },
   {
     path: '/home',
     element: <DashboardPage />,
     name: 'Home',
     category: 'dashboard',
-    isProtected: true,
+    isProtected: false,
+  },
+  {
+    path: '/dashboard',
+    element: <DashboardPage />,
+    name: 'Dashboard',
+    category: 'dashboard',
+    isProtected: false,
   },
   {
     path: '/stats',
     element: <StatsPage />,
     name: 'Stats',
     category: 'dashboard',
+    isProtected: true,
+  },
+
+  // Learn Module Routes (New Design)
+  {
+    path: '/learn/home',
+    element: <LearnHomePage />,
+    name: 'Learn Home',
+    category: 'learn',
+    isProtected: false,
+  },
+  {
+    path: '/learn/library',
+    element: <LearnLibraryPage />,
+    name: 'Learn Library',
+    category: 'learn',
+    isProtected: false,
+  },
+  {
+    path: '/learn/practice',
+    element: <LearnPracticePage />,
+    name: 'Learn Practice',
+    category: 'learn',
+    isProtected: false,
+  },
+  {
+    path: '/learn/review',
+    element: <LearnReviewPage />,
+    name: 'Learn Review',
+    category: 'learn',
+    isProtected: true,
+  },
+
+  // Mine Module Routes (New Design)
+  {
+    path: '/mine',
+    element: <MineIndexPage />,
+    name: 'Mine Center',
+    category: 'mine',
+    isProtected: false,
+  },
+  {
+    path: '/mine/progress',
+    element: <MineProgressPage />,
+    name: 'Learning Progress',
+    category: 'mine',
+    isProtected: true,
+  },
+  {
+    path: '/mine/social',
+    element: <MineSocialPage />,
+    name: 'Social Center',
+    category: 'mine',
     isProtected: true,
   },
 
@@ -237,6 +336,13 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     isProtected: true,
   },
   {
+    path: '/recommendations',
+    element: <RecommendationsPage />,
+    name: 'Recommendations',
+    category: 'library',
+    isProtected: true,
+  },
+  {
     path: '/course_detail',
     element: <CourseDetailPage />,
     name: 'Course Detail',
@@ -336,6 +442,71 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     element: <HistoryPage />,
     name: 'History',
     category: 'stats',
+    isProtected: true,
+  },
+
+  // Tools Routes
+  {
+    path: '/tools',
+    element: <ToolsHubPage />,
+    name: 'Tools Hub',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/dictionary',
+    element: <ToolsDictionaryPage />,
+    name: 'Smart Dictionary',
+    category: 'tools',
+    isProtected: false,
+  },
+  {
+    path: '/tools/ai-assistant',
+    element: <ToolsAIAssistantPage />,
+    name: 'AI Assistant',
+    category: 'tools',
+    isProtected: false,
+  },
+  {
+    path: '/tools/analytics',
+    element: <ToolsAnalyticsPage />,
+    name: 'Learning Analytics',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/personal-dictionary',
+    element: <PersonalDictionaryPage />,
+    name: 'Personal Dictionary',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/vocabulary-browser',
+    element: <VocabularyBrowserPage />,
+    name: 'Vocabulary Browser',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/translation',
+    element: <TranslationToolsPage />,
+    name: 'Translation Tools',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/tts',
+    element: <TTSToolsPage />,
+    name: 'TTS Tools',
+    category: 'tools',
+    isProtected: true,
+  },
+  {
+    path: '/tools/article-processor',
+    element: <ArticleProcessorPage />,
+    name: 'Article Processor',
+    category: 'tools',
     isProtected: true,
   },
 ];

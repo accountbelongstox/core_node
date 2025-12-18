@@ -1,11 +1,10 @@
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons, Button } from '../../components/UI';
+import { Card, Icons, Button } from '../../components/UI';
 import { ApiCenter } from '../../services/ApiCenter';
 
 /**
- * Profile Edit Page
- * Full editing interface for user profile
+ * Profile Edit Page - Unified Design System
  */
 
 // Password Change Modal
@@ -31,10 +30,6 @@ const PasswordChangeModal: React.FC<PasswordModalProps> = ({ isOpen, onClose, on
     }
     if (newPassword !== confirmPassword) {
       setError(t('profile.passwordsNotMatch'));
-      return;
-    }
-    if (newPassword.length < 6) {
-      setError(t('profile.passwordTooShort'));
       return;
     }
     onConfirm(oldPassword, newPassword);
@@ -114,42 +109,72 @@ const PasswordChangeModal: React.FC<PasswordModalProps> = ({ isOpen, onClose, on
   );
 };
 
-// Confirmation Dialog Component
-interface ConfirmDialogProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  confirmText: string;
-  cancelText: string;
+// Form Input Component
+interface FormInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  disabled?: boolean;
+  rows?: number;
+  maxLength?: number;
 }
 
-const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
-  isOpen,
-  title,
-  message,
-  onConfirm,
-  onCancel,
-  confirmText,
-  cancelText,
+const FormInput: React.FC<FormInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  disabled = false,
+  rows,
+  maxLength,
 }) => {
-  if (!isOpen) return null;
+  const isTextarea = rows !== undefined;
+  const currentLength = value.length;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{title}</h3>
-        <p className="text-slate-600 dark:text-slate-400 mb-6">{message}</p>
-        <div className="flex gap-3">
-          <Button variant="secondary" onClick={onCancel} className="flex-1">
-            {cancelText}
-          </Button>
-          <Button onClick={onConfirm} className="flex-1">
-            {confirmText}
-          </Button>
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          {label}
+        </label>
+        {maxLength && (
+          <span className="text-xs text-slate-400">
+            {currentLength} / {maxLength}
+          </span>
+        )}
       </div>
+      {isTextarea ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={rows}
+          maxLength={maxLength}
+          disabled={disabled}
+          className={`w-full p-3 rounded-xl border transition-all resize-none ${
+            disabled
+              ? 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 cursor-not-allowed text-slate-400'
+              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white'
+          } outline-none`}
+          placeholder={placeholder}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={maxLength}
+          disabled={disabled}
+          className={`w-full p-3 rounded-xl border transition-all ${
+            disabled
+              ? 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 cursor-not-allowed text-slate-400'
+              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white'
+          } outline-none`}
+          placeholder={placeholder}
+        />
+      )}
     </div>
   );
 };
@@ -182,12 +207,12 @@ const ProfileEditPage = () => {
   });
 
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || user?.avatar || '');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -220,43 +245,39 @@ const ProfileEditPage = () => {
     };
     reader.readAsDataURL(file);
 
-    // Upload avatar immediately
+    // Upload avatar with progress
     setLoading(true);
     setError('');
+    setUploadProgress(10);
+
+    // Simulate progress (since we don't have real progress from API)
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => Math.min(prev + 10, 90));
+    }, 200);
 
     const avatarResponse = await ApiCenter.user.updateAvatar(file);
+    clearInterval(progressInterval);
+    setUploadProgress(100);
 
     if (avatarResponse.success && avatarResponse.data?.avatar_url) {
       const updatedUser = { ...user, avatar_url: avatarResponse.data.avatar_url };
       setUser(updatedUser as any);
       setAvatarPreview(avatarResponse.data.avatar_url);
       setSuccess(t('profile.avatarUploadedSuccess'));
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => {
+        setSuccess('');
+        setUploadProgress(0);
+      }, 2000);
     } else {
       setError(avatarResponse.error?.message || t('profile.uploadFailed'));
       setAvatarPreview(user?.avatar_url || user?.avatar || '');
-      setTimeout(() => setError(''), 3000);
+      setTimeout(() => {
+        setError('');
+        setUploadProgress(0);
+      }, 3000);
     }
 
     setLoading(false);
-  };
-
-  const handleEmailBlur = (value: string) => {
-    if (value !== user?.email) {
-      setPendingEmail(value);
-      setShowEmailConfirm(true);
-    }
-  };
-
-  const confirmEmailChange = () => {
-    handleInputChange('email', pendingEmail);
-    setShowEmailConfirm(false);
-  };
-
-  const cancelEmailChange = () => {
-    handleInputChange('email', user?.email || '');
-    setShowEmailConfirm(false);
-    setPendingEmail('');
   };
 
   const handlePasswordChange = async (oldPassword: string, newPassword: string) => {
@@ -281,7 +302,7 @@ const ProfileEditPage = () => {
   };
 
   const handleSave = async () => {
-    setLoading(true);
+    setSaving(true);
     setError('');
     setSuccess('');
 
@@ -296,420 +317,391 @@ const ProfileEditPage = () => {
       }, 1500);
     } else {
       setError(response.error?.message || t('profile.updateFailed'));
+      setTimeout(() => setError(''), 5000);
     }
 
-    setLoading(false);
+    setSaving(false);
   };
 
   return (
-    <div className="h-full flex flex-col animate-slide-up">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="px-6 pt-12 pb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+        <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => navigate('profile')}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             <Icons.Back />
           </button>
-          <h1 className="text-2xl font-bold dark:text-white">{t('profile.editProfile')}</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+            {t('profile.editProfile')}
+          </h1>
         </div>
+        <p className="text-slate-600 dark:text-slate-400">
+          Update your profile information
+        </p>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 pb-32">
-        {/* Avatar Section */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative group">
-            <img
-              src={avatarPreview}
-              alt="Avatar"
-              className="w-28 h-28 rounded-full border-4 border-white dark:border-slate-800 shadow-xl object-cover"
-            />
-            <button
-              onClick={handleAvatarClick}
-              disabled={loading}
-              className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-            >
-              <Icons.Settings className="text-white w-8 h-8" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarChange}
-              className="hidden"
-            />
+      <div className="max-w-md mx-auto px-6 space-y-6">
+        {/* Avatar Upload Card */}
+        <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none shadow-xl">
+          <div className="flex flex-col items-center">
+            <div className="relative group mb-4">
+              <div className="w-28 h-28 rounded-full border-4 border-white/30 overflow-hidden">
+                <img
+                  src={avatarPreview}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <button
+                onClick={handleAvatarClick}
+                disabled={loading}
+                className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+              >
+                <Icons.Edit className="w-6 h-6 text-white mb-1" />
+                <span className="text-xs text-white">Upload</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+            </div>
+
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="w-full">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-blue-100">Uploading...</span>
+                  <span className="text-sm text-blue-100">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-2">
+                  <div
+                    className="bg-white h-2 rounded-full transition-all"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {!loading && (
+              <p className="text-sm text-blue-100 text-center">
+                Click avatar to upload<br />
+                <span className="text-xs opacity-75">Max 5MB • JPG, PNG, GIF</span>
+              </p>
+            )}
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">{t('profile.clickToChange')}</p>
-        </div>
+        </Card>
 
         {/* Status Messages */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl animate-fade-in">
-            {error}
-          </div>
+          <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+            </div>
+          </Card>
         )}
+
         {success && (
-          <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl animate-fade-in">
-            {success}
-          </div>
-        )}
-        {loading && (
-          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl animate-fade-in">
-            {t('profile.processing')}
-          </div>
+          <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-green-600 dark:text-green-400 text-sm">{success}</p>
+            </div>
+          </Card>
         )}
 
-        {/* Form Fields */}
-        <div className="space-y-6">
-          {/* Basic Information */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.basicInfo')}</h2>
+        {/* Basic Information */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.basicInfo')}
+          </h2>
 
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <div className="space-y-4">
-              {/* Username (readonly) */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.usernameReadonly')}
-                </label>
-                <input
-                  type="text"
-                  value={user?.username}
-                  readOnly
-                  disabled
-                  className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 outline-none dark:text-slate-400 cursor-not-allowed"
-                />
-              </div>
+              <FormInput
+                label={t('profile.usernameReadonly')}
+                value={user?.username || ''}
+                onChange={() => {}}
+                disabled={true}
+              />
 
-              {/* Nickname */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.nickname')}
-                </label>
-                <input
-                  type="text"
-                  value={formData.nickname}
-                  onChange={(e) => handleInputChange('nickname', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                  placeholder={t('profile.enterNickname')}
-                />
-              </div>
+              <FormInput
+                label={t('profile.nickname')}
+                value={formData.nickname}
+                onChange={(val) => handleInputChange('nickname', val)}
+                placeholder={t('profile.enterNickname')}
+                maxLength={20}
+              />
 
-              {/* Display Name */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.displayName')}
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                  placeholder={t('profile.enterName')}
-                />
-              </div>
+              <FormInput
+                label={t('profile.displayName')}
+                value={formData.name}
+                onChange={(val) => handleInputChange('name', val)}
+                placeholder={t('profile.enterName')}
+                maxLength={50}
+              />
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.emailModifyConfirm')}
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onBlur={(e) => handleEmailBlur(e.target.value)}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                  placeholder={t('profile.enterEmail')}
-                />
-              </div>
+              <FormInput
+                label={t('profile.email')}
+                value={formData.email}
+                onChange={(val) => handleInputChange('email', val)}
+                placeholder={t('profile.enterEmail')}
+                type="email"
+              />
 
-              {/* Bio */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.bio')}
-                </label>
-                <textarea
-                  value={formData.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  rows={3}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white resize-none"
-                  placeholder={t('profile.aboutYourself')}
-                />
-              </div>
+              <FormInput
+                label={t('profile.bio')}
+                value={formData.bio}
+                onChange={(val) => handleInputChange('bio', val)}
+                placeholder={t('profile.aboutYourself')}
+                rows={3}
+                maxLength={200}
+              />
             </div>
-          </div>
+          </Card>
+        </div>
 
-          {/* Personal Details */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.personalInfo')}</h2>
+        {/* Personal Details */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.personalInfo')}
+          </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.phone')}
-                </label>
-                <input
-                  type="tel"
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label={t('profile.phone')}
                   value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('phone', val)}
                   placeholder={t('profile.phoneNumber')}
+                  type="tel"
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.age')}
-                </label>
-                <input
-                  type="number"
+                <FormInput
+                  label={t('profile.age')}
                   value={formData.age}
-                  onChange={(e) => handleInputChange('age', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('age', val)}
                   placeholder={t('profile.yourAge')}
+                  type="number"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.gender')}
-                </label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => handleInputChange('gender', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                >
-                  <option value="">{t('profile.selectGender')}</option>
-                  <option value="male">{t('profile.male')}</option>
-                  <option value="female">{t('profile.female')}</option>
-                  <option value="other">{t('profile.other')}</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    {t('profile.gender')}
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => handleInputChange('gender', e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none dark:text-white"
+                  >
+                    <option value="">{t('profile.selectGender')}</option>
+                    <option value="male">{t('profile.male')}</option>
+                    <option value="female">{t('profile.female')}</option>
+                    <option value="other">{t('profile.other')}</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.birthday')}
-                </label>
-                <input
-                  type="date"
+                <FormInput
+                  label={t('profile.birthday')}
                   value={formData.birthday}
-                  onChange={(e) => handleInputChange('birthday', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('birthday', val)}
+                  type="date"
                 />
               </div>
             </div>
-          </div>
+          </Card>
+        </div>
 
-          {/* Location & Work */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.locationWork')}</h2>
+        {/* Location & Work */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.locationWork')}
+          </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.location')}
-                </label>
-                <input
-                  type="text"
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label={t('profile.location')}
                   value={formData.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('location', val)}
                   placeholder={t('profile.countryRegion')}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.city')}
-                </label>
-                <input
-                  type="text"
+                <FormInput
+                  label={t('profile.city')}
                   value={formData.city}
-                  onChange={(e) => handleInputChange('city', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('city', val)}
                   placeholder={t('profile.yourCity')}
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.education')}
-                </label>
-                <input
-                  type="text"
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label={t('profile.education')}
                   value={formData.education}
-                  onChange={(e) => handleInputChange('education', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('education', val)}
                   placeholder={t('profile.educationLevel')}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.occupation')}
-                </label>
-                <input
-                  type="text"
+                <FormInput
+                  label={t('profile.occupation')}
                   value={formData.occupation}
-                  onChange={(e) => handleInputChange('occupation', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('occupation', val)}
                   placeholder={t('profile.yourOccupation')}
                 />
               </div>
             </div>
-          </div>
+          </Card>
+        </div>
 
-          {/* Language & Culture */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.languageCulture')}</h2>
+        {/* Language & Culture */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.languageCulture')}
+          </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.nativeLanguage')}
-                </label>
-                <input
-                  type="text"
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label={t('profile.nativeLanguage')}
                   value={formData.native_language}
-                  onChange={(e) => handleInputChange('native_language', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('native_language', val)}
                   placeholder={t('profile.yourNativeLanguage')}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.religion')}
-                </label>
-                <input
-                  type="text"
+                <FormInput
+                  label={t('profile.religion')}
                   value={formData.religion}
-                  onChange={(e) => handleInputChange('religion', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
+                  onChange={(val) => handleInputChange('religion', val)}
                   placeholder={t('profile.religionOptional')}
                 />
               </div>
             </div>
-          </div>
+          </Card>
+        </div>
 
-          {/* Social Links */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.socialLinks')}</h2>
+        {/* Social Links */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.socialLinks')}
+          </h2>
 
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.website')}
-                </label>
-                <input
-                  type="url"
-                  value={formData.website}
-                  onChange={(e) => handleInputChange('website', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                  placeholder={t('profile.yourWebsite')}
+              <FormInput
+                label={t('profile.website')}
+                value={formData.website}
+                onChange={(val) => handleInputChange('website', val)}
+                placeholder={t('profile.yourWebsite')}
+                type="url"
+              />
+
+              <FormInput
+                label={t('profile.github')}
+                value={formData.github}
+                onChange={(val) => handleInputChange('github', val)}
+                placeholder={t('profile.githubUsername')}
+              />
+
+              <div className="grid grid-cols-3 gap-3">
+                <FormInput
+                  label={t('profile.wechat')}
+                  value={formData.wechat}
+                  onChange={(val) => handleInputChange('wechat', val)}
+                  placeholder={t('profile.wechatId')}
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('profile.github')}
-                </label>
-                <input
-                  type="text"
-                  value={formData.github}
-                  onChange={(e) => handleInputChange('github', e.target.value)}
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                  placeholder={t('profile.githubUsername')}
+                <FormInput
+                  label={t('profile.weibo')}
+                  value={formData.weibo}
+                  onChange={(val) => handleInputChange('weibo', val)}
+                  placeholder={t('profile.weiboHandle')}
                 />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t('profile.wechat')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.wechat}
-                    onChange={(e) => handleInputChange('wechat', e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                    placeholder={t('profile.wechatId')}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t('profile.weibo')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.weibo}
-                    onChange={(e) => handleInputChange('weibo', e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                    placeholder={t('profile.weiboHandle')}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t('profile.qq')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.qq}
-                    onChange={(e) => handleInputChange('qq', e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-                    placeholder={t('profile.qqNumber')}
-                  />
-                </div>
+                <FormInput
+                  label={t('profile.qq')}
+                  value={formData.qq}
+                  onChange={(val) => handleInputChange('qq', val)}
+                  placeholder={t('profile.qqNumber')}
+                />
               </div>
             </div>
-          </div>
-
-          {/* Security */}
-          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('profile.security')}</h2>
-
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 hover:border-blue-400 transition-colors flex items-center justify-between group"
-            >
-              <span className="text-slate-700 dark:text-slate-300 font-medium">{t('profile.changePassword')}</span>
-              <Icons.ChevronRight className="text-slate-400 group-hover:text-blue-400 transition-colors" />
-            </button>
-          </div>
+          </Card>
         </div>
-      </div>
 
-      {/* Fixed Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-4 border-t border-slate-200 dark:border-slate-700 z-40">
-        <div className="flex gap-3">
+        {/* Security */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            {t('profile.security')}
+          </h2>
+
+          <Card
+            onClick={() => setShowPasswordModal(true)}
+            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-600 dark:text-red-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {t('profile.changePassword')}
+                </span>
+              </div>
+              <Icons.ChevronRight />
+            </div>
+          </Card>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 pt-4 pb-8">
           <Button
             variant="secondary"
             onClick={() => navigate('profile')}
             className="flex-1"
-            disabled={loading}
+            disabled={saving || loading}
           >
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleSave} className="flex-1" disabled={loading}>
-            {loading ? t('profile.savingChanges') : t('common.save')}
+          <Button
+            onClick={handleSave}
+            className="flex-1 relative"
+            disabled={saving || loading}
+          >
+            {saving ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                {t('profile.savingChanges')}
+              </span>
+            ) : (
+              t('common.save')
+            )}
           </Button>
         </div>
       </div>
-
-      {/* Email Change Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showEmailConfirm}
-        title={t('profile.emailChangeConfirmTitle')}
-        message={t('profile.emailChangeConfirmMessage')}
-        confirmText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        onConfirm={confirmEmailChange}
-        onCancel={cancelEmailChange}
-      />
 
       {/* Password Change Modal */}
       <PasswordChangeModal

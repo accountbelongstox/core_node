@@ -27,6 +27,19 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/system/storage');
   }
 
+  // Alias methods for UI compatibility
+  async getSystemProcesses(): Promise<APIResponse> {
+    return this.getProcesses();
+  }
+
+  async getSystemStorage(): Promise<APIResponse> {
+    return this.getStorage();
+  }
+
+  async getSystemServices(): Promise<APIResponse> {
+    return this.getServices();
+  }
+
   // ========== File Management ==========
   async browseFiles(path?: string): Promise<APIResponse> {
     return this.get('/files/browse', { path });
@@ -98,6 +111,11 @@ export class ServerManagerV1API extends BaseAPI {
     return this.post('/nginx/reload');
   }
 
+  // Alias method for UI compatibility
+  async getNginxSites(): Promise<APIResponse> {
+    return this.listNginxSites();
+  }
+
   // ========== Unified Manager ==========
   async listApps(): Promise<APIResponse> {
     return this.get('/unified/apps');
@@ -115,17 +133,30 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/unified/logs', { app_name: appName });
   }
 
+  // Alias methods for UI compatibility
+  async getUnifiedApps(): Promise<APIResponse> {
+    return this.listApps();
+  }
+
+  async deployUnifiedApp(data: any): Promise<APIResponse> {
+    return this.deployApp(data);
+  }
+
+  async getUnifiedAppStatus(appName: string): Promise<APIResponse> {
+    return this.getAppStatus(appName);
+  }
+
   // ========== SSL Certificates ==========
   async listCertificates(): Promise<APIResponse> {
     return this.get('/certificates/');
   }
 
-  async generateCertificate(data: { domain: string; email: string }): Promise<APIResponse> {
+  async generateCertificate(data: { domain: string; provider?: string; staging?: boolean }): Promise<APIResponse> {
     return this.post('/certificates/generate', data);
   }
 
-  async renewCertificates(): Promise<APIResponse> {
-    return this.post('/certificates/renew');
+  async renewCertificates(data?: { domain?: string; all?: boolean }): Promise<APIResponse> {
+    return this.post('/certificates/renew', data || { all: true });
   }
 
   async getCertificateStatus(domain: string): Promise<APIResponse> {
@@ -138,5 +169,18 @@ export class ServerManagerV1API extends BaseAPI {
 
   async detectCertbot(): Promise<APIResponse> {
     return this.get('/certificates/detect-certbot');
+  }
+
+  // Alias methods for UI compatibility
+  async getSSLCertificates(): Promise<APIResponse> {
+    return this.listCertificates();
+  }
+
+  async generateSSLCertificate(data: { domain: string; email: string }): Promise<APIResponse> {
+    return this.generateCertificate(data);
+  }
+
+  async renewSSLCertificates(): Promise<APIResponse> {
+    return this.renewCertificates();
   }
 }

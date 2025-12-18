@@ -954,7 +954,18 @@ function getInstance() {
     return instance;
 }
 
-module.exports = {
-    getInstance,
-    ElectronManager
-};
+module.exports = ElectronManager;
+module.exports.ElectronManager = ElectronManager;
+module.exports.getInstance = getInstance;
+
+module.exports.PlatformAdapter = require('./platform_adapter').PlatformAdapter;
+module.exports.getGlobalPlatformAdapter = require('./platform_adapter').getGlobalPlatformAdapter;
+module.exports.PortManager = require('./port_manager').PortManager;
+module.exports.getGlobalPortManager = require('./port_manager').getGlobalPortManager;
+module.exports.FrontendConfig = require('./frontend').FrontendConfig;
+module.exports.FrontendManager = require('./frontend').FrontendManager;
+module.exports.startFrontendIfNeeded = require('./frontend').startFrontendIfNeeded;
+module.exports.launchElectronApp = require('./app_launcher').launchElectronApp;
+module.exports.isElectronAppLaunched = require('./app_launcher').isElectronAppLaunched;
+module.exports.getLaunchedAppName = require('./app_launcher').getLaunchedAppName;
+module.exports.getFrontendManager = require('./app_launcher').getFrontendManager;

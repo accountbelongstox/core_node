@@ -9,7 +9,7 @@ class AppQyV1VocabularyCoverModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table = 'app_qy_v1_vocabulary_covers';
 
     protected $fillable = [

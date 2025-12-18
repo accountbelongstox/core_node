@@ -31,13 +31,10 @@ const LoginPage = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError(t('auth.passwordTooShort'));
-      return;
-    }
+    // [Removed] Password length validation removed - no minimum requirement
 
     if (mode === 'register' && password !== confirmPassword) {
-      setError(t('auth.passwordMismatch') || 'Passwords do not match');
+      setError(t('auth.passwordMismatch'));
       return;
     }
 
@@ -149,37 +146,41 @@ const LoginPage = () => {
 
         {mode === 'register' && (
           <>
+            {/* [i18n] Removed hardcoded fallback - auth.email translation exists */}
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={t('auth.email') || 'Email (optional)'}
+              placeholder={t('auth.email')}
               disabled={loading}
               className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
               autoComplete="email"
             />
+            {/* [i18n] Removed hardcoded fallback - auth.nickname now exists */}
             <input
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder={t('auth.nickname') || 'Nickname (optional)'}
+              placeholder={t('auth.nickname')}
               disabled={loading}
               className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
             />
+            {/* [i18n] Removed hardcoded fallback - auth.inviteCode now exists */}
             <input
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
-              placeholder={t('auth.inviteCode') || 'Invite Code (optional)'}
+              placeholder={t('auth.inviteCode')}
               disabled={loading}
               className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
             />
+            {/* [i18n] Removed hardcoded fallback - auth.confirmPassword translation exists */}
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={t('auth.confirmPassword') || 'Confirm Password'}
+              placeholder={t('auth.confirmPassword')}
               disabled={loading}
               className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
               autoComplete="new-password"
@@ -197,6 +198,20 @@ const LoginPage = () => {
           className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
           autoComplete="current-password"
         />
+
+        {/* Forgot Password Link - Only show in login mode */}
+        {mode === 'login' && (
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            >
+              {t('auth.forgotPassword')}
+            </button>
+          </div>
+        )}
+
         <Button onClick={handleLogin} disabled={loading}>
           {loading ? t('common.loading') : mode === 'login' ? t('auth.login') : t('auth.register')}
         </Button>
