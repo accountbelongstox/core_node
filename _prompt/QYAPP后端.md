@@ -308,19 +308,6 @@ ng往任务中心添加,之后开始处理,处理完后会递归检测只要还�
 任务是重启后利用心跳中心自动装载的,只要重启就会自动装载。
 
 :/www/programing/core_node# python /www/programing/core_node/apps/mcp-chrome/test-full-workflow.py
-======================================================================
-Full Worker Workflow Test - Demo Mode (10 Cycles)
-======================================================================
-API URL: http://localhost:9000
-Worker ID: demo-worker-980886a2-56b4-412f-8e49-a542...
-
-说明：
-- 后端返回真实未翻译单词
-- 前端生成模拟翻译数据（DEMO数据）
-- 前端提交时标记 is_demo_mode=True
-- 后端检测到demo模式，接收但不写入数据库
-- 测试10个周期后验证未翻译词数不变
-
 Press Ctrl+C to stop...
 
 [20:57:12] [INFO] Registering worker...
@@ -332,3 +319,161 @@ Press Ctrl+C to stop...
  后端的装载是否正确,在该任务连中,查看可扩展的后端队列1:是否是可扩展,2是否有正确
 装载,对该任务连进行扩展,需要返回后端该类语言 
 下有多少词,翻译的有多少,正在队列的有多少,测试文件获取到数据要打印. 
+检测以下流程是不是你乱统的：
+···
+  1. Provider已注册
+    - 文件：bootstrap/providers.php:17
+    - App\Providers\OctaneTimerServiceProvider::class 已注册
+  2. 自动发现机制正常
+    - 文件：app/Providers/OctaneTimerServiceProvider.php:83-161
+    - 自动扫描 app/Services/TimerTasks/ 目录
+    - 自动注册所有实现 OctaneTimerTaskInterface 的任务
+  3. 任务类配置正确
+    - 文件：app/Services/TimerTasks/AppQyV1DictionaryTranslationTask.php
+    - ✓ 继承 OctaneTimerTaskAbstract
+    - ✓ 实现 OctaneTimerTaskInterface
+    - ✓ isEnabled() 返回 true
+    - ✓ getInterval() 返回 30秒
+  4. Swoole Tables已配置
+    - 文件：config/octane.php:157-169
+    - ✓ timer_state:1 表（存储运行状态）
+    - ✓ timer_tasks:100 表（存储任务统计）
+  5. Octane Tick Hook正常
+    - 文件：app/Providers/OctaneTimerServiceProvider.php:166-185
+    - ✓ 每秒触发一次
+    - ✓ 使用 ->immediate() 立即启动
+
+
+···
+
+Edit profile 页并按原来的美化风格,同时头像点击后可以换图旬,当然要和原来的api中的profil
+e同步绑定.头像点击后更换,其他可以修改后保存,用户名不能修改,邮箱修改需要提
+示.密码需要两次确认,并有单独的弹出窗口.但最终都只调用同一个profile sync api. 
+
+> http://192.168.50.3:10029/profile 这个页面,所有底部菜单都要置底,查看整
+个项目,同时,不要有两个中转,在profile页显示为我的, 
+设置出我的页面,显示出必要的信息,之后点击编辑,直接到 edit profilel 
+
+/settings 在设置页, settings_lang 
+显示为grid布局,同时每个语言有和个图标,调用MCP以及查看本项目使用合适的图标
+库.图标是后端传递(查看后端),前端解析,之后,所有语言点击后不再以列表,而是gr
+id复选框,可以多选,当多选后,在首页实时更新词库,先总结前后端怎么完成. 在后端map中只是指定一个通用的名称作为前端的图标映射,并说明,前端建立一个
+强大的图标映射库,之后根据后端的通用名称,映射前端实际使用的icon库的图标. 
+
+  我的页使用便当盒布局,不要写得难看. /profile 
+顶部搜索菜单的设置图标旁边 ，加上 dart/light模式切换按钮，以及多语言切换，多语言点击后下拉可用界面语言。 
+
+
+ 功能模块                    | Python pycore/pylauncher   | Node.js
+  ncore/launcher                        | 状态      |
+  |-------------------------|----------------------------|---------------
+  --------------------------------|---------|
+  | 核心文件                    |                            |
+                                      |         |
+  | launcher主文件             | launcher.py (337行)         |
+  launcher.js (177行) + launcher_config.js (65行) | ⚠️ 拆分   |
+  | Native UI启动器            | native_launcher.py (340行)  | ❌ 无
+                                        | 🔴 缺失   |
+  | App可执行文件启动              | app_executable_launcher.py |
+  app_executable_launcher.js                    | ✅ 对应    |
+  | 单例检测器                   | singleton_detector.py      |
+  singleton_detector.js                         | ✅ 对应    |
+  | 配置参数                    |                            |
+                                      |         |
+  | services 字典             | ✅ 动态服务                     | ⚠️
+  有但未用                                       | 🟡 未实现  |
+  | force_launch            | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | shutdown_existing       | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | Tray 配置                 | ✅ 4个参数                     | ❌
+                                         | 🔴 缺失   |
+  | Heartbeat 配置            | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | Speech 配置               | ✅ 2个参数                     | ❌
+                                         | 🔴 缺失   |
+  | UI 配置                   | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | Legacy API 支持           | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | 服务管理                    |                            |
+                                      |         |
+  | 动态服务注册                  | ✅ SERVICE_STARTERS         | ❌
+                                          | 🔴 缺失   |
+  | THREAD_BUS 集成           | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | 硬编码服务启动                 | ❌                          | ✅
+  只有 RPC                                      | 🟡 限制   |
+  | 单例检测                    |                            |
+                                      |         |
+  | 基础检测                    | ✅                          | ✅
+                                        | ✅ 对应    |
+  | force_launch 逻辑         | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | THREAD_BUS busy状态       | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | 强制关闭（SIGTERM）           | ✅                          | ❌
+                                          | 🔴 缺失   |
+  | Native UI               |                            |
+                                  |         |
+  | launch_with_native_ui() | ✅ 60+参数                    | ❌
+                                      | 🔴 完全缺失 |
+  | Debug Window            | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | System Tray             | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | Frontend 管理             | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | RPC v2 集成               | ✅                          | ⚠️ 简化版
+                                        | 🟡 不完整  |
+  | Timer 管理                | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | Restart 支持              | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | QtWebEngine 配置          | ✅                          | ❌
+                                      | 🔴 缺失   |
+  | 便捷功能                    |                            |
+                                      |         |
+  | launch_services()       | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | stop_services()         | ✅                          | ❌
+                                    | 🔴 缺失   |
+  | 工厂方法                    | ✅ 2个                       | ⚠️
+  2个（不同）                                     | 🟡 部分   |
+
+  ---
+  🎯 总结
+
+  严重缺失 (Critical - 必须实现):
+
+  1. ❌ native_launcher.js - 整个文件缺失（340行功能）
+  2. ❌ LauncherConfig - 缺少10+个核心参数
+  3. ❌ 动态服务注册系统 - 没有 SERVICE_STARTERS
+  4. ❌ THREAD_BUS 集成 - 所有信号和状态管理
+  5. ❌ force_launch/shutdown_existing - 单例逻辑不完整
+
+  重要缺失 (Important - 建议实现):
+
+  6. ❌ Tray/Heartbeat/Speech/UI - 配置和启动
+  7. ❌ Legacy API 支持 - 向后兼容
+  8. ❌ 便捷函数 - launch_services/stop_services
+  9. ❌ 强制关闭机制 - SIGTERM/SIGKILL
+
+  次要差异 (Minor - 可选):
+
+  10. ⚠️ 文档完整度
+  11. ⚠️ 日志详细程度
+  12. ⚠️ 错误处理细节
+
+  结论：ncore/launcher 只实现了 pycore/pylauncher 约 30-40% 的功能！
+
+
+
+看了还有很金金金金多没有完成,但没时间告诉你是那些,自己再去扫描.确认.
+同时对应pycore的 native ui 
+,pycore将实现一个electron的同样的端,但都是通过luanchre.js来启动. 
+
+直接完成,所有 app_qy_v1 都要实现民    BACKEND_FRONTEND_GAP_ANALYSIS.md  继续完成. 同时确保后端qy qpps v1 的所有端点. 每个端点在前端是否能正常操作和操控后端.必须一 个端点一个端点的检测,确保UI,可用性.
+
+
+

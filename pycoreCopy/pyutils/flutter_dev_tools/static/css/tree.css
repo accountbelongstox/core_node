@@ -1,0 +1,102 @@
+/* Tree view styles */
+
+.file-tree {
+  overflow-y: auto;
+  flex: 1;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9rem;
+}
+
+.tree-item {
+  padding: 0.35rem 0.5rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.tree-item:hover {
+  background: #f1f5f9;
+}
+
+.tree-item.selected {
+  background: #dbeafe;
+}
+
+.tree-item.folder {
+  font-weight: 500;
+}
+
+.tree-toggle {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.tree-toggle.collapsed::before {
+  content: '▶';
+}
+
+.tree-toggle.expanded::before {
+  content: '▼';
+}
+
+.tree-toggle.empty {
+  opacity: 0;
+}
+
+.tree-icon {
+  margin-right: 0.5rem;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-name.folder {
+  color: var(--primary-color);
+}
+
+.tree-name.file {
+  color: #475569;
+}
+
+.tree-children {
+  margin-left: 20px;
+}
+
+.tree-children.collapsed {
+  display: none;
+}
+
+/* Tree structure for missing items view */
+.tree-view {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.tree-view .tree-item {
+  padding: 0.25rem 0;
+  cursor: default;
+}
+
+.tree-view .tree-item:hover {
+  background: transparent;
+}
