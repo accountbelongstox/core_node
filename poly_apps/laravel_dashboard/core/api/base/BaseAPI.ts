@@ -1,5 +1,6 @@
 import { APIResponse, APIRequestConfig, APIModuleConfig } from '../../types';
 import { apiCache } from './APICache';
+import { htmlErrorManager } from '../../../services/HtmlErrorManager';
 
 /**
  * BaseAPI - 所有API模块的基类
@@ -118,6 +119,16 @@ export class BaseAPI {
     if (!isFormData) {
       requestConfig.headers = {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        ...requestConfig.headers
+      };
+    } else {
+      requestConfig.headers = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         ...requestConfig.headers
       };
     }
@@ -140,6 +151,14 @@ export class BaseAPI {
       if (!isJson) {
         // Not JSON response - likely HTML error page
         const text = await response.text();
+
+        // Trigger HTML error debug modal
+        htmlErrorManager.triggerError(
+          text,
+          url,
+          response.status
+        );
+
         return {
           success: false,
           data: null,
@@ -159,11 +178,22 @@ export class BaseAPI {
           message: data.message
         };
       } else {
+        // Error response - trigger HTML error modal if debug info available
+        if (data.exception || data.trace) {
+          // Pass JSON directly as string - don't convert to HTML
+          htmlErrorManager.triggerError(
+            JSON.stringify(data, null, 2),
+            url,
+            response.status
+          );
+        }
+
         return {
           success: false,
           data: null,
           error: data.error || data.message || 'Request failed',
-          status: response.status
+          status: response.status,
+          debugInfo: data,
         };
       }
     } catch (error: any) {

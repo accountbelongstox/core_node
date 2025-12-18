@@ -11,6 +11,12 @@ Features:
 - Thread-safe command handling
 
 Port: 45678 (configurable)
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=70) for graceful shutdown
+- Checks THREAD_BUS.is_shutdown_requested() in server loop
+- Triggers 'ipc.server.started' and 'ipc.server.stopped' events
+- Backwards compatible: keeps existing functionality
 """
 
 import socket
@@ -18,6 +24,7 @@ import threading
 import json
 import time
 from typing import Optional, Callable, Dict
+from pycore import THREAD_BUS, ColorPrint
 
 DEFAULT_IPC_PORT = 45678
 
@@ -131,18 +138,36 @@ class IPCServer:
             self.server_socket.listen(5)
             self.server_socket.settimeout(1)
         except Exception as e:
-            print(f"[IPCServer] Failed to bind port {self.port}: {e}")
+            ColorPrint.red(f"[IPCServer] Failed to bind port {self.port}: {e}")
             return False
 
         self.running = True
-        self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
+        self.server_thread = threading.Thread(target=self._server_loop, daemon=True, name="IPC-Server")
         self.server_thread.start()
 
-        print(f"[IPCServer] Started on port {self.port}")
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=70 for service threads (stops before singleton detector)
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=70,
+            name="ipc_server"
+        )
+        ColorPrint.blue("[IPCServer] Registered THREAD_BUS shutdown handler (priority=70)")
+
+        # THREAD_BUS Integration: Trigger server started event
+        THREAD_BUS.trigger_event('ipc.server.started', {
+            'port': self.port
+        }, async_mode=True)
+
+        ColorPrint.green(f"[IPCServer] Started on port {self.port}")
         return True
 
     def stop(self):
-        """Stop IPC server."""
+        """
+        Stop IPC server.
+
+        THREAD_BUS Integration: Called by shutdown handler during graceful shutdown
+        """
         self.running = False
 
         if self.server_socket:
@@ -151,11 +176,26 @@ class IPCServer:
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=2)
 
-        print("[IPCServer] Stopped")
+        # THREAD_BUS Integration: Trigger server stopped event
+        THREAD_BUS.trigger_event('ipc.server.stopped', {
+            'port': self.port
+        }, async_mode=True)
+
+        ColorPrint.yellow("[IPCServer] Stopped")
 
     def _server_loop(self):
-        """Server main loop (runs in background thread)."""
+        """
+        Server main loop (runs in background thread).
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
+        """
         while self.running:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[IPCServer] THREAD_BUS shutdown detected, stopping...")
+                break
+
             try:
                 client_socket, addr = self.server_socket.accept()
                 threading.Thread(
@@ -166,8 +206,8 @@ class IPCServer:
             except socket.timeout:
                 continue
             except Exception as e:
-                if self.running:
-                    print(f"[IPCServer] Error accepting connection: {e}")
+                if self.running and not THREAD_BUS.is_shutdown_requested():
+                    ColorPrint.red(f"[IPCServer] Error accepting connection: {e}")
 
     def _handle_client(self, client_socket: socket.socket):
         """

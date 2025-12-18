@@ -1,86 +1,46 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PyLauncher - Modular Application Launcher with Singleton Detection
+PyLauncher - Unified Application Launcher
 
-Provides configuration-driven service launching with singleton detection.
+Centralized launcher for all applications.
 
-Core Components:
-- LauncherConfig: Unified configuration (supports modern dict API and legacy flags)
-- ServiceLauncher: Main service launcher
-- SingletonDetector: Cross-process singleton detection
-
-Singleton Detection:
-- SingletonDetector is a sub-module of pylauncher
-- Uses only Python standard library (socket, json, threading, etc.)
-- Provides port-based protocol verification for instance detection
+Public API:
+    LauncherConfig  - Configuration (parameters control everything)
+    ServiceLauncher - Launcher (starts based on config parameters)
+    AppExecutableLauncher - Searches and launches app executables
 
 Usage:
-    # Modern API - Launch services with singleton detection
-    from pycore.pylauncher import LauncherConfig, ServiceLauncher
+    from pycore.pylauncher import ServiceLauncher, LauncherConfig
 
     config = LauncherConfig(
         app_id="my_app",
-        singleton=True,
-        shutdown_existing=True,
-        services={
-            'rpc_v2': {'port': 58100},
-            'speech': {'mode': 'single'}
-        }
+        app_name="My Application",
+        frontend_enabled=True,  # Parameters control features
+        rpc_enabled=True,
+        show_ui=True,
+        ...
     )
 
     launcher = ServiceLauncher(config)
     launcher.start()
-
-    # Get service instance to extend functionality
-    rpc = launcher.get_service('rpc_v2')
-    rpc.server.route('custom', handler_func, sync=True)
-
-    # Legacy API - Still supported
-    config = LauncherConfig(
-        enable_rpc_v2=True,
-        rpc_v2_port=58100,
-        singleton_check=True
-    )
-    launcher = ServiceLauncher(config)
-    launcher.start()
-
-    # Direct singleton detection
-    from pycore.pylauncher import SingletonDetector
-    detector = SingletonDetector(app_id="my_app", port_start=54000, port_range=100)
-    result = detector.detect_and_bind()
 """
 
-# Import main launcher components
+# Public API - Configuration and Launcher
 from pycore.pylauncher.launcher import (
     LauncherConfig,
     ServiceLauncher,
-    launch_services,
-    stop_services,
 )
-
-# Import singleton detector (sub-module of pylauncher)
-from pycore.pylauncher.singleton_detector import (
-    SingletonDetector,
-    DetectionResult,
-    ProtocolVersion,
-    MessageType,
-    detect_singleton
+from pycore.pylauncher.app_executable_launcher import (
+    AppExecutableLauncher,
+    get_app_executable_launcher,
 )
 
 __all__ = [
-    # Service Launcher
-    'LauncherConfig',
-    'ServiceLauncher',
-    'launch_services',
-    'stop_services',
-
-    # Singleton Detection
-    'SingletonDetector',
-    'DetectionResult',
-    'ProtocolVersion',
-    'MessageType',
-    'detect_singleton',
+    'LauncherConfig',   # Configuration
+    'ServiceLauncher',  # Launcher
+    'AppExecutableLauncher',  # App executable launcher
+    'get_app_executable_launcher',  # Get singleton instance
 ]
 
-__version__ = '2.0.0'
+__version__ = '3.0.0'

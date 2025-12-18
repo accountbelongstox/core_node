@@ -66,6 +66,39 @@ export interface Word {
   imageUrl?: string;
 }
 
+export interface VocabularyRecommendation {
+  id: number;
+  name: string;
+  description?: string;
+  word_count: number;
+  level?: string;
+  category?: string;
+  language_code: string;
+  is_selected?: boolean;
+}
+
+export interface SelectedCollection {
+  id: number;
+  collection_id: number;
+  name: string;
+  description?: string;
+  word_count: number;
+  level?: string;
+  category?: string;
+  selected_at: string;
+}
+
+export interface VocabularyLibrary {
+  id: number;
+  name: string;
+  description?: string;
+  word_count: number;
+  language_code: string;
+  is_public: boolean;
+  is_selected?: boolean;
+  created_at?: string;
+}
+
 class ApiCenterClass {
   private defaultTimeout = 30000; // 30 seconds
 
@@ -302,11 +335,31 @@ class ApiCenterClass {
         },
       };
     },
+
+    forgotPassword: async (email: string): Promise<ApiResponse<{ message: string }>> => {
+      return await this.request<{ message: string }>('/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }, false);
+    },
+
+    resetPassword: async (email: string, token: string, password: string, password_confirmation: string): Promise<ApiResponse<{ message: string }>> => {
+      return await this.request<{ message: string }>('/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          token,
+          password,
+          password_confirmation
+        }),
+      }, false);
+    },
   };
 
   /**
    * Word Group APIs
-   * Backend uses: query_all_groups, query_group_by_gid, query_gwords
+   * Backend uses: query_all_groups, query_group_by_gid, query_group_by_name, query_gwords,
+   *              query_gcontent, query_gfrequency, create_group, delete_group_by_gid, delete_group_by_name
    */
   wordGroups = {
     getAll: async (): Promise<ApiResponse<WordGroup[]>> => {
@@ -336,9 +389,93 @@ class ApiCenterClass {
       });
     },
 
+    getByName: async (name: string): Promise<ApiResponse<WordGroup>> => {
+      // Backend route: /query_group_by_name
+      return this.request<WordGroup>('/query_group_by_name', {
+        method: 'POST',
+        body: JSON.stringify({ group_name: name }),
+      });
+    },
+
     getWords: async (groupId: string): Promise<ApiResponse<Word[]>> => {
       // Backend route: /query_gwords?gid={groupId}
       return this.request<Word[]>(`/query_gwords?gid=${encodeURIComponent(groupId)}`, {
+        method: 'GET',
+      });
+    },
+
+    getContent: async (groupId: string): Promise<ApiResponse<any>> => {
+      // Backend route: /query_gcontent
+      return this.request<any>('/query_gcontent', {
+        method: 'POST',
+        body: JSON.stringify({ gid: groupId }),
+      });
+    },
+
+    getFrequency: async (groupId: string): Promise<ApiResponse<any>> => {
+      // Backend route: /query_gfrequency
+      return this.request<any>('/query_gfrequency', {
+        method: 'POST',
+        body: JSON.stringify({ gid: groupId }),
+      });
+    },
+
+    create: async (data: {
+      name: string;
+      description?: string;
+      language: string;
+    }): Promise<ApiResponse<{ group_id: string; message: string }>> => {
+      // Backend route: /create_group
+      const response = await this.request<{ group_id: string; message: string }>('/create_group', {
+        method: 'POST',
+        body: JSON.stringify({
+          group_name: data.name,
+          description: data.description,
+          language: data.language,
+        }),
+      });
+
+      // Invalidate cache after creating
+      if (response.success) {
+        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+      }
+
+      return response;
+    },
+
+    delete: async (groupId: string): Promise<ApiResponse<{ message: string }>> => {
+      // Backend route: /delete_group_by_gid
+      const response = await this.request<{ message: string }>('/delete_group_by_gid', {
+        method: 'POST',
+        body: JSON.stringify({ gid: groupId }),
+      });
+
+      // Invalidate cache after deletion
+      if (response.success) {
+        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+      }
+
+      return response;
+    },
+
+    deleteByName: async (name: string): Promise<ApiResponse<{ message: string }>> => {
+      // Backend route: /delete_group_by_name
+      const response = await this.request<{ message: string }>('/delete_group_by_name', {
+        method: 'POST',
+        body: JSON.stringify({ group_name: name }),
+      });
+
+      // Invalidate cache after deletion
+      if (response.success) {
+        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+      }
+
+      return response;
+    },
+
+    getAllByManager: async (): Promise<ApiResponse<WordGroup[]>> => {
+      // Backend route: /get_all_groups_by_manager
+      return this.request<WordGroup[]>('/get_all_groups_by_manager', {
         method: 'GET',
       });
     },
@@ -346,7 +483,7 @@ class ApiCenterClass {
 
   /**
    * Word APIs
-   * Backend uses: query_word, query_translation
+   * Backend uses: query_word, query_translation, daily words, lookup, word_exists, etc
    */
   words = {
     getDetail: async (wordId: string): Promise<ApiResponse<Word>> => {
@@ -355,9 +492,15 @@ class ApiCenterClass {
       });
     },
 
+    getDailyWords: async (count: number = 10): Promise<ApiResponse<Word[]>> => {
+      return this.request<Word[]>(`/words/daily?count=${count}`, {
+        method: 'GET',
+      });
+    },
+
     search: async (query: string, language: string = 'en'): Promise<ApiResponse<Word[]>> => {
       // Backend route: /query_word?word={query}
-      return this.request<Word[]>(`/query_word?word=${encodeURIComponent(query)}&lang=${language}`, {
+      return this.request<Word[]>(`/qurey_word?word=${encodeURIComponent(query)}&lang=${language}`, {
         method: 'GET',
       });
     },
@@ -369,29 +512,365 @@ class ApiCenterClass {
         body: JSON.stringify({ word, from: fromLang, to: toLang }),
       });
     },
+
+    // Word Lookup APIs
+    lookup: async (word: string, language?: string): Promise<ApiResponse<any>> => {
+      const params = new URLSearchParams({ word });
+      if (language) params.append('language', language);
+      return this.request<any>(`/lookup?${params.toString()}`, {
+        method: 'GET',
+      });
+    },
+
+    batchLookup: async (words: string[]): Promise<ApiResponse<any>> => {
+      return this.request<any>('/lookup/batch', {
+        method: 'POST',
+        body: JSON.stringify({ words }),
+      });
+    },
+
+    // Word Existence Check APIs
+    wordExists: async (word: string): Promise<ApiResponse<{ exists: boolean }>> => {
+      return this.request<{ exists: boolean }>('/word_exists', {
+        method: 'POST',
+        body: JSON.stringify({ word }),
+      });
+    },
+
+    batchWordExists: async (words: string[]): Promise<ApiResponse<any>> => {
+      return this.request<any>('/qurey_words', {
+        method: 'POST',
+        body: JSON.stringify({ words }),
+      });
+    },
+
+    // Public Word Lookup (no auth)
+    publicLookup: async (word: string): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/words/public/${encodeURIComponent(word)}`, {
+        method: 'GET',
+      }, false);
+    },
+
+    // Enhanced Word Query
+    queryEnhanced: async (word: string, options?: any): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/word/${encodeURIComponent(word)}/enhanced`, {
+        method: 'POST',
+        body: JSON.stringify(options || {}),
+      });
+    },
+
+    // Word Data Submission APIs
+    submitTranslation: async (word: string, data: any): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/word/${encodeURIComponent(word)}/translation`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    submitAudio: async (word: string, audioData: any): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/word/${encodeURIComponent(word)}/audio`, {
+        method: 'POST',
+        body: JSON.stringify(audioData),
+      });
+    },
+
+    submitImages: async (word: string, images: any): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/word/${encodeURIComponent(word)}/images`, {
+        method: 'POST',
+        body: JSON.stringify(images),
+      });
+    },
+
+    submitCompleteData: async (word: string, data: any): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/word/${encodeURIComponent(word)}/complete`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
   };
 
   /**
    * Learning Progress APIs
+   * Backend: learning/stats, learning/progress, learning/words, learning/languages, etc
    */
   learning = {
-    getStats: async (userId?: string): Promise<ApiResponse<any>> => {
-      const endpoint = userId ? `/learning/stats/${userId}` : '/learning/stats';
+    getStats: async (userId?: string, language?: string): Promise<ApiResponse<any>> => {
+      const params = new URLSearchParams();
+      if (userId) params.append('user_id', userId);
+      if (language) params.append('language', language);
+
+      const queryString = params.toString();
+      const endpoint = `/learning/stats${queryString ? `?${queryString}` : ''}`;
+
       return this.request<any>(endpoint, {
         method: 'GET',
       });
     },
 
-    recordProgress: async (wordId: string, correct: boolean): Promise<ApiResponse<void>> => {
+    updateProgress: async (data: {
+      word_id?: string;
+      group_id?: string;
+      language?: string;
+      mastery_level?: number;
+      correct?: boolean;
+      time_spent?: number;
+    }): Promise<ApiResponse<void>> => {
       return this.request<void>('/learning/progress', {
         method: 'POST',
-        body: JSON.stringify({ word_id: wordId, correct }),
+        body: JSON.stringify(data),
       });
     },
 
     getReviewQueue: async (): Promise<ApiResponse<Word[]>> => {
       return this.request<Word[]>('/learning/review-queue', {
         method: 'GET',
+      });
+    },
+
+    getWordCards: async (params?: {
+      group_id?: string;
+      language?: string;
+      limit?: number;
+    }): Promise<ApiResponse<Word[]>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.group_id) queryParams.append('group_id', params.group_id);
+      if (params?.language) queryParams.append('language', params.language);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const queryString = queryParams.toString();
+      const endpoint = `/learning/words${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<Word[]>(endpoint, {
+        method: 'GET',
+      });
+    },
+
+    // Mark word as learned
+    markWordAsLearned: async (wordId: string): Promise<ApiResponse<void>> => {
+      return this.request<void>(`/words/${wordId}/learn`, {
+        method: 'POST',
+      });
+    },
+
+    // Mark word as reviewed
+    markWordAsReviewed: async (wordId: string): Promise<ApiResponse<void>> => {
+      return this.request<void>(`/words/${wordId}/review`, {
+        method: 'POST',
+      });
+    },
+
+    // Toggle word favorite
+    toggleWordFavorite: async (wordId: string): Promise<ApiResponse<void>> => {
+      return this.request<void>(`/words/${wordId}/favorite`, {
+        method: 'POST',
+      });
+    },
+
+    // Learning Languages Management
+    getUserLanguages: async (): Promise<ApiResponse<{ languages: string[] }>> => {
+      return this.request<{ languages: string[] }>('/learning/languages', {
+        method: 'GET',
+      });
+    },
+
+    setUserLanguages: async (languages: string[]): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/learning/languages', {
+        method: 'POST',
+        body: JSON.stringify({ languages }),
+      });
+    },
+
+    // Get vocabulary recommendations
+    getRecommendations: async (params?: {
+      lang_codes?: string[];
+      level?: string;
+      category?: string;
+    }): Promise<ApiResponse<{
+      data: VocabularyRecommendation[];
+      total: number;
+      filters: {
+        levels: string[];
+        categories: string[];
+      };
+    }>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.lang_codes) {
+        params.lang_codes.forEach(code => queryParams.append('lang_codes[]', code));
+      }
+      if (params?.level) queryParams.append('level', params.level);
+      if (params?.category) queryParams.append('category', params.category);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/learning/recommendations${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<{
+        data: VocabularyRecommendation[];
+        total: number;
+        filters: { levels: string[]; categories: string[] };
+      }>(endpoint, {
+        method: 'GET',
+      });
+    },
+
+    // Select/deselect vocabulary collection
+    selectCollection: async (collectionId: number, action: 'select' | 'deselect' = 'select'): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/learning/collections/select', {
+        method: 'POST',
+        body: JSON.stringify({
+          collection_id: collectionId,
+          action: action,
+        }),
+      });
+    },
+
+    // Get user's selected collections
+    getSelectedCollections: async (): Promise<ApiResponse<{
+      data: SelectedCollection[];
+      total: number;
+    }>> => {
+      return this.request<{
+        data: SelectedCollection[];
+        total: number;
+      }>('/learning/collections/selected', {
+        method: 'GET',
+      });
+    },
+
+    // Get vocabulary libraries (public + user-created)
+    getLibraries: async (langCode?: string): Promise<ApiResponse<{
+      public_libraries: VocabularyLibrary[];
+      user_libraries: VocabularyLibrary[];
+      lang_code: string;
+    }>> => {
+      const queryParams = new URLSearchParams();
+      if (langCode) queryParams.append('lang_code', langCode);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/learning/libraries${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<{
+        public_libraries: VocabularyLibrary[];
+        user_libraries: VocabularyLibrary[];
+        lang_code: string;
+      }>(endpoint, {
+        method: 'GET',
+      });
+    },
+
+    // Select/deselect vocabulary library
+    selectLibrary: async (
+      collectionId: number,
+      langCode: string,
+      action: 'select' | 'deselect' = 'select'
+    ): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/learning/libraries/select', {
+        method: 'POST',
+        body: JSON.stringify({
+          collection_id: collectionId,
+          lang_code: langCode,
+          action: action,
+        }),
+      });
+    },
+
+    // Delete vocabulary library
+    deleteLibrary: async (libraryId: string): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>(`/learning/libraries/${libraryId}`, {
+        method: 'DELETE',
+      });
+    },
+  };
+
+  /**
+   * Document Upload APIs
+   */
+  documents = {
+    upload: async (
+      file: File,
+      onProgress?: (progress: number) => void
+    ): Promise<ApiResponse<{ library_id: string; word_count: number; message: string }>> => {
+      const formData = new FormData();
+      formData.append('document', file);
+
+      const baseUrl = apiManager.getCurrentBaseUrl();
+      const url = `${baseUrl}/api/app_qy_v1/learning/upload`;
+
+      const token = StorageCenter.auth.getToken();
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+
+        // Upload progress
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable && onProgress) {
+            const percentComplete = (e.loaded / e.total) * 100;
+            onProgress(percentComplete);
+          }
+        });
+
+        // Upload complete
+        xhr.addEventListener('load', () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({
+                success: true,
+                data: data.data || data,
+                message: data.message,
+              });
+            } else {
+              resolve({
+                success: false,
+                error: {
+                  code: data.code || `HTTP_${xhr.status}`,
+                  message: data.message || 'Upload failed',
+                },
+              });
+            }
+          } catch (error: any) {
+            resolve({
+              success: false,
+              error: {
+                code: 'PARSE_ERROR',
+                message: 'Failed to parse response',
+              },
+            });
+          }
+        });
+
+        // Upload error
+        xhr.addEventListener('error', () => {
+          resolve({
+            success: false,
+            error: {
+              code: 'NETWORK_ERROR',
+              message: 'Network error occurred',
+            },
+          });
+        });
+
+        // Upload timeout
+        xhr.addEventListener('timeout', () => {
+          resolve({
+            success: false,
+            error: {
+              code: 'TIMEOUT',
+              message: 'Upload timeout',
+            },
+          });
+        });
+
+        xhr.open('POST', url);
+        Object.entries(headers).forEach(([key, value]) => {
+          xhr.setRequestHeader(key, value as string);
+        });
+        xhr.timeout = 5 * 60 * 1000; // 5 minutes for large files
+        xhr.send(formData);
       });
     },
   };
@@ -550,6 +1029,500 @@ class ApiCenterClass {
         success: true,
         data: data.data || data,
       };
+    },
+
+    getInitializationStatus: async (): Promise<ApiResponse<{ initialized: boolean }>> => {
+      return this.request<{ initialized: boolean }>('/user/initialization-status', {
+        method: 'GET',
+      });
+    },
+
+    initialize: async (data?: any): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/user/initialize', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      });
+    },
+  };
+
+  /**
+   * Personal Dictionary APIs
+   * Backend: create_personal_dictionary, query_personal_dictionary, etc.
+   */
+  personalDictionary = {
+    create: async (data: {
+      word: string;
+      definition?: string;
+      example?: string;
+      notes?: string;
+      language?: string;
+    }): Promise<ApiResponse<{ id: string; message: string }>> => {
+      return this.request<{ id: string; message: string }>('/create_personal_dictionary', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    query: async (params?: {
+      word?: string;
+      language?: string;
+      limit?: number;
+      offset?: number;
+    }): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/query_personal_dictionary', {
+        method: 'POST',
+        body: JSON.stringify(params || {}),
+      });
+    },
+
+    queryByWords: async (words: string[]): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/query_personal_dictionary_by_words', {
+        method: 'POST',
+        body: JSON.stringify({ words }),
+      });
+    },
+
+    deleteById: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/delete_personal_dictionary_by_id', {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      });
+    },
+
+    deleteAll: async (): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/delete_personal_all_dictionary', {
+        method: 'POST',
+      });
+    },
+  };
+
+  /**
+   * Vocabulary Library Public APIs
+   * Backend: /vocabulary/statistics, /vocabulary/libraries/recommended, /vocabulary/libraries
+   */
+  vocabulary = {
+    getStatistics: async (): Promise<ApiResponse<{
+      total_libraries: number;
+      total_words: number;
+      languages: string[];
+    }>> => {
+      return this.request<{
+        total_libraries: number;
+        total_words: number;
+        languages: string[];
+      }>('/vocabulary/statistics', {
+        method: 'GET',
+      });
+    },
+
+    getRecommendedLibraries: async (params?: {
+      language?: string;
+      level?: string;
+      limit?: number;
+    }): Promise<ApiResponse<any[]>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.language) queryParams.append('language', params.language);
+      if (params?.level) queryParams.append('level', params.level);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const queryString = queryParams.toString();
+      const endpoint = `/vocabulary/libraries/recommended${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any[]>(endpoint, {
+        method: 'GET',
+      }, false); // Public API, no auth required
+    },
+
+    getLibraries: async (params?: {
+      language?: string;
+      category?: string;
+    }): Promise<ApiResponse<any[]>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.language) queryParams.append('language', params.language);
+      if (params?.category) queryParams.append('category', params.category);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/vocabulary/libraries${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any[]>(endpoint, {
+        method: 'GET',
+      });
+    },
+  };
+
+  /**
+   * System Management APIs
+   * Backend: /system/initialize, /system/initialization-status, etc.
+   */
+  system = {
+    initialize: async (data?: any): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/system/initialize', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }, false);
+    },
+
+    getInitializationStatus: async (): Promise<ApiResponse<{
+      initialized: boolean;
+      database_ready: boolean;
+      vocabulary_ready: boolean;
+    }>> => {
+      return this.request<{
+        initialized: boolean;
+        database_ready: boolean;
+        vocabulary_ready: boolean;
+      }>('/system/initialization-status', {
+        method: 'GET',
+      }, false);
+    },
+
+    processVocabulary: async (data?: any): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/system/process-vocabulary', {
+        method: 'POST',
+        body: JSON.stringify(data || {}),
+      }, false);
+    },
+
+    getVocabularyStatus: async (): Promise<ApiResponse<{
+      processed: boolean;
+      total_words: number;
+      processed_words: number;
+    }>> => {
+      return this.request<{
+        processed: boolean;
+        total_words: number;
+        processed_words: number;
+      }>('/system/vocabulary-status', {
+        method: 'GET',
+      }, false);
+    },
+
+    getDictionaryStatistics: async (): Promise<ApiResponse<{
+      total_words: number;
+      languages: any;
+      last_updated: string;
+    }>> => {
+      return this.request<{
+        total_words: number;
+        languages: any;
+        last_updated: string;
+      }>('/system/dictionary-statistics', {
+        method: 'GET',
+      }, false);
+    },
+
+    getLanguageByCode: async (code: string): Promise<ApiResponse<any>> => {
+      return this.request<any>(`/system/supported-languages/${code}`, {
+        method: 'GET',
+      }, false);
+    },
+
+    reinitialize: async (clientToken: string, data?: any): Promise<ApiResponse<{ message: string }>> => {
+      // This endpoint requires client.token middleware
+      return this.request<{ message: string }>('/system/reinitialize', {
+        method: 'POST',
+        headers: {
+          'X-Client-Token': clientToken,
+        },
+        body: JSON.stringify(data || {}),
+      }, false);
+    },
+
+    getUntranslatedWords: async (params?: {
+      language?: string;
+      limit?: number;
+    }): Promise<ApiResponse<any[]>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.language) queryParams.append('language', params.language);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const queryString = queryParams.toString();
+      const endpoint = `/untranslated${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any[]>(endpoint, {
+        method: 'GET',
+      });
+    },
+
+    getUntranslatedWordsByPriority: async (params?: {
+      language?: string;
+      limit?: number;
+    }): Promise<ApiResponse<any[]>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.language) queryParams.append('language', params.language);
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const queryString = queryParams.toString();
+      const endpoint = `/untranslated/priority${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any[]>(endpoint, {
+        method: 'GET',
+      });
+    },
+  };
+
+  /**
+   * Word Operation APIs
+   * Backend: /up_learned, /up_read, /up_weight, /up_reviewed
+   */
+  wordOperations = {
+    markAsLearned: async (data: {
+      word_id?: string;
+      word?: string;
+      language?: string;
+    }): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/up_learned', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    markAsRead: async (data: {
+      word_id?: string;
+      word?: string;
+      language?: string;
+    }): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/up_read', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    updateWeight: async (data: {
+      word_id?: string;
+      word?: string;
+      weight: number;
+      language?: string;
+    }): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/up_weight', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    markAsReviewed: async (data: {
+      word_id?: string;
+      word?: string;
+      language?: string;
+    }): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/up_reviewed', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  };
+
+  /**
+   * AI Tools - Translation APIs
+   * Backend: /ai_tools/translation/*
+   */
+  translation = {
+    getLanguages: async (): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/ai_tools/translation/languages', {
+        method: 'GET',
+      }, false);
+    },
+
+    getTypes: async (): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/ai_tools/translation/types', {
+        method: 'GET',
+      }, false);
+    },
+
+    getModels: async (): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/ai_tools/translation/models', {
+        method: 'GET',
+      }, false);
+    },
+
+    getTemplates: async (): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/ai_tools/translation/templates', {
+        method: 'GET',
+      }, false);
+    },
+
+    translate: async (data: {
+      text: string;
+      from_language: string;
+      to_language: string;
+      model?: string;
+      template?: string;
+    }): Promise<ApiResponse<{ translation: string; task_id?: string }>> => {
+      return this.request<{ translation: string; task_id?: string }>('/ai_tools/translation/translate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    batchTranslate: async (data: {
+      texts: string[];
+      from_language: string;
+      to_language: string;
+      model?: string;
+    }): Promise<ApiResponse<{ translations: string[]; task_id?: string }>> => {
+      return this.request<{ translations: string[]; task_id?: string }>('/ai_tools/translation/batch', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    simpleTranslateWithGoogle: async (data: {
+      text: string;
+      from_language: string;
+      to_language: string;
+    }): Promise<ApiResponse<{ translation: string }>> => {
+      return this.request<{ translation: string }>('/ai_tools/translation/simple/google', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    learningMode: async (data: {
+      text: string;
+      from_language: string;
+      to_language: string;
+      difficulty_level?: string;
+    }): Promise<ApiResponse<any>> => {
+      return this.request<any>('/ai_tools/translation/learning', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    getTaskStatus: async (taskId: string): Promise<ApiResponse<{
+      status: string;
+      progress?: number;
+      result?: any;
+    }>> => {
+      return this.request<{
+        status: string;
+        progress?: number;
+        result?: any;
+      }>(`/ai_tools/translation/task/${taskId}`, {
+        method: 'GET',
+      });
+    },
+
+    processNextTask: async (): Promise<ApiResponse<{ message: string }>> => {
+      return this.request<{ message: string }>('/ai_tools/translation/process-next', {
+        method: 'POST',
+      });
+    },
+  };
+
+  /**
+   * AI Tools - Text-to-Speech (TTS) APIs
+   * Backend: /ai_tools/tts/*
+   */
+  tts = {
+    getLanguages: async (): Promise<ApiResponse<any[]>> => {
+      return this.request<any[]>('/ai_tools/tts/languages', {
+        method: 'GET',
+      }, false);
+    },
+
+    getVoices: async (language?: string): Promise<ApiResponse<any[]>> => {
+      const queryParams = new URLSearchParams();
+      if (language) queryParams.append('language', language);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/ai_tools/tts/voices${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any[]>(endpoint, {
+        method: 'GET',
+      }, false);
+    },
+
+    getOptions: async (): Promise<ApiResponse<any>> => {
+      return this.request<any>('/ai_tools/tts/options', {
+        method: 'GET',
+      }, false);
+    },
+
+    getAudioUrl: (language: string, type: string, filename: string, speed?: string): string => {
+      const baseUrl = apiManager.getCurrentBaseUrl();
+      if (speed) {
+        return `${baseUrl}/api/app_qy_v1/ai_tools/tts/audio/${language}/${type}/${speed}/${filename}`;
+      }
+      return `${baseUrl}/api/app_qy_v1/ai_tools/tts/audio/${language}/${type}/${filename}`;
+    },
+
+    generate: async (data: {
+      text: string;
+      language: string;
+      voice?: string;
+      speed?: number;
+      pitch?: number;
+    }): Promise<ApiResponse<{ audio_url: string; filename: string }>> => {
+      return this.request<{ audio_url: string; filename: string }>('/ai_tools/tts/generate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    batchGenerate: async (data: {
+      texts: string[];
+      language: string;
+      voice?: string;
+      speed?: number;
+    }): Promise<ApiResponse<{ audio_urls: string[]; task_id?: string }>> => {
+      return this.request<{ audio_urls: string[]; task_id?: string }>('/ai_tools/tts/batch-generate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  };
+
+  /**
+   * AI Tools - Article Processing APIs
+   * Backend: /ai_tools/article/*
+   */
+  article = {
+    getTaskStatus: async (taskId: string): Promise<ApiResponse<{
+      status: string;
+      progress?: number;
+      result?: any;
+    }>> => {
+      return this.request<{
+        status: string;
+        progress?: number;
+        result?: any;
+      }>(`/ai_tools/article/task/${taskId}`, {
+        method: 'GET',
+      }, false);
+    },
+
+    submit: async (data: {
+      title: string;
+      content: string;
+      language?: string;
+      difficulty_level?: string;
+    }): Promise<ApiResponse<{ task_id: string; message: string }>> => {
+      return this.request<{ task_id: string; message: string }>('/ai_tools/article/submit', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    preview: async (data: {
+      content: string;
+      language?: string;
+    }): Promise<ApiResponse<{ parsed_words: any[]; word_count: number }>> => {
+      return this.request<{ parsed_words: any[]; word_count: number }>('/ai_tools/article/preview', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  };
+
+  /**
+   * Miscellaneous APIs
+   */
+  misc = {
+    getInvitationCode: async (): Promise<ApiResponse<{ masked_code: string }>> => {
+      return this.request<{ masked_code: string }>('/invitation-code', {
+        method: 'GET',
+      }, false);
     },
   };
 }

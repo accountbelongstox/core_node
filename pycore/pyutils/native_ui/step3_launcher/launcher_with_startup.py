@@ -39,6 +39,7 @@ from typing import Callable, Optional, Any
 
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 
 
 def launch_app_with_startup(
@@ -62,6 +63,9 @@ def launch_app_with_startup(
     - All communication via THREAD_BUS
     - No parameter passing
 
+    Note: This function assumes GUI is available.
+    Caller should check adapter.has_gui before calling (typically via show_debug_window=False).
+
     Args:
         app_name: Application name
         main_entry: Main application entry function
@@ -74,6 +78,25 @@ def launch_app_with_startup(
         enable_tray: Enable system tray (persists after debug window closes)
         startup_thread_ref: Optional dict to store startup thread reference (for early event handlers)
     """
+    # Safety check: Verify GUI is available before creating Tkinter window
+    # Server mode (Linux without X11 display) should not call this function
+    adapter = get_platform_adapter()
+    if not adapter.has_gui:
+        ColorPrint.yellow(f"[{app_name}] GUI not available (server mode), skipping startup window...")
+        ColorPrint.yellow("[Launcher] Launching main application directly without debug window...")
+
+        # Launch directly without startup window
+        try:
+            main_entry()
+        except KeyboardInterrupt:
+            ColorPrint.yellow("\nKeyboard interrupt received")
+        except Exception as e:
+            ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        return
+
     start_time = time.time()
 
     ColorPrint.print_info("=" * 70)
@@ -117,7 +140,10 @@ def launch_app_with_startup(
                 startup_thread.set_status("Frontend ready, closing...")
                 time.sleep(1.0)  # Brief delay to show message
                 ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-                startup_thread.request_close()
+
+                # Close debug window directly (don't trigger app.close - that would shutdown entire app!)
+                # Use stop() instead of request_close() to ensure _stop_event is set (prevents tray mode)
+                startup_thread.stop()
 
             close_thread = threading.Thread(target=delayed_close, daemon=True)
             close_thread.start()
@@ -213,8 +239,9 @@ def launch_app_with_startup(
             # Unregister ColorPrint callback
             ColorPrint.unregister_callback(startup_thread._colorprint_callback)
 
-            # Close debug window
-            startup_thread.request_close()
+            # Close debug window directly (don't trigger app.close - that would shutdown entire app!)
+            # Use stop() instead of request_close() to ensure _stop_event is set (prevents tray mode)
+            startup_thread.stop()
 
         THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready, priority=100)
         ColorPrint.yellow("[DebugLog] Registered frontend.ready handler (fallback - may miss event!)")
@@ -272,7 +299,13 @@ def launch_app_with_startup(
         # Cleanup: Unregister ColorPrint callback and close log window
         ColorPrint.print_info("\nCleaning up...")
         ColorPrint.unregister_callback(startup_thread._colorprint_callback)
-        startup_thread.request_close()
+
+        # Use stop() instead of request_close() to ensure:
+        # 1. _stop_event is set (prevents entering tray mode after window closes)
+        # 2. Tray is stopped if running
+        # 3. Window is closed if still open
+        # Note: Failsafe cleanup - don't use event system here in case THREAD_BUS is broken
+        startup_thread.stop()
 
         # Wait for startup thread to fully stop
         if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):

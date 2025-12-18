@@ -648,11 +648,17 @@ export interface NginxSiteConfig {
 export interface NginxSiteCreateRequest {
   site_name: string;
   domain: string;
-  site_type: 'laravel' | 'static' | 'proxy' | 'nuxt';
-  www_dir: string;
-  php_mode?: 'fpm' | 'swoole';
-  swoole_port?: number;
+  site_type: 'laravel' | 'static' | 'proxy' | 'swoole';
+  config?: {
+    www_dir: string;
+    php_version?: string;
+    php_mode?: 'php-fpm' | 'swoole' | 'none';
+    swoole_port?: number;
+    proxy_target?: string;
+  };
   ssl_enabled?: boolean;
+  auto_ssl?: boolean;
+  dns_provider?: 'dnspod' | 'cloudflare' | 'none';
 }
 
 export interface NginxSiteUpdateRequest {
@@ -689,7 +695,9 @@ export interface SystemServiceStatus {
   name: string;
   status: 'running' | 'stopped' | 'failed';
   active: boolean;
+  enabled?: boolean;
   since?: string;
+  status_output?: string;
 }
 
 export interface SystemInfo {

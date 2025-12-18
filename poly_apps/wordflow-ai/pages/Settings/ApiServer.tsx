@@ -5,7 +5,8 @@ import { Icons } from '../../components/UI';
 import { ApiEndpointSwitcher } from '../../components/ApiEndpointSwitcher';
 
 const ApiServerSettings = () => {
-  const { navigate } = useContext(AppContext);
+  // [i18n] Added `t` function for multi-language support
+  const { navigate, t } = useContext(AppContext);
 
   return (
     <div className="h-full flex flex-col pt-safe animate-slide-up-fade">
@@ -17,7 +18,8 @@ const ApiServerSettings = () => {
         >
           <Icons.ChevronLeft />
         </button>
-        <h1 className="text-2xl font-serif text-slate-800 dark:text-white tracking-tight">API Server</h1>
+        {/* [i18n] Replaced hardcoded title with t() */}
+        <h1 className="text-2xl font-serif text-slate-800 dark:text-white tracking-tight">{t('settings.apiServer')}</h1>
         <div className="w-10"></div>
       </div>
 
@@ -25,10 +27,11 @@ const ApiServerSettings = () => {
         <div className="max-w-lg mx-auto w-full space-y-6">
           {/* Info Card */}
           <div className="holo-card p-5 rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-800/40">
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">Backend API Configuration</h3>
+            {/* [i18n] Replaced hardcoded "Backend API Configuration" with t() */}
+            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">{t('settings.backendApiConfig')}</h3>
+            {/* [i18n] Replaced hardcoded description with t() */}
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
-              The app will automatically detect and connect to the first available API server based on priority.
-              You can manually switch servers if needed.
+              {t('settings.backendApiDescription')}
             </p>
 
             {/* Endpoint Switcher Component */}
@@ -39,32 +42,35 @@ const ApiServerSettings = () => {
 
           {/* How It Works */}
           <div className="holo-card p-5 rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-800/40">
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">How It Works</h3>
+            {/* [i18n] Replaced hardcoded "How It Works" with t() */}
+            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">{t('settings.howItWorks')}</h3>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              {/* [i18n] Replaced all hardcoded list items with t() */}
               <li className="flex items-start gap-2">
                 <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>Servers are tested in priority order on startup</span>
+                <span>{t('settings.serversTestedInOrder')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>First working server is automatically selected</span>
+                <span>{t('settings.firstWorkingSelected')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>Health checks run periodically in the background</span>
+                <span>{t('settings.healthChecksRun')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>Manual selection persists across app restarts</span>
+                <span>{t('settings.manualSelectionPersists')}</span>
               </li>
             </ul>
           </div>
 
           {/* Technical Details */}
           <div className="text-xs text-slate-400 dark:text-slate-500 space-y-1">
-            <p>Health checks verify server availability via GET /api/health</p>
-            <p>Response times are measured to help identify performance</p>
-            <p>Selected endpoint is saved to localStorage</p>
+            {/* [i18n] Replaced all hardcoded technical details with t() */}
+            <p>{t('settings.healthChecksVerify')}</p>
+            <p>{t('settings.responseTimesMeasured')}</p>
+            <p>{t('settings.endpointSavedLocalStorage')}</p>
           </div>
         </div>
       </div>

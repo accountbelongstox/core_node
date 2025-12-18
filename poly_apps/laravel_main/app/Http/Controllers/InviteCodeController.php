@@ -42,6 +42,26 @@ class InviteCodeController extends Controller
     }
 
     /**
+     * Get public invite codes (no authentication required)
+     * Returns masked codes for registration page display
+     */
+    public function listPublic(Request $request): JsonResponse
+    {
+        $codes = InviteCode::where('is_active', true)
+            ->where(function($query) {
+                $query->whereNull('expires_at')
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->whereColumn('used_count', '<', 'max_uses')
+            ->select(['id', 'code', 'type', 'max_uses', 'used_count', 'expires_at', 'is_active', 'created_at'])
+            ->orderBy('created_at', 'desc')
+            ->limit(10) // Limit to 10 most recent active codes
+            ->get();
+
+        return $this->success($codes, 'Public invite codes retrieved successfully');
+    }
+
+    /**
      * Create new invite code (admin only)
      */
     public function create(Request $request): JsonResponse

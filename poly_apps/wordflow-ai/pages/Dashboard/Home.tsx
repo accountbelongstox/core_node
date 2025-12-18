@@ -4,15 +4,23 @@ import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons, Button } from '../../components/UI';
 import { Header } from '../../components/Header';
 import { api } from '../../services/api';
-import { WordGroup } from '../../types';
+import { WordGroup, Word } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../services/mockData';
 import { IconMappingService } from '../../services/IconMappingService';
+import { ApiCenter } from '../../services/ApiCenter';
 
 const DashboardPage = () => {
-  const { user, navigate, t, activeGroupId } = useContext(AppContext);
+  const { user, navigate, t, activeGroupId, settings } = useContext(AppContext);
   const [activeGroup, setActiveGroup] = useState<WordGroup | null>(null);
   const [allGroups, setAllGroups] = useState<WordGroup[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<WordGroup[]>([]);
+  const [dailyWords, setDailyWords] = useState<any[]>([]);
+  const [reviewQueue, setReviewQueue] = useState<Word[]>([]);
+  const [loadingDaily, setLoadingDaily] = useState(false);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [recommendedLibraries, setRecommendedLibraries] = useState<any[]>([]);
+  const [selectedLibraries, setSelectedLibraries] = useState<any[]>([]);
+  const [loadingLibraries, setLoadingLibraries] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -21,22 +29,106 @@ const DashboardPage = () => {
           const found = groups.find(g => g.id === activeGroupId) || groups[0];
           setActiveGroup(found);
       });
+
+      // Load daily words
+      loadDailyWords();
+
+      // Load review queue
+      loadReviewQueue();
+
+      // Load selected vocabulary libraries
+      loadSelectedLibraries();
     }
   }, [user, activeGroupId]);
 
-  // Filter word groups based on selected learning languages
+  // Load recommended vocabulary libraries based on learning languages
+  // Always load recommendations (fallback to 'english' if no languages selected)
   useEffect(() => {
-    if (!user?.learningLanguages || user.learningLanguages.length === 0) {
+    loadRecommendedLibraries();
+  }, [settings.language.learningLanguages]);
+
+  const loadDailyWords = async () => {
+    setLoadingDaily(true);
+    try {
+      const response = await ApiCenter.words.getDailyWords(5);
+      if (response.success && response.data) {
+        setDailyWords(response.data);
+      }
+    } catch (err) {
+      console.error('[Home] Failed to load daily words:', err);
+    } finally {
+      setLoadingDaily(false);
+    }
+  };
+
+  const loadReviewQueue = async () => {
+    setLoadingReview(true);
+    try {
+      const response = await ApiCenter.learning.getReviewQueue();
+      if (response.success && response.data) {
+        setReviewQueue(response.data.slice(0, 5)); // Show max 5 words
+      }
+    } catch (err) {
+      console.error('[Home] Failed to load review queue:', err);
+    } finally {
+      setLoadingReview(false);
+    }
+  };
+
+  const loadRecommendedLibraries = async () => {
+    console.log('[Home] Loading recommended libraries...');
+    console.log('[Home] Learning languages:', settings.language.learningLanguages);
+    setLoadingLibraries(true);
+    try {
+      // Get first learning language for recommendations
+      const language = settings.language.learningLanguages?.[0] || 'english';
+      console.log('[Home] Using language:', language);
+      const response = await ApiCenter.vocabulary.getRecommendedLibraries({ language, limit: 5 });
+      console.log('[Home] API response:', response);
+
+      if (response.success && response.data) {
+        // API returns { success, data: { libraries: [...] } }
+        const libraries = Array.isArray(response.data) ? response.data : (response.data.libraries || []);
+        console.log('[Home] Extracted libraries:', libraries);
+        setRecommendedLibraries(libraries.slice(0, 5)); // Max 5 recommendations
+        console.log('[Home] Set recommended libraries count:', libraries.length);
+      } else {
+        console.log('[Home] API failed or no data:', response);
+      }
+    } catch (err) {
+      console.error('[Home] Failed to load recommended libraries:', err);
+    } finally {
+      setLoadingLibraries(false);
+    }
+  };
+
+  const loadSelectedLibraries = async () => {
+    if (!user) return;
+
+    try {
+      const response = await ApiCenter.learning.getSelectedCollections();
+      if (response.success && response.data) {
+        const collections = Array.isArray(response.data) ? response.data : (response.data.data || []);
+        setSelectedLibraries(collections.slice(0, 3)); // Max 3 on home page
+      }
+    } catch (err) {
+      console.error('[Home] Failed to load selected libraries:', err);
+    }
+  };
+
+  // [GLOBAL SETTING] Filter word groups based on global learning languages
+  useEffect(() => {
+    if (!settings.language.learningLanguages || settings.language.learningLanguages.length === 0) {
       // No languages selected, show all groups
       setFilteredGroups(allGroups);
     } else {
       // Filter groups by selected learning languages
       const filtered = allGroups.filter(group =>
-        user.learningLanguages!.includes(group.language)
+        settings.language.learningLanguages!.includes(group.language)
       );
       setFilteredGroups(filtered);
     }
-  }, [user?.learningLanguages, allGroups]);
+  }, [settings.language.learningLanguages, allGroups]);
 
   // Unified Auth Guard
   const handleProtectedAction = (action: () => void) => {
@@ -49,7 +141,8 @@ const DashboardPage = () => {
       }
   };
 
-  const currentLangCode = user?.learningLanguages?.[0] || 'en';
+  // [GLOBAL SETTING] Use global settings instead of user.learningLanguages
+  const currentLangCode = settings.language.learningLanguages?.[0] || 'en';
   const currentLang = SUPPORTED_LANGUAGES.find(l => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
 
   return (
@@ -90,8 +183,272 @@ const DashboardPage = () => {
              </button>
         </div>
 
+        {/* Daily Words Section */}
+        {user && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-3 px-1">
+              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                {t('home.dailyWords') || 'Daily Words'}
+              </h2>
+              <button
+                onClick={() => navigate('dictionary')}
+                className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
+              >
+                {t('home.viewMore') || 'More'}
+              </button>
+            </div>
+
+            {loadingDaily ? (
+              <div className="flex items-center justify-center p-6 rounded-[2rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
+                </div>
+              </div>
+            ) : dailyWords.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3">
+                {dailyWords.map((word, index) => (
+                  <div
+                    key={word.id || index}
+                    onClick={() => navigate('word_detail', { wordId: word.id })}
+                    className="flex items-center justify-between p-4 rounded-[1.5rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
+                        {word.emoji || '📝'}
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
+                            {word.word || word.text}
+                          </span>
+                          {index === 0 && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-yellow-100 text-yellow-700 rounded">
+                              {t('home.new') || 'NEW'}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500 truncate">
+                          {word.translation || word.meaning || t('home.noTranslation')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors flex-shrink-0">
+                      <Icons.ChevronRight />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2">
+                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
+                  📝
+                </div>
+                <span className="font-bold text-slate-500 text-center text-sm">
+                  {t('home.noDailyWords') || 'No daily words available'}
+                </span>
+                <span className="text-xs text-slate-400 text-center">
+                  {t('home.checkBackLater') || 'Check back later for new words'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Review Queue Section */}
+        {user && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-3 px-1">
+              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                {t('home.reviewQueue') || 'Review Queue'}
+              </h2>
+              <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
+                {reviewQueue.length > 0 ? `${reviewQueue.length}${reviewQueue.length >= 5 ? '+' : ''}` : '0'}
+              </span>
+            </div>
+
+            {loadingReview ? (
+              <div className="flex items-center justify-center p-6 rounded-[2rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
+                </div>
+              </div>
+            ) : reviewQueue.length > 0 ? (
+              <div className="space-y-3">
+                {reviewQueue.map((word, index) => (
+                  <div
+                    key={word.id}
+                    onClick={() => navigate('word_detail', { wordId: word.id })}
+                    className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-orange-50/80 to-red-50/80 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200/50 dark:border-orange-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/40 dark:to-red-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
+                        ⏰
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-orange-600 transition-colors">
+                          {word.text}
+                        </span>
+                        <span className="text-xs text-slate-500 truncate">
+                          {word.translation || t('home.noTranslation')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {word.masteryLevel && (
+                        <div className="px-2 py-1 rounded-lg bg-white/50 text-xs font-bold text-orange-600">
+                          {word.masteryLevel}%
+                        </div>
+                      )}
+                      <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
+                        <Icons.ChevronRight />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {reviewQueue.length >= 5 && (
+                  <button
+                    onClick={() => navigate('review')}
+                    className="w-full p-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-colors shadow-md"
+                  >
+                    {t('home.reviewAll') || 'Start Review Session'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2">
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-2xl">
+                  ✅
+                </div>
+                <span className="font-bold text-slate-500 text-center text-sm">
+                  {t('home.noReviewNeeded') || 'All caught up!'}
+                </span>
+                <span className="text-xs text-slate-400 text-center">
+                  {t('home.noReviewDescription') || 'No words need review right now'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recommended Vocabulary Libraries Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-3 px-1">
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              {t('home.recommendedLibraries') || 'RECOMMENDED VOCABULARY'}
+            </h2>
+            {recommendedLibraries.length > 0 && (
+              <button
+                onClick={() => navigate('recommendations')}
+                className="text-xs font-bold text-purple-500 bg-purple-50 px-2 py-1 rounded-lg"
+              >
+                {t('home.viewMore') || 'More'}
+              </button>
+            )}
+          </div>
+
+          {loadingLibraries ? (
+            <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-center">
+              <span className="text-slate-500">Loading vocabulary libraries...</span>
+            </div>
+          ) : recommendedLibraries.length > 0 ? (
+            <div className="space-y-3">
+              {recommendedLibraries.map((library) => (
+                <div
+                  key={library.id}
+                  onClick={() => navigate('recommendations')}
+                  className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-purple-50/80 to-pink-50/80 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200/50 dark:border-purple-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/40 dark:to-pink-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
+                      📚
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-purple-600 transition-colors">
+                        {library.name}
+                      </span>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>{library.word_count || library.total_words} {t('library.words') || 'words'}</span>
+                        {library.difficulty && (
+                          <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-bold">
+                            {library.difficulty}
+                          </span>
+                        )}
+                        {library.category && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                            {library.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-purple-50 group-hover:text-purple-500 transition-colors flex-shrink-0">
+                    <Icons.ChevronRight />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* My Selected Libraries Section */}
+        {user && selectedLibraries.length > 0 && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-3 px-1">
+              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                {t('home.myVocabulary') || 'My Vocabulary'}
+              </h2>
+              <button
+                onClick={() => navigate('courses')}
+                className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
+              >
+                {t('home.viewAll') || 'View All'}
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {selectedLibraries.map((library) => (
+                <div
+                  key={library.id}
+                  onClick={() => navigate('courses')}
+                  className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200/50 dark:border-blue-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
+                      ✓
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
+                        {library.name}
+                      </span>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>{library.word_count || library.total_words} {t('library.words') || 'words'}</span>
+                        {library.level && (
+                          <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold">
+                            {library.level}
+                          </span>
+                        )}
+                        {library.category && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                            {library.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors flex-shrink-0">
+                    <Icons.ChevronRight />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Filtered Word Groups Section */}
-        {user && user.learningLanguages && user.learningLanguages.length > 0 && (
+        {/* [GLOBAL SETTING] Show filtered courses based on global settings */}
+        {user && settings.language.learningLanguages && settings.language.learningLanguages.length > 0 && (
           <div className="mb-8">
             <div className="flex justify-between items-center mb-3 px-1">
               <div>
@@ -99,7 +456,7 @@ const DashboardPage = () => {
                   {t('home.availableCourses')}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {t('home.filteredBy')}: {user.learningLanguages.map(code =>
+                  {t('home.filteredBy')}: {settings.language.learningLanguages.map(code =>
                     SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code
                   ).join(', ')}
                 </p>

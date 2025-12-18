@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { DataProvider } from './contexts/DataContext';
 import Sidebar from './components/Sidebar';
+import DraggableHeader from './components/DraggableHeader';
 import Dashboard from './pages/Dashboard';
 import SystemManagement from './pages/SystemManagement';
 import LocalProcessing from './pages/LocalProcessing';
@@ -82,14 +83,14 @@ const AppContent: React.FC = () => {
       <Sidebar currentView={currentView} onChangeView={setCurrentView} />
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header */}
-        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 flex-shrink-0 transition-colors duration-200">
+        {/* Top Header - Draggable for frameless window */}
+        <DraggableHeader className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 flex-shrink-0 transition-colors duration-200">
           <div className="flex items-center gap-4">
              <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200 capitalize">
                 {getPageTitle(currentView)}
              </h2>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <button className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors relative">
                 <Bell size={20} />
@@ -106,7 +107,7 @@ const AppContent: React.FC = () => {
                 </div>
             </button>
           </div>
-        </header>
+        </DraggableHeader>
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6 scroll-smooth">

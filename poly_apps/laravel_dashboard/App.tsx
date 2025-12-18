@@ -13,6 +13,7 @@ import ServerManager from './components/views/ServerManager';
 import Settings from './components/views/Settings';
 import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
+import { HtmlErrorModal } from './components/debug/HtmlErrorModal';
 import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import { ToastProvider, InviteCodeManager } from './components/admin';
@@ -23,6 +24,7 @@ import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
 import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
 import { ApiEndpointSwitcher } from './components/ApiEndpointSwitcher';
 import { apiManager } from './services/ApiManager';
+import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
 
 const AppContent: React.FC = () => {
   const { config } = useApiConfig();
@@ -39,6 +41,7 @@ const AppContent: React.FC = () => {
   const { isLoggedIn: userIsLoggedIn, logout: userLogout, user } = useUser();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [htmlError, setHtmlError] = useState<HtmlErrorEvent | null>(null);
 
   // Initialize API Manager on mount
   useEffect(() => {
@@ -63,6 +66,15 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     setIsLoggedIn(userIsLoggedIn);
   }, [userIsLoggedIn, setIsLoggedIn]);
+
+  // Listen for HTML error events
+  useEffect(() => {
+    const unsubscribe = htmlErrorManager.addListener((event) => {
+      setHtmlError(event);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     console.log('[App] Mounted with activeView:', activeView);
@@ -89,6 +101,11 @@ const AppContent: React.FC = () => {
   const inviteCodesAuthRequired = t.invite_codes.auth_required;
   const inviteCodesTitle = t.header.titles.invite_codes;
 
+  // Global variable to control authentication requirements
+  // Default: true (authentication disabled for testing)
+  // To enable auth: Set window.DISABLE_AUTH = false in browser console
+  const disableAuth = (window as any).DISABLE_AUTH !== false;
+
   const renderView = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
@@ -113,7 +130,7 @@ const AppContent: React.FC = () => {
         return (
           <AuthGuard
             lang={lang}
-            requireAuth={true}
+            requireAuth={!disableAuth}
             fallbackMessage={serverManagerAuthRequired}
             onLoginRequest={() => setShowLoginModal(true)}
           >
@@ -124,7 +141,7 @@ const AppContent: React.FC = () => {
         return (
           <AuthGuard
             lang={lang}
-            requireAuth={true}
+            requireAuth={!disableAuth}
             fallbackMessage={settingsAuthRequired}
             onLoginRequest={() => setShowLoginModal(true)}
           >
@@ -135,7 +152,7 @@ const AppContent: React.FC = () => {
         return (
           <AuthGuard
             lang={lang}
-            requireAuth={true}
+            requireAuth={!disableAuth}
             fallbackMessage={inviteCodesAuthRequired}
             onLoginRequest={() => setShowLoginModal(true)}
           >
@@ -224,7 +241,7 @@ const AppContent: React.FC = () => {
 
                     {/* Language Switcher */}
                     <button
-                      onClick={toggleLang}
+                      onClick={() => toggleLang(true)}
                       className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Switch Language"
                     >
@@ -233,7 +250,7 @@ const AppContent: React.FC = () => {
 
                     {/* Theme Switcher */}
                     <button
-                      onClick={toggleTheme}
+                      onClick={() => toggleTheme(true)}
                       className="p-2 rounded-lg text-slate-500 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Toggle Theme"
                     >
@@ -292,6 +309,15 @@ const AppContent: React.FC = () => {
         onClose={() => setShowLoginModal(false)}
         onSuccess={handleLoginSuccess}
         lang={lang}
+      />
+
+      {/* HTML Error Debug Modal */}
+      <HtmlErrorModal
+        isOpen={htmlError !== null}
+        onClose={() => setHtmlError(null)}
+        htmlContent={htmlError?.htmlContent || ''}
+        url={htmlError?.url || ''}
+        statusCode={htmlError?.statusCode}
       />
 
     </div>

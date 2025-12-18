@@ -1,0 +1,70 @@
+# Linux-specific requirements for pycore Native UI
+# Install with: pip install -r requirements_linux.txt
+
+# ============================================================
+# System Tray Support on Ubuntu 22.04+ (GNOME Shell)
+# ============================================================
+
+# PyGObject - Python bindings for GObject/GTK3
+# Required for native AppIndicator3 support on Ubuntu
+PyGObject>=3.42.0
+
+# Note: AppIndicator3 requires system libraries to be installed first:
+#   sudo apt-get install gir1.2-appindicator3-0.1
+#   sudo apt-get install libgirepository1.0-dev
+#   sudo apt-get install libcairo2-dev
+#   sudo apt-get install python3-gi python3-gi-cairo
+#
+# Alternative: Use system Python packages instead of pip:
+#   sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+
+# ============================================================
+# Optional: pystray fallback (Tkinter-based tray)
+# ============================================================
+
+# pystray - Cross-platform system tray library
+# Requires AppIndicator extension in GNOME: gnome-shell-extension-appindicator
+pystray>=0.19.0
+
+# Pillow - Image processing for tray icons
+Pillow>=9.0.0
+
+# ============================================================
+# D-Bus Support
+# ============================================================
+
+# dbus-python - D-Bus bindings for Python
+# Required for StatusNotifierItem protocol
+dbus-python>=1.2.18
+
+# Note: dbus-python requires system libraries:
+#   sudo apt-get install libdbus-1-dev libdbus-glib-1-dev
+
+# ============================================================
+# Installation Instructions
+# ============================================================
+
+# Method 1: System packages (Recommended for Ubuntu/Debian)
+# ----------------------------------------------------------
+# sudo apt-get update
+# sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+# sudo apt-get install gnome-shell-extension-appindicator
+# gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com
+
+# Method 2: pip install (May require compilation)
+# ----------------------------------------------------------
+# sudo apt-get install libgirepository1.0-dev libcairo2-dev libdbus-1-dev
+# pip install -r requirements_linux.txt
+
+# ============================================================
+# Verification
+# ============================================================
+
+# Test PyGObject:
+#   python3 -c "import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; print('✓ GTK3 available')"
+
+# Test AppIndicator3:
+#   python3 -c "import gi; gi.require_version('AppIndicator3', '0.1'); from gi.repository import AppIndicator3; print('✓ AppIndicator3 available')"
+
+# Test pystray:
+#   python3 -c "import pystray; print('✓ pystray available')"

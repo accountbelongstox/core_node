@@ -1,0 +1,445 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+AppIndicator3 System Tray - Native Ubuntu/GNOME System Tray
+
+Native implementation using GTK3 + AppIndicator3 for Ubuntu/GNOME Shell.
+This provides the best system tray experience on Ubuntu 22.04+.
+
+Features:
+- Native GNOME Shell integration (no extensions required for basic functionality)
+- Better AppIndicator extension compatibility than Qt QSystemTrayIcon
+- StatusNotifierItem (SNI) protocol support via D-Bus
+- More reliable icon display on startup
+- System-level menu integration
+
+Requirements:
+    System packages (recommended):
+        sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+
+    OR pip packages (requires compilation):
+        pip install PyGObject
+        sudo apt-get install gir1.2-appindicator3-0.1
+
+Usage:
+    from pycore.pyutils.native_ui.step6_tray import AppIndicatorSystemTray
+
+    tray = AppIndicatorSystemTray(
+        app_id="my-app",
+        app_name="My Application",
+        icon_path="/path/to/icon.png"
+    )
+    tray.set_menu_items(menu_items)
+    tray.run()  # Blocks until stopped
+"""
+
+import sys
+import platform
+from typing import Optional, List, Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+# Try to import GTK3 and AppIndicator3
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('AppIndicator3', '0.1')
+    from gi.repository import Gtk, AppIndicator3, GLib
+    APPINDICATOR_AVAILABLE = True
+    IMPORT_ERROR = None
+except ImportError as e:
+    APPINDICATOR_AVAILABLE = False
+    IMPORT_ERROR = str(e)
+    # Create dummy classes for type hints
+    Gtk = None
+    AppIndicator3 = None
+    GLib = None
+except ValueError as e:
+    # gi.require_version failed
+    APPINDICATOR_AVAILABLE = False
+    IMPORT_ERROR = str(e)
+    Gtk = None
+    AppIndicator3 = None
+    GLib = None
+
+from pycore import THREAD_BUS, ColorPrint
+
+
+@dataclass
+class AppIndicatorMenuItem:
+    """
+    Menu item configuration for AppIndicator.
+
+    Attributes:
+        text: Menu item label (supports i18n keys)
+        callback: Function to call when clicked
+        icon_path: Optional icon path
+        checkable: Whether item is checkable (toggle)
+        checked: Initial checked state (if checkable)
+        separator: True if this is a separator
+        submenu: List of submenu items
+        enabled: Whether item is enabled
+    """
+    text: str
+    callback: Optional[Callable] = None
+    icon_path: Optional[str] = None
+    checkable: bool = False
+    checked: bool = False
+    separator: bool = False
+    submenu: Optional[List['AppIndicatorMenuItem']] = None
+    enabled: bool = True
+
+
+class AppIndicatorSystemTray:
+    """
+    Native AppIndicator3 system tray for Ubuntu/GNOME.
+
+    Provides the most reliable system tray experience on Ubuntu 22.04+ with
+    GNOME Shell by using the native AppIndicator protocol.
+
+    Advantages over QSystemTrayIcon/pystray:
+    - No /tmp icon path issues (Qt problem)
+    - Better compatibility with AppIndicator extension
+    - Native GNOME Shell integration
+    - More reliable startup display
+    - Proper StatusNotifierItem protocol support
+    """
+
+    def __init__(
+        self,
+        app_id: str = "pycore-app",
+        app_name: str = "Application",
+        icon_path: Optional[str] = None,
+        icon_name: Optional[str] = None,
+        trigger_shutdown_on_exit: bool = True
+    ):
+        """
+        Initialize AppIndicator system tray.
+
+        Args:
+            app_id: Unique application ID (used for D-Bus naming)
+            app_name: Application name for tooltip
+            icon_path: Path to icon file (PNG recommended)
+            icon_name: Icon theme name (e.g., "application-default-icon")
+                      If both icon_path and icon_name provided, icon_name is used
+            trigger_shutdown_on_exit: Trigger THREAD_BUS shutdown when tray exits
+        """
+        if not APPINDICATOR_AVAILABLE:
+            raise RuntimeError(
+                f"AppIndicator3 not available: {IMPORT_ERROR}\n"
+                f"Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+            )
+
+        self.app_id = app_id
+        self.app_name = app_name
+        self.icon_path = icon_path
+        self.icon_name = icon_name
+        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
+
+        # Menu items storage
+        self.menu_items: List[AppIndicatorMenuItem] = []
+
+        # GTK menu widget
+        self.gtk_menu: Optional[Gtk.Menu] = None
+
+        # AppIndicator instance
+        self.indicator: Optional[AppIndicator3.Indicator] = None
+
+        # Running state
+        self._running = False
+
+        ColorPrint.blue(f"[AppIndicatorSystemTray] Initialized - App ID: {app_id}")
+
+    def _create_indicator(self):
+        """Create AppIndicator3.Indicator instance."""
+        # Determine icon to use
+        if self.icon_name:
+            # Use icon from theme
+            icon_id = self.icon_name
+            ColorPrint.cyan(f"[AppIndicatorSystemTray] Using theme icon: {icon_id}")
+        elif self.icon_path and Path(self.icon_path).exists():
+            # Use file path
+            icon_id = self.icon_path
+            ColorPrint.cyan(f"[AppIndicatorSystemTray] Using icon file: {icon_id}")
+        else:
+            # Use default application icon
+            icon_id = "application-default-icon"
+            ColorPrint.yellow(f"[AppIndicatorSystemTray] Using default icon: {icon_id}")
+
+        # Create indicator
+        self.indicator = AppIndicator3.Indicator.new(
+            self.app_id,
+            icon_id,
+            AppIndicator3.IndicatorCategory.APPLICATION_STATUS
+        )
+
+        # Set status to active (visible)
+        self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+
+        # Set tooltip (GNOME Shell may not show this)
+        self.indicator.set_title(self.app_name)
+
+        ColorPrint.green("[AppIndicatorSystemTray] Indicator created")
+
+    def _create_menu(self):
+        """Create GTK menu."""
+        self.gtk_menu = Gtk.Menu()
+        ColorPrint.green("[AppIndicatorSystemTray] Menu created")
+
+    def set_menu_items(self, items: List[AppIndicatorMenuItem]):
+        """
+        Set tray menu items.
+
+        Args:
+            items: List of AppIndicatorMenuItem configurations
+        """
+        self.menu_items = items
+        self._rebuild_menu()
+
+    def _rebuild_menu(self):
+        """Rebuild menu from menu items."""
+        if not self.gtk_menu:
+            self._create_menu()
+
+        # Clear existing menu
+        for child in self.gtk_menu.get_children():
+            self.gtk_menu.remove(child)
+
+        # Add items
+        for item in self.menu_items:
+            self._add_menu_item(self.gtk_menu, item)
+
+        # Show all items
+        self.gtk_menu.show_all()
+
+        # Set menu to indicator
+        if self.indicator:
+            self.indicator.set_menu(self.gtk_menu)
+
+        ColorPrint.green(f"[AppIndicatorSystemTray] Menu rebuilt with {len(self.menu_items)} items")
+
+    def _add_menu_item(self, menu: Gtk.Menu, item: AppIndicatorMenuItem):
+        """
+        Add menu item to GTK menu.
+
+        Args:
+            menu: GTK Menu to add item to
+            item: Menu item configuration
+        """
+        # Separator
+        if item.separator or item.text == "---":
+            separator = Gtk.SeparatorMenuItem()
+            menu.append(separator)
+            return
+
+        # Submenu
+        if item.submenu:
+            submenu_item = Gtk.MenuItem(label=item.text)
+            submenu = Gtk.Menu()
+
+            for subitem in item.submenu:
+                self._add_menu_item(submenu, subitem)
+
+            submenu_item.set_submenu(submenu)
+            menu.append(submenu_item)
+            return
+
+        # Regular item
+        if item.checkable:
+            menu_item = Gtk.CheckMenuItem(label=item.text)
+            menu_item.set_active(item.checked)
+        else:
+            menu_item = Gtk.MenuItem(label=item.text)
+
+        # Set enabled state
+        menu_item.set_sensitive(item.enabled)
+
+        # Connect callback
+        if item.callback:
+            # Wrap callback to trigger via THREAD_BUS if callback is a signal name
+            if isinstance(item.callback, str):
+                # Callback is a signal name
+                signal_name = item.callback
+                menu_item.connect("activate", lambda widget: THREAD_BUS.trigger_event(signal_name))
+            else:
+                # Callback is a function
+                menu_item.connect("activate", lambda widget: item.callback())
+
+        # Add to menu
+        menu.append(menu_item)
+
+    def update_menu(self, items: List[AppIndicatorMenuItem]):
+        """
+        Update menu items (thread-safe via GLib.idle_add).
+
+        Args:
+            items: New list of menu items
+        """
+        def _update():
+            self.set_menu_items(items)
+            return False  # Don't repeat
+
+        GLib.idle_add(_update)
+
+    def update_icon(self, icon_path: Optional[str] = None, icon_name: Optional[str] = None):
+        """
+        Update tray icon.
+
+        Args:
+            icon_path: Path to new icon file
+            icon_name: Icon theme name
+        """
+        if icon_name:
+            self.icon_name = icon_name
+            if self.indicator:
+                self.indicator.set_icon_full(icon_name, self.app_name)
+            ColorPrint.cyan(f"[AppIndicatorSystemTray] Icon updated to: {icon_name}")
+        elif icon_path and Path(icon_path).exists():
+            self.icon_path = icon_path
+            if self.indicator:
+                self.indicator.set_icon_full(icon_path, self.app_name)
+            ColorPrint.cyan(f"[AppIndicatorSystemTray] Icon updated to: {icon_path}")
+
+    def run(self):
+        """
+        Run tray (blocks until stopped).
+
+        This starts the GTK main loop and blocks until Gtk.main_quit() is called.
+        """
+        if self._running:
+            ColorPrint.yellow("[AppIndicatorSystemTray] Already running")
+            return
+
+        # Create indicator and menu
+        self._create_indicator()
+
+        if not self.gtk_menu:
+            self._create_menu()
+            self.indicator.set_menu(self.gtk_menu)
+
+        # Mark as running
+        self._running = True
+
+        # Signal that tray is ready
+        THREAD_BUS.trigger_event('tray.ready', {'app_id': self.app_id})
+
+        ColorPrint.green(f"[AppIndicatorSystemTray] Running (blocking)...")
+        ColorPrint.blue(f"[AppIndicatorSystemTray] App: {self.app_name}")
+        ColorPrint.blue(f"[AppIndicatorSystemTray] Icon: {self.icon_name or self.icon_path or 'default'}")
+
+        try:
+            # Start GTK main loop (blocks)
+            Gtk.main()
+        except KeyboardInterrupt:
+            ColorPrint.yellow("[AppIndicatorSystemTray] Interrupted by user")
+        finally:
+            self._running = False
+
+            # Trigger shutdown if configured
+            if self.trigger_shutdown_on_exit:
+                ColorPrint.blue("[AppIndicatorSystemTray] Triggering shutdown...")
+                THREAD_BUS.trigger_event('app.shutdown', {'source': 'tray_exit'})
+
+            ColorPrint.yellow("[AppIndicatorSystemTray] Stopped")
+
+    def stop(self):
+        """
+        Stop tray (called from other threads).
+
+        This is thread-safe via GLib.idle_add().
+        """
+        def _stop():
+            ColorPrint.blue("[AppIndicatorSystemTray] Stopping...")
+            Gtk.main_quit()
+            return False  # Don't repeat
+
+        GLib.idle_add(_stop)
+
+    def is_running(self) -> bool:
+        """Check if tray is running."""
+        return self._running
+
+
+def check_appindicator_available() -> bool:
+    """
+    Check if AppIndicator3 is available.
+
+    Returns:
+        True if AppIndicator3 can be imported, False otherwise
+    """
+    return APPINDICATOR_AVAILABLE
+
+
+def get_appindicator_error() -> Optional[str]:
+    """
+    Get AppIndicator3 import error message.
+
+    Returns:
+        Error message if import failed, None if available
+    """
+    return IMPORT_ERROR if not APPINDICATOR_AVAILABLE else None
+
+
+def print_appindicator_status():
+    """Print AppIndicator3 availability status."""
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue(" APPINDICATOR3 STATUS")
+    ColorPrint.blue("=" * 70)
+
+    if APPINDICATOR_AVAILABLE:
+        ColorPrint.green("✓ AppIndicator3 is available")
+
+        # Try to get version info
+        try:
+            import gi
+            ColorPrint.cyan(f"  PyGObject version: {gi.__version__}")
+        except:
+            pass
+    else:
+        ColorPrint.red("✗ AppIndicator3 is NOT available")
+        ColorPrint.yellow(f"  Error: {IMPORT_ERROR}")
+        ColorPrint.yellow("")
+        ColorPrint.yellow("  Installation:")
+        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
+        ColorPrint.yellow("")
+        ColorPrint.yellow("  OR (with pip):")
+        ColorPrint.yellow("    pip install PyGObject")
+        ColorPrint.yellow("    sudo apt-get install gir1.2-appindicator3-0.1")
+
+    ColorPrint.blue("=" * 70)
+
+
+# Example usage
+if __name__ == "__main__":
+    print_appindicator_status()
+
+    if not APPINDICATOR_AVAILABLE:
+        sys.exit(1)
+
+    # Test tray creation
+    tray = AppIndicatorSystemTray(
+        app_id="test-app",
+        app_name="Test Application",
+        icon_name="application-default-icon"
+    )
+
+    # Create test menu
+    menu_items = [
+        AppIndicatorMenuItem(
+            text="Show Window",
+            callback=lambda: ColorPrint.green("Show clicked")
+        ),
+        AppIndicatorMenuItem(text="---", separator=True),
+        AppIndicatorMenuItem(
+            text="Exit",
+            callback=lambda: tray.stop()
+        )
+    ]
+
+    tray.set_menu_items(menu_items)
+
+    # Run (blocks)
+    try:
+        tray.run()
+    except KeyboardInterrupt:
+        ColorPrint.yellow("Interrupted")

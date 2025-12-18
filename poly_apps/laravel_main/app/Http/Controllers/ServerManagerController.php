@@ -141,9 +141,16 @@ class ServerManagerController extends Controller
     /**
      * Restart current Octane service (auto-detect)
      * Automatically detects service name from Laravel path
+     * localhost only for security
      */
     public function restartCurrent(Request $request): JsonResponse
     {
+        // Check if request is from localhost
+        $allowedIps = ['127.0.0.1', '::1', 'localhost'];
+        if (!in_array($request->ip(), $allowedIps) && $request->ip() !== '127.0.0.1') {
+            return $this->error('Access denied. This endpoint is only accessible from localhost.', 403);
+        }
+
         $serviceName = ServerManagerV1OctaneServiceManager::getCurrentOctaneServiceName();
 
         if ($serviceName === null) {

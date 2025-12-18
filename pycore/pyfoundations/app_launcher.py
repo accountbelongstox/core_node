@@ -355,6 +355,19 @@ class AppLauncher:
             print(f'App Entry: {self.app_entry}')
             print()
 
+        # Search and launch executable files in app directory
+        # This allows parallel startup of other processes without blocking main app
+        if not is_mcp_mode:
+            print(f'[Launcher] Searching for executable files in app directory...')
+
+        from pycore.pylauncher import get_app_executable_launcher
+        executable_launcher = get_app_executable_launcher()
+        executable_launcher.search_and_launch_app_executables(
+            self.app_dir,
+            self.app_name,
+            silent=is_mcp_mode
+        )
+
         # Load the app module dynamically
         module_name = f"pyapps.{self.app_name}.{self.app_name}_main"
         spec = importlib.util.spec_from_file_location(

@@ -176,6 +176,12 @@ OPTIONAL_PACKAGES = {
     "edge_tts": "edge-tts",
     # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
     "whisper": "openai-whisper",
+
+    # For native Linux system tray (Ubuntu/GNOME) - optional
+    # Note: Requires system packages: gir1.2-appindicator3-0.1, libgirepository1.0-dev
+    # Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+    # Or: ./scripts/install_ubuntu_tray_support.sh
+    "gi": "PyGObject",
 }
 
 # Windows-only packages

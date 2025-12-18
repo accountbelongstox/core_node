@@ -28,7 +28,7 @@ class Config:
     # ==================== Frontend Configuration ====================
     # Frontend framework: Vite + React (pycore-management)
     FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "pycore-management"
-    FRONTEND_PORT = 3000  # Vite dev server port
+    FRONTEND_PORT = 3100  # Vite dev server port (changed from 3000 to avoid matrixui conflict)
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
     # Frontend modes:

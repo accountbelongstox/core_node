@@ -10,6 +10,12 @@ Provides audio capture from various sources:
 Dependencies:
 - pyaudio (for microphone)
 - pyaudiowpatch (for Windows system audio capture)
+
+THREAD_BUS Integration:
+- Checks is_shutdown_requested() in recording loops
+- Triggers 'stt.audio.captured' events on successful recording completion
+- No shutdown handler needed (utility class, not a persistent service thread)
+- Backwards compatible: keeps existing functionality
 """
 
 import io
@@ -22,6 +28,7 @@ from pathlib import Path
 from typing import Optional, Callable, Any
 
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import (
     get_third_package_pyaudio,
     get_third_package_pyaudiowpatch,
@@ -140,8 +147,19 @@ class MicrophoneCapture:
         return True
 
     def _record_loop(self):
-        """Recording loop (runs in separate thread)"""
+        """
+        Recording loop (runs in separate thread)
+
+        THREAD_BUS Integration:
+        - Checks is_shutdown_requested() for graceful shutdown
+        """
         while self._is_recording and self._stream:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[MicrophoneCapture] THREAD_BUS shutdown detected, stopping recording...")
+                self._is_recording = False
+                break
+
             data = self._stream.read(self._config.chunk_size, exception_on_overflow=False)
             self._frames.append(data)
 
@@ -154,6 +172,9 @@ class MicrophoneCapture:
 
         Returns:
             Path to recorded audio file, or None on failure
+
+        THREAD_BUS Integration:
+        - Triggers 'stt.audio.captured' event on successful recording
         """
         if not self._is_recording:
             ColorPrint.yellow("[MicrophoneCapture] Not recording")
@@ -193,6 +214,20 @@ class MicrophoneCapture:
             wf.writeframes(b''.join(self._frames))
 
         ColorPrint.green(f"[MicrophoneCapture] Saved recording: {output_path}")
+
+        # THREAD_BUS Integration: Trigger audio captured event
+        # Calculate duration before clearing frames
+        frame_count = len(self._frames)
+        duration_seconds = frame_count * self._config.chunk_size / self._config.sample_rate if frame_count > 0 else 0
+
+        THREAD_BUS.trigger_event('stt.audio.captured', {
+            'source': 'microphone',
+            'file_path': str(output_path),
+            'duration_seconds': duration_seconds,
+            'sample_rate': self._config.sample_rate,
+            'channels': self._config.channels
+        }, async_mode=True)
+
         self._frames = []
         return output_path
 
@@ -347,8 +382,19 @@ class SystemAudioCapture:
         return True
 
     def _record_loop(self):
-        """Recording loop (runs in separate thread)"""
+        """
+        Recording loop (runs in separate thread)
+
+        THREAD_BUS Integration:
+        - Checks is_shutdown_requested() for graceful shutdown
+        """
         while self._is_recording and self._stream:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[SystemAudioCapture] THREAD_BUS shutdown detected, stopping recording...")
+                self._is_recording = False
+                break
+
             data = self._stream.read(self._config.chunk_size, exception_on_overflow=False)
             self._frames.append(data)
 
@@ -361,6 +407,9 @@ class SystemAudioCapture:
 
         Returns:
             Path to recorded audio file, or None on failure
+
+        THREAD_BUS Integration:
+        - Triggers 'stt.audio.captured' event on successful recording
         """
         if not self._is_recording:
             ColorPrint.yellow("[SystemAudioCapture] Not recording")
@@ -403,6 +452,11 @@ class SystemAudioCapture:
             wf.writeframes(b''.join(self._frames))
 
         ColorPrint.green(f"[SystemAudioCapture] Saved recording: {output_path}")
+
+        # Calculate duration before clearing frames
+        frame_count = len(self._frames)
+        duration_seconds = frame_count * self._config.chunk_size / sample_rate if frame_count > 0 else 0
+
         self._frames = []
 
         # Convert to Whisper format (16kHz mono)
@@ -410,7 +464,17 @@ class SystemAudioCapture:
         converted_path = convert_to_whisper_format(output_path)
         if converted_path and converted_path != output_path:
             output_path.unlink(missing_ok=True)
-            return converted_path
+            output_path = converted_path
+
+        # THREAD_BUS Integration: Trigger audio captured event
+        THREAD_BUS.trigger_event('stt.audio.captured', {
+            'source': 'system_audio',
+            'file_path': str(output_path),
+            'duration_seconds': duration_seconds,
+            'sample_rate': sample_rate,
+            'channels': channels,
+            'device_name': self._loopback_device.get('name', 'Unknown') if self._loopback_device else 'Unknown'
+        }, async_mode=True)
 
         return output_path
 

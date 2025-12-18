@@ -30,6 +30,8 @@ export const zh: TranslationKey = {
     password: '密码',
     confirmPassword: '确认密码',
     email: '邮箱',
+    nickname: '昵称（可选）',
+    inviteCode: '邀请码（可选）',
     forgotPassword: '忘记密码？',
     rememberMe: '记住我',
     loginSuccess: '登录成功',
@@ -40,7 +42,7 @@ export const zh: TranslationKey = {
     invalidCredentials: '用户名或密码错误',
     usernameRequired: '请输入用户名',
     passwordRequired: '请输入密码',
-    passwordTooShort: '密码至少需要6个字符',
+    passwordTooShort: '请输入密码', // [已弃用] 无最小长度限制 - 保留以兼容
     passwordMismatch: '两次输入的密码不一致',
     usernameExists: '用户名已存在',
     emailExists: '该邮箱已被注册，请使用其他邮箱或尝试登录。',
@@ -59,6 +61,10 @@ export const zh: TranslationKey = {
     listening: '听力',
     profile: '个人',
     settings: '设置',
+    // Bottom Tab Navigation
+    practice: '练习',
+    tools: '工具',
+    mine: '我的',
   },
 
   home: {
@@ -280,7 +286,7 @@ export const zh: TranslationKey = {
     // Errors
     allFieldsRequired: '所有字段都是必填的',
     passwordsNotMatch: '两次输入的新密码不一致',
-    passwordTooShort: '密码至少需要6个字符',
+    passwordTooShort: '请输入密码', // [已弃用] 无最小长度限制 - 保留以兼容
     selectImageFile: '请选择图片文件',
     imageTooLarge: '图片大小不能超过 5MB',
     uploadFailed: '上传失败',
@@ -380,7 +386,6 @@ export const zh: TranslationKey = {
     reminderTime: '提醒时间',
 
     // ApiServer Page - i18n extension
-    apiServer: 'API服务器',
     backendApiConfig: '后端API配置',
     backendApiDescription: '应用将根据优先级自动检测并连接到第一个可用的API服务器。如有需要，您可以手动切换服务器。',
     howItWorks: '工作原理',

@@ -53,7 +53,8 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
 
         $request->validate([
             'username' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'min:6', 'max:255'],
+            // [Removed] Password 'min:6' validation removed - no minimum requirement
+            'password' => ['required', 'string', 'max:255'],
         ]);
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {

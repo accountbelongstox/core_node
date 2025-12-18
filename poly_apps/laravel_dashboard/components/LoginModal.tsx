@@ -21,6 +21,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
   const [formData, setFormData] = useState({
     username: '',
     password: '',
+    confirmPassword: '',
     email: '',
     nickname: '',
     registrationCode: ''
@@ -72,6 +73,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
       return;
     }
 
+    if (isRegisterMode && formData.password !== formData.confirmPassword) {
+      setLocalError(lang === 'zh' ? '两次密码输入不一致' : 'Passwords do not match');
+      return;
+    }
+
     let success = false;
 
     if (isRegisterMode) {
@@ -90,6 +96,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
       setFormData({
         username: '',
         password: '',
+        confirmPassword: '',
         email: '',
         nickname: '',
         registrationCode: ''
@@ -170,6 +177,23 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                 />
               </div>
             </div>
+
+            {/* Confirm Password - Register only */}
+            {isRegisterMode && (
+              <div className="space-y-1">
+                <div className="relative group">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                  <input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange('confirmPassword')}
+                    placeholder={t.confirm_password}
+                    className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Register-only fields */}
             {isRegisterMode && (
