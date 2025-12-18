@@ -68,6 +68,46 @@ export const en = {
     startNewSession: 'Start New Session',
     reviewWords: 'Review Words',
     quickStats: 'Quick Stats',
+
+    // Dashboard specific
+    startLearning: 'Start Learning',
+    guestMode: 'Guest Mode',
+    welcomeGuest: 'Welcome Guest',
+    hiUser: 'Hi, {name}',
+    targetLanguage: 'Target Language',
+    availableCourses: 'Available Courses',
+    filteredBy: 'Filtered by',
+    viewAll: 'View All',
+    noCoursesForLanguages: 'No courses for selected languages',
+    tryDifferentLanguages: 'Try selecting different languages in Settings',
+    changeLanguages: 'Change Languages',
+    activeCourse: 'Active Course',
+    library: 'Library',
+    add: '+ Add',
+    loading: 'Loading...',
+    selectWordBank: 'Select a Word Bank to Start',
+    loginRequired: 'Login Required',
+    studyCenter: 'Study Center',
+    smartPlaylist: 'Smart Playlist',
+    autoPlayReview: 'Auto-play & Instant Review',
+    recommended: 'RECOMMENDED',
+    flashcards: 'Flashcards',
+    spacedRepetition: 'Spaced Repetition',
+    reading: 'Reading',
+    flowContext: 'Flow Context',
+    quiz: 'Quiz',
+    gamifiedTest: 'Gamified Test',
+    passive: 'Passive',
+    audioLoop: 'Audio Loop',
+    myProgress: 'My Progress',
+    days: 'Days',
+    currentStreak: 'Current Streak',
+    retentionRate: 'Retention Rate',
+    syncYourProgress: 'Sync Your Progress',
+    syncProgressDescription: 'Login to save your streaks, vocabulary lists, and mastery levels across devices.',
+    loginNow: 'Login Now',
+    accountRequired: 'Account required for this feature. Login now?',
+    words: 'words',
   },
 
   reading: {
@@ -104,6 +144,13 @@ export const en = {
     tryAgain: 'Try Again',
     nextQuestion: 'Next Question',
     submitAnswer: 'Submit Answer',
+
+    // Quiz Run Page - i18n extension
+    loadingQuiz: 'Loading Quiz...',
+    quizComplete: 'Quiz Complete!',
+    score: 'Score:',
+    backHome: 'Back Home',
+    question: 'Question',
   },
 
   library: {
@@ -117,10 +164,19 @@ export const en = {
     beginner: 'Beginner',
     intermediate: 'Intermediate',
     advanced: 'Advanced',
+
+    // Courses Page - i18n extension
+    library: 'Library',
+    all: 'All',
+    importDocument: 'Import Document / PDF',
+    noBooksFound: 'No books found for this language.',
+    noDescription: 'No description available.',
+    words: 'words',
   },
 
   profile: {
     profile: 'Profile',
+    myProfile: 'My Profile',
     statistics: 'Statistics',
     achievements: 'Achievements',
     learningStreak: 'Learning Streak',
@@ -130,6 +186,103 @@ export const en = {
     studyTime: 'Study Time',
     editProfile: 'Edit Profile',
     changeAvatar: 'Change Avatar',
+
+    // Sections
+    basicInfo: 'Basic Information',
+    personalInfo: 'Personal Information',
+    locationWork: 'Location & Work',
+    languageCulture: 'Language & Culture',
+    socialLinks: 'Social Links',
+    account: 'Account',
+    security: 'Security',
+
+    // Fields
+    username: 'Username',
+    nickname: 'Nickname',
+    displayName: 'Display Name',
+    email: 'Email',
+    bio: 'Bio',
+    phone: 'Phone',
+    age: 'Age',
+    gender: 'Gender',
+    birthday: 'Birthday',
+    location: 'Location',
+    city: 'City',
+    education: 'Education',
+    occupation: 'Occupation',
+    nativeLanguage: 'Native Language',
+    religion: 'Religion',
+    website: 'Website',
+    github: 'GitHub',
+    wechat: 'WeChat',
+    weibo: 'Weibo',
+    qq: 'QQ',
+    userId: 'User ID',
+
+    // Gender options
+    male: 'Male',
+    female: 'Female',
+    other: 'Other',
+
+    // Actions
+    uploadingAvatar: 'Uploading avatar...',
+    avatarUploadedSuccess: 'Avatar uploaded successfully',
+    clickToChange: 'Click avatar to change (Upload immediately)',
+    savingChanges: 'Saving changes...',
+    changesSavedSuccess: 'Changes saved successfully',
+
+    // Password
+    changePassword: 'Change Password',
+    currentPassword: 'Current Password',
+    newPassword: 'New Password',
+    confirmNewPassword: 'Confirm New Password',
+    passwordChangedSuccess: 'Password changed successfully',
+
+    // Placeholders
+    enterNickname: 'Enter your nickname',
+    enterName: 'Enter your display name',
+    enterEmail: 'Enter your email',
+    aboutYourself: 'Tell us about yourself',
+    phoneNumber: 'Phone number',
+    yourAge: 'Your age',
+    selectGender: 'Select gender',
+    countryRegion: 'Country/Region',
+    yourCity: 'City',
+    educationLevel: 'Education level',
+    yourOccupation: 'Your occupation',
+    yourNativeLanguage: 'Your native language',
+    religionOptional: 'Religion (optional)',
+    yourWebsite: 'https://yourwebsite.com',
+    githubUsername: 'GitHub username',
+    wechatId: 'WeChat ID',
+    weiboHandle: 'Weibo handle',
+    qqNumber: 'QQ number',
+    enterCurrentPassword: 'Enter current password',
+    enterNewPassword: 'Enter new password',
+    confirmPassword: 'Confirm new password',
+
+    // Status
+    notSet: 'Not set',
+    processing: 'Processing...',
+    proMember: 'Pro Member',
+    yearsOld: '{age} years old',
+
+    // Warnings
+    usernameReadonly: 'Username (Read-only)',
+    emailModifyConfirm: 'Email (Confirmation required)',
+    logoutConfirmTitle: 'Confirm Logout',
+    logoutConfirmMessage: 'Are you sure you want to log out?',
+    emailChangeConfirmTitle: 'Confirm Email Change',
+    emailChangeConfirmMessage: 'Changing your email address may affect your login. Are you sure you want to continue?',
+
+    // Errors
+    allFieldsRequired: 'All fields are required',
+    passwordsNotMatch: 'New passwords do not match',
+    passwordTooShort: 'Password must be at least 6 characters',
+    selectImageFile: 'Please select an image file',
+    imageTooLarge: 'Image size must be less than 5MB',
+    uploadFailed: 'Upload failed',
+    updateFailed: 'Update failed',
   },
 
   settings: {
@@ -150,6 +303,65 @@ export const en = {
     version: 'Version',
     privacyPolicy: 'Privacy Policy',
     termsOfService: 'Terms of Service',
+
+    // Settings Index Page
+    preferences: 'Preferences',
+    system: 'System',
+    languageAudio: 'Language & Audio',
+    learningGoals: 'Learning Goals',
+    displayTheme: 'Display & Theme',
+    apiTesting: 'API Testing Center',
+    dataSync: 'Data & Sync',
+    privacySecurity: 'Privacy & Security',
+    signOut: 'Sign Out',
+    freePlan: 'Free Plan',
+    perDay: '/day',
+    on: 'On',
+    off: 'Off',
+    active: 'Active',
+    builtWith: 'BUILT WITH',
+
+    // Language Settings Page - i18n extension
+    loadingLanguages: 'Loading languages...',
+    noLanguagesAvailable: 'No languages available',
+    failedToLoadLanguages: 'Failed to load languages from server. Please check your connection.',
+    retry: 'Retry',
+    languagesToLearn: 'Languages to Learn (Multi-select)',
+    audioEngine: 'Audio Engine',
+    voice: 'Voice',
+    speed: 'Speed',
+    volume: 'Volume',
+    autoPlay: 'Auto Play',
+
+    // Display Settings Page - i18n extension
+    themeMode: 'Theme Mode',
+    fontSize: 'Font Size',
+    appInterfaceLanguage: 'App Interface Language',
+    readingCard: 'Reading Card',
+    showPhonetic: 'Show Phonetic',
+    showTranslation: 'Show Translation',
+    animations: 'Animations',
+
+    // Learning Settings Page - i18n extension
+    dailyWordGoal: 'Daily Word Goal',
+    dailyReviewGoal: 'Daily Review Goal',
+    sessionSize: 'Session Size',
+    sequentialPlayer: 'Sequential Player',
+    playlistConfig: 'Playlist Config',
+    configureIntervals: 'Configure intervals, IR, and display',
+    flowControl: 'Flow Control',
+    instantReview: 'Instant Review',
+    autoAdvance: 'Auto Advance',
+
+    // About Page - i18n extension
+    appName: 'WordFlow AI',
+    versionInfo: 'Version 1.0.0 (Build 2025.11)',
+    legal: 'Legal',
+    openSourceLicenses: 'Open Source Licenses',
+    connect: 'Connect',
+    website: 'Website',
+    twitter: 'Twitter',
+    contactSupport: 'Contact Support',
   },
 
   words: {
@@ -185,6 +397,35 @@ export const en = {
     studyTime: 'Study Time',
     accuracy: 'Accuracy',
     retention: 'Retention Rate',
+  },
+
+  // Social Pages - i18n extension
+  social: {
+    friends: 'Friends',
+    add: '+ Add',
+    activeNow: 'Active Now',
+    activityFeed: 'Activity Feed',
+    inviteFriends: 'Invite Friends',
+    getProFree: 'Get 1 month Pro for free!',
+    community: 'Community',
+    rank: 'Rank',
+    badges: 'Badges',
+    unlocked: 'Unlocked',
+  },
+
+  header: {
+    searchPlaceholder: 'Search dictionary...',
+    switchToLight: 'Switch to Light Mode',
+    switchToDark: 'Switch to Dark Mode',
+    changeLanguage: 'Change Language',
+    smartSearch: 'Smart Search',
+    targetLanguages: 'Target Languages',
+    searchInputPlaceholder: 'Type a word or sentence...',
+    onlineTranslate: 'Online Translate',
+    useCloudAI: 'Use Cloud AI Engine',
+    searchingCloud: 'Searching Cloud...',
+    meaning: 'Meaning',
+    enterWordPrompt: 'Enter a word to see results.',
   },
 };
 

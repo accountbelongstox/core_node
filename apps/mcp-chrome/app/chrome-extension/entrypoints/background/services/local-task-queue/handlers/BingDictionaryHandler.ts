@@ -4,8 +4,9 @@
  */
 
 import type { ITaskHandler } from '../ITaskHandler';
-import { TaskType, type Task, type BingDictionaryTaskDetails } from '../types';
+import { TaskType, type Task, type BingDictionaryTaskDetails, TaskError, ErrorType } from '../types';
 import { bingDictionaryTool } from '@/entrypoints/background/tools/browser/bing-dictionary';
+import { queueLogger } from '../logger';
 
 /**
  * Bing Dictionary translation result
@@ -47,10 +48,19 @@ export class BingDictionaryHandler implements ITaskHandler<BingDictionaryTaskDet
     const { words, language = 'english', batchSize = 1, provider = 'bing' } = task.details;
 
     if (!words || words.length === 0) {
-      throw new Error('No words to translate');
+      queueLogger.error('BingDictionaryHandler', 'No words provided for translation', {
+        taskId: task.id,
+        words,
+      });
+      task.error = 'No words to translate';
+      return;
     }
 
-    console.log(`[BingDictionaryHandler] Processing ${words.length} words`);
+    queueLogger.info('BingDictionaryHandler', `Processing ${words.length} words`, {
+      taskId: task.id,
+      language,
+      batchSize,
+    });
 
     const results: BingTranslationResult[] = [];
     const totalWords = words.length;
@@ -146,9 +156,12 @@ export class BingDictionaryHandler implements ITaskHandler<BingDictionaryTaskDet
       results,
     };
 
-    console.log(
-      `[BingDictionaryHandler] Completed: ${results.filter(r => r.success).length}/${totalWords} succeeded`,
-    );
+    const successCount = results.filter(r => r.success).length;
+    queueLogger.info('BingDictionaryHandler', `Task completed: ${successCount}/${totalWords} succeeded`, {
+      taskId: task.id,
+      successCount,
+      failedCount: totalWords - successCount,
+    });
   }
 
   /**

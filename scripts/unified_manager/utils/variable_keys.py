@@ -98,6 +98,11 @@ class ActionValues:
     LAUNCH = "launch"
     SERVICE_CREATE = "service_create"
     PROXY_CREATE = "proxy_create"
+    RESTART = "restart"
+    STOP = "stop"
+    KILL = "kill"
+    VIEW_LOGS = "view_logs"
+    SERVICE_DELETE = "service_delete"
     RESCAN = "rescan"
     QUIT = "quit"
 

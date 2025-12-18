@@ -190,7 +190,6 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::post('register', [WorkerController::class, 'register']);
         Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
         Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
-        Route::post('tasks/accept', [WorkerController::class, 'acceptTask']);
         Route::post('tasks/result', [WorkerController::class, 'submitResult']);
         Route::get('list', [WorkerController::class, 'list']);
         Route::get('stats', [WorkerController::class, 'stats']);

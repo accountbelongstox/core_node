@@ -14,15 +14,11 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
-class TaskAssignedEvent implements ShouldBroadcastNow
+class TaskAssignedEvent
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
 
     public $workerId;
     public $taskId;
@@ -39,28 +35,5 @@ class TaskAssignedEvent implements ShouldBroadcastNow
         $this->payload = $payload;
         $this->timeoutSeconds = $timeoutSeconds;
         $this->priority = $priority;
-    }
-
-    public function broadcastOn()
-    {
-        return new Channel('worker.' . $this->workerId);
-    }
-
-    public function broadcastAs()
-    {
-        return 'task.assigned';
-    }
-
-    public function broadcastWith()
-    {
-        return [
-            'worker_id' => $this->workerId,
-            'task_id' => $this->taskId,
-            'task_type' => $this->taskType,
-            'payload' => $this->payload,
-            'timeout_seconds' => $this->timeoutSeconds,
-            'priority' => $this->priority,
-            'timestamp' => now()->toIso8601String(),
-        ];
     }
 }

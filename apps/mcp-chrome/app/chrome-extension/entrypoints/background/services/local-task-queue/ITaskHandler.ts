@@ -4,6 +4,7 @@
  */
 
 import type { Task, TaskType } from './types';
+import { queueLogger } from './logger';
 
 /**
  * Task handler interface
@@ -59,11 +60,11 @@ export class TaskHandlerRegistry {
    */
   register(handler: ITaskHandler): void {
     if (this.handlers.has(handler.type)) {
-      console.warn(`[TaskHandlerRegistry] Handler for type "${handler.type}" already registered, overwriting`);
+      queueLogger.warn('TaskHandlerRegistry', `Handler for type "${handler.type}" already registered, overwriting`);
     }
 
     this.handlers.set(handler.type, handler);
-    console.log(`[TaskHandlerRegistry] Registered handler: ${handler.name} (${handler.type})`);
+    queueLogger.info('TaskHandlerRegistry', `Registered handler: ${handler.name}`, { type: handler.type });
   }
 
   /**
@@ -71,7 +72,7 @@ export class TaskHandlerRegistry {
    */
   unregister(type: TaskType): void {
     if (this.handlers.delete(type)) {
-      console.log(`[TaskHandlerRegistry] Unregistered handler: ${type}`);
+      queueLogger.info('TaskHandlerRegistry', `Unregistered handler: ${type}`);
     }
   }
 
@@ -108,6 +109,6 @@ export class TaskHandlerRegistry {
    */
   clear(): void {
     this.handlers.clear();
-    console.log('[TaskHandlerRegistry] All handlers cleared');
+    queueLogger.info('TaskHandlerRegistry', 'All handlers cleared');
   }
 }

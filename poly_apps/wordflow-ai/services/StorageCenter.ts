@@ -3,6 +3,8 @@
  * Centralized storage operations with type safety and error handling
  */
 
+import { UserDataCenter } from './UserDataCenter';
+
 export enum StorageKey {
   // Auth
   AUTH_TOKEN = 'auth_token',
@@ -30,6 +32,8 @@ export enum StorageKey {
   // Cache
   WORD_GROUPS_CACHE = 'word_groups_cache',
   DICTIONARY_CACHE = 'dictionary_cache',
+  SUPPORTED_LANGUAGES_CACHE = 'supported_languages_cache',
+  USER_PROFILE_CACHE = 'user_profile_cache',
 
   // UI State
   THEME = 'theme',
@@ -135,8 +139,25 @@ class StorageCenterClass {
     removeToken: () => this.remove(StorageKey.AUTH_TOKEN),
     hasToken: () => this.has(StorageKey.AUTH_TOKEN),
 
-    setUser: (user: any) => this.set(StorageKey.USER_DATA, user),
-    getUser: () => this.get<any>(StorageKey.USER_DATA),
+    setUser: (user: any) => {
+      // Process user data before storing to ensure avatar_url is correct
+      const processedUser = UserDataCenter.processUserData(user);
+      console.log('[StorageCenter] Storing user with processed avatar_url:', processedUser.avatar_url);
+      return this.set(StorageKey.USER_DATA, processedUser);
+    },
+
+    getUser: () => {
+      const user = this.get<any>(StorageKey.USER_DATA);
+      if (!user) return null;
+
+      // Re-process user data when loading from storage
+      // This ensures avatar_url is reconstructed if API base URL changed
+      const processedUser = UserDataCenter.processUserData(user);
+      console.log('[StorageCenter] Loading user with re-processed avatar_url:', processedUser.avatar_url);
+
+      return processedUser;
+    },
+
     removeUser: () => this.remove(StorageKey.USER_DATA),
 
     clearAuth: () => {
@@ -207,6 +228,8 @@ class StorageCenterClass {
     invalidateAll: () => {
       this.remove(StorageKey.WORD_GROUPS_CACHE);
       this.remove(StorageKey.DICTIONARY_CACHE);
+      this.remove(StorageKey.SUPPORTED_LANGUAGES_CACHE);
+      this.remove(StorageKey.USER_PROFILE_CACHE);
     }
   };
 }

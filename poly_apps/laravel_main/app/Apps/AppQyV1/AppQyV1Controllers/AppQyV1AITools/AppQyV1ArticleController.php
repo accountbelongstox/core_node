@@ -111,7 +111,7 @@ class AppQyV1ArticleController
         $task = null;
 
         try {
-            DB::connection('AppQyV1')->transaction(function () use (
+            DB::connection('appqyv1')->transaction(function () use (
                 $articleId,
                 $userId,
                 $request,

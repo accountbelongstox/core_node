@@ -673,9 +673,14 @@ class UnifiedAppManager:
                         # Ask user what to do
                         print(f"{menu.COLOR_WARNING}Actions:{menu.COLOR_RESET}")
                         print("  L - Launch this app")
+                        print("  R - Restart (if running)")
+                        print("  S - Stop (if running)")
+                        print("  K - Kill process on port")
+                        print("  V - View logs")
                         print("  Enter - Return to menu")
                         if menu_config.enable_systemd:
                             print("  C - Create systemd service")
+                            print("  D - Delete systemd service")
                         if menu_config.enable_domain_proxy:
                             print("  P - Create service with proxy")
                         print()
@@ -744,6 +749,79 @@ class UnifiedAppManager:
                             menu.log_header("Creating Service with Domain Proxy")
                             menu.log_info(f"App: {app.name}")
                             menu.log_info(f"Domain: {domain}")
+                            print()
+                            break
+
+                        elif user_choice == 'R':
+                            # Restart application
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.RESTART)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Restarting Application")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Port: {app.port}")
+                            print()
+                            break
+
+                        elif user_choice == 'S':
+                            # Stop application
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.STOP)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Stopping Application")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Port: {app.port}")
+                            print()
+                            break
+
+                        elif user_choice == 'K':
+                            # Kill process on port
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.KILL)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Killing Process on Port")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Port: {app.port}")
+                            menu.log_warning("This will forcefully terminate the process")
+                            print()
+                            break
+
+                        elif user_choice == 'V':
+                            # View logs
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.VIEW_LOGS)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Viewing Application Logs")
+                            menu.log_info(f"App: {app.name}")
+                            print()
+                            break
+
+                        elif user_choice == 'D' and menu_config.enable_systemd:
+                            # Delete systemd service
+                            print()
+                            confirm = input(f"{menu.COLOR_WARNING}Are you sure you want to delete the service? (yes/no): {menu.COLOR_RESET}").strip().lower()
+
+                            if confirm != 'yes':
+                                menu.log_info("Service deletion cancelled")
+                                menu.wait_for_key()
+                                continue
+
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.SERVICE_DELETE)
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Deleting SystemD Service")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_warning("Service will be stopped and removed")
                             print()
                             break
 

@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { ApiEndpoint, getAllEndpoints } from '../config/api-endpoints';
+import { EventBus } from '../services/EventBus';
 
 export const ApiTestingCenter: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -62,8 +63,11 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void }> = ({ onClose }
     const success = apiManager.setEndpoint(endpoint.id, true);
     if (success) {
       setCurrentEndpoint(endpoint);
-      // Trigger page refresh to use new endpoint
-      window.location.reload();
+
+      // Emit event for components that need to react to endpoint change
+      EventBus.emit('api-endpoint-changed', { endpointId: endpoint.id });
+
+      console.log('[ApiTestingCenter] Endpoint switched to:', endpoint.id);
     }
   };
 
@@ -223,7 +227,7 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void }> = ({ onClose }
         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
           <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
             <div>🟢 Green = Healthy | 🔴 Red = Failed | ⚪ Gray = Not tested</div>
-            <div>Switching endpoint will reload the application</div>
+            <div>Switching endpoint will update API requests without reloading</div>
           </div>
         </div>
       </div>

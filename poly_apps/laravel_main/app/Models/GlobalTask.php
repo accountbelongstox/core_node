@@ -30,6 +30,7 @@ class GlobalTask extends Model
         'result',
         'error',
         'queue_item_id',
+        'completed_at',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class GlobalTask extends Model
         'progress' => 'float',
         'assigned_at' => 'datetime',
         'timeout_at' => 'datetime',
+        'completed_at' => 'datetime',
         'priority' => 'integer',
         'retry_count' => 'integer',
         'max_retries' => 'integer',

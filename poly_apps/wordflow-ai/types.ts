@@ -97,18 +97,33 @@ export interface Announcement {
 }
 
 export interface User {
+  // Basic Info
   id: string;
   name: string;
-  avatar: string;
+  username?: string;              // Backend field
+  nickname?: string;               // Backend field
+  avatar: string;                  // Relative path
+  avatar_url?: string;             // Full URL (from backend)
   email: string;
+
+  // Learning Stats
   dailyGoal: number;
   dailyProgress: number;
   streak: number;
   totalLearned: number;
+  total_words?: number;            // Backend field
+  learned_words?: number;          // Backend field
+  mastered_words?: number;         // Backend field
+
+  // Language Settings
+  selectedLanguage: string;        // Primary interface language
+  learningLanguages: string[];     // Array of language codes user is learning (e.g. ['en', 'jp'])
+  native_language?: string;        // Backend field
+  learning_stats?: any;            // Backend field (detailed stats)
+
+  // Account Status
   isPro: boolean;
-  token?: string;
-  selectedLanguage: string; // Primary interface language
-  learningLanguages: string[]; // Array of language codes user is learning (e.g. ['en', 'jp'])
+  token?: string;                  // Auth token
 }
 
 // Playlist Specific Settings
@@ -164,7 +179,7 @@ export const DEFAULT_PLAYLIST_SETTINGS: PlaylistSettings = {
 // Comprehensive Settings Tree (Matches Prompt)
 export interface AppSettings {
   language: {
-    appInterface: string; // 'zh', 'en', etc.
+    appInterface: string | string[]; // 'zh', 'en', etc. or ['zh', 'en'] for multi-select
     targetLearning: string; // DEPRECATED: use User.learningLanguages
     translationTarget: string; // 'zh-CN'
   };
@@ -242,8 +257,11 @@ export interface ApiResponse<T> {
 export type SupportedLanguage = {
   code: string;
   name: string;
-  flag: string;
-  ttsCode: string;
+  native_name: string;
+  voice_id: string;
+  has_tts: boolean;
+  flag?: string;  // Optional, for backward compatibility (emoji from frontend)
+  icon?: string;  // Generic icon name from backend (e.g., 'flag-usa', 'globe')
 };
 
 // Nexus / GenAI Types
