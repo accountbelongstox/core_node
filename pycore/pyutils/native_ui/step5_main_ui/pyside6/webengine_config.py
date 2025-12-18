@@ -39,7 +39,8 @@ def _build_chromium_flags(
     enable_hardware_acceleration: bool = True,
     disable_gpu_sandbox: bool = True,
     enable_remote_debugging: bool = False,
-    remote_debugging_port: int = 9222
+    remote_debugging_port: int = 9222,
+    disable_sandbox_for_root: bool = True
 ) -> List[str]:
     """
     Build Chromium flags list based on configuration options.
@@ -50,6 +51,7 @@ def _build_chromium_flags(
         disable_gpu_sandbox: Disable GPU sandbox for compatibility
         enable_remote_debugging: Enable remote debugging (F12 dev tools)
         remote_debugging_port: Port for remote debugging (default: 9222)
+        disable_sandbox_for_root: Auto-detect root user and add --no-sandbox if needed
 
     Returns:
         List of Chromium command-line flags
@@ -57,6 +59,16 @@ def _build_chromium_flags(
     enabled_features = []
     disabled_features = []
     flags = []
+
+    # Check if running as root (Linux/macOS only)
+    is_root = False
+    if sys.platform != 'win32' and disable_sandbox_for_root:
+        try:
+            is_root = os.geteuid() == 0
+            if is_root:
+                ColorPrint.yellow("[WebEngineConfig] Running as root user detected")
+        except AttributeError:
+            pass
 
     # Remote debugging for developer tools (F12, right-click inspect)
     if enable_remote_debugging:
@@ -94,6 +106,11 @@ def _build_chromium_flags(
     # GPU sandbox (disable for compatibility)
     if disable_gpu_sandbox:
         flags.append('--disable-gpu-sandbox')
+
+    # Main sandbox (disable for root user)
+    if is_root:
+        flags.append('--no-sandbox')
+        ColorPrint.yellow("[WebEngineConfig] Added --no-sandbox flag (running as root)")
 
     # Disable problematic features
     disabled_features.append('UseChromeOSDirectVideoDecoder')

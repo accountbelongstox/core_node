@@ -25,7 +25,7 @@ const FriendsPage = () => {
              {MOCK_FRIENDS.map(f => (
                 <div key={f.id} className="flex flex-col items-center gap-2 min-w-[70px]">
                    <div className="relative">
-                      <img src={f.avatar} className="w-16 h-16 rounded-2xl border-2 border-white shadow-sm" />
+                      <img src={f.avatar_url || f.avatar} className="w-16 h-16 rounded-2xl border-2 border-white shadow-sm" />
                       <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${f.status === 'online' ? 'bg-green-500' : f.status === 'studying' ? 'bg-blue-500' : 'bg-slate-400'}`}></div>
                    </div>
                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate w-full text-center">{f.name.split(' ')[0]}</span>

@@ -1,15 +1,15 @@
 /**
  * Local Task Queue - Message Protocol
- * Popup ↔ Background 通信协议
+ * Popup ↔ Background communication protocol
  */
 
 import type { Task, TaskType, TaskStatus, TaskQueueStats, TaskEventType } from './types';
 
 /**
- * 消息类型枚举
+ * Message type enum
  */
 export enum MessageType {
-  // 命令消息（Popup → Background）
+  // Command messages (Popup → Background)
   TASK_ADD = 'TASK_ADD',
   TASK_CANCEL = 'TASK_CANCEL',
   QUEUE_START = 'QUEUE_START',
@@ -22,19 +22,24 @@ export enum MessageType {
   QUEUE_CLEAR_COMPLETED = 'QUEUE_CLEAR_COMPLETED',
   QUEUE_IS_RUNNING = 'QUEUE_IS_RUNNING',
 
-  // 事件消息（Background → Popup）
+  // Log messages
+  QUEUE_LOG_GET_ALL = 'QUEUE_LOG_GET_ALL',
+  QUEUE_LOG_CLEAR = 'QUEUE_LOG_CLEAR',
+
+  // Event messages (Background → Popup)
   QUEUE_EVENT = 'QUEUE_EVENT',
+  QUEUE_LOG = 'QUEUE_LOG',
 }
 
 /**
- * 基础消息接口
+ * Base message interface
  */
 export interface BaseMessage {
   type: MessageType;
 }
 
 /**
- * 添加任务消息
+ * Add task message
  */
 export interface TaskAddMessage extends BaseMessage {
   type: MessageType.TASK_ADD;
@@ -42,7 +47,7 @@ export interface TaskAddMessage extends BaseMessage {
 }
 
 /**
- * 取消任务消息
+ * Cancel task message
  */
 export interface TaskCancelMessage extends BaseMessage {
   type: MessageType.TASK_CANCEL;
@@ -50,35 +55,35 @@ export interface TaskCancelMessage extends BaseMessage {
 }
 
 /**
- * 启动队列消息
+ * Start queue message
  */
 export interface QueueStartMessage extends BaseMessage {
   type: MessageType.QUEUE_START;
 }
 
 /**
- * 停止队列消息
+ * Stop queue message
  */
 export interface QueueStopMessage extends BaseMessage {
   type: MessageType.QUEUE_STOP;
 }
 
 /**
- * 获取队列统计消息
+ * Get queue stats message
  */
 export interface QueueGetStatsMessage extends BaseMessage {
   type: MessageType.QUEUE_GET_STATS;
 }
 
 /**
- * 获取所有任务消息
+ * Get all tasks message
  */
 export interface QueueGetTasksMessage extends BaseMessage {
   type: MessageType.QUEUE_GET_TASKS;
 }
 
 /**
- * 获取单个任务消息
+ * Get single task message
  */
 export interface QueueGetTaskMessage extends BaseMessage {
   type: MessageType.QUEUE_GET_TASK;
@@ -86,7 +91,7 @@ export interface QueueGetTaskMessage extends BaseMessage {
 }
 
 /**
- * 按状态获取任务消息
+ * Get tasks by status message
  */
 export interface QueueGetTasksByStatusMessage extends BaseMessage {
   type: MessageType.QUEUE_GET_TASKS_BY_STATUS;
@@ -94,7 +99,7 @@ export interface QueueGetTasksByStatusMessage extends BaseMessage {
 }
 
 /**
- * 按类型获取任务消息
+ * Get tasks by type message
  */
 export interface QueueGetTasksByTypeMessage extends BaseMessage {
   type: MessageType.QUEUE_GET_TASKS_BY_TYPE;
@@ -102,21 +107,21 @@ export interface QueueGetTasksByTypeMessage extends BaseMessage {
 }
 
 /**
- * 清除已完成任务消息
+ * Clear completed tasks message
  */
 export interface QueueClearCompletedMessage extends BaseMessage {
   type: MessageType.QUEUE_CLEAR_COMPLETED;
 }
 
 /**
- * 检查队列是否运行消息
+ * Check if queue is running message
  */
 export interface QueueIsRunningMessage extends BaseMessage {
   type: MessageType.QUEUE_IS_RUNNING;
 }
 
 /**
- * 队列事件消息（广播）
+ * Queue event message (broadcast)
  */
 export interface QueueEventMessage extends BaseMessage {
   type: MessageType.QUEUE_EVENT;
@@ -126,7 +131,7 @@ export interface QueueEventMessage extends BaseMessage {
 }
 
 /**
- * 所有命令消息的联合类型
+ * Union type of all command messages
  */
 export type CommandMessage =
   | TaskAddMessage
@@ -142,12 +147,12 @@ export type CommandMessage =
   | QueueIsRunningMessage;
 
 /**
- * 所有消息的联合类型
+ * Union type of all messages
  */
 export type QueueMessage = CommandMessage | QueueEventMessage;
 
 /**
- * 响应类型
+ * Response type
  */
 export interface MessageResponse<T = any> {
   success: boolean;
@@ -156,44 +161,44 @@ export interface MessageResponse<T = any> {
 }
 
 /**
- * 任务添加响应
+ * Task add response
  */
 export type TaskAddResponse = MessageResponse<{ added: boolean }>;
 
 /**
- * 任务取消响应
+ * Task cancel response
  */
 export type TaskCancelResponse = MessageResponse<{ cancelled: boolean }>;
 
 /**
- * 队列统计响应
+ * Queue stats response
  */
 export type QueueStatsResponse = MessageResponse<{ stats: TaskQueueStats }>;
 
 /**
- * 任务列表响应
+ * Task list response
  */
 export type QueueTasksResponse = MessageResponse<{ tasks: Task[] }>;
 
 /**
- * 单个任务响应
+ * Single task response
  */
 export type QueueTaskResponse = MessageResponse<{ task: Task | undefined }>;
 
 /**
- * 队列运行状态响应
+ * Queue running status response
  */
 export type QueueRunningResponse = MessageResponse<{ isRunning: boolean }>;
 
 /**
- * 类型守卫：检查是否是队列消息
+ * Type guard: check if is queue message
  */
 export function isQueueMessage(message: any): message is QueueMessage {
   return message && typeof message.type === 'string' && message.type in MessageType;
 }
 
 /**
- * 类型守卫：检查是否是命令消息
+ * Type guard: check if is command message
  */
 export function isCommandMessage(message: any): message is CommandMessage {
   if (!isQueueMessage(message)) return false;
@@ -201,7 +206,7 @@ export function isCommandMessage(message: any): message is CommandMessage {
 }
 
 /**
- * 类型守卫：检查是否是事件消息
+ * Type guard: check if is event message
  */
 export function isEventMessage(message: any): message is QueueEventMessage {
   return isQueueMessage(message) && message.type === MessageType.QUEUE_EVENT;

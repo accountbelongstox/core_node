@@ -1,7 +1,7 @@
 /**
  * Local Task Queue Service (Background)
- * 在 Background Service Worker 中运行的任务队列服务
- * 负责持久化、事件广播、Service Worker 生命周期管理
+ * Runs in Background Service Worker
+ * Handles persistence, event broadcasting, Service Worker lifecycle management
  */
 
 import {
@@ -15,11 +15,12 @@ import {
   type TaskQueueStats,
   type BingDictionaryTaskDetails,
   type DeepSeekTaskDetails,
+  queueLogger,
 } from './index';
 
 /**
- * 任务队列服务（单例）
- * 管理队列生命周期、持久化、事件广播
+ * Task queue service (singleton)
+ * Manages queue lifecycle, persistence, event broadcasting
  */
 class LocalTaskQueueService {
   private queue: LocalTaskQueue | null = null;
@@ -27,17 +28,17 @@ class LocalTaskQueueService {
   private keepAliveInterval: number | null = null;
 
   /**
-   * 初始化队列服务
+   * Initialize queue service
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[LocalTaskQueueService] Already initialized');
+      queueLogger.debug('LocalTaskQueueService', 'Already initialized');
       return;
     }
 
-    console.log('[LocalTaskQueueService] Initializing...');
+    queueLogger.info('LocalTaskQueueService', 'Initializing queue service');
 
-    // 创建队列实例
+    // Create queue instance
     this.queue = new LocalTaskQueue({
       maxConcurrent: 1,
       autoStart: true,
@@ -46,25 +47,25 @@ class LocalTaskQueueService {
       maxRetries: 3,
     });
 
-    // 注册 handlers
+    // Register handlers
     this.queue.registerHandler(new BingDictionaryHandler());
     this.queue.registerHandler(new DeepSeekHandler());
 
-    // 从存储恢复任务
+    // Restore tasks from storage
     await this.restoreTasks();
 
-    // 订阅队列事件
+    // Subscribe to queue events
     this.subscribeToQueueEvents();
 
-    // 设置 Service Worker keep-alive
+    // Setup Service Worker keep-alive
     this.setupKeepAlive();
 
     this.isInitialized = true;
-    console.log('[LocalTaskQueueService] Initialized successfully');
+    queueLogger.info('LocalTaskQueueService', 'Queue service initialized successfully');
   }
 
   /**
-   * 从 chrome.storage 恢复任务
+   * Restore tasks from chrome.storage
    */
   private async restoreTasks(): Promise<void> {
     try {
@@ -77,49 +78,155 @@ class LocalTaskQueueService {
         const tasks: Task[] = data['localTaskQueue.tasks'];
         const taskOrder: string[] = data['localTaskQueue.taskOrder'] || [];
 
-        console.log(`[LocalTaskQueueService] Restoring ${tasks.length} tasks from storage`);
+        queueLogger.info('LocalTaskQueueService', `Restoring ${tasks.length} tasks from storage`);
 
-        // 恢复未完成的任务
+        // Restore incomplete tasks
         for (const task of tasks) {
-          // 只恢复 PENDING 和 PROCESSING 状态的任务
+          // Only restore PENDING and PROCESSING tasks
           if (task.status === TaskStatus.PENDING || task.status === TaskStatus.PROCESSING) {
-            // 将 PROCESSING 重置为 PENDING（因为 Service Worker 可能中断了）
+            // Reset PROCESSING to PENDING (Service Worker may have been interrupted)
             if (task.status === TaskStatus.PROCESSING) {
               task.status = TaskStatus.PENDING;
               task.startedAt = undefined;
-              console.log(`[LocalTaskQueueService] Reset task ${task.id} from PROCESSING to PENDING`);
+              queueLogger.debug('LocalTaskQueueService', `Reset task ${task.id} from PROCESSING to PENDING`);
             }
 
             await this.queue!.addTask(task);
           }
         }
 
-        console.log('[LocalTaskQueueService] Tasks restored successfully');
+        queueLogger.info('LocalTaskQueueService', 'Tasks restored successfully', {
+          taskCount: tasks.length,
+        });
       }
     } catch (error) {
-      console.error('[LocalTaskQueueService] Failed to restore tasks:', error);
+      queueLogger.error('LocalTaskQueueService', 'Failed to restore tasks', { error });
     }
   }
 
   /**
-   * 持久化任务到 chrome.storage
+   * Persist tasks to chrome.storage
+   * Handles storage limits (chrome.storage.local has 10MB limit)
    */
   private async persistTasks(): Promise<void> {
     if (!this.queue) return;
 
     try {
       const tasks = this.queue.getAllTasks();
-      const taskOrder = tasks.map(t => t.id);
 
-      await chrome.storage.local.set({
-        'localTaskQueue.tasks': tasks,
-        'localTaskQueue.taskOrder': taskOrder,
+      // Only persist incomplete tasks (save space)
+      const incompleteTasks = tasks.filter(
+        t =>
+          t.status === TaskStatus.PENDING ||
+          t.status === TaskStatus.PROCESSING,
+      );
+
+      // Check data size (rough estimate)
+      const dataString = JSON.stringify(incompleteTasks);
+      const dataSize = new Blob([dataString]).size;
+      const maxSize = 5 * 1024 * 1024; // 5MB limit (leave half space for other data)
+
+      queueLogger.debug('LocalTaskQueueService', `Persisting ${incompleteTasks.length} tasks`, {
+        sizeKB: (dataSize / 1024).toFixed(2),
       });
 
-      // 仅在开发环境打印
-      // console.log(`[LocalTaskQueueService] Persisted ${tasks.length} tasks`);
+      if (dataSize > maxSize) {
+        queueLogger.warn('LocalTaskQueueService', 'Task data too large, truncating', {
+          sizeBytes: dataSize,
+          maxSize,
+        });
+
+        // Sort by priority and creation time, keep most important tasks
+        incompleteTasks.sort((a, b) => {
+          const priorityA = a.metadata?.priority ?? 0;
+          const priorityB = b.metadata?.priority ?? 0;
+          if (priorityA !== priorityB) return priorityB - priorityA;
+          return b.createdAt - a.createdAt; // Newer first
+        });
+
+        // Gradually truncate until size fits
+        let truncated = incompleteTasks;
+        while (
+          truncated.length > 0 &&
+          new Blob([JSON.stringify(truncated)]).size > maxSize
+        ) {
+          truncated = truncated.slice(0, Math.floor(truncated.length * 0.8));
+        }
+
+        queueLogger.warn('LocalTaskQueueService', `Truncated to ${truncated.length} tasks`, {
+          original: incompleteTasks.length,
+          truncated: truncated.length,
+        });
+
+        await chrome.storage.local.set({
+          'localTaskQueue.tasks': truncated,
+          'localTaskQueue.taskOrder': truncated.map(t => t.id),
+          'localTaskQueue.truncated': true,
+          'localTaskQueue.truncatedAt': Date.now(),
+        });
+      } else {
+        await chrome.storage.local.set({
+          'localTaskQueue.tasks': incompleteTasks,
+          'localTaskQueue.taskOrder': incompleteTasks.map(t => t.id),
+          'localTaskQueue.truncated': false,
+        });
+      }
+    } catch (error: any) {
+      queueLogger.error('LocalTaskQueueService', 'Failed to persist tasks', { error });
+
+      // If QUOTA_EXCEEDED error, try to clean up
+      if (error.message && error.message.includes('QUOTA_EXCEEDED')) {
+        queueLogger.warn('LocalTaskQueueService', 'Storage quota exceeded, clearing old tasks');
+        await this.clearOldTasks();
+      }
+    }
+  }
+
+  /**
+   * Clear old tasks (completed tasks older than 1 day)
+   */
+  private async clearOldTasks(): Promise<void> {
+    if (!this.queue) return;
+
+    const oneDayAgo = Date.now() - 86400000;
+    const tasks = this.queue.getAllTasks();
+
+    // Keep only incomplete tasks and recently completed tasks (within 1 day)
+    const recentTasks = tasks.filter(t => {
+      if (
+        t.status === TaskStatus.COMPLETED ||
+        t.status === TaskStatus.FAILED ||
+        t.status === TaskStatus.CANCELLED
+      ) {
+        return (t.completedAt || t.createdAt) > oneDayAgo;
+      }
+      return true; // Keep all incomplete tasks
+    });
+
+    queueLogger.info('LocalTaskQueueService', `Cleared ${tasks.length - recentTasks.length} old tasks`, {
+      total: tasks.length,
+      remaining: recentTasks.length,
+    });
+
+    try {
+      await chrome.storage.local.set({
+        'localTaskQueue.tasks': recentTasks,
+        'localTaskQueue.taskOrder': recentTasks.map(t => t.id),
+        'localTaskQueue.lastCleanup': Date.now(),
+      });
     } catch (error) {
-      console.error('[LocalTaskQueueService] Failed to persist tasks:', error);
+      queueLogger.error('LocalTaskQueueService', 'Failed to clear old tasks', { error });
+
+      // If still fails, delete all completed tasks
+      const pendingOnly = recentTasks.filter(
+        t => t.status === TaskStatus.PENDING || t.status === TaskStatus.PROCESSING,
+      );
+
+      await chrome.storage.local.set({
+        'localTaskQueue.tasks': pendingOnly,
+        'localTaskQueue.taskOrder': pendingOnly.map(t => t.id),
+        'localTaskQueue.emergencyClear': true,
+      });
     }
   }
 
@@ -128,6 +235,10 @@ class LocalTaskQueueService {
    */
   private subscribeToQueueEvents(): void {
     if (!this.queue) return;
+
+    // 进度更新节流
+    const progressThrottleMap = new Map<string, number>();
+    const progressThrottleMs = 200; // 最多每 200ms 广播一次进度
 
     // 监听所有队列事件
     const eventTypes = [
@@ -142,6 +253,19 @@ class LocalTaskQueueService {
 
     eventTypes.forEach(eventType => {
       this.queue!.on(eventType, async event => {
+        // 进度更新节流
+        if (eventType === TaskEventType.PROGRESS) {
+          const now = Date.now();
+          const lastBroadcast = progressThrottleMap.get(event.task.id) || 0;
+
+          // 跳过节流期内的进度更新（除非进度达到 100%）
+          if (now - lastBroadcast < progressThrottleMs && event.task.progress !== 100) {
+            return; // 跳过广播
+          }
+
+          progressThrottleMap.set(event.task.id, now);
+        }
+
         // 持久化（节流：仅在关键事件时持久化）
         if (
           eventType === TaskEventType.ADDED ||
@@ -163,6 +287,15 @@ class LocalTaskQueueService {
           });
         } catch (error) {
           // No receivers, ignore
+        }
+
+        // 清理已完成任务的节流记录
+        if (
+          eventType === TaskEventType.COMPLETED ||
+          eventType === TaskEventType.FAILED ||
+          eventType === TaskEventType.CANCELLED
+        ) {
+          progressThrottleMap.delete(event.task.id);
         }
       });
     });
@@ -186,33 +319,33 @@ class LocalTaskQueueService {
   }
 
   /**
-   * 启动 keep-alive
+   * Start keep-alive
    */
   private startKeepAlive(): void {
     if (this.keepAliveInterval) return;
 
-    console.log('[LocalTaskQueueService] Starting keep-alive');
+    queueLogger.debug('LocalTaskQueueService', 'Starting keep-alive mechanism');
 
-    // 每 20 秒发送一次心跳，防止 Service Worker 休眠
+    // Send heartbeat every 20 seconds to prevent Service Worker from sleeping
     this.keepAliveInterval = setInterval(() => {
-      // 空操作，仅用于保持活跃
+      // Empty operation, just to keep active
       chrome.runtime.getPlatformInfo();
     }, 20000) as any;
   }
 
   /**
-   * 停止 keep-alive
+   * Stop keep-alive
    */
   private stopKeepAlive(): void {
     if (this.keepAliveInterval) {
-      console.log('[LocalTaskQueueService] Stopping keep-alive');
+      queueLogger.debug('LocalTaskQueueService', 'Stopping keep-alive mechanism');
       clearInterval(this.keepAliveInterval);
       this.keepAliveInterval = null;
     }
   }
 
   /**
-   * 添加任务
+   * Add task
    */
   async addTask<T = any>(task: Task<T>): Promise<boolean> {
     if (!this.queue) {
@@ -223,7 +356,7 @@ class LocalTaskQueueService {
   }
 
   /**
-   * 取消任务
+   * Cancel task
    */
   async cancelTask(taskId: string): Promise<boolean> {
     if (!this.queue) return false;

@@ -21,16 +21,14 @@ class AppQyV1TableMaps
      * All database operations should reference these mappings instead of hardcoded table/field names
      */
     
-    private const SUPPORTED_LANGUAGES = [
-        'af', 'am', 'ar', 'as', 'az', 'bg', 'bn', 'bs', 'ca', 'cs',
-        'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'eu', 'fa', 'fi',
-        'fil', 'fr', 'ga', 'gl', 'gu', 'he', 'hi', 'hr', 'hu', 'hy',
-        'id', 'is', 'it', 'ja', 'jv', 'ka', 'kk', 'km', 'kn', 'ko',
-        'lo', 'lt', 'lv', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my',
-        'nb', 'ne', 'nl', 'or', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru',
-        'si', 'sk', 'sl', 'so', 'sq', 'sr', 'su', 'sv', 'sw', 'ta',
-        'te', 'th', 'tr', 'uk', 'ur', 'uz', 'vi', 'wuu', 'yue', 'zh', 'zu'
-    ];
+    private static function getSupportedLanguageCodes(): array
+    {
+        static $langCodes = null;
+        if ($langCodes === null) {
+            $langCodes = array_keys(config('edge_tts.lang_code_mapping', []));
+        }
+        return $langCodes;
+    }
 
     private const DICTIONARY_FIELDS = [
         'id' => 'id',
@@ -194,7 +192,7 @@ class AppQyV1TableMaps
     {
         if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
             $langCode = strtolower($matches[1]);
-            if (in_array($langCode, self::SUPPORTED_LANGUAGES)) {
+            if (in_array($langCode, self::getSupportedLanguageCodes())) {
                 return "app_qy_v1_{$langCode}_dictionaries";
             }
         }
@@ -202,16 +200,9 @@ class AppQyV1TableMaps
         if (defined("self::{$tableKey}")) {
             return constant("self::{$tableKey}")['tablename'];
         }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
+        return '';
     }
     
-    /**
-     * Get word table name for language code
-     * Uses sys:init table structure (app_qy_v1_words_*)
-     *
-     * @param string $langCode Language code (en, ja, ko, vi, lo)
-     * @return string Table name
-     */
     public static function getWordTableName(string $langCode): string
     {
         $langCode = strtolower($langCode);
@@ -229,11 +220,8 @@ class AppQyV1TableMaps
             'lao' => 'lao',
         ];
 
-        if (!isset($languageMapping[$langCode])) {
-            throw new \InvalidArgumentException("Language code '{$langCode}' does not have word table");
-        }
-
-        return "app_qy_v1_words_{$languageMapping[$langCode]}";
+        $mappedName = $languageMapping[$langCode] ?? $langCode;
+        return "app_qy_v1_words_{$mappedName}";
     }
 
     /**
@@ -251,62 +239,41 @@ class AppQyV1TableMaps
         ];
     }
 
-    /**
-     * Legacy method - redirects to getWordTableName
-     * @deprecated Use getWordTableName instead
-     */
     public static function getDictionaryTableName(string $langCode): string
     {
-        return self::getWordTableName($langCode);
+        $langCode = strtolower($langCode);
+        return "app_qy_v1_tts_cache_{$langCode}";
     }
 
-    /**
-     * Get field name by table key and field key
-     */
     public static function getFieldName(string $tableKey, string $fieldKey): string
     {
         if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
             $langCode = strtolower($matches[1]);
-            if (in_array($langCode, self::SUPPORTED_LANGUAGES)) {
-                if (isset(self::DICTIONARY_FIELDS[$fieldKey])) {
-                    return self::DICTIONARY_FIELDS[$fieldKey];
-                }
-                throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in dictionary tables");
+            if (in_array($langCode, self::getSupportedLanguageCodes())) {
+                return self::DICTIONARY_FIELDS[$fieldKey] ?? $fieldKey;
             }
         }
 
         if (defined("self::{$tableKey}")) {
             $tableMap = constant("self::{$tableKey}");
-            if (isset($tableMap['fields'][$fieldKey])) {
-                return $tableMap['fields'][$fieldKey];
-            }
-            throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in table '{$tableKey}'");
+            return $tableMap['fields'][$fieldKey] ?? $fieldKey;
         }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
+        return $fieldKey;
     }
     
     public static function getDictionaryFieldName(string $fieldKey): string
     {
-        if (!isset(self::DICTIONARY_FIELDS[$fieldKey])) {
-            throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in dictionary fields");
-        }
-        return self::DICTIONARY_FIELDS[$fieldKey];
+        return self::DICTIONARY_FIELDS[$fieldKey] ?? $fieldKey;
     }
 
-    /**
-     * Get all fields for a table
-     */
     public static function getTableFields(string $tableKey): array
     {
         if (defined("self::{$tableKey}")) {
             return constant("self::{$tableKey}")['fields'];
         }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in AppQyV1TableMaps");
+        return [];
     }
 
-    /**
-     * Get all available table keys
-     */
     public static function getAvailableTableKeys(): array
     {
         $keys = [
@@ -319,21 +286,21 @@ class AppQyV1TableMaps
             'app_qy_v1_USER_SELECTED_LIBRARIES'
         ];
 
-        foreach (self::SUPPORTED_LANGUAGES as $langCode) {
-            $keys[] = "app_qy_v1_{$langCode}_DICTIONARIES";
+        foreach (self::getSupportedLanguageCodes() as $langCode) {
+            $keys[] = "app_qy_v1_{$langCode}_TTS_CACHE";
         }
 
         return $keys;
     }
-    
+
     public static function getSupportedLanguages(): array
     {
-        return self::SUPPORTED_LANGUAGES;
+        return self::getSupportedLanguageCodes();
     }
-    
+
     public static function isLanguageSupported(string $langCode): bool
     {
-        return in_array(strtolower($langCode), self::SUPPORTED_LANGUAGES);
+        return in_array(strtolower($langCode), self::getSupportedLanguageCodes());
     }
 
     /**

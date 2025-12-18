@@ -39,7 +39,7 @@ const LeaderboardPage = () => {
                   `}>
                     {u.rank}
                   </div>
-                  <img src={u.avatar} className="w-10 h-10 rounded-full border border-white" />
+                  <img src={u.avatar_url || u.avatar} className="w-10 h-10 rounded-full border border-white" />
                   <div className="flex-1 font-bold text-slate-700 dark:text-white">{u.name}</div>
                   <div className="text-blue-500 font-mono font-bold">{u.xp} XP</div>
                </div>

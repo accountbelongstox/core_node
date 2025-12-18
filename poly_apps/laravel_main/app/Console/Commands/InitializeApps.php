@@ -85,49 +85,51 @@ class InitializeApps extends Command
         $this->newLine();
 
         $results = \App\Services\UserSyncService::ensureUserTablesExist();
-        
+
         $this->info('Database initialization results:');
-        
+
         foreach ($results as $dbName => $status) {
             $icon = in_array($status, ['created', 'exists']) ? '✅' : '❌';
             $this->line("{$icon} {$dbName}: {$status}");
-            
-            $connection = $dbName === 'Main' ? 'sqlite' : strtolower($dbName);
-            
-            try {
-                if (config("database.connections.{$connection}")) {
-                    $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
-                    
-                    if (!empty($tables)) {
-                        foreach ($tables as $table) {
-                            $tableName = $table->name;
-                            $count = \DB::connection($connection)->table($tableName)->count();
-                            $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
-                            $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
-                            
-                            $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
-                            $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
 
-                            $output = "   • <fg=cyan;options=bold>{$tableName}</>";
-                            if ($colNames) {
-                                $output .= " | Cols: {$colNames}";
-                            }
-                            if ($idxNames) {
-                                $output .= " | Idx: {$idxNames}";
-                            }
-                            $output .= " | {$count} rows";
+            if ($this->getOutput()->isVerbose()) {
+                $connection = $dbName === 'Main' ? 'sqlite' : strtolower($dbName);
 
-                            $this->line($output);
+                try {
+                    if (config("database.connections.{$connection}")) {
+                        $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+
+                        if (!empty($tables)) {
+                            foreach ($tables as $table) {
+                                $tableName = $table->name;
+                                $count = \DB::connection($connection)->table($tableName)->count();
+                                $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
+                                $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
+
+                                $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
+                                $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
+
+                                $output = "   • <fg=cyan;options=bold>{$tableName}</>";
+                                if ($colNames) {
+                                    $output .= " | Cols: {$colNames}";
+                                }
+                                if ($idxNames) {
+                                    $output .= " | Idx: {$idxNames}";
+                                }
+                                $output .= " | {$count} rows";
+
+                                $this->line($output);
+                            }
+                        } else {
+                            $this->line("   <fg=gray>No tables</>");
                         }
-                    } else {
-                        $this->line("   <fg=gray>No tables</>");
                     }
+                } catch (\Exception $e) {
+                    $this->line("   <fg=red>Error: {$e->getMessage()}</>");
                 }
-            } catch (\Exception $e) {
-                $this->line("   <fg=red>Error: {$e->getMessage()}</>");
+
+                $this->newLine();
             }
-            
-            $this->newLine();
         }
         
         $successCount = collect($results)->filter(fn($s) => in_array($s, ['created', 'exists']))->count();
@@ -135,20 +137,23 @@ class InitializeApps extends Command
         $this->info("Successfully initialized {$successCount}/{$totalCount} databases.");
         $this->newLine();
 
-        $this->info('Creating multilingual dictionary tables (EdgeTTS cache)...');
-        $dictResults = \App\Services\UserSyncService::ensureMultiLangDictionaryTablesExist();
-        foreach ($dictResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
-            $this->line("  {$icon} {$table}: {$status}");
+        $this->info('Cleaning up conflicting tables...');
+        $cleanupResult = $this->cleanupConflictingTables();
+        if ($cleanupResult['deleted'] > 0) {
+            $this->line("  ✅ Deleted {$cleanupResult['deleted']} conflicting tables");
+        } else {
+            $this->line("  ✓ No conflicting tables found");
         }
         $this->newLine();
 
-        $this->info('Creating TTS cache tables...');
-        $ttsResults = \App\Services\UserSyncService::ensureTTSCacheTablesExist();
-        foreach ($ttsResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
-            $this->line("  {$icon} {$table}: {$status}");
-        }
+        $this->info('Creating TTS cache tables (EdgeTTS 91 languages)...');
+        $dictResults = \App\Services\UserSyncService::ensureMultiLangDictionaryTablesExist(function($current, $total) {
+            $percentage = round(($current / $total) * 100);
+            $this->line("  <fg=gray>Progress: {$current}/{$total} ({$percentage}%)</>");
+        });
+        $createdCount = count(array_filter($dictResults, fn($s) => $s === 'created'));
+        $existsCount = count(array_filter($dictResults, fn($s) => $s === 'exists'));
+        $this->line("  ✅ Created: {$createdCount}, Exists: {$existsCount}, Total: " . count($dictResults));
         $this->newLine();
 
         $this->info('Creating voice subtitle user settings tables...');
@@ -159,7 +164,7 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating multilingual word tables...');
+        $this->info('Creating word learning tables (4 languages: en/ja/vi/lo)...');
         $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
         foreach ($wordTableResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
@@ -230,7 +235,7 @@ class InitializeApps extends Command
         
         $this->newLine();
         
-        $this->info('AppQyV1 word tables summary:');
+        $this->info('AppQyV1 word tables summary (learning vocabulary):');
         try {
             $connection = 'appqyv1';
             $tables = [
@@ -238,9 +243,8 @@ class InitializeApps extends Command
                 'app_qy_v1_words_lao',
                 'app_qy_v1_words_japanese',
                 'app_qy_v1_words_vietnamese',
-                'app_qy_v1_tts_cache',
             ];
-            
+
             foreach ($tables as $table) {
                 try {
                     $count = \DB::connection($connection)->table($table)->count();
@@ -252,7 +256,7 @@ class InitializeApps extends Command
         } catch (\Exception $e) {
             $this->line("  <fg=red>Error: {$e->getMessage()}</>");
         }
-        
+
         $this->newLine();
 
         $this->info('Creating AppQyV1 user initialization tables...');
@@ -261,31 +265,6 @@ class InitializeApps extends Command
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
         }
-        $this->newLine();
-
-        $this->info('Checking Laravel Reverb installation...');
-        if (file_exists(base_path('vendor/laravel/reverb'))) {
-            $this->line("  ✅ Laravel Reverb installed");
-
-            if (file_exists(base_path('config/reverb.php'))) {
-                $this->line("  ✅ Reverb configuration published");
-            } else {
-                $this->line("  ⚠️  Reverb configuration not found, run deploy.sh");
-            }
-
-            $broadcastConnection = config('broadcasting.default', 'log');
-            if ($broadcastConnection === 'reverb') {
-                $this->line("  ✅ Broadcasting connection: reverb");
-                $this->line("     WebSocket server: " . config('reverb.servers.reverb.host', '0.0.0.0') . ":" . config('reverb.servers.reverb.port', '8080'));
-            } else {
-                $this->line("  ⚠️  Broadcasting connection: {$broadcastConnection} (not reverb)");
-                $this->line("     Set BROADCAST_CONNECTION=reverb in .env to enable WebSocket");
-            }
-        } else {
-            $this->line("  ⏭️  Laravel Reverb not installed (optional WebSocket support)");
-            $this->line("     Run: bash scripts/deploy.sh to install");
-        }
-
         $this->newLine();
 
         $this->info('Verifying Octane Timer tasks...');
@@ -699,15 +678,14 @@ class InitializeApps extends Command
     private function runSafeMigrations()
     {
         try {
-            $this->line("  <fg=cyan>Running database migrations with refresh and seed</>");
+            $this->line("  <fg=cyan>Running database migrations (safe mode - only new migrations)</>");
 
-            $exitCode = $this->call('migrate:refresh', [
+            $exitCode = $this->call('migrate', [
                 '--force' => true,
-                '--seed' => true,
             ]);
 
             if ($exitCode === 0) {
-                $this->line("  ✅ Database migrations and seeding completed successfully");
+                $this->line("  ✅ Database migrations completed successfully");
             } else {
                 $this->warn("  ⚠️  Some migrations encountered issues");
             }
@@ -830,5 +808,31 @@ class InitializeApps extends Command
         } else {
             $this->error("  ❌ chokidar not found after installation");
         }
+    }
+
+    private function cleanupConflictingTables(): array
+    {
+        $connection = 'appqyv1';
+        $schema = \DB::connection($connection)->getSchemaBuilder();
+
+        $learningTables = ['english', 'lao', 'japanese', 'vietnamese'];
+        $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
+
+        $deleted = 0;
+
+        foreach ($supportedLanguages as $langCode) {
+            if (in_array($langCode, $learningTables)) {
+                continue;
+            }
+
+            $oldTableName = "app_qy_v1_words_{$langCode}";
+
+            if ($schema->hasTable($oldTableName)) {
+                $schema->drop($oldTableName);
+                $deleted++;
+            }
+        }
+
+        return ['deleted' => $deleted];
     }
 }

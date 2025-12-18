@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Server, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { ApiEndpoint } from '../config/api-endpoints';
+import { EventBus } from '../services/EventBus';
 
 export const ApiEndpointSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -55,7 +56,11 @@ export const ApiEndpointSwitcher: React.FC = () => {
     if (success) {
       setCurrentEndpoint(apiManager.getCurrentEndpoint());
       setIsOpen(false);
-      window.location.reload();
+
+      // Emit event for components that need to react to endpoint change
+      EventBus.emit('api-endpoint-changed', { endpointId });
+
+      console.log('[ApiEndpointSwitcher] Endpoint changed to:', endpointId);
     }
   };
 

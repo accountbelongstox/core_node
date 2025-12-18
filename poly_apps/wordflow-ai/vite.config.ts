@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: parseInt(process.env.PORT),
+        port: parseInt(env.PORT),
         host: '0.0.0.0',
       },
       plugins: [react()],
@@ -18,6 +18,10 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve('.'),
         }
+      },
+      optimizeDeps: {
+        include: ['react-use'],
+        force: true
       }
     };
 });

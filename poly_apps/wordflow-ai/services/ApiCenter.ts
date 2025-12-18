@@ -5,6 +5,7 @@
 
 import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
+import { UserDataCenter } from './UserDataCenter';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -36,12 +37,14 @@ export interface User {
   nickname?: string;
   email?: string;
   avatar?: string;
+  avatar_url?: string;
   learning_languages?: string[];
   native_language?: string;
   total_words?: number;
   learned_words?: number;
   mastered_words?: number;
   learning_stats?: any;
+  isPro?: boolean;
 }
 
 export interface WordGroup {
@@ -163,36 +166,6 @@ class ApiCenterClass {
    */
 
   /**
-   * Process user avatar URL
-   * Backend should return avatar_url, but fallback to constructing it if needed
-   */
-  private processUserAvatarUrl(user: any): any {
-    // If backend already provided avatar_url, use it
-    if (user.avatar_url) {
-      return user;
-    }
-
-    // Fallback: construct URL from avatar path
-    if (user.avatar && !user.avatar.startsWith('http')) {
-      const baseUrl = apiManager.getCurrentBaseUrl();
-      // Backend should serve avatars via /api/files/avatars/{app}/{filename}
-      // Extract app name and filename from path like "avatars/appqyv1/avatar_1_xxx.png"
-      const parts = user.avatar.split('/');
-      if (parts.length >= 3 && parts[0] === 'avatars') {
-        const app = parts[1];
-        const filename = parts[2];
-        user.avatar_url = `${baseUrl}/api/files/avatars/${app}/${filename}`;
-      } else {
-        // Fallback for unexpected format
-        user.avatar_url = `${baseUrl}/api/files/${user.avatar}`;
-      }
-    } else {
-      user.avatar_url = user.avatar;
-    }
-    return user;
-  }
-
-  /**
    * Authentication APIs
    */
   auth = {
@@ -208,10 +181,16 @@ class ApiCenterClass {
         // Store token and user data
         // Laravel backend returns: { success, data: { user, login_token, ... }, token }
         const token = response.data.login_token || response.data.token || response.token;
-        const user = response.data.user || response.data.data?.user;
+        let user = response.data.user || response.data.data?.user;
 
         console.log('[ApiCenter] Extracted token:', token);
-        console.log('[ApiCenter] Extracted user:', user);
+        console.log('[ApiCenter] Extracted user (before processing):', user);
+
+        // Process user data through UserDataCenter
+        if (user) {
+          user = UserDataCenter.processUserData(user);
+          console.log('[ApiCenter] Extracted user (after UserDataCenter processing):', user);
+        }
 
         if (token) {
           StorageCenter.auth.setToken(token);
@@ -243,9 +222,9 @@ class ApiCenterClass {
         const token = response.data.token || response.data.login_token || response.token;
         let user = response.data.user || response.data.data?.user;
 
-        // Process avatar URL
+        // Process user data through UserDataCenter
         if (user) {
-          user = this.processUserAvatarUrl(user);
+          user = UserDataCenter.processUserData(user);
         }
 
         if (token) {
@@ -290,10 +269,23 @@ class ApiCenterClass {
     },
 
     getProfile: async (): Promise<ApiResponse<User>> => {
+      // Check cache first (cache for 5 minutes)
+      const cached = StorageCenter.cache.get<User>(StorageKey.USER_PROFILE_CACHE);
+      if (cached) {
+        console.log('[ApiCenter] Returning cached user profile');
+        return { success: true, data: cached };
+      }
+
       // Use backend's /user endpoint which returns current user
       const response = await this.request<User>('/user', {
         method: 'GET',
       });
+
+      // Cache immediately after successful fetch
+      if (response.success && response.data) {
+        StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
+        console.log('[ApiCenter] Cached user profile');
+      }
 
       return response;
     },
@@ -314,6 +306,7 @@ class ApiCenterClass {
 
   /**
    * Word Group APIs
+   * Backend uses: query_all_groups, query_group_by_gid, query_gwords
    */
   wordGroups = {
     getAll: async (): Promise<ApiResponse<WordGroup[]>> => {
@@ -323,7 +316,8 @@ class ApiCenterClass {
         return { success: true, data: cached };
       }
 
-      const response = await this.request<WordGroup[]>('/word-groups', {
+      // Backend route: /query_all_groups
+      const response = await this.request<WordGroup[]>('/query_all_groups', {
         method: 'GET',
       });
 
@@ -336,13 +330,15 @@ class ApiCenterClass {
     },
 
     getById: async (id: string): Promise<ApiResponse<WordGroup>> => {
-      return this.request<WordGroup>(`/word-groups/${id}`, {
+      // Backend route: /query_group_by_gid?gid={id}
+      return this.request<WordGroup>(`/query_group_by_gid?gid=${encodeURIComponent(id)}`, {
         method: 'GET',
       });
     },
 
     getWords: async (groupId: string): Promise<ApiResponse<Word[]>> => {
-      return this.request<Word[]>(`/word-groups/${groupId}/words`, {
+      // Backend route: /query_gwords?gid={groupId}
+      return this.request<Word[]>(`/query_gwords?gid=${encodeURIComponent(groupId)}`, {
         method: 'GET',
       });
     },
@@ -350,6 +346,7 @@ class ApiCenterClass {
 
   /**
    * Word APIs
+   * Backend uses: query_word, query_translation
    */
   words = {
     getDetail: async (wordId: string): Promise<ApiResponse<Word>> => {
@@ -359,13 +356,15 @@ class ApiCenterClass {
     },
 
     search: async (query: string, language: string = 'en'): Promise<ApiResponse<Word[]>> => {
-      return this.request<Word[]>(`/words/search?q=${encodeURIComponent(query)}&lang=${language}`, {
+      // Backend route: /query_word?word={query}
+      return this.request<Word[]>(`/query_word?word=${encodeURIComponent(query)}&lang=${language}`, {
         method: 'GET',
       });
     },
 
     translate: async (word: string, fromLang: string, toLang: string): Promise<ApiResponse<any>> => {
-      return this.request<any>('/words/translate', {
+      // Backend route: /query_translation (POST)
+      return this.request<any>('/query_translation', {
         method: 'POST',
         body: JSON.stringify({ word, from: fromLang, to: toLang }),
       });
@@ -445,9 +444,25 @@ class ApiCenterClass {
     },
 
     getSupportedLanguages: async (): Promise<ApiResponse<string[]>> => {
-      return this.request<string[]>('/dictionary/languages', {
+      // Check cache first (cache for 24 hours - languages don't change often)
+      const cached = StorageCenter.cache.get<any>(StorageKey.SUPPORTED_LANGUAGES_CACHE);
+      if (cached) {
+        console.log('[ApiCenter] Returning cached supported languages');
+        return { success: true, data: cached };
+      }
+
+      // Fetch from API
+      const response = await this.request<string[]>('/dictionary/languages', {
         method: 'GET',
       });
+
+      // Cache immediately after successful fetch
+      if (response.success && response.data) {
+        StorageCenter.cache.set(StorageKey.SUPPORTED_LANGUAGES_CACHE, response.data, 24 * 60 * 60 * 1000); // 24 hours
+        console.log('[ApiCenter] Cached supported languages');
+      }
+
+      return response;
     },
   };
 
@@ -456,12 +471,23 @@ class ApiCenterClass {
    */
   user = {
     getProfile: async (): Promise<ApiResponse<{ user: User }>> => {
+      // Check cache first (cache for 5 minutes)
+      const cached = StorageCenter.cache.get<{ user: User }>(StorageKey.USER_PROFILE_CACHE);
+      if (cached) {
+        console.log('[ApiCenter] Returning cached user profile');
+        return { success: true, data: cached };
+      }
+
+      // Fetch from API
       const response = await this.request<{ user: User }>('/user/profile', {
         method: 'GET',
       }, true);
 
+      // Cache immediately after successful fetch
       if (response.success && response.data?.user) {
-        response.data.user = this.processUserAvatarUrl(response.data.user);
+        StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
+        console.log('[ApiCenter] Cached user profile');
+        response.data.user = UserDataCenter.processUserData(response.data.user);
       }
 
       return response;
@@ -483,7 +509,7 @@ class ApiCenterClass {
       }, true);
 
       if (response.success && response.data?.user) {
-        response.data.user = this.processUserAvatarUrl(response.data.user);
+        response.data.user = UserDataCenter.processUserData(response.data.user);
       }
 
       return response;

@@ -48,7 +48,7 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
 
             foreach ($languageCodes as $langCode) {
                 $words = AppQyV1MultiLangDictionaryModel::query()
-                    ->connection('AppQyV1')
+                    ->connection('appqyv1')
                     ->from(AppQyV1TableMaps::getDictionaryTableName($langCode))
                     ->where(function($query) {
                         $query->where('has_translation', false)

@@ -101,7 +101,7 @@ class AppQyV1VocabularyImporter
         ?string $description = null
     ): array {
         try {
-            DB::connection('AppQyV1')->beginTransaction();
+            DB::connection('appqyv1')->beginTransaction();
 
             $existing = AppQyV1VocabularyCollectionModel::where('collection_name', $collectionName)
                 ->where('lang_code', $langCode)
@@ -133,7 +133,7 @@ class AppQyV1VocabularyImporter
 
             $ensuredCount = $this->ensureWordsInDictionary($langCode, $words);
 
-            DB::connection('AppQyV1')->commit();
+            DB::connection('appqyv1')->commit();
 
             return [
                 'success' => true,
@@ -144,7 +144,7 @@ class AppQyV1VocabularyImporter
             ];
 
         } catch (\Exception $e) {
-            DB::connection('AppQyV1')->rollBack();
+            DB::connection('appqyv1')->rollBack();
 
             Log::error('[AppQyV1VocabularyImporter] Error creating collection', [
                 'collection_name' => $collectionName,

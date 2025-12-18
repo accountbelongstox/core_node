@@ -11,9 +11,10 @@ import type {
   TaskEventType,
   TaskQueueStats,
 } from './types';
-import { TaskStatus as TaskStatusEnum, TaskEventType as TaskEventTypeEnum } from './types';
+import { TaskStatus as TaskStatusEnum, TaskEventType as TaskEventTypeEnum, TaskError, ErrorType } from './types';
 import type { ITaskHandler } from './ITaskHandler';
 import { TaskHandlerRegistry } from './ITaskHandler';
+import { queueLogger } from './logger';
 
 /**
  * Task queue configuration
@@ -43,6 +44,11 @@ export interface TaskQueueConfig {
    * Maximum retries for failed tasks (default: 3)
    */
   maxRetries?: number;
+
+  /**
+   * Maximum queue size (default: 1000)
+   */
+  maxQueueSize?: number;
 }
 
 /**
@@ -66,11 +72,12 @@ export class LocalTaskQueue {
       enableDeduplication: config.enableDeduplication ?? true,
       taskTimeout: config.taskTimeout ?? 300000,
       maxRetries: config.maxRetries ?? 3,
+      maxQueueSize: config.maxQueueSize ?? 1000,
     };
 
     this.handlerRegistry = new TaskHandlerRegistry();
 
-    console.log('[LocalTaskQueue] Initialized', this.config);
+    queueLogger.info('LocalTaskQueue', 'Queue initialized', this.config);
   }
 
   /**
@@ -92,11 +99,19 @@ export class LocalTaskQueue {
    * Auto-deduplicates and auto-starts if configured
    */
   async addTask<T = any>(task: Task<T>): Promise<boolean> {
+    // Check queue size limit
+    if (this.tasks.size >= this.config.maxQueueSize) {
+      console.error(
+        `[LocalTaskQueue] Queue is full (${this.tasks.size}/${this.config.maxQueueSize})`,
+      );
+      return false;
+    }
+
     // Deduplication check
     if (this.config.enableDeduplication) {
       const cacheKey = this.generateCacheKey(task);
       if (this.taskCache.has(cacheKey)) {
-        console.log(`[LocalTaskQueue] Task already exists: ${task.id} (${task.type})`);
+        queueLogger.debug('LocalTaskQueue', `Task already exists: ${task.id}`, { taskType: task.type });
         return false;
       }
       this.taskCache.add(cacheKey);
@@ -104,7 +119,7 @@ export class LocalTaskQueue {
 
     // Check if handler exists
     if (!this.handlerRegistry.has(task.type)) {
-      console.error(`[LocalTaskQueue] No handler registered for task type: ${task.type}`);
+      queueLogger.error('LocalTaskQueue', `No handler registered for task type: ${task.type}`, { taskId: task.id });
       return false;
     }
 
@@ -112,7 +127,11 @@ export class LocalTaskQueue {
     this.tasks.set(task.id, task);
     this.taskOrder.push(task.id);
 
-    console.log(`[LocalTaskQueue] Task added: ${task.id} (${task.type}) - Queue: ${this.taskOrder.length}`);
+    queueLogger.info('LocalTaskQueue', `Task added: ${task.id}`, {
+      taskType: task.type,
+      queueSize: this.taskOrder.length,
+      maxSize: this.config.maxQueueSize,
+    });
 
     // Emit ADDED event
     this.emitEvent(TaskEventTypeEnum.ADDED, task);
@@ -130,12 +149,12 @@ export class LocalTaskQueue {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[LocalTaskQueue] Already running');
+      queueLogger.debug('LocalTaskQueue', 'Queue already running');
       return;
     }
 
     this.isRunning = true;
-    console.log('[LocalTaskQueue] Started');
+    queueLogger.info('LocalTaskQueue', 'Queue started');
 
     // Start processing loop
     await this.processNext();
@@ -146,7 +165,7 @@ export class LocalTaskQueue {
    */
   stop(): void {
     this.isRunning = false;
-    console.log('[LocalTaskQueue] Stopped');
+    queueLogger.info('LocalTaskQueue', 'Queue stopped');
   }
 
   /**
@@ -168,7 +187,7 @@ export class LocalTaskQueue {
     if (!nextTaskId) {
       // No more tasks - emit QUEUE_EMPTY and stop
       if (this.processingTaskIds.size === 0) {
-        console.log('[LocalTaskQueue] Queue empty, stopping');
+        queueLogger.info('LocalTaskQueue', 'Queue empty, stopping');
         this.isRunning = false;
         this.emitEvent(TaskEventTypeEnum.QUEUE_EMPTY, null as any);
       }
@@ -186,7 +205,7 @@ export class LocalTaskQueue {
     task.startedAt = Date.now();
     task.updatedAt = Date.now();
 
-    console.log(`[LocalTaskQueue] Processing task: ${task.id} (${task.type})`);
+    queueLogger.info('LocalTaskQueue', `Processing task: ${task.id}`, { taskType: task.type });
 
     // Emit STARTED event
     this.emitEvent(TaskEventTypeEnum.STARTED, task);
@@ -236,13 +255,18 @@ export class LocalTaskQueue {
       // Task completed successfully
       await this.completeTask(task);
     } catch (error: any) {
-      console.error(`[LocalTaskQueue] Task failed: ${task.id}`, error);
+      queueLogger.error('LocalTaskQueue', `Task failed: ${task.id}`, { error: error.message });
+
+      // Determine if error is retriable
+      const isRetriable = error instanceof TaskError
+        ? error.isRetriable()
+        : true; // Unknown errors default to retriable
 
       // Check if should retry
       const retryCount = task.metadata?.retryCount ?? 0;
       const maxRetries = task.metadata?.maxRetries ?? this.config.maxRetries;
 
-      if (retryCount < maxRetries) {
+      if (isRetriable && retryCount < maxRetries) {
         // Retry task
         task.metadata = {
           ...task.metadata,
@@ -253,9 +277,15 @@ export class LocalTaskQueue {
         task.updatedAt = Date.now();
         this.processingTaskIds.delete(nextTaskId);
 
-        console.log(`[LocalTaskQueue] Task retry ${retryCount + 1}/${maxRetries}: ${task.id}`);
+        const errorType = error instanceof TaskError ? error.type : 'unknown';
+        queueLogger.warn('LocalTaskQueue', `Task retry ${retryCount + 1}/${maxRetries}: ${task.id}`, { errorType });
       } else {
-        // Max retries reached, fail task
+        // Max retries reached or non-retriable error, fail task
+        const reason = !isRetriable
+          ? 'Non-retriable error'
+          : 'Max retries reached';
+        queueLogger.error('LocalTaskQueue', `Task failed permanently: ${task.id}`, { reason });
+
         await this.failTask(task, error.message || String(error));
       }
     } finally {
@@ -275,7 +305,7 @@ export class LocalTaskQueue {
     task.updatedAt = Date.now();
     task.progress = 100;
 
-    console.log(`[LocalTaskQueue] Task completed: ${task.id} (${task.type})`);
+    queueLogger.info('LocalTaskQueue', `Task completed: ${task.id}`, { taskType: task.type });
 
     // Remove from order
     const index = this.taskOrder.indexOf(task.id);
@@ -353,7 +383,7 @@ export class LocalTaskQueue {
       this.taskOrder.splice(index, 1);
     }
 
-    console.log(`[LocalTaskQueue] Task cancelled: ${taskId}`);
+    queueLogger.info('LocalTaskQueue', `Task cancelled: ${taskId}`);
 
     // Emit CANCELLED event
     this.emitEvent(TaskEventTypeEnum.CANCELLED, task);
@@ -611,7 +641,7 @@ export class LocalTaskQueue {
       this.tasks.delete(id);
     });
 
-    console.log(`[LocalTaskQueue] Cleared ${completedIds.length} completed tasks`);
+    queueLogger.info('LocalTaskQueue', `Cleared ${completedIds.length} completed tasks`);
   }
 
   /**
@@ -622,6 +652,6 @@ export class LocalTaskQueue {
     this.taskOrder = [];
     this.taskCache.clear();
     this.processingTaskIds.clear();
-    console.log('[LocalTaskQueue] All tasks cleared');
+    queueLogger.warn('LocalTaskQueue', 'All tasks cleared');
   }
 }
