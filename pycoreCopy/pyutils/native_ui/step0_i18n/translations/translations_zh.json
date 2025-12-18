@@ -1,0 +1,55 @@
+{
+  "window": {
+    "title": {
+      "initializing": "初始化中..."
+    },
+    "button": {
+      "minimize": "最小化",
+      "maximize": "最大化",
+      "restore": "还原",
+      "close": "关闭",
+      "menu": "菜单"
+    },
+    "action": {
+      "show": "显示窗口",
+      "hide": "隐藏窗口",
+      "restart": "重启",
+      "exit": "退出"
+    }
+  },
+  "startup": {
+    "title": "启动中...",
+    "status": {
+      "initializing": "初始化中...",
+      "checking_deps": "检查依赖...",
+      "installing": "安装中...",
+      "loading": "加载中...",
+      "ready": "就绪",
+      "error": "错误"
+    }
+  },
+  "tray": {
+    "tooltip": "应用程序",
+    "menu": {
+      "show": "显示窗口",
+      "hide": "隐藏窗口",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "restore": "还原",
+      "restart": "重启",
+      "exit": "退出"
+    }
+  },
+  "loading": {
+    "text": "加载中...",
+    "please_wait": "请稍候..."
+  },
+  "language": {
+    "select": "选择语言",
+    "name": {
+      "en": "English",
+      "zh": "简体中文",
+      "ja": "日本語"
+    }
+  }
+}
