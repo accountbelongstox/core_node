@@ -6,7 +6,8 @@ import { LanguageCenter, SupportedLanguage } from '../../i18n/LanguageCenter';
 import { api } from '../../services/api';
 
 const DisplaySettings = () => {
-  const { settings, updateSettings } = useContext(AppContext);
+  // [i18n] Added `t` function for multi-language support
+  const { settings, updateSettings, t } = useContext(AppContext);
   
   const toggleTheme = () => {
       const next = settings.display.theme === 'light' ? 'dark' : 'light';
@@ -34,12 +35,21 @@ const DisplaySettings = () => {
   const supportedLanguages = LanguageCenter.getSupportedLanguages();
 
   return (
-    <SettingsLayout title="Display & Theme">
-       <SettingItem label="Theme Mode" value={settings.display.theme === 'light' ? 'Light' : 'Dark'} type="toggle" active={settings.display.theme === 'dark'} onClick={toggleTheme} />
-       <SettingItem label="Font Size" value={settings.display.fontSize} />
-       
+    // [i18n] Replaced hardcoded title with t()
+    <SettingsLayout title={t('settings.displayTheme')}>
+       {/* [i18n] Replaced hardcoded labels with t() */}
+       <SettingItem
+         label={t('settings.themeMode')}
+         value={settings.display.theme === 'light' ? t('settings.light') : t('settings.dark')}
+         type="toggle"
+         active={settings.display.theme === 'dark'}
+         onClick={toggleTheme}
+       />
+       <SettingItem label={t('settings.fontSize')} value={settings.display.fontSize} />
+
        <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-6 mb-4 pl-2">
-         App Interface Language
+         {/* [i18n] Replaced hardcoded "App Interface Language" with t() */}
+         {t('settings.appInterfaceLanguage')}
        </div>
        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-8">
          {supportedLanguages.map(lang => {
@@ -70,11 +80,13 @@ const DisplaySettings = () => {
            );
          })}
        </div>
-       
-       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Reading Card</div>
-       <SettingItem label="Show Phonetic" type="toggle" active={settings.display.showPhonetic} onClick={() => updateSettings({ display: { ...settings.display, showPhonetic: !settings.display.showPhonetic } })} />
-       <SettingItem label="Show Translation" type="toggle" active={settings.display.showTranslation} onClick={() => updateSettings({ display: { ...settings.display, showTranslation: !settings.display.showTranslation } })} />
-       <SettingItem label="Animations" type="toggle" active={settings.display.enableAnimations} onClick={() => updateSettings({ display: { ...settings.display, enableAnimations: !settings.display.enableAnimations } })} />
+
+       {/* [i18n] Replaced hardcoded "Reading Card" with t() */}
+       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">{t('settings.readingCard')}</div>
+       {/* [i18n] Replaced hardcoded labels with t() */}
+       <SettingItem label={t('settings.showPhonetic')} type="toggle" active={settings.display.showPhonetic} onClick={() => updateSettings({ display: { ...settings.display, showPhonetic: !settings.display.showPhonetic } })} />
+       <SettingItem label={t('settings.showTranslation')} type="toggle" active={settings.display.showTranslation} onClick={() => updateSettings({ display: { ...settings.display, showTranslation: !settings.display.showTranslation } })} />
+       <SettingItem label={t('settings.animations')} type="toggle" active={settings.display.enableAnimations} onClick={() => updateSettings({ display: { ...settings.display, enableAnimations: !settings.display.enableAnimations } })} />
     </SettingsLayout>
   );
 };

@@ -7,7 +7,8 @@ import { SupportedLanguage } from '../../types';
 import { IconMappingService } from '../../services/IconMappingService';
 
 const LanguageSettings = () => {
-  const { settings, updateSettings, user, setUser } = useContext(AppContext);
+  // [i18n] Added `t` function for multi-language support
+  const { settings, updateSettings, user, setUser, t } = useContext(AppContext);
   const [langs, setLangs] = useState<SupportedLanguage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +33,13 @@ const LanguageSettings = () => {
           setError(null);
         } else {
           console.warn('[LanguageSettings] No languages received from API');
-          setError('No languages available');
+          // [i18n] Replaced hardcoded "No languages available" with t()
+          setError(t('settings.noLanguagesAvailable'));
         }
       } catch (error) {
         console.error('[LanguageSettings] Failed to load languages:', error);
-        setError('Failed to load languages from server. Please check your connection.');
+        // [i18n] Replaced hardcoded error message with t()
+        setError(t('settings.failedToLoadLanguages'));
         // Don't set empty array, this ensures we don't show mock data accidentally
       } finally {
         setLoading(false);
@@ -86,9 +89,11 @@ const LanguageSettings = () => {
 
   if (loading) {
     return (
-      <SettingsLayout title="Language & Audio">
+      // [i18n] Replaced hardcoded title with t()
+      <SettingsLayout title={t('settings.languageAudio')}>
         <div className="flex items-center justify-center py-20">
-          <div className="text-slate-400 dark:text-slate-500">Loading languages...</div>
+          {/* [i18n] Replaced hardcoded "Loading languages..." with t() */}
+          <div className="text-slate-400 dark:text-slate-500">{t('settings.loadingLanguages')}</div>
         </div>
       </SettingsLayout>
     );
@@ -96,10 +101,12 @@ const LanguageSettings = () => {
 
   if (error || langs.length === 0) {
     return (
-      <SettingsLayout title="Language & Audio">
+      // [i18n] Replaced hardcoded title with t()
+      <SettingsLayout title={t('settings.languageAudio')}>
         <div className="flex flex-col items-center justify-center py-20 px-5">
           <div className="text-red-500 dark:text-red-400 mb-4 text-center">
-            {error || 'No languages available'}
+            {/* [i18n] Error message now uses t() from state */}
+            {error || t('settings.noLanguagesAvailable')}
           </div>
           <button
             onClick={() => {
@@ -118,17 +125,20 @@ const LanguageSettings = () => {
                   setLangs(languages);
                   setError(null);
                 } else {
-                  setError('No languages available');
+                  // [i18n] Replaced hardcoded error with t()
+                  setError(t('settings.noLanguagesAvailable'));
                 }
               }).catch((err) => {
-                setError('Failed to load languages from server. Please check your connection.');
+                // [i18n] Replaced hardcoded error with t()
+                setError(t('settings.failedToLoadLanguages'));
               }).finally(() => {
                 setLoading(false);
               });
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
-            Retry
+            {/* [i18n] Replaced hardcoded "Retry" with t() */}
+            {t('settings.retry')}
           </button>
         </div>
       </SettingsLayout>
@@ -136,9 +146,11 @@ const LanguageSettings = () => {
   }
 
   return (
-    <SettingsLayout title="Language & Audio">
+    // [i18n] Replaced hardcoded title with t()
+    <SettingsLayout title={t('settings.languageAudio')}>
       <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-2 mb-4 pl-2">
-        Languages to Learn (Multi-select)
+        {/* [i18n] Replaced hardcoded "Languages to Learn (Multi-select)" with t() */}
+        {t('settings.languagesToLearn')}
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-8">
         {langs.map(l => {
@@ -170,11 +182,13 @@ const LanguageSettings = () => {
         })}
       </div>
 
-      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Audio Engine</div>
-      <SettingItem label="Voice" value={settings.audio?.voice || 'default'} />
-      <SettingItem label="Speed" value={`${settings.audio?.playbackSpeed || 1.0}x`} />
-      <SettingItem label="Volume" value={`${Math.round((settings.audio?.volume || 0.8) * 100)}%`} />
-      <SettingItem label="Auto Play" type="toggle" active={settings.audio?.autoPlay || false} onClick={() => updateSettings({ audio: { ...settings.audio, autoPlay: !settings.audio?.autoPlay } })} />
+      {/* [i18n] Replaced hardcoded "Audio Engine" with t() */}
+      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">{t('settings.audioEngine')}</div>
+      {/* [i18n] Replaced hardcoded labels with t() */}
+      <SettingItem label={t('settings.voice')} value={settings.audio?.voice || 'default'} />
+      <SettingItem label={t('settings.speed')} value={`${settings.audio?.playbackSpeed || 1.0}x`} />
+      <SettingItem label={t('settings.volume')} value={`${Math.round((settings.audio?.volume || 0.8) * 100)}%`} />
+      <SettingItem label={t('settings.autoPlay')} type="toggle" active={settings.audio?.autoPlay || false} onClick={() => updateSettings({ audio: { ...settings.audio, autoPlay: !settings.audio?.autoPlay } })} />
     </SettingsLayout>
   );
 };

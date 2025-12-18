@@ -1,25 +1,35 @@
-
-import React from 'react';
+import React, { useContext } from 'react';
 import { SettingsLayout, SettingItem } from './Layout';
+import { AppContext } from '../../contexts/AppContext';
 
 const AboutPage = () => {
+  // [i18n] Added `t` function for multi-language support
+  const { t } = useContext(AppContext);
+
   return (
-    <SettingsLayout title="About">
+    // [i18n] Replaced hardcoded title with t()
+    <SettingsLayout title={t('settings.about')}>
        <div className="flex flex-col items-center py-8">
           <div className="w-20 h-20 bg-gradient-to-tr from-blue-400 to-purple-500 rounded-2xl shadow-xl flex items-center justify-center text-3xl text-white font-bold mb-4">W</div>
-          <h2 className="font-bold text-xl dark:text-white">WordFlow AI</h2>
-          <p className="text-slate-500 text-sm">Version 1.0.0 (Build 2025.11)</p>
+          {/* [i18n] Replaced hardcoded app name with t() */}
+          <h2 className="font-bold text-xl dark:text-white">{t('settings.appName')}</h2>
+          {/* [i18n] Replaced hardcoded version info with t() */}
+          <p className="text-slate-500 text-sm">{t('settings.versionInfo')}</p>
        </div>
-       
-       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-2">Legal</div>
-       <SettingItem label="Terms of Service" />
-       <SettingItem label="Privacy Policy" />
-       <SettingItem label="Open Source Licenses" />
-       
-       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Connect</div>
-       <SettingItem label="Website" value="wordflow.ai" />
-       <SettingItem label="Twitter" value="@wordflow" />
-       <SettingItem label="Contact Support" />
+
+       {/* [i18n] Replaced hardcoded "Legal" with t() */}
+       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 pl-2">{t('settings.legal')}</div>
+       {/* [i18n] Replaced hardcoded labels with t() */}
+       <SettingItem label={t('settings.termsOfService')} />
+       <SettingItem label={t('settings.privacyPolicy')} />
+       <SettingItem label={t('settings.openSourceLicenses')} />
+
+       {/* [i18n] Replaced hardcoded "Connect" with t() */}
+       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">{t('settings.connect')}</div>
+       {/* [i18n] Replaced hardcoded labels with t() */}
+       <SettingItem label={t('settings.website')} value="wordflow.ai" />
+       <SettingItem label={t('settings.twitter')} value="@wordflow" />
+       <SettingItem label={t('settings.contactSupport')} />
     </SettingsLayout>
   );
 };
