@@ -213,7 +213,11 @@ def launch_native_app(config: NativeUIConfig) -> None:
             thread = startup_thread_ref['thread']
             if thread and thread.is_alive():
                 ColorPrint.blue("[NativeLauncher] Stopping startup thread (debug window/tray)...")
-                thread.request_close()
+                # Use stop() instead of request_close() to ensure:
+                # 1. _stop_event is set (prevents entering tray mode after window closes)
+                # 2. Tray is stopped if running
+                # 3. Window is closed if still open
+                thread.stop()
 
         # Trigger THREAD_BUS shutdown to stop all services in proper order
         # Don't manually stop services - let shutdown stack handle it

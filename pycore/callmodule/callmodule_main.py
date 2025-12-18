@@ -31,6 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, get_platform_adapter
+from pycore.pyutils.native_ui.step2_port_url import register_port_range
 from pycore.callmodule.callmodule_config import Config
 
 # Import all routers
@@ -98,6 +99,11 @@ def start(host='0.0.0.0', port=59000, debug=False):
     Config.RPC_PORT = port
 
     ColorPrint.green("[Callmodule] 19 routers available")
+
+    # Register custom port range for callmodule (matches config.py configuration)
+    # This ensures Native UI uses the correct singleton port range
+    register_port_range(Config.APP_ID, 54000, 100)  # 54000-54099
+    ColorPrint.blue(f"[Callmodule] Registered singleton port range: 54000-54099")
 
     # Get platform adapter for cross-platform configuration
     adapter = get_platform_adapter()

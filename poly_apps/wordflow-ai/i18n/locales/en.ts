@@ -362,6 +362,33 @@ export const en = {
     website: 'Website',
     twitter: 'Twitter',
     contactSupport: 'Contact Support',
+
+    // DataSync Page - i18n extension
+    autoSync: 'Auto Sync',
+    syncOnlyWifi: 'Sync only on Wi-Fi',
+    lastBackup: 'Last Backup',
+    storage: 'Storage',
+    usedStorage: 'Used Storage',
+    clearCache: 'Clear Cache',
+
+    // Notifications Page - i18n extension
+    reviewAlerts: 'Review Alerts',
+    achievementBadges: 'Achievement Badges',
+    newCourseAlerts: 'New Course Alerts',
+    reminderTime: 'Reminder Time',
+
+    // ApiServer Page - i18n extension
+    apiServer: 'API Server',
+    backendApiConfig: 'Backend API Configuration',
+    backendApiDescription: 'The app will automatically detect and connect to the first available API server based on priority. You can manually switch servers if needed.',
+    howItWorks: 'How It Works',
+    serversTestedInOrder: 'Servers are tested in priority order on startup',
+    firstWorkingSelected: 'First working server is automatically selected',
+    healthChecksRun: 'Health checks run periodically in the background',
+    manualSelectionPersists: 'Manual selection persists across app restarts',
+    healthChecksVerify: 'Health checks verify server availability via GET /api/health',
+    responseTimesMeasured: 'Response times are measured to help identify performance',
+    endpointSavedLocalStorage: 'Selected endpoint is saved to localStorage',
   },
 
   words: {

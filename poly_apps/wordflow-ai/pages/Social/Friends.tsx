@@ -13,14 +13,17 @@ const FriendsPage = () => {
        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
              <button onClick={() => navigate('home')} className="p-1"><Icons.Back /></button>
-             <h1 className="text-2xl font-bold dark:text-white">Friends</h1>
+             {/* [i18n] Replaced hardcoded "Friends" with t() */}
+             <h1 className="text-2xl font-bold dark:text-white">{t('social.friends')}</h1>
           </div>
-          <button className="bg-blue-100 text-blue-600 p-2 rounded-xl text-sm font-bold">+ Add</button>
+          {/* [i18n] Replaced hardcoded "+ Add" with t() */}
+          <button className="bg-blue-100 text-blue-600 p-2 rounded-xl text-sm font-bold">{t('social.add')}</button>
        </div>
 
        {/* Active Friends Horizontal Scroll */}
        <div className="mb-8">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pl-1">Active Now</h3>
+          {/* [i18n] Replaced hardcoded "Active Now" with t() */}
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pl-1">{t('social.activeNow')}</h3>
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
              {MOCK_FRIENDS.map(f => (
                 <div key={f.id} className="flex flex-col items-center gap-2 min-w-[70px]">
@@ -36,7 +39,8 @@ const FriendsPage = () => {
 
        {/* Activity Feed */}
        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-24">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">Activity Feed</h3>
+          {/* [i18n] Replaced hardcoded "Activity Feed" with t() */}
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 pl-1">{t('social.activityFeed')}</h3>
           {MOCK_ACTIVITIES.map(a => (
              <Card key={a.id} className="flex gap-4 !p-4">
                 <img src={a.userAvatar} className="w-12 h-12 rounded-full border border-slate-100" />
@@ -52,12 +56,13 @@ const FriendsPage = () => {
                 </div>
              </Card>
           ))}
-          
+
           <Card className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white !border-none mt-4">
              <div className="flex justify-between items-center">
                 <div>
-                   <h3 className="font-bold text-lg">Invite Friends</h3>
-                   <p className="text-white/80 text-sm">Get 1 month Pro for free!</p>
+                   {/* [i18n] Replaced hardcoded text with t() */}
+                   <h3 className="font-bold text-lg">{t('social.inviteFriends')}</h3>
+                   <p className="text-white/80 text-sm">{t('social.getProFree')}</p>
                 </div>
                 <div className="text-3xl">🎁</div>
              </div>

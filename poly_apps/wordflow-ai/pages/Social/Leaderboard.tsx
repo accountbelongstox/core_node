@@ -5,7 +5,8 @@ import { Card, Icons } from '../../components/UI';
 import { MOCK_LEADERBOARD, MOCK_ACHIEVEMENTS } from '../../services/mockData';
 
 const LeaderboardPage = () => {
-  const { navigate } = useContext(AppContext);
+  // [i18n] Added `t` function for multi-language support
+  const { navigate, t } = useContext(AppContext);
   const [tab, setTab] = useState<'ranking' | 'badges'>('ranking');
 
   return (
@@ -13,11 +14,13 @@ const LeaderboardPage = () => {
       <div className="flex justify-between items-center mb-6">
          <div className="flex items-center gap-3">
             <button onClick={() => navigate('home')} className="p-1"><Icons.Back /></button>
-            <h1 className="text-2xl font-bold dark:text-white">Community</h1>
+            {/* [i18n] Replaced hardcoded "Community" with t() */}
+            <h1 className="text-2xl font-bold dark:text-white">{t('social.community')}</h1>
          </div>
          <div className="flex gap-2">
-            <button onClick={() => setTab('ranking')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'ranking' ? 'bg-blue-500 text-white' : 'bg-white/40 text-slate-600'}`}>Rank</button>
-            <button onClick={() => setTab('badges')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'badges' ? 'bg-blue-500 text-white' : 'bg-white/40 text-slate-600'}`}>Badges</button>
+            {/* [i18n] Replaced hardcoded tab labels with t() */}
+            <button onClick={() => setTab('ranking')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'ranking' ? 'bg-blue-500 text-white' : 'bg-white/40 text-slate-600'}`}>{t('social.rank')}</button>
+            <button onClick={() => setTab('badges')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'badges' ? 'bg-blue-500 text-white' : 'bg-white/40 text-slate-600'}`}>{t('social.badges')}</button>
          </div>
       </div>
 
@@ -53,7 +56,8 @@ const LeaderboardPage = () => {
                    <h3 className="font-bold text-sm dark:text-white mb-1">{a.name}</h3>
                    <p className="text-xs text-slate-500 mb-3 leading-tight">{a.description}</p>
                    {a.unlocked ? (
-                     <span className="px-2 py-0.5 bg-green-100 text-green-600 text-[10px] font-bold rounded-full">Unlocked</span>
+                     {/* [i18n] Replaced hardcoded "Unlocked" with t() */}
+                     <span className="px-2 py-0.5 bg-green-100 text-green-600 text-[10px] font-bold rounded-full">{t('social.unlocked')}</span>
                    ) : (
                      <div className="w-full bg-slate-200 h-1.5 rounded-full mt-auto">
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(a.progress / a.maxProgress) * 100}%` }}></div>
