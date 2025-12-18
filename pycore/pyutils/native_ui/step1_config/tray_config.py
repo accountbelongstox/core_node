@@ -40,9 +40,10 @@ from typing import List, Optional, Dict, Any
 
 class TrayBackend(Enum):
     """System tray backend options"""
-    TKINTER = "tkinter"  # Uses pystray (lightweight, cross-platform)
-    PYSIDE6 = "pyside6"   # Uses QSystemTrayIcon (Qt-based)
-    AUTO = "auto"         # Auto-detect best available backend
+    TKINTER = "tkinter"        # Uses pystray (lightweight, cross-platform)
+    PYSIDE6 = "pyside6"        # Uses QSystemTrayIcon (Qt-based)
+    APPINDICATOR = "appindicator"  # Uses AppIndicator3 (native Ubuntu/GNOME)
+    AUTO = "auto"              # Auto-detect best available backend
 
 
 @dataclass

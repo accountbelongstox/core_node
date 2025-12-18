@@ -14,7 +14,6 @@ from PySide6.QtGui import QColor
 
 from typing import Optional
 from pathlib import Path
-import tempfile
 
 
 class PySide6WebView(QWidget):
@@ -275,14 +274,9 @@ class PySide6WebView(QWidget):
             # Use built-in loading page
             html_content = self._generate_loading_html(style, text, background)
 
-            # Create temp loading page
-            temp_file = Path(tempfile.gettempdir()) / "loading.html"
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            # Load in web view
+            # Load HTML directly (no temp file needed)
             temp_web = QWebEngineView(self.loading_widget)
-            temp_web.load(QUrl.fromLocalFile(str(temp_file)))
+            temp_web.setHtml(html_content)
 
         # Replace loading widget layout
         layout = self.loading_widget.layout()

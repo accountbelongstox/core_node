@@ -5,6 +5,13 @@ WebSocket RPC Server Thread
 
 Native threading.Thread based RPC server implementation
 Inspired by SeleniumThread pattern
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=70) for graceful shutdown
+- Checks THREAD_BUS.is_shutdown_requested() in server loop
+- Triggers 'wsrpc.server.started' and 'wsrpc.server.stopped' events
+- Uses set_thread_state for thread status tracking
+- Backwards compatible: keeps existing functionality
 """
 
 import threading
@@ -12,6 +19,7 @@ import asyncio
 import time
 from typing import Dict, Optional, Callable, Any
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 # Import the original WsRpcServer
 from pycore.pyutils.wsrpc.ws_rpc_server import WsRpcServer
@@ -98,6 +106,15 @@ class WsRpcServerThread(threading.Thread):
         self._pending_events: Dict[str, list] = {}
         self._pending_middleware: list = []
 
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=70 for service threads (stops before singleton detector)
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=70,
+            name=f"wsrpc_server_{thread_name}"
+        )
+        ColorPrint.blue(f"[{self.name}] Registered THREAD_BUS shutdown handler (priority=70)")
+
         ColorPrint.green(f"[{self.name}] Server thread initialized: ws://{self.host}:{self.port}")
 
     # ============================================
@@ -109,8 +126,13 @@ class WsRpcServerThread(threading.Thread):
         Thread entry point - runs the asyncio event loop
 
         This method is called automatically when thread.start() is invoked.
+
+        THREAD_BUS Integration:
+        - Sets thread state (starting, running, stopped)
+        - Triggers server start/stop events
         """
         try:
+            THREAD_BUS.set_thread_state(self.name, 'starting')
             self._running = True
             ColorPrint.green(f"[{self.name}] Thread started")
 
@@ -123,6 +145,15 @@ class WsRpcServerThread(threading.Thread):
 
             # Register pending routes/events/middleware
             self._register_pending_items()
+
+            THREAD_BUS.set_thread_state(self.name, 'running')
+
+            # THREAD_BUS Integration: Trigger server started event
+            THREAD_BUS.trigger_event('wsrpc.server.started', {
+                'host': self.host,
+                'port': self.port,
+                'thread_name': self.name
+            }, async_mode=True)
 
             # Run server until stopped
             ColorPrint.blue(f"[{self.name}] Starting WebSocket RPC server on ws://{self.host}:{self.port}")
@@ -138,16 +169,36 @@ class WsRpcServerThread(threading.Thread):
         finally:
             self._running = False
             self._cleanup()
+
+            THREAD_BUS.set_thread_state(self.name, 'stopped')
+
+            # THREAD_BUS Integration: Trigger server stopped event
+            THREAD_BUS.trigger_event('wsrpc.server.stopped', {
+                'host': self.host,
+                'port': self.port,
+                'thread_name': self.name
+            }, async_mode=True)
+
             ColorPrint.yellow(f"[{self.name}] Thread stopped")
 
     async def _run_server(self):
-        """Run server and handle graceful shutdown"""
+        """
+        Run server and handle graceful shutdown
+
+        THREAD_BUS Integration:
+        - Checks is_shutdown_requested() for graceful shutdown
+        """
         try:
             # Start server
             await self.server.start()
 
             # Wait for stop signal
             while not self._stop_event.is_set():
+                # THREAD_BUS Integration: Check if global shutdown was requested
+                if THREAD_BUS.is_shutdown_requested():
+                    ColorPrint.yellow(f"[{self.name}] THREAD_BUS shutdown detected, stopping server...")
+                    break
+
                 await asyncio.sleep(0.1)
 
         except asyncio.CancelledError:

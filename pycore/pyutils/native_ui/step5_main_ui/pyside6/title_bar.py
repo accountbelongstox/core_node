@@ -327,21 +327,18 @@ class PySide6TitleBar(QWidget):
             self._drag_position = event.globalPos()
             self._dragging = True
 
-            # Notify parent window to start drag
+            # Use Qt's native system move for frameless window
             parent = self.window()
-            if parent and hasattr(parent, 'start_drag'):
-                parent.start_drag(event.pos())
+            if parent and parent.windowHandle():
+                # Call startSystemMove() on mouse press for better responsiveness
+                parent.windowHandle().startSystemMove()
 
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         """Handle mouse move for window dragging."""
-        if self._dragging and self._drag_position:
-            # Notify parent window to perform drag
-            parent = self.window()
-            if parent and hasattr(parent, 'do_drag'):
-                parent.do_drag(event.globalPos())
-
+        # startSystemMove() handles the actual dragging,
+        # so we don't need to manually move the window here
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -349,11 +346,6 @@ class PySide6TitleBar(QWidget):
         if event.button() == Qt.LeftButton:
             self._dragging = False
             self._drag_position = None
-
-            # Notify parent window to end drag
-            parent = self.window()
-            if parent and hasattr(parent, 'end_drag'):
-                parent.end_drag()
 
         super().mouseReleaseEvent(event)
 

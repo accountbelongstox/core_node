@@ -26,10 +26,14 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
     site_name: '',
     domain: '',
     site_type: 'laravel',
-    www_dir: '/www/wwwroot/',
-    php_mode: 'php-fpm',
-    swoole_port: undefined,
-    ssl_enabled: false
+    config: {
+      www_dir: '/www/wwwroot/',
+      php_mode: 'php-fpm',
+      php_version: '8.2'
+    },
+    ssl_enabled: false,
+    auto_ssl: false,
+    dns_provider: 'none'
   });
 
   const [saving, setSaving] = useState(false);
@@ -40,20 +44,29 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
         site_name: site.site_name,
         domain: site.domain,
         site_type: site.site_type || 'laravel',
-        www_dir: site.www_dir || '/www/wwwroot/',
-        php_mode: site.php_mode || 'php-fpm',
-        swoole_port: site.swoole_port,
-        ssl_enabled: site.ssl_enabled || false
+        config: {
+          www_dir: site.www_dir || '/www/wwwroot/',
+          php_mode: site.php_mode || 'php-fpm',
+          php_version: '8.2',
+          swoole_port: site.swoole_port
+        },
+        ssl_enabled: site.ssl_enabled || false,
+        auto_ssl: false,
+        dns_provider: 'none'
       });
     } else {
       setFormData({
         site_name: '',
         domain: '',
         site_type: 'laravel',
-        www_dir: '/www/wwwroot/',
-        php_mode: 'php-fpm',
-        swoole_port: undefined,
-        ssl_enabled: false
+        config: {
+          www_dir: '/www/wwwroot/',
+          php_mode: 'php-fpm',
+          php_version: '8.2'
+        },
+        ssl_enabled: false,
+        auto_ssl: false,
+        dns_provider: 'none'
       });
     }
   }, [site]);
@@ -73,6 +86,13 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
 
   const handleChange = (field: keyof NginxSiteCreateRequest, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleConfigChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      config: { ...prev.config!, [field]: value }
+    }));
   };
 
   if (!isOpen) return null;
@@ -133,8 +153,8 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             <input
               type="text"
               required
-              value={formData.www_dir}
-              onChange={(e) => handleChange('www_dir', e.target.value)}
+              value={formData.config?.www_dir || ''}
+              onChange={(e) => handleConfigChange('www_dir', e.target.value)}
               className={commonClasses.input}
               placeholder="/www/wwwroot/example.com"
             />
@@ -143,8 +163,8 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
           <div>
             <label className="block text-sm font-medium mb-2">{t.php_mode}</label>
             <select
-              value={formData.php_mode}
-              onChange={(e) => handleChange('php_mode', e.target.value)}
+              value={formData.config?.php_mode || 'php-fpm'}
+              onChange={(e) => handleConfigChange('php_mode', e.target.value)}
               className={commonClasses.input}
             >
               <option value="php-fpm">PHP-FPM</option>
@@ -153,13 +173,28 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             </select>
           </div>
 
-          {formData.php_mode === 'swoole' && (
+          <div>
+            <label className="block text-sm font-medium mb-2">PHP Version</label>
+            <select
+              value={formData.config?.php_version || '8.2'}
+              onChange={(e) => handleConfigChange('php_version', e.target.value)}
+              className={commonClasses.input}
+            >
+              <option value="7.4">PHP 7.4</option>
+              <option value="8.0">PHP 8.0</option>
+              <option value="8.1">PHP 8.1</option>
+              <option value="8.2">PHP 8.2</option>
+              <option value="8.3">PHP 8.3</option>
+            </select>
+          </div>
+
+          {formData.config?.php_mode === 'swoole' && (
             <div>
               <label className="block text-sm font-medium mb-2">{t.swoole_port}</label>
               <input
                 type="number"
-                value={formData.swoole_port || ''}
-                onChange={(e) => handleChange('swoole_port', parseInt(e.target.value) || undefined)}
+                value={formData.config?.swoole_port || ''}
+                onChange={(e) => handleConfigChange('swoole_port', parseInt(e.target.value) || undefined)}
                 className={commonClasses.input}
                 placeholder="9501"
                 min="1024"
@@ -168,15 +203,66 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="ssl_enabled"
-              checked={formData.ssl_enabled}
-              onChange={(e) => handleChange('ssl_enabled', e.target.checked)}
-              className="w-4 h-4"
-            />
-            <label htmlFor="ssl_enabled" className="text-sm font-medium">{t.ssl_enabled}</label>
+          {formData.site_type === 'proxy' && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Proxy Target</label>
+              <input
+                type="text"
+                value={formData.config?.proxy_target || ''}
+                onChange={(e) => handleConfigChange('proxy_target', e.target.value)}
+                className={commonClasses.input}
+                placeholder="http://localhost:3000"
+              />
+              <p className="text-xs text-slate-500 mt-1">Target URL to proxy requests to</p>
+            </div>
+          )}
+
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+            <h3 className="text-sm font-semibold mb-3">SSL Configuration (Optional)</h3>
+
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                id="ssl_enabled"
+                checked={formData.ssl_enabled}
+                onChange={(e) => handleChange('ssl_enabled', e.target.checked)}
+                className="w-4 h-4"
+              />
+              <label htmlFor="ssl_enabled" className="text-sm font-medium">Enable SSL</label>
+            </div>
+
+            {formData.ssl_enabled && (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    id="auto_ssl"
+                    checked={formData.auto_ssl}
+                    onChange={(e) => handleChange('auto_ssl', e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="auto_ssl" className="text-sm font-medium">Auto-generate SSL Certificate</label>
+                </div>
+
+                {formData.auto_ssl && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">DNS Provider (for wildcard certs)</label>
+                    <select
+                      value={formData.dns_provider || 'none'}
+                      onChange={(e) => handleChange('dns_provider', e.target.value)}
+                      className={commonClasses.input}
+                    >
+                      <option value="none">HTTP-01 Challenge (No DNS)</option>
+                      <option value="dnspod">DNSPod (Tencent Cloud)</option>
+                      <option value="cloudflare">Cloudflare</option>
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      DNS providers allow wildcard certificates. Requires API credentials configured on server.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">

@@ -14,12 +14,21 @@ Architecture:
                                        ↓
                                  Counter interceptor
                                  (30s = skip 29 ticks, run on 30th)
+
+THREAD_BUS Integration:
+    - Registers shutdown handler (priority=100, runs last)
+    - Triggers 'heartbeat.tick' events every tick
+    - Checks THREAD_BUS.is_shutdown_requested() in main loop
+    - Backwards compatible: keeps existing callback mechanism
 """
 
 import time
 import threading
 from typing import Dict, Callable, Optional, Any
-from pycore.pyfoundations import ColorPrint, get_global_task_queue, TaskState
+
+# Core imports
+from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations import get_global_task_queue, TaskState
 from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
 
 
@@ -115,7 +124,7 @@ class HeartbeatPusher(threading.Thread):
         self._task_queue = get_global_task_queue()
         self._thread_pool = thread_pool or get_global_thread_pool()
 
-        # Callback registry
+        # Callback registry (保留向后兼容性)
         self._callbacks: Dict[str, CallbackInfo] = {}
         self._callbacks_lock = threading.Lock()
 
@@ -125,6 +134,16 @@ class HeartbeatPusher(threading.Thread):
         self._tasks_pushed = 0
         self._tasks_requeued = 0
         self._tasks_failed = 0
+
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=100 ensures heartbeat stops LAST (after all other services)
+        # This allows other services to use heartbeat during their shutdown
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=100,
+            name="heartbeat"
+        )
+        ColorPrint.blue("[Heartbeat] Registered THREAD_BUS shutdown handler (priority=100)")
 
     def register_callback(
         self,
@@ -172,22 +191,43 @@ class HeartbeatPusher(threading.Thread):
                 self._callbacks[name].enabled = False
 
     def run(self):
-        """Main heartbeat loop"""
+        """
+        Main heartbeat loop
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() to stop gracefully
+        - Triggers 'heartbeat.tick' event every tick for other modules to subscribe
+        """
         self._running = True
         self._start_time = time.time()
 
         ColorPrint.green(f"[Heartbeat] Started (tick={self.tick_interval}s)")
 
         while not self._stop_event.is_set():
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            # This allows clean shutdown even if stop() wasn't called directly
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[Heartbeat] THREAD_BUS shutdown detected, stopping...")
+                break
+
             tick_start = time.time()
             self._total_ticks += 1
 
             try:
-                # Execute registered callbacks
+                # Execute registered callbacks (backwards compatible mechanism)
                 self._execute_callbacks()
 
                 # Process task queue
                 self._process_tasks()
+
+                # THREAD_BUS Integration: Trigger tick event
+                # Other modules can subscribe to this event instead of using callbacks
+                # Event data includes tick number and timestamp for subscriber convenience
+                THREAD_BUS.trigger_event('heartbeat.tick', {
+                    'tick_number': self._total_ticks,
+                    'timestamp': time.time(),
+                    'uptime': time.time() - self._start_time
+                }, async_mode=True)  # async to avoid blocking heartbeat loop
 
             except Exception as e:
                 ColorPrint.red(f"[Heartbeat] Tick error: {e}")
@@ -259,7 +299,16 @@ class HeartbeatPusher(threading.Thread):
         self._task_queue.put(task, block=False)
 
     def stop(self):
-        """Stop heartbeat pusher"""
+        """
+        Stop heartbeat pusher
+
+        THREAD_BUS Integration:
+        This method is registered as a shutdown handler in THREAD_BUS.
+        It will be automatically called during system shutdown (priority=100, last to stop).
+
+        This ensures heartbeat continues running while other services are shutting down,
+        allowing them to use task queue processing during their cleanup.
+        """
         ColorPrint.yellow("[Heartbeat] Stopping...")
         self._stop_event.set()
 

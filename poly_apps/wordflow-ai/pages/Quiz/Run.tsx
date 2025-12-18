@@ -4,9 +4,11 @@ import { AppContext } from '../../contexts/AppContext';
 import { Icons, Button } from '../../components/UI';
 import { api } from '../../services/api';
 import { QuizQuestion } from '../../types';
+import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const QuizRunPage = () => {
-  const { navigate } = useContext(AppContext);
+  // [i18n] Added `t` function for multi-language support
+  const { navigate, t, currentParams } = useContext(AppContext);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -16,7 +18,20 @@ const QuizRunPage = () => {
   const [gameOver, setGameOver] = useState(false);
 
   useEffect(() => {
-    api.getQuizSession().then(setQuestions);
+    api.getQuizSession().then(data => {
+      setQuestions(data);
+
+      // [Learning Progress] Start learning session
+      LearningProgressTracker.startSession(
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    });
+
+    // [Learning Progress] End session on unmount
+    return () => {
+      LearningProgressTracker.endSession();
+    };
   }, []);
 
   useEffect(() => {
@@ -34,6 +49,19 @@ const QuizRunPage = () => {
   }, [selectedOption, currentIndex, gameOver]);
 
   const handleTimeOut = () => {
+    const currentQ = questions[currentIndex];
+
+    // [Learning Progress] Record timeout as incorrect
+    if (currentQ?.wordId) {
+      LearningProgressTracker.recordWordReview(
+        currentQ.wordId,
+        currentQ.question,
+        false, // timeout = incorrect
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    }
+
     setIsCorrect(false);
     setSelectedOption('timeout');
     setTimeout(nextQuestion, 1500);
@@ -41,6 +69,20 @@ const QuizRunPage = () => {
 
   const handleSelect = (optionId: string, correct: boolean) => {
     if (selectedOption) return;
+
+    const currentQ = questions[currentIndex];
+
+    // [Learning Progress] Record answer result
+    if (currentQ?.wordId) {
+      LearningProgressTracker.recordWordReview(
+        currentQ.wordId,
+        currentQ.question,
+        correct,
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    }
+
     setSelectedOption(optionId);
     setIsCorrect(correct);
     if (correct) setScore(s => s + 10);
@@ -54,22 +96,36 @@ const QuizRunPage = () => {
       setIsCorrect(null);
       setTimeLeft(15);
     } else {
-      setGameOver(true);
+      // [Learning Progress] End session before game over
+      LearningProgressTracker.endSession().then(() => {
+        setGameOver(true);
+      });
     }
   };
 
-  if (questions.length === 0) return <div className="p-10 text-center">Loading Quiz...</div>;
+  // [i18n] Replaced hardcoded "Loading Quiz..." with t()
+  if (questions.length === 0) return <div className="p-10 text-center">{t('quiz.loadingQuiz')}</div>;
 
   if (gameOver) return (
     <div className="h-full flex flex-col items-center justify-center p-8 animate-fade-in text-center">
        <div className="text-6xl mb-6">🏆</div>
-       <h2 className="text-3xl font-bold dark:text-white mb-2">Quiz Complete!</h2>
-       <p className="text-slate-500 mb-8 text-xl">Score: <span className="text-blue-500 font-bold">{score}</span></p>
-       <Button onClick={() => navigate('home')}>Back Home</Button>
+       {/* [i18n] Replaced hardcoded "Quiz Complete!" with t() */}
+       <h2 className="text-3xl font-bold dark:text-white mb-2">{t('quiz.quizComplete')}</h2>
+       {/* [i18n] Replaced hardcoded "Score:" with t() */}
+       <p className="text-slate-500 mb-8 text-xl">{t('quiz.score')} <span className="text-blue-500 font-bold">{score}</span></p>
+       {/* [i18n] Replaced hardcoded "Back Home" with t() */}
+       <Button onClick={() => navigate('home')}>{t('quiz.backHome')}</Button>
     </div>
   );
 
   const currentQ = questions[currentIndex];
+
+  // [Learning Progress] Start tracking current word when index changes
+  useEffect(() => {
+    if (currentQ?.wordId) {
+      LearningProgressTracker.startWordTracking(currentQ.wordId);
+    }
+  }, [currentIndex, currentQ]);
 
   return (
     <div className="h-full flex flex-col p-6 pt-safe pb-safe relative overflow-hidden">
@@ -92,7 +148,8 @@ const QuizRunPage = () => {
        {/* Question */}
        <div className="flex-1 flex flex-col items-center justify-center z-10 mb-8">
            <div className="holo-card p-8 rounded-3xl w-full text-center shadow-xl backdrop-blur-md">
-               <h3 className="text-slate-500 uppercase text-xs font-bold mb-4 tracking-widest">{currentQ.type} Question</h3>
+               {/* [i18n] Replaced hardcoded "Question" with t() */}
+               <h3 className="text-slate-500 uppercase text-xs font-bold mb-4 tracking-widest">{currentQ.type} {t('quiz.question')}</h3>
                <h2 className="text-2xl font-bold text-slate-800 dark:text-white leading-relaxed">{currentQ.question}</h2>
            </div>
        </div>

@@ -180,8 +180,9 @@ export const DEFAULT_PLAYLIST_SETTINGS: PlaylistSettings = {
 export interface AppSettings {
   language: {
     appInterface: string | string[]; // 'zh', 'en', etc. or ['zh', 'en'] for multi-select
-    targetLearning: string; // DEPRECATED: use User.learningLanguages
+    targetLearning: string; // DEPRECATED: use settings.language.learningLanguages
     translationTarget: string; // 'zh-CN'
+    learningLanguages?: string[]; // Array of language codes user is learning (e.g. ['en', 'jp'])
   };
   audio: {
     voiceEngine: 'US' | 'UK' | 'AU' | 'IN';
@@ -217,6 +218,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     appInterface: 'zh',
     targetLearning: 'en',
     translationTarget: 'zh',
+    learningLanguages: ['english'], // Default to English for vocabulary recommendations
   },
   audio: {
     voiceEngine: 'US',
@@ -309,4 +311,38 @@ export interface VisionAnalysis {
   imageUrl: string;
   analysis: string;
   timestamp: number;
+}
+
+// Vocabulary Recommendations Types
+export interface VocabularyRecommendation {
+  id: number;
+  name: string;
+  lang_code: string;
+  total_words: number;
+  level: string;
+  category: 'exam' | 'business' | 'daily' | 'travel' | 'technical' | 'entertainment' | 'academic';
+  is_selected: boolean;
+  is_popular: boolean;
+  difficulty: number; // 1-6 scale
+  estimated_days: number;
+  description: string;
+}
+
+export interface SelectedCollection {
+  id: number;
+  name: string;
+  lang_code: string;
+  total_words: number;
+  level: string;
+  category: string;
+}
+
+export interface VocabularyLibrary {
+  id: number;
+  name: string;
+  lang_code: string;
+  total_words: number;
+  description: string;
+  is_selected: boolean;
+  cover_image_url: string;
 }

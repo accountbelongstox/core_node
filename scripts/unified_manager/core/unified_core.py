@@ -412,6 +412,10 @@ class UnifiedAppManager:
                 apps = self.scanner.scan_directory(app_dir, app_type)
                 self.apps.extend(apps)
 
+        # IMPORTANT: Global sort by name to ensure stable port assignment
+        # Without this, adding apps in one directory shifts ports for all subsequent apps
+        self.apps.sort(key=lambda x: x.name.lower())
+
         # Assign ports
         self.port_manager.assign_ports(self.apps)
 

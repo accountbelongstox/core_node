@@ -175,7 +175,7 @@ if [ -f "vite.config.js" ]; then
 fi
 
 # STEP 3: Clear Vite cache (idempotent, always check)
-echo "[3/3] Checking Vite cache..."
+echo "[3/4] Checking Vite cache..."
 CACHE_CLEARED=false
 if [ -d "node_modules/.vite" ]; then
     rm -rf node_modules/.vite && CACHE_CLEARED=true
@@ -187,6 +187,37 @@ if [ "$CACHE_CLEARED" = "true" ]; then
     echo "✓ Vite cache cleared"
 else
     echo "✓ Vite cache already clean"
+fi
+
+# ============================================
+# STEP 4: Check and fix inotify limit (Idempotent)
+# ============================================
+echo "[4/4] Checking system inotify limit..."
+current_limit=$(cat /proc/sys/fs/inotify/max_user_watches 2>/dev/null || echo "0")
+required_limit=524288
+
+if [ "$current_limit" -lt "$required_limit" ]; then
+    echo "⚠ inotify limit too low: $current_limit (required: $required_limit)"
+    echo "Auto-fixing system limit..."
+
+    # Create sysctl config file (idempotent)
+    echo "fs.inotify.max_user_watches=$required_limit" | sudo tee /etc/sysctl.d/60-inotify-watches.conf >/dev/null 2>&1
+
+    # Apply immediately
+    sudo sysctl -p /etc/sysctl.d/60-inotify-watches.conf >/dev/null 2>&1
+
+    # Verify fix
+    new_limit=$(cat /proc/sys/fs/inotify/max_user_watches 2>/dev/null || echo "0")
+    if [ "$new_limit" -ge "$required_limit" ]; then
+        echo "✓ inotify limit increased to $new_limit"
+    else
+        echo "✗ Failed to increase inotify limit"
+        echo "ERROR: Vite requires higher inotify limit but cannot apply fix"
+        echo "Please run manually: echo 'fs.inotify.max_user_watches=$required_limit' | sudo tee /etc/sysctl.d/60-inotify-watches.conf && sudo sysctl -p"
+        exit 1
+    fi
+else
+    echo "✓ inotify limit OK: $current_limit"
 fi
 
 # Set environment variables for Vite/React/Vue

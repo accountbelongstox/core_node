@@ -70,5 +70,42 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Show all errors with full stack traces in debug mode
+        $exceptions->dontReport([]);
+
+        // Render all exceptions with full details
+        $exceptions->render(function (Throwable $e) {
+            if (config('app.debug')) {
+                // Return detailed JSON for API requests
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => collect($e->getTrace())->map(function ($trace) {
+                        return [
+                            'file' => $trace['file'] ?? null,
+                            'line' => $trace['line'] ?? null,
+                            'function' => $trace['function'] ?? null,
+                            'class' => $trace['class'] ?? null,
+                            'type' => $trace['type'] ?? null,
+                        ];
+                    })->all(),
+                    'previous' => $e->getPrevious() ? [
+                        'message' => $e->getPrevious()->getMessage(),
+                        'exception' => get_class($e->getPrevious()),
+                        'file' => $e->getPrevious()->getFile(),
+                        'line' => $e->getPrevious()->getLine(),
+                    ] : null,
+                ], 500);
+            }
+
+            // Production mode - minimal error info
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error',
+                'code' => 500,
+            ], 500);
+        });
     })->create();

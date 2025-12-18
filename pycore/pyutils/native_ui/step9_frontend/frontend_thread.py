@@ -415,19 +415,59 @@ class FrontendLauncherThread(threading.Thread):
         command = _resolve_command_for_platform(command)
         env = self._build_env()
 
+        ColorPrint.blue("[FrontendThread] " + "=" * 70)
+        ColorPrint.cyan(f"[FrontendThread] STARTING VITE DEV SERVER")
         ColorPrint.cyan(f"[FrontendThread] Command: {' '.join(command)}")
+        ColorPrint.cyan(f"[FrontendThread] Port: {self.config.port}")
+        ColorPrint.cyan(f"[FrontendThread] Host: {self.config.host}")
+        ColorPrint.blue("[FrontendThread] " + "=" * 70)
 
-        # Start dev server with real-time output
-        stdout = None if self.config.show_output else subprocess.DEVNULL
-        stderr = None if self.config.show_output else subprocess.DEVNULL
-
+        # Start dev server with PIPE to prevent SIGPIPE and process blocking
+        # We create a background thread to consume the output
         self.process = subprocess.Popen(
             command,
             cwd=str(self.config.app_dir),
             env=env,
-            stdout=stdout,
-            stderr=stderr
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
         )
+
+        # Start background thread to consume stdout (prevent blocking)
+        def consume_output():
+            try:
+                for line in self.process.stdout:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+
+                    # Always show important messages (ready, errors, warnings)
+                    # even if show_output is False
+                    is_important = any(keyword in stripped.lower() for keyword in [
+                        'ready', 'vite v', 'local:', 'network:', 'error', 'warn',
+                        'failed', 'port', 'http://'
+                    ])
+
+                    if is_important:
+                        # Highlight important messages in cyan/green
+                        if 'ready' in stripped.lower() or 'local:' in stripped.lower():
+                            ColorPrint.green(f"  [vite] {stripped}")
+                        elif 'error' in stripped.lower() or 'failed' in stripped.lower():
+                            ColorPrint.red(f"  [vite] {stripped}")
+                        elif 'warn' in stripped.lower():
+                            ColorPrint.yellow(f"  [vite] {stripped}")
+                        else:
+                            ColorPrint.cyan(f"  [vite] {stripped}")
+                    elif self.config.show_output:
+                        # Show all other output in gray if show_output=True
+                        ColorPrint.gray(f"  [vite] {stripped}")
+            except:
+                pass
+
+        import threading
+        output_thread = threading.Thread(target=consume_output, daemon=True)
+        output_thread.start()
 
         ColorPrint.blue(f"[FrontendThread] Dev server started (PID: {self.process.pid})")
 
@@ -477,6 +517,8 @@ class FrontendLauncherThread(threading.Thread):
         env["HOST"] = self.config.host
         env["NUXT_PORT"] = str(self.config.port)
         env["NUXT_HOST"] = self.config.host
+        env["VITE_PORT"] = str(self.config.port)  # For Vite
+        env["VITE_HOST"] = self.config.host  # For Vite
 
         # Add custom environment variables (from config)
         if self.config.env_vars:

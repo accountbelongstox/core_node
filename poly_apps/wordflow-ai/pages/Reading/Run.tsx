@@ -1,8 +1,9 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons } from '../../components/UI';
-import { api } from '../../services/api';
+import { ApiCenter } from '../../services/ApiCenter';
 import { Word } from '../../types';
+import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const ReadingRunPage = () => {
   const { navigate, currentParams, settings } = useContext(AppContext);
@@ -15,11 +16,35 @@ const ReadingRunPage = () => {
 
   useEffect(() => {
     if(!currentParams.groupId) return;
-    api.getWordsForGroup(currentParams.groupId).then(data => {
-      setWords(data);
-      if(settings.audio.autoPlay) setIsPlaying(true);
+
+    const groupId = currentParams.groupId;
+    const language = currentParams.language || 'en';
+
+    // Use real API
+    ApiCenter.learning.getWordCards({
+      group_id: groupId,
+      language: language,
+      limit: 50
+    }).then(response => {
+      if (response.success && response.data) {
+        setWords(response.data);
+        if(settings.audio.autoPlay) setIsPlaying(true);
+      } else {
+        console.error('[Reading] Failed to load words:', response.error);
+        setWords([]);
+      }
+
+      // [Learning Progress] Start learning session
+      LearningProgressTracker.startSession(groupId, language);
+    }).catch(err => {
+      console.error('[Reading] Error loading words:', err);
     });
-  }, [currentParams.groupId]);
+
+    // [Learning Progress] End session on unmount
+    return () => {
+      LearningProgressTracker.endSession();
+    };
+  }, [currentParams.groupId, currentParams.language]);
 
   useEffect(() => {
     let interval: any;
@@ -32,14 +57,29 @@ const ReadingRunPage = () => {
   }, [isPlaying, currentIndex, words]);
 
   const handleNext = () => {
+    // [Learning Progress] Record that user reviewed this word (assume correct for reading mode)
+    const currentWord = words[currentIndex];
+    if (currentWord) {
+      LearningProgressTracker.recordWordReview(
+        currentWord.id,
+        currentWord.text,
+        true, // In reading mode, we assume user reviewed the word
+        currentParams.groupId,
+        currentParams.language || 'en'
+      );
+    }
+
     historyRef.current.push(currentIndex);
     if (historyRef.current.length > 10) historyRef.current.shift();
-    
+
     if (currentIndex < words.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
       setIsPlaying(false);
-      navigate('home');
+      // [Learning Progress] End session before navigating
+      LearningProgressTracker.endSession().then(() => {
+        navigate('home');
+      });
     }
   };
 
@@ -54,6 +94,13 @@ const ReadingRunPage = () => {
   };
 
   const currentWord = words[currentIndex];
+
+  // [Learning Progress] Start tracking current word when index changes
+  useEffect(() => {
+    if (currentWord) {
+      LearningProgressTracker.startWordTracking(currentWord.id);
+    }
+  }, [currentIndex, currentWord]);
 
   if (!currentWord) return <div className="flex h-full items-center justify-center dark:text-white animate-pulse font-bold tracking-widest text-slate-400">LOADING ENGINE...</div>;
 

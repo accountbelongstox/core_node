@@ -1,0 +1,182 @@
+Matrix Application - Python vs Node.js Implementation Comparison
+===============================================================
+
+Launch Command:
+--------------
+Python:  python pycore/pylauncher/__init__.py app=matrix
+Node.js: node main.js app=matrix
+
+
+Implementation Architecture:
+---------------------------
+
+Python (pyapps/matrix/matrix_main.py):
+--------------------------------------
+from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
+
+launch_native_app(
+    config=NativeUIConfig(
+        app_name="Matrix Cloud",
+        frontend=FrontendConfig(
+            enabled=True,
+            framework="vite",
+            app_dir=PROJECT_ROOT / "poly_apps" / "matrixui",
+            mode="dev",  # Hot reload
+            port=38007,
+            block_until_ready=True
+        ),
+        rpc_v2=RpcConfig(
+            port=48000,
+            init_callback=rpc_init_callback
+        ),
+        main_entry=matrix_main_entry,
+        tray_enabled=True,
+        single_instance=True
+    )
+)
+
+
+Node.js (apps/matrix/main.js):
+------------------------------
+const { launchElectronApp } = require('#@ncore/utils/electron');
+
+await launchElectronApp({
+    appName: 'Matrix Cloud',
+    singleInstance: true,
+    singleInstancePort: 58099,
+
+    frontend: {
+        enabled: true,
+        framework: 'vite',
+        appDir: config.FRONTEND_DIR,  // poly_apps/matrixui
+        mode: 'dev',  // Hot reload
+        port: 38007,
+        host: '0.0.0.0',
+        autoInstall: true,
+        blockUntilReady: true,
+        packageManager: 'pnpm'
+    },
+
+    mainWindow: {
+        width: 1400,
+        height: 900,
+        minWidth: 1200,
+        minHeight: 700,
+        title: 'Matrix Cloud'
+    },
+
+    systemTray: {
+        enabled: true,
+        title: 'Matrix Cloud',
+        tooltip: 'Matrix Cloud - Android Device Manager'
+    },
+
+    onFrontendReady: async (frontend) => {
+        await rpcInitCallback();  // Initialize RPC on port 48000
+    },
+
+    onReady: async (manager) => {
+        await matrixMainEntry();  // App fully initialized
+    }
+});
+
+
+Feature Comparison:
+------------------
+
+| Feature                  | Python (pycore)          | Node.js (ncore)          | Status |
+|--------------------------|--------------------------|--------------------------|--------|
+| App Name                 | "Matrix Cloud"           | "Matrix Cloud"           | ✓      |
+| Frontend Framework       | Vite                     | Vite                     | ✓      |
+| Frontend Directory       | poly_apps/matrixui       | poly_apps/matrixui       | ✓      |
+| Frontend Port            | 38007                    | 38007                    | ✓      |
+| Frontend Mode            | dev (hot reload)         | dev (hot reload)         | ✓      |
+| Backend RPC Port         | 48000                    | 48000                    | ✓      |
+| Backend Framework        | FastAPI (Python)         | Express (Node.js)        | ✓      |
+| Single Instance          | Yes                      | Yes (port 58099)         | ✓      |
+| System Tray              | Yes (PySide6)            | Yes (Electron)           | ✓      |
+| Platform Adaptation      | X11/Wayland detection    | X11/Wayland detection    | ✓      |
+| Auto Port Allocation     | Yes                      | Yes                      | ✓      |
+| Frontend Auto-install    | Yes (poetry/pip)         | Yes (pnpm/npm/yarn)      | ✓      |
+| Frontend Health Check    | Yes                      | Yes                      | ✓      |
+| UI Framework             | PySide6 (Qt)             | Electron (Chromium)      | ✓      |
+
+
+Directory Structure:
+-------------------
+Both implementations use the SAME frontend:
+  /www/programing/core_node/poly_apps/matrixui/
+  ├── App.tsx              (React + TypeScript)
+  ├── components/
+  ├── config/
+  ├── hooks/
+  ├── package.json         (Vite dev server)
+  └── vite.config.ts
+
+
+Infrastructure Porting:
+----------------------
+
+Python Module:                          Node.js Module:
+--------------------------------------  --------------------------------------
+pycore/pyutils/native_ui/              →  ncore/utils/electron/
+
+Files Ported:
+-------------
+platform_adapter.py                    →  platform_adapter.js
+port_manager.py                        →  port_manager.js
+frontend/config.py                     →  frontend/config.js
+frontend/manager.py                    →  frontend/manager.js
+launch_native_app.py                   →  app_launcher.js
+
+Key Functions:
+--------------
+Python:                                   Node.js:
+launch_native_app()                    →  launchElectronApp()
+NativeUIConfig                         →  (config object, no wrapper class)
+FrontendConfig                         →  FrontendConfig
+FrontendLauncher                       →  FrontendManager
+PlatformAdapter                        →  PlatformAdapter
+PortManager                            →  PortManager
+
+
+Service Starter Integration:
+----------------------------
+
+Python (pycore/pythreadpool/service_starters.py):
+--------------------------------------------------
+SERVICE_STARTERS['electron_ui'] = start_electron_ui
+
+def start_electron_ui(config):
+    from pycore.pyutils.native_ui import launch_native_app
+    return launch_native_app(config)
+
+
+Node.js (ncore/thread_pool/starters.js):
+-----------------------------------------
+SERVICE_STARTERS['electron_ui'] = startElectronUI
+
+function startElectronUI(config) {
+    const { launchElectronApp } = require('#@ncore/utils/electron');
+    launchElectronApp(config).then((launchResult) => {
+        // Register shutdown handler
+    });
+    return { launching: true };
+}
+
+
+Summary:
+--------
+The Node.js implementation successfully replicates all functionality from the
+Python version while following Electron and ncore standards. The key difference
+is using Electron instead of PySide6 for the native UI, while maintaining the
+same architecture, features, and user experience.
+
+Both versions:
+- Use the SAME frontend (poly_apps/matrixui)
+- Auto-start the Vite dev server
+- Provide hot reload during development
+- Use the same ports (38007 for frontend, 48000 for backend)
+- Enforce single instance
+- Provide system tray integration
+- Support cross-platform operation (Linux/Windows/macOS)

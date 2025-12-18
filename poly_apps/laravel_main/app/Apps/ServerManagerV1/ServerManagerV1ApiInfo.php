@@ -171,19 +171,39 @@ class ServerManagerV1ApiInfo
             // Unified Manager APIs
             [
                 'path' => $apiPrefix . '/unified/apps',
-                'feature' => 'auth_required/GET|List applications from unified manager registry|ServerManagerV1UnifiedManagerCtl@listApps|response:apps(array,Application list),total_apps(int,Total apps),registry_available(boolean,Registry status)|tags:server,deploy'
-            ],
-            [
-                'path' => $apiPrefix . '/unified/deploy',
-                'feature' => 'auth_required/POST|Deploy start stop restart application|ServerManagerV1UnifiedManagerCtl@deployApp|params:app_name(string,required,laravel_main),action(string,required,deploy)|response:deployment_id(string,Deployment ID),success(boolean,Success status),output(string,Command output),execution_time(number,Execution time)|tags:server,deploy'
+                'feature' => 'auth_required/GET|List all applications with service status|ServerManagerV1UnifiedManagerCtl@listApps|response:apps(array,Application list with service status),total_apps(int,Total apps),base_port(int,Base port number)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/status',
-                'feature' => 'auth_required/GET|Get detailed application status|ServerManagerV1UnifiedManagerCtl@getAppStatus|params:app_name(string,required,laravel_main)|response:service_status(object,Service status),process_info(object,Process info),port_info(object,Port info),overall_status(string,Overall status)|tags:server,deploy'
+                'feature' => 'auth_required/GET|Get detailed application status|ServerManagerV1UnifiedManagerCtl@getAppStatus|params:app_name(string,required,laravel_main),app_type(string,required,polyApp)|response:service_status(object,Service status),service_name(string,Service name),launcher_exists(boolean,Launcher script exists)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/logs',
                 'feature' => 'auth_required/GET|Get application logs from systemd and app files|ServerManagerV1UnifiedManagerCtl@getAppLogs|params:app_name(string,required,laravel_main),lines(int,optional,100)|response:logs(array,Log entries),total_lines(int,Total log lines),log_sources(array,Log sources)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/start',
+                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/stop',
+                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/restart',
+                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/deploy',
+                'feature' => 'auth_required/POST|Deploy application using unified manager|ServerManagerV1UnifiedManagerCtl@deployApp|params:app_name(string,required,laravel_main),action(string,required,deploy)|response:deployment_id(string,Deployment ID),success(boolean,Success status),output(string,Command output),execution_time(number,Execution time)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/octane/restart',
+                'feature' => 'auth_required/POST|Restart Octane server (Laravel main API server)|ServerManagerV1UnifiedManagerCtl@restartOctane|response:service_name(string,Service name),output(string,Command output)|tags:server,octane'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/octane/reload',
+                'feature' => 'auth_required/POST|Reload Octane server gracefully without downtime|ServerManagerV1UnifiedManagerCtl@reloadOctane|response:service_name(string,Service name),output(string,Command output)|tags:server,octane'
             ],
 
             // SSL Certificate Management APIs

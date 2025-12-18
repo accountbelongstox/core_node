@@ -40,6 +40,7 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
   const [playlistSettings, setPlaylistSettings] = useState<PlaylistSettings>(DEFAULT_PLAYLIST_SETTINGS);
   const [activeGroupId, setActiveGroupId] = useState<string>('g1');
   const [currentParams, setCurrentParams] = useState<any>({});
+  const [languageVersion, setLanguageVersion] = useState<number>(0); // Force re-render on language change
 
   // Initialize all centers
   useEffect(() => {
@@ -79,9 +80,17 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
       document.documentElement.classList.remove('dark');
     }
 
-    // 4. Subscribe to language changes
+    // 4. Subscribe to language changes and force re-render
     const unsubscribeLang = LanguageCenter.subscribe((lang) => {
       console.log('[AppContext] Language changed to:', lang);
+      // Force re-render all components using t() by incrementing version
+      setLanguageVersion(prev => prev + 1);
+
+      // Apply language to document
+      document.documentElement.lang = lang;
+
+      // Show notification for user feedback
+      console.log('[AppContext] Language switched, forcing UI refresh');
     });
 
     // 5. Load user from storage and validate
@@ -94,6 +103,17 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
         setUserState(storedUser);
         StateManager.set(GlobalState.USER, storedUser);
         StateManager.set(GlobalState.IS_LOGGED_IN, true);
+
+        // [MIGRATION] Sync user.learningLanguages to global settings on app init
+        if (storedUser.learningLanguages && storedUser.learningLanguages.length > 0) {
+          console.log('[AppContext] Syncing learningLanguages to global settings:', storedUser.learningLanguages);
+          const currentSettings = SettingsCenter.get();
+          if (!currentSettings.language.learningLanguages || currentSettings.language.learningLanguages.length === 0) {
+            SettingsCenter.update({
+              language: { ...currentSettings.language, learningLanguages: storedUser.learningLanguages }
+            });
+          }
+        }
 
         // Validate session
         const isValid = await AuthModel.validateSession();
@@ -183,6 +203,17 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     console.log('[AppContext] Saving to StateManager...');
     StateManager.set(GlobalState.USER, u);
     StateManager.set(GlobalState.IS_LOGGED_IN, true);
+
+    // [MIGRATION] Sync user.learningLanguages to global settings
+    if (u.learningLanguages && u.learningLanguages.length > 0) {
+      console.log('[AppContext] Migrating learningLanguages to global settings:', u.learningLanguages);
+      const currentSettings = SettingsCenter.get();
+      if (!currentSettings.language.learningLanguages || currentSettings.language.learningLanguages.length === 0) {
+        SettingsCenter.update({
+          language: { ...currentSettings.language, learningLanguages: u.learningLanguages }
+        });
+      }
+    }
 
     // Ensure profile completeness (nickname, avatar)
     console.log('[AppContext] Ensuring profile completeness...');

@@ -26,9 +26,26 @@ echo "[$SCRIPT_INDEX] INSTALL_MODE: $INSTALL_MODE"
 
 # Function to check if Nginx is actually installed
 check_nginx_installed() {
+    # Check common nginx installation paths
+    local nginx_paths=(
+        "/usr/sbin/nginx"
+        "/usr/bin/nginx"
+        "/sbin/nginx"
+        "/usr/local/sbin/nginx"
+        "/usr/local/bin/nginx"
+    )
+
+    for path in "${nginx_paths[@]}"; do
+        if [ -x "$path" ]; then
+            return 0
+        fi
+    done
+
+    # Fallback to command -v (checks PATH)
     if command -v nginx >/dev/null 2>&1; then
         return 0
     fi
+
     return 1
 }
 

@@ -2,33 +2,84 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons, Button } from '../../components/UI';
-import { api } from '../../services/api';
+import { ApiCenter } from '../../services/ApiCenter';
 import { Word } from '../../types';
+import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const FlashcardRunPage = () => {
-  const { navigate, settings } = useContext(AppContext);
+  const { navigate, settings, currentParams } = useContext(AppContext);
   const [words, setWords] = useState<Word[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [finished, setFinished] = useState(false);
 
   useEffect(() => {
-    // Hardcoded group ID for demo or pass from params
-    api.getWordsForGroup('g1').then(setWords);
-  }, []);
+    // Use groupId from params or hardcoded for demo
+    const groupId = currentParams?.groupId || 'g1';
+    const language = currentParams?.language || 'en';
+
+    // Use real API
+    ApiCenter.learning.getWordCards({
+      group_id: groupId,
+      language: language,
+      limit: 50 // Flashcards typically use smaller sets
+    }).then(response => {
+      if (response.success && response.data) {
+        setWords(response.data);
+      } else {
+        console.error('[Flashcard] Failed to load words:', response.error);
+        setWords([]);
+      }
+
+      // [Learning Progress] Start learning session
+      LearningProgressTracker.startSession(groupId, language);
+    }).catch(err => {
+      console.error('[Flashcard] Error loading words:', err);
+    });
+
+    // [Learning Progress] End session on unmount
+    return () => {
+      LearningProgressTracker.endSession();
+    };
+  }, [currentParams?.groupId, currentParams?.language]);
 
   const handleRate = (rating: 'hard' | 'good' | 'easy') => {
+    const current = words[index];
+
+    // [Learning Progress] Record word review based on rating
+    // Hard = incorrect, Good/Easy = correct
+    if (current) {
+      const correct = rating !== 'hard';
+      LearningProgressTracker.recordWordReview(
+        current.id,
+        current.text,
+        correct,
+        currentParams?.groupId || 'g1',
+        currentParams?.language || 'en'
+      );
+    }
+
     setFlipped(false);
     setTimeout(() => {
       if (index < words.length - 1) {
         setIndex(prev => prev + 1);
       } else {
-        setFinished(true);
+        // [Learning Progress] End session before finishing
+        LearningProgressTracker.endSession().then(() => {
+          setFinished(true);
+        });
       }
     }, 200);
   };
 
   const current = words[index];
+
+  // [Learning Progress] Start tracking current word when index changes
+  useEffect(() => {
+    if (current) {
+      LearningProgressTracker.startWordTracking(current.id);
+    }
+  }, [index, current]);
 
   if (!current) return <div className="p-10 text-center">Loading...</div>;
 
