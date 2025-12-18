@@ -5,16 +5,39 @@ namespace App\Services;
 use App\Models\GlobalTask;
 use App\Models\Worker;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Events\TaskAssignedEvent;
-use App\Events\TaskProgressEvent;
-use App\Events\TaskCompletedEvent;
-use App\Events\TaskFailedEvent;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationTaskService;
+use Illuminate\Database\ConnectionInterface;
+use App\Services\TaskProcessors\TaskProcessorRegistry;
+use App\Services\TaskProcessors\DictionaryTaskProcessor;
 
 class TaskManagerService
 {
+    protected ?TaskProcessorRegistry $processorRegistry = null;
+
+    protected function db(): ConnectionInterface
+    {
+        return app('db.connection');
+    }
+
+    /**
+     * Get or create task processor registry
+     */
+    protected function getProcessorRegistry(): TaskProcessorRegistry
+    {
+        if ($this->processorRegistry === null) {
+            $this->processorRegistry = new TaskProcessorRegistry();
+
+            // Register all task processors here
+            $this->processorRegistry->register(new DictionaryTaskProcessor($this));
+
+            // Future processors can be registered here:
+            // $this->processorRegistry->register(new ImageTaskProcessor($this));
+            // $this->processorRegistry->register(new VideoTaskProcessor($this));
+        }
+
+        return $this->processorRegistry;
+    }
+
     /**
      * Create a new task
      */
@@ -53,6 +76,9 @@ class TaskManagerService
 
     /**
      * Pull tasks for a worker (smart allocation)
+     *
+     * @deprecated Use pullAndAssignTasksForWorker() instead for atomic operation
+     * @internal This method is UNSAFE - does not assign tasks atomically
      *
      * @param string $workerId Worker ID
      * @param int $limit Maximum number of tasks to return
@@ -102,19 +128,34 @@ class TaskManagerService
      */
     public function pullAndAssignTasksForWorker(string $workerId, int $limit = 5): array
     {
-        $worker = Worker::where('worker_id', $workerId)->first();
-        if (!$worker) {
-            throw new \Exception("Worker not found: $workerId");
-        }
+        // Use single transaction for all operations
+        $assignedTasks = $this->db()->transaction(function () use ($workerId, $limit) {
+            // Lock worker for update
+            $worker = Worker::where('worker_id', $workerId)
+                ->lockForUpdate()
+                ->first();
 
-        $assignedTasks = [];
-
-        foreach ($worker->processor_types as $processorType) {
-            if (count($assignedTasks) >= $limit) {
-                break;
+            if (!$worker) {
+                throw new \Exception("Worker not found: $workerId");
             }
 
-            DB::transaction(function () use ($processorType, $workerId, $limit, &$assignedTasks, $worker) {
+            Log::info('[pullAndAssignTasksForWorker] Worker locked', [
+                'worker_id' => $workerId,
+                'processor_types' => $worker->processor_types,
+                'status' => $worker->status,
+            ]);
+
+            $assignedTasks = [];
+
+            foreach ($worker->processor_types as $processorType) {
+                if (count($assignedTasks) >= $limit) {
+                    break;
+                }
+
+                Log::info('[pullAndAssignTasksForWorker] Checking processor type', [
+                    'processor_type' => $processorType,
+                ]);
+
                 $availableTasks = GlobalTask::pending()
                     ->where('execution_type', $processorType)
                     ->orderBy('priority', 'desc')
@@ -123,21 +164,33 @@ class TaskManagerService
                     ->lockForUpdate()
                     ->get();
 
+                Log::info('[pullAndAssignTasksForWorker] Found tasks for processor type', [
+                    'processor_type' => $processorType,
+                    'task_count' => $availableTasks->count(),
+                ]);
+
                 foreach ($availableTasks as $task) {
                     $task->assignTo($workerId, $task->timeout_seconds);
                     $worker->assignTask($task->task_id);
                     $assignedTasks[] = $task;
 
+                    Log::info('[pullAndAssignTasksForWorker] Task assigned', [
+                        'task_id' => $task->task_id,
+                        'execution_type' => $task->execution_type,
+                    ]);
+
                     if (count($assignedTasks) >= $limit) {
-                        break;
+                        break 2;
                     }
                 }
-            });
-        }
+            }
 
-        Log::info('Tasks pulled and assigned atomically', [
+            return $assignedTasks;
+        });
+
+        Log::info('[pullAndAssignTasksForWorker] Transaction completed', [
             'worker_id' => $workerId,
-            'count' => count($assignedTasks),
+            'assigned_count' => count($assignedTasks),
         ]);
 
         return $assignedTasks;
@@ -154,7 +207,7 @@ class TaskManagerService
     {
         $taskData = null;
 
-        $success = DB::transaction(function () use ($taskId, $workerId, &$taskData) {
+        $success = $this->db()->transaction(function () use ($taskId, $workerId, &$taskData) {
             // Lock and reload task
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
@@ -205,17 +258,6 @@ class TaskManagerService
             return true;
         });
 
-        if ($success && $taskData) {
-            broadcast(new TaskAssignedEvent(
-                $taskData['worker_id'],
-                $taskData['task_id'],
-                $taskData['task_type'],
-                $taskData['payload'],
-                $taskData['timeout_seconds'],
-                $taskData['priority']
-            ));
-        }
-
         return $success;
     }
 
@@ -238,9 +280,7 @@ class TaskManagerService
         ?array $result = null,
         ?string $error = null
     ): bool {
-        $broadcastEvent = null;
-
-        $success = DB::transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, &$broadcastEvent) {
+        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error) {
             // Lock and reload task
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
@@ -272,32 +312,18 @@ class TaskManagerService
             // Update task based on status
             if ($status === 'completed') {
                 // Check demo mode: priority to frontend-submitted flag
-                $isDemoMode = false;
-                if (isset($result['is_demo_mode'])) {
-                    // Frontend decides demo mode
-                    $isDemoMode = $result['is_demo_mode'];
-                } elseif (isset($task->payload['is_demo_mode'])) {
-                    // Fallback to task payload (backward compatibility)
-                    $isDemoMode = $task->payload['is_demo_mode'];
-                }
+                $isDemoMode = $result['is_demo_mode'] ?? $task->payload['is_demo_mode'] ?? false;
 
+                // Use consistent completion method for both modes
                 if ($isDemoMode) {
                     $task->status = GlobalTask::STATUS_COMPLETED_DEMO;
-                    $task->progress = 100.0;
-
-                    $taskResult = [];
-                    if ($result) {
-                        $taskResult = $result;
-                    }
-                    $task->result = $taskResult;
-                    $task->save();
                 } else {
-                    $completeResult = [];
-                    if ($result) {
-                        $completeResult = $result;
-                    }
-                    $task->complete($completeResult);
+                    $task->status = GlobalTask::STATUS_COMPLETED;
                 }
+                $task->progress = 100.0;
+                $task->result = $result ?? [];
+                $task->completed_at = now();
+                $task->save();
 
                 $worker->incrementCompleted();
                 $worker->releaseTask();
@@ -308,31 +334,34 @@ class TaskManagerService
                     'demo_mode' => $isDemoMode,
                 ]);
 
-                $broadcastEvent = new TaskCompletedEvent($taskId, $result, $workerId);
+                // Process task result within transaction
+                $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode);
             } elseif ($status === 'failed') {
-                $failError = 'Unknown error';
-                if ($error) {
-                    $failError = $error;
-                }
+                $failError = $error ?? 'Unknown error';
+
+                // Check if will retry BEFORE incrementing failed count
+                $willRetry = $task->canRetry();
+
                 $task->fail($failError);
-                $worker->incrementFailed();
+
+                // Only increment failed count for permanent failures
+                if (!$willRetry) {
+                    $worker->incrementFailed();
+                }
                 $worker->releaseTask();
 
-                // Retry if possible
-                if ($task->canRetry()) {
+                if ($willRetry) {
                     $task->releaseAssignment();
                     Log::info('Task failed, will retry', [
                         'task_id' => $taskId,
                         'retry_count' => $task->retry_count,
                         'max_retries' => $task->max_retries,
                     ]);
-                    $broadcastEvent = new TaskFailedEvent($taskId, $error, $workerId, true);
                 } else {
                     Log::error('Task failed permanently', [
                         'task_id' => $taskId,
                         'error' => $error,
                     ]);
-                    $broadcastEvent = new TaskFailedEvent($taskId, $error, $workerId, false);
                 }
             } elseif ($status === 'processing') {
                 $task->status = GlobalTask::STATUS_PROCESSING;
@@ -346,20 +375,10 @@ class TaskManagerService
                     'task_id' => $taskId,
                     'progress' => $progress,
                 ]);
-
-                $broadcastEvent = new TaskProgressEvent($taskId, $progress, $status);
             }
 
             return true;
         });
-
-        if ($success && $broadcastEvent) {
-            broadcast($broadcastEvent);
-        }
-
-        if ($success && $status === 'completed') {
-            $this->processTaskResult($taskId, $result);
-        }
 
         return $success;
     }
@@ -403,33 +422,53 @@ class TaskManagerService
      */
     public function cleanOfflineWorkers(): int
     {
-        $workers = Worker::where('last_heartbeat_at', '<', now()->subSeconds(Worker::HEARTBEAT_TIMEOUT))
+        $workerIds = Worker::where('last_heartbeat_at', '<', now()->subSeconds(Worker::HEARTBEAT_TIMEOUT))
             ->whereNotNull('last_heartbeat_at')
             ->where('status', '!=', Worker::STATUS_OFFLINE)
-            ->get();
+            ->pluck('worker_id')
+            ->toArray();
 
         $count = 0;
 
-        foreach ($workers as $worker) {
-            // Release any assigned tasks
-            if ($worker->current_task_id) {
-                $task = GlobalTask::where('task_id', $worker->current_task_id)->first();
-                if ($task && $task->status === GlobalTask::STATUS_ASSIGNED) {
-                    $task->releaseAssignment();
-                    Log::warning('Task released due to worker offline', [
-                        'task_id' => $task->task_id,
-                        'worker_id' => $worker->worker_id,
-                    ]);
+        foreach ($workerIds as $workerId) {
+            $this->db()->transaction(function () use ($workerId, &$count) {
+                // Lock worker for update
+                $worker = Worker::where('worker_id', $workerId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$worker) {
+                    return;
                 }
-            }
 
-            $worker->markOffline();
-            $count++;
+                // Recheck heartbeat after lock (may have updated)
+                if ($worker->last_heartbeat_at >= now()->subSeconds(Worker::HEARTBEAT_TIMEOUT)) {
+                    return;
+                }
 
-            Log::info('Worker marked offline', [
-                'worker_id' => $worker->worker_id,
-                'last_heartbeat' => $worker->last_heartbeat_at,
-            ]);
+                // Release any assigned tasks
+                if ($worker->current_task_id) {
+                    $task = GlobalTask::where('task_id', $worker->current_task_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($task && $task->status === GlobalTask::STATUS_ASSIGNED) {
+                        $task->releaseAssignment();
+                        Log::warning('Task released due to worker offline', [
+                            'task_id' => $task->task_id,
+                            'worker_id' => $worker->worker_id,
+                        ]);
+                    }
+                }
+
+                $worker->markOffline();
+                $count++;
+
+                Log::info('Worker marked offline', [
+                    'worker_id' => $worker->worker_id,
+                    'last_heartbeat' => $worker->last_heartbeat_at,
+                ]);
+            });
         }
 
         return $count;
@@ -448,61 +487,34 @@ class TaskManagerService
             'assigned' => GlobalTask::where('status', GlobalTask::STATUS_ASSIGNED)->count(),
             'processing' => GlobalTask::where('status', GlobalTask::STATUS_PROCESSING)->count(),
             'completed' => GlobalTask::where('status', GlobalTask::STATUS_COMPLETED)->count(),
+            'completed_demo' => GlobalTask::where('status', GlobalTask::STATUS_COMPLETED_DEMO)->count(),
             'failed' => GlobalTask::where('status', GlobalTask::STATUS_FAILED)->count(),
         ];
     }
 
     /**
-     * Process task result after completion (callback for app-specific processing)
+     * Process task result within transaction (extensible processing)
      *
-     * @param string $taskId Task ID
-     * @param array|null $result Result data
+     * @param GlobalTask $task Task model (already locked)
+     * @param array $result Result data
+     * @param bool $isDemoMode Demo mode flag
      * @return void
      */
-    protected function processTaskResult(string $taskId, ?array $result): void
+    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode): void
     {
-        $task = GlobalTask::where('task_id', $taskId)->first();
-        if (!$task) {
-            return;
-        }
-        if (!$result) {
+        if (empty($result)) {
             return;
         }
 
-        $appName = $task->app_name;
-        $taskType = $task->task_type;
+        $registry = $this->getProcessorRegistry();
+        $processed = $registry->process($task, $result, $isDemoMode);
 
-        $isDemoMode = false;
-        if (isset($task->payload['is_demo_mode'])) {
-            $isDemoMode = $task->payload['is_demo_mode'];
-        }
-
-        if ($appName === 'AppQyV1' && in_array($taskType, ['dictionary_explanation', 'dictionary_explanation_demo'])) {
-            $language = 'english';
-            if (isset($task->payload['language'])) {
-                $language = $task->payload['language'];
-            }
-
-            $explanations = [];
-            if (isset($result['explanations'])) {
-                $explanations = $result['explanations'];
-            }
-
-            if (!empty($explanations)) {
-                $translationService = new AppQyV1TranslationTaskService($this);
-                $translationService->processExplanationResult(
-                    $taskId,
-                    $language,
-                    $explanations,
-                    $isDemoMode
-                );
-
-                Log::info('[TaskManager] Dictionary explanation result processed', [
-                    'task_id' => $taskId,
-                    'explanation_count' => count($explanations),
-                    'demo_mode' => $isDemoMode,
-                ]);
-            }
+        if (!$processed) {
+            Log::debug('[TaskManager] No processor found for task', [
+                'task_id' => $task->task_id,
+                'app_name' => $task->app_name,
+                'task_type' => $task->task_type,
+            ]);
         }
     }
 }

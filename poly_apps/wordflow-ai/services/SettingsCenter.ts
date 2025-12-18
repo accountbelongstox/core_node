@@ -5,6 +5,7 @@
 
 import { StorageCenter, StorageKey } from './StorageCenter';
 import { StateManager, GlobalState } from './StateManager';
+import { EventBus } from './EventBus';
 
 export interface DisplaySettings {
   theme: 'light' | 'dark' | 'auto';
@@ -15,7 +16,7 @@ export interface DisplaySettings {
 }
 
 export interface LanguageSettings {
-  appInterface: string;
+  appInterface: string | string[]; // Support both single string and array for multi-select
   learningLanguage: string;
   nativeLanguage: string;
   autoDetect: boolean;
@@ -191,8 +192,14 @@ class SettingsCenterClass {
       return true;
     }
 
-    // Language change
-    if (oldSettings.language.appInterface !== newSettings.language.appInterface) {
+    // Language change - handle both string and array
+    const oldLang = Array.isArray(oldSettings.language.appInterface) 
+      ? oldSettings.language.appInterface.join(',') 
+      : oldSettings.language.appInterface;
+    const newLang = Array.isArray(newSettings.language.appInterface)
+      ? newSettings.language.appInterface.join(',')
+      : newSettings.language.appInterface;
+    if (oldLang !== newLang) {
       return true;
     }
 
@@ -212,10 +219,8 @@ class SettingsCenterClass {
     this.applyFontSize();
     this.applyLanguage();
 
-    // Force re-render by dispatching custom event
-    window.dispatchEvent(new CustomEvent('settings-changed', {
-      detail: this.settings
-    }));
+    // Emit event for components to react to settings changes
+    EventBus.emit('settings-changed', this.settings);
   }
 
   /**
@@ -260,7 +265,11 @@ class SettingsCenterClass {
    * Apply language
    */
   private applyLanguage(): void {
-    const lang = this.settings.language.appInterface;
+    const langValue = this.settings.language.appInterface;
+    // Use first language if array, or the string value
+    const lang = Array.isArray(langValue) && langValue.length > 0 
+      ? langValue[0] 
+      : (typeof langValue === 'string' ? langValue : 'en');
     document.documentElement.lang = lang;
     StorageCenter.language.setAppLanguage(lang);
   }
@@ -281,8 +290,12 @@ class SettingsCenterClass {
   };
 
   language = {
-    get: () => this.settings.language.appInterface,
-    set: (lang: string) => {
+    get: () => {
+      const lang = this.settings.language.appInterface;
+      // Return first language if array, or the string value
+      return Array.isArray(lang) && lang.length > 0 ? lang[0] : (typeof lang === 'string' ? lang : 'en');
+    },
+    set: (lang: string | string[]) => {
       this.updateSection('language', { appInterface: lang });
     }
   };

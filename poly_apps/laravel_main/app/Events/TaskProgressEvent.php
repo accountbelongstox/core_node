@@ -14,15 +14,11 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
-class TaskProgressEvent implements ShouldBroadcastNow
+class TaskProgressEvent
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable;
 
     public $taskId;
     public $progress;
@@ -35,26 +31,5 @@ class TaskProgressEvent implements ShouldBroadcastNow
         $this->progress = $progress;
         $this->status = $status;
         $this->message = $message;
-    }
-
-    public function broadcastOn()
-    {
-        return new Channel('task.' . $this->taskId);
-    }
-
-    public function broadcastAs()
-    {
-        return 'task.progress';
-    }
-
-    public function broadcastWith()
-    {
-        return [
-            'task_id' => $this->taskId,
-            'progress' => $this->progress,
-            'status' => $this->status,
-            'message' => $this->message,
-            'timestamp' => now()->toIso8601String(),
-        ];
     }
 }

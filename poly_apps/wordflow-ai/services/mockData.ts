@@ -22,12 +22,16 @@ export const MOCK_ANNOUNCEMENTS: Announcement[] = [
 ];
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
-  { code: 'en', name: 'English', flag: '🇺🇸', ttsCode: 'en-US' },
-  { code: 'jp', name: 'Japanese', flag: '🇯🇵', ttsCode: 'ja-JP' },
-  { code: 'kr', name: 'Korean', flag: '🇰🇷', ttsCode: 'ko-KR' },
-  { code: 'fr', name: 'French', flag: '🇫🇷', ttsCode: 'fr-FR' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸', ttsCode: 'es-ES' },
-  { code: 'de', name: 'German', flag: '🇩🇪', ttsCode: 'de-DE' },
+  { code: 'en', name: 'English', native_name: 'English', voice_id: 'en-US-JennyNeural', has_tts: true, flag: '🇺🇸' },
+  { code: 'zh', name: 'Chinese', native_name: '中文', voice_id: 'zh-CN-XiaoxiaoNeural', has_tts: true, flag: '🇨🇳' },
+  { code: 'ja', name: 'Japanese', native_name: '日本語', voice_id: 'ja-JP-NanamiNeural', has_tts: true, flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', native_name: '한국어', voice_id: 'ko-KR-SunHiNeural', has_tts: true, flag: '🇰🇷' },
+  { code: 'es', name: 'Spanish', native_name: 'Español', voice_id: 'es-ES-ElviraNeural', has_tts: true, flag: '🇪🇸' },
+  { code: 'fr', name: 'French', native_name: 'Français', voice_id: 'fr-FR-DeniseNeural', has_tts: true, flag: '🇫🇷' },
+  { code: 'de', name: 'German', native_name: 'Deutsch', voice_id: 'de-DE-KatjaNeural', has_tts: true, flag: '🇩🇪' },
+  { code: 'ru', name: 'Russian', native_name: 'Русский', voice_id: 'ru-RU-SvetlanaNeural', has_tts: true, flag: '🇷🇺' },
+  { code: 'ar', name: 'Arabic', native_name: 'العربية', voice_id: 'ar-EG-SalmaNeural', has_tts: true, flag: '🇸🇦' },
+  { code: 'pt', name: 'Portuguese', native_name: 'Português', voice_id: 'pt-BR-FranciscaNeural', has_tts: true, flag: '🇧🇷' },
 ];
 
 export const MOCK_WORD_GROUPS: WordGroup[] = [

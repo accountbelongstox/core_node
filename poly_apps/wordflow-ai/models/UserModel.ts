@@ -137,10 +137,24 @@ class UserModelClass {
    * Get avatar URL
    */
   getAvatarUrl(): string {
-    if (!this.currentUser?.avatar) {
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(this.getDisplayName())}&background=3b82f6&color=fff`;
+    // Priority 1: Use avatar_url if available (backend-provided full URL)
+    if (this.currentUser?.avatar_url) {
+      return this.currentUser.avatar_url;
     }
-    return this.currentUser.avatar;
+
+    // Priority 2: Use avatar field (for backward compatibility)
+    if (this.currentUser?.avatar) {
+      // If avatar starts with http, it's already a full URL
+      if (this.currentUser.avatar.startsWith('http')) {
+        return this.currentUser.avatar;
+      }
+      // Otherwise, it might be a relative path that needs construction
+      // This should not happen if processUserAvatarUrl worked correctly
+      console.warn('[UserModel] Avatar field exists but avatar_url is missing');
+    }
+
+    // Priority 3: Fallback to UI Avatars
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(this.getDisplayName())}&background=3b82f6&color=fff`;
   }
 
   /**

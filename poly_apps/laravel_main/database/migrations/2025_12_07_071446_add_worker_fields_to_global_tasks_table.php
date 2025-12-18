@@ -35,6 +35,7 @@ return new class extends Migration
                 $table->json('result')->nullable();
                 $table->text('error')->nullable();
                 $table->string('queue_item_id')->nullable()->index();
+                $table->timestamp('completed_at')->nullable();
                 $table->timestamps();
 
                 // Composite indexes for efficient task pulling
@@ -74,6 +75,10 @@ return new class extends Migration
 
                 if (!Schema::hasColumn('global_tasks', 'max_retries')) {
                     $table->integer('max_retries')->default(3)->after('retry_count');
+                }
+
+                if (!Schema::hasColumn('global_tasks', 'completed_at')) {
+                    $table->timestamp('completed_at')->nullable()->after('error');
                 }
             });
 

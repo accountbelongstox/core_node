@@ -1,4 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useMount } from 'react-use';
 import { User, AppSettings, DEFAULT_SETTINGS, PlaylistSettings, DEFAULT_PLAYLIST_SETTINGS } from '../types';
 import { api } from '../services/api';
 import { I18N_DICT } from '../services/mockData';
@@ -8,6 +10,7 @@ import { LanguageCenter } from '../i18n/LanguageCenter';
 import { StorageCenter, StorageKey } from '../services/StorageCenter';
 import { StateManager, GlobalState } from '../services/StateManager';
 import { AuthModel } from '../models/AuthModel';
+import { UserModel } from '../models/UserModel';
 import { UserProfileEnsurer } from '../services/UserProfileEnsurer';
 
 interface AppContextType {
@@ -30,16 +33,21 @@ interface AppContextType {
 export const AppContext = createContext<AppContextType>({} as any);
 
 export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
+  const routerNavigate = useNavigate();
+  const location = useLocation();
   const [user, setUserState] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [playlistSettings, setPlaylistSettings] = useState<PlaylistSettings>(DEFAULT_PLAYLIST_SETTINGS);
   const [activeGroupId, setActiveGroupId] = useState<string>('g1');
-  const [currentPage, setCurrentPage] = useState('login');
   const [currentParams, setCurrentParams] = useState<any>({});
 
   // Initialize all centers
   useEffect(() => {
     console.log('[AppContext] Initializing...');
+
+    // 0. Initialize UserModel from storage FIRST
+    UserModel.init();
+    console.log('[AppContext] UserModel initialized from storage');
 
     // 1. Initialize API Manager
     apiManager.initialize({ autoDetect: true, timeout: 1000 }).catch(err => {
@@ -53,7 +61,23 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     // 3. Subscribe to settings changes
     const unsubscribeSettings = SettingsCenter.onChange((newSettings) => {
       setSettings(newSettings);
+      
+      // Apply theme changes immediately
+      const theme = newSettings.display.theme;
+      if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     });
+
+    // Apply initial theme
+    const initialTheme = initialSettings.display.theme;
+    if (initialTheme === 'dark' || (initialTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
 
     // 4. Subscribe to language changes
     const unsubscribeLang = LanguageCenter.subscribe((lang) => {
@@ -75,15 +99,19 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
         const isValid = await AuthModel.validateSession();
         if (isValid) {
           console.log('[AppContext] Session valid, navigating to home');
-          setCurrentPage('home');
+          if (location.pathname === '/login' || location.pathname === '/') {
+            routerNavigate('/home');
+          }
         } else {
           console.log('[AppContext] Session invalid, staying on login');
           setUserState(null);
-          setCurrentPage('login');
+          routerNavigate('/login');
         }
       } else {
         console.log('[AppContext] No stored auth, staying on login');
-        setCurrentPage('login');
+        if (location.pathname !== '/login') {
+          routerNavigate('/login');
+        }
       }
     };
 
@@ -108,8 +136,10 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
 
   const navigate = (page: string, params?: any) => {
     setCurrentParams(params || {});
-    setCurrentPage(page);
-    window.scrollTo(0,0);
+    // Convert old page names to URL paths
+    const path = page.startsWith('/') ? page : `/${page}`;
+    routerNavigate(path);
+    // React Router automatically handles scroll to top on navigation
   };
 
   const handleSetActiveGroup = (id: string) => {
@@ -169,9 +199,7 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
 
     // Navigate to home
     console.log('[AppContext] Navigating to home page...');
-    console.log('[AppContext] Current page before:', currentPage);
-    setCurrentPage('home');
-    console.log('[AppContext] setCurrentPage("home") called');
+    routerNavigate('/home');
   };
 
   const logout = () => {
@@ -188,7 +216,7 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     StateManager.set(GlobalState.IS_LOGGED_IN, false);
 
     // Navigate to login
-    setCurrentPage('login');
+    routerNavigate('/login');
   };
 
   const setUser = (u: User) => {
@@ -196,6 +224,9 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     StorageCenter.auth.setUser(u);
     StateManager.set(GlobalState.USER, u);
   };
+
+  // Derive current page from URL pathname
+  const currentPage = location.pathname.replace('/', '') || 'home';
 
   return (
     <AppContext.Provider value={{

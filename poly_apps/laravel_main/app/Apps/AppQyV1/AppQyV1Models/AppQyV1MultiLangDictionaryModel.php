@@ -240,6 +240,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
                         ->orWhere('translation', '')
                         ->orWhere('translation', '[]');
                 })
+                ->inRandomOrder()
                 ->limit($limit)
                 ->get();
         } else {
@@ -248,6 +249,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
                     $query->whereNull('meaning_en')
                         ->orWhere('meaning_en', '');
                 })
+                ->inRandomOrder()
                 ->limit($limit)
                 ->get();
         }

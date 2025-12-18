@@ -30,7 +30,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
+from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, get_platform_adapter
 from pycore.callmodule.callmodule_config import Config
 
 # Import all routers
@@ -99,6 +99,10 @@ def start(host='0.0.0.0', port=59000, debug=False):
 
     ColorPrint.green("[Callmodule] 19 routers available")
 
+    # Get platform adapter for cross-platform configuration
+    adapter = get_platform_adapter()
+    adapter.print_platform_info()
+
     # Resource paths
     resources_dir = Path(__file__).parent / "resources"
     icon_path = resources_dir / "icon.ico"
@@ -114,14 +118,21 @@ def start(host='0.0.0.0', port=59000, debug=False):
     # Frontend project path
     frontend_app_dir = PROJECT_ROOT / "poly_apps" / "pycore-management"
 
-    # Platform-specific configuration
-    IS_WINDOWS = platform.system() == 'Windows'
-    IS_LINUX = platform.system() == 'Linux'
+    # Platform-specific configuration (using adapter)
+    IS_WINDOWS = adapter.is_windows
+    IS_LINUX = adapter.is_linux
 
-    ColorPrint.blue(f"[Callmodule] Platform: {platform.system()}")
+    ColorPrint.blue(f"[Callmodule] Platform: {adapter.platform.value}")
     ColorPrint.blue(f"[Callmodule] Frontend: {frontend_app_dir}")
     ColorPrint.blue(f"[Callmodule] Frontend mode: {Config.FRONTEND_MODE}")
     ColorPrint.blue(f"[Callmodule] Show UI window: {IS_WINDOWS}")
+
+    # Get platform-specific QtWebEngine flags (handles root/sandbox automatically)
+    qtwebengine_flags = adapter.get_qtwebengine_flags(
+        enable_webcodecs=True,
+        enable_hardware_acceleration=True
+    )
+    ColorPrint.blue(f"[Callmodule] QtWebEngine flags configured (sandbox: {'disabled' if adapter.needs_sandbox_disable() else 'enabled'})")
 
     # Create Native UI configuration
     config = NativeUIConfig(
@@ -183,8 +194,9 @@ def start(host='0.0.0.0', port=59000, debug=False):
         icon_path=str(icon_path) if icon_path.exists() else None,
         logo_path=str(logo_path) if logo_path.exists() else None,
 
-        # ========== Tray Configuration (Windows only) ==========
-        enable_tray=IS_WINDOWS,
+        # ========== Tray Configuration (Auto-detect based on platform) ==========
+        enable_tray=adapter.can_use_tray(),  # Auto-detect: Windows/Linux with X11
+        tray_type="tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6",  # Map backend to NativeUIConfig format
 
         # ========== Debug Window Configuration ==========
         show_debug_window=True,
@@ -204,7 +216,10 @@ def start(host='0.0.0.0', port=59000, debug=False):
     ColorPrint.blue(f"  - Backend host: {host}")
     ColorPrint.blue(f"  - Frontend dir: {frontend_app_dir}")
     ColorPrint.blue(f"  - Frontend framework: vite (React)")
-    ColorPrint.blue(f"  - Enable tray: {IS_WINDOWS}")
+    ColorPrint.blue(f"  - Enable tray: {adapter.can_use_tray()}")
+    if adapter.can_use_tray():
+        native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
+        ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
     ColorPrint.blue(f"  - Total routers: 19")
 
     # One-click launch (native_ui handles everything)

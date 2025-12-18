@@ -44,6 +44,8 @@ class User extends Authenticatable
         'password',
         'rolelevel',
         'rolename',
+        'learning_languages',
+        'native_language',
     ];
 
     /**

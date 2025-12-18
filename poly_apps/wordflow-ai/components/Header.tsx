@@ -1,13 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { useWindowScroll } from 'react-use';
 import { Icons, Card } from './UI';
 import { AppContext } from '../contexts/AppContext';
 import { MOCK_ANNOUNCEMENTS, SUPPORTED_LANGUAGES } from '../services/mockData';
+import { LanguageCenter, SupportedLanguage } from '../i18n/LanguageCenter';
+import { StateManager, GlobalState } from '../services/StateManager';
+import { api } from '../services/api';
 
 export const Header = ({ title }: { title?: string }) => {
-  const { user, navigate, t } = useContext(AppContext);
+  const { user, navigate, t, settings, updateSettings } = useContext(AppContext);
+  const { y: scrollY } = useWindowScroll();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLangs, setSelectedLangs] = useState<string[]>(['en']);
@@ -15,14 +22,66 @@ export const Header = ({ title }: { title?: string }) => {
   const [searchResult, setSearchResult] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Handle Scroll Effect
+  // Track scroll position using react-use
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    setIsScrolled(scrollY > 20);
+  }, [scrollY]);
+
+  // Close language dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangDropdownOpen(false);
+      }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
+    if (isLangDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isLangDropdownOpen]);
+
+  // Theme toggle
+  const toggleTheme = () => {
+    const currentTheme = settings.display.theme;
+    const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+    updateSettings({ display: { ...settings.display, theme: nextTheme } });
+    StateManager.set(GlobalState.THEME, nextTheme);
+    
+    // Apply theme to document
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  // Language change
+  const handleLanguageChange = (lang: SupportedLanguage) => {
+    // Update settings first
+    updateSettings({ language: { ...settings.language, appInterface: lang } });
+    
+    // Update LanguageCenter
+    LanguageCenter.setLanguage(lang);
+    
+    // Update StateManager
+    StateManager.set(GlobalState.LANGUAGE, lang);
+    
+    // Update API
+    api.setLanguage(lang);
+    
+    setIsLangDropdownOpen(false);
+    
+    // Reload page to apply language changes
+    window.location.reload();
+  };
+
+  const currentLanguage = LanguageCenter.getCurrentLanguage();
+  const currentLangConfig = LanguageCenter.getLanguageConfig();
+  const supportedLanguages = LanguageCenter.getSupportedLanguages();
 
   const handleSearch = () => {
      if(!searchQuery.trim()) return;
@@ -64,7 +123,7 @@ export const Header = ({ title }: { title?: string }) => {
                     {/* User Avatar */}
                     <div onClick={() => navigate(user ? 'profile' : 'login')} className="cursor-pointer shrink-0 group relative">
                         {user ? (
-                            <img src={user.avatar} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm group-hover:scale-105 transition-transform" alt="Profile" />
+                            <img src={user.avatar_url || user.avatar} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm group-hover:scale-105 transition-transform" alt="Profile" />
                         ) : (
                             <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center border border-white/50 text-slate-500">
                                 <Icons.User />
@@ -75,7 +134,7 @@ export const Header = ({ title }: { title?: string }) => {
                     </div>
 
                     {/* Search Capsule */}
-                    <div 
+                    <div
                         onClick={() => setIsSearchOpen(true)}
                         className={`
                           flex-1 h-10 rounded-full flex items-center px-4 gap-2 cursor-pointer transition-all duration-300 group
@@ -84,8 +143,65 @@ export const Header = ({ title }: { title?: string }) => {
                     >
                         <span className="text-slate-400 group-hover:text-blue-500 transition-colors"><Icons.Search /></span>
                         <span className="text-sm text-slate-500 dark:text-slate-400 font-medium truncate">
-                            {title || 'Search dictionary...'}
+                            {title || t('header.searchPlaceholder')}
                         </span>
+                    </div>
+
+                    {/* Theme Toggle Button */}
+                    <button
+                        onClick={toggleTheme}
+                        className={`
+                          w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300
+                          ${isScrolled ? 'bg-transparent text-slate-500' : 'bg-white/70 dark:bg-slate-800/40 backdrop-blur-md border border-white/40 dark:border-white/5 shadow-sm text-slate-600 dark:text-slate-300'}
+                          hover:bg-white dark:hover:bg-slate-700
+                        `}
+                        title={settings.display.theme === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
+                    >
+                        {settings.display.theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
+                    </button>
+
+                    {/* Language Dropdown */}
+                    <div className="relative" ref={langDropdownRef}>
+                        <button
+                            onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                            className={`
+                              w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300
+                              ${isScrolled ? 'bg-transparent text-slate-500' : 'bg-white/70 dark:bg-slate-800/40 backdrop-blur-md border border-white/40 dark:border-white/5 shadow-sm text-slate-600 dark:text-slate-300'}
+                              hover:bg-white dark:hover:bg-slate-700
+                            `}
+                            title={t('header.changeLanguage')}
+                        >
+                            <Icons.Globe />
+                        </button>
+
+                        {isLangDropdownOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-white/40 dark:border-white/10 backdrop-blur-xl overflow-hidden z-50 animate-slide-down">
+                                <div className="p-2">
+                                    {supportedLanguages.map((lang) => (
+                                        <button
+                                            key={lang.code}
+                                            onClick={() => handleLanguageChange(lang.code)}
+                                            className={`
+                                              w-full px-4 py-3 rounded-lg text-left transition-all flex items-center gap-3
+                                              ${currentLanguage === lang.code
+                                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold'
+                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                              }
+                                            `}
+                                        >
+                                            <span className="text-xl">{lang.flag}</span>
+                                            <div className="flex-1">
+                                                <div className="text-sm font-medium">{lang.nativeName}</div>
+                                                <div className="text-xs text-slate-500 dark:text-slate-400">{lang.name}</div>
+                                            </div>
+                                            {currentLanguage === lang.code && (
+                                                <Icons.Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Settings Button */}
@@ -124,7 +240,7 @@ export const Header = ({ title }: { title?: string }) => {
                     <div className="p-6 pt-safe space-y-6">
                         {/* Header */}
                         <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-serif font-bold text-slate-800 dark:text-white">Smart Search</h2>
+                            <h2 className="text-2xl font-serif font-bold text-slate-800 dark:text-white">{t('header.smartSearch')}</h2>
                             <button onClick={() => setIsSearchOpen(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                                 <Icons.Close />
                             </button>
@@ -132,7 +248,7 @@ export const Header = ({ title }: { title?: string }) => {
 
                         {/* Language Multi-Select */}
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Target Languages</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">{t('header.targetLanguages')}</label>
                             <div className="flex gap-2 flex-wrap">
                                 {SUPPORTED_LANGUAGES.map(lang => (
                                     <button
@@ -157,11 +273,11 @@ export const Header = ({ title }: { title?: string }) => {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                placeholder="Type a word or sentence..."
+                                placeholder={t('header.searchInputPlaceholder')}
                                 autoFocus
                                 className="w-full p-5 pr-14 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none text-lg shadow-inner dark:text-white font-serif transition-all"
                             />
-                            <button 
+                            <button
                                 onClick={handleSearch}
                                 className="absolute right-3 top-3 p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/30 hover:scale-105 transition-transform"
                             >
@@ -176,11 +292,11 @@ export const Header = ({ title }: { title?: string }) => {
                                     <Icons.Cloud />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-800 dark:text-white">Online Translate</span>
-                                    <span className="text-[10px] text-slate-400">Use Cloud AI Engine</span>
+                                    <span className="text-sm font-bold text-slate-800 dark:text-white">{t('header.onlineTranslate')}</span>
+                                    <span className="text-[10px] text-slate-400">{t('header.useCloudAI')}</span>
                                 </div>
                             </div>
-                            <div 
+                            <div
                                 onClick={() => setIsOnlineTranslate(!isOnlineTranslate)}
                                 className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer ${isOnlineTranslate ? 'bg-purple-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                             >
@@ -194,7 +310,7 @@ export const Header = ({ title }: { title?: string }) => {
                         {isSearching ? (
                             <div className="flex flex-col items-center justify-center h-full text-slate-400 animate-pulse">
                                 <Icons.Cloud />
-                                <span className="mt-2 text-sm font-bold">Searching Cloud...</span>
+                                <span className="mt-2 text-sm font-bold">{t('header.searchingCloud')}</span>
                             </div>
                         ) : searchResult ? (
                             <div className="animate-slide-up">
@@ -208,12 +324,12 @@ export const Header = ({ title }: { title?: string }) => {
                                             <Icons.Sound />
                                         </button>
                                     </div>
-                                    
+
                                     <div className="mb-4">
-                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Meaning</div>
+                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t('header.meaning')}</div>
                                         <p className="text-xl font-bold text-slate-700 dark:text-slate-200">{searchResult.translation}</p>
                                     </div>
-                                    
+
                                     <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 border-l-4 border-l-blue-400">
                                         <p className="text-lg font-serif text-slate-600 dark:text-slate-400 italic leading-relaxed">"{searchResult.definition}"</p>
                                     </div>
@@ -227,7 +343,7 @@ export const Header = ({ title }: { title?: string }) => {
                             </div>
                         ) : (
                             <div className="text-center text-slate-400 mt-8">
-                                <p>Enter a word to see results.</p>
+                                <p>{t('header.enterWordPrompt')}</p>
                             </div>
                         )}
                     </div>
