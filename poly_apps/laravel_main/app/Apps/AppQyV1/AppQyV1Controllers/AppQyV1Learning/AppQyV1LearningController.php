@@ -167,7 +167,7 @@ class AppQyV1LearningController extends Controller
             ], 403);
         }
 
-            DB::connection('AppQyV1')->beginTransaction();
+            DB::connection('appqyv1')->beginTransaction();
 
             if ($action === 'select') {
                 AppQyV1UserSelectedLibraryModel::selectLibrary($user->id, $collectionId, $langCode);
@@ -189,7 +189,7 @@ class AppQyV1LearningController extends Controller
                 $message = 'Library deselected';
             }
 
-            DB::connection('AppQyV1')->commit();
+            DB::connection('appqyv1')->commit();
 
             return response()->json([
                 'success' => true,

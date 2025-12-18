@@ -27,7 +27,6 @@ from pycore.pyutils.native_ui.step9_frontend import (
 from pycore.pylauncher.singleton_detector import SingletonDetector
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
-from pycore.pylauncher import LauncherConfig, ServiceLauncher
 from pycore.pyfoundations.third_party import get_third_package_pyside6
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
 from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
@@ -419,6 +418,10 @@ def _start_rpc_v2_service(
     Returns:
         RPC v2 服务实例或 None
     """
+    # Lazy import to avoid circular dependency:
+    # pylauncher -> pythreadpool -> native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher
+    from pycore.pylauncher import LauncherConfig, ServiceLauncher
+
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
 

@@ -10,6 +10,7 @@ import {
   getEndpointById,
   getAllEndpoints
 } from '../config/api-endpoints';
+import { StorageCenter, StorageKey } from './StorageCenter';
 
 export interface HealthCheckResult {
   endpoint: ApiEndpoint;
@@ -27,9 +28,6 @@ interface ApiManagerOptions {
 class ApiManager {
   private currentEndpoint: ApiEndpoint | null = null;
   private healthResults: Map<string, HealthCheckResult> = new Map();
-  private readonly STORAGE_KEY_CURRENT = 'api_current_endpoint';
-  private readonly STORAGE_KEY_AUTO = 'api_auto_detected';
-  private readonly STORAGE_KEY_USER = 'api_user_modified';
 
   /**
    * Initialize API Manager
@@ -241,40 +239,40 @@ class ApiManager {
     return Array.from(this.healthResults.values());
   }
 
-  // LocalStorage management methods
+  // StorageCenter management methods
 
   private getAutoDetectedEndpoint(): string | null {
-    return localStorage.getItem(this.STORAGE_KEY_AUTO);
+    return StorageCenter.get<string>(StorageKey.API_AUTO_DETECTED);
   }
 
   private setAutoDetectedEndpoint(endpointId: string): void {
-    localStorage.setItem(this.STORAGE_KEY_AUTO, endpointId);
-    localStorage.setItem(this.STORAGE_KEY_CURRENT, endpointId);
+    StorageCenter.set(StorageKey.API_AUTO_DETECTED, endpointId);
+    StorageCenter.set(StorageKey.API_CURRENT_ENDPOINT, endpointId);
   }
 
   private getUserModifiedEndpoint(): string | null {
-    return localStorage.getItem(this.STORAGE_KEY_USER);
+    return StorageCenter.get<string>(StorageKey.API_USER_MODIFIED);
   }
 
   private setUserModifiedEndpoint(endpointId: string): void {
-    localStorage.setItem(this.STORAGE_KEY_USER, endpointId);
-    localStorage.setItem(this.STORAGE_KEY_CURRENT, endpointId);
+    StorageCenter.set(StorageKey.API_USER_MODIFIED, endpointId);
+    StorageCenter.set(StorageKey.API_CURRENT_ENDPOINT, endpointId);
   }
 
   /**
    * Clear user settings
    */
   clearUserModifiedEndpoint(): void {
-    localStorage.removeItem(this.STORAGE_KEY_USER);
+    StorageCenter.remove(StorageKey.API_USER_MODIFIED);
   }
 
   /**
    * Reset all settings
    */
   reset(): void {
-    localStorage.removeItem(this.STORAGE_KEY_AUTO);
-    localStorage.removeItem(this.STORAGE_KEY_USER);
-    localStorage.removeItem(this.STORAGE_KEY_CURRENT);
+    StorageCenter.remove(StorageKey.API_AUTO_DETECTED);
+    StorageCenter.remove(StorageKey.API_USER_MODIFIED);
+    StorageCenter.remove(StorageKey.API_CURRENT_ENDPOINT);
     this.currentEndpoint = null;
     this.healthResults.clear();
   }

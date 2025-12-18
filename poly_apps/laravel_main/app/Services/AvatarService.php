@@ -192,15 +192,7 @@ class AvatarService
      */
     public static function getAvatarUrl(?string $relativePath): ?string
     {
-        if (!$relativePath) {
-            return null;
-        }
-
-        if (filter_var($relativePath, FILTER_VALIDATE_URL)) {
-            return $relativePath;
-        }
-
-        return url('api/files/avatars/' . basename(dirname($relativePath)) . '/' . basename($relativePath));
+        return FileService::getAvatarUrl($relativePath);
     }
 
     /**

@@ -211,7 +211,8 @@ class ADBExecutor:
         Returns:
             True if rooted
         """
-        success, stdout, stderr = self.execute(['shell', 'su', '-c', 'id'], serial=serial, timeout=5)
+        # ✅ 优化：从 5 秒减少到 2 秒
+        success, stdout, stderr = self.execute(['shell', 'su', '-c', 'id'], serial=serial, timeout=2)
 
         if success and 'uid=0' in stdout:
             return True

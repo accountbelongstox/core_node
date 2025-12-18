@@ -42,6 +42,7 @@ import ApiSettings from './ApiSettings.vue';
 import BingDictionary from './extensions/BingDictionary.vue';
 import DeepseekChat from './extensions/DeepseekChat.vue';
 import LocalTaskQueue from './extensions/LocalTaskQueue.vue';
+import LogViewerPanel from './extensions/LogViewerPanel.vue';
 
 interface Extension {
   id: string;
@@ -64,6 +65,13 @@ const extensions: Extension[] = [
     name: 'Local Task Queue',
     description: 'Unified task queue for all extensions (serial processing)',
     component: LocalTaskQueue,
+    status: 'active',
+  },
+  {
+    id: 'log-viewer',
+    name: 'Task Queue Logs',
+    description: 'View all task queue logs and events',
+    component: LogViewerPanel,
     status: 'active',
   },
   {

@@ -54,17 +54,6 @@ return [
             'synchronous' => null,
         ],
 
-        'AppQyV1' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => PathMapper::getDefaultDatabasePath('app_qy_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
         'appqyv1' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
@@ -75,61 +64,85 @@ return [
             'journal_mode' => 'WAL',
             'synchronous' => 'NORMAL',
         ],
-        
+
         'awyv0' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('awy_v0_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'vipclubv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('vipclub_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'servermanagerv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('server_manager_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'achatv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('achat_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'codemartv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('code_mart_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'mcpv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('mcp_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'ittoolsv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('it_tools_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
-        
+
         'bankv1' => [
             'driver' => 'sqlite',
             'database' => PathMapper::getDefaultDatabasePath('bank_v1_database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => true,
+            'busy_timeout' => 5000,
+            'journal_mode' => 'WAL',
+            'synchronous' => 'NORMAL',
         ],
 
         'mysql' => [

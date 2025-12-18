@@ -51,7 +51,7 @@ class AppQyV1ArticleWord extends Model
     public function dictionaryEntry(string $langCode)
     {
         return AppQyV1MultiLangDictionaryModel::query()
-            ->connection('AppQyV1')
+            ->connection('appqyv1')
             ->from(AppQyV1TableMaps::getDictionaryTableName($langCode))
             ->where('md5', $this->word_md5)
             ->first();
@@ -88,7 +88,7 @@ class AppQyV1ArticleWord extends Model
         }
 
         if (!empty($insertData)) {
-            DB::connection('AppQyV1')->table('app_qy_v1_article_words')->insert($insertData);
+            DB::connection('appqyv1')->table('app_qy_v1_article_words')->insert($insertData);
         }
 
         return $dictionaryInfo;
