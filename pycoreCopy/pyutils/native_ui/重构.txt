@@ -1,0 +1,80 @@
+● 我理解了，让我先确认设计是否正确，然后再继续实现。
+
+  架构设计确认
+
+  当前设计总结
+
+  用户代码 (matrix_main.py)
+      ↓
+  launch_native_app(config)  ← 主入口，所有参数在这里
+      ↓
+  NativeUILauncher (launcher.py)  ← 只做单例检测 + 参数转发
+      ↓
+  launch_app_with_startup()  ← 标准启动流程
+      ↓
+  ├── TkinterStartupThread (debug 窗口) ← 由 show_debug_window 控制
+  ├── Dependency check
+  ├── main_entry() 调用
+  ├── PySide6Framework (主窗口) ← 由参数控制
+  └── PySide6SystemTray (托盘) ← 由 enable_tray 控制
+
+  参数控制的内容
+
+  通过 NativeUIConfig 控制：
+  - ✅ app_id, app_name, main_entry (基础)
+  - ✅ show_debug_window, debug_window_width, debug_window_height (Debug 窗口)
+  - ✅ enable_tray, tray_type, tray_menu_items, minimize_to_tray (托盘)
+  - ✅ url, url_type (主窗口 URL)
+  - ✅ window_size, frameless, loading_style (样式)
+  - ✅ icon_path, logo_path (图标)
+  - ✅ on_ready, on_closed, on_closing (回调)
+
+  未完成的 TODO
+
+  TODO 1: URL 处理集成到 PySide6 WebView
+  - 当前: 只检测 URL 类型
+  - 需要: 传递给 PySide6UIConfig.webview_url
+
+  TODO 2: Nuxt app 自动启动
+  - 当前: 假设已运行
+  - 需要: 检测并启动 Nuxt dev server
+
+  TODO 3: Vue dist 静态服务器
+  - 当前: 使用 file:// 协议
+  - 需要: 启动本地 HTTP 服务器
+
+  TODO 4: 托盘菜单转换
+  - 当前: Dict 格式
+  - 需要: 转换为 PySide6TrayMenuItem
+
+  确认问题
+
+  在继续之前，请确认以下设计是否正确：
+
+  1. launcher.py 只负责单例检测，不包含 UI 逻辑 ✓
+  2. launch_native_app() 是唯一入口点，所有参数通过 NativeUIConfig ✓
+  3. 所有 UI 启动逻辑由参数控制（debug 窗口、托盘、URL、样式等）✓
+  4. 未实现的功能标记为 TODO，不阻塞基础功能 ✓
+
+  如果设计正确，我将继续：
+  1. 完善 launch_native_app() 的 URL → PySide6 集成
+  2. 完善托盘菜单转换
+  3. 更新 matrix_main.py 使用新 API
+  4. 更新开发指南
+
+  是否继续实现？
+
+> on_ready, on_closed, on_closing 这几个方法ui native要实现，但参数
+可以追加些方法到回调队列,同时还有一个restart方法
+，同时规范要求要实现标题KEY（这是固定的），同时如果调用的tray
+type是pyside，则在debug窗口载入完之后（确保pyside安装完），你再根据输出一遍流程。
+
+
+
+分析并按以下步骤扩展，
+1：增加一个python原生的启动窗口，调用 from pycore.pyfoundations.color_print import ColorPrint ，并注册一个事件日志 ，启动窗口就是一个标题，和日志打印，基目折是在 from pycore import check_and_install_dependencies
+check_and_install_dependencies() 还没有初始化前，先显示一个窗口，并实时显示安装信息。所以启动窗口并不引入 check_and_install_dependencies。但会调用其他初始化类，并在其中有 check_and_install_dependencies。
+2：当所有类安装完后，使用pyside6  构架现在的 D:\programing\core_node\pycore\pyutils\native_ui ，除了启动窗口，其他类全部改为 pyside6
+3：为了保持ui界面的兼容性，扩展出一个webview/pyside6 web engien的类库。并根据native_ui的参数选择，默认为 pyside6。同时，根据现在的规范规范扩展，目前的规范是python ui只作为一个壳，并启动一个模拟的标题栏和默认的拖盘，但括盘事务可以追加。之后主UI将是一个web页面。面web页面没有载入前默认显示loading页。
+4：确认只启动主线程，tick 定时器线程，UI将在主线程中启动。现在不启动过多线程。相关于2个线程，主线程，tick定时器线程，UI线程（如果算就是3个）。
+5：确保除了初始化窗口是python原生，其他是pyside6

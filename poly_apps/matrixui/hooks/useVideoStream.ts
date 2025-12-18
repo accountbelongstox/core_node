@@ -109,12 +109,31 @@ export function useVideoStream({
       console.log(`[useVideoStream] Skipping connect for ${deviceId}: enabled=${enabled}, isConnecting=${connectionStateRef.current.isConnecting}, isConnected=${connectionStateRef.current.isConnected}`);
       return;
     }
-    
+
     console.log(`[useVideoStream] Starting connection for ${deviceId} (streamType=${targetStreamType})`);
+
+    // ✅ 随机延迟 0-3 秒，避免同时连接雪崩
+    const delay = Math.random() * 3000;
+    console.log(`[useVideoStream] Delaying ${delay.toFixed(0)}ms before connecting ${deviceId}`);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // 检查是否在延迟期间被禁用
+    if (!enabled || connectionStateRef.current.isConnected) {
+      console.log(`[useVideoStream] Connection canceled for ${deviceId} during delay`);
+      return;
+    }
+
     connectionStateRef.current.isConnecting = true;
     setIsConnecting(true);
-    
+
     try {
+      // ✅ 跳过 device.connect RPC，直接连接视频流 WebSocket
+      // 原因：设备已经通过 ADB 心跳服务添加到设备表
+      // device.connect 会再次检查设备状态，导致 offline
+      console.log(`[useVideoStream] Skipping device.connect RPC (device already in device table)`);
+      console.log(`[useVideoStream] Connecting directly to video stream for ${deviceId}...`);
+
       // First, connect device via RPC v2
       console.log(`[useVideoStream] Checking RPC connection for ${deviceId}...`);
       if (!wsService.isRpcConnected()) {
@@ -125,24 +144,25 @@ export function useVideoStream({
         console.log(`[useVideoStream] RPC already connected`);
       }
 
+      // ✅ 注释掉 device.connect 调用（设备已经在设备表中）
       // Connect device via RPC BEFORE opening video WebSocket (device connection takes 30s)
       // Check if device is already connected to prevent redundant calls
-      if (!deviceConnectMapRef.current.has(deviceId)) {
-        console.log(`[useVideoStream] Connecting device ${deviceId} via RPC...`);
-        const connectResult = await wsService.callRpc('device.connect', { deviceId });
-        if (!connectResult.success) {
-          const error = new Error(`Failed to connect device: ${connectResult.error || 'Unknown error'}`);
-          console.error(`[useVideoStream] ${error.message}`);
-          onErrorRef.current?.(error);
-          return;
-        }
-        console.log(`[useVideoStream] Device ${deviceId} connected successfully via RPC`);
-
-        // Mark device as connected to prevent redundant calls
-        deviceConnectMapRef.current.set(deviceId, true);
-      } else {
-        console.log(`[useVideoStream] Device ${deviceId} already connected via RPC (skipping redundant call)`);
-      }
+      // if (!deviceConnectMapRef.current.has(deviceId)) {
+      //   console.log(`[useVideoStream] Connecting device ${deviceId} via RPC...`);
+      //   const connectResult = await wsService.callRpc('device.connect', { deviceId });
+      //   if (!connectResult.success) {
+      //     const error = new Error(`Failed to connect device: ${connectResult.error || 'Unknown error'}`);
+      //     console.error(`[useVideoStream] ${error.message}`);
+      //     onErrorRef.current?.(error);
+      //     return;
+      //   }
+      //   console.log(`[useVideoStream] Device ${deviceId} connected successfully via RPC`);
+      //
+      //   // Mark device as connected to prevent redundant calls
+      //   deviceConnectMapRef.current.set(deviceId, true);
+      // } else {
+      //   console.log(`[useVideoStream] Device ${deviceId} already connected via RPC (skipping redundant call)`);
+      // }
 
       // Build WebSocket URL based on stream type
       // Backend routes:

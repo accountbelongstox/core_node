@@ -108,7 +108,7 @@ cleanup_code_server() {
         if check_service_active; then
             log "Stopping code-server service..."
             if $USE_SUDO systemctl stop "ncore-${CODE_SERVER_SERVICE_NAME}.service"; then
-                log "âœ“ Service stopped successfully"
+                log "âœ?Service stopped successfully"
                 cleanup_performed=true
             else
                 error "Failed to stop service"
@@ -121,7 +121,7 @@ cleanup_code_server() {
         if check_service_enabled; then
             log "Disabling code-server service from auto-start..."
             if $USE_SUDO systemctl disable "ncore-${CODE_SERVER_SERVICE_NAME}.service"; then
-                log "âœ“ Service disabled successfully"
+                log "âœ?Service disabled successfully"
                 cleanup_performed=true
             else
                 error "Failed to disable service"
@@ -141,7 +141,7 @@ cleanup_code_server() {
 
     echo ""
     if [ "$cleanup_performed" = true ]; then
-        log "âœ“ Cleanup completed successfully"
+        log "âœ?Cleanup completed successfully"
         log "Service has been stopped and disabled"
     else
         log "No cleanup actions were needed"

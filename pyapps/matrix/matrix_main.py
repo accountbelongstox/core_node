@@ -257,6 +257,10 @@ def start():
     ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
     ColorPrint.blue("=" * 70)
 
+    # Check multimedia environment (FFmpeg) FIRST
+    from pyapps.matrix.matrix_config.multimedia_check import check_multimedia_environment
+    check_multimedia_environment()
+
     # Set AppUserModelID for current process
     # This must match the AppUserModelID set on desktop shortcut
     # Prevents duplicate taskbar icons when running as administrator

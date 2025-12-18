@@ -1,0 +1,126 @@
+# -*- coding: utf-8 -*-
+# Documentation: ../py_auto/DEVELOPMENT_GUIDE.md
+"""
+Main package file for pytools.
+"""
+
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+
+
+# Convenience function to get GPU info from cache
+def get_gpu_info():
+    """
+    Get cached GPU information
+
+    Returns:
+        dict: GPU information or None if not available
+    """
+    return ENCYCLOPEDIA.get("pycore_gpu_info")
+
+
+# ============================================================================
+# Convenient Top-Level Exports
+# ============================================================================
+
+# Foundation components
+from pycore.pyfoundations import (
+    ColorPrint,
+    ENCYCLOPEDIA,
+    EventBus,
+    EventTypes,
+    Event,
+)
+
+# Global variable manager (now in pygvar)
+from pycore.pygvar import GlobalVarManager
+
+# Thread communication bus
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+# Device structures and ADB utilities (unified in pyutils.device)
+from pycore.pyutils.device import (
+    AndroidDevice,
+    ScrcpyDevice,
+    DeviceInfo,
+    ServerParams,
+    VideoCodec,
+    ADBManager,
+    ADBDevice,
+)
+
+# Utility components
+from pycore.pyutils import (
+    DeviceManager,
+    DeviceState,
+    TouchEvent,
+    KeyEvent,
+    MessageBuilder,
+    GroupController,
+    AllSyncStrategy,
+    TouchOnlySyncStrategy,
+    H264Decoder,
+    FMP4Encoder,
+    VideoFrame,
+    VideoFormat,
+    VideoStreamHandler,
+    H264Config,
+)
+
+# Optional imports
+try:
+    from pycore.pyutils import FMP4EncoderComplete, H264Frame
+except ImportError:
+    pass
+
+try:
+    from pycore.pyutils import WebSocketManager
+except ImportError:
+    pass
+
+__version__ = '1.0.0'
+
+__all__ = [
+    # Dependency management
+    'get_gpu_info',
+
+    # Foundation
+    'ColorPrint',
+    'ENCYCLOPEDIA',
+    'EventBus',
+    'EventTypes',
+    'Event',
+    'GlobalVarManager',
+
+    # Device structures
+    'AndroidDevice',
+    'ScrcpyDevice',
+    'DeviceInfo',
+    'ServerParams',
+    'VideoCodec',
+
+    # Device management
+    'DeviceManager',
+    'DeviceState',
+
+    # ADB
+    'ADBManager',
+    'ADBDevice',
+
+    # Control
+    'TouchEvent',
+    'KeyEvent',
+    'MessageBuilder',
+
+    # Group control
+    'GroupController',
+    'AllSyncStrategy',
+    'TouchOnlySyncStrategy',
+
+    # Streaming
+    'H264Decoder',
+    'FMP4Encoder',
+    'VideoFrame',
+    'VideoFormat',
+    'VideoStreamHandler',
+    'H264Config',
+]

@@ -156,3 +156,12 @@ development-guides\PYTHON_PYCORE.md  python .\pymain.py app=matrix
 
  但要注意客户端先后，随机连接 ，每次只保证关键贞发送，然后丢掉不能同步的贞。直接同步最新的贞。  查看前端是否能缓存关键贞。中断和重连是否有更好的解决办法。
 
+不要忽略 忽略pyluancher.py
+
+ development-guides 找到 ncore pyycore的文档,然后查看现在ncore的启动连,
+  node ./main.js app=xxx 是否调用了luancher,参考  development-guides 完成
+  pycore/pylauncher 完成.完成ncore的,扫描ncore,找到需要组织在luancher.js中的. 
+
+
+poly_apps\laravel_main\app\Apps\ServerManagerV1 找到其中。
+

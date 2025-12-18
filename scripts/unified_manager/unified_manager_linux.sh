@@ -36,15 +36,15 @@ log_header() {
 }
 
 log_success() {
-    echo -e "${COLOR_SUCCESS}âœ“ $1${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}âœ?$1${COLOR_RESET}"
 }
 
 log_warning() {
-    echo -e "${COLOR_WARNING}âš  $1${COLOR_RESET}"
+    echo -e "${COLOR_WARNING}âš?$1${COLOR_RESET}"
 }
 
 log_error() {
-    echo -e "${COLOR_ERROR}âœ— $1${COLOR_RESET}"
+    echo -e "${COLOR_ERROR}âœ?$1${COLOR_RESET}"
 }
 
 log_info() {
@@ -357,13 +357,13 @@ main() {
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "âœ“ All steps completed successfully"
+                    log_success "âœ?All steps completed successfully"
                     log_info "Service: $app_name"
                     log_info "Domain: https://$domain (if SSL available)"
                     log_info "Domain: http://$domain"
                     log_info "Local: http://localhost:$port"
                 else
-                    log_warning "âš  Some steps failed - please check above for details"
+                    log_warning "âš?Some steps failed - please check above for details"
                     log_info "You can retry failed steps manually"
                 fi
 
