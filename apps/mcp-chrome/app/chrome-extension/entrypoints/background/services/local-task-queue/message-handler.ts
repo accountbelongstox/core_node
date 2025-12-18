@@ -1,9 +1,10 @@
 /**
  * Local Task Queue - Message Handler (Background)
- * 处理来自 Popup 的消息
+ * Handles messages from Popup
  */
 
 import { getLocalTaskQueueService } from './LocalTaskQueueService';
+import { queueLogger } from './logger';
 import {
   MessageType,
   type CommandMessage,
@@ -18,20 +19,20 @@ import {
 } from './messages';
 
 /**
- * 消息处理器
- * 在 Background Service Worker 中处理来自 Popup 的命令
+ * Message handler
+ * Handles commands from Popup in Background Service Worker
  */
 export class QueueMessageHandler {
   private service = getLocalTaskQueueService();
 
   /**
-   * 处理消息
+   * Handle message
    */
   async handleMessage(
     message: CommandMessage,
     sender: chrome.runtime.MessageSender,
   ): Promise<MessageResponse> {
-    console.log(`[QueueMessageHandler] Handling message: ${message.type}`);
+    queueLogger.debug('QueueMessageHandler', `Handling message: ${message.type}`);
 
     try {
       switch (message.type) {
@@ -68,6 +69,12 @@ export class QueueMessageHandler {
         case MessageType.QUEUE_IS_RUNNING:
           return await this.handleIsRunning();
 
+        case MessageType.QUEUE_LOG_GET_ALL:
+          return await this.handleGetLogs();
+
+        case MessageType.QUEUE_LOG_CLEAR:
+          return await this.handleClearLogs();
+
         default:
           return {
             success: false,
@@ -84,7 +91,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理添加任务
+   * Handle add task
    */
   private async handleTaskAdd(message: any): Promise<TaskAddResponse> {
     const added = await this.service.addTask(message.task);
@@ -95,7 +102,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理取消任务
+   * Handle cancel task
    */
   private async handleTaskCancel(message: any): Promise<TaskCancelResponse> {
     const cancelled = await this.service.cancelTask(message.taskId);
@@ -106,7 +113,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理启动队列
+   * Handle start queue
    */
   private async handleQueueStart(): Promise<MessageResponse> {
     await this.service.start();
@@ -114,7 +121,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理停止队列
+   * Handle stop queue
    */
   private async handleQueueStop(): Promise<MessageResponse> {
     this.service.stop();
@@ -122,7 +129,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理获取统计
+   * Handle get stats
    */
   private async handleGetStats(): Promise<QueueStatsResponse> {
     const stats = this.service.getStats();
@@ -133,7 +140,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理获取所有任务
+   * Handle get all tasks
    */
   private async handleGetTasks(): Promise<QueueTasksResponse> {
     const tasks = this.service.getAllTasks();
@@ -144,7 +151,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理获取单个任务
+   * Handle get single task
    */
   private async handleGetTask(message: any): Promise<QueueTaskResponse> {
     const task = this.service.getTask(message.taskId);
@@ -155,7 +162,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理按状态获取任务
+   * Handle get tasks by status
    */
   private async handleGetTasksByStatus(message: any): Promise<QueueTasksResponse> {
     const tasks = this.service.getTasksByStatus(message.status);
@@ -166,7 +173,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理按类型获取任务
+   * Handle get tasks by type
    */
   private async handleGetTasksByType(message: any): Promise<QueueTasksResponse> {
     const tasks = this.service.getTasksByType(message.taskType);
@@ -177,7 +184,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理清除已完成任务
+   * Handle clear completed tasks
    */
   private async handleClearCompleted(): Promise<MessageResponse> {
     this.service.clearCompleted();
@@ -185,7 +192,7 @@ export class QueueMessageHandler {
   }
 
   /**
-   * 处理检查队列运行状态
+   * Handle check queue running status
    */
   private async handleIsRunning(): Promise<QueueRunningResponse> {
     const isRunning = this.service.isRunning();
@@ -194,41 +201,60 @@ export class QueueMessageHandler {
       data: { isRunning },
     };
   }
+
+  /**
+   * Handle get all logs
+   */
+  private async handleGetLogs(): Promise<MessageResponse> {
+    const logs = queueLogger.getLogs();
+    return {
+      success: true,
+      data: { logs },
+    };
+  }
+
+  /**
+   * Handle clear logs
+   */
+  private async handleClearLogs(): Promise<MessageResponse> {
+    queueLogger.clearLogs();
+    return { success: true };
+  }
 }
 
-// 导出单例实例
+// Export singleton instance
 const messageHandler = new QueueMessageHandler();
 
 /**
- * 设置消息监听器
- * 在 Background 启动时调用
+ * Setup message listener
+ * Called when Background starts
  */
 export function setupQueueMessageListener(): void {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // 仅处理队列相关消息
+    // Only handle queue-related messages
     if (!isCommandMessage(message)) {
       return false;
     }
 
-    console.log('[QueueMessageHandler] Received message:', message.type);
+    queueLogger.debug('QueueMessageHandler', `Received message: ${message.type}`);
 
-    // 异步处理消息
+    // Handle message asynchronously
     messageHandler
       .handleMessage(message, sender)
       .then(response => {
         sendResponse(response);
       })
       .catch(error => {
-        console.error('[QueueMessageHandler] Error:', error);
+        queueLogger.error('QueueMessageHandler', 'Error handling message', { error: error.message });
         sendResponse({
           success: false,
           error: error.message || String(error),
         });
       });
 
-    // 返回 true 表示异步响应
+    // Return true for async response
     return true;
   });
 
-  console.log('[QueueMessageHandler] Message listener registered');
+  queueLogger.info('QueueMessageHandler', 'Message listener registered');
 }

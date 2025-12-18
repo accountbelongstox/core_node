@@ -7,6 +7,7 @@ const ChatMode: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [processing, setProcessing] = useState<ProcessingState>({ isProcessing: false, error: null });
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -64,13 +65,21 @@ const ChatMode: React.FC = () => {
   };
 
   const clearChat = () => {
-    if (window.confirm("Are you sure you want to clear the conversation?")) {
-      setMessages([]);
-    }
+    setShowClearConfirm(true);
+  };
+
+  const confirmClear = () => {
+    setMessages([]);
+    setShowClearConfirm(false);
+  };
+
+  const cancelClear = () => {
+    setShowClearConfirm(false);
   };
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
+    <>
+      <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div>
@@ -162,6 +171,33 @@ const ChatMode: React.FC = () => {
         </p>
       </div>
     </div>
+
+    {/* Confirmation Dialog */}
+    {showClearConfirm && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700 shadow-2xl">
+          <h3 className="text-lg font-semibold text-white mb-2">Clear Conversation?</h3>
+          <p className="text-slate-400 text-sm mb-6">
+            Are you sure you want to clear the conversation? This action cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={cancelClear}
+              className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmClear}
+              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 };
 

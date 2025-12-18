@@ -320,15 +320,18 @@ class UserSyncService
         return $results;
     }
 
-    public static function ensureMultiLangDictionaryTablesExist(): array
+    public static function ensureMultiLangDictionaryTablesExist($progressCallback = null): array
     {
         $results = [];
         $connection = 'appqyv1';
         $schema = DB::connection($connection)->getSchemaBuilder();
 
         $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
+        $total = count($supportedLanguages);
+        $current = 0;
 
         foreach ($supportedLanguages as $langCode) {
+            $current++;
             $tableName = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
 
             if (!$schema->hasTable($tableName)) {
@@ -364,6 +367,14 @@ class UserSyncService
             } else {
                 $results[$tableName] = 'exists';
             }
+
+            if ($progressCallback && $current % 10 === 0) {
+                $progressCallback($current, $total);
+            }
+        }
+
+        if ($progressCallback) {
+            $progressCallback($total, $total);
         }
 
         return $results;

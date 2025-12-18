@@ -42,6 +42,12 @@ class LauncherConfig:
     force_launch: bool = False
     shutdown_existing: bool = False
 
+    # Tray Configuration (Cross-platform)
+    enable_tray: bool = False
+    tray_backend: str = "auto"          # "auto", "pystray", "pyside6"
+    tray_icon_path: Optional[str] = None
+    tray_menu_items: list = field(default_factory=list)
+
     # Legacy API - Auto-converts to services dict
     enable_heartbeat: bool = True
     enable_rpc_v2: bool = False

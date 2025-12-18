@@ -42,9 +42,21 @@ configure_pnpm_global_dirs() {
 
     local pnpm_global_bin=$(pnpm config get global-bin-dir 2>/dev/null)
     local pnpm_global_dir=$(pnpm config get global-dir 2>/dev/null)
+    local pnpm_store_dir=$(pnpm config get store-dir 2>/dev/null)
 
+    local needs_configuration=false
     if [ -z "$pnpm_global_bin" ] || [ "$pnpm_global_bin" = "undefined" ]; then
-        echo "[29] pnpm global-bin-dir not configured, setting it up..."
+        needs_configuration=true
+    fi
+
+    local current_store_dir=$(pnpm store path 2>/dev/null)
+    if [[ "$current_store_dir" == *"MyBest"* ]] || [ -z "$pnpm_store_dir" ] || [ "$pnpm_store_dir" = "undefined" ]; then
+        echo "[29] Detected user-specific store path or unconfigured store-dir, reconfiguration needed"
+        needs_configuration=true
+    fi
+
+    if [ "$needs_configuration" = true ]; then
+        echo "[29] Configuring pnpm directories..."
 
         local node_home
         if [ -n "$NODE_HOME" ]; then
@@ -57,22 +69,27 @@ configure_pnpm_global_dirs() {
 
         local pnpm_global_dir_new="$node_home/pnpm-global"
         local pnpm_global_bin_new="$pnpm_global_dir_new/bin"
+        local pnpm_store_dir_new="/var/_core_node/.pnpm-store"
 
-        echo "[29] Setting pnpm global directories..."
+        echo "[29] Setting pnpm directories..."
         echo "[29]   global-dir: $pnpm_global_dir_new"
         echo "[29]   global-bin-dir: $pnpm_global_bin_new"
+        echo "[29]   store-dir: $pnpm_store_dir_new"
 
         pnpm config set global-dir "$pnpm_global_dir_new"
         pnpm config set global-bin-dir "$pnpm_global_bin_new"
+        pnpm config set store-dir "$pnpm_store_dir_new"
 
         mkdir -p "$pnpm_global_dir_new"
         mkdir -p "$pnpm_global_bin_new"
+        mkdir -p "$pnpm_store_dir_new"
 
-        echo "[29] pnpm global directories configured"
+        echo "[29] pnpm directories configured successfully"
     else
-        echo "[29] pnpm global directories already configured:"
+        echo "[29] pnpm directories already configured:"
         echo "[29]   global-dir: $pnpm_global_dir"
         echo "[29]   global-bin-dir: $pnpm_global_bin"
+        echo "[29]   store-dir: $pnpm_store_dir"
     fi
 }
 

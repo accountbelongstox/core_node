@@ -1,18 +1,52 @@
-
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { SettingsLayout, SettingItem } from './Layout';
 import { api } from '../../services/api';
+import { ApiCenter } from '../../services/ApiCenter';
 import { SupportedLanguage } from '../../types';
-import { LanguageCenter } from '../../i18n/LanguageCenter';
+import { IconMappingService } from '../../services/IconMappingService';
 
 const LanguageSettings = () => {
   const { settings, updateSettings, user, setUser } = useContext(AppContext);
   const [langs, setLangs] = useState<SupportedLanguage[]>([]);
-  
-  useEffect(() => { api.getSupportedLanguages().then(setLangs) }, []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleLearningLang = (code: string) => {
+  useEffect(() => {
+    const fetchLanguages = async () => {
+      try {
+        const response: any = await api.getSupportedLanguages();
+        
+        // Handle different response formats
+        let languages: SupportedLanguage[] = [];
+        if (Array.isArray(response)) {
+          languages = response;
+        } else if (response && typeof response === 'object' && Array.isArray(response.data)) {
+          languages = response.data;
+        } else if (response && typeof response === 'object' && response.success && Array.isArray(response.data)) {
+          languages = response.data;
+        }
+        
+        if (languages.length > 0) {
+          setLangs(languages);
+          setError(null);
+        } else {
+          console.warn('[LanguageSettings] No languages received from API');
+          setError('No languages available');
+        }
+      } catch (error) {
+        console.error('[LanguageSettings] Failed to load languages:', error);
+        setError('Failed to load languages from server. Please check your connection.');
+        // Don't set empty array, this ensures we don't show mock data accidentally
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLanguages();
+  }, []);
+
+  const toggleLearningLang = async (code: string) => {
       if (!user) return;
       let newLangs = [...(user.learningLanguages || [])];
       if (newLangs.includes(code)) {
@@ -20,52 +54,127 @@ const LanguageSettings = () => {
       } else {
           newLangs.push(code);
       }
-      // Assuming setUser updates the global user object immediately for UI
+
       setUser({ ...user, learningLanguages: newLangs });
-      // In a real app, we'd also call api.updateProfile({ learningLanguages: newLangs })
+
+      try {
+          const response = await ApiCenter.user.updateProfile({ learning_languages: newLangs });
+          if (response.success && response.data?.user) {
+              setUser(response.data.user);
+              console.log('[LanguageSettings] Learning languages updated successfully:', newLangs);
+          }
+      } catch (error) {
+          console.error('[LanguageSettings] Failed to update learning languages:', error);
+          setUser({ ...user, learningLanguages: user.learningLanguages || [] });
+      }
   };
+
+  // Helper function to get icon display
+  const getLanguageIcon = (lang: SupportedLanguage): string => {
+    // Priority 1: Use icon field from backend (generic name)
+    if (lang.icon) {
+      return IconMappingService.getEmoji(lang.icon);
+    }
+    // Priority 2: Use flag field (backward compatibility)
+    if (lang.flag) {
+      return lang.flag;
+    }
+    // Priority 3: Auto-generate from language code
+    const autoIconName = IconMappingService.getFlagIconName(lang.code);
+    return IconMappingService.getEmoji(autoIconName, '🌐');
+  };
+
+  if (loading) {
+    return (
+      <SettingsLayout title="Language & Audio">
+        <div className="flex items-center justify-center py-20">
+          <div className="text-slate-400 dark:text-slate-500">Loading languages...</div>
+        </div>
+      </SettingsLayout>
+    );
+  }
+
+  if (error || langs.length === 0) {
+    return (
+      <SettingsLayout title="Language & Audio">
+        <div className="flex flex-col items-center justify-center py-20 px-5">
+          <div className="text-red-500 dark:text-red-400 mb-4 text-center">
+            {error || 'No languages available'}
+          </div>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setError(null);
+              api.getSupportedLanguages().then((response: any) => {
+                let languages: SupportedLanguage[] = [];
+                if (Array.isArray(response)) {
+                  languages = response;
+                } else if (response && typeof response === 'object' && Array.isArray(response.data)) {
+                  languages = response.data;
+                } else if (response && typeof response === 'object' && response.success && Array.isArray(response.data)) {
+                  languages = response.data;
+                }
+                if (languages.length > 0) {
+                  setLangs(languages);
+                  setError(null);
+                } else {
+                  setError('No languages available');
+                }
+              }).catch((err) => {
+                setError('Failed to load languages from server. Please check your connection.');
+              }).finally(() => {
+                setLoading(false);
+              });
+            }}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </SettingsLayout>
+    );
+  }
 
   return (
     <SettingsLayout title="Language & Audio">
-      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2 mb-2 pl-2">App Interface</div>
-      {langs.map(l => (
-        <SettingItem key={`ui-${l.code}`} label={l.name} value={l.flag} type="radio" 
-           onClick={() => {
-             updateSettings({ language: { ...settings.language, appInterface: l.code } });
-             api.setLanguage(l.code);
-             LanguageCenter.setLanguage(l.code as any);
-             window.location.reload();
-           }} 
-           active={settings.language.appInterface === l.code} 
-        />
-      ))}
-      
-      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Languages to Learn (Multi-select)</div>
-      <div className="grid grid-cols-2 gap-3 px-5 mb-4">
+      <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-2 mb-4 pl-2">
+        Languages to Learn (Multi-select)
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-8">
         {langs.map(l => {
-            const isActive = user?.learningLanguages?.includes(l.code);
-            return (
-                <div 
-                  key={`learn-${l.code}`} 
-                  onClick={() => toggleLearningLang(l.code)}
-                  className={`
-                    p-4 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all duration-300
-                    ${isActive ? 'bg-blue-500 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-white/50 dark:bg-slate-800/50 border-white/40 dark:border-slate-700 hover:bg-white/80'}
-                  `}
-                >
-                    <span className="text-2xl">{l.flag}</span>
-                    <span className="font-bold text-sm">{l.name}</span>
-                    {isActive && <div className="ml-auto text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">✓</div>}
+          const isActive = user?.learningLanguages?.includes(l.code);
+          return (
+            <div
+              key={`learn-${l.code}`}
+              onClick={() => toggleLearningLang(l.code)}
+              className={`
+                relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-300
+                flex flex-col items-center justify-center gap-2 min-h-[100px]
+                ${isActive
+                  ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-500/30 scale-105'
+                  : 'bg-white/60 dark:bg-slate-800/60 border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-700/60 hover:scale-105'
+                }
+              `}
+            >
+              <span className="text-3xl">{getLanguageIcon(l)}</span>
+              <span className={`font-bold text-xs text-center leading-tight ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                {l.native_name || l.name}
+              </span>
+              {isActive && (
+                <div className="absolute top-2 right-2 w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs">✓</span>
                 </div>
-            )
+              )}
+            </div>
+          );
         })}
       </div>
 
       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Audio Engine</div>
-      <SettingItem label="Accent" value={settings.audio.voiceEngine} />
-      <SettingItem label="Speed" value={`${settings.audio.speed}x`} />
-      <SettingItem label="Provider" value={settings.audio.ttsProvider.toUpperCase()} />
-      <SettingItem label="Auto Play" type="toggle" active={settings.audio.autoPlay} onClick={() => updateSettings({ audio: { ...settings.audio, autoPlay: !settings.audio.autoPlay } })} />
+      <SettingItem label="Voice" value={settings.audio?.voice || 'default'} />
+      <SettingItem label="Speed" value={`${settings.audio?.playbackSpeed || 1.0}x`} />
+      <SettingItem label="Volume" value={`${Math.round((settings.audio?.volume || 0.8) * 100)}%`} />
+      <SettingItem label="Auto Play" type="toggle" active={settings.audio?.autoPlay || false} onClick={() => updateSettings({ audio: { ...settings.audio, autoPlay: !settings.audio?.autoPlay } })} />
     </SettingsLayout>
   );
 };

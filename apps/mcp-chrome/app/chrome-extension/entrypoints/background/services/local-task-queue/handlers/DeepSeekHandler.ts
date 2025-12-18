@@ -4,8 +4,9 @@
  */
 
 import type { ITaskHandler } from '../ITaskHandler';
-import { TaskType, type Task, type DeepSeekTaskDetails } from '../types';
+import { TaskType, type Task, type DeepSeekTaskDetails, TaskError } from '../types';
 import { deepseekSendPromptTool } from '@/entrypoints/background/tools/browser/deepseek';
+import { queueLogger } from '../logger';
 
 /**
  * DeepSeek chat result
@@ -35,10 +36,19 @@ export class DeepSeekHandler implements ITaskHandler<DeepSeekTaskDetails> {
     const { prompt, conversationId, model, attachments, options } = task.details;
 
     if (!prompt || prompt.trim() === '') {
-      throw new Error('Prompt is required');
+      queueLogger.error('DeepSeekHandler', 'Empty prompt provided', {
+        taskId: task.id,
+        prompt,
+      });
+      task.error = 'Prompt is required';
+      return;
     }
 
-    console.log(`[DeepSeekHandler] Sending prompt: ${prompt.substring(0, 100)}...`);
+    queueLogger.info('DeepSeekHandler', 'Sending prompt to DeepSeek', {
+      taskId: task.id,
+      promptLength: prompt.length,
+      hasAttachments: !!attachments?.length,
+    });
 
     try {
       // Update progress: starting
@@ -63,7 +73,12 @@ export class DeepSeekHandler implements ITaskHandler<DeepSeekTaskDetails> {
       if (toolResult.isError) {
         // Tool execution failed
         const errorText = toolResult.content[0]?.text || 'Unknown error';
-        throw new Error(errorText);
+        queueLogger.error('DeepSeekHandler', 'DeepSeek tool execution failed', {
+          taskId: task.id,
+          error: errorText,
+        });
+        task.error = errorText;
+        return;
       }
 
       // Parse result
@@ -83,24 +98,39 @@ export class DeepSeekHandler implements ITaskHandler<DeepSeekTaskDetails> {
         // Store result in task
         task.result = result;
 
-        console.log(
-          `[DeepSeekHandler] Completed successfully. Response length: ${result.response.length}`,
-        );
+        queueLogger.info('DeepSeekHandler', 'Task completed successfully', {
+          taskId: task.id,
+          responseLength: result.response.length,
+          conversationUrl: result.conversationUrl,
+        });
       } else if (resultData.status === 'failed') {
         // Task failed
-        throw new Error(resultData.result?.error || 'DeepSeek task failed');
+        const errorMsg = resultData.result?.error || 'DeepSeek task failed';
+        queueLogger.error('DeepSeekHandler', 'DeepSeek task failed', {
+          taskId: task.id,
+          error: errorMsg,
+          status: resultData.status,
+        });
+        task.error = errorMsg;
+        return;
       } else {
         // Unknown status
-        throw new Error(`Unexpected task status: ${resultData.status}`);
+        queueLogger.error('DeepSeekHandler', 'Unexpected task status', {
+          taskId: task.id,
+          status: resultData.status,
+        });
+        task.error = `Unexpected task status: ${resultData.status}`;
+        return;
       }
 
       // Update progress: done
       onProgress?.(100);
     } catch (error: any) {
-      console.error('[DeepSeekHandler] Error:', error);
-      throw new Error(
-        `Failed to process DeepSeek chat: ${error.message || String(error)}`,
-      );
+      queueLogger.error('DeepSeekHandler', 'Error processing DeepSeek chat', {
+        taskId: task.id,
+        error: error.message || String(error),
+      });
+      task.error = `Failed to process DeepSeek chat: ${error.message || String(error)}`;
     }
   }
 

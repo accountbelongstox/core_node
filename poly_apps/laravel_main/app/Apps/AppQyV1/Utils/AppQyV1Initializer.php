@@ -131,7 +131,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            DB::connection('AppQyV1')->getPdo();
+            DB::connection('appqyv1')->getPdo();
             return [
                 'status' => 'success',
                 'message' => 'Database connection successful',
@@ -247,7 +247,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
-                if (Schema::connection('AppQyV1')->hasTable($tableName)) {
+                if (Schema::connection('appqyv1')->hasTable($tableName)) {
                     $count++;
                 }
             }
@@ -261,7 +261,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
-            $connection = DB::connection('AppQyV1');
+            $connection = DB::connection('appqyv1');
             $languages = AppQyV1TableMaps::getSupportedLanguages();
             
             $missingTables = [];
@@ -270,7 +270,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
                 
-                if (Schema::connection('AppQyV1')->hasTable($tableName)) {
+                if (Schema::connection('appqyv1')->hasTable($tableName)) {
                     $existingTables[] = $tableName;
                 } else {
                     $missingTables[] = $tableName;
@@ -447,7 +447,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     
     private function getDatabaseTables(): array
     {
-        $connection = DB::connection('AppQyV1');
+        $connection = DB::connection('appqyv1');
         $tables = [];
         
         $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");

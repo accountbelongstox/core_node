@@ -103,33 +103,12 @@ class WorkerController extends Controller
         $validated = $request->validate([
             'worker_id' => 'required|string',
             'limit' => 'nullable|integer|min:1|max:50',
-            'timeout' => 'nullable|integer|min:1|max:30',
         ]);
 
         $workerId = $validated['worker_id'];
+        $limit = $validated['limit'] ?? 5;
 
-        $limit = 5;
-        if (isset($validated['limit'])) {
-            $limit = $validated['limit'];
-        }
-
-        $timeout = 30;
-        if (isset($validated['timeout'])) {
-            $timeout = $validated['timeout'];
-        }
-
-        $startTime = time();
-        $tasks = [];
-
-        while (time() - $startTime < $timeout) {
-            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
-
-            if (!empty($tasks)) {
-                break;
-            }
-
-            sleep(1);
-        }
+        $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
 
         return $this->success([
             'count' => count($tasks),
@@ -152,30 +131,6 @@ class WorkerController extends Controller
                 ];
             }, $tasks),
         ], 'Tasks pulled and assigned successfully');
-    }
-
-    /**
-     * Accept a task
-     *
-     * POST /api/worker/tasks/accept
-     */
-    public function acceptTask(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'task_id' => 'required|string',
-            'worker_id' => 'required|string',
-        ]);
-
-        $success = $this->taskManager->assignTask(
-            $validated['task_id'],
-            $validated['worker_id']
-        );
-
-        if (!$success) {
-            return $this->error('Task already assigned or not available', 409);
-        }
-
-        return $this->success(null, 'Task accepted');
     }
 
     /**
