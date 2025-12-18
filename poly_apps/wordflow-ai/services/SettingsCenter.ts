@@ -18,6 +18,7 @@ export interface DisplaySettings {
 export interface LanguageSettings {
   appInterface: string | string[]; // Support both single string and array for multi-select
   learningLanguage: string;
+  learningLanguages: string[]; // Array of language codes user is learning (GLOBAL setting, synced to backend)
   nativeLanguage: string;
   autoDetect: boolean;
 }
@@ -55,6 +56,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: {
     appInterface: 'en',
     learningLanguage: 'en',
+    learningLanguages: [], // Empty by default, user selects their learning languages
     nativeLanguage: 'zh',
     autoDetect: false
   },
@@ -124,6 +126,20 @@ class SettingsCenterClass {
     this.save();
     this.notifyListeners();
 
+    // Auto-apply language change to LanguageCenter
+    if (partial.language?.appInterface) {
+      const lang = Array.isArray(partial.language.appInterface)
+        ? partial.language.appInterface[0]
+        : partial.language.appInterface;
+      if (lang) {
+        // Dynamically import LanguageCenter to avoid circular dependency
+        import('../i18n/LanguageCenter').then(({ LanguageCenter }) => {
+          LanguageCenter.setLanguage(lang as any);
+          console.log('[SettingsCenter] Language updated in LanguageCenter:', lang);
+        });
+      }
+    }
+
     // Auto-refresh on critical changes
     if (this.shouldRefresh(oldSettings, this.settings)) {
       this.refresh();
@@ -142,6 +158,20 @@ class SettingsCenterClass {
 
     this.save();
     this.notifyListeners();
+
+    // Auto-apply language change to LanguageCenter
+    if (section === 'language' && (value as any).appInterface) {
+      const lang = Array.isArray((value as any).appInterface)
+        ? (value as any).appInterface[0]
+        : (value as any).appInterface;
+      if (lang) {
+        // Dynamically import LanguageCenter to avoid circular dependency
+        import('../i18n/LanguageCenter').then(({ LanguageCenter }) => {
+          LanguageCenter.setLanguage(lang as any);
+          console.log('[SettingsCenter] Language updated in LanguageCenter:', lang);
+        });
+      }
+    }
 
     if (this.shouldRefresh(oldSettings, this.settings)) {
       this.refresh();

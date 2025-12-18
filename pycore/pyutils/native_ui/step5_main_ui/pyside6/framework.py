@@ -620,16 +620,25 @@ class PySide6Framework(QObject):
                 self.show_window()
 
     def quit(self):
-        """Quit application."""
-        # Trigger global shutdown if configured
+        """
+        Quit application.
+
+        This method can be called in two scenarios:
+        1. Programmatically (e.g., tray menu exit) - triggers shutdown first
+        2. After THREAD_BUS shutdown complete (cleanup and close window)
+        """
+        # Trigger global shutdown if configured and not already requested
         if self.config.trigger_shutdown_on_close and not THREAD_BUS.is_shutdown_requested():
             ColorPrint.blue("[PySide6Framework] Triggering global shutdown via THREAD_BUS...")
             THREAD_BUS.request_shutdown(
                 reason="UI window closed",
                 execute_handlers=True
             )
-            # Return early - shutdown handlers will clean up everything
+            # Return early - shutdown handlers will call quit() again after shutdown complete
             return
+
+        # Shutdown already complete or not needed - proceed with cleanup
+        ColorPrint.blue("[PySide6Framework] Shutdown complete, cleaning up UI...")
 
         # Stop tick timer
         if self.tick_timer:
@@ -640,12 +649,15 @@ class PySide6Framework(QObject):
             ColorPrint.blue("[PySide6Framework] Cleaning up system tray...")
             self.system_tray.cleanup()
 
-        # Close window
+        # Close window with force flag (bypasses close event protection)
         if self.main_window:
+            ColorPrint.blue("[PySide6Framework] Closing main window (force_close=True)...")
+            self.main_window._force_close = True  # Set flag to allow real close
             self.main_window.close()
 
         # Quit Qt application
         if self.qt_app:
+            ColorPrint.blue("[PySide6Framework] Quitting Qt application...")
             self.qt_app.quit()
 
     def is_running(self) -> bool:

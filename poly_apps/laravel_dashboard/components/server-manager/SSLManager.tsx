@@ -30,6 +30,7 @@ export function SSLManager() {
   const [loading, setLoading] = useState(true);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [certbotInstalled, setCertbotInstalled] = useState(false);
+  const [certbotInfo, setCertbotInfo] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
   const toast = useToast();
   const { t } = useTranslation();
@@ -56,7 +57,13 @@ export function SSLManager() {
         setCertificates(certsRes.data);
       }
       if (certbotRes.success) {
+        setCertbotInfo(certbotRes.data);
         setCertbotInstalled(certbotRes.data.installed);
+
+        // Show warning if nginx not installed
+        if (certbotRes.data.skip_reason) {
+          toast.warning(certbotRes.data.skip_reason, 'SSL Certificate Setup');
+        }
       }
     } catch (error: any) {
       toast.error(error.message || t('messages.networkError'));

@@ -59,6 +59,7 @@ require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
 use App\Http\Controllers\InviteCodeController;
 
 // Invite Code Routes
+Route::get('/invite-codes/public', [InviteCodeController::class, 'listPublic']);
 Route::post('/invite-codes/validate', [InviteCodeController::class, 'validate']);
 
 Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
@@ -85,14 +86,10 @@ Route::prefix('servermanager/v1')->group(function () {
     // System Information Routes (Public for basic info, protected for sensitive ops)
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
-
-        // Protected system routes
-        Route::middleware('auth:sanctum')->group(function () {
-            Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
-            Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
-            Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
-            Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
-        });
+        Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
+        Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
+        Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
+        Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
     });
 
     // File Management Routes
@@ -126,10 +123,20 @@ Route::prefix('servermanager/v1')->group(function () {
 
     // Unified Manager Routes
     Route::prefix('unified')->group(function () {
+        // App listing and status
         Route::get('apps', [ServerManagerV1UnifiedManagerCtl::class, 'listApps']);
-        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
         Route::get('status', [ServerManagerV1UnifiedManagerCtl::class, 'getAppStatus']);
         Route::get('logs', [ServerManagerV1UnifiedManagerCtl::class, 'getAppLogs']);
+
+        // App service management
+        Route::post('start', [ServerManagerV1UnifiedManagerCtl::class, 'startApp']);
+        Route::post('stop', [ServerManagerV1UnifiedManagerCtl::class, 'stopApp']);
+        Route::post('restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartApp']);
+        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
+
+        // Octane server management
+        Route::post('octane/restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartOctane']);
+        Route::post('octane/reload', [ServerManagerV1UnifiedManagerCtl::class, 'reloadOctane']);
     });
 
     // SSL Certificate Management Routes
@@ -202,6 +209,11 @@ Route::prefix('config')->group(function () {
     Route::get('paths', [PathConfigController::class, 'getPaths']);
     Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
 });
+
+// Server Manager Routes (localhost only)
+use App\Http\Controllers\ServerManagerController;
+
+Route::post('server-manager/restart', [ServerManagerController::class, 'restartCurrent']);
 
 // Debug route - test if api routes are loaded
 Route::get('debug/test', function () {

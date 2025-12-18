@@ -54,7 +54,9 @@ type ServerTab = 'nginx' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
 
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<ServerTab>('nginx');
-  
+  const [octaneRestarting, setOctaneRestarting] = useState(false);
+  const [restartProgress, setRestartProgress] = useState('');
+
   // Nginx Sites State
   const [nginxSites, setNginxSites] = useState<AsyncState<NginxSite[]>>({
     data: [],
@@ -116,14 +118,94 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].server;
   const messages = t.messages || {};
 
+  // Restart Octane with progress and auto-reconnect
+  const handleRestartOctane = async () => {
+    if (!confirm('Restart Octane server? This will reload all code changes.')) return;
+
+    setOctaneRestarting(true);
+    setRestartProgress('Initiating restart...');
+
+    try {
+      // Step 1: Trigger restart
+      setRestartProgress('Sending restart command...');
+      const response = await fetch('http://localhost:9000/api/server-manager/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Connection dropped is expected during restart
+      if (!response.ok) {
+        setRestartProgress('Server is restarting...');
+      } else {
+        const result = await response.json();
+        if (result.success) {
+          setRestartProgress('Server is restarting...');
+        } else {
+          throw new Error(result.message || result.error || 'Restart failed');
+        }
+      }
+    } catch (error: any) {
+      // Fetch error is expected when server goes down
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        setRestartProgress('Server is restarting...');
+      } else {
+        setRestartProgress('Error: ' + error.message);
+        setTimeout(() => setOctaneRestarting(false), 3000);
+        return;
+      }
+    }
+
+    // Step 2: Wait and reconnect (no timeout, keep trying until success)
+    let attempts = 0;
+    const checkInterval = 1000; // Check every 1 second
+
+    const checkHealth = async (): Promise<boolean> => {
+      try {
+        const healthResponse = await fetch('http://localhost:9000/api/health', {
+          method: 'GET',
+          cache: 'no-cache'
+        });
+        return healthResponse.ok;
+      } catch {
+        return false;
+      }
+    };
+
+    const reconnect = async () => {
+      attempts++;
+      const elapsed = Math.floor(attempts * checkInterval / 1000);
+      setRestartProgress(`Reconnecting... (${elapsed}s elapsed)`);
+
+      const isHealthy = await checkHealth();
+
+      if (isHealthy) {
+        setRestartProgress('Server is back online! Refreshing...');
+        setTimeout(() => {
+          setOctaneRestarting(false);
+          window.location.reload();
+        }, 1000);
+      } else {
+        // Keep trying indefinitely
+        setTimeout(reconnect, checkInterval);
+      }
+    };
+
+    // Wait 3 seconds before starting reconnection attempts
+    setTimeout(() => {
+      setRestartProgress('Waiting for server to start...');
+      setTimeout(reconnect, 2000);
+    }, 3000);
+  };
+
   // Load Nginx Sites
   const loadNginxSites = async () => {
     setNginxSites(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
       const response = await api.serverManagerV1.getNginxSites();
       if (response.success && response.data) {
+        const sites = response.data.sites || response.data;
         setNginxSites({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: Array.isArray(sites) ? sites : [],
           loading: false,
           error: null,
           status: 'success'
@@ -147,8 +229,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await api.serverManagerV1.getSSLCertificates();
       if (response.success && response.data) {
+        const certificates = response.data.certificates || response.data;
         setSSLCertificates({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: Array.isArray(certificates) ? certificates : [],
           loading: false,
           error: null,
           status: 'success'
@@ -240,8 +323,24 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await api.serverManagerV1.getSystemServices();
       if (response.success && response.data) {
+        let servicesArray: SystemServiceStatus[] = [];
+
+        if (Array.isArray(response.data)) {
+          servicesArray = response.data;
+        } else if (typeof response.data === 'object') {
+          servicesArray = Object.entries(response.data)
+            .filter(([key]) => key !== 'certbot')
+            .map(([key, service]: [string, any]) => ({
+              name: service.name || key,
+              status: service.active ? 'running' : 'stopped',
+              active: service.active || false,
+              enabled: service.enabled || false,
+              status_output: service.status_output || ''
+            }));
+        }
+
         setSystemServices({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: servicesArray,
           loading: false,
           error: null,
           status: 'success'
@@ -552,6 +651,16 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${systemInfo.loading ? 'animate-spin' : ''}`} />
             </button>
           )}
+          {activeTab === 'unified' && (
+            <button
+              onClick={handleRestartOctane}
+              disabled={octaneRestarting}
+              className={`px-4 py-2 ${octaneRestarting ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
+            >
+              <Rocket className={`w-4 h-4 ${octaneRestarting ? 'animate-spin' : ''}`} />
+              {octaneRestarting ? 'Restarting...' : 'Restart Octane'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -838,24 +947,47 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             {systemServices.data && systemServices.data.length > 0 && (
               <div className={`${commonClasses.card} p-4`}>
                 <h3 className="font-semibold mb-3">{t.system.services}</h3>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="space-y-2 max-h-96 overflow-y-auto">
                   {systemServices.data.map((service, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          service.status === 'running' ? 'bg-green-500' :
-                          service.status === 'stopped' ? 'bg-slate-400' :
-                          'bg-red-500'
-                        }`} />
-                        <span className="text-sm font-medium">{service.name}</span>
+                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            service.status === 'running' ? 'bg-green-500' :
+                            service.status === 'stopped' ? 'bg-slate-400' :
+                            'bg-red-500'
+                          }`} />
+                          <span className="text-sm font-medium">{service.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            service.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                            service.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
+                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>
+                            {service.status}
+                          </span>
+                          {service.enabled !== undefined && (
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              service.enabled
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                            }`}>
+                              {service.enabled ? 'Auto-start: ON' : 'Auto-start: OFF'}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        service.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        service.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
-                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        {service.status}
-                      </span>
+                      {service.status_output && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
+                            View detailed status
+                          </summary>
+                          <pre className="mt-2 text-xs bg-slate-900 text-green-400 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
+                            {service.status_output}
+                          </pre>
+                        </details>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -932,7 +1064,36 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         )}
 
         {activeTab === 'unified' && (
-          <UnifiedManagerTab lang={lang} />
+          <>
+            {/* Octane Restart Progress */}
+            {octaneRestarting && (
+              <div className="mb-4 bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-500 rounded-lg p-6">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Rocket className="w-12 h-12 text-purple-600 animate-bounce" />
+                    <div className="absolute inset-0 animate-ping opacity-25">
+                      <Rocket className="w-12 h-12 text-purple-600" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
+                      Restarting Octane Server
+                    </h3>
+                    <p className="text-purple-700 dark:text-purple-300 font-medium mb-3">
+                      {restartProgress}
+                    </p>
+                    <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-purple-600 dark:bg-purple-400 animate-pulse" style={{ width: '100%' }}></div>
+                    </div>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                      Please wait while the server restarts. The page will automatically reload when ready.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <UnifiedManagerTab lang={lang} />
+          </>
         )}
       </div>
 
@@ -1022,12 +1183,24 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </div>
             <div className="p-4 overflow-y-auto flex-1">
               <pre className="text-xs font-mono bg-slate-50 dark:bg-slate-900 p-4 rounded border border-slate-200 dark:border-slate-700">
-                {siteConfig.data.config}
+                {siteConfig.data.content || siteConfig.data.config}
               </pre>
             </div>
           </div>
         </div>
       )}
+
+      {/* Nginx Site Create/Edit Modal */}
+      <NginxSiteModal
+        isOpen={showCreateSite}
+        onClose={() => {
+          setShowCreateSite(false);
+          setEditingSite(null);
+        }}
+        onSave={handleCreateOrUpdateSite}
+        site={editingSite}
+        lang={lang}
+      />
     </div>
   );
 };
@@ -1040,7 +1213,8 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     error: null,
     status: 'idle'
   });
-  const [currentPath, setCurrentPath] = useState<string>('');
+  const [currentPath, setCurrentPath] = useState<string>('/www/programing/core_node');
+  const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const t = TRANSLATIONS[lang].server.files;
 
@@ -1049,13 +1223,20 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     try {
       const response = await api.serverManagerV1.browseFiles(path);
       if (response.success && response.data) {
+        const items = response.data.items || response.data;
+        const responsePath = response.data.path || path;
+        const paths = response.data.allowed_paths || [];
+
         setFiles({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: Array.isArray(items) ? items : [],
           loading: false,
           error: null,
           status: 'success'
         });
-        if (path) setCurrentPath(path);
+        setCurrentPath(responsePath || '');
+        if (paths.length > 0) {
+          setAllowedPaths(paths);
+        }
       }
     } catch (error: any) {
       setFiles({
@@ -1089,6 +1270,31 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
   return (
     <div className="space-y-4">
+      {/* Allowed Paths Quick Access */}
+      {allowedPaths.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Allowed Paths (Quick Access)</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allowedPaths.map((allowedPath, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setCurrentPath(allowedPath);
+                  loadFiles(allowedPath);
+                }}
+                className="px-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-blue-300 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 transition-colors"
+              >
+                {allowedPath}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Path Input */}
       <div className="flex items-center gap-2">
         <input
           type="text"
@@ -1108,6 +1314,15 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       {files.loading && (
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+        </div>
+      )}
+
+      {files.error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <span className="text-red-900 dark:text-red-100">{files.error}</span>
+          </div>
         </div>
       )}
 
@@ -1164,8 +1379,9 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
     try {
       const response = await api.serverManagerV1.listScripts();
       if (response.success && response.data) {
+        const scripts = response.data.scripts || response.data;
         setScripts({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: Array.isArray(scripts) ? scripts : [],
           loading: false,
           error: null,
           status: 'success'
@@ -1280,8 +1496,9 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     try {
       const response = await api.serverManagerV1.getUnifiedApps();
       if (response.success && response.data) {
+        const apps = response.data.apps || response.data;
         setApps({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: Array.isArray(apps) ? apps : [],
           loading: false,
           error: null,
           status: 'success'
@@ -1433,18 +1650,6 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           </div>
         </div>
       )}
-
-      {/* Nginx Site Create/Edit Modal */}
-      <NginxSiteModal
-        isOpen={showCreateSite}
-        onClose={() => {
-          setShowCreateSite(false);
-          setEditingSite(null);
-        }}
-        onSave={handleCreateOrUpdateSite}
-        site={editingSite}
-        lang={lang}
-      />
     </div>
   );
 };

@@ -14,7 +14,7 @@ Provides a single function launch_native_app() that handles everything:
 """
 
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 from pathlib import Path
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyutils.native_ui.step1_config import NativeUIConfig
@@ -34,6 +34,7 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
     PySide6UIConfig,
     PySide6TrayMenuItem
 )
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 
 try:
     from PySide6.QtWidgets import QApplication
@@ -141,8 +142,9 @@ def launch_native_app(config: NativeUIConfig) -> None:
             # Unregister ColorPrint callback
             ColorPrint.unregister_callback(thread._colorprint_callback)
 
-            # Close debug window
-            thread.request_close()
+            # Close debug window directly (don't trigger app.close - that would shutdown entire app!)
+            # Use stop() instead of request_close() to ensure _stop_event is set (prevents tray mode)
+            thread.stop()
 
         # Register handler with high priority to ensure it runs first
         THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready_early, priority=100)
@@ -237,12 +239,33 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # ========== Phase 5: Singleton Detection ==========
     # Create singleton detector with shutdown_existing=True
     # This means: if an old instance exists, notify it to shutdown and take over
+
+    # Define singleton callbacks (from launcher.py:204-218)
+    def handle_singleton_message(msg):
+        """Handle incoming messages from new instances"""
+        if msg.get('type') == 'SHUTDOWN':
+            ColorPrint.yellow(f"[Singleton] Received shutdown request from new instance (PID {msg.get('pid')})")
+            THREAD_BUS.request_shutdown(
+                f"Shutdown by new instance (PID {msg.get('pid')})",
+                execute_handlers=True
+            )
+
+    def singleton_state_checker():
+        """Check if application can shutdown (based on busy state)"""
+        is_busy = THREAD_BUS.is_busy()
+        return {
+            'can_shutdown': not is_busy,
+            'message': THREAD_BUS.get_busy_reason() if is_busy else 'Ready to shutdown'
+        }
+
     detector = SingletonDetector(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,
         timeout=1.0,
         debug=config.debug,
+        on_message=handle_singleton_message,
+        state_checker=singleton_state_checker,
         shutdown_existing=True  # New instance will shutdown old instance and take over
     )
 
@@ -281,9 +304,25 @@ def launch_native_app(config: NativeUIConfig) -> None:
         if config.main_entry:
             config.main_entry()
 
-        # Create PySide6 UI if URL is provided (regardless of enable_tray)
-        if final_url:
-            _create_pyside6_ui(config, final_url, callback_manager)
+        # ========== Tray Differentiation ==========
+        # Start pylauncher tray service if tray_type == "tk" (pystray backend)
+        if config.enable_tray and config.tray_type == "tk":
+            ColorPrint.blue(f"[NativeLauncher] Starting pylauncher tray service (pystray backend)...")
+            _start_pylauncher_tray_service(config)
+
+        # Create PySide6 UI only if GUI is available (desktop mode)
+        # Server mode (no X11 display) should skip PySide6 UI creation entirely
+        # Check: GUI available AND (window needed OR tray needed)
+        adapter = get_platform_adapter()
+        if adapter.has_gui and (config.show_on_start or config.enable_tray):
+            if final_url:
+                _create_pyside6_ui(config, final_url, callback_manager)
+            elif config.enable_tray:
+                # Tray only, no frontend - use blank page
+                _create_pyside6_ui(config, "about:blank", callback_manager)
+        elif config.debug:
+            # Server mode: Skip PySide6 UI creation
+            ColorPrint.yellow("[NativeLauncher] Server mode detected (no GUI), skipping PySide6 UI creation")
 
     # Check if we should show debug window
     if config.show_debug_window:
@@ -314,6 +353,129 @@ def launch_native_app(config: NativeUIConfig) -> None:
             import traceback
             traceback.print_exc()
             raise
+
+
+def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
+    """
+    Start pylauncher tray service (pystray backend)
+
+    Args:
+        config: Native UI configuration
+
+    Returns:
+        Tray service instance or None
+    """
+    # Lazy import to avoid circular dependency
+    from pycore.pylauncher import LauncherConfig, ServiceLauncher
+
+    if config.debug:
+        ColorPrint.print_info("[NativeLauncher] Starting pylauncher tray service (pystray backend)...")
+
+    try:
+        # Convert NativeUIConfig tray_menu_items to TrayMenuItem format
+        # NativeUIConfig uses simple dicts, need to convert to proper format
+        from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
+        import webbrowser
+
+        tray_menu_items = []
+
+        # If no menu items provided, create default menu
+        if not config.tray_menu_items:
+            ColorPrint.blue("[NativeLauncher] No tray menu items provided, creating default menu...")
+
+            # Default menu items
+            # 1. Open Frontend
+            open_item = TrayMenuItem(
+                text="Open Frontend",
+                action_signal="tray_action_open",
+                default=True
+            )
+            tray_menu_items.append(open_item)
+
+            # Register handler for open
+            def handle_open(event_data):
+                # Try to open frontend URL
+                frontend_url = f"http://localhost:{config.frontend_port}" if config.frontend_enabled else f"http://localhost:{config.rpc_port}"
+                ColorPrint.blue(f"[Tray] Opening {frontend_url}...")
+                webbrowser.open(frontend_url)
+
+            THREAD_BUS.register_event_handler('tray_action_open', handle_open)
+
+            # 2. Separator
+            tray_menu_items.append(TrayMenuItem.SEPARATOR)
+
+            # 3. Exit
+            exit_item = TrayMenuItem(
+                text="Exit",
+                action_signal="tray_action_exit"
+            )
+            tray_menu_items.append(exit_item)
+
+            # Register handler for exit
+            def handle_exit(event_data):
+                ColorPrint.yellow("[Tray] Exit requested...")
+                if not THREAD_BUS.is_shutdown_requested():
+                    THREAD_BUS.request_shutdown(reason="Tray exit requested", execute_handlers=True)
+
+            THREAD_BUS.register_event_handler('tray_action_exit', handle_exit)
+
+            ColorPrint.green(f"[NativeLauncher] Created default tray menu with {len(tray_menu_items)} items")
+        else:
+            # Convert user-provided menu items
+            for item in config.tray_menu_items:
+                if isinstance(item, dict):
+                    # Convert dict to TrayMenuItem
+                    text = item.get('text', '')
+                    callback = item.get('callback')
+
+                    # Create action signal name from text (convert to snake_case)
+                    action_signal = f"tray_action_{text.lower().replace(' ', '_')}"
+
+                    tray_item = TrayMenuItem(
+                        text=text,
+                        action_signal=action_signal
+                    )
+                    tray_menu_items.append(tray_item)
+
+                    # Register callback for this signal if provided
+                    if callback:
+                        THREAD_BUS.register_event_handler(action_signal, lambda event_data, cb=callback: cb())
+                else:
+                    tray_menu_items.append(item)
+
+        # Create tray service configuration
+        tray_config = {
+            'app_name': config.app_name,
+            'icon_path': config.icon_path,
+            'menu_items': tray_menu_items,
+            'trigger_shutdown_on_exit': True
+        }
+
+        # Use pylauncher to start tray service
+        launcher_config = LauncherConfig(
+            app_id=f"{config.app_id}_tray",
+            app_name=f"{config.app_name} Tray",
+            singleton=False,  # native_ui already handles singleton
+            services={
+                'tray': tray_config
+            }
+        )
+
+        launcher = ServiceLauncher(launcher_config)
+        success = launcher.start()
+
+        if not success:
+            ColorPrint.print_error("[NativeLauncher] Failed to start pylauncher tray service")
+            return None
+
+        ColorPrint.green(f"[NativeLauncher] Pylauncher tray service started (pystray backend)")
+        return launcher.get_service('tray')
+
+    except Exception as e:
+        ColorPrint.print_error(f"[NativeLauncher] Failed to start pylauncher tray service: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread']:
@@ -430,6 +592,22 @@ def _start_rpc_v2_service(
         ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
 
     try:
+        # ========== 0. Ensure RPC port is available ==========
+        # After singleton takeover, wait for old instance's ports to be released
+        from pycore.pyutils.port_utils import ensure_ports_available
+
+        ports_to_check = [config.rpc_port]
+        # Only check frontend port in production mode (dev mode frontend is already running)
+        if config.frontend_enabled and hasattr(config, 'frontend_port') and config.frontend_mode == 'production':
+            ports_to_check.append(config.frontend_port)
+
+        ColorPrint.blue(f"[NativeLauncher] Ensuring ports are available: {ports_to_check}")
+
+        if not ensure_ports_available(ports_to_check, timeout=3.0, force_kill=True):
+            ColorPrint.print_error(f"[NativeLauncher] Failed to release ports: {ports_to_check}")
+            ColorPrint.print_error("[NativeLauncher] Old instance may not have shutdown properly")
+            return None
+
         # ========== 1. 准备静态挂载配置 ==========
         static_mounts = []
 
@@ -593,6 +771,10 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         window_width, window_height = 1280, 900  # Default
 
     # Create PySide6 UI config
+    # Tray differentiation: Only enable PySide6 tray if tray_type is "pyside6"
+    # If tray_type is "tk", pystray tray is already started via pylauncher
+    enable_pyside6_tray = config.enable_tray and config.tray_type == "pyside6"
+
     ui_config = PySide6UIConfig(
         app_name=config.app_name,
         app_id=config.app_id,
@@ -601,7 +783,7 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         show_on_start=config.show_on_start,
         frameless=config.frameless,
         icon_path=config.icon_path,
-        enable_tray=config.enable_tray,
+        enable_tray=enable_pyside6_tray,
         tray_menu_items=pyside6_tray_items,
         # QtWebEngine configuration
         enable_dev_tools=config.webengine_enable_remote_debugging,  # Fixed: was webengine_enable_dev_tools
@@ -615,6 +797,12 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         webengine_print_diagnostics=config.webengine_print_diagnostics
     )
 
+    if config.debug and config.enable_tray:
+        if enable_pyside6_tray:
+            ColorPrint.blue("[NativeLauncher] PySide6 tray enabled (tray_type=pyside6)")
+        else:
+            ColorPrint.blue(f"[NativeLauncher] PySide6 tray disabled (using {config.tray_type} backend)")
+
     # Wire callbacks from callback_manager
     ui_config.on_ready = lambda: callback_manager.execute_ready_callbacks()
     ui_config.on_closing = lambda: callback_manager.execute_closing_callbacks()
@@ -622,6 +810,25 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
 
     # Create and start PySide6 framework
     framework = PySide6Framework(ui_config)
+
+    # Register shutdown handler to close window after all services stopped
+    # This must be registered AFTER framework is created and BEFORE framework.start()
+    # Priority 0 ensures it runs LAST (after all other shutdown handlers complete)
+    def handle_final_quit():
+        """
+        Final shutdown handler - quit PySide6 framework after all services stopped
+
+        This handler runs LAST (priority=0) to ensure all services are stopped before quitting Qt.
+        It calls framework.quit() which will:
+        1. Set _force_close=True on main window
+        2. Call window.close() again (this time it will accept the close)
+        3. Quit Qt application
+        """
+        ColorPrint.blue("[NativeLauncher] All services stopped, calling framework.quit()...")
+        framework.quit()
+
+    THREAD_BUS.register_shutdown_handler(handle_final_quit, priority=0, name="pyside6_quit")
+    ColorPrint.blue("[NativeLauncher] Registered final shutdown handler (priority=0) to quit framework")
 
     if config.debug:
         ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")

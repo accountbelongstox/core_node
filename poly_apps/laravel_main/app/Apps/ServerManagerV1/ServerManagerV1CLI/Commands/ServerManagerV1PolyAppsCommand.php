@@ -14,13 +14,13 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
                             {appname? : Application name to configure}
                             {domains? : Comma-separated domain list (domain1,domain2)}
                             {--show-apps : List all managed apps}
-                            {--port= : Custom port (auto-assigned if not specified)}
+                            {--port= : Override auto-assigned port (not recommended)}
                             {--ssl=auto : SSL mode: auto, true, false}';
 
-    protected $description = 'Manage poly_apps - Configure services and reverse proxy (idempotent)';
+    protected $description = 'Manage poly_apps - Auto port assignment based on app index (aligned with dd.sh)';
 
     private string $coreNodeRoot;
-    private string $appsDir;
+    private array $appsDirs;
     private int $basePort = 10000;
 
     public function __construct()
@@ -28,7 +28,13 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         parent::__construct();
 
         $this->coreNodeRoot = PathMapper::getCoreNodeDir();
-        $this->appsDir = "{$this->coreNodeRoot}/apps";
+
+        // Dynamic scan directories (aligned with dd.sh)
+        $this->appsDirs = [
+            ['path' => "{$this->coreNodeRoot}/apps", 'type' => 'ncoreApp'],
+            ['path' => "{$this->coreNodeRoot}/pyapps", 'type' => 'pycoreApp'],
+            ['path' => "{$this->coreNodeRoot}/poly_apps", 'type' => 'polyApp']
+        ];
     }
 
     public function handle(): int
@@ -65,13 +71,8 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
 
     private function showManagedApps(): int
     {
-        $this->info('Scanning poly_apps (ncore apps)...');
+        $this->info('Scanning applications (apps/, pyapps/, poly_apps/)...');
         $this->newLine();
-
-        if (!is_dir($this->appsDir)) {
-            $this->warn("Apps directory not found: {$this->appsDir}");
-            return 1;
-        }
 
         $apps = $this->scanApps();
 
@@ -80,21 +81,38 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
             return 0;
         }
 
-        $this->info('Found ' . count($apps) . ' applications:');
+        // Group by directory
+        $byDirectory = [];
+        foreach ($apps as $app) {
+            $dirName = basename(dirname($app['path']));
+            if (!isset($byDirectory[$dirName])) {
+                $byDirectory[$dirName] = [];
+            }
+            $byDirectory[$dirName][] = $app;
+        }
+
+        $this->info('Found ' . count($apps) . ' applications across ' . count($byDirectory) . ' directories:');
         $this->newLine();
 
-        foreach ($apps as $app) {
-            $this->line("  <fg=cyan>•</> {$app['name']}");
-            $this->line("    Type: {$app['type']}");
-            $this->line("    Path: {$app['path']}");
+        $globalIndex = 0;
+        foreach ($byDirectory as $dirName => $dirApps) {
+            $this->line("<fg=yellow>/{$dirName}</> (" . count($dirApps) . " apps):");
 
-            // Show existing service status
-            $serviceStatus = $this->getServiceStatus($app['name']);
-            if ($serviceStatus) {
-                $this->line("    Service: <fg=green>{$serviceStatus}</>");
+            foreach ($dirApps as $app) {
+                $autoPort = $this->basePort + $globalIndex;
+                $this->line("  <fg=cyan>•</> [{$globalIndex}] {$app['name']} <fg=gray>(auto-port: {$autoPort})</>");
+                $this->line("    Type: {$app['type']} | Category: {$app['category']}");
+                $this->line("    Path: {$app['path']}");
+
+                // Show existing service status
+                $serviceStatus = $this->getServiceStatus($app['name']);
+                if ($serviceStatus) {
+                    $this->line("    Service: <fg=green>{$serviceStatus}</>");
+                }
+
+                $this->newLine();
+                $globalIndex++;
             }
-
-            $this->newLine();
         }
 
         return 0;
@@ -106,17 +124,19 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         $this->info('Mode: Service Only (Idempotent)');
         $this->newLine();
 
-        // Validate app exists
-        $appPath = "{$this->appsDir}/{$appname}";
-        if (!is_dir($appPath)) {
+        // Find app in all directories
+        $appInfo = $this->findApp($appname);
+        if (!$appInfo) {
             $this->error("Application not found: {$appname}");
-            $this->line("Expected path: {$appPath}");
+            $this->line("Searched in: apps/, pyapps/, poly_apps/");
             return 1;
         }
 
-        // Detect app type
-        $appType = $this->detectAppType($appPath);
-        $this->line("Detected type: <fg=cyan>{$appType}</>");
+        $appPath = $appInfo['path'];
+        $appType = $appInfo['type'];
+
+        $this->line("App type: <fg=cyan>{$appType}</>");
+        $this->line("Category: <fg=cyan>{$appInfo['category']}</>");
 
         // Assign port
         $port = $this->option('port') ?: $this->assignPort($appname);
@@ -124,8 +144,8 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         $this->newLine();
 
         // Create or update systemd service (idempotent)
-        $serviceName = "ncore-{$appname}";
-        $serviceCreated = $this->createOrUpdateService($serviceName, $appname, $appPath, $port);
+        $serviceName = $this->getServiceNameByType($appType, $appname);
+        $serviceCreated = $this->createOrUpdateService($serviceName, $appname, $appPath, $port, $appType);
 
         if ($serviceCreated) {
             $this->success("✓ Service '{$serviceName}' configured successfully");
@@ -147,17 +167,19 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         $this->info('Domains: ' . implode(', ', $domains));
         $this->newLine();
 
-        // Validate app exists
-        $appPath = "{$this->appsDir}/{$appname}";
-        if (!is_dir($appPath)) {
+        // Find app in all directories
+        $appInfo = $this->findApp($appname);
+        if (!$appInfo) {
             $this->error("Application not found: {$appname}");
-            $this->line("Expected path: {$appPath}");
+            $this->line("Searched in: apps/, pyapps/, poly_apps/");
             return 1;
         }
 
-        // Detect app type
-        $appType = $this->detectAppType($appPath);
-        $this->line("Detected type: <fg=cyan>{$appType}</>");
+        $appPath = $appInfo['path'];
+        $appType = $appInfo['type'];
+
+        $this->line("App type: <fg=cyan>{$appType}</>");
+        $this->line("Category: <fg=cyan>{$appInfo['category']}</>");
 
         // Assign port
         $port = $this->option('port') ?: $this->assignPort($appname);
@@ -166,8 +188,8 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
 
         // Step 1: Create or update systemd service
         $this->line('<fg=yellow>Step 1/4:</> Creating/Updating systemd service...');
-        $serviceName = "ncore-{$appname}";
-        $serviceCreated = $this->createOrUpdateService($serviceName, $appname, $appPath, $port);
+        $serviceName = $this->getServiceNameByType($appType, $appname);
+        $serviceCreated = $this->createOrUpdateService($serviceName, $appname, $appPath, $port, $appType);
 
         if (!$serviceCreated) {
             $this->error('Failed to create service');
@@ -237,28 +259,38 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         return 0;
     }
 
-    private function createOrUpdateService(string $serviceName, string $appname, string $appPath, int $port): bool
+    private function createOrUpdateService(string $serviceName, string $appname, string $appPath, int $port, string $appType): bool
     {
         $serviceFile = "/etc/systemd/system/{$serviceName}.service";
 
-        // Generate service content
-        $mainJs = "{$this->coreNodeRoot}/main.js";
+        // Generate launcher script using Python (same as dd.sh)
+        $launcherScript = $this->generateLauncherScript($serviceName, $appPath, $appType, $port);
 
+        if (!$launcherScript || !file_exists($launcherScript)) {
+            $this->error("Failed to generate launcher script");
+            return false;
+        }
+
+        // Make launcher executable
+        @chmod($launcherScript, 0755);
+
+        // Generate service content (aligned with dd.sh)
         $serviceContent = <<<SERVICE
 [Unit]
-Description=ncore App - {$appname}
+Description={$appname} ({$appType}) - Auto-generated by Unified Manager
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory={$this->coreNodeRoot}
-Environment="PORT={$port}"
-Environment="NODE_ENV=production"
-Environment="APP_NAME={$appname}"
-ExecStart=/usr/bin/node {$mainJs} app={$appname}
+WorkingDirectory={$appPath}
+ExecStart={$launcherScript}
 Restart=always
-RestartSec=10
+RestartSec=5
+CPUQuota=50%
+MemoryMax=1G
+MemoryHigh=800M
+TasksMax=100
 StandardOutput=journal
 StandardError=journal
 
@@ -282,6 +314,68 @@ SERVICE;
         return true;
     }
 
+    private function generateLauncherScript(string $serviceName, string $appPath, string $appType, int $port): ?string
+    {
+        // Use Python launcher generator (same as dd.sh)
+        $launcherGenerator = "{$this->coreNodeRoot}/scripts/unified_manager/core/launcher_generator.py";
+
+        if (!file_exists($launcherGenerator)) {
+            $this->warn("Launcher generator not found, using simple launcher");
+            return $this->generateSimpleLauncher($serviceName, $appPath, $port);
+        }
+
+        // Call Python launcher generator
+        $pythonCode = <<<PYTHON
+import sys
+sys.path.append('{$this->coreNodeRoot}/scripts/unified_manager/core')
+from launcher_generator import LauncherGenerator
+
+generator = LauncherGenerator()
+launcher_path = generator.generate_launcher(
+    service_name='{$serviceName}',
+    app_path='{$appPath}',
+    framework_type='{$appType}',
+    port={$port},
+    debug_mode=False
+)
+print(launcher_path)
+PYTHON;
+
+        $result = Process::run("python3 -c " . escapeshellarg($pythonCode));
+
+        if ($result->successful() && !empty(trim($result->output()))) {
+            return trim($result->output());
+        }
+
+        // Fallback to simple launcher
+        return $this->generateSimpleLauncher($serviceName, $appPath, $port);
+    }
+
+    private function generateSimpleLauncher(string $serviceName, string $appPath, int $port): string
+    {
+        $launcherPath = "{$this->coreNodeRoot}/temp/launchers/{$serviceName}.sh";
+        $launcherDir = dirname($launcherPath);
+
+        @mkdir($launcherDir, 0755, true);
+
+        $appName = basename($appPath);
+        $mainJs = "{$this->coreNodeRoot}/main.js";
+
+        $launcherContent = <<<LAUNCHER
+#!/bin/bash
+export PORT={$port}
+export NODE_ENV=production
+export APP_NAME={$appName}
+cd {$this->coreNodeRoot}
+exec /usr/bin/node {$mainJs} app={$appName}
+LAUNCHER;
+
+        file_put_contents($launcherPath, $launcherContent);
+        chmod($launcherPath, 0755);
+
+        return $launcherPath;
+    }
+
     private function configureNginxProxy(string $domain, int $port, string $sslMode): bool
     {
         // Detect SSL certificate
@@ -295,12 +389,13 @@ SERVICE;
             }
         }
 
-        // Generate nginx config
+        // Generate nginx config (aligned with dd.sh)
         $nginxConfig = $this->generateNginxConfig($domain, $port, $sslEnabled, $certificate);
 
         // Write config file (idempotent - overwrites if exists)
-        $configFile = "/etc/nginx/sites-available/ncore-{$domain}.conf";
-        $enabledLink = "/etc/nginx/sites-enabled/ncore-{$domain}.conf";
+        // Aligned with dd.sh: use domain name directly without prefix
+        $configFile = "/etc/nginx/sites-available/{$domain}";
+        $enabledLink = "/etc/nginx/sites-enabled/{$domain}";
 
         $written = @file_put_contents($configFile, $nginxConfig);
         if ($written === false) {
@@ -313,13 +408,17 @@ SERVICE;
         }
 
         // Add domain to database (idempotent)
+        $appInfo = $this->findApp($this->argument('appname'));
+        $appCategory = $appInfo['category'] ?? 'ncoreApp';
+
         try {
             ServerManagerV1DomainManager::addDomain($domain, [
-                'type' => 'ncore',
-                'www_dir' => $this->appsDir,
+                'type' => 'proxy',
+                'www_dir' => $appInfo ? dirname($appInfo['path']) : $this->appsDirs[0]['path'],
                 'php_mode' => 'node',
                 'port' => $port,
-                'app_name' => $this->argument('appname')
+                'app_name' => $this->argument('appname'),
+                'category' => $appCategory
             ]);
         } catch (\Exception $e) {
             // Domain might already exist - update it
@@ -329,22 +428,35 @@ SERVICE;
         return true;
     }
 
+    private function findApp(string $appname): ?array
+    {
+        $apps = $this->scanApps();
+
+        foreach ($apps as $app) {
+            if ($app['name'] === $appname) {
+                return $app;
+            }
+        }
+
+        return null;
+    }
+
     private function generateNginxConfig(string $domain, int $port, bool $sslEnabled, ?array $certificate): string
     {
-        $config = "# Generated by ServerManager - ncore app\n";
+        $config = "# Generated by Unified App Manager\n";
         $config .= "# Domain: {$domain}\n";
         $config .= "# Port: {$port}\n\n";
 
         // HTTP server
         $config .= "server {\n";
         $config .= "    listen 80;\n";
-        $config .= "    server_name {$domain} www.{$domain};\n\n";
+        $config .= "    server_name {$domain};\n\n";
 
         if ($sslEnabled) {
             // Redirect to HTTPS
-            $config .= "    return 301 https://\$host\$request_uri;\n";
+            $config .= "    return 301 https://\$server_name\$request_uri;\n";
         } else {
-            // Serve HTTP
+            // Serve HTTP with full features
             $config .= $this->getProxyLocationBlock($port);
         }
 
@@ -354,39 +466,104 @@ SERVICE;
         if ($sslEnabled && $certificate) {
             $config .= "server {\n";
             $config .= "    listen 443 ssl http2;\n";
-            $config .= "    server_name {$domain} www.{$domain};\n\n";
+            $config .= "    server_name {$domain};\n\n";
             $config .= "    ssl_certificate {$certificate['cert_path']};\n";
             $config .= "    ssl_certificate_key {$certificate['key_path']};\n";
             $config .= "    ssl_protocols TLSv1.2 TLSv1.3;\n";
-            $config .= "    ssl_ciphers HIGH:!aNULL:!MD5;\n\n";
-            $config .= $this->getProxyLocationBlock($port);
+            $config .= "    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;\n";
+            $config .= "    ssl_prefer_server_ciphers off;\n\n";
+            $config .= "    # Security headers\n";
+            $config .= "    add_header X-Frame-Options DENY;\n";
+            $config .= "    add_header X-Content-Type-Options nosniff;\n";
+            $config .= "    add_header X-XSS-Protection \"1; mode=block\";\n\n";
+            $config .= $this->getProxyLocationBlock($port, true);
             $config .= "}\n";
         }
 
         return $config;
     }
 
-    private function getProxyLocationBlock(int $port): string
+    private function getProxyLocationBlock(int $port, bool $https = false): string
     {
+        $proto = $https ? 'https' : '$scheme';
+
         return <<<LOCATION
+    # Proxy configuration
     location / {
+        proxy_pass http://127.0.0.1:{$port};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto {$proto};
+
+        # WebSocket support for dev servers
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Increase timeout for development servers
+        proxy_read_timeout 300;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+
+        # Handle large uploads
+        client_max_body_size 100M;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        proxy_pass http://127.0.0.1:{$port};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto {$proto};
+    }
+
+    # Hot reload support for development (React/Vue)
+    location /sockjs-node {
         proxy_pass http://127.0.0.1:{$port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Vite HMR support
+    location /@vite {
+        proxy_pass http://127.0.0.1:{$port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 
 LOCATION;
     }
 
+    private function getServiceNameByType(string $appType, string $appname): string
+    {
+        // Aligned with dd.sh service naming convention
+        return match($appType) {
+            'React', 'Vue' => "webapp-{$appname}",
+            'Nuxt.js' => "nuxt-{$appname}",
+            'Laravel' => "laravel-{$appname}",
+            'Flutter' => "flutter-{$appname}",
+            default => "app-{$appname}"
+        };
+    }
+
     private function assignPort(string $appname): int
     {
-        // Hash-based port assignment for consistency
+        // Port assignment based on app index in scan list (aligned with dd.sh)
+        // dd.sh uses: base_port + index (auto_increment mode)
+        $apps = $this->scanApps();
+
+        foreach ($apps as $index => $app) {
+            if ($app['name'] === $appname) {
+                return $this->basePort + $index;
+            }
+        }
+
+        // Fallback: hash-based if app not found in scan
         $hash = crc32($appname);
         $offset = abs($hash) % 1000;
         return $this->basePort + $offset;
@@ -394,11 +571,23 @@ LOCATION;
 
     private function getServiceStatus(string $appname): ?string
     {
-        $serviceName = "ncore-{$appname}";
-        $result = Process::run("systemctl is-active {$serviceName} 2>/dev/null");
+        // Try different service name patterns (aligned with dd.sh)
+        $patterns = [
+            "webapp-{$appname}",
+            "nuxt-{$appname}",
+            "laravel-{$appname}",
+            "flutter-{$appname}",
+            "app-{$appname}",
+            "ncore-{$appname}"
+        ];
 
-        if ($result->successful()) {
-            return trim($result->output());
+        foreach ($patterns as $serviceName) {
+            $result = Process::run("systemctl is-active {$serviceName} 2>/dev/null");
+
+            if ($result->successful()) {
+                $status = trim($result->output());
+                return "{$serviceName} ({$status})";
+            }
         }
 
         return null;
@@ -407,33 +596,50 @@ LOCATION;
     private function scanApps(): array
     {
         $apps = [];
-        $dirs = scandir($this->appsDir);
 
-        foreach ($dirs as $dir) {
-            if ($dir === '.' || $dir === '..') {
+        // Scan all directories dynamically (aligned with dd.sh)
+        foreach ($this->appsDirs as $dirConfig) {
+            $baseDir = $dirConfig['path'];
+            $category = $dirConfig['type'];
+
+            if (!is_dir($baseDir)) {
                 continue;
             }
 
-            $fullPath = "{$this->appsDir}/{$dir}";
-            if (is_dir($fullPath)) {
-                $type = $this->detectAppType($fullPath);
+            $dirs = scandir($baseDir);
 
-                // For apps in /apps directory without package.json, default to ncore
-                if ($type === 'Unknown' && !file_exists("{$fullPath}/package.json")) {
-                    // Check if it has typical ncore entry points
-                    if (file_exists("{$fullPath}/main.js") ||
-                        file_exists("{$fullPath}/main.cmd") ||
-                        is_dir("{$fullPath}/config") ||
-                        is_dir("{$fullPath}/provider")) {
-                        $type = 'ncore App';
-                    }
+            foreach ($dirs as $dir) {
+                if ($dir === '.' || $dir === '..') {
+                    continue;
                 }
 
-                $apps[] = [
-                    'name' => $dir,
-                    'path' => $fullPath,
-                    'type' => $type
-                ];
+                $fullPath = "{$baseDir}/{$dir}";
+                if (is_dir($fullPath)) {
+                    $type = $this->detectAppType($fullPath);
+
+                    // For ncore apps without package.json, use ncore detection
+                    if ($category === 'ncoreApp' && $type === 'Unknown' && !file_exists("{$fullPath}/package.json")) {
+                        // Check if it has typical ncore entry points
+                        if (file_exists("{$fullPath}/main.js") ||
+                            file_exists("{$fullPath}/main.cmd") ||
+                            is_dir("{$fullPath}/config") ||
+                            is_dir("{$fullPath}/provider")) {
+                            $type = 'ncore App';
+                        }
+                    }
+
+                    // For pycore apps
+                    if ($category === 'pycoreApp' && $type === 'Python') {
+                        $type = 'pycore App';
+                    }
+
+                    $apps[] = [
+                        'name' => $dir,
+                        'path' => $fullPath,
+                        'type' => $type,
+                        'category' => $category
+                    ];
+                }
             }
         }
 
@@ -540,33 +746,44 @@ LOCATION;
 
     private function showHelp(): int
     {
-        $this->info('Poly Apps Manager - Configure ncore applications');
+        $this->info('Poly Apps Manager - Unified App Deployment (Aligned with dd.sh)');
         $this->newLine();
 
         $this->line('<fg=cyan>Usage Examples:</>');
         $this->line('');
-        $this->line('  # List all applications');
+        $this->line('  # List all applications with auto-assigned ports');
         $this->line('  <fg=green>php artisan servermanager:poly_apps --show-apps</>');
         $this->line('');
-        $this->line('  # Configure service only (idempotent)');
+        $this->line('  # Configure service (port auto-assigned based on app index)');
         $this->line('  <fg=green>php artisan servermanager:poly_apps myapp</>');
         $this->line('');
-        $this->line('  # Configure service + reverse proxy (idempotent)');
+        $this->line('  # Configure service + reverse proxy');
         $this->line('  <fg=green>php artisan servermanager:poly_apps myapp example.com</>');
         $this->line('');
         $this->line('  # Multiple domains');
         $this->line('  <fg=green>php artisan servermanager:poly_apps myapp "example.com,app.example.com"</>');
         $this->line('');
-        $this->line('  # Custom port and SSL');
-        $this->line('  <fg=green>php artisan servermanager:poly_apps myapp example.com --port=10001 --ssl=auto</>');
+        $this->line('  # Override auto-assigned port (not recommended)');
+        $this->line('  <fg=green>php artisan servermanager:poly_apps myapp example.com --port=10999</>');
         $this->line('');
-        $this->line('<fg=cyan>Features:</>');
+        $this->line('<fg=cyan>Port Assignment (Aligned with dd.sh):</>');
+        $this->line('  • Ports are automatically assigned based on app scan index');
+        $this->line('  • Formula: port = 10000 + app_index');
+        $this->line('  • Example: DevOps (index 0) = 10000, DocumentOffline (index 1) = 10001');
+        $this->line('  • Use --show-apps to see assigned ports');
+        $this->line('');
+        $this->line('<fg=cyan>Features (100% Compatible with dd.sh):</>');
         $this->line('  ✓ Idempotent - Safe to run multiple times');
-        $this->line('  ✓ Auto port assignment (hash-based)');
+        $this->line('  ✓ Dynamic app scanning (apps/, pyapps/, poly_apps/)');
+        $this->line('  ✓ Index-based port assignment (10000 + index)');
+        $this->line('  ✓ Python launcher generator integration');
+        $this->line('  ✓ Framework-aware service naming (webapp-*, nuxt-*, laravel-*, etc.)');
+        $this->line('  ✓ Resource limits (CPU: 50%, Memory: 1G)');
         $this->line('  ✓ SSL auto-detection');
-        $this->line('  ✓ systemd service management');
-        $this->line('  ✓ Nginx reverse proxy configuration');
-        $this->line('  ✓ Domain database integration');
+        $this->line('  ✓ WebSocket/HMR support (sockjs-node, @vite)');
+        $this->line('  ✓ Static asset caching');
+        $this->line('');
+        $this->line('<fg=yellow>Note:</> This command produces identical results to dd.sh Unified App Manager');
 
         return 0;
     }

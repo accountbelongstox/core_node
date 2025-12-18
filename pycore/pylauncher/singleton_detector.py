@@ -11,6 +11,14 @@ Features:
 - PRIMARY/SECONDARY mode: First instance becomes PRIMARY, others become SECONDARY
 - Cross-process communication: Based on JSON message protocol
 
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=95) for graceful shutdown
+- Triggers 'singleton.message_received' events for cross-process messages
+- Uses THREAD_BUS.is_busy() as fallback state checker when no callback provided
+- Triggers THREAD_BUS.request_shutdown() when receiving SHUTDOWN from another instance
+- Checks THREAD_BUS.is_shutdown_requested() in listener loop
+- Backwards compatible: keeps existing on_message and state_checker callbacks
+
 Use cases:
 - Prevent multiple launches of the same application
 - Cross-process instance discovery and communication
@@ -46,6 +54,9 @@ import threading
 from typing import Optional, Callable, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
+
+# THREAD_BUS Integration
+from pycore import THREAD_BUS, ColorPrint
 
 
 # ============================================================
@@ -311,6 +322,15 @@ class SingletonDetector:
             )
             self._listener_thread.start()
 
+            # THREAD_BUS Integration: Register shutdown handler
+            # Priority=95 ensures singleton detector stops after most services but before heartbeat
+            THREAD_BUS.register_shutdown_handler(
+                self.stop,
+                priority=95,
+                name=f"singleton_detector_{self.app_id}"
+            )
+            self._log("[THREAD_BUS] Registered shutdown handler (priority=95)")
+
             return True
 
         except OSError as e:
@@ -393,8 +413,84 @@ class SingletonDetector:
                             message=f"Failed to bind port {port} after shutdown (unknown error)"
                         )
                     else:
-                        # Old instance rejected shutdown (busy or other reason)
-                        self._log(f"[SHUTDOWN] Shutdown rejected: {result['reason']}")
+                        # Old instance rejected shutdown or no response (old code without callback)
+                        reason = result['reason']
+                        self._log(f"[SHUTDOWN] Shutdown rejected or no response: {reason}")
+
+                        # Try forceful takeover if no response (old instance without callbacks)
+                        if 'No response' in reason:
+                            self._log("[FORCE] Old instance has no callback (old code), attempting forceful takeover...")
+
+                            # Get old instance PID from response (if available)
+                            old_pid = response.get('pid') if response else None
+
+                            if old_pid:
+                                try:
+                                    import os
+                                    import signal
+                                    import socket
+                                    import time as time_module
+
+                                    self._log(f"[FORCE] Sending SIGTERM to old instance PID {old_pid}...")
+                                    os.kill(old_pid, signal.SIGTERM)
+
+                                    # Wait for graceful shutdown with port checking
+                                    max_wait = 5.0  # Maximum 5 seconds for graceful shutdown
+                                    start_wait = time_module.time()
+
+                                    while time_module.time() - start_wait < max_wait:
+                                        time_module.sleep(0.3)
+
+                                        # Check if process still exists
+                                        try:
+                                            os.kill(old_pid, 0)  # Signal 0 just checks existence
+                                        except ProcessLookupError:
+                                            self._log(f"[FORCE] Process {old_pid} exited gracefully")
+                                            break
+
+                                    # Give additional time for port release
+                                    time_module.sleep(0.5)
+
+                                    # Try binding again after SIGTERM
+                                    if self._try_bind_port(port):
+                                        self._log("[SUCCESS] Forcefully took over after SIGTERM")
+                                        return DetectionResult(
+                                            is_primary=True,
+                                            port=port,
+                                            existing_instance=False,
+                                            existing_port=None,
+                                            message=f"Became PRIMARY on port {port} (forceful takeover from old instance)"
+                                        )
+                                    else:
+                                        # SIGTERM didn't work, try SIGKILL
+                                        self._log(f"[FORCE] SIGTERM failed, sending SIGKILL to PID {old_pid}...", "WARNING")
+                                        os.kill(old_pid, signal.SIGKILL)
+                                        time.sleep(1.0)
+
+                                        if self._try_bind_port(port):
+                                            self._log("[SUCCESS] Forcefully took over after SIGKILL")
+                                            return DetectionResult(
+                                                is_primary=True,
+                                                port=port,
+                                                existing_instance=False,
+                                                existing_port=None,
+                                                message=f"Became PRIMARY on port {port} (SIGKILL old instance)"
+                                            )
+
+                                except ProcessLookupError:
+                                    self._log(f"[FORCE] Old instance PID {old_pid} already exited", "WARNING")
+                                    # Try binding one more time
+                                    if self._try_bind_port(port):
+                                        return DetectionResult(
+                                            is_primary=True,
+                                            port=port,
+                                            existing_instance=False,
+                                            existing_port=None,
+                                            message=f"Became PRIMARY on port {port} (old instance already exited)"
+                                        )
+                                except Exception as e:
+                                    self._log(f"[FORCE] Failed to forcefully kill old instance: {e}", "ERROR")
+
                         return DetectionResult(
                             is_primary=False,
                             port=0,
@@ -435,10 +531,20 @@ class SingletonDetector:
         )
 
     def _listener_loop(self):
-        """Socket listener loop (PRIMARY instance only)"""
+        """
+        Socket listener loop (PRIMARY instance only)
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
+        """
         self._log("Listener thread started")
 
         while self._running:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                self._log("[THREAD_BUS] Shutdown detected, stopping listener...", "WARNING")
+                break
+
             try:
                 client_socket, address = self._server_socket.accept()
                 # Handle in new thread
@@ -473,7 +579,16 @@ class SingletonDetector:
             msg_type = message.get('type')
             self._log(f"Received {msg_type} from PID {message.get('pid')}")
 
-            # Call message callback for non-SHUTDOWN messages
+            # THREAD_BUS Integration: Trigger message received event (for all messages)
+            # This allows other modules to subscribe to singleton messages
+            THREAD_BUS.trigger_event('singleton.message_received', {
+                'message_type': msg_type,
+                'pid': message.get('pid'),
+                'app_id': self.app_id,
+                'full_message': message
+            }, async_mode=True)
+
+            # Call message callback for non-SHUTDOWN messages (backward compatibility)
             # SHUTDOWN is handled specially below (after sending response)
             if self.on_message and msg_type != MessageType.SHUTDOWN.value:
                 self.on_message(message)
@@ -499,8 +614,12 @@ class SingletonDetector:
                         self._log(f"State checker failed: {e}", "ERROR")
                         app_state = {"can_shutdown": True, "error": str(e)}
                 else:
-                    # No state checker - always allow shutdown
-                    app_state = {"can_shutdown": True}
+                    # THREAD_BUS Integration: Use THREAD_BUS state as fallback when no state_checker
+                    # Check if THREAD_BUS reports system is busy
+                    app_state = {
+                        "can_shutdown": not THREAD_BUS.is_busy(),
+                        "message": THREAD_BUS.get_busy_reason() if THREAD_BUS.is_busy() else "Ready"
+                    }
 
                 # Send STATUS_RESPONSE
                 response = self._create_message(
@@ -530,6 +649,13 @@ class SingletonDetector:
                         self._log(f"State checker failed during shutdown: {e}", "ERROR")
                         # On error, allow shutdown (fail-safe)
                         can_shutdown = True
+                else:
+                    # THREAD_BUS Integration: Use THREAD_BUS state when no state_checker
+                    # Check if THREAD_BUS reports system is busy
+                    if THREAD_BUS.is_busy():
+                        can_shutdown = False
+                        shutdown_reason = f"Shutdown denied: {THREAD_BUS.get_busy_reason()}"
+                        self._log(shutdown_reason, "WARNING")
 
                 # Send response
                 response = self._create_message(
@@ -549,13 +675,22 @@ class SingletonDetector:
                 if can_shutdown:
                     self._log("Shutdown ACK sent (accepted), triggering shutdown...", "WARNING")
 
-                    # Trigger shutdown via on_message callback
-                    if self.on_message:
-                        def trigger_shutdown():
-                            time.sleep(0.3)  # Short delay to ensure response is received
+                    # THREAD_BUS Integration: Trigger shutdown request via THREAD_BUS
+                    # This allows all modules to respond to shutdown properly
+                    def trigger_shutdown():
+                        time.sleep(0.3)  # Short delay to ensure response is received
+
+                        # Call legacy callback if provided (backward compatibility)
+                        if self.on_message:
                             self.on_message({'type': 'SHUTDOWN', 'pid': message.get('pid')})
 
-                        threading.Thread(target=trigger_shutdown, daemon=True).start()
+                        # Trigger THREAD_BUS shutdown (new mechanism)
+                        THREAD_BUS.request_shutdown(
+                            reason=f"Shutdown requested by another instance (PID {message.get('pid')})",
+                            execute_handlers=True
+                        )
+
+                    threading.Thread(target=trigger_shutdown, daemon=True).start()
                 else:
                     self._log(f"Shutdown ACK sent (rejected): {shutdown_reason}", "WARNING")
 

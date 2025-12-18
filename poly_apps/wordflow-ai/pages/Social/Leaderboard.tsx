@@ -55,8 +55,8 @@ const LeaderboardPage = () => {
                    <div className="text-4xl mb-3">{a.icon}</div>
                    <h3 className="font-bold text-sm dark:text-white mb-1">{a.name}</h3>
                    <p className="text-xs text-slate-500 mb-3 leading-tight">{a.description}</p>
+                   {/* [i18n] Replaced hardcoded "Unlocked" with t() */}
                    {a.unlocked ? (
-                     {/* [i18n] Replaced hardcoded "Unlocked" with t() */}
                      <span className="px-2 py-0.5 bg-green-100 text-green-600 text-[10px] font-bold rounded-full">{t('social.unlocked')}</span>
                    ) : (
                      <div className="w-full bg-slate-200 h-1.5 rounded-full mt-auto">

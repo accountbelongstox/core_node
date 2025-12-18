@@ -108,6 +108,10 @@ class PySide6MainWindow(QMainWindow):
         self._min_width = 800
         self._min_height = 600
 
+        # Close handling - prevent multiple shutdown triggers
+        self._close_requested = False  # Tracks if app.close event was triggered
+        self._force_close = False  # Allows forced close after shutdown complete
+
         # Setup window (will load cached state if available)
         self._setup_window(width, height)
         self._create_ui()
@@ -483,26 +487,51 @@ class PySide6MainWindow(QMainWindow):
     # ========== Window Events ==========
 
     def closeEvent(self, event):
-        """Handle window close event."""
-        # Save window state before closing
-        self._save_window_state()
+        """
+        Handle window close event.
 
-        # Trigger app.close event first (allows handlers to cleanup)
-        if HAS_THREAD_BUS:
-            # Trigger synchronously to ensure cleanup completes
-            THREAD_BUS.trigger_event('app.close', {
-                'source': 'window_close',
-                'window': self
-            }, async_mode=False)
+        Implements proper shutdown flow:
+        1. First close attempt: Trigger app.close event and ignore close (prevent window from closing)
+        2. THREAD_BUS shutdown handlers execute (stop services, cleanup)
+        3. After shutdown complete: Framework calls window.close() with _force_close=True
+        4. Second close attempt: Accept close and window closes gracefully
+        """
+        # If force close is set, directly close window (called after shutdown complete)
+        if self._force_close:
+            ColorPrint.blue("[MainWindow] Force close enabled, closing window...")
+            self._save_window_state()
+            self.window_closing.emit()
+            event.accept()
+            self.window_closed.emit()
+            return
 
-        # Emit closing signal
-        self.window_closing.emit()
+        # First close attempt: Trigger shutdown flow
+        if not self._close_requested:
+            ColorPrint.blue("[MainWindow] Close button clicked, triggering app.close event...")
+            self._close_requested = True
 
-        # Accept close
+            # Save window state before shutdown
+            self._save_window_state()
+
+            # Trigger app.close event (THREAD_BUS will handle shutdown flow)
+            if HAS_THREAD_BUS:
+                # Use async mode to avoid blocking Qt event loop
+                THREAD_BUS.trigger_event('app.close', {
+                    'source': 'window_close_button',
+                    'window': self
+                }, async_mode=True)
+                ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
+
+            # IMPORTANT: Ignore this close event to prevent window from closing immediately
+            # Window will be closed later by framework.quit() after shutdown completes
+            event.ignore()
+            ColorPrint.blue("[MainWindow] Close event ignored, waiting for shutdown to complete...")
+            return
+
+        # If we reach here without force_close, something went wrong
+        # Just accept the close to prevent window from becoming unresponsive
+        ColorPrint.yellow("[MainWindow] Close event without force_close flag, accepting anyway...")
         event.accept()
-
-        # Emit closed signal
-        self.window_closed.emit()
 
     def changeEvent(self, event):
         """Handle window state change event."""

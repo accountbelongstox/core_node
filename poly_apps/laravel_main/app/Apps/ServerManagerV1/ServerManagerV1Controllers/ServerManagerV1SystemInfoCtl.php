@@ -76,21 +76,147 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         if ($validation) {
             return $validation;
         }
-        
+
         try {
-            $services = [
+            // System services
+            $systemServices = [
                 'nginx' => $this->getServiceInfo('nginx'),
                 'php-fpm' => $this->getServiceInfo('php8.2-fpm'),
                 'mysql' => $this->getServiceInfo('mysql'),
                 'redis' => $this->getServiceInfo('redis'),
                 'certbot' => $this->getCertbotStatus()
             ];
-            
-            return $this->successResponse($services, 'Service status retrieved successfully');
-            
+
+            // Get all unified manager applications
+            $unifiedApps = $this->getUnifiedManagerApps();
+
+            // Get Octane services
+            $octaneServices = $this->getOctaneServices();
+
+            $response = [
+                'system_services' => $systemServices,
+                'octane_services' => $octaneServices,
+                'application_services' => $unifiedApps,
+                'total_services' => count($systemServices) + count($octaneServices) + count($unifiedApps),
+                'summary' => [
+                    'system_running' => $this->countRunningServices($systemServices),
+                    'system_total' => count($systemServices),
+                    'octane_running' => $this->countRunningServices($octaneServices),
+                    'octane_total' => count($octaneServices),
+                    'apps_running' => $this->countRunningServices($unifiedApps),
+                    'apps_total' => count($unifiedApps)
+                ]
+            ];
+
+            return $this->successResponse($response, 'Service status retrieved successfully');
+
         } catch (\Exception $e) {
             return $this->handleException($e, 'services');
         }
+    }
+
+    /**
+     * Get Octane services
+     */
+    private function getOctaneServices(): array
+    {
+        $services = [];
+
+        // Find all octane services
+        $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', 'octane-*']);
+
+        if ($result['success']) {
+            $lines = explode("\n", $result['output']);
+            foreach ($lines as $line) {
+                if (preg_match('/^\s*(octane-[^\s]+\.service)/', $line, $matches)) {
+                    $serviceName = str_replace('.service', '', $matches[1]);
+                    $services[$serviceName] = $this->getDetailedServiceInfo($serviceName);
+                }
+            }
+        }
+
+        return $services;
+    }
+
+    /**
+     * Get unified manager application services
+     */
+    private function getUnifiedManagerApps(): array
+    {
+        $services = [];
+
+        // Find all app services (app-, pyapp-, webapp-)
+        $prefixes = ['app-', 'pyapp-', 'webapp-'];
+
+        foreach ($prefixes as $prefix) {
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', $prefix . '*']);
+
+            if ($result['success']) {
+                $lines = explode("\n", $result['output']);
+                foreach ($lines as $line) {
+                    if (preg_match('/^\s*(' . preg_quote($prefix) . '[^\s]+\.service)/', $line, $matches)) {
+                        $serviceName = str_replace('.service', '', $matches[1]);
+                        $services[$serviceName] = $this->getDetailedServiceInfo($serviceName);
+                    }
+                }
+            }
+        }
+
+        return $services;
+    }
+
+    /**
+     * Get detailed service information
+     */
+    private function getDetailedServiceInfo(string $serviceName): array
+    {
+        $statusResult = ServerManagerV1Utils::executeCommand('systemctl', ['status', $serviceName, '--no-pager']);
+        $isActive = ServerManagerV1Utils::executeCommand('systemctl', ['is-active', $serviceName]);
+        $isEnabled = ServerManagerV1Utils::executeCommand('systemctl', ['is-enabled', $serviceName]);
+
+        $info = [
+            'name' => $serviceName,
+            'active' => trim($isActive['output']) === 'active',
+            'enabled' => trim($isEnabled['output']) === 'enabled',
+            'status' => trim($isActive['output']),
+            'pid' => null,
+            'uptime' => null,
+            'memory' => null
+        ];
+
+        // Parse status output for additional details
+        if ($statusResult['success'] && !empty($statusResult['output'])) {
+            // Extract PID
+            if (preg_match('/Main PID:\s*(\d+)/', $statusResult['output'], $matches)) {
+                $info['pid'] = (int)$matches[1];
+            }
+
+            // Extract memory
+            if (preg_match('/Memory:\s*([^\s]+)/', $statusResult['output'], $matches)) {
+                $info['memory'] = $matches[1];
+            }
+
+            // Extract uptime/start time
+            if (preg_match('/Active:\s+active[^\n]*since\s+([^\n]+)/', $statusResult['output'], $matches)) {
+                $info['uptime'] = trim($matches[1]);
+            }
+        }
+
+        return $info;
+    }
+
+    /**
+     * Count running services
+     */
+    private function countRunningServices(array $services): int
+    {
+        $count = 0;
+        foreach ($services as $service) {
+            if (isset($service['active']) && $service['active'] === true) {
+                $count++;
+            }
+        }
+        return $count;
     }
     
     /**

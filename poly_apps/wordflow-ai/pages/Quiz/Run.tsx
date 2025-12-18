@@ -4,10 +4,11 @@ import { AppContext } from '../../contexts/AppContext';
 import { Icons, Button } from '../../components/UI';
 import { api } from '../../services/api';
 import { QuizQuestion } from '../../types';
+import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const QuizRunPage = () => {
   // [i18n] Added `t` function for multi-language support
-  const { navigate, t } = useContext(AppContext);
+  const { navigate, t, currentParams } = useContext(AppContext);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -17,7 +18,20 @@ const QuizRunPage = () => {
   const [gameOver, setGameOver] = useState(false);
 
   useEffect(() => {
-    api.getQuizSession().then(setQuestions);
+    api.getQuizSession().then(data => {
+      setQuestions(data);
+
+      // [Learning Progress] Start learning session
+      LearningProgressTracker.startSession(
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    });
+
+    // [Learning Progress] End session on unmount
+    return () => {
+      LearningProgressTracker.endSession();
+    };
   }, []);
 
   useEffect(() => {
@@ -35,6 +49,19 @@ const QuizRunPage = () => {
   }, [selectedOption, currentIndex, gameOver]);
 
   const handleTimeOut = () => {
+    const currentQ = questions[currentIndex];
+
+    // [Learning Progress] Record timeout as incorrect
+    if (currentQ?.wordId) {
+      LearningProgressTracker.recordWordReview(
+        currentQ.wordId,
+        currentQ.question,
+        false, // timeout = incorrect
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    }
+
     setIsCorrect(false);
     setSelectedOption('timeout');
     setTimeout(nextQuestion, 1500);
@@ -42,6 +69,20 @@ const QuizRunPage = () => {
 
   const handleSelect = (optionId: string, correct: boolean) => {
     if (selectedOption) return;
+
+    const currentQ = questions[currentIndex];
+
+    // [Learning Progress] Record answer result
+    if (currentQ?.wordId) {
+      LearningProgressTracker.recordWordReview(
+        currentQ.wordId,
+        currentQ.question,
+        correct,
+        currentParams?.groupId,
+        currentParams?.language || 'en'
+      );
+    }
+
     setSelectedOption(optionId);
     setIsCorrect(correct);
     if (correct) setScore(s => s + 10);
@@ -55,7 +96,10 @@ const QuizRunPage = () => {
       setIsCorrect(null);
       setTimeLeft(15);
     } else {
-      setGameOver(true);
+      // [Learning Progress] End session before game over
+      LearningProgressTracker.endSession().then(() => {
+        setGameOver(true);
+      });
     }
   };
 
@@ -75,6 +119,13 @@ const QuizRunPage = () => {
   );
 
   const currentQ = questions[currentIndex];
+
+  // [Learning Progress] Start tracking current word when index changes
+  useEffect(() => {
+    if (currentQ?.wordId) {
+      LearningProgressTracker.startWordTracking(currentQ.wordId);
+    }
+  }, [currentIndex, currentQ]);
 
   return (
     <div className="h-full flex flex-col p-6 pt-safe pb-safe relative overflow-hidden">

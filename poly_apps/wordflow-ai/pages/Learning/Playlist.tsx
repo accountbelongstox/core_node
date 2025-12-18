@@ -2,20 +2,21 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons } from '../../components/UI';
-import { api } from '../../services/api';
+import { ApiCenter } from '../../services/ApiCenter';
 import { Word } from '../../types';
+import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const PlaylistPage = () => {
-  const { navigate, playlistSettings, user } = useContext(AppContext);
+  const { navigate, playlistSettings, user, currentParams } = useContext(AppContext);
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [pageWords, setPageWords] = useState<Word[]>([]);
-  
+
   // Player State
   const [localIndex, setLocalIndex] = useState(0); // Index within the current page
   const [isPlaying, setIsPlaying] = useState(true);
   const [isReviewMode, setIsReviewMode] = useState(false);
-  
+
   // Refs for logic to avoid stale closures in interval
   const playerStateRef = useRef({
     localIndex: 0,
@@ -36,12 +37,34 @@ const PlaylistPage = () => {
 
   // Load Data
   useEffect(() => {
-    api.getWordsForGroup('g1').then(data => {
-      // Mock large dataset for testing pagination
-      const expanded = [...data, ...data, ...data, ...data, ...data]; // ~40 words
-      setAllWords(expanded);
+    const groupId = currentParams?.groupId || 'g1';
+    const language = currentParams?.language || 'en';
+
+    // Use real API to fetch words
+    ApiCenter.learning.getWordCards({
+      group_id: groupId,
+      language: language,
+      limit: 100 // Fetch up to 100 words for playlist
+    }).then(response => {
+      if (response.success && response.data) {
+        setAllWords(response.data);
+      } else {
+        console.error('[Playlist] Failed to load words:', response.error);
+        setAllWords([]);
+      }
+    }).catch(err => {
+      console.error('[Playlist] Error loading words:', err);
+      setAllWords([]);
     });
-  }, []);
+
+    // [Learning Progress] Start learning session
+    LearningProgressTracker.startSession(groupId, language);
+
+    // [Learning Progress] End session on unmount
+    return () => {
+      LearningProgressTracker.endSession();
+    };
+  }, [currentParams?.groupId, currentParams?.language]);
 
   // Handle Paging
   useEffect(() => {
@@ -55,10 +78,22 @@ const PlaylistPage = () => {
   // Player Engine
   useEffect(() => {
     let timer: any;
-    
+
     const tick = () => {
       const state = playerStateRef.current;
       if (!state.isPlaying || pageWords.length === 0) return;
+
+      // [Learning Progress] Record current word as reviewed before moving to next
+      const currentWord = pageWords[state.localIndex];
+      if (currentWord) {
+        LearningProgressTracker.recordWordReview(
+          currentWord.id,
+          currentWord.text,
+          true, // In playlist mode, we assume words are reviewed
+          currentParams?.groupId || 'g1',
+          currentParams?.language || 'en'
+        );
+      }
 
       let nextIndex = state.localIndex + 1;
 
@@ -83,7 +118,10 @@ const PlaylistPage = () => {
                  setCurrentPageIndex(p => p + 1);
                  setIsReviewMode(false);
              } else {
-                 setIsPlaying(false); // End of all words
+                 // [Learning Progress] End session when all words complete
+                 LearningProgressTracker.endSession().then(() => {
+                   setIsPlaying(false); // End of all words
+                 });
              }
              return;
          }
@@ -128,6 +166,14 @@ const PlaylistPage = () => {
   };
 
   const progressPercent = Math.min(100, Math.round((user?.dailyProgress || 0) / playlistSettings.dailyGoal * 100));
+
+  // [Learning Progress] Start tracking current word when localIndex changes
+  useEffect(() => {
+    const currentWord = pageWords[localIndex];
+    if (currentWord) {
+      LearningProgressTracker.startWordTracking(currentWord.id);
+    }
+  }, [localIndex, pageWords]);
 
   return (
     <div className="h-full flex flex-col bg-[#f8fafc] dark:bg-slate-950 animate-slide-up relative overflow-hidden">

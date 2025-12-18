@@ -1,10 +1,9 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons, Button } from '../../components/UI';
-import BentoCard from '../../components/BentoCard';
+import { Card, Icons, Button } from '../../components/UI';
 
 /**
- * Profile Page - Bento Box Layout with i18n
+ * Profile Page - Unified Design System
  */
 
 interface ConfirmDialogProps {
@@ -55,6 +54,47 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   );
 };
 
+interface StatCardProps {
+  value: number;
+  label: string;
+  icon: React.ReactNode;
+  gradient: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ value, label, icon, gradient }) => (
+  <Card className={`bg-gradient-to-br ${gradient} border-none shadow-lg`}>
+    <div className="flex items-center gap-3">
+      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white flex-shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1">
+        <div className="text-2xl font-bold text-white">{value}</div>
+        <div className="text-sm text-white/90">{label}</div>
+      </div>
+    </div>
+  </Card>
+);
+
+interface InfoCardProps {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+}
+
+const InfoCard: React.FC<InfoCardProps> = ({ label, value, icon }) => (
+  <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+    <div className="flex items-center gap-3">
+      {icon && <div className="text-slate-600 dark:text-slate-400">{icon}</div>}
+      <div className="flex-1">
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+          {label}
+        </p>
+        <p className="text-sm text-slate-900 dark:text-white font-medium">{value}</p>
+      </div>
+    </div>
+  </Card>
+);
+
 const ProfilePage = () => {
   const { user, navigate, logout, t } = useContext(AppContext);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -68,7 +108,6 @@ const ProfilePage = () => {
     navigate('home');
   };
 
-  // Helper to format gender
   const getGender = () => {
     if (user?.gender === 'male') return t('profile.male');
     if (user?.gender === 'female') return t('profile.female');
@@ -76,299 +115,335 @@ const ProfilePage = () => {
     return t('profile.notSet');
   };
 
+  // Mock achievements data
+  const achievements = [
+    { id: 1, name: 'First Steps', icon: '🎯', unlocked: true },
+    { id: 2, name: '7-Day Streak', icon: '🔥', unlocked: true },
+    { id: 3, name: '100 Words', icon: '📚', unlocked: true },
+    { id: 4, name: 'Speed Learner', icon: '⚡', unlocked: false },
+    { id: 5, name: 'Night Owl', icon: '🦉', unlocked: false },
+    { id: 6, name: 'Perfect Week', icon: '✨', unlocked: false },
+  ];
+
   return (
-    <div className="h-full flex flex-col pt-safe animate-slide-up-fade">
-      {/* Floating Title */}
-      <div className="px-6 pt-12 pb-6 flex items-center justify-between">
-        <h1 className="text-4xl font-serif text-slate-800 dark:text-white tracking-tight">
-          {t('profile.myProfile')}
-        </h1>
-        <button
-          onClick={() => navigate('settings')}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors border border-transparent dark:border-white/5"
-        >
-          <Icons.Close />
-        </button>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
+      {/* Header */}
+      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+            {t('profile.myProfile')}
+          </h1>
+          <button
+            onClick={() => navigate('settings')}
+            className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Icons.Close />
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-32 no-scrollbar max-w-4xl mx-auto w-full">
-        {/* Bento Box Grid Layout */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          {/* Large Card: Profile Header - Spans 2 columns */}
-          <BentoCard colSpan={2} glowing className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-900/20 dark:to-purple-900/20">
-            <div className="relative flex items-center gap-4">
-              <div className="relative p-1 rounded-full border-2 border-blue-500/30 dark:border-white/20">
+      <div className="max-w-md mx-auto px-6 space-y-6">
+        {/* Profile Header Card */}
+        <Card
+          onClick={() => navigate('profile_edit')}
+          className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full border-4 border-white/30 overflow-hidden">
                 <img
                   src={user?.avatar_url || user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || 'User')}&background=3b82f6&color=fff`}
-                  className="w-20 h-20 rounded-full object-cover"
+                  className="w-full h-full object-cover"
                   alt="Avatar"
                 />
               </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {user?.name || user?.nickname || user?.username || 'User'}
-                </h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">@{user?.username}</p>
-                {user?.isPro && (
-                  <span className="inline-block mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold rounded-full shadow-md">
-                    ⭐ {t('profile.proMember')}
-                  </span>
-                )}
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                <Icons.Edit className="w-4 h-4 text-blue-600" />
               </div>
             </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-1">
+                {user?.name || user?.nickname || user?.username || 'User'}
+              </h2>
+              <p className="text-blue-100 text-sm mb-2">@{user?.username}</p>
+              {user?.isPro && (
+                <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full">
+                  ⭐ {t('profile.proMember')}
+                </span>
+              )}
+            </div>
+          </div>
 
-            <button
-              onClick={() => navigate('profile_edit')}
-              className="mt-4 w-full bg-white/60 dark:bg-slate-800/60 hover:bg-white/80 dark:hover:bg-slate-800/80 backdrop-blur-xl text-slate-900 dark:text-white font-bold py-2.5 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 border border-white/40 dark:border-white/10"
-            >
-              <Icons.Edit className="w-4 h-4" />
-              {t('profile.editProfile')}
-            </button>
-          </BentoCard>
-
-          {/* Stats Cards */}
-          <BentoCard className="p-5 text-center bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10">
-            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-              {user?.total_words || 0}
-            </div>
-            <div className="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wide">
-              {t('profile.totalWords')}
-            </div>
-          </BentoCard>
-
-          <BentoCard className="p-5 text-center bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10">
-            <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
-              {user?.learned_words || 0}
-            </div>
-            <div className="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wide">
-              {t('profile.learnedWords')}
-            </div>
-          </BentoCard>
-
-          <BentoCard colSpan={2} className="p-5 text-center bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/10">
-            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
-              {user?.mastered_words || 0}
-            </div>
-            <div className="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wide">
-              {t('profile.masteredWords')}
-            </div>
-          </BentoCard>
-
-          {/* Email Card */}
-          <BentoCard colSpan={2} className="p-4">
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-              {t('profile.email')}
-            </div>
-            <div className="text-slate-800 dark:text-white font-medium">
-              {user?.email || t('profile.notSet')}
-            </div>
-          </BentoCard>
-
-          {/* Bio Card - Large */}
           {user?.bio && (
-            <BentoCard colSpan={2} className="p-4">
-              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-                {t('profile.bio')}
-              </div>
-              <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
-                {user.bio}
-              </div>
-            </BentoCard>
+            <div className="mt-4 pt-4 border-t border-white/20">
+              <p className="text-blue-100 text-sm leading-relaxed">{user.bio}</p>
+            </div>
           )}
 
-          {/* Personal Info Grid */}
-          {(user?.phone || user?.age || user?.gender || user?.birthday) && (
-            <>
-              {user?.phone && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.phone')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium truncate">
-                    {user.phone}
-                  </div>
-                </BentoCard>
-              )}
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-100">
+            <Icons.Edit className="w-4 h-4" />
+            <span>{t('profile.editProfile')}</span>
+          </div>
+        </Card>
 
+        {/* Learning Stats Section */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            Learning Statistics
+          </h2>
+
+          <StatCard
+            value={user?.total_words || 0}
+            label={t('profile.totalWords')}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            }
+            gradient="from-blue-500 to-blue-600"
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              value={user?.learned_words || 0}
+              label={t('profile.learnedWords')}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              gradient="from-green-500 to-emerald-600"
+            />
+
+            <StatCard
+              value={user?.mastered_words || 0}
+              label={t('profile.masteredWords')}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              }
+              gradient="from-purple-500 to-pink-600"
+            />
+          </div>
+        </div>
+
+        {/* Achievements Section */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+            Achievements
+          </h2>
+
+          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <div className="grid grid-cols-3 gap-3">
+              {achievements.map((achievement) => (
+                <button
+                  key={achievement.id}
+                  className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${
+                    achievement.unlocked
+                      ? 'bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg'
+                      : 'bg-slate-100 dark:bg-slate-900 opacity-50'
+                  }`}
+                >
+                  <span className="text-2xl">{achievement.icon}</span>
+                  <span className={`text-xs font-bold ${achievement.unlocked ? 'text-white' : 'text-slate-400'}`}>
+                    {achievement.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-slate-800 dark:to-slate-800 border border-orange-200 dark:border-slate-700">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-900 dark:text-white mb-1">
+                  {achievements.filter(a => a.unlocked).length} / {achievements.length} Unlocked
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Keep learning to unlock more achievements!
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Personal Information Section */}
+        {(user?.email || user?.phone || user?.age || user?.gender || user?.birthday) && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              Personal Information
+            </h2>
+
+            {user?.email && (
+              <InfoCard
+                label={t('profile.email')}
+                value={user.email}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                }
+              />
+            )}
+
+            {user?.phone && (
+              <InfoCard
+                label={t('profile.phone')}
+                value={user.phone}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                }
+              />
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
               {user?.age && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.age')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {t('profile.yearsOld', { age: user.age })}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.age')}
+                  value={t('profile.yearsOld', { age: user.age })}
+                />
               )}
 
               {user?.gender && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.gender')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {getGender()}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.gender')}
+                  value={getGender()}
+                />
               )}
+            </div>
 
-              {user?.birthday && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.birthday')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.birthday}
-                  </div>
-                </BentoCard>
-              )}
-            </>
-          )}
+            {user?.birthday && (
+              <InfoCard
+                label={t('profile.birthday')}
+                value={user.birthday}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                }
+              />
+            )}
+          </div>
+        )}
 
-          {/* Location Cards */}
-          {(user?.location || user?.city) && (
-            <>
-              {user?.location && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.location')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.location}
-                  </div>
-                </BentoCard>
-              )}
+        {/* Location & Background Section */}
+        {(user?.location || user?.city || user?.occupation || user?.education || user?.native_language) && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              Background
+            </h2>
 
-              {user?.city && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.city')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.city}
-                  </div>
-                </BentoCard>
-              )}
-            </>
-          )}
+            {(user?.location || user?.city) && (
+              <div className="grid grid-cols-2 gap-3">
+                {user?.location && (
+                  <InfoCard
+                    label={t('profile.location')}
+                    value={user.location}
+                  />
+                )}
 
-          {/* Work & Education */}
-          {(user?.occupation || user?.education) && (
-            <>
-              {user?.occupation && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.occupation')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.occupation}
-                  </div>
-                </BentoCard>
-              )}
+                {user?.city && (
+                  <InfoCard
+                    label={t('profile.city')}
+                    value={user.city}
+                  />
+                )}
+              </div>
+            )}
 
-              {user?.education && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.education')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.education}
-                  </div>
-                </BentoCard>
-              )}
-            </>
-          )}
+            {(user?.occupation || user?.education) && (
+              <div className="grid grid-cols-2 gap-3">
+                {user?.occupation && (
+                  <InfoCard
+                    label={t('profile.occupation')}
+                    value={user.occupation}
+                  />
+                )}
 
-          {/* Language & Culture */}
-          {(user?.native_language || user?.religion) && (
-            <>
-              {user?.native_language && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.nativeLanguage')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.native_language}
-                  </div>
-                </BentoCard>
-              )}
+                {user?.education && (
+                  <InfoCard
+                    label={t('profile.education')}
+                    value={user.education}
+                  />
+                )}
+              </div>
+            )}
 
-              {user?.religion && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.religion')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium">
-                    {user.religion}
-                  </div>
-                </BentoCard>
-              )}
-            </>
-          )}
+            {user?.native_language && (
+              <InfoCard
+                label={t('profile.nativeLanguage')}
+                value={user.native_language}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  </svg>
+                }
+              />
+            )}
+          </div>
+        )}
 
-          {/* Social Links */}
-          {(user?.website || user?.github || user?.wechat || user?.weibo || user?.qq) && (
-            <>
-              {user?.website && (
-                <BentoCard colSpan={2} className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.website')}
-                  </div>
-                  <div className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">
-                    {user.website}
-                  </div>
-                </BentoCard>
-              )}
+        {/* Social Links Section */}
+        {(user?.website || user?.github || user?.wechat || user?.weibo || user?.qq) && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              Social Links
+            </h2>
 
+            {user?.website && (
+              <InfoCard
+                label={t('profile.website')}
+                value={user.website}
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                }
+              />
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
               {user?.github && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.github')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium truncate">
-                    {user.github}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.github')}
+                  value={user.github}
+                />
               )}
 
               {user?.wechat && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.wechat')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium truncate">
-                    {user.wechat}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.wechat')}
+                  value={user.wechat}
+                />
               )}
 
               {user?.weibo && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.weibo')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium truncate">
-                    {user.weibo}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.weibo')}
+                  value={user.weibo}
+                />
               )}
 
               {user?.qq && (
-                <BentoCard className="p-4">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
-                    {t('profile.qq')}
-                  </div>
-                  <div className="text-sm text-slate-800 dark:text-white font-medium truncate">
-                    {user.qq}
-                  </div>
-                </BentoCard>
+                <InfoCard
+                  label={t('profile.qq')}
+                  value={user.qq}
+                />
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
 
         {/* Logout Button */}
-        <div className="mt-6">
+        <div className="space-y-3 pt-3">
           <Button
             variant="danger"
             className="opacity-80 hover:opacity-100"
@@ -376,7 +451,7 @@ const ProfilePage = () => {
           >
             {t('auth.logout')}
           </Button>
-          <p className="text-center text-xs text-slate-400 mt-6 font-mono opacity-50">
+          <p className="text-center text-xs text-slate-400 font-mono opacity-50">
             WORDFLOW AI • {user?.username}
           </p>
         </div>
